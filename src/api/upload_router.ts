@@ -6,8 +6,12 @@ import multer from "multer";
 import buffer from "buffer";
 
 import EcmRegistry from "../ecm/ecm_registry";
+import { getRequestContext } from "./request_context_ builder";
 
-const multerHandler = multer({ storage: multer.memoryStorage(), limits: { fieldSize: 10485760 } });
+const multerHandler = multer({
+	storage: multer.memoryStorage(),
+	limits: { fieldSize: 10485760 },
+});
 
 const uploadRouter = express.Router();
 export default uploadRouter;
@@ -36,7 +40,7 @@ function getFileBlob(file: Express.Multer.File) {
 async function updateNodeFileHandler(req: Request, res: Response) {
 	if (req.file) {
 		return EcmRegistry.nodeService
-			.updateFile(req.params.uuid, getFileBlob(req.file))
+			.updateFile(getRequestContext(req), req.params.uuid, getFileBlob(req.file))
 			.then((result) => res.json(result))
 			.catch((err) => processError(err, res));
 	}

@@ -12,6 +12,7 @@ import {
 } from "firebase/firestore";
 import Aspect, { AspectProperty } from "../../aspect";
 import AspectService from "../../aspect_service";
+import RequestContext from "../../request_context";
 
 export default class CmzAspectService implements AspectService {
 	private afs: Firestore;
@@ -26,19 +27,19 @@ export default class CmzAspectService implements AspectService {
 		return snapshot.docs.map((doc) => doc.data()) as unknown as Aspect[];
 	}
 
-	async get(uuid: string): Promise<Aspect> {
+	async get(request: RequestContext, uuid: string): Promise<Aspect> {
 		return getDoc(this.getDocRef(uuid)).then((data) => data.data() as Aspect);
 	}
 
-	create(aspect: Aspect): Promise<void> {
+	create(request: RequestContext, aspect: Aspect): Promise<void> {
 		return this.saveAspect(aspect.uuid, aspect);
 	}
 
-	update(uuid: string, aspect: Aspect): Promise<void> {
+	update(request: RequestContext, uuid: string, aspect: Aspect): Promise<void> {
 		return this.saveAspect(uuid, { ...aspect, uuid });
 	}
 
-	delete(uuid: string): Promise<void> {
+	delete(request: RequestContext, uuid: string): Promise<void> {
 		return deleteDoc(this.getDocRef(uuid));
 	}
 

@@ -1,4 +1,4 @@
-import { Node, NodeFilter } from "../../node";
+import Node, { NodeFilter } from "../../node";
 import NodeRepository from "../../node_repository";
 import { NodeFilterResult } from "../../node_service";
 

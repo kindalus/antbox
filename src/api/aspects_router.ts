@@ -1,6 +1,7 @@
 import express, { Request, Response } from "express";
 import Aspect from "../ecm/aspect";
 import EcmRegistry from "../ecm/ecm_registry";
+import { getRequestContext } from "./request_context_ builder";
 
 const aspectsRouter = express.Router();
 
@@ -13,30 +14,29 @@ aspectsRouter.put("/:uuid", updateHandler);
 function createHandler(req: Request, res: Response) {
 	const aspect = req.body as unknown as Aspect;
 
-
 	EcmRegistry.aspectService
-		.create(aspect)
+		.create(getRequestContext(req), aspect)
 		.then(() => res.sendStatus(200))
 		.catch((err) => handleError(req, res, err));
 }
 
 function deleteHandler(req: Request, res: Response) {
 	EcmRegistry.aspectService
-		.delete(req.params.uuid)
+		.delete(getRequestContext(req), req.params.uuid)
 		.then(() => res.sendStatus(200))
 		.catch((err) => handleError(req, res, err));
 }
 
 function getHandler(req: Request, res: Response) {
 	EcmRegistry.aspectService
-		.get(req.params.uuid)
+		.get(getRequestContext(req), req.params.uuid)
 		.then((aspect) => res.json(aspect))
 		.catch((err) => handleError(req, res, err));
 }
 
 function listHandler(req: Request, res: Response) {
 	EcmRegistry.aspectService
-		.list()
+		.list(getRequestContext(req))
 		.then((list) => res.json(list))
 		.catch((err) => handleError(req, res, err));
 }
@@ -44,7 +44,7 @@ function listHandler(req: Request, res: Response) {
 function updateHandler(req: Request, res: Response) {
 	const aspect = req.body as unknown as Aspect;
 	EcmRegistry.aspectService
-		.update(req.params.uuid, aspect)
+		.update(getRequestContext(req), req.params.uuid, aspect)
 		.then(() => res.sendStatus(200))
 		.catch((err) => handleError(req, res, err));
 }

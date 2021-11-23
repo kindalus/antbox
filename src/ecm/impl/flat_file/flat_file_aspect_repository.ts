@@ -28,7 +28,6 @@ export default class FlatFileAspectRepository implements AspectRepository {
 	}
 
 	async addOrReplace(aspect: Aspect): Promise<void> {
-		
 		const filePath = this.buildFilePath(aspect.uuid);
 
 		if (!fs.existsSync(this.path)) {

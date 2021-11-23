@@ -1,6 +1,6 @@
 import NodeRepository from "./node_repository";
 import NodeService, { NodeFilterResult, SmartFolderNodeEvaluation } from "./node_service";
-import { Node, 
+import Node, {
 	isFid,
 	ROOT_FOLDER_UUID,
 	uuidToFid,
@@ -20,6 +20,7 @@ import { FolderNotFoundError } from "./folder_not_found_error";
 import SmartFolderNodeNotFoundError from "./smart_folder_node_not_found_error";
 import NodeNotFoundError from "./node_not_found_error";
 import InvalidNodeToCopyError from "./invalid_node_to_copy_error";
+import RequestContext from "./request_context";
 
 export interface DefaultNodeServiceContext {
 	readonly auth: AuthService;
@@ -36,10 +37,15 @@ export default class DefaultNodeService implements NodeService {
 		this.context = context;
 	}
 
-	async createFile(file: File, parent = ROOT_FOLDER_UUID): Promise<string> {
+	async createFile(
+		request: RequestContext,
+		file: File,
+		parent = ROOT_FOLDER_UUID,
+	): Promise<string> {
 		const node = this.createFileMetadata(parent, file.name, file.type, file.size);
 
-		if (this.isRootFolder(parent)) await this.addToParentFolderNodeMetadata(parent, node);
+		if (this.isRootFolder(parent))
+			await this.addToParentFolderNodeMetadata(parent, node);
 
 		await this.context.storage.write(node.uuid, file);
 		await this.context.repository.add(node);
@@ -56,10 +62,15 @@ export default class DefaultNodeService implements NodeService {
 		this.context.repository.update(parentNode);
 	}
 
-	async createFolder(title: string, parent = ROOT_FOLDER_UUID): Promise<string> {
+	async createFolder(
+		request: RequestContext,
+		title: string,
+		parent = ROOT_FOLDER_UUID,
+	): Promise<string> {
 		const node = this.createFolderMetadata(parent, title);
 
-		if (this.isRootFolder(parent)) await this.addToParentFolderNodeMetadata(parent, node);
+		if (this.isRootFolder(parent))
+			await this.addToParentFolderNodeMetadata(parent, node);
 
 		this.context.repository.add(node);
 
@@ -74,7 +85,7 @@ export default class DefaultNodeService implements NodeService {
 		parent: string,
 		title: string,
 		mimetype: string,
-		size: number
+		size: number,
 	): Node {
 		return {
 			uuid: this.context.uuidGenerator.generate(),
@@ -100,8 +111,8 @@ export default class DefaultNodeService implements NodeService {
 		};
 	}
 
-	async copy(uuid: string): Promise<string> {
-		const node = await this.get(uuid);
+	async copy(request: RequestContext, uuid: string): Promise<string> {
+		const node = await this.get(request, uuid);
 		const file = await this.context.storage.read(uuid);
 
 		if (!this.isFileNode(node)) throw new InvalidNodeToCopyError(uuid);
@@ -110,7 +121,7 @@ export default class DefaultNodeService implements NodeService {
 			node.parent ?? ROOT_FOLDER_UUID,
 			node.title,
 			node.mimetype,
-			0
+			0,
 		);
 
 		await this.context.storage.write(newNode.uuid, file);
@@ -119,8 +130,8 @@ export default class DefaultNodeService implements NodeService {
 		return Promise.resolve(newNode.uuid);
 	}
 
-	async updateFile(uuid: string, file: File): Promise<void> {
-		const node = await this.get(uuid);
+	async updateFile(request: RequestContext, uuid: string, file: File): Promise<void> {
+		const node = await this.get(request, uuid);
 
 		node.modifiedTime = now();
 		node.size = file.size;
@@ -131,13 +142,13 @@ export default class DefaultNodeService implements NodeService {
 		await this.context.repository.update(node);
 	}
 
-	async delete(uuid: string): Promise<void> {
-		const node = await this.get(uuid);
+	async delete(request: RequestContext, uuid: string): Promise<void> {
+		const node = await this.get(request, uuid);
 
 		return NodeDeleter.for(node, this.context).delete();
 	}
 
-	async get(uuid: string): Promise<Node> {
+	async get(request: RequestContext, uuid: string): Promise<Node> {
 		const node = await this.getFromRepository(uuid);
 
 		if (!node) throw new NodeNotFoundError(uuid);
@@ -150,11 +161,12 @@ export default class DefaultNodeService implements NodeService {
 		return this.context.repository.getById(uuid);
 	}
 
-	async list(parent = ROOT_FOLDER_UUID): Promise<Node[]> {
+	async list(request: RequestContext, parent = ROOT_FOLDER_UUID): Promise<Node[]> {
 		if (this.isRootFolder(parent)) {
 			const parentFolder = await this.context.repository.getById(parent);
 
-			if (parentFolder?.mimetype !== FOLDER_MIMETYPE) throw new FolderNotFoundError(parent);
+			if (parentFolder?.mimetype !== FOLDER_MIMETYPE)
+				throw new FolderNotFoundError(parent);
 		}
 
 		return this.context.repository
@@ -162,19 +174,31 @@ export default class DefaultNodeService implements NodeService {
 			.then((result) => result.nodes);
 	}
 
-	query(constraints: NodeFilter[], pageSize = 25, pageToken = 1): Promise<NodeFilterResult> {
+	query(
+		request: RequestContext,
+		constraints: NodeFilter[],
+		pageSize = 25,
+		pageToken = 1,
+	): Promise<NodeFilterResult> {
 		return this.context.repository.filter(constraints, pageSize, pageToken);
 	}
 
-	async update(uuid: string, data: Partial<Node>): Promise<void> {
-		const node = await this.get(uuid);
+	async update(
+		request: RequestContext,
+		uuid: string,
+		data: Partial<Node>,
+	): Promise<void> {
+		const node = await this.get(request, uuid);
 
 		if (!node) throw new NodeNotFoundError(uuid);
 
 		await this.context.repository.update({ ...node, ...data });
 	}
 
-	async evaluate(uuid: string): Promise<SmartFolderNodeEvaluation> {
+	async evaluate(
+		request: RequestContext,
+		uuid: string,
+	): Promise<SmartFolderNodeEvaluation> {
 		const node = (await this.context.repository.getById(uuid)) as SmartFolderNode;
 
 		if (!this.isSmartFolderNode(node)) throw new SmartFolderNodeNotFoundError(uuid);
@@ -184,12 +208,18 @@ export default class DefaultNodeService implements NodeService {
 			.then((filtered) => ({ records: filtered.nodes }));
 
 		if (this.hasAggregations(node))
-			return this.appendAggregations(evaluation, node.aggregations as Aggregation[]);
+			return this.appendAggregations(
+				evaluation,
+				node.aggregations as Aggregation[],
+			);
 
 		return Promise.resolve(evaluation);
 	}
 
-	private appendAggregations(evaluation: SmartFolderNodeEvaluation, aggregations: Aggregation[]) {
+	private appendAggregations(
+		evaluation: SmartFolderNodeEvaluation,
+		aggregations: Aggregation[],
+	) {
 		const aggregationsMap = aggregations.map((aggregation) => {
 			const formula = Reducers[aggregation.formula as string];
 
@@ -223,8 +253,8 @@ export default class DefaultNodeService implements NodeService {
 		return !this.isSmartFolderNode(node) && !this.isFolderNode(node);
 	}
 
-	async export(uuid: string): Promise<Blob> {
-		const node = await this.get(uuid);
+	async export(request: RequestContext, uuid: string): Promise<Blob> {
+		const node = await this.get(request, uuid);
 		const blob = await this.context.storage.read(node.uuid);
 
 		return blob;
@@ -315,7 +345,7 @@ function calculateAggregation<T>(
 	fn: AggregatorFn<T>,
 	initialValue: T,
 	nodes: Node[],
-	field: string
+	field: string,
 ): T {
 	return nodes.reduce((acc, node) => {
 		const value = node[field] ?? node.properties?.[field];
@@ -348,12 +378,22 @@ const Reducers: Record<string, ReducerFn> = {
 
 	max(nodes: Node[], fieldName: string) {
 		const fn = (acc: number, curValue: number) => (acc > curValue ? acc : curValue);
-		return calculateAggregation(fn as AggregatorFn<unknown>, undefined, nodes, fieldName);
+		return calculateAggregation(
+			fn as AggregatorFn<unknown>,
+			undefined,
+			nodes,
+			fieldName,
+		);
 	},
 
 	min(nodes: Node[], fieldName: string) {
 		const fn = (acc: number, curValue: number) => (acc < curValue ? acc : curValue);
-		return calculateAggregation(fn as AggregatorFn<unknown>, undefined, nodes, fieldName);
+		return calculateAggregation(
+			fn as AggregatorFn<unknown>,
+			undefined,
+			nodes,
+			fieldName,
+		);
 	},
 
 	med(nodes: Node[], fieldName: string) {

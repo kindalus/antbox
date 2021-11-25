@@ -1,6 +1,6 @@
-import AspectService from "./aspect_service";
-import AuthService from "./auth_service";
-import NodeService from "./node_service";
+import AspectService from "./aspect_service.js";
+import AuthService from "./auth_service.js";
+import NodeService from "./node_service.js";
 
 export interface EcmConfig {
 	readonly nodeService: NodeService;
@@ -28,15 +28,15 @@ export default class EcmRegistry {
 	}
 
 	static get nodeService() {
-		return EcmRegistry._instance._nodeService;
+		return EcmRegistry._instance?._nodeService;
 	}
 
 	static get aspectService() {
-		return EcmRegistry._instance._aspectService;
+		return EcmRegistry._instance?._aspectService;
 	}
 
 	static get authService() {
-		return EcmRegistry._instance._authService;
+		return EcmRegistry._instance?._authService;
 	}
 
 	constructor(config: EcmConfig) {

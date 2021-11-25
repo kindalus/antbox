@@ -1,8 +1,8 @@
 import * as fs from "fs";
 import * as path from "path";
 
-import Node from "../../node";
-import InMemoryNodeRepository from "../in_memory/in_memory_node_repository";
+import Node from "../../node.js";
+import InMemoryNodeRepository from "../in_memory/in_memory_node_repository.js";
 
 export default class FlatFileNodeRepository extends InMemoryNodeRepository {
 	private lastBackupTime: number = 0;

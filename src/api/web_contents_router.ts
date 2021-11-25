@@ -1,7 +1,7 @@
 import { IncomingMessage, ServerResponse } from "http";
-import EcmRegistry from "../ecm/ecm_registry";
+import EcmRegistry from "../ecm/ecm_registry.js";
 import express, { Request, Response } from "express";
-import { getRequestContext } from "./request_context_ builder";
+import { getRequestContext } from "./request_context_builder.js";
 
 const webContentsRouter = express.Router();
 

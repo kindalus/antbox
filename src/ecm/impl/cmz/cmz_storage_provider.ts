@@ -1,4 +1,4 @@
-import StorageProvider from "../../storage_provider";
+import StorageProvider from "../../storage_provider.js";
 
 import {
 	deleteObject,

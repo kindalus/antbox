@@ -4,8 +4,9 @@
   "main": "lib/index.js",
   "types": "lib",
   "scripts": {
-    "build": "tsc -p ."
+    "build": "tsc"
   },
+  "type": "module",
   "repository": {
     "type": "git",
     "url": "git+ssh://git@gitlab.com/zafir.io/antbox.git"

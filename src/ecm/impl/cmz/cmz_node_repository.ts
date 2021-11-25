@@ -1,6 +1,6 @@
-import Node, { NodeFilter } from "../../node";
-import NodeRepository from "../../node_repository";
-import { NodeFilterResult } from "../../node_service";
+import Node, { NodeFilter } from "../../node.js";
+import NodeRepository from "../../node_repository.js";
+import { NodeFilterResult } from "../../node_service.js";
 
 import {
 	Firestore,

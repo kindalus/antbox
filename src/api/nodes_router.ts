@@ -1,8 +1,8 @@
-import EcmRegistry from "../ecm/ecm_registry";
+import EcmRegistry from "../ecm/ecm_registry.js";
 import * as express from "express";
 import { Request, Response } from "express";
-import processError from "./process_error";
-import { getRequestContext } from "./request_context_ builder";
+import processError from "./process_error.js";
+import { getRequestContext } from "./request_context_builder.js";
 
 const nodesRouter = express.Router();
 

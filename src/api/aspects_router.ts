@@ -1,7 +1,7 @@
 import express, { Request, Response } from "express";
-import Aspect from "../ecm/aspect";
-import EcmRegistry from "../ecm/ecm_registry";
-import { getRequestContext } from "./request_context_ builder";
+import Aspect from "../ecm/aspect.js";
+import EcmRegistry from "../ecm/ecm_registry.js";
+import { getRequestContext } from "./request_context_builder.js";
 
 const aspectsRouter = express.Router();
 

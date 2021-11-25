@@ -1,12 +1,12 @@
 import * as express from "express";
 import { Request, Response } from "express";
-import processError from "./process_error";
+import processError from "./process_error.js";
 import multer from "multer";
 
 import buffer from "buffer";
 
-import EcmRegistry from "../ecm/ecm_registry";
-import { getRequestContext } from "./request_context_ builder";
+import EcmRegistry from "../ecm/ecm_registry.js";
+import { getRequestContext } from "./request_context_builder.js";
 
 const multerHandler = multer({
 	storage: multer.memoryStorage(),

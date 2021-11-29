@@ -1,5 +1,8 @@
 import NodeRepository from "./node_repository.js";
-import NodeService, { NodeFilterResult, SmartFolderNodeEvaluation } from "./node_service.js";
+import NodeService, {
+	NodeFilterResult,
+	SmartFolderNodeEvaluation,
+} from "./node_service.js";
 import Node, {
 	isFid,
 	ROOT_FOLDER_UUID,
@@ -54,11 +57,12 @@ export default class DefaultNodeService implements NodeService {
 	}
 
 	private async addToParentFolderNodeMetadata(parent: string, node: Node) {
-		const parentNode = await this.context.repository.getById(parent);
+		const parentNode = (await this.context.repository.getById(parent)) as FolderNode;
 
 		if (!parentNode) throw new FolderNotFoundError(parent);
 
-		(parentNode as FolderNode).children.push(node.uuid);
+		parentNode.children = [...(parentNode.children ?? []), node.uuid];
+
 		this.context.repository.update(parentNode);
 	}
 

@@ -25,7 +25,7 @@ async function createNodeFileHandler(req: Request, res: Response) {
 		blob.name = req.file.originalname;
 
 		return EcmRegistry.nodeService
-			.createFile(blob, req.body?.parent)
+			.createFile(getRequestContext(req), blob, req.body?.parent)
 			.then((result) => res.json(result))
 			.catch((err) => processError(err, res));
 	}

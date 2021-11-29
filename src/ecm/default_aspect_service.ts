@@ -3,6 +3,7 @@ import AspectService from "./aspect_service.js";
 import Aspect from "./aspect.js";
 import AspectRepository from "./aspect_repository.js";
 import RequestContext from "./request_context.js";
+import web_content from "./builtin_aspects/web_content.js";
 
 export interface DefaultAspectServiceContext {
 	readonly auth: AuthService;
@@ -37,6 +38,8 @@ export default class DefaultAspectService implements AspectService {
 	}
 
 	list(): Promise<Aspect[]> {
-		return this.context.repository.getAll();
+		return this.context.repository
+			.getAll()
+			.then((aspects) => [web_content, ...aspects]);
 	}
 }

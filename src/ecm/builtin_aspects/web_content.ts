@@ -1,4 +1,3 @@
-import { AspectProperty, PropertyType } from "../aspect";
 
 export interface WebContent {
 	pt: string;

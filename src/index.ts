@@ -21,6 +21,7 @@ import Node, {
 } from "./ecm/node.js";
 
 import AuthService from "./ecm/auth_service.js";
+import { WebContent } from "./ecm/builtin_aspects/web_content.js";
 
 export {
 	
@@ -42,4 +43,5 @@ export {
 	NodeService,
 	Properties,
 	SmartFolderNodeEvaluation,
+	WebContent,
 };

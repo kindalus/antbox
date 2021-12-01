@@ -7,20 +7,19 @@ const webContentsRouter = express.Router();
 webContentsRouter.get("/:uuid/:lang", handleGet);
 
 async function handleGet(req: Request, res: Response) {
+	try {
+		const blob = await EcmRegistry.nodeService.export(
+			getRequestContext(req),
+			req.params.uuid,
+		);
 
-	const blob = await EcmRegistry.nodeService.export(
-		getRequestContext(req),
-		req.params.uuid,
-	);
+		const webContent = await blob.text().then(JSON.parse);
 
-
-	if(!blob) {
-		return res.status(401).json("Web content not found: " + req.params.uuid)
+		return res.send(webContent[req.params.lang] ?? webContent.pt);
+	} catch (err: any) {
+		const status = err.errorCode && err.errorCode === "NodeNotFoundError" ? 404 : 500;
+		return res.status(status).json(err);
 	}
-
-	const webContent = await blob.text().then(JSON.parse)
-
-	return res.send(webContent[req.params.lang] ?? webContent.pt);
 }
 
 export default webContentsRouter;

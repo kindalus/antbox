@@ -51,7 +51,7 @@ export default class FlatFileStorageProvider implements StorageProvider {
 
 	private buildFileFolderPath(uuid: string) {
 		const [l1, l2] = uuid;
-		return path.join(this.path, l1, l2, uuid);
+		return path.join(this.path, l1.toUpperCase(), l2.toUpperCase(), uuid);
 	}
 
 	private buildFilePath(uuid: string) {

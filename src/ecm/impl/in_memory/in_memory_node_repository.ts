@@ -70,10 +70,18 @@ export default class InMemoryNodeRepository implements NodeRepository {
 		filter: NodeFilter,
 	): boolean {
 		const [field, operator, value] = filter;
+		const fieldValue = this.getFieldValue(node, field);
+
 		const match = filterFns[operator];
-		const comparison = match(node[field], value);
+		const comparison = match(fieldValue, value);
 
 		return comparison && previous;
+	}
+
+	private getFieldValue(node: Node, fieldPath: string) {
+		const fields = fieldPath.split(".");
+
+		return fields.reduce((acc: any, field) => acc?.[field], { ...node });
 	}
 }
 

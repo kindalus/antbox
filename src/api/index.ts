@@ -1,5 +1,5 @@
-import EcmRegistry, { EcmConfig } from "../ecm/ecm_registry";
-import server from "./server";
+import EcmRegistry, { EcmConfig } from "../ecm/ecm_registry.js";
+import server from "./server.js";
 
 const configureServer = (ecmConfig: EcmConfig) => EcmRegistry.buildIfNone(ecmConfig);
 

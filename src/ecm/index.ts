@@ -6,8 +6,10 @@ import FlatFileNodeRepository from "./impl/flat_file/flat_file_node_repository.j
 import FlatFileStorageProvider from "./impl/flat_file/flat_file_storage_provider.js";
 import DefaultFidGenerator from "./impl/providers/default_fid_generator.js";
 import DefaultUuidGenerator from "./impl/providers/default_uuid_generator.js";
+import EcmRegistry from "./ecm_registry.js";
 
 export {
+	EcmRegistry,
 	DefaultAspectService,
 	DefaultFidGenerator,
 	DefaultNodeService,

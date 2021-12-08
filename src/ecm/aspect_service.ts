@@ -1,7 +1,7 @@
-import Aspect from "./aspect";
-import RequestContext from "./request_context";
+import { Aspect } from "./aspect";
+import { RequestContext } from "./request_context";
 
-export default interface AspectService {
+export interface AspectService {
 	/**
 	 * Cria um novo aspecto.
 	 */

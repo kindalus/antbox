@@ -1,6 +1,6 @@
-import AspectService from "./aspect_service";
-import AuthService from "./auth_service";
-import NodeService from "./node_service";
+import { AspectService } from "./aspect_service";
+import { AuthService } from "./auth_service";
+import { NodeService } from "./node_service";
 
 export interface EcmConfig {
 	readonly nodeService: NodeService;

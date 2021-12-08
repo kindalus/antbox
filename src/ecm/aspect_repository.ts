@@ -1,4 +1,4 @@
-import Aspect from  "./aspect";
+import { Aspect } from  "./aspect";
 
 export default interface AspectRepository {
 	delete(uuid: string): Promise<void>;

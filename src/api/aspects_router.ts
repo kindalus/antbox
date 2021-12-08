@@ -1,5 +1,5 @@
 import express, { Request, Response } from "express";
-import Aspect from "../ecm/aspect";
+import { Aspect } from "../ecm/aspect";
 import EcmRegistry from "../ecm/ecm_registry";
 import { getRequestContext } from "./request_context_builder";
 

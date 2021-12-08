@@ -1,8 +1,8 @@
-import AuthService from "./auth_service";
-import AspectService from "./aspect_service";
-import Aspect from "./aspect";
+import { AuthService } from "./auth_service";
+import { AspectService } from "./aspect_service";
+import { Aspect } from "./aspect";
 import AspectRepository from "./aspect_repository";
-import RequestContext from "./request_context";
+import { RequestContext } from "./request_context";
 import web_content from "./builtin_aspects/web_content";
 
 export interface DefaultAspectServiceContext {

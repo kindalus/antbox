@@ -1,3 +1,3 @@
-export default interface AuthService {
+export interface AuthService {
 	getUserId(): string;
 }

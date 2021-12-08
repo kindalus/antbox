@@ -1,4 +1,4 @@
-import AuthService from "../../auth_service";
+import { AuthService } from "../../auth_service";
 import { Auth, getAuth } from "firebase/auth";
 
 export default class CmzAuthService implements AuthService {

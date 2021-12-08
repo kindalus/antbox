@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 
-import Aspect from "../../aspect";
+import { Aspect } from "../../aspect";
 import AspectRepository from "../../aspect_repository";
 
 export default class FlatFileAspectRepository implements AspectRepository {

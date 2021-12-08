@@ -1,4 +1,4 @@
 
-export default interface RequestContext {
+export interface RequestContext {
 	getUserId(): string;
 }

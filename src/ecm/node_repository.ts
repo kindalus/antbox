@@ -1,5 +1,5 @@
 import { NodeFilterResult } from "./node_service";
-import Node, { NodeFilter } from "./node";
+import { NodeFilter, Node } from "./node";
 
 export default interface NodeRepository {
 	delete(uuid: string): Promise<void>;

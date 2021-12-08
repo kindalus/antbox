@@ -1,9 +1,9 @@
 import NodeRepository from "./node_repository";
-import NodeService, {
+import {
 	NodeFilterResult,
-	SmartFolderNodeEvaluation,
+	SmartFolderNodeEvaluation, NodeService
 } from "./node_service";
-import Node, {
+import {
 	isFid,
 	ROOT_FOLDER_UUID,
 	uuidToFid,
@@ -13,17 +13,17 @@ import Node, {
 	FileNode,
 	NodeFilter,
 	SmartFolderNode,
-	Aggregation,
+	Aggregation, Node
 } from "./node";
 import StorageProvider from "./storage_provider";
 import UuidGenerator from "./uuid_generator";
 import FidGenerator from "./fid_generator";
-import AuthService from "./auth_service";
+import { AuthService } from "./auth_service";
 import { FolderNotFoundError } from "./folder_not_found_error";
 import SmartFolderNodeNotFoundError from "./smart_folder_node_not_found_error";
 import NodeNotFoundError from "./node_not_found_error";
 import InvalidNodeToCopyError from "./invalid_node_to_copy_error";
-import RequestContext from "./request_context";
+import { RequestContext } from "./request_context";
 
 export interface DefaultNodeServiceContext {
 	readonly auth: AuthService;

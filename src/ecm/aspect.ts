@@ -1,4 +1,4 @@
-export default  interface Aspect {
+export  interface Aspect {
 	uuid: string;
 	title: string;
 	description: string;

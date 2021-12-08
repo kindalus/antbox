@@ -4,7 +4,7 @@ export const ROOT_FOLDER_UUID = "ROOT";
 
 export type Properties = Record<string, unknown>;
 
-export default interface Node extends Record<string, unknown> {
+export interface Node extends Record<string, unknown> {
 	uuid: string;
 	fid: string;
 	title: string;

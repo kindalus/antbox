@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 
-import Node from "../../node";
+import { Node } from "../../node";
 import InMemoryNodeRepository from "../in_memory/in_memory_node_repository";
 
 export default class FlatFileNodeRepository extends InMemoryNodeRepository {

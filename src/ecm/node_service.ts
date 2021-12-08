@@ -1,7 +1,7 @@
-import RequestContext from "./request_context";
-import Node, { NodeFilter } from "./node";
+import { RequestContext } from "./request_context";
+import { NodeFilter, Node } from "./node";
 
-export default interface NodeService {
+export interface NodeService {
 	/**
 	 * Cria uma cópia do nó na mesma directoria que o nó original.
 	 * Se o nó for um ficheiro e estiver associado a um workflow, as propriedades do workflow não serão copiadas.

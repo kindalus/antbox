@@ -1,13 +1,13 @@
-import Aspect, { AspectProperty } from "./ecm/aspect";
-import AspectService from "./ecm/aspect_service";
+import { AspectProperty, Aspect } from "./ecm/aspect";
+import { AspectService } from "./ecm/aspect_service";
 import EcmRegistry, { EcmConfig } from "./ecm/ecm_registry";
 
-import NodeService, {
+import {
 	NodeFilterResult,
-	SmartFolderNodeEvaluation,
+	SmartFolderNodeEvaluation, NodeService
 } from "./ecm/node_service";
 
-import Node, {
+import {
 	fidToUuid,
 	FileNode,
 	FolderNode,
@@ -16,16 +16,21 @@ import Node, {
 	Properties,
 	ROOT_FOLDER_UUID,
 	SmartFolderNode,
-	SMART_FOLDER_MIMETYPE,
+	SMART_FOLDER_MIMETYPE, Node
 } from "./ecm/node";
 
-import AuthService from "./ecm/auth_service";
+import { AuthService } from "./ecm/auth_service";
 import { WebContent } from "./ecm/builtin_aspects/web_content";
-import RequestContext from "./ecm/request_context";
+import { RequestContext } from "./ecm/request_context";
+
+
+import * as ecm from "./ecm";
 
 function configureServer(ecmConfig: EcmConfig) {
 	return EcmRegistry.buildIfNone(ecmConfig);
 }
+
+
 
 export {
 	FOLDER_MIMETYPE,
@@ -50,4 +55,5 @@ export {
 	SmartFolderNodeEvaluation,
 	WebContent,
 	configureServer,
+	
 };

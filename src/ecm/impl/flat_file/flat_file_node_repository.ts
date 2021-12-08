@@ -14,7 +14,7 @@ export default class FlatFileNodeRepository extends InMemoryNodeRepository {
 
     if (!fileExistsSync(this.dbFilePath)) {
       this.lastBackupTime = Date.now();
-      this.writeDb();
+      this.writeDb().finally();
     } else {
       this.backupDb();
     }

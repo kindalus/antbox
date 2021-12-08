@@ -41,7 +41,7 @@ export default class DefaultNodeService implements NodeService {
 	}
 
 	async createFile(
-		request: RequestContext,
+		_request: RequestContext,
 		file: File,
 		parent = ROOT_FOLDER_UUID,
 	): Promise<string> {
@@ -67,7 +67,7 @@ export default class DefaultNodeService implements NodeService {
 	}
 
 	async createFolder(
-		request: RequestContext,
+		_request: RequestContext,
 		title: string,
 		parent = ROOT_FOLDER_UUID,
 	): Promise<string> {
@@ -152,7 +152,7 @@ export default class DefaultNodeService implements NodeService {
 		return NodeDeleter.for(node, this.context).delete();
 	}
 
-	async get(request: RequestContext, uuid: string): Promise<Node> {
+	async get(_request: RequestContext, uuid: string): Promise<Node> {
 		const node = await this.getFromRepository(uuid);
 
 		if (!node) throw new NodeNotFoundError(uuid);
@@ -165,7 +165,7 @@ export default class DefaultNodeService implements NodeService {
 		return this.context.repository.getById(uuid);
 	}
 
-	async list(request: RequestContext, parent = ROOT_FOLDER_UUID): Promise<Node[]> {
+	async list(_request: RequestContext, parent = ROOT_FOLDER_UUID): Promise<Node[]> {
 		if (this.isRootFolder(parent)) {
 			const parentFolder = await this.context.repository.getById(parent);
 
@@ -179,7 +179,7 @@ export default class DefaultNodeService implements NodeService {
 	}
 
 	query(
-		request: RequestContext,
+		_request: RequestContext,
 		constraints: NodeFilter[],
 		pageSize = 25,
 		pageToken = 1,
@@ -200,7 +200,7 @@ export default class DefaultNodeService implements NodeService {
 	}
 
 	async evaluate(
-		request: RequestContext,
+		_request: RequestContext,
 		uuid: string,
 	): Promise<SmartFolderNodeEvaluation> {
 		const node = (await this.context.repository.getById(uuid)) as SmartFolderNode;
@@ -376,7 +376,7 @@ const Reducers: Record<string, ReducerFn> = {
 	},
 
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	count(nodes: Node[], fieldName: string) {
+	count(nodes: Node[], _fieldName: string) {
 		return nodes.length;
 	},
 

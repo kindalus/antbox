@@ -1,5 +1,5 @@
-import { RequestContext } from "./request_context";
-import { NodeFilter, Node } from "./node";
+import { RequestContext } from "./request_context.ts";
+import { Node, NodeFilter } from "./node.ts";
 
 export interface NodeService {
 	/**
@@ -12,7 +12,11 @@ export interface NodeService {
 	 * Cria uma nova directoria.
 	 * Devolve o uuid da directoria criada
 	 */
-	createFolder(request: RequestContext, title: string, parent?: string): Promise<string>;
+	createFolder(
+		request: RequestContext,
+		title: string,
+		parent?: string,
+	): Promise<string>;
 
 	/**
 	 * Cria um nó.
@@ -44,7 +48,8 @@ export interface NodeService {
 	 * @param pageSize Número máximo de nós a apresentar por página. Default: 25
 	 * @param pageToken Número da página a devolver: Default: 1
 	 */
-	query(request: RequestContext, 
+	query(
+		request: RequestContext,
 		constraints: NodeFilter[],
 		pageSize?: number,
 		pageToken?: number,

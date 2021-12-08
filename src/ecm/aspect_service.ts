@@ -1,5 +1,5 @@
-import { Aspect } from "./aspect";
-import { RequestContext } from "./request_context";
+import { Aspect } from "./aspect.ts";
+import { RequestContext } from "./request_context.ts";
 
 export interface AspectService {
 	/**

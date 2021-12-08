@@ -1,4 +1,4 @@
-import FidGenerator from "../../fid_generator";
+import FidGenerator from "../../fid_generator.ts";
 
 export default class DefaultFidGenerator implements FidGenerator {
 	generate(title: string): string {

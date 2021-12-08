@@ -1,8 +1,8 @@
-import { Request } from "express";
-import { RequestContext } from "../ecm/request_context";
+import { OpineRequest } from "../deps.ts";
+import { RequestContext } from "../ecm/request_context.ts";
 
-export function getRequestContext(req: Request): RequestContext {
-	return {
-		getUserId: () => "System",
-	};
+export function getRequestContext(req: OpineRequest): RequestContext {
+  return {
+    getUserId: () => "System",
+  };
 }

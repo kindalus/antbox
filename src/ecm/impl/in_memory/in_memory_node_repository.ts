@@ -1,6 +1,6 @@
-import { NodeFilter, Node } from "../../node";
-import NodeRepository from "../../node_repository";
-import { NodeFilterResult } from "../../node_service";
+import { NodeFilter, Node } from "../../node.ts";
+import NodeRepository from "../../node_repository.ts";
+import { NodeFilterResult } from "../../node_service.ts";
 
 export default class InMemoryNodeRepository implements NodeRepository {
 	constructor(readonly db: Record<string, Partial<Node>> = {}) {}

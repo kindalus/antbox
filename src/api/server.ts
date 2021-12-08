@@ -1,19 +1,22 @@
-import express from "express";
-import aspectsRouter from "./aspects_router";
+import { json, opine } from "../deps.ts";
 
-import nodesRouter from "./nodes_router";
-import uploadRouter from "./upload_router";
-import webContentsRouter from "./web_contents_router";
+import EcmRegistry, { EcmConfig } from "../ecm/ecm_registry.ts";
+import aspectsRouter from "./aspects_router.ts";
 
-const app = express();
-app.use(express.json());
+import nodesRouter from "./nodes_router.ts";
+import uploadRouter from "./upload_router.ts";
+import webContentsRouter from "./web_contents_router.ts";
 
-app.use("/nodes", nodesRouter);
-app.use("/web-contents", webContentsRouter);
-app.use("/aspects", aspectsRouter);
-app.use("/upload", uploadRouter);
+export default function startServer(config: EcmConfig) {
+  EcmRegistry.buildIfNone(config);
+  const app = opine();
 
+  app.use(json()); // for parsing application/json
 
+  app.use("/nodes", nodesRouter);
+  app.use("/web-contents", webContentsRouter);
+  app.use("/aspects", aspectsRouter);
+  app.use("/upload", uploadRouter);
 
-
-export default app;
+  return app;
+}

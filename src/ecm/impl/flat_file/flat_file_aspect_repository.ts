@@ -1,55 +1,60 @@
-import * as fs from "fs";
-import * as path from "path";
-
-import { Aspect } from "../../aspect";
-import AspectRepository from "../../aspect_repository";
+import { join } from "../../../deps.ts";
+import fileExistsSync from "../../../helpers/file_exists_sync.ts";
+import { Aspect } from "../../aspect.ts";
+import AspectRepository from "../../aspect_repository.ts";
+import { jsonToUint8Array } from "./jsonToUint8Array.ts";
 
 export default class FlatFileAspectRepository implements AspectRepository {
-	/**
-	 *
-	 * @param path Raíz do repositorio de ficheiros
-	 */
-	constructor(readonly path: string) {
-		if (!fs.existsSync(path)) {
-			fs.mkdirSync(path, { recursive: true });
-		}
-	}
+  /**
+   * @param path Raíz do repositorio de ficheiros
+   */
+  constructor(readonly path: string) {
+    if (!fileExistsSync(path)) {
+      Deno.mkdirSync(path, { recursive: true });
+    }
+  }
 
-	async get(uuid: string): Promise<Aspect> {
-		const filePath = this.buildFilePath(uuid);
+  get(uuid: string): Promise<Aspect> {
+    const filePath = this.buildFilePath(uuid);
 
-		const buffer = fs.readFileSync(filePath, { encoding: "utf8" });
+    const decoder = new TextDecoder("utf-8");
+    const buffer = Deno.readFileSync(filePath);
 
-		return Promise.resolve(JSON.parse(buffer) as unknown as Aspect);
-	}
+    const aspectString = decoder.decode(buffer);
+    const aspect = JSON.parse(aspectString) as unknown as Aspect;
 
-	async delete(uuid: string): Promise<void> {
-		return fs.rmSync(this.buildFilePath(uuid), { recursive: true, force: true });
-	}
+    return Promise.resolve(aspect);
+  }
 
-	async addOrReplace(aspect: Aspect): Promise<void> {
-		const filePath = this.buildFilePath(aspect.uuid);
+  delete(uuid: string): Promise<void> {
+    return Deno.remove(this.buildFilePath(uuid), { recursive: true });
+  }
 
-		if (!fs.existsSync(this.path)) {
-			fs.mkdirSync(this.path, { recursive: true });
-		}
+  addOrReplace(aspect: Aspect): Promise<void> {
+    const filePath = this.buildFilePath(aspect.uuid);
 
-		const buffer = Buffer.from(JSON.stringify(aspect), "utf8");
+    if (!fileExistsSync(this.path)) {
+      Deno.mkdirSync(this.path, { recursive: true });
+    }
 
-		fs.writeFileSync(filePath, buffer);
+    return jsonToUint8Array(aspect)
+      .then((data) => Deno.writeFileSync(filePath, data));
+  }
 
-		return undefined;
-	}
+  getAll(): Promise<Aspect[]> {
+    const files = Deno.readDirSync(this.path);
 
-	getAll(): Promise<Aspect[]> {
-		const files = fs.readdirSync(this.path);
+    const readPromises = [];
 
-		const race = files.map((file) => file.slice(0, -5)).map((file) => this.get(file));
+    for (const file of files) {
+      readPromises.push(this.get(file.name.slice(0, -5)));
+    }
 
-		return Promise.all(race);
-	}
+    return Promise.all(readPromises);
+  }
 
-	private buildFilePath(uuid: string) {
-		return path.join(this.path, uuid.concat(".json"));
-	}
+  private buildFilePath(uuid: string) {
+    return join(this.path, uuid.concat(".json"));
+  }
 }
+

@@ -1,8 +1,8 @@
-import NodeRepository from "./node_repository";
+import NodeRepository from "./node_repository.ts";
 import {
 	NodeFilterResult,
 	SmartFolderNodeEvaluation, NodeService
-} from "./node_service";
+} from "./node_service.ts";
 import {
 	isFid,
 	ROOT_FOLDER_UUID,
@@ -14,16 +14,16 @@ import {
 	NodeFilter,
 	SmartFolderNode,
 	Aggregation, Node
-} from "./node";
-import StorageProvider from "./storage_provider";
-import UuidGenerator from "./uuid_generator";
-import FidGenerator from "./fid_generator";
-import { AuthService } from "./auth_service";
-import { FolderNotFoundError } from "./folder_not_found_error";
-import SmartFolderNodeNotFoundError from "./smart_folder_node_not_found_error";
-import NodeNotFoundError from "./node_not_found_error";
-import InvalidNodeToCopyError from "./invalid_node_to_copy_error";
-import { RequestContext } from "./request_context";
+} from "./node.ts";
+import StorageProvider from "./storage_provider.ts";
+import UuidGenerator from "./uuid_generator.ts";
+import FidGenerator from "./fid_generator.ts";
+import { AuthService } from "./auth_service.ts";
+import { FolderNotFoundError } from "./folder_not_found_error.ts";
+import SmartFolderNodeNotFoundError from "./smart_folder_node_not_found_error.ts";
+import NodeNotFoundError from "./node_not_found_error.ts";
+import InvalidNodeToCopyError from "./invalid_node_to_copy_error.ts";
+import { RequestContext } from "./request_context.ts";
 
 export interface DefaultNodeServiceContext {
 	readonly auth: AuthService;

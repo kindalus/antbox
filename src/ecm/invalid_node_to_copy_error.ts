@@ -1,4 +1,4 @@
-import EngineError from "./engine_error";
+import EngineError from "./engine_error.ts";
 
 export default class InvalidNodeToCopyError extends EngineError {
 	static ERROR_CODE = "InvalidNodeToCopyError";

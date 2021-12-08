@@ -1,49 +1,66 @@
-import * as express from "express";
-import { Request, Response } from "express";
-import processError from "./process_error";
-import multer from "multer";
+import processError from "./process_error.ts";
 
-import buffer from "buffer";
+import EcmRegistry from "../ecm/ecm_registry.ts";
+import { getRequestContext } from "./request_context_builder.ts";
 
-import EcmRegistry from "../ecm/ecm_registry";
-import { getRequestContext } from "./request_context_builder";
+import {
+  FormFile,
+  OpineRequest,
+  OpineResponse,
+  RequestHandler,
+  Router,
+} from "../deps.ts";
+import upload from "./upload.ts";
 
-const multerHandler = multer({
-	storage: multer.memoryStorage(),
-	limits: { fieldSize: 10485760 },
-});
-
-const uploadRouter = express.Router();
+const uploadRouter = Router();
 export default uploadRouter;
 
-uploadRouter.post("/nodes", multerHandler.single("file"), createNodeFileHandler);
-uploadRouter.post("/nodes/:uuid", multerHandler.single("file"), updateNodeFileHandler);
+type UploadRequest = OpineRequest & { file: FormFile };
 
-async function createNodeFileHandler(req: Request, res: Response) {
-	if (req.file) {
-		const blob = getFileBlob(req.file);
-		blob.name = req.file.originalname;
+uploadRouter.post(
+  "/nodes",
+  upload(),
+  createNodeFileHandler as unknown as RequestHandler,
+);
 
-		return EcmRegistry.instance.nodeService
-			.createFile(getRequestContext(req), blob, req.body?.parent)
-			.then((result) => res.json(result))
-			.catch((err) => processError(err, res));
-	}
+uploadRouter.post(
+  "/nodes/:uuid",
+  upload(),
+  updateNodeFileHandler as unknown as RequestHandler,
+);
 
-	return Promise.resolve(res.sendStatus(400));
+function createNodeFileHandler(req: UploadRequest, res: OpineResponse) {
+  if (req.file) {
+    const file = getFileBlob(req.file);
+
+    return EcmRegistry.instance.nodeService
+      .createFile(getRequestContext(req), file, req.body?.parent)
+      .then((result) => res.json(result))
+      .catch((err) => processError(err, res));
+  }
+
+  return Promise.resolve(res.sendStatus(400));
 }
 
-function getFileBlob(file: Express.Multer.File) {
-	return new buffer.Blob([file.buffer], { type: file.mimetype }) as any;
+function getFileBlob(file: FormFile) {
+  if (!file.content) {
+    throw new Error("File too large");
+  }
+
+  return new File([file.content], file.filename, { type: file.type });
 }
 
-async function updateNodeFileHandler(req: Request, res: Response) {
-	if (req.file) {
-		return EcmRegistry.instance.nodeService
-			.updateFile(getRequestContext(req), req.params.uuid, getFileBlob(req.file))
-			.then((result) => res.json(result))
-			.catch((err) => processError(err, res));
-	}
+function updateNodeFileHandler(req: UploadRequest, res: OpineResponse) {
+  if (req.file) {
+    return EcmRegistry.instance.nodeService
+      .updateFile(
+        getRequestContext(req),
+        req.params.uuid,
+        getFileBlob(req.file),
+      )
+      .then((result) => res.json(result))
+      .catch((err) => processError(err, res));
+  }
 
-	return Promise.resolve(res.sendStatus(400));
+  return Promise.resolve(res.sendStatus(400));
 }

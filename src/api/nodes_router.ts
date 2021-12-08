@@ -1,10 +1,9 @@
-import EcmRegistry from "../ecm/ecm_registry";
-import * as express from "express";
-import { Request, Response } from "express";
-import processError from "./process_error";
-import { getRequestContext } from "./request_context_builder";
+import { OpineRequest, OpineResponse, Router } from "../deps.ts";
+import EcmRegistry from "../ecm/ecm_registry.ts";
+import processError from "./process_error.ts";
+import { getRequestContext } from "./request_context_builder.ts";
 
-const nodesRouter = express.Router();
+const nodesRouter = Router();
 
 export default nodesRouter;
 
@@ -22,88 +21,85 @@ nodesRouter.patch("/:uuid", updateHandler);
 
 nodesRouter.delete("/:uuid", deleteHandler);
 
-async function listHandler(req: Request, res: Response) {
-	return EcmRegistry.instance.nodeService
-		.list(getRequestContext(req), req.query.parent as string)
-		.then((result) => res.json(result))
-		.catch((err) => processError(err, res));
+function listHandler(req: OpineRequest, res: OpineResponse) {
+  return EcmRegistry.instance.nodeService
+    .list(getRequestContext(req), req.query.parent as string)
+    .then((result) => res.json(result))
+    .catch((err) => processError(err, res));
 }
 
-async function getHandler(req: Request, res: Response) {
-	return EcmRegistry.instance.nodeService
-		.get(getRequestContext(req), req.params.uuid)
-		.then((result) => res.json(result))
-		.catch((err) => processError(err, res));
+function getHandler(req: OpineRequest, res: OpineResponse) {
+  return EcmRegistry.instance.nodeService
+    .get(getRequestContext(req), req.params.uuid)
+    .then((result) => res.json(result))
+    .catch((err) => processError(err, res));
 }
 
-async function exportHandler(req: Request, res: Response) {
-	const uuid = req.params.uuid;
-	const requestContext = getRequestContext(req);
+function exportHandler(req: OpineRequest, res: OpineResponse) {
+  const uuid = req.params.uuid;
+  const requestContext = getRequestContext(req);
 
-	return Promise.all([
-		EcmRegistry.instance.nodeService.get(requestContext, uuid),
-		EcmRegistry.instance.nodeService.export(requestContext, uuid),
-	])
-		.then(async ([node, blob]) => {
-			res.writeHead(200, {
-				"Content-Type": node.mimetype,
-				"Content-Length": blob.size,
-			});
+  return Promise.all([
+    EcmRegistry.instance.nodeService.get(requestContext, uuid),
+    EcmRegistry.instance.nodeService.export(requestContext, uuid),
+  ])
+    .then(async ([node, blob]) => {
+      res.append("Content-Type", node.mimetype);
+      res.append("Content-Length", blob.size.toString());
 
-			const chunks = new Uint8Array(await blob.arrayBuffer());
+      const chunks = new Uint8Array(await blob.arrayBuffer());
 
-			res.write(chunks);
-			res.end();
-		})
-		.catch((err) => processError(err, res));
+      res.send(chunks);
+    })
+    .catch((err) => processError(err, res));
 }
 
-async function createFolderHandler(req: Request, res: Response) {
-	const { title, parent }: { title: string; parent?: string } = req.body;
+function createFolderHandler(req: OpineRequest, res: OpineResponse) {
+  const { title, parent }: { title: string; parent?: string } = req.body;
 
-	if (!title) {
-		return Promise.resolve(res.status(400).json("{ title } not given"));
-	}
+  if (!title) {
+    return Promise.resolve(res.setStatus(400).json("{ title } not given"));
+  }
 
-	return EcmRegistry.instance.nodeService
-		.createFolder(getRequestContext(req), title, parent)
-		.then((result) => res.json(result))
-		.catch((err) => processError(err, res));
+  return EcmRegistry.instance.nodeService
+    .createFolder(getRequestContext(req), title, parent)
+    .then((result) => res.json(result))
+    .catch((err) => processError(err, res));
 }
 
-async function updateHandler(req: Request, res: Response) {
-	return EcmRegistry.instance.nodeService
-		.update(getRequestContext(req), req.params.uuid, req.body)
-		.then(() => res.sendStatus(200))
-		.catch((err) => processError(err, res));
+function updateHandler(req: OpineRequest, res: OpineResponse) {
+  return EcmRegistry.instance.nodeService
+    .update(getRequestContext(req), req.params.uuid, req.body)
+    .then(() => res.sendStatus(200))
+    .catch((err) => processError(err, res));
 }
 
-async function deleteHandler(req: Request, res: Response) {
-	return EcmRegistry.instance.nodeService
-		.delete(getRequestContext(req), req.params.uuid)
-		.then(() => res.sendStatus(200))
-		.catch((err) => processError(err, res));
+function deleteHandler(req: OpineRequest, res: OpineResponse) {
+  return EcmRegistry.instance.nodeService
+    .delete(getRequestContext(req), req.params.uuid)
+    .then(() => res.sendStatus(200))
+    .catch((err) => processError(err, res));
 }
 
-async function copyHandler(req: Request, res: Response) {
-	return EcmRegistry.instance.nodeService
-		.copy(getRequestContext(req), req.params.uuid)
-		.then((result) => res.json(result))
-		.catch((err) => processError(err, res));
+function copyHandler(req: OpineRequest, res: OpineResponse) {
+  return EcmRegistry.instance.nodeService
+    .copy(getRequestContext(req), req.params.uuid)
+    .then((result) => res.json(result))
+    .catch((err) => processError(err, res));
 }
 
-async function queryHandler(req: Request, res: Response) {
-	const { constrais, pageSize, pageToken } = req.body;
+function queryHandler(req: OpineRequest, res: OpineResponse) {
+  const { constrais, pageSize, pageToken } = req.body;
 
-	return EcmRegistry.instance.nodeService
-		.query(constrais, pageSize, pageToken)
-		.then((result) => res.json(result))
-		.catch((err) => processError(err, res));
+  return EcmRegistry.instance.nodeService
+    .query(constrais, pageSize, pageToken)
+    .then((result) => res.json(result))
+    .catch((err) => processError(err, res));
 }
 
-async function evaluateHandler(req: Request, res: Response) {
-	return EcmRegistry.instance.nodeService
-		.evaluate(getRequestContext(req), req.params.uuid)
-		.then((result) => res.json(result))
-		.catch((err) => processError(err, res));
+function evaluateHandler(req: OpineRequest, res: OpineResponse) {
+  return EcmRegistry.instance.nodeService
+    .evaluate(getRequestContext(req), req.params.uuid)
+    .then((result) => res.json(result))
+    .catch((err) => processError(err, res));
 }

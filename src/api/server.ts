@@ -1,9 +1,9 @@
 import express from "express";
-import aspectsRouter from "./aspects_router.js";
+import aspectsRouter from "./aspects_router";
 
-import nodesRouter from "./nodes_router.js";
-import uploadRouter from "./upload_router.js";
-import webContentsRouter from "./web_contents_router.js";
+import nodesRouter from "./nodes_router";
+import uploadRouter from "./upload_router";
+import webContentsRouter from "./web_contents_router";
 
 const app = express();
 app.use(express.json());

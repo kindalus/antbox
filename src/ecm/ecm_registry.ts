@@ -1,6 +1,6 @@
-import AspectService from "./aspect_service.js";
-import AuthService from "./auth_service.js";
-import NodeService from "./node_service.js";
+import AspectService from "./aspect_service";
+import AuthService from "./auth_service";
+import NodeService from "./node_service";
 
 export interface EcmConfig {
 	readonly nodeService: NodeService;
@@ -10,6 +10,10 @@ export interface EcmConfig {
 
 export default class EcmRegistry {
 	private static _instance: EcmRegistry;
+
+	static get instance(): EcmRegistry {
+		return EcmRegistry._instance;
+	}
 
 	static buildIfNone(ecmConfig: EcmConfig): EcmRegistry {
 		if (!EcmRegistry._instance) EcmRegistry.build(ecmConfig);
@@ -23,29 +27,15 @@ export default class EcmRegistry {
 		return EcmRegistry._instance;
 	}
 
-	static get instance() {
-		return EcmRegistry._instance;
-	}
-
-	static get nodeService() {
-		return EcmRegistry._instance?._nodeService;
-	}
-
-	static get aspectService() {
-		return EcmRegistry._instance?._aspectService;
-	}
-
-	static get authService() {
-		return EcmRegistry._instance?._authService;
-	}
-
 	constructor(config: EcmConfig) {
-		this._nodeService = config.nodeService;
-		this._aspectService = config.aspectService;
-		this._authService = config.authService;
+		this.nodeService = config.nodeService;
+		this.aspectService = config.aspectService;
+		this.authService = config.authService;
+
+		if (EcmRegistry._instance) return EcmRegistry._instance;
 	}
 
-	readonly _nodeService: NodeService;
-	readonly _aspectService: AspectService;
-	readonly _authService: AuthService;
+	readonly nodeService: NodeService;
+	readonly aspectService: AspectService;
+	readonly authService: AuthService;
 }

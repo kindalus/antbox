@@ -1,9 +1,9 @@
-import AuthService from "./auth_service.js";
-import AspectService from "./aspect_service.js";
-import Aspect from "./aspect.js";
-import AspectRepository from "./aspect_repository.js";
-import RequestContext from "./request_context.js";
-import web_content from "./builtin_aspects/web_content.js";
+import AuthService from "./auth_service";
+import AspectService from "./aspect_service";
+import Aspect from "./aspect";
+import AspectRepository from "./aspect_repository";
+import RequestContext from "./request_context";
+import web_content from "./builtin_aspects/web_content";
 
 export interface DefaultAspectServiceContext {
 	readonly auth: AuthService;

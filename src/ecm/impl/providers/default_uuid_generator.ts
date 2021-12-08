@@ -1,4 +1,4 @@
-import UuidGenerator from "../../uuid_generator.js";
+import UuidGenerator from "../../uuid_generator";
 
 export default class DefaultUuidGenerator implements UuidGenerator {
 	private readonly charTable;

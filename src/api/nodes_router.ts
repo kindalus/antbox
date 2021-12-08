@@ -1,8 +1,8 @@
-import EcmRegistry from "../ecm/ecm_registry.js";
+import EcmRegistry from "../ecm/ecm_registry";
 import * as express from "express";
 import { Request, Response } from "express";
-import processError from "./process_error.js";
-import { getRequestContext } from "./request_context_builder.js";
+import processError from "./process_error";
+import { getRequestContext } from "./request_context_builder";
 
 const nodesRouter = express.Router();
 
@@ -23,14 +23,14 @@ nodesRouter.patch("/:uuid", updateHandler);
 nodesRouter.delete("/:uuid", deleteHandler);
 
 async function listHandler(req: Request, res: Response) {
-	return EcmRegistry.nodeService
+	return EcmRegistry.instance.nodeService
 		.list(getRequestContext(req), req.query.parent as string)
 		.then((result) => res.json(result))
 		.catch((err) => processError(err, res));
 }
 
 async function getHandler(req: Request, res: Response) {
-	return EcmRegistry.nodeService
+	return EcmRegistry.instance.nodeService
 		.get(getRequestContext(req), req.params.uuid)
 		.then((result) => res.json(result))
 		.catch((err) => processError(err, res));
@@ -41,8 +41,8 @@ async function exportHandler(req: Request, res: Response) {
 	const requestContext = getRequestContext(req);
 
 	return Promise.all([
-		EcmRegistry.nodeService.get(requestContext, uuid),
-		EcmRegistry.nodeService.export(requestContext, uuid),
+		EcmRegistry.instance.nodeService.get(requestContext, uuid),
+		EcmRegistry.instance.nodeService.export(requestContext, uuid),
 	])
 		.then(async ([node, blob]) => {
 			res.writeHead(200, {
@@ -65,28 +65,28 @@ async function createFolderHandler(req: Request, res: Response) {
 		return Promise.resolve(res.status(400).json("{ title } not given"));
 	}
 
-	return EcmRegistry.nodeService
+	return EcmRegistry.instance.nodeService
 		.createFolder(getRequestContext(req), title, parent)
 		.then((result) => res.json(result))
 		.catch((err) => processError(err, res));
 }
 
 async function updateHandler(req: Request, res: Response) {
-	return EcmRegistry.nodeService
+	return EcmRegistry.instance.nodeService
 		.update(getRequestContext(req), req.params.uuid, req.body)
 		.then(() => res.sendStatus(200))
 		.catch((err) => processError(err, res));
 }
 
 async function deleteHandler(req: Request, res: Response) {
-	return EcmRegistry.nodeService
+	return EcmRegistry.instance.nodeService
 		.delete(getRequestContext(req), req.params.uuid)
 		.then(() => res.sendStatus(200))
 		.catch((err) => processError(err, res));
 }
 
 async function copyHandler(req: Request, res: Response) {
-	return EcmRegistry.nodeService
+	return EcmRegistry.instance.nodeService
 		.copy(getRequestContext(req), req.params.uuid)
 		.then((result) => res.json(result))
 		.catch((err) => processError(err, res));
@@ -95,14 +95,14 @@ async function copyHandler(req: Request, res: Response) {
 async function queryHandler(req: Request, res: Response) {
 	const { constrais, pageSize, pageToken } = req.body;
 
-	return EcmRegistry.nodeService
+	return EcmRegistry.instance.nodeService
 		.query(constrais, pageSize, pageToken)
 		.then((result) => res.json(result))
 		.catch((err) => processError(err, res));
 }
 
 async function evaluateHandler(req: Request, res: Response) {
-	return EcmRegistry.nodeService
+	return EcmRegistry.instance.nodeService
 		.evaluate(getRequestContext(req), req.params.uuid)
 		.then((result) => res.json(result))
 		.catch((err) => processError(err, res));

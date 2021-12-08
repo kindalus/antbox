@@ -1,5 +1,5 @@
-import RequestContext from "./request_context.js";
-import Node, { NodeFilter } from "./node.js";
+import RequestContext from "./request_context";
+import Node, { NodeFilter } from "./node";
 
 export default interface NodeService {
 	/**

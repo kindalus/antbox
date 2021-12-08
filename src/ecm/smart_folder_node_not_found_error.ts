@@ -1,4 +1,4 @@
-import EngineError from "./engine_error.js";
+import EngineError from "./engine_error";
 
 export default class SmartFolderNodeNotFoundError extends EngineError {
 	static ERROR_CODE = "SmartFolderNodeNotFoundError";

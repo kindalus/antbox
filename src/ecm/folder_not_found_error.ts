@@ -1,4 +1,4 @@
-import EngineError from "./engine_error.js";
+import EngineError from "./engine_error";
 
 export class FolderNotFoundError extends EngineError {
 	static ERROR_CODE = "FolderNotFoundError";

@@ -1,8 +1,8 @@
-import NodeRepository from "./node_repository.js";
+import NodeRepository from "./node_repository";
 import NodeService, {
 	NodeFilterResult,
 	SmartFolderNodeEvaluation,
-} from "./node_service.js";
+} from "./node_service";
 import Node, {
 	isFid,
 	ROOT_FOLDER_UUID,
@@ -14,16 +14,16 @@ import Node, {
 	NodeFilter,
 	SmartFolderNode,
 	Aggregation,
-} from "./node.js";
-import StorageProvider from "./storage_provider.js";
-import UuidGenerator from "./uuid_generator.js";
-import FidGenerator from "./fid_generator.js";
-import AuthService from "./auth_service.js";
-import { FolderNotFoundError } from "./folder_not_found_error.js";
-import SmartFolderNodeNotFoundError from "./smart_folder_node_not_found_error.js";
-import NodeNotFoundError from "./node_not_found_error.js";
-import InvalidNodeToCopyError from "./invalid_node_to_copy_error.js";
-import RequestContext from "./request_context.js";
+} from "./node";
+import StorageProvider from "./storage_provider";
+import UuidGenerator from "./uuid_generator";
+import FidGenerator from "./fid_generator";
+import AuthService from "./auth_service";
+import { FolderNotFoundError } from "./folder_not_found_error";
+import SmartFolderNodeNotFoundError from "./smart_folder_node_not_found_error";
+import NodeNotFoundError from "./node_not_found_error";
+import InvalidNodeToCopyError from "./invalid_node_to_copy_error";
+import RequestContext from "./request_context";
 
 export interface DefaultNodeServiceContext {
 	readonly auth: AuthService;

@@ -1,6 +1,6 @@
-import EcmRegistry from "../ecm/ecm_registry.js";
+import EcmRegistry from "../ecm/ecm_registry";
 import express, { Request, Response } from "express";
-import { getRequestContext } from "./request_context_builder.js";
+import { getRequestContext } from "./request_context_builder";
 
 const webContentsRouter = express.Router();
 
@@ -8,7 +8,7 @@ webContentsRouter.get("/:uuid/:lang", handleGet);
 
 async function handleGet(req: Request, res: Response) {
 	try {
-		const blob = await EcmRegistry.nodeService.export(
+		const blob = await EcmRegistry.instance.nodeService.export(
 			getRequestContext(req),
 			req.params.uuid,
 		);

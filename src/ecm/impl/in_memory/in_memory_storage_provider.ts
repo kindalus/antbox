@@ -1,4 +1,4 @@
-import StorageProvider from "../../storage_provider.js";
+import StorageProvider from "../../storage_provider";
 
 export default class InMemoryStorageProvider implements StorageProvider {
 	constructor(readonly fs: Record<string, File> = {}) {}

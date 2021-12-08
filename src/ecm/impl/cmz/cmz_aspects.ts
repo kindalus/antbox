@@ -10,9 +10,9 @@ import {
 	deleteDoc,
 	setDoc,
 } from "firebase/firestore";
-import Aspect, { AspectProperty } from "../../aspect.js";
-import AspectService from "../../aspect_service.js";
-import RequestContext from "../../request_context.js";
+import Aspect, { AspectProperty } from "../../aspect";
+import AspectService from "../../aspect_service";
+import RequestContext from "../../request_context";
 
 export default class CmzAspectService implements AspectService {
 	private afs: Firestore;

@@ -1,12 +1,12 @@
 import * as express from "express";
 import { Request, Response } from "express";
-import processError from "./process_error.js";
+import processError from "./process_error";
 import multer from "multer";
 
 import buffer from "buffer";
 
-import EcmRegistry from "../ecm/ecm_registry.js";
-import { getRequestContext } from "./request_context_builder.js";
+import EcmRegistry from "../ecm/ecm_registry";
+import { getRequestContext } from "./request_context_builder";
 
 const multerHandler = multer({
 	storage: multer.memoryStorage(),
@@ -24,7 +24,7 @@ async function createNodeFileHandler(req: Request, res: Response) {
 		const blob = getFileBlob(req.file);
 		blob.name = req.file.originalname;
 
-		return EcmRegistry.nodeService
+		return EcmRegistry.instance.nodeService
 			.createFile(getRequestContext(req), blob, req.body?.parent)
 			.then((result) => res.json(result))
 			.catch((err) => processError(err, res));
@@ -39,7 +39,7 @@ function getFileBlob(file: Express.Multer.File) {
 
 async function updateNodeFileHandler(req: Request, res: Response) {
 	if (req.file) {
-		return EcmRegistry.nodeService
+		return EcmRegistry.instance.nodeService
 			.updateFile(getRequestContext(req), req.params.uuid, getFileBlob(req.file))
 			.then((result) => res.json(result))
 			.catch((err) => processError(err, res));

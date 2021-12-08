@@ -3,7 +3,7 @@ import * as path from "path";
 
 import buffer from "buffer";
 
-import StorageProvider from "../../storage_provider.js";
+import StorageProvider from "../../storage_provider";
 
 export default class FlatFileStorageProvider implements StorageProvider {
 	/**

@@ -1,5 +1,5 @@
-import Aspect from "./aspect.js";
-import RequestContext from "./request_context.js";
+import Aspect from "./aspect";
+import RequestContext from "./request_context";
 
 export default interface AspectService {
 	/**

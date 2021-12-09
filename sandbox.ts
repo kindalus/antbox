@@ -60,7 +60,7 @@ function main(program: IParseResult) {
 	const server = startServer(config);
 
 	server.listen({ port: parseInt(port) }, () => {
-		console.log("Antbox Server started successfully on port " + port);
+		console.log("Antbox Server started successfully on port ::" + port);
 	});
 }
 

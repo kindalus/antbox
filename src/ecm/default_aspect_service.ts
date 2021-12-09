@@ -1,19 +1,13 @@
-import { AuthService } from "./auth_service.ts";
-import { AspectService } from "./aspect_service.ts";
+import { AspectService, AspectServiceContext } from "./aspect_service.ts";
 import { Aspect } from "./aspect.ts";
-import { AspectRepository } from "./aspect_repository.ts";
 import { RequestContext } from "./request_context.ts";
 import webContent from "./builtin_aspects/web_content.ts";
 
-export interface DefaultAspectServiceContext {
-	readonly auth: AuthService;
-	readonly repository: AspectRepository;
-}
 
 export default class DefaultAspectService implements AspectService {
-	private readonly context: DefaultAspectServiceContext;
+	private readonly context: AspectServiceContext;
 
-	constructor(context: DefaultAspectServiceContext) {
+	constructor(context: AspectServiceContext) {
 		this.context = context;
 	}
 

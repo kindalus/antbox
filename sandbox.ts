@@ -11,12 +11,8 @@ import FlatFileNodeRepository from "./src/repositories/flat_file_node_repository
 
 import FlatFileStorageProvider from "./src/storage/flat_file_storage_provider.ts";
 
-import DefaultFidGenerator from "./src/strategies/default_fid_generator.ts";
-import DefaultUuidGenerator from "./src/strategies/default_uuid_generator.ts";
-
-import DefaultNodeService from "./src/ecm/default_node_service.ts";
-import DefaultAspectService from "./src/ecm/default_aspect_service.ts";
-import startServer from "./src/api/server.ts";
+import { startServer } from "./server.ts";
+import { EcmConfig } from "./mod.ts";
 
 const program = await new Command()
   .name("antbox-sand")
@@ -29,9 +25,7 @@ const program = await new Command()
   )
   .parse(Deno.args);
 
-function buildEcmConfig(portalDataFolder: string) {
-  const fidGenerator = new DefaultFidGenerator();
-  const uuidGenerator = new DefaultUuidGenerator();
+function buildEcmConfig(portalDataFolder: string): EcmConfig {
   const storage = new FlatFileStorageProvider(
     join(portalDataFolder, "nodes"),
   );
@@ -41,21 +35,14 @@ function buildEcmConfig(portalDataFolder: string) {
   const aspectRepository = new FlatFileAspectRepository(
     join(portalDataFolder, "aspects"),
   );
-  const authService = { getUserId: () => "System" };
 
   return {
-    nodeService: new DefaultNodeService({
-      fidGenerator,
-      uuidGenerator,
+    nodeServiceContext: {
       repository: nodeRepository,
       storage,
-      auth: authService,
-    }),
-    aspectService: new DefaultAspectService({
-      repository: aspectRepository,
-      auth: authService,
-    }),
-    authService,
+    },
+
+    aspectServiceContext: { repository: aspectRepository },
   };
 }
 
@@ -71,6 +58,7 @@ function main(program: IParseResult) {
   const config = buildEcmConfig(baseDir);
 
   const server = startServer(config);
+
   server.listen({ port: parseInt(port) }, () => {
     console.log("Antbox Server started successfully on port " + port);
   });

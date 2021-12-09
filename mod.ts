@@ -21,12 +21,6 @@ export type {
   ActionsQueryResult,
 } from "./src/ecm/actions.ts";
 
-export type { DefaultNodeServiceContext } from "./src/ecm/default_node_service.ts";
-export { default as DefaultNodeService } from "./src/ecm/default_node_service.ts";
-
-export type { DefaultAspectServiceContext } from "./src/ecm/default_aspect_service.ts";
-export { default as DefaultAspectService } from "./src/ecm/default_aspect_service.ts";
-
 export type { NodeRepository } from "./src/ecm/node_repository.ts";
 export type { AspectRepository } from "./src/ecm/aspect_repository.ts";
 
@@ -35,10 +29,14 @@ export type { EcmConfig } from "./src/ecm/ecm_registry.ts";
 export type {
   NodeFilterResult,
   NodeService,
+  NodeServiceContext,
   SmartFolderNodeEvaluation,
 } from "./src/ecm/node_service.ts";
 
-export type { AspectService } from "./src/ecm/aspect_service.ts";
+export type {
+  AspectService,
+  AspectServiceContext,
+} from "./src/ecm/aspect_service.ts";
 export type { AuthService } from "./src/ecm/auth_service.ts";
 
 export type { RequestContext } from "./src/ecm/request_context.ts";

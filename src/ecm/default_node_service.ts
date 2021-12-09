@@ -1,460 +1,454 @@
-import { NodeRepository } from "./node_repository.ts";
 import {
-	NodeFilterResult,
-	NodeService,
-	SmartFolderNodeEvaluation,
+  NodeFilterResult,
+  NodeService,
+  NodeServiceContext,
+  SmartFolderNodeEvaluation,
 } from "./node_service.ts";
+
 import {
-	Aggregation,
-	FileNode,
-	FOLDER_MIMETYPE,
-	FolderNode,
-	isFid,
-	Node,
-	NodeFilter,
-	ROOT_FOLDER_UUID,
-	SMART_FOLDER_MIMETYPE,
-	SmartFolderNode,
-	uuidToFid,
+  Aggregation,
+  FileNode,
+  FOLDER_MIMETYPE,
+  FolderNode,
+  isFid,
+  Node,
+  NodeFilter,
+  ROOT_FOLDER_UUID,
+  SMART_FOLDER_MIMETYPE,
+  SmartFolderNode,
+  uuidToFid,
 } from "./node.ts";
-import { StorageProvider } from "./storage_provider.ts";
-import { UuidGenerator } from "./uuid_generator.ts";
-import { FidGenerator } from "./fid_generator.ts";
-import { AuthService } from "./auth_service.ts";
+
 import FolderNotFoundError from "./folder_not_found_error.ts";
 import SmartFolderNodeNotFoundError from "./smart_folder_node_not_found_error.ts";
 import NodeNotFoundError from "./node_not_found_error.ts";
 import InvalidNodeToCopyError from "./invalid_node_to_copy_error.ts";
-import { RequestContext } from "./request_context.ts";
 
-export interface DefaultNodeServiceContext {
-	readonly auth: AuthService;
-	readonly fidGenerator: FidGenerator;
-	readonly uuidGenerator: UuidGenerator;
-	readonly storage: StorageProvider;
-	readonly repository: NodeRepository;
-}
+import { RequestContext } from "./request_context.ts";
+import DefaultFidGenerator from "../strategies/default_fid_generator.ts";
+import DefaultUuidGenerator from "../strategies/default_uuid_generator.ts";
 
 export default class DefaultNodeService implements NodeService {
-	private readonly context: DefaultNodeServiceContext;
+  private readonly context: NodeServiceContext;
 
-	constructor(context: DefaultNodeServiceContext) {
-		this.context = context;
-	}
+  constructor(context: NodeServiceContext) {
+    this.context = {
+      fidGenerator: context.fidGenerator ?? new DefaultFidGenerator(),
+      uuidGenerator: context.uuidGenerator ?? new DefaultUuidGenerator(),
+      storage: context.storage,
+      repository: context.repository,
+    };
+  }
 
-	async createFile(
-		_request: RequestContext,
-		file: File,
-		parent = ROOT_FOLDER_UUID,
-	): Promise<string> {
-		const node = this.createFileMetadata(
-			parent,
-			file.name,
-			file.type,
-			file.size,
-		);
+  async createFile(
+    request: RequestContext,
+    file: File,
+    parent = ROOT_FOLDER_UUID,
+  ): Promise<string> {
+    const node = this.createFileMetadata(
+      request,
+      parent,
+      file.name,
+      file.type,
+      file.size,
+    );
 
-		if (this.isRootFolder(parent)) {
-			await this.addToParentFolderNodeMetadata(parent, node);
-		}
+    await this.context.storage.write(node.uuid, file);
+    await this.context.repository.add(node);
 
-		await this.context.storage.write(node.uuid, file);
-		await this.context.repository.add(node);
+    return Promise.resolve(node.uuid);
+  }
+  /*
+  private async addToParentFolderNodeMetadata(parent: string, node: Node) {
+    const parentNode =
+      (await this.context.repository.getById(parent)) as FolderNode;
 
-		return Promise.resolve(node.uuid);
-	}
+    if (!parentNode) throw new FolderNotFoundError(parent);
 
-	private async addToParentFolderNodeMetadata(parent: string, node: Node) {
-		const parentNode =
-			(await this.context.repository.getById(parent)) as FolderNode;
+    parentNode.children = [...(parentNode.children ?? []), node.uuid];
 
-		if (!parentNode) throw new FolderNotFoundError(parent);
+    this.context.repository.update(parentNode);
+  }
+  */
+  createFolder(
+    request: RequestContext,
+    title: string,
+    parent = ROOT_FOLDER_UUID,
+  ): Promise<string> {
+    const node = this.createFolderMetadata(request, parent, title);
 
-		parentNode.children = [...(parentNode.children ?? []), node.uuid];
+    this.context.repository.add(node);
 
-		this.context.repository.update(parentNode);
-	}
+    return Promise.resolve(node.uuid);
+  }
 
-	async createFolder(
-		_request: RequestContext,
-		title: string,
-		parent = ROOT_FOLDER_UUID,
-	): Promise<string> {
-		const node = this.createFolderMetadata(parent, title);
+  private isRootFolder(parent: string) {
+    return parent === ROOT_FOLDER_UUID;
+  }
 
-		if (this.isRootFolder(parent)) {
-			await this.addToParentFolderNodeMetadata(parent, node);
-		}
+  private createFileMetadata(
+    request: RequestContext,
+    parent: string,
+    title: string,
+    mimetype: string,
+    size: number,
+  ): Node {
+    return {
+      uuid: this.context.uuidGenerator!.generate(),
+      fid: this.context.fidGenerator!.generate(title),
+      title,
+      parent,
+      mimetype,
+      owner: request.getUserId(),
+      starred: false,
+      trashed: false,
+      size,
+      createdTime: now(),
+      modifiedTime: now(),
+    };
+  }
 
-		this.context.repository.add(node);
+  private createFolderMetadata(
+    request: RequestContext,
+    parent: string,
+    title: string,
+  ): FolderNode {
+    return {
+      ...this.createFileMetadata(request, parent, title, FOLDER_MIMETYPE, 0),
+      children: [],
+      onCreate: [],
+      onUpdate: [],
+    };
+  }
 
-		return Promise.resolve(node.uuid);
-	}
+  async copy(request: RequestContext, uuid: string): Promise<string> {
+    const node = await this.get(request, uuid);
+    const file = await this.context.storage.read(uuid);
 
-	private isRootFolder(parent: string) {
-		return parent !== ROOT_FOLDER_UUID;
-	}
+    if (!this.isFileNode(node)) throw new InvalidNodeToCopyError(uuid);
 
-	private createFileMetadata(
-		parent: string,
-		title: string,
-		mimetype: string,
-		size: number,
-	): Node {
-		return {
-			uuid: this.context.uuidGenerator.generate(),
-			fid: this.context.fidGenerator.generate(title),
-			title,
-			parent,
-			mimetype,
-			owner: this.context.auth.getUserId(),
-			starred: false,
-			trashed: false,
-			size,
-			createdTime: now(),
-			modifiedTime: now(),
-		};
-	}
+    const newNode = this.createFileMetadata(
+      request,
+      node.parent ?? ROOT_FOLDER_UUID,
+      node.title,
+      node.mimetype,
+      0,
+    );
 
-	private createFolderMetadata(parent: string, title: string): FolderNode {
-		return {
-			...this.createFileMetadata(parent, title, FOLDER_MIMETYPE, 0),
-			children: [],
-			onCreate: [],
-			onUpdate: [],
-		};
-	}
+    await this.context.storage.write(newNode.uuid, file);
+    await this.context.repository.add(newNode);
 
-	async copy(request: RequestContext, uuid: string): Promise<string> {
-		const node = await this.get(request, uuid);
-		const file = await this.context.storage.read(uuid);
+    return Promise.resolve(newNode.uuid);
+  }
 
-		if (!this.isFileNode(node)) throw new InvalidNodeToCopyError(uuid);
+  async updateFile(
+    request: RequestContext,
+    uuid: string,
+    file: File,
+  ): Promise<void> {
+    const node = await this.get(request, uuid);
 
-		const newNode = this.createFileMetadata(
-			node.parent ?? ROOT_FOLDER_UUID,
-			node.title,
-			node.mimetype,
-			0,
-		);
+    node.modifiedTime = now();
+    node.size = file.size;
+    node.mimetype = file.type;
 
-		await this.context.storage.write(newNode.uuid, file);
-		await this.context.repository.add(newNode);
+    await this.context.storage.write(uuid, file);
 
-		return Promise.resolve(newNode.uuid);
-	}
+    await this.context.repository.update(node);
+  }
 
-	async updateFile(
-		request: RequestContext,
-		uuid: string,
-		file: File,
-	): Promise<void> {
-		const node = await this.get(request, uuid);
+  async delete(request: RequestContext, uuid: string): Promise<void> {
+    const node = await this.get(request, uuid);
 
-		node.modifiedTime = now();
-		node.size = file.size;
-		node.mimetype = file.type;
+    return NodeDeleter.for(node, this.context).delete();
+  }
 
-		await this.context.storage.write(uuid, file);
+  async get(_request: RequestContext, uuid: string): Promise<Node> {
+    const node = await this.getFromRepository(uuid);
 
-		await this.context.repository.update(node);
-	}
+    if (!node) throw new NodeNotFoundError(uuid);
 
-	async delete(request: RequestContext, uuid: string): Promise<void> {
-		const node = await this.get(request, uuid);
+    return node;
+  }
 
-		return NodeDeleter.for(node, this.context).delete();
-	}
+  private getFromRepository(uuid: string): Promise<Node | undefined> {
+    if (isFid(uuid)) {
+      return this.context.repository.getByFid(uuidToFid(uuid));
+    }
+    return this.context.repository.getById(uuid);
+  }
 
-	async get(_request: RequestContext, uuid: string): Promise<Node> {
-		const node = await this.getFromRepository(uuid);
+  async list(
+    _request: RequestContext,
+    parent = ROOT_FOLDER_UUID,
+  ): Promise<Node[]> {
+    if (!this.isRootFolder(parent)) {
+      const parentFolder = await this.context.repository.getById(parent);
 
-		if (!node) throw new NodeNotFoundError(uuid);
+      if (parentFolder?.mimetype !== FOLDER_MIMETYPE) {
+        throw new FolderNotFoundError(parent);
+      }
+    }
 
-		return node;
-	}
+    return this.context.repository
+      .filter([["parent", "==", parent]], Number.MAX_VALUE, 1)
+      .then((result) => result.nodes);
+  }
 
-	private getFromRepository(uuid: string): Promise<Node | undefined> {
-		if (isFid(uuid)) {
-			return this.context.repository.getByFid(uuidToFid(uuid));
-		}
-		return this.context.repository.getById(uuid);
-	}
+  query(
+    _request: RequestContext,
+    constraints: NodeFilter[],
+    pageSize = 25,
+    pageToken = 1,
+  ): Promise<NodeFilterResult> {
+    return this.context.repository.filter(constraints, pageSize, pageToken);
+  }
 
-	async list(
-		_request: RequestContext,
-		parent = ROOT_FOLDER_UUID,
-	): Promise<Node[]> {
-		if (this.isRootFolder(parent)) {
-			const parentFolder = await this.context.repository.getById(parent);
+  async update(
+    request: RequestContext,
+    uuid: string,
+    data: Partial<Node>,
+  ): Promise<void> {
+    const node = await this.get(request, uuid);
 
-			if (parentFolder?.mimetype !== FOLDER_MIMETYPE) {
-				throw new FolderNotFoundError(parent);
-			}
-		}
+    if (!node) throw new NodeNotFoundError(uuid);
 
-		return this.context.repository
-			.filter([["parent", "==", parent]], Number.MAX_VALUE, 1)
-			.then((result) => result.nodes);
-	}
+    await this.context.repository.update({ ...node, ...data });
+  }
 
-	query(
-		_request: RequestContext,
-		constraints: NodeFilter[],
-		pageSize = 25,
-		pageToken = 1,
-	): Promise<NodeFilterResult> {
-		return this.context.repository.filter(constraints, pageSize, pageToken);
-	}
+  async evaluate(
+    _request: RequestContext,
+    uuid: string,
+  ): Promise<SmartFolderNodeEvaluation> {
+    const node =
+      (await this.context.repository.getById(uuid)) as SmartFolderNode;
 
-	async update(
-		request: RequestContext,
-		uuid: string,
-		data: Partial<Node>,
-	): Promise<void> {
-		const node = await this.get(request, uuid);
+    if (!this.isSmartFolderNode(node)) {
+      throw new SmartFolderNodeNotFoundError(uuid);
+    }
 
-		if (!node) throw new NodeNotFoundError(uuid);
+    const evaluation = await this.context.repository
+      .filter(node.filters, Number.MAX_VALUE, 1)
+      .then((filtered) => ({ records: filtered.nodes }));
 
-		await this.context.repository.update({ ...node, ...data });
-	}
+    if (this.hasAggregations(node)) {
+      return this.appendAggregations(
+        evaluation,
+        node.aggregations as Aggregation[],
+      );
+    }
 
-	async evaluate(
-		_request: RequestContext,
-		uuid: string,
-	): Promise<SmartFolderNodeEvaluation> {
-		const node =
-			(await this.context.repository.getById(uuid)) as SmartFolderNode;
+    return Promise.resolve(evaluation);
+  }
 
-		if (!this.isSmartFolderNode(node)) {
-			throw new SmartFolderNodeNotFoundError(uuid);
-		}
+  private appendAggregations(
+    evaluation: SmartFolderNodeEvaluation,
+    aggregations: Aggregation[],
+  ) {
+    const aggregationsMap = aggregations.map((aggregation) => {
+      const formula = Reducers[aggregation.formula as string];
 
-		const evaluation = await this.context.repository
-			.filter(node.filters, Number.MAX_VALUE, 1)
-			.then((filtered) => ({ records: filtered.nodes }));
+      if (!formula) throw "Invalid formula: " + aggregation.formula;
 
-		if (this.hasAggregations(node)) {
-			return this.appendAggregations(
-				evaluation,
-				node.aggregations as Aggregation[],
-			);
-		}
+      return {
+        title: aggregation.title,
+        value: formula(
+          evaluation.records as Node[],
+          aggregation.fieldName,
+        ),
+      };
+    });
 
-		return Promise.resolve(evaluation);
-	}
+    return Promise.resolve({
+      ...evaluation,
+      aggregations: aggregationsMap,
+    });
+  }
 
-	private appendAggregations(
-		evaluation: SmartFolderNodeEvaluation,
-		aggregations: Aggregation[],
-	) {
-		const aggregationsMap = aggregations.map((aggregation) => {
-			const formula = Reducers[aggregation.formula as string];
+  private hasAggregations(node: SmartFolderNode): boolean {
+    return node.aggregations !== null && node.aggregations !== undefined;
+  }
 
-			if (!formula) throw "Invalid formula: " + aggregation.formula;
+  private isSmartFolderNode(node: Node) {
+    return node?.mimetype === SMART_FOLDER_MIMETYPE;
+  }
 
-			return {
-				title: aggregation.title,
-				value: formula(
-					evaluation.records as Node[],
-					aggregation.fieldName,
-				),
-			};
-		});
+  private isFolderNode(node: Node) {
+    return node?.mimetype === FOLDER_MIMETYPE;
+  }
 
-		return Promise.resolve({
-			...evaluation,
-			aggregations: aggregationsMap,
-		});
-	}
+  private isFileNode(node: Node): boolean {
+    return !this.isSmartFolderNode(node) && !this.isFolderNode(node);
+  }
 
-	private hasAggregations(node: SmartFolderNode): boolean {
-		return node.aggregations !== null && node.aggregations !== undefined;
-	}
+  async export(request: RequestContext, uuid: string): Promise<Blob> {
+    const node = await this.get(request, uuid);
+    const blob = await this.context.storage.read(node.uuid);
 
-	private isSmartFolderNode(node: Node) {
-		return node?.mimetype === SMART_FOLDER_MIMETYPE;
-	}
-
-	private isFolderNode(node: Node) {
-		return node?.mimetype === FOLDER_MIMETYPE;
-	}
-
-	private isFileNode(node: Node): boolean {
-		return !this.isSmartFolderNode(node) && !this.isFolderNode(node);
-	}
-
-	async export(request: RequestContext, uuid: string): Promise<Blob> {
-		const node = await this.get(request, uuid);
-		const blob = await this.context.storage.read(node.uuid);
-
-		return blob;
-	}
+    return blob;
+  }
 }
 
 abstract class NodeDeleter<T extends Node> {
-	static for(
-		node: Node,
-		context: DefaultNodeServiceContext,
-	): NodeDeleter<Node> {
-		switch (node.mimetype) {
-			case FOLDER_MIMETYPE:
-				return new FolderNodeDeleter(node as FolderNode, context);
-			case SMART_FOLDER_MIMETYPE:
-				return new SmartFolderNodeDeleter(
-					node as SmartFolderNode,
-					context,
-				);
-		}
+  static for(
+    node: Node,
+    context: NodeServiceContext,
+  ): NodeDeleter<Node> {
+    switch (node.mimetype) {
+      case FOLDER_MIMETYPE:
+        return new FolderNodeDeleter(node as FolderNode, context);
+      case SMART_FOLDER_MIMETYPE:
+        return new SmartFolderNodeDeleter(
+          node as SmartFolderNode,
+          context,
+        );
+    }
 
-		return new FileNodeDeleter(node as FileNode, context);
-	}
+    return new FileNodeDeleter(node as FileNode, context);
+  }
 
-	protected readonly node: T;
-	protected readonly context: DefaultNodeServiceContext;
+  protected readonly node: T;
+  protected readonly context: NodeServiceContext;
 
-	constructor(node: T, context: DefaultNodeServiceContext) {
-		this.node = node;
-		this.context = context;
-	}
+  constructor(node: T, context: NodeServiceContext) {
+    this.node = node;
+    this.context = context;
+  }
 
-	abstract delete(): Promise<void>;
+  abstract delete(): Promise<void>;
 
-	protected deleteFromRepository(): Promise<void> {
-		return this.context.repository.delete(this.node.uuid);
-	}
+  protected deleteFromRepository(): Promise<void> {
+    return this.context.repository.delete(this.node.uuid);
+  }
 
-	protected deleteFromStorage(): Promise<void> {
-		return this.context.storage.delete(this.node.uuid);
-	}
+  protected deleteFromStorage(): Promise<void> {
+    return this.context.storage.delete(this.node.uuid);
+  }
 }
 
 class FileNodeDeleter extends NodeDeleter<FileNode> {
-	constructor(node: FileNode, context: DefaultNodeServiceContext) {
-		super(node, context);
-	}
+  constructor(node: FileNode, context: NodeServiceContext) {
+    super(node, context);
+  }
 
-	delete(): Promise<void> {
-		return this.deleteFromStorage().then(() => this.deleteFromRepository());
-	}
+  delete(): Promise<void> {
+    return this.deleteFromStorage().then(() => this.deleteFromRepository());
+  }
 }
 
 class FolderNodeDeleter extends NodeDeleter<FolderNode> {
-	constructor(node: FolderNode, context: DefaultNodeServiceContext) {
-		super(node, context);
-	}
+  constructor(node: FolderNode, context: NodeServiceContext) {
+    super(node, context);
+  }
 
-	async delete(): Promise<void> {
-		if (this.nodeHasChildren()) await this.deleteChildren();
+  async delete(): Promise<void> {
+    await this.deleteChildren();
+    return this.deleteFromRepository();
+  }
 
-		return this.deleteFromRepository();
-	}
+  private async deleteChildren() {
+    const { nodes: children } = await this.context.repository.filter(
+      [["parent", "==", this.node.uuid]],
+      Number.MAX_VALUE,
+      1,
+    );
 
-	private nodeHasChildren(): boolean {
-		return this.node.children?.length > 0;
-	}
-
-	private async deleteChildren() {
-		for (const child of this.node.children) {
-			const childNode = await this.context.repository.getById(child);
-			if (childNode) {
-				await NodeDeleter.for(childNode, this.context).delete();
-			}
-		}
-	}
+    for(const child of children) {
+      await NodeDeleter.for(child, this.context).delete();
+    }
+  }
 }
 
 class SmartFolderNodeDeleter extends NodeDeleter<SmartFolderNode> {
-	delete(): Promise<void> {
-		return this.deleteFromStorage();
-	}
-	constructor(node: SmartFolderNode, context: DefaultNodeServiceContext) {
-		super(node, context);
-	}
+  delete(): Promise<void> {
+    return this.deleteFromStorage();
+  }
+  constructor(node: SmartFolderNode, context: NodeServiceContext) {
+    super(node, context);
+  }
 }
 
 function now() {
-	return new Date().toISOString();
+  return new Date().toISOString();
 }
 
 type AggregatorFn<T> = (acc: T, curValue: unknown) => T;
 type ReducerFn = (nodes: Node[], fieldName: string) => unknown;
 
 function calculateAggregation<T>(
-	fn: AggregatorFn<T>,
-	initialValue: T,
-	nodes: Node[],
-	field: string,
+  fn: AggregatorFn<T>,
+  initialValue: T,
+  nodes: Node[],
+  field: string,
 ): T {
-	return nodes.reduce((acc, node) => {
-		const value = node[field] ?? node.properties?.[field];
+  return nodes.reduce((acc, node) => {
+    const value = node[field] ?? node.properties?.[field];
 
-		if (!value) throw "field not found " + field;
+    if (!value) throw "field not found " + field;
 
-		return fn(acc, value);
-	}, initialValue);
+    return fn(acc, value);
+  }, initialValue);
 }
 
 const Reducers: Record<string, ReducerFn> = {
-	sum(nodes: Node[], fieldName: string) {
-		const fn = (acc: number, curValue: number) =>
-			acc + (curValue as number);
-		return calculateAggregation(
-			fn as AggregatorFn<unknown>,
-			0,
-			nodes,
-			fieldName,
-		);
-	},
+  sum(nodes: Node[], fieldName: string) {
+    const fn = (acc: number, curValue: number) => acc + (curValue as number);
+    return calculateAggregation(
+      fn as AggregatorFn<unknown>,
+      0,
+      nodes,
+      fieldName,
+    );
+  },
 
-	avg(nodes: Node[], fieldName: string) {
-		const fn =
-			((acc: number, curValue: number) =>
-				acc + (curValue as number)) as AggregatorFn<unknown>;
+  avg(nodes: Node[], fieldName: string) {
+    const fn =
+      ((acc: number, curValue: number) =>
+        acc + (curValue as number)) as AggregatorFn<unknown>;
 
-		const sum = calculateAggregation(fn, 0, nodes, fieldName);
+    const sum = calculateAggregation(fn, 0, nodes, fieldName);
 
-		return (sum as number) / nodes.length;
-	},
+    return (sum as number) / nodes.length;
+  },
 
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	count(nodes: Node[], _fieldName: string) {
-		return nodes.length;
-	},
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  count(nodes: Node[], _fieldName: string) {
+    return nodes.length;
+  },
 
-	max(nodes: Node[], fieldName: string) {
-		const fn = (
-			acc: number,
-			curValue: number,
-		) => (acc > curValue ? acc : curValue);
-		return calculateAggregation(
-			fn as AggregatorFn<unknown>,
-			undefined,
-			nodes,
-			fieldName,
-		);
-	},
+  max(nodes: Node[], fieldName: string) {
+    const fn = (
+      acc: number,
+      curValue: number,
+    ) => (acc > curValue ? acc : curValue);
+    return calculateAggregation(
+      fn as AggregatorFn<unknown>,
+      undefined,
+      nodes,
+      fieldName,
+    );
+  },
 
-	min(nodes: Node[], fieldName: string) {
-		const fn = (
-			acc: number,
-			curValue: number,
-		) => (acc < curValue ? acc : curValue);
-		return calculateAggregation(
-			fn as AggregatorFn<unknown>,
-			undefined,
-			nodes,
-			fieldName,
-		);
-	},
+  min(nodes: Node[], fieldName: string) {
+    const fn = (
+      acc: number,
+      curValue: number,
+    ) => (acc < curValue ? acc : curValue);
+    return calculateAggregation(
+      fn as AggregatorFn<unknown>,
+      undefined,
+      nodes,
+      fieldName,
+    );
+  },
 
-	med(nodes: Node[], fieldName: string) {
-		const values = nodes
-			.map((node) => node[fieldName] ?? node.properties?.[fieldName])
-			.sort(<T>(a: T, b: T) => (a > b ? 1 : -1));
+  med(nodes: Node[], fieldName: string) {
+    const values = nodes
+      .map((node) => node[fieldName] ?? node.properties?.[fieldName])
+      .sort(<T>(a: T, b: T) => (a > b ? 1 : -1));
 
-		if (values.length === 0) return undefined;
+    if (values.length === 0) return undefined;
 
-		return values[Math.floor(values.length / 2)];
-	},
+    return values[Math.floor(values.length / 2)];
+  },
 };

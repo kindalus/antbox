@@ -22,7 +22,6 @@ export interface Node extends Record<string, unknown> {
 }
 
 export interface FolderNode extends Node {
-	children: string[];
 	onCreate: string[];
 	onUpdate: string[];
 }

@@ -1,5 +1,13 @@
 import { Aspect } from "./aspect.ts";
+import { AspectRepository } from "./aspect_repository.ts";
+import { AuthService } from "./auth_service.ts";
 import { RequestContext } from "./request_context.ts";
+
+export interface AspectServiceContext {
+	readonly auth?: AuthService;
+	readonly repository: AspectRepository;
+}
+
 
 export interface AspectService {
 	/**

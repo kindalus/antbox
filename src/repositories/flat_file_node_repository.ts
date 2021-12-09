@@ -1,8 +1,8 @@
-import { join } from "../../../deps.ts";
-import fileExistsSync from "../../../helpers/file_exists_sync.ts";
-import { jsonToUint8Array } from "../../../helpers/json_to_uint_8_array.ts";
-import { Node } from "../../node.ts";
-import InMemoryNodeRepository from "../in_memory/in_memory_node_repository.ts";
+import { join } from "../../deps.ts";
+import fileExistsSync from "../helpers/file_exists_sync.ts";
+import { jsonToUint8Array } from "../helpers/json_to_uint_8_array.ts";
+import { Node } from "../ecm/node.ts";
+import InMemoryNodeRepository from "./in_memory_node_repository.ts";
 
 export default class FlatFileNodeRepository extends InMemoryNodeRepository {
   private lastBackupTime = 0;
@@ -12,18 +12,20 @@ export default class FlatFileNodeRepository extends InMemoryNodeRepository {
   constructor(readonly path: string) {
     super();
 
-    if (!fileExistsSync(this.dbFilePath)) {
-      this.lastBackupTime = Date.now();
-      this.writeDb().finally();
-    } else {
-      this.backupDb();
-    }
+    Promise.resolve(fileExistsSync(this.dbFilePath))
+      .then((pathExists) => {
+        if (!pathExists) {
+          this.lastBackupTime = Date.now();
+          return this.writeDb();
+        }
+        this.backupDb();
+      }).then(() => {
+        const storedDb = this.readDb();
 
-    const storedDb = this.readDb();
-
-    for (const [key, node] of Object.entries(storedDb)) {
-      this.db[key] = node;
-    }
+        for (const [key, node] of Object.entries(storedDb)) {
+          this.db[key] = node;
+        }
+      });
   }
 
   add(node: Node): Promise<void> {

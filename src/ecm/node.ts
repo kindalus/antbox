@@ -51,7 +51,11 @@ export type FilterOperator =
 	| "array-contains"
 	| "array-contains-any";
 
-export type NodeFilter = [field: string, operator: FilterOperator, value: unknown];
+export type NodeFilter = [
+	field: string,
+	operator: FilterOperator,
+	value: unknown,
+];
 
 export interface Aggregation {
 	title: string;

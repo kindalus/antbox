@@ -1,4 +1,4 @@
-import StorageProvider from "../../storage_provider.ts";
+import StorageProvider from "../ecm/storage_provider.ts";
 
 export default class InMemoryStorageProvider implements StorageProvider {
 	constructor(readonly fs: Record<string, File> = {}) {}

@@ -1,3 +1,3 @@
-export default interface FidGenerator {
+export interface FidGenerator {
 	generate(title: string): string;
 }

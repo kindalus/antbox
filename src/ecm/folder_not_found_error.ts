@@ -1,6 +1,6 @@
 import EngineError from "./engine_error.ts";
 
-export class FolderNotFoundError extends EngineError {
+export default class FolderNotFoundError extends EngineError {
 	static ERROR_CODE = "FolderNotFoundError";
 	constructor(uuid: string) {
 		super(

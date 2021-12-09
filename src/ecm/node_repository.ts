@@ -1,7 +1,7 @@
 import { NodeFilterResult } from "./node_service.ts";
-import { NodeFilter, Node } from "./node.ts";
+import { Node, NodeFilter } from "./node.ts";
 
-export default interface NodeRepository {
+export interface NodeRepository {
 	delete(uuid: string): Promise<void>;
 	update(node: Node): Promise<void>;
 	add(node: Node): Promise<void>;

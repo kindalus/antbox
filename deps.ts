@@ -1,8 +1,8 @@
 export type {
-  NextFunction,
-  OpineRequest,
-  OpineResponse,
-  RequestHandler,
+	NextFunction,
+	OpineRequest,
+	OpineResponse,
+	RequestHandler,
 } from "https://deno.land/x/opine@2.0.0/mod.ts";
 
 export { json, opine, Router } from "https://deno.land/x/opine@2.0.0/mod.ts";

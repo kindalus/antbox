@@ -20,12 +20,16 @@ export interface AspectService {
 	/**
 	 * Lista todos os aspectos registados.
 	 */
-	list(request: RequestContext, ): Promise<Aspect[]>;
+	list(request: RequestContext): Promise<Aspect[]>;
 
 	/**
 	 * Actualiza o conteúdo de um aspecto.
 	 * @param uuid
 	 * @param aspect
 	 */
-	update(request: RequestContext, uuid: string, aspect: Aspect): Promise<void>;
+	update(
+		request: RequestContext,
+		uuid: string,
+		aspect: Aspect,
+	): Promise<void>;
 }

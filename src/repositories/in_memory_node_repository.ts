@@ -1,6 +1,6 @@
-import { NodeFilter, Node } from "../../node.ts";
-import NodeRepository from "../../node_repository.ts";
-import { NodeFilterResult } from "../../node_service.ts";
+import { Node, NodeFilter } from "../ecm/node.ts";
+import { NodeRepository } from "../ecm/node_repository.ts";
+import { NodeFilterResult } from "../ecm/node_service.ts";
 
 export default class InMemoryNodeRepository implements NodeRepository {
 	constructor(readonly db: Record<string, Partial<Node>> = {}) {}
@@ -60,7 +60,7 @@ export default class InMemoryNodeRepository implements NodeRepository {
 			constraints.reduce(
 				(acc, cur) => this.matchNodeAndValue(node, acc, cur),
 				initialValue(),
-			),
+			)
 		);
 	}
 
@@ -81,6 +81,7 @@ export default class InMemoryNodeRepository implements NodeRepository {
 	private getFieldValue(node: Node, fieldPath: string) {
 		const fields = fieldPath.split(".");
 
+		// deno-lint-ignore no-explicit-any
 		return fields.reduce((acc: any, field) => acc?.[field], { ...node });
 	}
 }
@@ -97,5 +98,6 @@ export const filterFns: Record<string, FilterFn> = {
 	in: <T>(a: T, b: T) => (b as unknown as T[])?.includes(a),
 	"not-in": <T>(a: T, b: T) => !(b as unknown as T[])?.includes(a),
 	"array-contains": <T>(a: T, b: T) => (a as unknown as T[])?.includes(b),
-	"array-contains-any": <T>(a: T, b: T) => !(a as unknown as T[])?.includes(b),
+	"array-contains-any": <T>(a: T, b: T) =>
+		!(a as unknown as T[])?.includes(b),
 };

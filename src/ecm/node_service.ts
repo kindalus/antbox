@@ -21,8 +21,16 @@ export interface NodeService {
 	/**
 	 * Cria um nó.
 	 */
-	createFile(request: RequestContext, file: File, parent?: string): Promise<string>;
-	updateFile(request: RequestContext, uuid: string, file: File): Promise<void>;
+	createFile(
+		request: RequestContext,
+		file: File,
+		parent?: string,
+	): Promise<string>;
+	updateFile(
+		request: RequestContext,
+		uuid: string,
+		file: File,
+	): Promise<void>;
 
 	/**
 	 * Apaga de forma permanente um nó sem passar pela lixeira.
@@ -58,12 +66,19 @@ export interface NodeService {
 	/**
 	 * Actualiza o conteúdo de um ficheiro.
 	 */
-	update(request: RequestContext, uuid: string, node: Partial<Node>): Promise<void>;
+	update(
+		request: RequestContext,
+		uuid: string,
+		node: Partial<Node>,
+	): Promise<void>;
 
 	/**
 	 * Calcula os valores das agregações.
 	 */
-	evaluate(request: RequestContext, uuid: string): Promise<SmartFolderNodeEvaluation>;
+	evaluate(
+		request: RequestContext,
+		uuid: string,
+	): Promise<SmartFolderNodeEvaluation>;
 
 	export(request: RequestContext, uuid: string): Promise<Blob>;
 }

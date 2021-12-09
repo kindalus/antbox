@@ -3,7 +3,6 @@ import { Aspect } from "./aspect.ts";
 import { RequestContext } from "./request_context.ts";
 import webContent from "./builtin_aspects/web_content.ts";
 
-
 export default class DefaultAspectService implements AspectService {
 	private readonly context: AspectServiceContext;
 

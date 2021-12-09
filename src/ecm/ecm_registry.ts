@@ -5,36 +5,38 @@ import { NodeServiceContext } from "./node_service.ts";
 import { NodeService } from "./node_service.ts";
 
 export interface EcmConfig {
-  readonly nodeServiceContext: NodeServiceContext;
-  readonly aspectServiceContext: AspectServiceContext;
+	readonly nodeServiceContext: NodeServiceContext;
+	readonly aspectServiceContext: AspectServiceContext;
 }
 
 export default class EcmRegistry {
-  private static _instance: EcmRegistry;
+	private static _instance: EcmRegistry;
 
-  static get instance(): EcmRegistry {
-    return EcmRegistry._instance;
-  }
+	static get instance(): EcmRegistry {
+		return EcmRegistry._instance;
+	}
 
-  static buildIfNone(ecmConfig: EcmConfig): EcmRegistry {
-    if (!EcmRegistry._instance) EcmRegistry.build(ecmConfig);
+	static buildIfNone(ecmConfig: EcmConfig): EcmRegistry {
+		if (!EcmRegistry._instance) EcmRegistry.build(ecmConfig);
 
-    return EcmRegistry._instance;
-  }
+		return EcmRegistry._instance;
+	}
 
-  static build(ecmConfig: EcmConfig): EcmRegistry {
-    EcmRegistry._instance = new EcmRegistry(ecmConfig);
+	static build(ecmConfig: EcmConfig): EcmRegistry {
+		EcmRegistry._instance = new EcmRegistry(ecmConfig);
 
-    return EcmRegistry._instance;
-  }
+		return EcmRegistry._instance;
+	}
 
-  constructor(config: EcmConfig) {
-    this.nodeService = new DefaultNodeService(config.nodeServiceContext);
-    this.aspectService = new DefaultAspectService(config.aspectServiceContext);
+	constructor(config: EcmConfig) {
+		this.nodeService = new DefaultNodeService(config.nodeServiceContext);
+		this.aspectService = new DefaultAspectService(
+			config.aspectServiceContext,
+		);
 
-    if (EcmRegistry._instance) return EcmRegistry._instance;
-  }
+		if (EcmRegistry._instance) return EcmRegistry._instance;
+	}
 
-  readonly nodeService: NodeService;
-  readonly aspectService: AspectService;
+	readonly nodeService: NodeService;
+	readonly aspectService: AspectService;
 }

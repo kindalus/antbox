@@ -1,13 +1,13 @@
 export type {
-  Aggregation,
-  AggregationFormula,
-  FileNode,
-  FilterOperator,
-  FolderNode,
-  Node,
-  NodeFilter,
-  Properties,
-  SmartFolderNode,
+	Aggregation,
+	AggregationFormula,
+	FileNode,
+	FilterOperator,
+	FolderNode,
+	Node,
+	NodeFilter,
+	Properties,
+	SmartFolderNode,
 } from "./src/ecm/node.ts";
 
 export { fidToUuid, isFid, uuidToFid } from "./src/ecm/node.ts";
@@ -15,10 +15,10 @@ export { fidToUuid, isFid, uuidToFid } from "./src/ecm/node.ts";
 export type { Aspect, AspectProperty, PropertyType } from "./src/ecm/aspect.ts";
 
 export type {
-  Actions,
-  ActionsBuiltInQueryResult,
-  ActionsParams,
-  ActionsQueryResult,
+	Actions,
+	ActionsBuiltInQueryResult,
+	ActionsParams,
+	ActionsQueryResult,
 } from "./src/ecm/actions.ts";
 
 export type { NodeRepository } from "./src/ecm/node_repository.ts";
@@ -27,15 +27,15 @@ export type { AspectRepository } from "./src/ecm/aspect_repository.ts";
 export type { EcmConfig } from "./src/ecm/ecm_registry.ts";
 
 export type {
-  NodeFilterResult,
-  NodeService,
-  NodeServiceContext,
-  SmartFolderNodeEvaluation,
+	NodeFilterResult,
+	NodeService,
+	NodeServiceContext,
+	SmartFolderNodeEvaluation,
 } from "./src/ecm/node_service.ts";
 
 export type {
-  AspectService,
-  AspectServiceContext,
+	AspectService,
+	AspectServiceContext,
 } from "./src/ecm/aspect_service.ts";
 export type { AuthService } from "./src/ecm/auth_service.ts";
 

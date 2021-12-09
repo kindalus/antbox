@@ -8,7 +8,6 @@ export interface AspectServiceContext {
 	readonly repository: AspectRepository;
 }
 
-
 export interface AspectService {
 	/**
 	 * Cria um novo aspecto.

@@ -10,7 +10,16 @@ export type {
 	SmartFolderNode,
 } from "./src/ecm/node.ts";
 
-export { fidToUuid, isFid, uuidToFid } from "./src/ecm/node.ts";
+export {
+	fidToUuid,
+	FOLDER_MIMETYPE,
+	isFid,
+	ROOT_FOLDER_UUID,
+	SMART_FOLDER_MIMETYPE,
+	uuidToFid,
+} from "./src/ecm/node.ts";
+
+export type { WebContent } from "./src/ecm/builtin_aspects/web_content.ts";
 
 export type { Aspect, AspectProperty, PropertyType } from "./src/ecm/aspect.ts";
 

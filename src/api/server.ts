@@ -1,4 +1,4 @@
-import { json, opine } from "../../deps.ts";
+import { json, opine, opineCors } from "../../deps.ts";
 
 import EcmRegistry, { EcmConfig } from "../ecm/ecm_registry.ts";
 import aspectsRouter from "./aspects_router.ts";
@@ -11,6 +11,7 @@ export default function startServer(config: EcmConfig) {
 	EcmRegistry.buildIfNone(config);
 	const app = opine();
 
+	app.use(opineCors());
 	app.use(json()); // for parsing application/json
 
 	app.use("/nodes", nodesRouter);

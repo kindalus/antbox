@@ -7,6 +7,8 @@ export type {
 
 export { json, opine, Router } from "https://deno.land/x/opine@2.0.0/mod.ts";
 
+export { opineCors } from "https://deno.land/x/cors@v1.2.2/mod.ts";
+
 export { MultipartReader } from "https://deno.land/std@0.117.0/mime/mod.ts";
 export type { FormFile } from "https://deno.land/std@0.117.0/mime/mod.ts";
 

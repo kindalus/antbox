@@ -1,4 +1,5 @@
 import {
+	FormFile,
 	MultipartReader,
 	NextFunction,
 	OpineRequest,
@@ -7,6 +8,8 @@ import {
 } from "../../deps.ts";
 
 import fileExistsSync from "../helpers/file_exists_sync.ts";
+
+export type UploadRequest = OpineRequest & { file?: FormFile; parent?: string };
 
 const { compose, nth, split } = R;
 
@@ -22,10 +25,11 @@ const getBoundary = compose(
 
 export default function (fieldName = "file") {
 	return async (
-		req: OpineRequest,
+		oreq: OpineRequest,
 		_res: OpineResponse,
 		next: NextFunction,
 	) => {
+		const req: UploadRequest = oreq as unknown as UploadRequest;
 		let boundary;
 
 		const contentType = req.get("content-type");
@@ -43,8 +47,8 @@ export default function (fieldName = "file") {
 			dir: TMP_DIR,
 		});
 
-		(req as unknown as Record<string, unknown>).file = form.files(fieldName)
-			?.[0];
+		req.file = form.files(fieldName)?.[0];
+		req.parent = form.values("parent")?.[0];
 
 		next();
 	};

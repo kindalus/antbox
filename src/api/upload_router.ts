@@ -3,19 +3,11 @@ import processError from "./process_error.ts";
 import EcmRegistry from "../ecm/ecm_registry.ts";
 import { getRequestContext } from "./request_context_builder.ts";
 
-import {
-	FormFile,
-	OpineRequest,
-	OpineResponse,
-	RequestHandler,
-	Router,
-} from "../../deps.ts";
-import upload from "./upload.ts";
+import { FormFile, OpineResponse, RequestHandler, Router } from "../../deps.ts";
+import upload, { UploadRequest } from "./upload.ts";
 
 const uploadRouter = Router();
 export default uploadRouter;
-
-type UploadRequest = OpineRequest & { file: FormFile };
 
 uploadRouter.post(
 	"/nodes",
@@ -34,11 +26,10 @@ function createNodeFileHandler(req: UploadRequest, res: OpineResponse) {
 		const file = getFileBlob(req.file);
 
 		return EcmRegistry.instance.nodeService
-			.createFile(getRequestContext(req), file, req.body?.parent)
+			.createFile(getRequestContext(req), file, req.parent)
 			.then((result) => res.json(result))
 			.catch((err) => processError(err, res));
 	}
-
 	return Promise.resolve(res.sendStatus(400));
 }
 

@@ -4,11 +4,8 @@ EXPOSE 7180
 
 WORKDIR /antbox
 
-# Create a group and user
-RUN addgroup -S antbox && adduser -S antbox -G antbox
-
 # Prefer not to run as root.
-USER antbox
+USER deno
 
 VOLUME /data
 

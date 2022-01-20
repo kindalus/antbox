@@ -1,8 +1,5 @@
-import { AspectService, AspectServiceContext } from "./aspect_service.ts";
-import DefaultAspectService from "./default_aspect_service.ts";
-import DefaultNodeService from "./default_node_service.ts";
-import { NodeServiceContext } from "./node_service.ts";
-import { NodeService } from "./node_service.ts";
+import AspectService, { AspectServiceContext } from "./aspect_service.ts";
+import NodeService, { NodeServiceContext } from "./node_service.ts";
 
 export interface EcmConfig {
 	readonly nodeServiceContext: NodeServiceContext;
@@ -29,8 +26,8 @@ export default class EcmRegistry {
 	}
 
 	constructor(config: EcmConfig) {
-		this.nodeService = new DefaultNodeService(config.nodeServiceContext);
-		this.aspectService = new DefaultAspectService(
+		this.nodeService = new NodeService(config.nodeServiceContext);
+		this.aspectService = new AspectService(
 			config.aspectServiceContext,
 		);
 

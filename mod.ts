@@ -35,17 +35,19 @@ export type { AspectRepository } from "./src/ecm/aspect_repository.ts";
 
 export type { EcmConfig } from "./src/ecm/ecm_registry.ts";
 
+import AspectService from "./src/ecm/aspect_service.ts";
+import NodeService from "./src/ecm/node_service.ts";
+
+export { AspectService, NodeService };
+
 export type {
 	NodeFilterResult,
-	NodeService,
 	NodeServiceContext,
 	SmartFolderNodeEvaluation,
 } from "./src/ecm/node_service.ts";
 
-export type {
-	AspectService,
-	AspectServiceContext,
-} from "./src/ecm/aspect_service.ts";
+export type { AspectServiceContext } from "./src/ecm/aspect_service.ts";
+
 export type { AuthService } from "./src/ecm/auth_service.ts";
 
 export type { RequestContext } from "./src/ecm/request_context.ts";

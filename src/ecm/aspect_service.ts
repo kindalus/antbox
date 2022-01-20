@@ -2,41 +2,47 @@ import { Aspect } from "./aspect.ts";
 import { AspectRepository } from "./aspect_repository.ts";
 import { AuthService } from "./auth_service.ts";
 import { RequestContext } from "./request_context.ts";
+import webContent from "./builtin_aspects/web_content.ts";
 
 export interface AspectServiceContext {
 	readonly auth?: AuthService;
 	readonly repository: AspectRepository;
 }
 
-export interface AspectService {
-	/**
-	 * Cria um novo aspecto.
-	 */
-	create(request: RequestContext, aspect: Aspect): Promise<void>;
+export default class AspectService {
+	private readonly context: AspectServiceContext;
 
-	/**
-	 * Apaga de forma permanente um aspecto.
-	 */
-	delete(request: RequestContext, uuid: string): Promise<void>;
+	constructor(context: AspectServiceContext) {
+		this.context = context;
+	}
 
-	/**
-	 * Devolve um aspecto.
-	 */
-	get(request: RequestContext, uuid: string): Promise<Aspect>;
+	async create(_request: RequestContext, aspect: Aspect): Promise<void> {
+		this.validateAspect(aspect);
 
-	/**
-	 * Lista todos os aspectos registados.
-	 */
-	list(request: RequestContext): Promise<Aspect[]>;
+		await this.context.repository.addOrReplace(aspect);
+	}
 
-	/**
-	 * Actualiza o conteúdo de um aspecto.
-	 * @param uuid
-	 * @param aspect
-	 */
 	update(
 		request: RequestContext,
 		uuid: string,
 		aspect: Aspect,
-	): Promise<void>;
+	): Promise<void> {
+		return this.create(request, { ...aspect, uuid });
+	}
+
+	private validateAspect(_aspect: Aspect): void {}
+
+	async delete(_request: RequestContext, uuid: string): Promise<void> {
+		await this.context.repository.delete(uuid);
+	}
+
+	get(_request: RequestContext, uuid: string): Promise<Aspect> {
+		return this.context.repository.get(uuid);
+	}
+
+	list(_request: RequestContext): Promise<Aspect[]> {
+		return this.context.repository
+			.getAll()
+			.then((aspects) => [webContent, ...aspects]);
+	}
 }

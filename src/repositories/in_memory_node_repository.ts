@@ -45,7 +45,9 @@ export default class InMemoryNodeRepository implements NodeRepository {
 		const firstIndex = (pageToken - 1) * pageSize;
 		const lastIndex = firstIndex + pageSize;
 
-		const filtered = this.filterNodesWith(constraints);
+		const filtered = constraints?.length
+			? this.filterNodesWith(constraints)
+			: [];
 		const nodes = filtered.slice(firstIndex, lastIndex);
 
 		const pageCount = Math.abs(filtered.length / pageSize) + 1;

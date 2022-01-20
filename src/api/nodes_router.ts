@@ -89,10 +89,10 @@ function copyHandler(req: OpineRequest, res: OpineResponse) {
 }
 
 function queryHandler(req: OpineRequest, res: OpineResponse) {
-	const { constrais, pageSize, pageToken } = req.body;
+	const { constraints, pageSize, pageToken } = req.body;
 
 	return EcmRegistry.instance.nodeService
-		.query(constrais, pageSize, pageToken)
+		.query(getRequestContext(req), constraints, pageSize, pageToken)
 		.then((result) => res.json(result))
 		.catch((err) => processError(err, res));
 }

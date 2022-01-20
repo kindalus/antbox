@@ -63,10 +63,19 @@ export default class FlatFileNodeRepository extends InMemoryNodeRepository {
 	}
 
 	private backupDb() {
-		if (fileExistsSync(this.dbFilePath)) {
+		if (!fileExistsSync(this.dbBackupFolderPath)) {
+			Deno.mkdirSync(this.dbBackupFolderPath, { recursive: true });
+		}
+
+		if (
+			fileExistsSync(this.dbFilePath)
+		) {
 			Deno.copyFileSync(
 				this.dbFilePath,
-				this.dbFilePath.concat("_", Date.now().toString()),
+				this.dbBackupFolderPath.concat(
+					"db.json_",
+					new Date(Date.now()).toISOString(),
+				),
 			);
 			this.lastBackupTime = Date.now();
 		}
@@ -81,5 +90,9 @@ export default class FlatFileNodeRepository extends InMemoryNodeRepository {
 
 	private get dbFilePath(): string {
 		return join(this.path, "db.json");
+	}
+
+	private get dbBackupFolderPath(): string {
+		return join(this.path, "backup");
 	}
 }

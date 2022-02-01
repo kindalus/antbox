@@ -1,5 +1,5 @@
 import { OpineRequest, OpineResponse, Router } from "../../deps.ts";
-import { Aspect } from "../ecm/aspect.ts";
+import { Aspect } from "../ecm/aspects/aspect.ts";
 import EcmRegistry from "../ecm/ecm_registry.ts";
 import processError from "./process_error.ts";
 import { getRequestContext } from "./request_context_builder.ts";

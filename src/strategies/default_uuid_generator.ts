@@ -1,4 +1,4 @@
-import { UuidGenerator } from "../ecm/uuid_generator.ts";
+import { UuidGenerator } from "../ecm/nodes/uuid_generator.ts";
 
 export default class DefaultUuidGenerator implements UuidGenerator {
 	private readonly charTable;

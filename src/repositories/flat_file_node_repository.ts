@@ -1,7 +1,7 @@
 import { join } from "../../deps.ts";
 import fileExistsSync from "../helpers/file_exists_sync.ts";
 import { jsonToUint8Array } from "../helpers/json_to_uint_8_array.ts";
-import { Node } from "../ecm/node.ts";
+import { Node } from "../ecm/nodes/node.ts";
 import InMemoryNodeRepository from "./in_memory_node_repository.ts";
 
 export default class FlatFileNodeRepository extends InMemoryNodeRepository {

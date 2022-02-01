@@ -8,7 +8,7 @@ export type {
 	NodeFilter,
 	Properties,
 	SmartFolderNode,
-} from "./src/ecm/node.ts";
+} from "./src/ecm/nodes/node.ts";
 
 export {
 	fidToUuid,
@@ -17,26 +17,30 @@ export {
 	ROOT_FOLDER_UUID,
 	SMART_FOLDER_MIMETYPE,
 	uuidToFid,
-} from "./src/ecm/node.ts";
+} from "./src/ecm/nodes/node.ts";
 
 export type { WebContent } from "./src/ecm/builtin_aspects/web_content.ts";
 
-export type { Aspect, AspectProperty, PropertyType } from "./src/ecm/aspect.ts";
+export type {
+	Aspect,
+	AspectProperty,
+	PropertyType,
+} from "./src/ecm/aspects/aspect.ts";
 
 export type {
 	Actions,
 	ActionsBuiltInQueryResult,
 	ActionsParams,
 	ActionsQueryResult,
-} from "./src/ecm/actions.ts";
+} from "./src/ecm/actions/actions.ts";
 
-export type { NodeRepository } from "./src/ecm/node_repository.ts";
-export type { AspectRepository } from "./src/ecm/aspect_repository.ts";
+export type { NodeRepository } from "./src/ecm/nodes/node_repository.ts";
+export type { AspectRepository } from "./src/ecm/aspects/aspect_repository.ts";
 
 export type { EcmConfig } from "./src/ecm/ecm_registry.ts";
 
-import AspectService from "./src/ecm/aspect_service.ts";
-import NodeService from "./src/ecm/node_service.ts";
+import AspectService from "./src/ecm/aspects/aspect_service.ts";
+import NodeService from "./src/ecm/nodes/node_service.ts";
 
 export { AspectService, NodeService };
 
@@ -44,21 +48,22 @@ export type {
 	NodeFilterResult,
 	NodeServiceContext,
 	SmartFolderNodeEvaluation,
-} from "./src/ecm/node_service.ts";
+} from "./src/ecm/nodes/node_service.ts";
 
-export type { AspectServiceContext } from "./src/ecm/aspect_service.ts";
+export type { AspectServiceContext } from "./src/ecm/aspects/aspect_service.ts";
 
-export type { AuthService } from "./src/ecm/auth_service.ts";
+export type { AuthService } from "./src/ecm/auth/auth_service.ts";
 
 export type { RequestContext } from "./src/ecm/request_context.ts";
 
-export type { FidGenerator } from "./src/ecm/fid_generator.ts";
-export type { UuidGenerator } from "./src/ecm/uuid_generator.ts";
+export type { FidGenerator } from "./src/ecm/nodes/fid_generator.ts";
+export type { UuidGenerator } from "./src/ecm/nodes/uuid_generator.ts";
 
 export type { StorageProvider } from "./src/ecm/storage_provider.ts";
 
-export { default as EngineError } from "./src/ecm/engine_error.ts";
-export { default as FolderNotFoundError } from "./src/ecm/folder_not_found_error.ts";
-export { default as SmartFolderNodeNotFoundError } from "./src/ecm/smart_folder_node_not_found_error.ts";
-export { default as InvalidNodeToCopyError } from "./src/ecm/invalid_node_to_copy_error.ts";
-export { default as NodeNotFoundError } from "./src/ecm/node_not_found_error.ts";
+export type { default as EcmError } from "./src/ecm/ecm_error.ts";
+
+export { default as FolderNotFoundError } from "./src/ecm/nodes/folder_not_found_error.ts";
+export { default as SmartFolderNodeNotFoundError } from "./src/ecm/nodes/smart_folder_node_not_found_error.ts";
+export { default as InvalidNodeToCopyError } from "./src/ecm/nodes/invalid_node_to_copy_error.ts";
+export { default as NodeNotFoundError } from "./src/ecm/nodes/node_not_found_error.ts";

@@ -62,18 +62,7 @@ export default class NodeService {
 
 		return Promise.resolve(node.uuid);
 	}
-	/*
-  private async addToParentFolderNodeMetadata(parent: string, node: Node) {
-    const parentNode =
-      (await this.context.repository.getById(parent)) as FolderNode;
 
-    if (!parentNode) throw new FolderNotFoundError(parent);
-
-    parentNode.children = [...(parentNode.children ?? []), node.uuid];
-
-    this.context.repository.update(parentNode);
-  }
-  */
 	createFolder(
 		request: RequestContext,
 		title: string,

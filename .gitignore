@@ -1,6 +1,6 @@
 .DS_Store
 
-npm
+npm/
 
 # local env files
 .env.local

@@ -48,7 +48,8 @@ export type FilterOperator =
 	| "in"
 	| "not-in"
 	| "array-contains"
-	| "array-contains-any";
+	| "array-contains-any"
+	| "match";
 
 export type NodeFilter = [
 	field: string,

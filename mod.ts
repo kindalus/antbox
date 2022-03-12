@@ -41,8 +41,9 @@ export type { EcmConfig } from "./src/ecm/ecm_registry.ts";
 
 import AspectService from "./src/ecm/aspects/aspect_service.ts";
 import NodeService from "./src/ecm/nodes/node_service.ts";
+import AuthService from "./src/ecm/auth/auth_service.ts";
 
-export { AspectService, NodeService };
+export { AspectService, AuthService, NodeService };
 
 export type {
 	NodeFilterResult,
@@ -51,8 +52,6 @@ export type {
 } from "./src/ecm/nodes/node_service.ts";
 
 export type { AspectServiceContext } from "./src/ecm/aspects/aspect_service.ts";
-
-export type { AuthService } from "./src/ecm/auth/auth_service.ts";
 
 export type { RequestContext } from "./src/ecm/request_context.ts";
 

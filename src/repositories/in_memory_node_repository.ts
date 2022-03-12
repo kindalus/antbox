@@ -50,7 +50,7 @@ export default class InMemoryNodeRepository implements NodeRepository {
 			: [];
 		const nodes = filtered.slice(firstIndex, lastIndex);
 
-		const pageCount = Math.abs(filtered.length / pageSize) + 1;
+		const pageCount = Math.ceil(filtered.length / pageSize);
 
 		return Promise.resolve({ nodes, pageCount, pageSize, pageToken });
 	}
@@ -102,4 +102,13 @@ export const filterFns: Record<string, FilterFn> = {
 	"array-contains": <T>(a: T, b: T) => (a as unknown as T[])?.includes(b),
 	"array-contains-any": <T>(a: T, b: T) =>
 		!(a as unknown as T[])?.includes(b),
+	"match": (a, b) => {
+		const a1 = a as unknown as string;
+		const b1 = b as unknown as string;
+
+		const re = new RegExp(b1.replaceAll(/\s/g, ".*?"), "i");
+		const match = a1.match(re);
+
+		return match !== undefined && match !== null;
+	},
 };

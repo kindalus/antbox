@@ -84,7 +84,13 @@ export default class InMemoryNodeRepository implements NodeRepository {
 		const fields = fieldPath.split(".");
 
 		// deno-lint-ignore no-explicit-any
-		return fields.reduce((acc: any, field) => acc?.[field], { ...node });
+		let acc: any = { ...node };
+
+		for (const field of fields) {
+			acc = acc?.[field];
+		}
+
+		return acc;
 	}
 }
 
@@ -107,7 +113,7 @@ export const filterFns: Record<string, FilterFn> = {
 		const b1 = b as unknown as string;
 
 		const re = new RegExp(b1.replaceAll(/\s/g, ".*?"), "i");
-		const match = a1.match(re);
+		const match = a1?.match(re);
 
 		return match !== undefined && match !== null;
 	},

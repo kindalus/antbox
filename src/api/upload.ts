@@ -7,7 +7,7 @@ import {
 	R,
 } from "../../deps.ts";
 
-import fileExistsSync from "../helpers/file_exists_sync.ts";
+import fileExistsSync from "../shared/file_exists_sync.ts";
 
 export type UploadRequest = OpineRequest & { file?: FormFile; parent?: string };
 

@@ -1,5 +1,5 @@
-import Either, { success } from "../../helpers/either.ts";
-import EcmError from "../ecm_error.ts";
+import Either, { success } from "../../shared/either.ts";
+import EcmError from "../../shared/ecm_error.ts";
 
 export default class Password {
 	static make(value: string): Either<Password, EcmError> {

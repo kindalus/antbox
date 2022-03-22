@@ -1,7 +1,10 @@
-import { assertStrictEquals, belike } from "../../../dev_deps.ts";
-import { success } from "../../helpers/either.ts";
-import EcmError from "../ecm_error.ts";
+import { assertNotEquals, assertStrictEquals, belike } from "../../dev_deps.ts";
+import { success } from "../shared/either.ts";
+import EcmError from "../shared/ecm_error.ts";
 import AuthService, { AuthServiceContext } from "./auth_service.ts";
+
+import InvalidEmailFormatError from "../domain/auth/invalid_email_format_error.ts";
+import InvalidFullnameFormatError from "../domain/auth/invalid_fullname_format_error.ts";
 
 Deno.test("createUser", async (t) => {
 	await t.step("Deve gerar uma senha", () => {
@@ -62,6 +65,34 @@ Deno.test("createUser", async (t) => {
 
 		assertStrictEquals(userRepository.addOrReplace.called(), true);
 	});
+
+	await t.step(
+		"Erro @InvalidEmailFormat se o formato do email for inválido",
+		() => {
+			const svc = new AuthService({ ...makeServiceContext() });
+			const result = svc.createUser("bademailformat", "Some User");
+
+			assertNotEquals(result.error, undefined);
+			assertStrictEquals(
+				result.error?.errorCode,
+				InvalidEmailFormatError.ERROR_CODE,
+			);
+		},
+	);
+
+	await t.step(
+		"Erro @InvalidFullnameFormat se o formato do nome for inválido",
+		() => {
+			const svc = new AuthService({ ...makeServiceContext() });
+			const result = svc.createUser("user@user.com", "");
+
+			assertNotEquals(result.error, undefined);
+			assertStrictEquals(
+				result.error?.errorCode,
+				InvalidFullnameFormatError.ERROR_CODE,
+			);
+		},
+	);
 });
 
 function makeServiceContext(): AuthServiceContext {

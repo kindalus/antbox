@@ -6,10 +6,9 @@ import { VERSION } from "./version.ts";
 
 import { join } from "./deps.ts";
 
-import FlatFileAspectRepository from "./src/repositories/flat_file_aspect_repository.ts";
-import FlatFileNodeRepository from "./src/repositories/flat_file_node_repository.ts";
-
-import FlatFileStorageProvider from "./src/storage/flat_file_storage_provider.ts";
+import FlatFileAspectRepository from "./src/infra/persistence/flat_file_aspect_repository.ts";
+import FlatFileNodeRepository from "./src/infra/persistence/flat_file_node_repository.ts";
+import FlatFileStorageProvider from "./src/infra/storage/flat_file_storage_provider.ts";
 
 import { startServer } from "./server.ts";
 import { EcmConfig } from "./mod.ts";

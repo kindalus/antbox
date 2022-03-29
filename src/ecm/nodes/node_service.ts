@@ -3,7 +3,7 @@ import { Node, NodeFilter } from "./node.ts";
 import { FidGenerator } from "./fid_generator.ts";
 import { NodeRepository } from "./node_repository.ts";
 import { StorageProvider } from "../storage_provider.ts";
-import { UuidGenerator } from "./uuid_generator.ts";
+import { UuidGenerator } from "../../domain/providers/uuid_generator.ts";
 
 import {
 	Aggregation,
@@ -219,8 +219,7 @@ export default class NodeService {
 		_request: RequestContext,
 		uuid: string,
 	): Promise<SmartFolderNodeEvaluation> {
-		const node =
-			(await this.context.repository.getById(uuid)) as SmartFolderNode;
+		const node = (await this.context.repository.getById(uuid)) as SmartFolderNode;
 
 		if (!this.isSmartFolderNode(node)) {
 			throw new SmartFolderNodeNotFoundError(uuid);
@@ -391,8 +390,7 @@ function calculateAggregation<T>(
 
 const Reducers: Record<string, ReducerFn> = {
 	sum(nodes: Node[], fieldName: string) {
-		const fn = (acc: number, curValue: number) =>
-			acc + (curValue as number);
+		const fn = (acc: number, curValue: number) => acc + (curValue as number);
 		return calculateAggregation(
 			fn as AggregatorFn<unknown>,
 			0,
@@ -402,9 +400,9 @@ const Reducers: Record<string, ReducerFn> = {
 	},
 
 	avg(nodes: Node[], fieldName: string) {
-		const fn =
-			((acc: number, curValue: number) =>
-				acc + (curValue as number)) as AggregatorFn<unknown>;
+		const fn = ((acc: number, curValue: number) => acc + (curValue as number)) as AggregatorFn<
+			unknown
+		>;
 
 		const sum = calculateAggregation(fn, 0, nodes, fieldName);
 

@@ -1,4 +1,4 @@
-import { UuidGenerator } from "../ecm/nodes/uuid_generator.ts";
+import UuidGenerator from "../domain/providers/uuid_generator.ts";
 
 export default class DefaultUuidGenerator implements UuidGenerator {
 	private readonly charTable;
@@ -7,8 +7,14 @@ export default class DefaultUuidGenerator implements UuidGenerator {
 		this.charTable = this.buildCharactersArray();
 	}
 
-	generate(): string {
-		return this.generateSafiraIdCharacters(8);
+	generate(lenght = 8): string {
+		if (lenght === 0) return "";
+
+		const char = Math.floor(Math.random() * this.charTable.length);
+
+		return this.charTable[char].concat(
+			this.generate(lenght - 1),
+		);
 	}
 
 	private buildCharactersArray() {
@@ -43,16 +49,6 @@ export default class DefaultUuidGenerator implements UuidGenerator {
 		if (to < from) return [];
 		return [String.fromCodePoint(from)].concat(
 			this.generateUnicodeArray(from + 1, to),
-		);
-	}
-
-	private generateSafiraIdCharacters(length: number): string {
-		if (length === 0) return "";
-
-		const char = Math.floor(Math.random() * this.charTable.length);
-
-		return this.charTable[char].concat(
-			this.generateSafiraIdCharacters(length - 1),
 		);
 	}
 }

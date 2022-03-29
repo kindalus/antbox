@@ -21,11 +21,7 @@ export {
 
 export type { WebContent } from "./src/ecm/builtin_aspects/web_content.ts";
 
-export type {
-	Aspect,
-	AspectProperty,
-	PropertyType,
-} from "./src/ecm/aspects/aspect.ts";
+export type { Aspect, AspectProperty, PropertyType } from "./src/ecm/aspects/aspect.ts";
 
 export type {
 	Actions,
@@ -56,7 +52,7 @@ export type { AspectServiceContext } from "./src/ecm/aspects/aspect_service.ts";
 export type { RequestContext } from "./src/ecm/request_context.ts";
 
 export type { FidGenerator } from "./src/ecm/nodes/fid_generator.ts";
-export type { UuidGenerator } from "./src/ecm/nodes/uuid_generator.ts";
+export type { UuidGenerator } from "./src/domain/providers/uuid_generator.ts";
 
 export type { StorageProvider } from "./src/ecm/storage_provider.ts";
 

@@ -1,4 +1,4 @@
-FROM denoland/deno:alpine-1.18.0
+FROM denoland/deno:alpine-1.19.3
 
 EXPOSE 7180
 
@@ -21,4 +21,4 @@ RUN deno cache sandbox.ts
 
 
 
-CMD ["run", "--unstable", "--allow-all", "sandbox.ts", "/data"]
+CMD ["run", "--allow-all", "sandbox.ts", "/data"]

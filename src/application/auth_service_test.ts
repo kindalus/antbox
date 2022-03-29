@@ -7,6 +7,8 @@ import DefaultUuidGenerator from "../strategies/default_uuid_generator.ts";
 import InvalidEmailFormatError from "../domain/auth/invalid_email_format_error.ts";
 import InvalidFullnameFormatError from "../domain/auth/invalid_fullname_format_error.ts";
 import InvalidGroupNameFormatError from "../domain/auth/invalid_group_name_format_error.ts";
+import DomainEvents from "./domain_events.ts";
+import UserCreatedEvent from "../domain/auth/user_created_event.ts";
 
 Deno.test("createUser", async (t) => {
 	await t.step("Deve gerar uma senha", () => {
@@ -57,6 +59,22 @@ Deno.test("createUser", async (t) => {
 			),
 			true,
 		);
+	});
+
+	await t.step("Deve lançar o evento UserCreatedEvent", () => {
+		const eventHandler = {
+			handle: belike.fn(() => undefined),
+		};
+
+		DomainEvents.clearHandlers();
+		DomainEvents.subscribe(UserCreatedEvent.EVENT_ID, eventHandler);
+
+		const svc = new AuthService(makeServiceContext());
+
+		const result = svc.createUser("user@domain.com", "Some User");
+
+		assertStrictEquals(result.error, undefined);
+		assertStrictEquals(eventHandler.handle.calledTimes(1), true);
 	});
 
 	await t.step("Erro @InvalidEmailFormat se o formato do email for inválido", () => {

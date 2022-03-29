@@ -10,6 +10,8 @@ import UserRepository from "../domain/auth/user_repository.ts";
 import GroupRepository from "../domain/auth/group_repository.ts";
 import Group from "../domain/auth/group.ts";
 import UuidGenerator from "../domain/providers/uuid_generator.ts";
+import DomainEvents from "./domain_events.ts";
+import UserCreatedEvent from "../domain/auth/user_created_event.ts";
 
 export interface AuthServiceContext {
 	uuidGenerator: UuidGenerator;
@@ -57,6 +59,8 @@ export default class AuthService {
 		this.ctx.userRepository.addOrReplace(user);
 
 		this.ctx.emailSender.send(user.email, user.fullname, plainPassword);
+
+		DomainEvents.notify(new UserCreatedEvent(user.email.value, user.fullname.value));
 
 		return success(undefined);
 	}

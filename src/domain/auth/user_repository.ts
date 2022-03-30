@@ -3,5 +3,5 @@ import User from "./user.ts";
 import Either from "../../shared/either.ts";
 
 export default interface UserRepository {
-	addOrReplace(user: User): Promise<Either<void, EcmError>>;
+	addOrReplace(user: User): Promise<Either<undefined, EcmError>>;
 }

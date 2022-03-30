@@ -9,20 +9,21 @@ import InvalidFullnameFormatError from "../domain/auth/invalid_fullname_format_e
 import InvalidGroupNameFormatError from "../domain/auth/invalid_group_name_format_error.ts";
 import DomainEvents from "./domain_events.ts";
 import UserCreatedEvent from "../domain/auth/user_created_event.ts";
+import GroupCreatedEvent from "../domain/auth/group_created_event.ts";
 
 Deno.test("createUser", async (t) => {
-	await t.step("Deve gerar uma senha", () => {
+	await t.step("Deve gerar uma senha", async () => {
 		const passwordGenerator = { generate: belike.fn(() => "xptoso") };
 		const svc = new AuthService({ ...makeServiceContext(), passwordGenerator });
 
-		svc.createUser("user1@antbox.io", "Antbox User");
+		await svc.createUser("user1@antbox.io", "Antbox User");
 
 		assertStrictEquals(passwordGenerator.generate.called(), true);
 	});
 
-	await t.step("Grava o user no repositorio", () => {
+	await t.step("Grava o user no repositorio", async () => {
 		const userRepository = {
-			addOrReplace: belike.fn(() => Promise.resolve(success<void, EcmError>(undefined))),
+			addOrReplace: belike.fn(() => Promise.resolve(success<undefined, EcmError>(undefined))),
 		};
 
 		const svc = new AuthService({
@@ -30,12 +31,12 @@ Deno.test("createUser", async (t) => {
 			userRepository,
 		});
 
-		svc.createUser("user1@antbox.io", "Antbox User");
+		await svc.createUser("user1@antbox.io", "Antbox User");
 
 		assertStrictEquals(userRepository.addOrReplace.called(), true);
 	});
 
-	await t.step("Envia a senha pelo mecanismo de notificação por email", () => {
+	await t.step("Envia a senha pelo mecanismo de notificação por email", async () => {
 		const GENERATED_PASSWORD = "coolpasswd";
 		const passwordGenerator = { generate: () => GENERATED_PASSWORD };
 		const email = "user@example.com";
@@ -49,7 +50,7 @@ Deno.test("createUser", async (t) => {
 			emailSender,
 		});
 
-		svc.createUser(email, fullname);
+		await svc.createUser(email, fullname);
 
 		assertStrictEquals(
 			emailSender.send.calledWith(
@@ -61,7 +62,7 @@ Deno.test("createUser", async (t) => {
 		);
 	});
 
-	await t.step("Deve lançar o evento UserCreatedEvent", () => {
+	await t.step("Deve lançar o evento UserCreatedEvent", async () => {
 		const eventHandler = {
 			handle: belike.fn(() => undefined),
 		};
@@ -71,15 +72,15 @@ Deno.test("createUser", async (t) => {
 
 		const svc = new AuthService(makeServiceContext());
 
-		const result = svc.createUser("user@domain.com", "Some User");
+		const result = await svc.createUser("user@domain.com", "Some User");
 
 		assertStrictEquals(result.error, undefined);
 		assertStrictEquals(eventHandler.handle.calledTimes(1), true);
 	});
 
-	await t.step("Erro @InvalidEmailFormat se o formato do email for inválido", () => {
+	await t.step("Erro @InvalidEmailFormat se o formato do email for inválido", async () => {
 		const svc = new AuthService({ ...makeServiceContext() });
-		const result = svc.createUser("bademailformat", "Some User");
+		const result = await svc.createUser("bademailformat", "Some User");
 
 		assertNotEquals(result.error, undefined);
 		assertStrictEquals(
@@ -88,9 +89,9 @@ Deno.test("createUser", async (t) => {
 		);
 	});
 
-	await t.step("Erro @InvalidFullnameFormat se o formato do nome for inválido", () => {
+	await t.step("Erro @InvalidFullnameFormat se o formato do nome for inválido", async () => {
 		const svc = new AuthService({ ...makeServiceContext() });
-		const result = svc.createUser("user@user.com", "");
+		const result = await svc.createUser("user@user.com", "");
 
 		assertNotEquals(result.error, undefined);
 		assertStrictEquals(
@@ -101,27 +102,43 @@ Deno.test("createUser", async (t) => {
 });
 
 Deno.test("createGroup", async (t) => {
-	await t.step("Grava o grupo no repositorio", () => {
+	await t.step("Grava o grupo no repositorio", async () => {
 		const groupRepository = {
-			addOrReplace: belike.fn(() => Promise.resolve(success<void, EcmError>(undefined))),
+			addOrReplace: belike.fn(() => Promise.resolve(success<undefined, EcmError>(undefined))),
 		};
 
 		const svc = new AuthService({ ...makeServiceContext(), groupRepository });
 
-		svc.createGroup("Group1");
+		await svc.createGroup("Group1");
 
 		assertStrictEquals(groupRepository.addOrReplace.called(), true);
 	});
 
-	await t.step("Erro @InvalidGroupNameFormat se o formato do nome for inválido", () => {
+	await t.step("Erro @InvalidGroupNameFormat se o formato do nome for inválido", async () => {
 		const svc = new AuthService({ ...makeServiceContext() });
-		const result = svc.createGroup("");
+		const result = await svc.createGroup("");
 
 		assertExists(result.error);
 		assertStrictEquals(
 			result.error?.errorCode,
 			InvalidGroupNameFormatError.ERROR_CODE,
 		);
+	});
+
+	await t.step("Deve lançar o evento GroupCreatedEvent", async () => {
+		const eventHandler = {
+			handle: belike.fn(() => undefined),
+		};
+
+		DomainEvents.clearHandlers();
+		DomainEvents.subscribe(GroupCreatedEvent.EVENT_ID, eventHandler);
+
+		const svc = new AuthService(makeServiceContext());
+
+		const result = await svc.createGroup("Group1");
+
+		assertStrictEquals(result.error, undefined);
+		assertStrictEquals(eventHandler.handle.calledTimes(1), true);
 	});
 });
 

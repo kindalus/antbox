@@ -12,6 +12,8 @@ import Group from "../domain/auth/group.ts";
 import UuidGenerator from "../domain/providers/uuid_generator.ts";
 import DomainEvents from "./domain_events.ts";
 import UserCreatedEvent from "../domain/auth/user_created_event.ts";
+import GroupCreatedEvent from "../domain/auth/group_created_event.ts";
+import GroupName from "../domain/auth/group_name.ts";
 
 export interface AuthServiceContext {
 	uuidGenerator: UuidGenerator;
@@ -22,21 +24,37 @@ export interface AuthServiceContext {
 }
 
 export default class AuthService {
-	createGroup(name: string): Either<void, EcmError> {
+	constructor(private readonly ctx: AuthServiceContext) {}
+
+	async createGroup(name: string): Promise<Either<void, EcmError>> {
 		const id = this.ctx.uuidGenerator.generate();
-		const groupOrError = Group.make(id, name);
+
+		const groupNameOrError = GroupName.make(name);
+
+		if (groupNameOrError.error) {
+			return error(groupNameOrError.error);
+		}
+
+		const groupOrError = Group.make(id, groupNameOrError.success as GroupName);
 
 		if (groupOrError.error) {
 			return error(groupOrError.error);
 		}
 
-		this.ctx.groupRepository.addOrReplace(groupOrError.success as Group);
+		const group = groupOrError.success as Group;
+
+		const repoResult = await this.ctx.groupRepository.addOrReplace(group);
+
+		if (repoResult.error) {
+			return error(repoResult.error);
+		}
+
+		DomainEvents.notify(new GroupCreatedEvent(id, group.name.value));
 
 		return success(undefined);
 	}
-	constructor(private readonly ctx: AuthServiceContext) {}
 
-	createUser(email: string, fullname: string): Either<void, EcmError> {
+	async createUser(email: string, fullname: string): Promise<Either<void, EcmError>> {
 		const emailOrError = Email.make(email);
 		if (emailOrError.error) {
 			return error(emailOrError.error);
@@ -56,7 +74,11 @@ export default class AuthService {
 			passwordOrError.success as Password,
 		);
 
-		this.ctx.userRepository.addOrReplace(user);
+		const repoResult = await this.ctx.userRepository.addOrReplace(user);
+
+		if (repoResult.error) {
+			return error(repoResult.error);
+		}
 
 		this.ctx.emailSender.send(user.email, user.fullname, plainPassword);
 

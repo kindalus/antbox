@@ -11,5 +11,5 @@ export default class GroupName {
 		return success(new GroupName(name));
 	}
 
-	private constructor(readonly name: string) {}
+	private constructor(readonly value: string) {}
 }

@@ -3,5 +3,5 @@ import Either from "../../shared/either.ts";
 import Group from "../../domain/auth/group.ts";
 
 export default interface UserRepository {
-	addOrReplace(group: Group): Promise<Either<void, EcmError>>;
+	addOrReplace(group: Group): Promise<Either<undefined, EcmError>>;
 }

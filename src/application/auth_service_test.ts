@@ -1,15 +1,25 @@
-import { assertExists, assertNotEquals, assertStrictEquals, belike } from "../../dev_deps.ts";
-import { success } from "../shared/either.ts";
+import {
+	assertEquals,
+	assertExists,
+	assertNotEquals,
+	assertStrictEquals,
+	belike,
+} from "../../dev_deps.ts";
+import { error, success } from "../shared/either.ts";
 import EcmError from "../shared/ecm_error.ts";
 import AuthService, { AuthServiceContext } from "./auth_service.ts";
 import DefaultUuidGenerator from "../strategies/default_uuid_generator.ts";
 
+import UserNotFoundError from "../domain/auth/user_not_found_error.ts";
 import InvalidEmailFormatError from "../domain/auth/invalid_email_format_error.ts";
 import InvalidFullnameFormatError from "../domain/auth/invalid_fullname_format_error.ts";
 import InvalidGroupNameFormatError from "../domain/auth/invalid_group_name_format_error.ts";
 import DomainEvents from "./domain_events.ts";
 import UserCreatedEvent from "../domain/auth/user_created_event.ts";
 import GroupCreatedEvent from "../domain/auth/group_created_event.ts";
+import Email from "../domain/auth/email.ts";
+
+import InMemoryUserRepository from "../infra/persistence/in_memory_user_repository.ts";
 
 Deno.test("createUser", async (t) => {
 	await t.step("Deve gerar uma senha", async () => {
@@ -22,18 +32,17 @@ Deno.test("createUser", async (t) => {
 	});
 
 	await t.step("Grava o user no repositorio", async () => {
-		const userRepository = {
-			addOrReplace: belike.fn(() => Promise.resolve(success<undefined, EcmError>(undefined))),
-		};
+		const ctx = makeServiceContext();
+		const addOrReplaceMock = belike.fn(() =>
+			Promise.resolve(success<undefined, EcmError>(undefined))
+		);
+		ctx.userRepository.addOrReplace = addOrReplaceMock;
 
-		const svc = new AuthService({
-			...makeServiceContext(),
-			userRepository,
-		});
+		const svc = new AuthService(ctx);
 
 		await svc.createUser("user1@antbox.io", "Antbox User");
 
-		assertStrictEquals(userRepository.addOrReplace.called(), true);
+		assertStrictEquals(addOrReplaceMock.called(), true);
 	});
 
 	await t.step("Envia a senha pelo mecanismo de notificação por email", async () => {
@@ -146,9 +155,7 @@ function makeServiceContext(): AuthServiceContext {
 	return {
 		passwordGenerator: { generate: () => "passwd" + Date.now() },
 		emailSender: { send: () => undefined },
-		userRepository: {
-			addOrReplace: () => Promise.resolve(success(undefined)),
-		},
+		userRepository: new InMemoryUserRepository(),
 
 		groupRepository: {
 			addOrReplace: () => Promise.resolve(success(undefined)),
@@ -157,3 +164,15 @@ function makeServiceContext(): AuthServiceContext {
 		uuidGenerator: new DefaultUuidGenerator(),
 	};
 }
+
+Deno.test("authenticate", async (t) => {
+	await t.step("Se repository vazio autentica o user com o Role Admin", async () => {
+		const svc = new AuthService({ ...makeServiceContext() });
+
+		const username = "user@domain";
+		const result = await svc.authenticate(username, "passwd");
+
+		assertStrictEquals(result.error, undefined);
+		assertEquals(result.success, { username, roles: ["Admin"] });
+	});
+});

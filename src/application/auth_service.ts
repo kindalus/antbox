@@ -15,6 +15,9 @@ import UserCreatedEvent from "../domain/auth/user_created_event.ts";
 import GroupCreatedEvent from "../domain/auth/group_created_event.ts";
 import GroupName from "../domain/auth/group_name.ts";
 
+import UserNotFoundError from "../domain/auth/user_not_found_error.ts";
+import UserAuthenticationModel from "./user_authentication_model.ts";
+
 export interface AuthServiceContext {
 	uuidGenerator: UuidGenerator;
 	passwordGenerator: PasswordGenerator;
@@ -85,5 +88,12 @@ export default class AuthService {
 		DomainEvents.notify(new UserCreatedEvent(user.email.value, user.fullname.value));
 
 		return success(undefined);
+	}
+
+	authenticate(
+		username: string,
+		password: string,
+	): Promise<Either<UserAuthenticationModel, UserNotFoundError>> {
+		return Promise.resolve(success({ username, roles: ["Admin"] }));
 	}
 }

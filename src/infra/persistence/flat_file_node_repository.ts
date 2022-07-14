@@ -1,7 +1,7 @@
 import { join } from "/deps/path";
 import { Node } from "/domain/nodes/node.ts";
 import fileExistsSync from "/shared/file_exists_sync.ts";
-import jsonToUint8Array from "/shared/json_to_uint_8_array.ts";
+
 import InMemoryNodeRepository from "/infra/persistence/in_memory_node_repository.ts";
 
 export default class FlatFileNodeRepository extends InMemoryNodeRepository {
@@ -49,7 +49,7 @@ export default class FlatFileNodeRepository extends InMemoryNodeRepository {
 			this.backupDb();
 		}
 
-		return jsonToUint8Array(this.db).then((data: Uint8Array) =>
+		return toUint8Array(this.db).then((data: Uint8Array) =>
 			Deno.writeFileSync(this.dbFilePath, data)
 		);
 	}
@@ -95,4 +95,11 @@ export default class FlatFileNodeRepository extends InMemoryNodeRepository {
 	private get dbBackupFolderPath(): string {
 		return join(this.path, "backup");
 	}
+}
+
+function toUint8Array(data: unknown): Promise<Uint8Array> {
+	const blob = new Blob([JSON.stringify(data)]);
+
+	return blob.arrayBuffer()
+		.then((buffer) => new Uint8Array(buffer));
 }

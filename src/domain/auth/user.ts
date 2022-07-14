@@ -1,8 +1,9 @@
 import Email from "./email.ts";
 import Fullname from "./fullname.ts";
 import Password from "./password.ts";
+import Principal from "./principal.ts";
 
-export default class User {
+export default class User implements Principal {
 	readonly email: Email;
 	private _fullname: Fullname;
 	private _password: Password;
@@ -19,5 +20,9 @@ export default class User {
 		this.email = email;
 		this._fullname = fullname;
 		this._password = password;
+	}
+
+	getPrincipalName(): string {
+		return this.email.value;
 	}
 }

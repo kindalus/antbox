@@ -1,9 +1,10 @@
-import { OpineRequest, OpineResponse, Router } from "/deps/opine";
-import { RequestContext } from "/application/request_context.ts";
+import Principal from "/domain/auth/principal.ts";
 import { WebContent } from "/application/builtin_aspects/web_content.ts";
 import EcmRegistry from "/application/ecm_registry.ts";
 import processError from "./process_error.ts";
 import { getRequestContext } from "./request_context_builder.ts";
+
+import { OpineRequest, OpineResponse, Router } from "/deps/opine";
 
 const webContentsRouter = Router();
 
@@ -37,11 +38,11 @@ function handleGetByLanguage(req: OpineRequest, res: OpineResponse) {
 }
 
 function getWebContentText(
-	ctx: RequestContext,
+	principal: Principal,
 	uuid: string,
 ): Promise<Partial<WebContent>> {
 	return EcmRegistry.instance.nodeService
-		.export(ctx, uuid)
+		.export(principal, uuid)
 		.then((blob) => blob.text())
 		.then(JSON.parse);
 }

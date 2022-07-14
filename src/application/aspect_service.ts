@@ -1,7 +1,8 @@
-import { Aspect } from "/domain/aspects/aspect.ts";
-import { AspectRepository } from "/domain/aspects/aspect_repository.ts";
+import Aspect from "/domain/aspects/aspect.ts";
+import Principal from "/domain/auth/principal.ts";
+import AspectRepository from "/domain/aspects/aspect_repository.ts";
+
 import AuthService from "/application/auth_service.ts";
-import { RequestContext } from "/application/request_context.ts";
 import webContent from "/application/builtin_aspects/web_content.ts";
 
 export interface AspectServiceContext {
@@ -16,31 +17,31 @@ export default class AspectService {
 		this.context = context;
 	}
 
-	async create(_request: RequestContext, aspect: Aspect): Promise<void> {
+	async create(_principal: Principal, aspect: Aspect): Promise<void> {
 		this.validateAspect(aspect);
 
 		await this.context.repository.addOrReplace(aspect);
 	}
 
 	update(
-		request: RequestContext,
+		principal: Principal,
 		uuid: string,
 		aspect: Aspect,
 	): Promise<void> {
-		return this.create(request, { ...aspect, uuid });
+		return this.create(principal, { ...aspect, uuid });
 	}
 
 	private validateAspect(_aspect: Aspect): void {}
 
-	async delete(_request: RequestContext, uuid: string): Promise<void> {
+	async delete(_principal: Principal, uuid: string): Promise<void> {
 		await this.context.repository.delete(uuid);
 	}
 
-	get(_request: RequestContext, uuid: string): Promise<Aspect> {
+	get(_principal: Principal, uuid: string): Promise<Aspect> {
 		return this.context.repository.get(uuid);
 	}
 
-	list(_request: RequestContext): Promise<Aspect[]> {
+	list(_principal: Principal): Promise<Aspect[]> {
 		return this.context.repository
 			.getAll()
 			.then((aspects) => [webContent, ...aspects]);

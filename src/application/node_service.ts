@@ -1,4 +1,3 @@
-import { RequestContext } from "/application/request_context.ts";
 import { FidGenerator } from "/domain/nodes/fid_generator.ts";
 import NodeRepository, { NodeFilterResult } from "/domain/nodes/node_repository.ts";
 import { StorageProvider } from "/domain/providers/storage_provider.ts";
@@ -25,6 +24,7 @@ import InvalidNodeToCopyError from "/domain/nodes/invalid_node_to_copy_error.ts"
 
 import DefaultFidGenerator from "/strategies/default_fid_generator.ts";
 import DefaultUuidGenerator from "/strategies/default_uuid_generator.ts";
+import Principal from "../domain/auth/principal.ts";
 
 export interface NodeServiceContext {
 	readonly fidGenerator?: FidGenerator;
@@ -46,12 +46,12 @@ export default class NodeService {
 	}
 
 	async createFile(
-		request: RequestContext,
+		principal: Principal,
 		file: File,
 		parent = ROOT_FOLDER_UUID,
 	): Promise<string> {
 		const node = this.createFileMetadata(
-			request,
+			principal,
 			parent,
 			file.name,
 			file.type,
@@ -65,11 +65,11 @@ export default class NodeService {
 	}
 
 	createFolder(
-		request: RequestContext,
+		principal: Principal,
 		title: string,
 		parent = ROOT_FOLDER_UUID,
 	): Promise<string> {
-		const node = this.createFolderMetadata(request, parent, title);
+		const node = this.createFolderMetadata(principal, parent, title);
 
 		this.context.repository.add(node);
 
@@ -81,7 +81,7 @@ export default class NodeService {
 	}
 
 	private createFileMetadata(
-		request: RequestContext,
+		principal: Principal,
 		parent: string,
 		title: string,
 		mimetype: string,
@@ -93,7 +93,7 @@ export default class NodeService {
 			title,
 			parent,
 			mimetype,
-			owner: request.getUserId(),
+			owner: principal.getPrincipalName(),
 			starred: false,
 			trashed: false,
 			size,
@@ -103,13 +103,13 @@ export default class NodeService {
 	}
 
 	private createFolderMetadata(
-		request: RequestContext,
+		principal: Principal,
 		parent: string,
 		title: string,
 	): FolderNode {
 		return {
 			...this.createFileMetadata(
-				request,
+				principal,
 				parent,
 				title,
 				FOLDER_MIMETYPE,
@@ -121,14 +121,14 @@ export default class NodeService {
 		};
 	}
 
-	async copy(request: RequestContext, uuid: string): Promise<string> {
-		const node = await this.get(request, uuid);
+	async copy(principal: Principal, uuid: string): Promise<string> {
+		const node = await this.get(principal, uuid);
 		const file = await this.context.storage.read(uuid);
 
 		if (!this.isFileNode(node)) throw new InvalidNodeToCopyError(uuid);
 
 		const newNode = this.createFileMetadata(
-			request,
+			principal,
 			node.parent ?? ROOT_FOLDER_UUID,
 			node.title,
 			node.mimetype,
@@ -142,11 +142,11 @@ export default class NodeService {
 	}
 
 	async updateFile(
-		request: RequestContext,
+		principal: Principal,
 		uuid: string,
 		file: File,
 	): Promise<void> {
-		const node = await this.get(request, uuid);
+		const node = await this.get(principal, uuid);
 
 		node.modifiedTime = now();
 		node.size = file.size;
@@ -157,13 +157,13 @@ export default class NodeService {
 		await this.context.repository.update(node);
 	}
 
-	async delete(request: RequestContext, uuid: string): Promise<void> {
-		const node = await this.get(request, uuid);
+	async delete(principal: Principal, uuid: string): Promise<void> {
+		const node = await this.get(principal, uuid);
 
 		return NodeDeleter.for(node, this.context).delete();
 	}
 
-	async get(_request: RequestContext, uuid: string): Promise<Node> {
+	async get(_principal: Principal, uuid: string): Promise<Node> {
 		const node = await this.getFromRepository(uuid);
 
 		if (!node) throw new NodeNotFoundError(uuid);
@@ -179,7 +179,7 @@ export default class NodeService {
 	}
 
 	async list(
-		_request: RequestContext,
+		_principal: Principal,
 		parent = ROOT_FOLDER_UUID,
 	): Promise<Node[]> {
 		if (!this.isRootFolder(parent)) {
@@ -196,7 +196,7 @@ export default class NodeService {
 	}
 
 	query(
-		_request: RequestContext,
+		_principal: Principal,
 		constraints: NodeFilter[],
 		pageSize = 25,
 		pageToken = 1,
@@ -205,11 +205,11 @@ export default class NodeService {
 	}
 
 	async update(
-		request: RequestContext,
+		principal: Principal,
 		uuid: string,
 		data: Partial<Node>,
 	): Promise<void> {
-		const node = await this.get(request, uuid);
+		const node = await this.get(principal, uuid);
 
 		if (!node) throw new NodeNotFoundError(uuid);
 
@@ -217,7 +217,7 @@ export default class NodeService {
 	}
 
 	async evaluate(
-		_request: RequestContext,
+		_principal: Principal,
 		uuid: string,
 	): Promise<SmartFolderNodeEvaluation> {
 		const node = (await this.context.repository.getById(uuid)) as SmartFolderNode;
@@ -280,8 +280,8 @@ export default class NodeService {
 		return !this.isSmartFolderNode(node) && !this.isFolderNode(node);
 	}
 
-	async export(request: RequestContext, uuid: string): Promise<Blob> {
-		const node = await this.get(request, uuid);
+	async export(principal: Principal, uuid: string): Promise<Blob> {
+		const node = await this.get(principal, uuid);
 		const blob = await this.context.storage.read(node.uuid);
 
 		return blob;

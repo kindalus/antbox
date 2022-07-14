@@ -1,59 +1,47 @@
 import { join } from "/deps/path";
-import fileExistsSync from "/shared/file_exists_sync.ts";
-import { Aspect } from "/domain/aspects/aspect.ts";
-import { AspectRepository } from "/domain/aspects/aspect_repository.ts";
-import jsonToUint8Array from "/shared/json_to_uint_8_array.ts";
+import Aspect from "/domain/aspects/aspect.ts";
+import AspectRepository from "/domain/aspects/aspect_repository.ts";
+import FlatFileRepository from "./flat_file_repository.ts";
 
 export default class FlatFileAspectRepository implements AspectRepository {
+	readonly repo: FlatFileRepository<Aspect>;
+
 	/**
 	 * @param path Raíz do repositorio de ficheiros
 	 */
 	constructor(readonly path: string) {
-		if (!fileExistsSync(path)) {
-			Deno.mkdirSync(path, { recursive: true });
-		}
+		const buildFilePath = (uuid: string) => join(path, uuid.concat(".json"));
+
+		this.repo = new FlatFileRepository(path, buildFilePath, toUint8Array, fromUint8Array);
 	}
 
 	get(uuid: string): Promise<Aspect> {
-		const filePath = this.buildFilePath(uuid);
-
-		const decoder = new TextDecoder("utf-8");
-		const buffer = Deno.readFileSync(filePath);
-
-		const aspectString = decoder.decode(buffer);
-		const aspect = JSON.parse(aspectString) as unknown as Aspect;
-
-		return Promise.resolve(aspect);
+		return this.repo.get(uuid);
 	}
 
 	delete(uuid: string): Promise<void> {
-		return Deno.remove(this.buildFilePath(uuid), { recursive: true });
+		return this.repo.delete(uuid);
 	}
 
 	addOrReplace(aspect: Aspect): Promise<void> {
-		const filePath = this.buildFilePath(aspect.uuid);
-
-		if (!fileExistsSync(this.path)) {
-			Deno.mkdirSync(this.path, { recursive: true });
-		}
-
-		return jsonToUint8Array(aspect)
-			.then((data: Uint8Array) => Deno.writeFileSync(filePath, data));
+		return this.repo.addOrReplace(aspect);
 	}
 
 	getAll(): Promise<Aspect[]> {
-		const files = Deno.readDirSync(this.path);
-
-		const readPromises = [];
-
-		for (const file of files) {
-			readPromises.push(this.get(file.name.slice(0, -5)));
-		}
-
-		return Promise.all(readPromises);
+		return this.repo.getAll();
 	}
+}
 
-	private buildFilePath(uuid: string) {
-		return join(this.path, uuid.concat(".json"));
-	}
+function toUint8Array(data: Aspect): Promise<Uint8Array> {
+	const blob = new Blob([JSON.stringify(data)]);
+
+	return blob.arrayBuffer()
+		.then((buffer) => new Uint8Array(buffer));
+}
+
+function fromUint8Array(data: Uint8Array): Promise<Aspect> {
+	const decoder = new TextDecoder("utf-8");
+	const aspectString = decoder.decode(data);
+
+	return Promise.resolve(JSON.parse(aspectString) as unknown as Aspect);
 }

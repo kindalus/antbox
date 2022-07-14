@@ -12,6 +12,7 @@
     "/deps/opine": "https://deno.land/x/opine@2.1.4/mod.ts",
     "/deps/opineCors": "https://deno.land/x/cors@v1.2.2/mod.ts",
 
-    "/deps/ramda": "https://cdn.skypack.dev/ramda@^0.27.1"
+    "/deps/ramda": "https://cdn.skypack.dev/ramda@^0.27.1",
+    "/deps/command": "https://deno.land/x/cliffy@v0.19.2/command/mod.ts"
   }
 }

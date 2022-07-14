@@ -21,14 +21,9 @@ export {
 
 export type { WebContent } from "/application/builtin_aspects/web_content.ts";
 
-export type { Aspect, AspectProperty, PropertyType } from "/domain/aspects/aspect.ts";
+export type { AspectProperty, default as Aspect, PropertyType } from "/domain/aspects/aspect.ts";
 
-export type {
-	Actions,
-	ActionsBuiltInQueryResult,
-	ActionsParams,
-	ActionsQueryResult,
-} from "/domain/actions/actions.ts";
+export type { ActionParams, default as Actions } from "/domain/actions/action.ts";
 
 export type { NodeServiceContext, SmartFolderNodeEvaluation } from "/application/node_service.ts";
 

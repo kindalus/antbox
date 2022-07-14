@@ -1,14 +1,25 @@
-import { Command, IParseResult } from "https://deno.land/x/cliffy@v0.19.2/command/mod.ts";
+import InMemoryUserRepository from "/infra/persistence/in_memory_user_repository.ts";
+import InMemoryGroupRepository from "/infra/persistence/in_memory_group_repository.ts";
+
 import { VERSION } from "./version.ts";
 
 import { join } from "/deps/path";
+import { Command, IParseResult } from "/deps/command";
 
-import FlatFileAspectRepository from "./src/infra/persistence/flat_file_aspect_repository.ts";
-import FlatFileNodeRepository from "./src/infra/persistence/flat_file_node_repository.ts";
-import FlatFileStorageProvider from "./src/infra/storage/flat_file_storage_provider.ts";
+import FlatFileAspectRepository from "/infra/persistence/flat_file_aspect_repository.ts";
+import FlatFileNodeRepository from "/infra/persistence/flat_file_node_repository.ts";
+import FlatFileStorageProvider from "/infra/storage/flat_file_storage_provider.ts";
 
 import { startServer } from "./server.ts";
 import { EcmConfig } from "/application/ecm_registry.ts";
+
+import DefaultPasswordGenerator from "/strategies/default_password_generator.ts";
+import DefaultUuidGenerator from "/strategies/default_uuid_generator.ts";
+import FlatFileActionRepository from "/infra/persistence/flat_file_action_repository.ts";
+import NodeService, { NodeServiceContext } from "./src/application/node_service.ts";
+import AspectService, { AspectServiceContext } from "./src/application/aspect_service.ts";
+import AuthService, { AuthServiceContext } from "./src/application/auth_service.ts";
+import { ActionServiceContext } from "./src/application/action_service.ts";
 
 const program = await new Command()
 	.name("antbox-sand")
@@ -22,24 +33,55 @@ const program = await new Command()
 	.parse(Deno.args);
 
 function buildEcmConfig(portalDataFolder: string): EcmConfig {
-	const storage = new FlatFileStorageProvider(
-		join(portalDataFolder, "nodes"),
-	);
-	const nodeRepository = new FlatFileNodeRepository(
-		join(portalDataFolder, "repo"),
-	);
+	return {
+		nodeServiceContext: makeNodeServiceContext(portalDataFolder),
+		aspectServiceContext: makeAspectServiceContext(portalDataFolder),
+		authServiceContext: makeAuthServiceContext(),
+		actionRepository: makeActionRepository(portalDataFolder),
+	};
+}
+
+function makeAuthServiceContext() {
+	return {
+		emailSender: {
+			send: () => undefined,
+		},
+
+		uuidGenerator: new DefaultUuidGenerator(),
+		passwordGenerator: new DefaultPasswordGenerator(),
+
+		userRepository: new InMemoryUserRepository(),
+		groupRepository: new InMemoryGroupRepository(),
+	};
+}
+
+function makeAspectServiceContext(baseDir: string): AspectServiceContext {
 	const aspectRepository = new FlatFileAspectRepository(
-		join(portalDataFolder, "aspects"),
+		join(baseDir, "aspects"),
+	);
+
+	return { repository: aspectRepository };
+}
+
+function makeNodeServiceContext(baseDir: string): NodeServiceContext {
+	const storage = new FlatFileStorageProvider(
+		join(baseDir, "nodes"),
+	);
+
+	const nodeRepository = new FlatFileNodeRepository(
+		join(baseDir, "repo"),
 	);
 
 	return {
-		nodeServiceContext: {
-			repository: nodeRepository,
-			storage,
-		},
-
-		aspectServiceContext: { repository: aspectRepository },
+		repository: nodeRepository,
+		storage,
 	};
+}
+
+function makeActionRepository(baseDir: string): FlatFileActionRepository {
+	return new FlatFileActionRepository(
+		join(baseDir, "actions"),
+	);
 }
 
 function main(program: IParseResult) {

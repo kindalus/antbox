@@ -72,9 +72,9 @@ export default class AuthService {
 		const passwordOrError = Password.make(plainPassword);
 
 		const user = new User(
-			emailOrError.success as Email,
-			fullnameOrError.success as Fullname,
-			passwordOrError.success as Password,
+			emailOrError.success!,
+			fullnameOrError.success!,
+			passwordOrError.success!,
 		);
 
 		const repoResult = await this.ctx.userRepository.addOrReplace(user);
@@ -83,7 +83,7 @@ export default class AuthService {
 			return error(repoResult.error);
 		}
 
-		this.ctx.emailSender.send(user.email, user.fullname, plainPassword);
+		this.ctx.emailSender.send(user.email, user.fullname, passwordOrError.success!);
 
 		DomainEvents.notify(new UserCreatedEvent(user.email.value, user.fullname.value));
 

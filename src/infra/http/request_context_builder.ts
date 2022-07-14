@@ -1,8 +1,8 @@
+import Principal from "../../domain/auth/principal.ts";
 import { OpineRequest } from "/deps/opine";
-import { RequestContext } from "/application/request_context.ts";
 
-export function getRequestContext(_req: OpineRequest): RequestContext {
+export function getRequestContext(_req: OpineRequest): Principal {
 	return {
-		getUserId: () => "System",
+		getPrincipalName: () => "System",
 	};
 }

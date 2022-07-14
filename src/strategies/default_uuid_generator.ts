@@ -1,4 +1,4 @@
-import UuidGenerator from "../domain/providers/uuid_generator.ts";
+import UuidGenerator from "/domain/providers/uuid_generator.ts";
 
 export default class DefaultUuidGenerator implements UuidGenerator {
 	private readonly charTable;

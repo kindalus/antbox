@@ -1,4 +1,4 @@
-import EcmError from "../../shared/ecm_error.ts";
+import EcmError from "/shared/ecm_error.ts";
 
 export default class InvalidGroupNameFormatError implements EcmError {
 	static ERROR_CODE = "InvalidGroupNameFormatError";

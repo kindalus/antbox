@@ -1,8 +1,8 @@
-import { join } from "../../../deps.ts";
-import fileExistsSync from "../../shared/file_exists_sync.ts";
-import { Aspect } from "../../ecm/aspects/aspect.ts";
-import { AspectRepository } from "../../ecm/aspects/aspect_repository.ts";
-import jsonToUint8Array from "../../shared/json_to_uint_8_array.ts";
+import { join } from "/deps/path";
+import fileExistsSync from "/shared/file_exists_sync.ts";
+import { Aspect } from "/domain/aspects/aspect.ts";
+import { AspectRepository } from "/domain/aspects/aspect_repository.ts";
+import jsonToUint8Array from "/shared/json_to_uint_8_array.ts";
 
 export default class FlatFileAspectRepository implements AspectRepository {
 	/**

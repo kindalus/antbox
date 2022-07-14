@@ -1,9 +1,8 @@
-import { RequestContext } from "../request_context.ts";
-import { Node, NodeFilter } from "./node.ts";
-import { FidGenerator } from "./fid_generator.ts";
-import { NodeRepository } from "./node_repository.ts";
-import { StorageProvider } from "../storage_provider.ts";
-import { UuidGenerator } from "../../domain/providers/uuid_generator.ts";
+import { RequestContext } from "/application/request_context.ts";
+import { FidGenerator } from "/domain/nodes/fid_generator.ts";
+import NodeRepository, { NodeFilterResult } from "/domain/nodes/node_repository.ts";
+import { StorageProvider } from "/domain/providers/storage_provider.ts";
+import UuidGenerator from "/domain/providers/uuid_generator.ts";
 
 import {
 	Aggregation,
@@ -11,19 +10,21 @@ import {
 	FOLDER_MIMETYPE,
 	FolderNode,
 	isFid,
+	Node,
+	NodeFilter,
 	ROOT_FOLDER_UUID,
 	SMART_FOLDER_MIMETYPE,
 	SmartFolderNode,
 	uuidToFid,
-} from "./node.ts";
+} from "/domain/nodes/node.ts";
 
-import FolderNotFoundError from "./folder_not_found_error.ts";
-import SmartFolderNodeNotFoundError from "./smart_folder_node_not_found_error.ts";
-import NodeNotFoundError from "./node_not_found_error.ts";
-import InvalidNodeToCopyError from "./invalid_node_to_copy_error.ts";
+import FolderNotFoundError from "/domain/nodes/folder_not_found_error.ts";
+import SmartFolderNodeNotFoundError from "/domain/nodes/smart_folder_node_not_found_error.ts";
+import NodeNotFoundError from "/domain/nodes/node_not_found_error.ts";
+import InvalidNodeToCopyError from "/domain/nodes/invalid_node_to_copy_error.ts";
 
-import DefaultFidGenerator from "../../strategies/default_fid_generator.ts";
-import DefaultUuidGenerator from "../../strategies/default_uuid_generator.ts";
+import DefaultFidGenerator from "/strategies/default_fid_generator.ts";
+import DefaultUuidGenerator from "/strategies/default_uuid_generator.ts";
 
 export interface NodeServiceContext {
 	readonly fidGenerator?: FidGenerator;
@@ -457,11 +458,4 @@ export interface SmartFolderNodeEvaluation {
 		title: string;
 		value: unknown;
 	}[];
-}
-
-export interface NodeFilterResult {
-	pageToken: number;
-	pageSize: number;
-	pageCount: number;
-	nodes: Array<Node>;
 }

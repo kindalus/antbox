@@ -1,13 +1,9 @@
-import {
-	FormFile,
-	MultipartReader,
-	NextFunction,
-	OpineRequest,
-	OpineResponse,
-	R,
-} from "../../deps.ts";
+import { NextFunction, OpineRequest, OpineResponse } from "/deps/opine";
 
-import fileExistsSync from "../shared/file_exists_sync.ts";
+import * as R from "/deps/ramda";
+import { FormFile, MultipartReader } from "/deps/mime";
+
+import fileExistsSync from "/shared/file_exists_sync.ts";
 
 export type UploadRequest = OpineRequest & { file?: FormFile; parent?: string };
 

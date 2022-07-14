@@ -1,3 +1,3 @@
-import startServer from "./src/api/server.ts";
+import startServer from "/infra/http/server.ts";
 
 export { startServer };

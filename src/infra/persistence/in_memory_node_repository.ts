@@ -1,6 +1,5 @@
-import { Node, NodeFilter } from "../../ecm/nodes/node.ts";
-import { NodeRepository } from "../../ecm/nodes/node_repository.ts";
-import { NodeFilterResult } from "../../ecm/nodes/node_service.ts";
+import NodeRepository, { NodeFilterResult } from "/domain/nodes/node_repository.ts";
+import { Node, NodeFilter } from "/domain/nodes/node.ts";
 
 export default class InMemoryNodeRepository implements NodeRepository {
 	constructor(readonly db: Record<string, Partial<Node>> = {}) {}
@@ -45,9 +44,7 @@ export default class InMemoryNodeRepository implements NodeRepository {
 		const firstIndex = (pageToken - 1) * pageSize;
 		const lastIndex = firstIndex + pageSize;
 
-		const filtered = constraints?.length
-			? this.filterNodesWith(constraints)
-			: [];
+		const filtered = constraints?.length ? this.filterNodesWith(constraints) : [];
 		const nodes = filtered.slice(firstIndex, lastIndex);
 
 		const pageCount = Math.ceil(filtered.length / pageSize);
@@ -106,8 +103,7 @@ export const filterFns: Record<string, FilterFn> = {
 	in: <T>(a: T, b: T) => (b as unknown as T[])?.includes(a),
 	"not-in": <T>(a: T, b: T) => !(b as unknown as T[])?.includes(a),
 	"array-contains": <T>(a: T, b: T) => (a as unknown as T[])?.includes(b),
-	"array-contains-any": <T>(a: T, b: T) =>
-		!(a as unknown as T[])?.includes(b),
+	"array-contains-any": <T>(a: T, b: T) => !(a as unknown as T[])?.includes(b),
 	"match": (a, b) => {
 		const a1 = a as unknown as string;
 		const b1 = b as unknown as string;

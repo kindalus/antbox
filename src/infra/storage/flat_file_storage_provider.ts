@@ -1,6 +1,6 @@
-import { join } from "../../../deps.ts";
-import fileExistsSync from "../../shared/file_exists_sync.ts";
-import { StorageProvider } from "../../ecm/storage_provider.ts";
+import { join } from "/deps/path";
+import fileExistsSync from "/shared/file_exists_sync.ts";
+import { StorageProvider } from "/domain/providers/storage_provider.ts";
 
 export default class FlatFileStorageProvider implements StorageProvider {
 	/**

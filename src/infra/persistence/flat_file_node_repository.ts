@@ -1,8 +1,8 @@
-import { join } from "../../../deps.ts";
-import { Node } from "../../ecm/nodes/node.ts";
-import fileExistsSync from "../../shared/file_exists_sync.ts";
-import jsonToUint8Array from "../../shared/json_to_uint_8_array.ts";
-import InMemoryNodeRepository from "../persistence/in_memory_node_repository.ts";
+import { join } from "/deps/path";
+import { Node } from "/domain/nodes/node.ts";
+import fileExistsSync from "/shared/file_exists_sync.ts";
+import jsonToUint8Array from "/shared/json_to_uint_8_array.ts";
+import InMemoryNodeRepository from "/infra/persistence/in_memory_node_repository.ts";
 
 export default class FlatFileNodeRepository extends InMemoryNodeRepository {
 	private lastBackupTime = 0;

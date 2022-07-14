@@ -1,9 +1,10 @@
+import { OpineResponse, RequestHandler, Router } from "/deps/opine";
+import { FormFile } from "/deps/mime";
+
+import EcmRegistry from "/application/ecm_registry.ts";
+
 import processError from "./process_error.ts";
-
-import EcmRegistry from "../ecm/ecm_registry.ts";
 import { getRequestContext } from "./request_context_builder.ts";
-
-import { FormFile, OpineResponse, RequestHandler, Router } from "../../deps.ts";
 import upload, { UploadRequest } from "./upload.ts";
 
 const uploadRouter = Router();

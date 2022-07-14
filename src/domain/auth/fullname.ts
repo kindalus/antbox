@@ -1,5 +1,5 @@
-import EcmError from "../../shared/ecm_error.ts";
-import Either, { error, success } from "../../shared/either.ts";
+import EcmError from "/shared/ecm_error.ts";
+import Either, { error, success } from "/shared/either.ts";
 import InvalidFullnameFormatError from "./invalid_fullname_format_error.ts";
 
 export default class Fullname {

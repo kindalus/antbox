@@ -1,21 +1,21 @@
-import PasswordGenerator from "../domain/auth/password_generator.ts";
+import PasswordGenerator from "/domain/auth/password_generator.ts";
 import EmailSender from "./email_sender.ts";
-import EcmError from "../shared/ecm_error.ts";
-import Either, { error, success } from "../shared/either.ts";
-import Email from "../domain/auth/email.ts";
-import Fullname from "../domain/auth/fullname.ts";
-import User from "../domain/auth/user.ts";
-import Password from "../domain/auth/password.ts";
-import UserRepository from "../domain/auth/user_repository.ts";
-import GroupRepository from "../domain/auth/group_repository.ts";
-import Group from "../domain/auth/group.ts";
-import UuidGenerator from "../domain/providers/uuid_generator.ts";
+import EcmError from "/shared/ecm_error.ts";
+import Either, { error, success } from "/shared/either.ts";
+import Email from "/domain/auth/email.ts";
+import Fullname from "/domain/auth/fullname.ts";
+import User from "/domain/auth/user.ts";
+import Password from "/domain/auth/password.ts";
+import UserRepository from "/domain/auth/user_repository.ts";
+import GroupRepository from "/domain/auth/group_repository.ts";
+import Group from "/domain/auth/group.ts";
+import UuidGenerator from "/domain/providers/uuid_generator.ts";
 import DomainEvents from "./domain_events.ts";
-import UserCreatedEvent from "../domain/auth/user_created_event.ts";
-import GroupCreatedEvent from "../domain/auth/group_created_event.ts";
-import GroupName from "../domain/auth/group_name.ts";
+import UserCreatedEvent from "/domain/auth/user_created_event.ts";
+import GroupCreatedEvent from "/domain/auth/group_created_event.ts";
+import GroupName from "/domain/auth/group_name.ts";
 
-import UserNotFoundError from "../domain/auth/user_not_found_error.ts";
+import UserNotFoundError from "/domain/auth/user_not_found_error.ts";
 import UserAuthenticationModel from "./user_authentication_model.ts";
 
 export interface AuthServiceContext {
@@ -92,7 +92,7 @@ export default class AuthService {
 
 	authenticate(
 		username: string,
-		password: string,
+		_password: string,
 	): Promise<Either<UserAuthenticationModel, UserNotFoundError>> {
 		return Promise.resolve(success({ username, roles: ["Admin"] }));
 	}

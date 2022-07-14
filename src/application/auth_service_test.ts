@@ -5,21 +5,20 @@ import {
 	assertStrictEquals,
 	belike,
 } from "../../dev_deps.ts";
-import { error, success } from "../shared/either.ts";
-import EcmError from "../shared/ecm_error.ts";
+
+import { success } from "/shared/either.ts";
+import EcmError from "/shared/ecm_error.ts";
 import AuthService, { AuthServiceContext } from "./auth_service.ts";
-import DefaultUuidGenerator from "../strategies/default_uuid_generator.ts";
+import DefaultUuidGenerator from "/strategies/default_uuid_generator.ts";
 
-import UserNotFoundError from "../domain/auth/user_not_found_error.ts";
-import InvalidEmailFormatError from "../domain/auth/invalid_email_format_error.ts";
-import InvalidFullnameFormatError from "../domain/auth/invalid_fullname_format_error.ts";
-import InvalidGroupNameFormatError from "../domain/auth/invalid_group_name_format_error.ts";
+import InvalidEmailFormatError from "/domain/auth/invalid_email_format_error.ts";
+import InvalidFullnameFormatError from "/domain/auth/invalid_fullname_format_error.ts";
+import InvalidGroupNameFormatError from "/domain/auth/invalid_group_name_format_error.ts";
 import DomainEvents from "./domain_events.ts";
-import UserCreatedEvent from "../domain/auth/user_created_event.ts";
-import GroupCreatedEvent from "../domain/auth/group_created_event.ts";
-import Email from "../domain/auth/email.ts";
+import UserCreatedEvent from "/domain/auth/user_created_event.ts";
+import GroupCreatedEvent from "/domain/auth/group_created_event.ts";
 
-import InMemoryUserRepository from "../infra/persistence/in_memory_user_repository.ts";
+import InMemoryUserRepository from "/infra/persistence/in_memory_user_repository.ts";
 
 Deno.test("createUser", async (t) => {
 	await t.step("Deve gerar uma senha", async () => {

@@ -1,8 +1,8 @@
-import { Aspect } from "./aspect.ts";
-import { AspectRepository } from "./aspect_repository.ts";
-import AuthService from "../../application/auth_service.ts";
-import { RequestContext } from "../request_context.ts";
-import webContent from "../builtin_aspects/web_content.ts";
+import { Aspect } from "/domain/aspects/aspect.ts";
+import { AspectRepository } from "/domain/aspects/aspect_repository.ts";
+import AuthService from "/application/auth_service.ts";
+import { RequestContext } from "/application/request_context.ts";
+import webContent from "/application/builtin_aspects/web_content.ts";
 
 export interface AspectServiceContext {
 	readonly auth?: AuthService;

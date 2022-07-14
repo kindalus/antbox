@@ -1,4 +1,4 @@
-import Event from "../../shared/event.ts";
+import Event from "/shared/event.ts";
 
 export default class GroupCreatedEvent implements Event {
 	static EVENT_ID = "GroupCreatedEvent";

@@ -1,5 +1,5 @@
-import EcmError from "../../shared/ecm_error.ts";
-import Either, { error, success } from "../../shared/either.ts";
+import EcmError from "/shared/ecm_error.ts";
+import Either, { error, success } from "/shared/either.ts";
 import InvalidEmailFormatError from "./invalid_email_format_error.ts";
 
 const EMAIL_RE =

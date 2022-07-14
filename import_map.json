@@ -1,0 +1,17 @@
+{
+  "imports": {
+    "/application/": "./src/application/",
+    "/domain/": "./src/domain/",
+    "/infra/": "./src/infra/",
+    "/shared/": "./src/shared/",
+    "/strategies/": "./src/strategies/",
+
+    "/deps/mime": "https://deno.land/std@0.130.0/mime/mod.ts",
+    "/deps/path": "https://deno.land/std@0.130.0/path/mod.ts",
+
+    "/deps/opine": "https://deno.land/x/opine@2.1.4/mod.ts",
+    "/deps/opineCors": "https://deno.land/x/cors@v1.2.2/mod.ts",
+
+    "/deps/ramda": "https://cdn.skypack.dev/ramda@^0.27.1"
+  }
+}

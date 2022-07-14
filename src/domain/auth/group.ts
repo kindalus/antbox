@@ -1,5 +1,5 @@
-import Either, { success } from "../../shared/either.ts";
-import ECMError from "../../shared/ecm_error.ts";
+import Either, { success } from "/shared/either.ts";
+import ECMError from "/shared/ecm_error.ts";
 import GroupName from "./group_name.ts";
 
 export default class Group {

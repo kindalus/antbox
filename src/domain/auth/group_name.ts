@@ -1,5 +1,5 @@
-import Either, { error, success } from "../../shared/either.ts";
-import ECMError from "../../shared/ecm_error.ts";
+import Either, { error, success } from "/shared/either.ts";
+import ECMError from "/shared/ecm_error.ts";
 import InvalidGroupNameFormatError from "./invalid_group_name_format_error.ts";
 
 export default class GroupName {

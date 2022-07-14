@@ -1,4 +1,4 @@
-import { OpineResponse } from "../../deps.ts";
+import { OpineResponse } from "/deps/opine";
 
 // deno-lint-ignore no-explicit-any
 export default function processError(error: any, res: OpineResponse) {

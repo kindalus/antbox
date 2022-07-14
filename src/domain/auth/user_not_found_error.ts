@@ -1,4 +1,4 @@
-import EcmError from "../../shared/ecm_error.ts";
+import EcmError from "/shared/ecm_error.ts";
 import Email from "./email.ts";
 
 export default class UserNotFoundError implements EcmError {

@@ -1,9 +1,9 @@
-import Email from "../../domain/auth/email.ts";
-import User from "../../domain/auth/user.ts";
-import UserNotFoundError from "../../domain/auth/user_not_found_error.ts";
-import UserRepository from "../../domain/auth/user_repository.ts";
-import EcmError from "../../shared/ecm_error.ts";
-import Either, { error, success } from "../../shared/either.ts";
+import Email from "/domain/auth/email.ts";
+import User from "/domain/auth/user.ts";
+import UserNotFoundError from "/domain/auth/user_not_found_error.ts";
+import UserRepository from "/domain/auth/user_repository.ts";
+import EcmError from "/shared/ecm_error.ts";
+import Either, { error, success } from "/shared/either.ts";
 
 export default class InMemoryUserRepository implements UserRepository {
 	private _users: Record<string, User> = {};

@@ -1,17 +1,14 @@
-import {
-	Command,
-	IParseResult,
-} from "https://deno.land/x/cliffy@v0.19.2/command/mod.ts";
+import { Command, IParseResult } from "https://deno.land/x/cliffy@v0.19.2/command/mod.ts";
 import { VERSION } from "./version.ts";
 
-import { join } from "./deps.ts";
+import { join } from "/deps/path";
 
 import FlatFileAspectRepository from "./src/infra/persistence/flat_file_aspect_repository.ts";
 import FlatFileNodeRepository from "./src/infra/persistence/flat_file_node_repository.ts";
 import FlatFileStorageProvider from "./src/infra/storage/flat_file_storage_provider.ts";
 
 import { startServer } from "./server.ts";
-import { EcmConfig } from "./mod.ts";
+import { EcmConfig } from "/application/ecm_registry.ts";
 
 const program = await new Command()
 	.name("antbox-sand")

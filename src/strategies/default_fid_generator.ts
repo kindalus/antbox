@@ -1,4 +1,4 @@
-import { FidGenerator } from "../ecm/nodes/fid_generator.ts";
+import { FidGenerator } from "/domain/nodes/fid_generator.ts";
 
 export default class DefaultFidGenerator implements FidGenerator {
 	generate(title: string): string {

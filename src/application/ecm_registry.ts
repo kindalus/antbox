@@ -1,7 +1,5 @@
-import AspectService, {
-	AspectServiceContext,
-} from "./aspects/aspect_service.ts";
-import NodeService, { NodeServiceContext } from "./nodes/node_service.ts";
+import AspectService, { AspectServiceContext } from "./aspect_service.ts";
+import NodeService, { NodeServiceContext } from "./node_service.ts";
 
 export interface EcmConfig {
 	readonly nodeServiceContext: NodeServiceContext;

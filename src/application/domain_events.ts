@@ -1,5 +1,5 @@
-import EventHandler from "../shared/event_handler.ts";
-import Event from "../shared/event.ts";
+import EventHandler from "/shared/event_handler.ts";
+import Event from "/shared/event.ts";
 
 export default class DomainEvents {
 	private static _handlers: Record<string, EventHandler<Event>[]> = {};

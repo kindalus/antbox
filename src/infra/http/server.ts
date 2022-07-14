@@ -1,6 +1,7 @@
-import { json, opine, opineCors } from "../../deps.ts";
+import { json, opine } from "/deps/opine";
+import { opineCors } from "/deps/opineCors";
 
-import EcmRegistry, { EcmConfig } from "../ecm/ecm_registry.ts";
+import EcmRegistry, { EcmConfig } from "/application/ecm_registry.ts";
 import aspectsRouter from "./aspects_router.ts";
 
 import nodesRouter from "./nodes_router.ts";

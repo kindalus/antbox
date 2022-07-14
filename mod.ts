@@ -23,9 +23,7 @@ export type { WebContent } from "/application/builtin_aspects/web_content.ts";
 
 export type { AspectProperty, default as Aspect, PropertyType } from "/domain/aspects/aspect.ts";
 
-export type { ActionParams, default as Actions } from "/domain/actions/action.ts";
-
-export type { NodeServiceContext, SmartFolderNodeEvaluation } from "/application/node_service.ts";
+export type { ActionParams, default as Action } from "/domain/actions/action.ts";
 
 export type { default as EcmError } from "./src/shared/ecm_error.ts";
 

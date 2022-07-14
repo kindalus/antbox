@@ -71,7 +71,9 @@ async function updateActionHandler(req: UploadRequest, res: OpineResponse) {
 			action,
 		)
 		.then((result) => res.json(result))
-		.catch((err) => processError(err, res));
+		.catch((err) => {
+			processError(err, res);
+		});
 }
 
 function getFileBlob(file: FormFile) {

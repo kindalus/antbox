@@ -44,7 +44,9 @@ export default class FlatFileRepository<T extends { uuid: string }> {
 		}
 
 		return this.toUint8Array(aspect)
-			.then((data: Uint8Array) => Deno.writeFileSync(filePath, data));
+			.then((data: Uint8Array) => {
+				Deno.writeFileSync(filePath, data, { create: true });
+			});
 	}
 
 	async getAll(): Promise<T[]> {

@@ -19,10 +19,10 @@ export default class ActionService {
 		this.context = context;
 	}
 
-	async create(_principal: Principal, action: Action): Promise<void> {
+	create(_principal: Principal, action: Action): Promise<void> {
 		this.validateAction(action);
 
-		await this.context.repository.addOrReplace(action);
+		return this.context.repository.addOrReplace(action);
 	}
 
 	update(

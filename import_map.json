@@ -4,7 +4,8 @@
     "/domain/": "./src/domain/",
     "/infra/": "./src/infra/",
     "/shared/": "./src/shared/",
-    "/strategies/": "./src/strategies/",
+    "/strategies/": "./src/adapters/strategies/",
+    "/adapters/": "./src/adapters/",
 
     "/deps/mime": "https://deno.land/std@0.130.0/mime/mod.ts",
     "/deps/path": "https://deno.land/std@0.130.0/path/mod.ts",

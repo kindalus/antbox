@@ -1,9 +1,9 @@
 import {
-	assertEquals,
-	assertExists,
-	assertNotEquals,
-	assertStrictEquals,
-	belike,
+  assertEquals,
+  assertExists,
+  assertNotEquals,
+  assertStrictEquals,
+  belike,
 } from "../../dev_deps.ts";
 
 import { success } from "/shared/either.ts";
@@ -18,160 +18,177 @@ import DomainEvents from "./domain_events.ts";
 import UserCreatedEvent from "/domain/auth/user_created_event.ts";
 import GroupCreatedEvent from "/domain/auth/group_created_event.ts";
 
-import InMemoryUserRepository from "/infra/persistence/in_memory_user_repository.ts";
+import InMemoryUserRepository from "/adapters/inmem/inmem_user_repository.ts";
 
 Deno.test("createUser", async (t) => {
-	await t.step("Deve gerar uma senha", async () => {
-		const passwordGenerator = { generate: belike.fn(() => "xptoso") };
-		const svc = new AuthService({ ...makeServiceContext(), passwordGenerator });
+  await t.step("Deve gerar uma senha", async () => {
+    const passwordGenerator = { generate: belike.fn(() => "xptoso") };
+    const svc = new AuthService({ ...makeServiceContext(), passwordGenerator });
 
-		await svc.createUser("user1@antbox.io", "Antbox User");
+    await svc.createUser("user1@antbox.io", "Antbox User");
 
-		assertStrictEquals(passwordGenerator.generate.called(), true);
-	});
+    assertStrictEquals(passwordGenerator.generate.called(), true);
+  });
 
-	await t.step("Grava o user no repositorio", async () => {
-		const ctx = makeServiceContext();
-		const addOrReplaceMock = belike.fn(() =>
-			Promise.resolve(success<undefined, EcmError>(undefined))
-		);
-		ctx.userRepository.addOrReplace = addOrReplaceMock;
+  await t.step("Grava o user no repositorio", async () => {
+    const ctx = makeServiceContext();
+    const addOrReplaceMock = belike.fn(() =>
+      Promise.resolve(success<undefined, EcmError>(undefined))
+    );
+    ctx.userRepository.addOrReplace = addOrReplaceMock;
 
-		const svc = new AuthService(ctx);
+    const svc = new AuthService(ctx);
 
-		await svc.createUser("user1@antbox.io", "Antbox User");
+    await svc.createUser("user1@antbox.io", "Antbox User");
 
-		assertStrictEquals(addOrReplaceMock.called(), true);
-	});
+    assertStrictEquals(addOrReplaceMock.called(), true);
+  });
 
-	await t.step("Envia a senha pelo mecanismo de notificação por email", async () => {
-		const GENERATED_PASSWORD = "coolpasswd";
-		const passwordGenerator = { generate: () => GENERATED_PASSWORD };
-		const email = "user@example.com";
-		const fullname = "John Doe";
+  await t.step(
+    "Envia a senha pelo mecanismo de notificação por email",
+    async () => {
+      const GENERATED_PASSWORD = "coolpasswd";
+      const passwordGenerator = { generate: () => GENERATED_PASSWORD };
+      const email = "user@example.com";
+      const fullname = "John Doe";
 
-		const emailSender = { send: belike.fn(() => undefined) };
+      const emailSender = { send: belike.fn(() => undefined) };
 
-		const svc = new AuthService({
-			...makeServiceContext(),
-			passwordGenerator,
-			emailSender,
-		});
+      const svc = new AuthService({
+        ...makeServiceContext(),
+        passwordGenerator,
+        emailSender,
+      });
 
-		await svc.createUser(email, fullname);
+      await svc.createUser(email, fullname);
 
-		assertStrictEquals(
-			emailSender.send.calledWith(
-				{ value: email },
-				{ value: fullname },
-				GENERATED_PASSWORD,
-			),
-			true,
-		);
-	});
+      assertStrictEquals(
+        emailSender.send.calledWith(
+          { value: email },
+          { value: fullname },
+          GENERATED_PASSWORD
+        ),
+        true
+      );
+    }
+  );
 
-	await t.step("Deve lançar o evento UserCreatedEvent", async () => {
-		const eventHandler = {
-			handle: belike.fn(() => undefined),
-		};
+  await t.step("Deve lançar o evento UserCreatedEvent", async () => {
+    const eventHandler = {
+      handle: belike.fn(() => undefined),
+    };
 
-		DomainEvents.clearHandlers();
-		DomainEvents.subscribe(UserCreatedEvent.EVENT_ID, eventHandler);
+    DomainEvents.clearHandlers();
+    DomainEvents.subscribe(UserCreatedEvent.EVENT_ID, eventHandler);
 
-		const svc = new AuthService(makeServiceContext());
+    const svc = new AuthService(makeServiceContext());
 
-		const result = await svc.createUser("user@domain.com", "Some User");
+    const result = await svc.createUser("user@domain.com", "Some User");
 
-		assertStrictEquals(result.error, undefined);
-		assertStrictEquals(eventHandler.handle.calledTimes(1), true);
-	});
+    assertStrictEquals(result.error, undefined);
+    assertStrictEquals(eventHandler.handle.calledTimes(1), true);
+  });
 
-	await t.step("Erro @InvalidEmailFormat se o formato do email for inválido", async () => {
-		const svc = new AuthService({ ...makeServiceContext() });
-		const result = await svc.createUser("bademailformat", "Some User");
+  await t.step(
+    "Erro @InvalidEmailFormat se o formato do email for inválido",
+    async () => {
+      const svc = new AuthService({ ...makeServiceContext() });
+      const result = await svc.createUser("bademailformat", "Some User");
 
-		assertNotEquals(result.error, undefined);
-		assertStrictEquals(
-			result.error?.errorCode,
-			InvalidEmailFormatError.ERROR_CODE,
-		);
-	});
+      assertNotEquals(result.error, undefined);
+      assertStrictEquals(
+        result.error?.errorCode,
+        InvalidEmailFormatError.ERROR_CODE
+      );
+    }
+  );
 
-	await t.step("Erro @InvalidFullnameFormat se o formato do nome for inválido", async () => {
-		const svc = new AuthService({ ...makeServiceContext() });
-		const result = await svc.createUser("user@user.com", "");
+  await t.step(
+    "Erro @InvalidFullnameFormat se o formato do nome for inválido",
+    async () => {
+      const svc = new AuthService({ ...makeServiceContext() });
+      const result = await svc.createUser("user@user.com", "");
 
-		assertNotEquals(result.error, undefined);
-		assertStrictEquals(
-			result.error?.errorCode,
-			InvalidFullnameFormatError.ERROR_CODE,
-		);
-	});
+      assertNotEquals(result.error, undefined);
+      assertStrictEquals(
+        result.error?.errorCode,
+        InvalidFullnameFormatError.ERROR_CODE
+      );
+    }
+  );
 });
 
 Deno.test("createGroup", async (t) => {
-	await t.step("Grava o grupo no repositorio", async () => {
-		const groupRepository = {
-			addOrReplace: belike.fn(() => Promise.resolve(success<undefined, EcmError>(undefined))),
-		};
+  await t.step("Grava o grupo no repositorio", async () => {
+    const groupRepository = {
+      addOrReplace: belike.fn(() =>
+        Promise.resolve(success<undefined, EcmError>(undefined))
+      ),
+    };
 
-		const svc = new AuthService({ ...makeServiceContext(), groupRepository });
+    const svc = new AuthService({ ...makeServiceContext(), groupRepository });
 
-		await svc.createGroup("Group1");
+    await svc.createGroup("Group1");
 
-		assertStrictEquals(groupRepository.addOrReplace.called(), true);
-	});
+    assertStrictEquals(groupRepository.addOrReplace.called(), true);
+  });
 
-	await t.step("Erro @InvalidGroupNameFormat se o formato do nome for inválido", async () => {
-		const svc = new AuthService({ ...makeServiceContext() });
-		const result = await svc.createGroup("");
+  await t.step(
+    "Erro @InvalidGroupNameFormat se o formato do nome for inválido",
+    async () => {
+      const svc = new AuthService({ ...makeServiceContext() });
+      const result = await svc.createGroup("");
 
-		assertExists(result.error);
-		assertStrictEquals(
-			result.error?.errorCode,
-			InvalidGroupNameFormatError.ERROR_CODE,
-		);
-	});
+      assertExists(result.error);
+      assertStrictEquals(
+        result.error?.errorCode,
+        InvalidGroupNameFormatError.ERROR_CODE
+      );
+    }
+  );
 
-	await t.step("Deve lançar o evento GroupCreatedEvent", async () => {
-		const eventHandler = {
-			handle: belike.fn(() => undefined),
-		};
+  await t.step("Deve lançar o evento GroupCreatedEvent", async () => {
+    const eventHandler = {
+      handle: belike.fn(() => undefined),
+    };
 
-		DomainEvents.clearHandlers();
-		DomainEvents.subscribe(GroupCreatedEvent.EVENT_ID, eventHandler);
+    DomainEvents.clearHandlers();
+    DomainEvents.subscribe(GroupCreatedEvent.EVENT_ID, eventHandler);
 
-		const svc = new AuthService(makeServiceContext());
+    const svc = new AuthService(makeServiceContext());
 
-		const result = await svc.createGroup("Group1");
+    const result = await svc.createGroup("Group1");
 
-		assertStrictEquals(result.error, undefined);
-		assertStrictEquals(eventHandler.handle.calledTimes(1), true);
-	});
+    assertStrictEquals(result.error, undefined);
+    assertStrictEquals(eventHandler.handle.calledTimes(1), true);
+  });
 });
 
 function makeServiceContext(): AuthServiceContext {
-	return {
-		passwordGenerator: { generate: () => "passwd" + Date.now() },
-		emailSender: { send: () => undefined },
-		userRepository: new InMemoryUserRepository(),
+  return {
+    passwordGenerator: { generate: () => "passwd" + Date.now() },
+    emailSender: { send: () => undefined },
+    userRepository: new InMemoryUserRepository(),
 
-		groupRepository: {
-			addOrReplace: () => Promise.resolve(success(undefined)),
-		},
+    groupRepository: {
+      addOrReplace: () => Promise.resolve(success(undefined)),
+    },
 
-		uuidGenerator: new DefaultUuidGenerator(),
-	};
+    uuidGenerator: new DefaultUuidGenerator(),
+  };
 }
 
 Deno.test("authenticate", async (t) => {
-	await t.step("Se repository vazio autentica o user com o Role Admin", async () => {
-		const svc = new AuthService({ ...makeServiceContext() });
+  await t.step(
+    "Se repository vazio autentica o user com o Role Admin",
+    async () => {
+      const svc = new AuthService({ ...makeServiceContext() });
 
-		const username = "user@domain";
-		const result = await svc.authenticate(username, "passwd");
+      const username = "user@domain";
+      const result = await svc.authenticate(username, "passwd");
 
-		assertStrictEquals(result.error, undefined);
-		assertEquals(result.success, { username, roles: ["Admin"] });
-	});
+      assertStrictEquals(result.error, undefined);
+      assertEquals(result.success, { username, roles: ["Admin"] });
+    }
+  );
 });

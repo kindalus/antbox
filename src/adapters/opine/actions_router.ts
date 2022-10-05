@@ -9,7 +9,7 @@ export const actionsRouter = Router();
 actionsRouter.delete("/:uuid", deleteHandler);
 actionsRouter.get("/", listHandler);
 actionsRouter.get("/:uuid", getHandler);
-actionsRouter.get("/:uuid/run", runHandler);
+actionsRouter.get("/:uuid/-/run", runHandler);
 
 function deleteHandler(req: OpineRequest, res: OpineResponse) {
   EcmRegistry.instance.actionService
@@ -40,7 +40,7 @@ function runHandler(req: OpineRequest, res: OpineResponse) {
   const uuids = req.query.uuids.split(",");
 
   EcmRegistry.instance.actionService
-    .run(getRequestContext(req), req.params.uuid, req.query, uuids)
+    .run(getRequestContext(req), req.params.uuid, uuids, req.query)
     .then(() => res.sendStatus(200))
     .catch((err) => processError(err, res));
 }

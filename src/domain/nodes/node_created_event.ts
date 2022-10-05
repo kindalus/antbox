@@ -5,11 +5,11 @@ export class NodeCreatedEvent implements Event {
 
   readonly eventId: string;
   readonly occurredOn: Date;
-  readonly payload: Record<string, unknown>;
+  readonly payload: Node;
 
   constructor(node: Node) {
     this.eventId = NodeCreatedEvent.EVENT_ID;
     this.occurredOn = new Date();
-    this.payload = { ...(this.payload = node) };
+    this.payload = { ...node };
   }
 }

@@ -1,3 +1,5 @@
+import { FolderNode } from "/domain/nodes/node.ts";
+import { ROOT_FOLDER_UUID } from "/domain/nodes/node.ts";
 import {
   AspectServiceForActions,
   NodeServiceForActions,
@@ -8,6 +10,9 @@ import { UserPrincipal } from "/domain/auth/user_principal.ts";
 
 import { AuthService } from "./auth_service.ts";
 import { builtinActions } from "./builtin_actions/index.js";
+import { DomainEvents } from "./domain_events.ts";
+import { NodeCreatedEvent } from "/domain/nodes/node_created_event.ts";
+import { NodeUpdatedEvent } from "/domain/nodes/node_updated_event.ts";
 
 export interface ActionServiceContext {
   readonly authService: AuthService;
@@ -21,9 +26,17 @@ export class ActionService {
 
   constructor(context: ActionServiceContext) {
     this.context = context;
+
+    DomainEvents.subscribe<NodeCreatedEvent>(NodeCreatedEvent.EVENT_ID, {
+      handle: (evt) => this.runOnCreateScritps(evt),
+    });
+
+    DomainEvents.subscribe<NodeUpdatedEvent>(NodeUpdatedEvent.EVENT_ID, {
+      handle: (evt) => this.runOnUpdatedScritps(evt),
+    });
   }
 
-  async createOrrReplace(_principal: UserPrincipal, file: File): Promise<void> {
+  async createOrReplace(_principal: UserPrincipal, file: File): Promise<void> {
     const action = await this.fileToAction(file);
 
     action.spec.builtIn = false;
@@ -65,8 +78,8 @@ export class ActionService {
   async run(
     principal: UserPrincipal,
     uuid: string,
-    params: Record<string, unknown>,
-    uuids: string[]
+    uuids: string[],
+    params: Record<string, string>
   ): Promise<void> {
     const action = await this.get(principal, uuid);
 
@@ -82,6 +95,60 @@ export class ActionService {
 
     if (error) {
       throw error;
+    }
+  }
+
+  async runOnCreateScritps(evt: NodeCreatedEvent) {
+    if (evt.payload.parent === ROOT_FOLDER_UUID) {
+      return;
+    }
+
+    const parent = (await this.context.nodeService.get(
+      this.context.authService.getSystemUser(),
+      evt.payload.parent!
+    )) as FolderNode;
+
+    if (!parent) {
+      return;
+    }
+
+    await this.runActions(parent.onCreate, evt.payload.uuid);
+  }
+
+  async runOnUpdatedScritps(evt: NodeUpdatedEvent) {
+    const node = await this.context.nodeService.get(
+      null as unknown as UserPrincipal,
+      evt.payload.uuid
+    );
+
+    if (!node || node.parent === ROOT_FOLDER_UUID) {
+      return;
+    }
+
+    const parent = (await this.context.nodeService.get(
+      this.context.authService.getSystemUser(),
+      node.parent!
+    )) as FolderNode;
+
+    if (!parent) {
+      return;
+    }
+
+    await this.runActions(parent.onUpdate, evt.payload.uuid);
+  }
+
+  private async runActions(actions: string[], uuid: string) {
+    for (const action of actions) {
+      const [actionUuid, params] = action.split(" ");
+      const j = `{${params ?? ""}}`;
+      const g = j.replaceAll(/(\w+)=(\w+)/g, '"$1": "$2"');
+
+      await this.run(
+        this.context.authService.getSystemUser(),
+        actionUuid,
+        [uuid],
+        JSON.parse(g)
+      );
     }
   }
 }

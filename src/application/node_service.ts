@@ -326,6 +326,8 @@ abstract class NodeDeleter<T extends Node> {
         return new FolderNodeDeleter(node as FolderNode, context);
       case SMART_FOLDER_MIMETYPE:
         return new SmartFolderNodeDeleter(node as SmartFolderNode, context);
+      case META_NODE_MIMETYPE:
+        return new MetaNodeDeleter(node as Node, context);
     }
 
     return new FileNodeDeleter(node as FileNode, context);
@@ -347,6 +349,16 @@ abstract class NodeDeleter<T extends Node> {
 
   protected deleteFromStorage(): Promise<void> {
     return this.context.storage.delete(this.node.uuid);
+  }
+}
+
+class MetaNodeDeleter extends NodeDeleter<Node> {
+  constructor(node: Node, context: NodeServiceContext) {
+    super(node, context);
+  }
+
+  async delete(): Promise<void> {
+    await this.deleteFromRepository();
   }
 }
 

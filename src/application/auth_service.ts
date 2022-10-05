@@ -1,3 +1,4 @@
+import { UserPrincipal } from "/domain/auth/user_principal.ts";
 import { PasswordGenerator } from "/domain/auth/password_generator.ts";
 import { EmailSender } from "./email_sender.ts";
 import { EcmError } from "/shared/ecm_error.ts";
@@ -16,6 +17,7 @@ import { GroupCreatedEvent } from "/domain/auth/group_created_event.ts";
 import { GroupName } from "/domain/auth/group_name.ts";
 
 import { UserNotFoundError } from "/domain/auth/user_not_found_error.ts";
+import { Role } from "../domain/auth/role.ts";
 
 export interface AuthServiceContext {
   uuidGenerator: UuidGenerator;
@@ -103,6 +105,14 @@ export class AuthService {
     _password: string
   ): Promise<Either<UserAuthenticationModel, UserNotFoundError>> {
     return Promise.resolve(success({ username, roles: ["Admin"] }));
+  }
+
+  getSystemUser(): UserPrincipal {
+    return {
+      username: "system",
+      groups: ["System"],
+      roles: [Role.Admin],
+    };
   }
 }
 

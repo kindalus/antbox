@@ -1,4 +1,3 @@
-import { Action } from "/domain/actions/action.ts";
 import { OpineResponse, Router } from "/deps/opine";
 import { FormFile } from "/deps/mime";
 
@@ -50,7 +49,7 @@ async function uploadActionHandler(req: UploadRequest, res: OpineResponse) {
   const action = await getFileBlob(req.file);
 
   return EcmRegistry.instance.actionService
-    .createOrrReplace(getRequestContext(req), action)
+    .createOrReplace(getRequestContext(req), action)
     .then((result) => res.json(result))
     .catch((err) => processError(err, res));
 }

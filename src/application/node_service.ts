@@ -1,9 +1,11 @@
+import { DomainEvents } from "./domain_events.ts";
 import { FidGenerator } from "/domain/nodes/fid_generator.ts";
-import NodeRepository, {
+import {
+  NodeRepository,
   NodeFilterResult,
 } from "/domain/nodes/node_repository.ts";
 import { StorageProvider } from "/domain/providers/storage_provider.ts";
-import UuidGenerator from "/domain/providers/uuid_generator.ts";
+import { UuidGenerator } from "/domain/providers/uuid_generator.ts";
 
 import {
   Aggregation,
@@ -17,16 +19,18 @@ import {
   SMART_FOLDER_MIMETYPE,
   SmartFolderNode,
   uuidToFid,
+  META_NODE_MIMETYPE,
 } from "/domain/nodes/node.ts";
 
-import FolderNotFoundError from "/domain/nodes/folder_not_found_error.ts";
-import SmartFolderNodeNotFoundError from "/domain/nodes/smart_folder_node_not_found_error.ts";
-import NodeNotFoundError from "/domain/nodes/node_not_found_error.ts";
-import InvalidNodeToCopyError from "/domain/nodes/invalid_node_to_copy_error.ts";
+import { FolderNotFoundError } from "/domain/nodes/folder_not_found_error.ts";
+import { SmartFolderNodeNotFoundError } from "/domain/nodes/smart_folder_node_not_found_error.ts";
+import { NodeNotFoundError } from "/domain/nodes/node_not_found_error.ts";
+import { InvalidNodeToCopyError } from "/domain/nodes/invalid_node_to_copy_error.ts";
 
-import DefaultFidGenerator from "/strategies/default_fid_generator.ts";
-import DefaultUuidGenerator from "/strategies/default_uuid_generator.ts";
-import Principal from "../domain/auth/principal.ts";
+import { DefaultFidGenerator } from "/strategies/default_fid_generator.ts";
+import { DefaultUuidGenerator } from "/strategies/default_uuid_generator.ts";
+import { UserPrincipal } from "../domain/auth/user_principal.ts";
+import { NodeCreatedEvent } from "../domain/nodes/node_created_event.ts";
 
 export interface NodeServiceContext {
   readonly fidGenerator?: FidGenerator;
@@ -35,7 +39,7 @@ export interface NodeServiceContext {
   readonly repository: NodeRepository;
 }
 
-export default class NodeService {
+export class NodeService {
   private readonly context: NodeServiceContext;
 
   constructor(context: NodeServiceContext) {
@@ -63,19 +67,43 @@ export default class NodeService {
     await this.context.storage.write(node.uuid, file);
     await this.context.repository.add(node);
 
+    DomainEvents.notify(new NodeCreatedEvent(node));
+
     return Promise.resolve(node.uuid);
   }
 
-  createFolder(
+  async createFolder(
     principal: UserPrincipal,
     title: string,
     parent = ROOT_FOLDER_UUID
   ): Promise<string> {
     const node = this.createFolderMetadata(principal, parent, title);
 
-    this.context.repository.add(node);
+    await this.context.repository.add(node);
 
-    return Promise.resolve(node.uuid);
+    DomainEvents.notify(new NodeCreatedEvent(node));
+
+    return node.uuid;
+  }
+
+  async createMetanode(
+    principal: UserPrincipal,
+    title: string,
+    parent = ROOT_FOLDER_UUID
+  ): Promise<string> {
+    const node = this.createFileMetadata(
+      principal,
+      parent,
+      title,
+      META_NODE_MIMETYPE,
+      0
+    );
+
+    await this.context.repository.add(node);
+
+    DomainEvents.notify(new NodeCreatedEvent(node));
+
+    return node.uuid;
   }
 
   private isRootFolder(parent: string) {
@@ -95,7 +123,7 @@ export default class NodeService {
       title,
       parent,
       mimetype,
-      owner: principal.getPrincipalName(),
+      owner: principal.username,
       starred: false,
       trashed: false,
       size,
@@ -159,7 +187,7 @@ export default class NodeService {
     return NodeDeleter.for(node, this.context).delete();
   }
 
-  async get(principal: UserPrincipal, uuid: string): Promise<Node> {
+  async get(_principal: UserPrincipal, uuid: string): Promise<Node> {
     const node = await this.getFromRepository(uuid);
 
     if (!node) throw new NodeNotFoundError(uuid);
@@ -175,7 +203,7 @@ export default class NodeService {
   }
 
   async list(
-    principal: UserPrincipal,
+    _principal: UserPrincipal,
     parent = ROOT_FOLDER_UUID
   ): Promise<Node[]> {
     if (!this.isRootFolder(parent)) {
@@ -192,7 +220,7 @@ export default class NodeService {
   }
 
   query(
-    principal: UserPrincipal,
+    _principal: UserPrincipal,
     filters: NodeFilter[],
     pageSize = 25,
     pageToken = 1
@@ -213,7 +241,7 @@ export default class NodeService {
   }
 
   async evaluate(
-    principal: UserPrincipal,
+    _principal: UserPrincipal,
     uuid: string
   ): Promise<SmartFolderNodeEvaluation> {
     const node = (await this.context.repository.getById(

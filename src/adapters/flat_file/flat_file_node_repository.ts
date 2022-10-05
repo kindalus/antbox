@@ -1,10 +1,10 @@
 import { join } from "/deps/path";
 import { Node } from "/domain/nodes/node.ts";
-import fileExistsSync from "/shared/file_exists_sync.ts";
+import { fileExistsSync } from "/shared/file_exists_sync.ts";
 
-import InMemoryNodeRepository from "/adapters/inmem/inmem_node_repository.ts";
+import { InMemoryNodeRepository } from "/adapters/inmem/inmem_node_repository.ts";
 
-export default class FlatFileNodeRepository extends InMemoryNodeRepository {
+export class FlatFileNodeRepository extends InMemoryNodeRepository {
   private lastBackupTime = 0;
   /**
    * @param path Raíz do repositorio de ficheiros

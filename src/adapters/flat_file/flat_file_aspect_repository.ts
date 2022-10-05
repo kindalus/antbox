@@ -1,9 +1,9 @@
 import { join } from "/deps/path";
 import { Aspect } from "/domain/aspects/aspect.ts";
-import AspectRepository from "/domain/aspects/aspect_repository.ts";
-import FlatFileRepository from "./flat_file_repository.ts";
+import { AspectRepository } from "/domain/aspects/aspect_repository.ts";
+import { FlatFileRepository } from "./flat_file_repository.ts";
 
-export default class FlatFileAspectRepository implements AspectRepository {
+export class FlatFileAspectRepository implements AspectRepository {
   readonly repo: FlatFileRepository<Aspect>;
 
   /**

@@ -1,12 +1,12 @@
-import Principal from "/domain/auth/principal.ts";
+import { UserPrincipal } from "/domain/auth/user_principal.ts";
 import { WebContent } from "/application/builtin_aspects/web_content.ts";
-import EcmRegistry from "/application/ecm_registry.ts";
-import processError from "./process_error.ts";
+import { EcmRegistry } from "/application/ecm_registry.ts";
+import { processError } from "./process_error.ts";
 import { getRequestContext } from "./request_context_builder.ts";
 
 import { OpineRequest, OpineResponse, Router } from "/deps/opine";
 
-const webContentsRouter = Router();
+export const webContentsRouter = Router();
 
 webContentsRouter.get("/:uuid/:lang", handleGetByLanguage);
 webContentsRouter.get("/:uuid", handleGet);
@@ -46,5 +46,3 @@ function getWebContentText(
     .then((blob) => blob.text())
     .then(JSON.parse);
 }
-
-export default webContentsRouter;

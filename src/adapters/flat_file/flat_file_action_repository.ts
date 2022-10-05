@@ -1,41 +1,45 @@
 import { join } from "/deps/path";
 
-import Action from "/domain/actions/action.ts";
-import ActionRepository from "/domain/actions/action_repository.ts";
-import FlatFileRepository from "./flat_file_repository.ts";
+import { Action } from "/domain/actions/action.ts";
+import { ActionRepository } from "/domain/actions/action_repository.ts";
+import { FlatFileRepository } from "./flat_file_repository.ts";
 
-export default class FlatFileActionRepository implements ActionRepository {
-	readonly repo: FlatFileRepository<Action>;
+export class FlatFileActionRepository implements ActionRepository {
+  readonly repo: FlatFileRepository<Action>;
 
-	constructor(path: string) {
-		const buildFilePath = (uuid: string) => join(path, uuid.concat(".js"));
+  constructor(path: string) {
+    const buildFilePath = (uuid: string) => join(path, uuid.concat(".js"));
 
-		this.repo = new FlatFileRepository<Action>(path, buildFilePath, toUint8Array);
-	}
+    this.repo = new FlatFileRepository<Action>(
+      path,
+      buildFilePath,
+      toUint8Array
+    );
+  }
 
-	get(uuid: string): Promise<Action> {
-		return this.repo.get(uuid);
-	}
+  get(uuid: string): Promise<Action> {
+    return this.repo.get(uuid);
+  }
 
-	delete(uuid: string): Promise<void> {
-		return this.repo.delete(uuid);
-	}
+  delete(uuid: string): Promise<void> {
+    return this.repo.delete(uuid);
+  }
 
-	addOrReplace(action: Action): Promise<void> {
-		return this.repo.addOrReplace(action);
-	}
+  addOrReplace(action: Action): Promise<void> {
+    return this.repo.addOrReplace(action);
+  }
 
-	getAll(): Promise<Action[]> {
-		return this.repo.getAll();
-	}
+  getAll(): Promise<Action[]> {
+    return this.repo.getAll();
+  }
 
-	getPath(uuid: string): Promise<string> {
-		return Promise.resolve(this.repo.buildFilePath(uuid));
-	}
+  getPath(uuid: string): Promise<string> {
+    return Promise.resolve(this.repo.buildFilePath(uuid));
+  }
 }
 
 function toUint8Array(action: Action): Promise<Uint8Array> {
-	const text = `
+  const text = `
 
 	/**
 	 * @param { Actions.RunContext } ctx
@@ -57,5 +61,5 @@ function toUint8Array(action: Action): Promise<Uint8Array> {
 	};
 `;
 
-	return Promise.resolve(new TextEncoder().encode(text));
+  return Promise.resolve(new TextEncoder().encode(text));
 }

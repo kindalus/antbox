@@ -1,12 +1,13 @@
-import Action, {
+import {
   AspectServiceForActions,
   NodeServiceForActions,
+  Action,
 } from "/domain/actions/action.ts";
-import ActionRepository from "/domain/actions/action_repository.ts";
-import Principal from "/domain/auth/principal.ts";
+import { ActionRepository } from "/domain/actions/action_repository.ts";
+import { UserPrincipal } from "/domain/auth/user_principal.ts";
 
-import AuthService from "./auth_service.ts";
-import builtin from "./builtin_actions/index.js";
+import { AuthService } from "./auth_service.ts";
+import { builtinActions } from "./builtin_actions/index.js";
 
 export interface ActionServiceContext {
   readonly authService: AuthService;
@@ -15,14 +16,14 @@ export interface ActionServiceContext {
   readonly repository: ActionRepository;
 }
 
-export default class ActionService {
+export class ActionService {
   private readonly context: ActionServiceContext;
 
   constructor(context: ActionServiceContext) {
     this.context = context;
   }
 
-  create(principal: UserPrincipal, action: Action): Promise<void> {
+  create(_principal: UserPrincipal, action: Action): Promise<void> {
     this.validateAction(action);
 
     return this.context.repository.addOrReplace(action);
@@ -38,18 +39,21 @@ export default class ActionService {
 
   private validateAction(_action: Action): void {}
 
-  async delete(principal: UserPrincipal, uuid: string): Promise<void> {
+  async delete(_principal: UserPrincipal, uuid: string): Promise<void> {
     await this.context.repository.delete(uuid);
   }
 
-  get(principal: UserPrincipal, uuid: string): Promise<Action> {
+  get(_principal: UserPrincipal, uuid: string): Promise<Action> {
     return this.context.repository.get(uuid);
   }
 
-  list(principal: UserPrincipal): Promise<Action[]> {
+  list(_principal: UserPrincipal): Promise<Action[]> {
     return this.context.repository
       .getAll()
-      .then((actions) => [...(builtin as unknown as Action[]), ...actions]);
+      .then((actions) => [
+        ...(builtinActions as unknown as Action[]),
+        ...actions,
+      ]);
   }
 
   async run(

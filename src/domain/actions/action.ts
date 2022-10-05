@@ -1,7 +1,7 @@
+import { UserPrincipal } from "/domain/auth/user_principal.ts";
 import { NodeFilterResult } from "/domain/nodes/node_repository.ts";
 import { Node, NodeFilter } from "/domain/nodes/node.ts";
 import { Aspect } from "/domain/aspects/aspect.ts";
-import Principal from "../auth/principal.ts";
 
 /**
  * Representado em ficheiro js com o formato:
@@ -18,7 +18,7 @@ import Principal from "../auth/principal.ts";
  * 	params: ActionParams[];
  * }
  */
-export default interface Action {
+export interface Action {
   uuid: string;
   title: string;
   description: string;
@@ -33,6 +33,7 @@ export default interface Action {
   mimetypeConstraints: string[];
   params: ActionParams[];
 }
+
 export interface ActionParams {
   name: string;
   title: string;

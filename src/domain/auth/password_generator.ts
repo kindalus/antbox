@@ -1,3 +1,3 @@
-export default interface PasswordGenerator {
-	generate(): string;
+export interface PasswordGenerator {
+  generate(): string;
 }

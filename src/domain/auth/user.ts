@@ -1,8 +1,8 @@
-import Email from "./email.ts";
-import Fullname from "./fullname.ts";
-import Password from "./password.ts";
+import { Email } from "./email.ts";
+import { Fullname } from "./fullname.ts";
+import { Password } from "./password.ts";
 
-export default class User {
+export class User {
   readonly email: Email;
   private _fullname: Fullname;
   private _password: Password;

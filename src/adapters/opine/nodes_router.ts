@@ -1,11 +1,9 @@
 import { OpineRequest, OpineResponse, Router } from "/deps/opine";
-import EcmRegistry from "/application/ecm_registry.ts";
-import processError from "./process_error.ts";
+import { EcmRegistry } from "/application/ecm_registry.ts";
+import { processError } from "./process_error.ts";
 import { getRequestContext } from "./request_context_builder.ts";
 
-const nodesRouter = Router();
-
-export default nodesRouter;
+export const nodesRouter = Router();
 
 nodesRouter.get("/:uuid", getHandler);
 nodesRouter.get("/:uuid/export", exportHandler);
@@ -55,14 +53,26 @@ function exportHandler(req: OpineRequest, res: OpineResponse) {
 }
 
 function createFolderHandler(req: OpineRequest, res: OpineResponse) {
-  const { title, parent }: { title: string; parent?: string } = req.body;
+  const {
+    title,
+    parent,
+    type,
+  }: { title: string; parent?: string; type?: "Folder" | "Metanode" } =
+    req.body;
 
   if (!title) {
     return Promise.resolve(res.setStatus(400).json("{ title } not given"));
   }
 
-  return EcmRegistry.instance.nodeService
-    .createFolder(getRequestContext(req), title, parent)
+  const srv = EcmRegistry.instance.nodeService;
+  const ctx = getRequestContext(req);
+
+  const creator =
+    type === "Metanode"
+      ? srv.createMetanode(ctx, title, parent)
+      : srv.createFolder(ctx, title, parent);
+
+  return creator
     .then((result) => res.json(result))
     .catch((err) => processError(err, res));
 }

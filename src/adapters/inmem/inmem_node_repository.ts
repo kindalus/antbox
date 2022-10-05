@@ -1,116 +1,121 @@
-import NodeRepository, { NodeFilterResult } from "/domain/nodes/node_repository.ts";
+import {
+  NodeFilterResult,
+  NodeRepository,
+} from "/domain/nodes/node_repository.ts";
 import { Node, NodeFilter } from "/domain/nodes/node.ts";
 
-export default class InMemoryNodeRepository implements NodeRepository {
-	constructor(readonly db: Record<string, Partial<Node>> = {}) {}
+export class InMemoryNodeRepository implements NodeRepository {
+  constructor(readonly db: Record<string, Partial<Node>> = {}) {}
 
-	delete(uuid: string): Promise<void> {
-		delete this.db[uuid];
+  delete(uuid: string): Promise<void> {
+    delete this.db[uuid];
 
-		return Promise.resolve();
-	}
+    return Promise.resolve();
+  }
 
-	get records(): Node[] {
-		return Object.values(this.db) as Node[];
-	}
+  get records(): Node[] {
+    return Object.values(this.db) as Node[];
+  }
 
-	get count(): number {
-		return this.records.length;
-	}
+  get count(): number {
+    return this.records.length;
+  }
 
-	add(node: Node): Promise<void> {
-		this.db[node.uuid] = node;
-		return Promise.resolve();
-	}
+  add(node: Node): Promise<void> {
+    this.db[node.uuid] = node;
+    return Promise.resolve();
+  }
 
-	update(node: Node): Promise<void> {
-		this.db[node.uuid] = node;
-		return Promise.resolve();
-	}
+  update(node: Node): Promise<void> {
+    this.db[node.uuid] = node;
+    return Promise.resolve();
+  }
 
-	getByFid(fid: string): Promise<Node> {
-		return Promise.resolve(this.records.find((n) => n.fid === fid) as Node);
-	}
+  getByFid(fid: string): Promise<Node> {
+    return Promise.resolve(this.records.find((n) => n.fid === fid) as Node);
+  }
 
-	getById(uuid: string): Promise<Node> {
-		return Promise.resolve(this.db[uuid] as Node);
-	}
+  getById(uuid: string): Promise<Node> {
+    return Promise.resolve(this.db[uuid] as Node);
+  }
 
-	filter(
-		constraints: NodeFilter[],
-		pageSize: number,
-		pageToken: number,
-	): Promise<NodeFilterResult> {
-		const firstIndex = (pageToken - 1) * pageSize;
-		const lastIndex = firstIndex + pageSize;
+  filter(
+    constraints: NodeFilter[],
+    pageSize: number,
+    pageToken: number
+  ): Promise<NodeFilterResult> {
+    const firstIndex = (pageToken - 1) * pageSize;
+    const lastIndex = firstIndex + pageSize;
 
-		const filtered = constraints?.length ? this.filterNodesWith(constraints) : [];
-		const nodes = filtered.slice(firstIndex, lastIndex);
+    const filtered = constraints?.length
+      ? this.filterNodesWith(constraints)
+      : [];
+    const nodes = filtered.slice(firstIndex, lastIndex);
 
-		const pageCount = Math.ceil(filtered.length / pageSize);
+    const pageCount = Math.ceil(filtered.length / pageSize);
 
-		return Promise.resolve({ nodes, pageCount, pageSize, pageToken });
-	}
+    return Promise.resolve({ nodes, pageCount, pageSize, pageToken });
+  }
 
-	private filterNodesWith(constraints: NodeFilter[]) {
-		const initialValue = () => true;
+  private filterNodesWith(constraints: NodeFilter[]) {
+    const initialValue = () => true;
 
-		return this.records.filter((node) =>
-			constraints.reduce(
-				(acc, cur) => this.matchNodeAndValue(node, acc, cur),
-				initialValue(),
-			)
-		);
-	}
+    return this.records.filter((node) =>
+      constraints.reduce(
+        (acc, cur) => this.matchNodeAndValue(node, acc, cur),
+        initialValue()
+      )
+    );
+  }
 
-	private matchNodeAndValue(
-		node: Node,
-		previous: boolean,
-		filter: NodeFilter,
-	): boolean {
-		const [field, operator, value] = filter;
-		const fieldValue = this.getFieldValue(node, field);
+  private matchNodeAndValue(
+    node: Node,
+    previous: boolean,
+    filter: NodeFilter
+  ): boolean {
+    const [field, operator, value] = filter;
+    const fieldValue = this.getFieldValue(node, field);
 
-		const match = filterFns[operator];
-		const comparison = match(fieldValue, value);
+    const match = filterFns[operator];
+    const comparison = match(fieldValue, value);
 
-		return comparison && previous;
-	}
+    return comparison && previous;
+  }
 
-	private getFieldValue(node: Node, fieldPath: string) {
-		const fields = fieldPath.split(".");
+  private getFieldValue(node: Node, fieldPath: string) {
+    const fields = fieldPath.split(".");
 
-		// deno-lint-ignore no-explicit-any
-		let acc: any = { ...node };
+    // deno-lint-ignore no-explicit-any
+    let acc: any = { ...node };
 
-		for (const field of fields) {
-			acc = acc?.[field];
-		}
+    for (const field of fields) {
+      acc = acc?.[field];
+    }
 
-		return acc;
-	}
+    return acc;
+  }
 }
 
 export type FilterFn = <T>(a: T, b: T) => boolean;
 
 export const filterFns: Record<string, FilterFn> = {
-	"==": (a, b) => a === b,
-	"<=": (a, b) => a <= b,
-	">=": (a, b) => a >= b,
-	"<": (a, b) => a < b,
-	">": (a, b) => a > b,
-	"!=": (a, b) => a !== b,
-	in: <T>(a: T, b: T) => (b as unknown as T[])?.includes(a),
-	"not-in": <T>(a: T, b: T) => !(b as unknown as T[])?.includes(a),
-	"array-contains": <T>(a: T, b: T) => (a as unknown as T[])?.includes(b),
-	"array-contains-any": <T>(a: T, b: T) => !(a as unknown as T[])?.includes(b),
-	"match": (a, b) => {
-		const a1 = a as unknown as string;
-		const b1 = b as unknown as string;
+  "==": (a, b) => a === b,
+  "<=": (a, b) => a <= b,
+  ">=": (a, b) => a >= b,
+  "<": (a, b) => a < b,
+  ">": (a, b) => a > b,
+  "!=": (a, b) => a !== b,
+  in: <T>(a: T, b: T) => (b as unknown as T[])?.includes(a),
+  "not-in": <T>(a: T, b: T) => !(b as unknown as T[])?.includes(a),
+  "array-contains": <T>(a: T, b: T) => (a as unknown as T[])?.includes(b),
+  "array-contains-any": <T>(a: T, b: T) => !(a as unknown as T[])?.includes(b),
+  match: (a, b) => {
+    const a1 = a as unknown as string;
+    const b1 = b as unknown as string;
 
-		const re = new RegExp(b1.replaceAll(/\s/g, ".*?"), "i");
-		const match = a1?.match(re);
+    const re = new RegExp(b1.replaceAll(/\s/g, ".*?"), "i");
+    const match = a1?.match(re);
 
-		return match !== undefined && match !== null;
-	},
+    return match !== undefined && match !== null;
+  },
 };

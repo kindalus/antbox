@@ -1,38 +1,41 @@
-import EventHandler from "/shared/event_handler.ts";
-import Event from "/shared/event.ts";
+import { EventHandler } from "/shared/event_handler.ts";
+import { Event } from "/shared/event.ts";
 
-export default class DomainEvents {
-	private static _handlers: Record<string, EventHandler<Event>[]> = {};
+export class DomainEvents {
+  private static _handlers: Record<string, EventHandler<Event>[]> = {};
 
-	static notify<T extends Event>(event: T) {
-		const handlers = DomainEvents._handlers[event.eventId];
+  static notify<T extends Event>(event: T) {
+    const handlers = DomainEvents._handlers[event.eventId];
 
-		if (handlers) {
-			handlers.forEach((handler) => handler.handle(event));
-		}
-	}
+    if (handlers) {
+      handlers.forEach((handler) => handler.handle(event));
+    }
+  }
 
-	static subscribe<T extends Event>(eventId: string, handler: EventHandler<T>) {
-		if (!DomainEvents._handlers[eventId]) {
-			DomainEvents._handlers[eventId] = [];
-		}
+  static subscribe<T extends Event>(eventId: string, handler: EventHandler<T>) {
+    if (!DomainEvents._handlers[eventId]) {
+      DomainEvents._handlers[eventId] = [];
+    }
 
-		DomainEvents._handlers[eventId].push(handler);
-	}
+    DomainEvents._handlers[eventId].push(handler);
+  }
 
-	static clearHandlers() {
-		DomainEvents._handlers = {};
-	}
+  static clearHandlers() {
+    DomainEvents._handlers = {};
+  }
 
-	static unsubscribe<T extends Event>(eventId: string, handler: EventHandler<T>) {
-		const handlers = DomainEvents._handlers[eventId];
+  static unsubscribe<T extends Event>(
+    eventId: string,
+    handler: EventHandler<T>
+  ) {
+    const handlers = DomainEvents._handlers[eventId];
 
-		if (handlers) {
-			DomainEvents._handlers[eventId] = handlers.filter((h) => h !== handler);
-		}
-	}
+    if (handlers) {
+      DomainEvents._handlers[eventId] = handlers.filter((h) => h !== handler);
+    }
+  }
 
-	static get handlers() {
-		return DomainEvents._handlers;
-	}
+  static get handlers() {
+    return DomainEvents._handlers;
+  }
 }

@@ -8,7 +8,7 @@ export interface WebContent {
   fr?: string;
 }
 
-export default {
+export const webContent = {
   uuid: "web-content",
   title: "Conteúdo Web",
   builtIn: true,

@@ -1,14 +1,14 @@
-import Either, { success } from "/shared/either.ts";
-import EcmError from "/shared/ecm_error.ts";
+import { Either, success } from "/shared/either.ts";
+import { EcmError } from "/shared/ecm_error.ts";
 
-export default class Password {
-	static make(value: string): Either<Password, EcmError> {
-		return success(new Password(value));
-	}
+export class Password {
+  static make(value: string): Either<Password, EcmError> {
+    return success(new Password(value));
+  }
 
-	readonly digestedPassword: string;
+  readonly digestedPassword: string;
 
-	private constructor(plainPassword: string) {
-		this.digestedPassword = plainPassword;
-	}
+  private constructor(plainPassword: string) {
+    this.digestedPassword = plainPassword;
+  }
 }

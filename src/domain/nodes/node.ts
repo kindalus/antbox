@@ -1,5 +1,6 @@
 export const FOLDER_MIMETYPE = "application/folder";
 export const SMART_FOLDER_MIMETYPE = "application/smartfolder";
+export const META_NODE_MIMETYPE = "application/metanode";
 export const ROOT_FOLDER_UUID = "ROOT";
 
 export type Properties = Record<string, unknown>;

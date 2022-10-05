@@ -1,7 +1,7 @@
-import Password from "/domain/auth/password.ts";
-import Email from "/domain/auth/email.ts";
-import Fullname from "/domain/auth/fullname.ts";
+import { Password } from "/domain/auth/password.ts";
+import { Email } from "/domain/auth/email.ts";
+import { Fullname } from "/domain/auth/fullname.ts";
 
-export default interface EmailSender {
-	send(email: Email, fullname: Fullname, password: Password): void;
+export interface EmailSender {
+  send(email: Email, fullname: Fullname, password: Password): void;
 }

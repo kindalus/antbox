@@ -1,8 +1,6 @@
-export default {
-  uuid: "move_up",
+export const spec = {
   title: "Mover para cima",
   description: "Move o nó para uma directoria acima",
-  run,
   builtIn: true,
   multiple: false,
   aspectConstraints: [],
@@ -10,4 +8,10 @@ export default {
   params: [],
 };
 
-function run() {}
+export function run() {}
+
+export default {
+  uuid: "move_up",
+  spec,
+  run,
+};

@@ -6,8 +6,20 @@ export interface ActionParams {
   validationList?: string[];
 }
 
-export interface Principal {
-  getPrincipaName(): string;
+export enum Role {
+  Admin = "admin",
+  User = "user",
+  Guest = "guest",
+  AspectsReviewer = "aspects_reviewer",
+  AspectsAdmin = "aspects_admin",
+  ActionsReviewer = "actions_reviewer",
+  ActionsAdmin = "actions_admin",
+}
+
+export interface UserPrincipal {
+  username: string;
+  groups: string[];
+  roles: Role[];
 }
 
 export interface RunContext {
@@ -80,8 +92,10 @@ export interface Node {
   owner: string;
   properties?: Properties;
 }
+// deno-lint-ignore no-empty-interface
 export interface NodeFilter {}
 
+// deno-lint-ignore no-empty-interface
 export interface NodeFilterResult {}
 
 export as namespace Actions;

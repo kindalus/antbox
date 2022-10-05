@@ -5,33 +5,36 @@ import { Aspect } from "/domain/aspects/aspect.ts";
 
 /**
  * Representado em ficheiro js com o formato:
- *
- * export default {
- * 	uuid: string;
+ * export const spec = {
  * 	title: string;
- * 	description: string;
- * 	run: (ctx, params, uuids) => Promise<void>;);
+ * 	description: string; *
  * 	builtIn: boolean;
  * 	multiple: string;
  * 	aspectConstraints: string[];
  * 	mimetypeConstraints: string[];
  * 	params: ActionParams[];
  * }
+ *
+ * export function run: (ctx, params, uuids) => Promise<void>;);
  */
 export interface Action {
   uuid: string;
-  title: string;
-  description: string;
+  spec: {
+    title: string;
+    description: string;
+
+    builtIn: boolean;
+    multiple: string;
+    aspectConstraints: string[];
+    mimetypeConstraints: string[];
+    params: ActionParams[];
+  };
+
   run: (
     ctx: RunContext,
-    params: Record<string, unknown>,
-    uuids: string[]
+    uuids: string[],
+    params?: Record<string, unknown>
   ) => Promise<void | Error>;
-  builtIn: boolean;
-  multiple: string;
-  aspectConstraints: string[];
-  mimetypeConstraints: string[];
-  params: ActionParams[];
 }
 
 export interface ActionParams {

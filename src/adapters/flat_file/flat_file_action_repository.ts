@@ -46,18 +46,16 @@ function toUint8Array(action: Action): Promise<Uint8Array> {
 	 * @param { Object } params
 	 * @param { String[] } uuids
 	 */
-	${action.run.toString()}
+	export ${action.run.toString()}
 
-	export default {
-		uuid: "${action.uuid}",
-		title: "${action.title}",
-		description: "${action.description}",		
-		builtIn: ${action.builtIn},
-		multiple: ${action.multiple},
-		aspectConstraints: ${JSON.stringify(action.aspectConstraints)},
-		mimetypeConstraints: ${JSON.stringify(action.mimetypeConstraints)},
+	export const spect = {
+		title: "${action.spec.title}",
+		description: "${action.spec.description}",		
+		builtIn: ${action.spec.builtIn},
+		multiple: ${action.spec.multiple},
+		aspectConstraints: ${JSON.stringify(action.spec.aspectConstraints)},
+		mimetypeConstraints: ${JSON.stringify(action.spec.mimetypeConstraints)},
 		params: [],
-		run
 	};
 `;
 

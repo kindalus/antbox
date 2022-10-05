@@ -23,18 +23,22 @@ export class ActionService {
     this.context = context;
   }
 
-  create(_principal: UserPrincipal, action: Action): Promise<void> {
+  async createOrrReplace(_principal: UserPrincipal, file: File): Promise<void> {
+    const action = await this.fileToAction(file);
+
+    action.spec.builtIn = false;
+    action.uuid = file.name.split(".")[0];
+
     this.validateAction(action);
 
     return this.context.repository.addOrReplace(action);
   }
 
-  update(
-    principal: UserPrincipal,
-    uuid: string,
-    action: Action
-  ): Promise<void> {
-    return this.create(principal, { ...action, uuid });
+  private async fileToAction(file: File): Promise<Action> {
+    const url = URL.createObjectURL(file);
+    const mod = await import(url);
+
+    return mod as Action;
   }
 
   private validateAction(_action: Action): void {}
@@ -70,8 +74,8 @@ export class ActionService {
 
     const error = await action.run(
       { ...this.context, principal },
-      params,
-      uuids
+      uuids,
+      params
     );
 
     if (error) {

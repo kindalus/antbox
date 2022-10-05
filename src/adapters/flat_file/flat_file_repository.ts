@@ -1,3 +1,4 @@
+import { path } from "https://deno.land/x/compress@v0.4.1/deps.ts";
 import { join } from "/deps/path";
 import { fileExistsSync } from "/shared/file_exists_sync.ts";
 
@@ -23,27 +24,29 @@ export class FlatFileRepository<T extends { uuid: string }> {
     return this.readToModel(filePath);
   }
 
-  readToModel(filepath: string): Promise<T> {
+  async readToModel(filepath: string): Promise<T> {
     if (this.fromUint8Array) {
       const buffer = Deno.readFileSync(filepath);
       return this.fromUint8Array(buffer);
     }
 
-    return import(filepath).then((module) => module.default);
+    const model = await import(filepath);
+
+    return { ...model, uuid: path.parse(filepath).name };
   }
 
   delete(uuid: string): Promise<void> {
     return Deno.remove(this.buildFilePath(uuid), { recursive: true });
   }
 
-  addOrReplace(aspect: T): Promise<void> {
-    const filePath = this.buildFilePath(aspect.uuid);
+  addOrReplace(data: T): Promise<void> {
+    const filePath = this.buildFilePath(data.uuid);
 
     if (!fileExistsSync(this.path)) {
       Deno.mkdirSync(this.path, { recursive: true });
     }
 
-    return this.toUint8Array(aspect).then((data: Uint8Array) => {
+    return this.toUint8Array(data).then((data: Uint8Array) => {
       Deno.writeFileSync(filePath, data, { create: true });
     });
   }

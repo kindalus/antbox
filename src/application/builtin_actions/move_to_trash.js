@@ -1,7 +1,6 @@
 export const spec = {
   title: "Mover para o lixo",
   description: "Move o nó para o lixo",
-
   builtIn: true,
   multiple: false,
   aspectConstraints: [],

@@ -27,11 +27,13 @@ export class ActionService {
     const action = await this.fileToAction(file);
 
     action.spec.builtIn = false;
-    action.uuid = file.name.split(".")[0];
 
     this.validateAction(action);
 
-    return this.context.repository.addOrReplace(action);
+    return this.context.repository.addOrReplace({
+      ...action,
+      uuid: file.name.split(".")[0],
+    });
   }
 
   private async fileToAction(file: File): Promise<Action> {

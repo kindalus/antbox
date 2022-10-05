@@ -48,13 +48,13 @@ function toUint8Array(action: Action): Promise<Uint8Array> {
 	 */
 	export ${action.run.toString()}
 
-	export const spect = {
-		title: "${action.spec.title}",
-		description: "${action.spec.description}",		
+	export const spec = {
+		${action.spec.title ? 'title: "action.spec.description",' : ""}
+		${action.spec.description ? 'description: "action.spec.description",' : ""}
 		builtIn: ${action.spec.builtIn},
 		multiple: ${action.spec.multiple},
-		aspectConstraints: ${JSON.stringify(action.spec.aspectConstraints)},
-		mimetypeConstraints: ${JSON.stringify(action.spec.mimetypeConstraints)},
+		aspectConstraints: ${JSON.stringify(action.spec.aspectConstraints ?? [])},
+		mimetypeConstraints: ${JSON.stringify(action.spec.mimetypeConstraints ?? [])},
 		params: [],
 	};
 `;

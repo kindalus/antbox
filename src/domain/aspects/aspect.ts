@@ -23,7 +23,14 @@ export interface AspectProperty {
   /**
    * Opcional
    */
-  validationList?: string[];
+  validationList?: string;
+
+  /**
+   * Opcional - Lista de UUIDS de um detrminado aspecto
+   * Utilizado quando a propriedade é validada através dos nós de um aspecto
+   * O tipo da propriedade deve ser UUID ou UUID[]
+   */
+  validationLookup?: string[];
 
   required: boolean;
 

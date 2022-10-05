@@ -1,3 +1,4 @@
+import { NodeContentUpdatedEvent } from "./../domain/nodes/node_content_updated_event.ts";
 import { DomainEvents } from "./domain_events.ts";
 import { FidGenerator } from "/domain/nodes/fid_generator.ts";
 import {
@@ -31,6 +32,8 @@ import { DefaultFidGenerator } from "/strategies/default_fid_generator.ts";
 import { DefaultUuidGenerator } from "/strategies/default_uuid_generator.ts";
 import { UserPrincipal } from "../domain/auth/user_principal.ts";
 import { NodeCreatedEvent } from "../domain/nodes/node_created_event.ts";
+import { NodeUpdatedEvent } from "../domain/nodes/node_updated_event.ts";
+import { NodeDeletedEvent } from "../domain/nodes/node_deleted_event.ts";
 
 export interface NodeServiceContext {
   readonly fidGenerator?: FidGenerator;
@@ -162,6 +165,8 @@ export class NodeService {
     await this.context.storage.write(newNode.uuid, file);
     await this.context.repository.add(newNode);
 
+    DomainEvents.notify(new NodeCreatedEvent(newNode));
+
     return Promise.resolve(newNode.uuid);
   }
 
@@ -177,14 +182,16 @@ export class NodeService {
     node.mimetype = file.type;
 
     await this.context.storage.write(uuid, file);
-
     await this.context.repository.update(node);
+
+    DomainEvents.notify(new NodeContentUpdatedEvent(uuid));
   }
 
   async delete(principal: UserPrincipal, uuid: string): Promise<void> {
     const node = await this.get(principal, uuid);
 
-    return NodeDeleter.for(node, this.context).delete();
+    await NodeDeleter.for(node, this.context).delete();
+    DomainEvents.notify(new NodeDeletedEvent(uuid));
   }
 
   async get(_principal: UserPrincipal, uuid: string): Promise<Node> {
@@ -238,6 +245,7 @@ export class NodeService {
     if (!node) throw new NodeNotFoundError(uuid);
 
     await this.context.repository.update({ ...node, ...data });
+    DomainEvents.notify(new NodeUpdatedEvent(uuid, data));
   }
 
   async evaluate(

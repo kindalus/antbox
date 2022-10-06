@@ -26,7 +26,7 @@ export class AspectService {
     principal: UserPrincipal,
     aspect: Aspect
   ): Promise<Either<void, ForbiddenError | AspectValidationError>> {
-    if (principal.roles.includes(Role.AspectsAdmin)) {
+    if (!principal.roles.includes(Role.AspectsAdmin)) {
       return error(new ForbiddenError());
     }
 

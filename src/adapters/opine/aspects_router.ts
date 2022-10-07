@@ -6,17 +6,16 @@ import { getRequestContext } from "./request_context_builder.ts";
 
 export const aspectsRouter = Router();
 
-aspectsRouter.post("/", createHandler);
+aspectsRouter.post("/", createOrReplaceHandler);
 aspectsRouter.delete("/:uuid", deleteHandler);
 aspectsRouter.get("/", listHandler);
 aspectsRouter.get("/:uuid", getHandler);
-aspectsRouter.put("/:uuid", updateHandler);
 
-function createHandler(req: OpineRequest, res: OpineResponse) {
+function createOrReplaceHandler(req: OpineRequest, res: OpineResponse) {
   const aspect = req.body as unknown as Aspect;
 
   EcmRegistry.instance.aspectService
-    .create(getRequestContext(req), aspect)
+    .createOrReplace(getRequestContext(req), aspect)
     .then(() => res.sendStatus(200))
     .catch((err) => processError(err, res));
 }
@@ -39,13 +38,5 @@ function listHandler(req: OpineRequest, res: OpineResponse) {
   EcmRegistry.instance.aspectService
     .list(getRequestContext(req))
     .then((list) => res.json(list))
-    .catch((err) => processError(err, res));
-}
-
-function updateHandler(req: OpineRequest, res: OpineResponse) {
-  const aspect = req.body as unknown as Aspect;
-  EcmRegistry.instance.aspectService
-    .update(getRequestContext(req), req.params.uuid, aspect)
-    .then(() => res.sendStatus(200))
     .catch((err) => processError(err, res));
 }

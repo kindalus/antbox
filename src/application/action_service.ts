@@ -1,4 +1,4 @@
-import { FolderNode } from "/domain/nodes/node.ts";
+import { FolderNode, Node } from "/domain/nodes/node.ts";
 import { ROOT_FOLDER_UUID } from "/domain/nodes/node.ts";
 import {
   AspectServiceForActions,
@@ -9,7 +9,7 @@ import { ActionRepository } from "/domain/actions/action_repository.ts";
 import { UserPrincipal } from "/domain/auth/user_principal.ts";
 
 import { AuthService } from "./auth_service.ts";
-import { builtinActions } from "./builtin_actions/index.js";
+import { builtinActions } from "./builtin_actions/index.ts";
 import { DomainEvents } from "./domain_events.ts";
 import { NodeCreatedEvent } from "/domain/nodes/node_created_event.ts";
 import { NodeUpdatedEvent } from "/domain/nodes/node_updated_event.ts";
@@ -37,23 +37,25 @@ export class ActionService {
   }
 
   async createOrReplace(_principal: UserPrincipal, file: File): Promise<void> {
-    const action = await this.fileToAction(file);
+    const fileAction = await this.fileToAction(file);
 
-    action.spec.builtIn = false;
+    const defaultAction = {
+      uuid: file.name.split(".")[0],
+      builtIn: false,
+    };
+
+    const action = { ...defaultAction, ...fileAction };
 
     this.validateAction(action);
 
-    return this.context.repository.addOrReplace({
-      ...action,
-      uuid: file.name.split(".")[0],
-    });
+    return this.context.repository.addOrReplace(action);
   }
 
   private async fileToAction(file: File): Promise<Action> {
     const url = URL.createObjectURL(file);
     const mod = await import(url);
 
-    return mod as Action;
+    return mod.default as Action;
   }
 
   private validateAction(_action: Action): void {}
@@ -98,6 +100,61 @@ export class ActionService {
     }
   }
 
+  async runCreatedAutomaticForCreates(evt: NodeCreatedEvent) {
+    const actions = await this.getAutomaticActions(
+      evt.payload,
+      (action) => action.runOnUpdates || false
+    );
+
+    await this.runActions(
+      actions.map((a) => a.uuid),
+      evt.payload.uuid
+    );
+  }
+
+  async runAutomaticActionsForUpdates(evt: NodeUpdatedEvent) {
+    const node = await this.context.nodeService.get(
+      null as unknown as UserPrincipal,
+      evt.payload.uuid
+    );
+
+    if (!node) {
+      return;
+    }
+
+    const actions = await this.getAutomaticActions(
+      node,
+      (action) => action.runOnUpdates || false
+    );
+
+    await this.runActions(
+      actions.map((a) => a.uuid),
+      evt.payload.uuid
+    );
+  }
+
+  private async getAutomaticActions(
+    _node: Node,
+    runOnCriteria: (action: Action) => boolean
+  ): Promise<Action[]> {
+    let actions = await this.list(this.context.authService.getSystemUser());
+
+    actions = actions
+      .filter(runOnCriteria)
+      .filter(
+        (a) =>
+          !a.mimetypeConstraints ||
+          a.mimetypeConstraints.includes(_node.mimetype)
+      )
+      .filter(
+        (a) =>
+          !a.aspectConstraints ||
+          a.aspectConstraints.every((aspect) => _node.aspects?.includes(aspect))
+      );
+
+    return await Promise.resolve([] as Action[]);
+  }
+
   async runOnCreateScritps(evt: NodeCreatedEvent) {
     if (evt.payload.parent === ROOT_FOLDER_UUID) {
       return;
@@ -112,7 +169,10 @@ export class ActionService {
       return;
     }
 
-    await this.runActions(parent.onCreate, evt.payload.uuid);
+    await this.runActions(
+      parent.onCreate.filter(this.nonEmptyActions),
+      evt.payload.uuid
+    );
   }
 
   async runOnUpdatedScritps(evt: NodeUpdatedEvent) {
@@ -134,7 +194,14 @@ export class ActionService {
       return;
     }
 
-    await this.runActions(parent.onUpdate, evt.payload.uuid);
+    await this.runActions(
+      parent.onUpdate.filter(this.nonEmptyActions),
+      evt.payload.uuid
+    );
+  }
+
+  private nonEmptyActions(uuid: string): boolean {
+    return uuid?.length > 0;
   }
 
   private async runActions(actions: string[], uuid: string) {

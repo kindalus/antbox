@@ -1,4 +1,3 @@
-import { AspectNotFoundError } from "./../domain/aspects/aspect_not_found_error.ts";
 import { AspectValidationError } from "./aspect_validation_error.ts";
 import { Role } from "/domain/auth/role.ts";
 import { ForbiddenError } from "/shared/ecm_error.ts";
@@ -22,7 +21,7 @@ export class AspectService {
     this.context = context;
   }
 
-  async create(
+  async createOrReplace(
     principal: UserPrincipal,
     aspect: Aspect
   ): Promise<Either<void, ForbiddenError | AspectValidationError>> {
@@ -37,22 +36,6 @@ export class AspectService {
     }
 
     return success(await this.context.repository.addOrReplace(aspect));
-  }
-
-  async update(
-    principal: UserPrincipal,
-    uuid: string,
-    aspect: Aspect
-  ): Promise<
-    Either<void, ForbiddenError | AspectValidationError | AspectNotFoundError>
-  > {
-    const existing = this.context.repository.get(uuid);
-
-    if (!existing) {
-      return error(new AspectNotFoundError(uuid));
-    }
-
-    return await this.create(principal, { ...aspect, uuid });
   }
 
   async delete(_principal: UserPrincipal, uuid: string): Promise<void> {

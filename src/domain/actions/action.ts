@@ -7,9 +7,10 @@ import { Aspect } from "/domain/aspects/aspect.ts";
  * Representado em ficheiro js com o formato:
  * export const spec = {
  * 	title: string;
- * 	description: string; *
+ * 	description: string;
  * 	builtIn: boolean;
- * 	multiple: string;
+ * 	multiple: boolean;
+ *  auto: boolean;
  * 	aspectConstraints: string[];
  * 	mimetypeConstraints: string[];
  * 	params: ActionParams[];
@@ -19,16 +20,15 @@ import { Aspect } from "/domain/aspects/aspect.ts";
  */
 export interface Action {
   uuid: string;
-  spec: {
-    title: string;
-    description: string;
-
-    builtIn: boolean;
-    multiple: string;
-    aspectConstraints: string[];
-    mimetypeConstraints: string[];
-    params: ActionParams[];
-  };
+  title: string;
+  description: string;
+  builtIn: boolean;
+  multiple: boolean;
+  runOnCreates?: boolean;
+  runOnUpdates?: boolean;
+  aspectConstraints?: string[];
+  mimetypeConstraints?: string[];
+  params?: ActionParams[];
 
   run: (
     ctx: RunContext,

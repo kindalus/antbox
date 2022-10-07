@@ -39,23 +39,16 @@ export class FlatFileActionRepository implements ActionRepository {
 }
 
 function toUint8Array(action: Action): Promise<Uint8Array> {
-  const text = `
-
-	/**
-	 * @param { Actions.RunContext } ctx
-	 * @param { Object } params
-	 * @param { String[] } uuids
-	 */
-	export ${action.run.toString()}
-
-	export const spec = {
-		${action.spec.title ? 'title: "action.spec.description",' : ""}
-		${action.spec.description ? 'description: "action.spec.description",' : ""}
-		builtIn: ${action.spec.builtIn},
-		multiple: ${action.spec.multiple},
-		aspectConstraints: ${JSON.stringify(action.spec.aspectConstraints ?? [])},
-		mimetypeConstraints: ${JSON.stringify(action.spec.mimetypeConstraints ?? [])},
+  const text = `	
+	export default {
+		${action.title ? 'title: "action.description",' : ""}
+		${action.description ? 'description: "action.description",' : ""}
+		builtIn: ${action.builtIn},
+		multiple: ${action.multiple},
+		aspectConstraints: ${JSON.stringify(action.aspectConstraints ?? [])},
+		mimetypeConstraints: ${JSON.stringify(action.mimetypeConstraints ?? [])},
 		params: [],
+    ${action.run.toString()}
 	};
 `;
 

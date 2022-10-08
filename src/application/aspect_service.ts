@@ -6,7 +6,7 @@ import { Aspect } from "/domain/aspects/aspect.ts";
 import { AspectRepository } from "/domain/aspects/aspect_repository.ts";
 
 import { AuthService } from "/application/auth_service.ts";
-import { webContent } from "/application/builtin_aspects/web_content.ts";
+import { WebContentAspect } from "/application/builtin_aspects/web_content.ts";
 import { UserPrincipal } from "/domain/auth/user_principal.ts";
 
 export interface AspectServiceContext {
@@ -49,7 +49,7 @@ export class AspectService {
   list(_principal: UserPrincipal): Promise<Aspect[]> {
     return this.context.repository
       .getAll()
-      .then((aspects) => [webContent, ...aspects]);
+      .then((aspects) => [WebContentAspect, ...aspects]);
   }
 
   private validateAspect(_aspect: Aspect): AspectValidationError | void {

@@ -34,17 +34,18 @@ export class ActionService {
     DomainEvents.subscribe<NodeUpdatedEvent>(NodeUpdatedEvent.EVENT_ID, {
       handle: (evt) => this.runOnUpdatedScritps(evt),
     });
+
+    DomainEvents.subscribe<NodeCreatedEvent>(NodeCreatedEvent.EVENT_ID, {
+      handle: (evt) => this.runAutomaticActionsForCreates(evt),
+    });
+
+    DomainEvents.subscribe<NodeUpdatedEvent>(NodeUpdatedEvent.EVENT_ID, {
+      handle: (evt) => this.runAutomaticActionsForUpdates(evt),
+    });
   }
 
   async createOrReplace(_principal: UserPrincipal, file: File): Promise<void> {
-    const fileAction = await this.fileToAction(file);
-
-    const defaultAction = {
-      uuid: file.name.split(".")[0],
-      builtIn: false,
-    };
-
-    const action = { ...defaultAction, ...fileAction };
+    const action = await this.fileToAction(file);
 
     this.validateAction(action);
 
@@ -55,7 +56,21 @@ export class ActionService {
     const url = URL.createObjectURL(file);
     const mod = await import(url);
 
-    return mod.default as Action;
+    const raw = mod.default as Action;
+
+    return {
+      uuid: raw.uuid ?? file.name.split(".")[0],
+      title: raw.title ?? file.name.split(".")[0],
+      description: raw.description ?? "",
+      builtIn: false,
+      multiple: raw.multiple ?? false,
+      aspectConstraints: raw.aspectConstraints ?? [],
+      mimetypeConstraints: raw.mimetypeConstraints ?? [],
+      runOnCreates: raw.runOnCreates ?? false,
+      runOnUpdates: raw.runOnUpdates ?? false,
+      params: raw.params ?? [],
+      run: raw.run,
+    };
   }
 
   private validateAction(_action: Action): void {}
@@ -110,10 +125,10 @@ export class ActionService {
     }
   }
 
-  async runCreatedAutomaticForCreates(evt: NodeCreatedEvent) {
+  async runAutomaticActionsForCreates(evt: NodeCreatedEvent) {
     const actions = await this.getAutomaticActions(
       evt.payload,
-      (action) => action.runOnUpdates || false
+      (action) => action.runOnCreates || false
     );
 
     await this.runActions(
@@ -162,7 +177,7 @@ export class ActionService {
           a.aspectConstraints.every((aspect) => _node.aspects?.includes(aspect))
       );
 
-    return await Promise.resolve([] as Action[]);
+    return await Promise.resolve(actions);
   }
 
   async runOnCreateScritps(evt: NodeCreatedEvent) {

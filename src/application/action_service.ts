@@ -65,7 +65,17 @@ export class ActionService {
   }
 
   get(_principal: UserPrincipal, uuid: string): Promise<Action> {
+    const found = builtinActions.find((a) => a.uuid === uuid);
+
+    if (found) {
+      return Promise.resolve(found);
+    }
+
     return this.context.repository.get(uuid);
+  }
+
+  export(_principal: UserPrincipal, uuid: string): Promise<File> {
+    return this.context.repository.getRaw(uuid);
   }
 
   list(_principal: UserPrincipal): Promise<Action[]> {

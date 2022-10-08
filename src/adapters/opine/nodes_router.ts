@@ -6,14 +6,14 @@ import { getRequestContext } from "./request_context_builder.ts";
 export const nodesRouter = Router();
 
 nodesRouter.get("/:uuid", getHandler);
-nodesRouter.get("/:uuid/export", exportHandler);
-nodesRouter.get("/:uuid/copy", copyHandler);
-nodesRouter.get("/:uuid/evaluate", evaluateHandler);
+nodesRouter.get("/:uuid/-/export", exportHandler);
+nodesRouter.get("/:uuid/-/copy", copyHandler);
+nodesRouter.get("/:uuid/-/evaluate", evaluateHandler);
 
 nodesRouter.get("/", listHandler);
 
 nodesRouter.post("/", createFolderHandler);
-nodesRouter.post("/query", queryHandler);
+nodesRouter.post("/-/query", queryHandler);
 
 nodesRouter.patch("/:uuid", updateHandler);
 

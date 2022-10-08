@@ -33,6 +33,16 @@ export class FlatFileActionRepository implements ActionRepository {
     return this.repo.getAll();
   }
 
+  async getRaw(uuid: string): Promise<File> {
+    const action = await this.get(uuid);
+    const raw = await toUint8Array(action);
+    const f = new File([raw], (action.title ?? action.uuid) + ".js", {
+      type: "text/javascript",
+    });
+
+    return f;
+  }
+
   getPath(uuid: string): Promise<string> {
     return Promise.resolve(this.repo.buildFilePath(uuid));
   }

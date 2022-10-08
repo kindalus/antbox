@@ -10,6 +10,7 @@ actionsRouter.delete("/:uuid", deleteHandler);
 actionsRouter.get("/", listHandler);
 actionsRouter.get("/:uuid", getHandler);
 actionsRouter.get("/:uuid/-/run", runHandler);
+actionsRouter.get("/:uuid/-/export", exportHandler);
 
 function deleteHandler(req: OpineRequest, res: OpineResponse) {
   EcmRegistry.instance.actionService
@@ -43,4 +44,27 @@ function runHandler(req: OpineRequest, res: OpineResponse) {
     .run(getRequestContext(req), req.params.uuid, uuids, req.query)
     .then(() => res.sendStatus(200))
     .catch((err) => processError(err, res));
+}
+
+async function exportHandler(req: OpineRequest, res: OpineResponse) {
+  const uuid = req.params.uuid;
+  const requestContext = getRequestContext(req);
+
+  const f = await EcmRegistry.instance.actionService.export(
+    requestContext,
+    uuid
+  );
+
+  try {
+    res.append("Content-Type", f.type);
+    res.append("Content-Length", f.size.toString());
+    res.append("Content-Disposition", `attachment; filename=${f.name}`);
+
+    const buffer = await f.arrayBuffer();
+    const chunks = new Uint8Array(buffer);
+
+    res.send(chunks);
+  } catch (err) {
+    processError(err, res);
+  }
 }

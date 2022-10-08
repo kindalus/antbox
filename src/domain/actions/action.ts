@@ -85,7 +85,8 @@ export interface NodeServiceForActions {
   update(
     principal: UserPrincipal,
     uuid: string,
-    data: Partial<Node>
+    data: Partial<Node>,
+    merge?: boolean
   ): Promise<void>;
 }
 

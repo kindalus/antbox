@@ -15,10 +15,15 @@ export default {
     uuids: string[],
     _params?: Record<string, unknown>
   ): Promise<void | Error> {
-    return await ctx.nodeService.update(ctx.principal, uuids[0], {
-      properties: {
-        "web-content:published": true,
+    return await ctx.nodeService.update(
+      ctx.principal,
+      uuids[0],
+      {
+        properties: {
+          "web-content:published": true,
+        },
       },
-    });
+      true
+    );
   },
 };

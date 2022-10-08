@@ -238,14 +238,46 @@ export class NodeService {
   async update(
     principal: UserPrincipal,
     uuid: string,
-    data: Partial<Node>
+    data: Partial<Node>,
+    merge = false
   ): Promise<void> {
     const node = await this.get(principal, uuid);
 
     if (!node) throw new NodeNotFoundError(uuid);
 
-    await this.context.repository.update({ ...node, ...data });
+    const newNode = merge
+      ? this.mergeProperties(node, data)
+      : { ...node, ...data };
+
+    await this.context.repository.update(newNode as Node);
     DomainEvents.notify(new NodeUpdatedEvent(uuid, data));
+  }
+
+  private mergeProperties(
+    dst: Record<string, unknown>,
+    src: Record<string, unknown>
+  ): Record<string, unknown> {
+    const result = { ...dst };
+
+    for (const key in src) {
+      if (!src[key] && src[key] !== 0 && src[key] !== false) {
+        delete result[key];
+        continue;
+      }
+
+      if (typeof src[key] === "object") {
+        result[key] = this.mergeProperties(
+          (result[key] ?? {}) as Record<string, unknown>,
+          src[key] as Record<string, unknown>
+        );
+
+        continue;
+      }
+
+      result[key] = src[key];
+    }
+
+    return result;
   }
 
   async evaluate(

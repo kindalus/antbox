@@ -15,8 +15,13 @@ export default {
     uuids: string[],
     _params?: Record<string, unknown>
   ): Promise<void | Error> {
-    return await ctx.nodeService.update(ctx.principal, uuids[0], {
-      trashed: true,
-    });
+    return await ctx.nodeService.update(
+      ctx.principal,
+      uuids[0],
+      {
+        trashed: true,
+      },
+      true
+    );
   },
 };

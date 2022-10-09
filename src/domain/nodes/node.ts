@@ -32,45 +32,6 @@ export interface FileNode extends Node {
   versions: string[];
 }
 
-export interface SmartFolderNode extends Node {
-  filters: NodeFilter[];
-  aggregations?: Aggregation[];
-}
-
-export type FilterOperator =
-  | "=="
-  | "<="
-  | ">="
-  | "<"
-  | ">"
-  | "!="
-  | "in"
-  | "not-in"
-  | "array-contains"
-  | "array-contains-any"
-  | "match";
-
-export type NodeFilter = [
-  field: string,
-  operator: FilterOperator,
-  value: unknown
-];
-
-export interface Aggregation {
-  title: string;
-  fieldName: string;
-  formula: AggregationFormula;
-}
-
-export type AggregationFormula =
-  | "sum"
-  | "count"
-  | "avg"
-  | "med"
-  | "max"
-  | "min"
-  | "string";
-
 export function isFid(uuid: string): boolean {
   return uuid.startsWith("fid:");
 }

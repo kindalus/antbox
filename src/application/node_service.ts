@@ -9,19 +9,22 @@ import { StorageProvider } from "/domain/providers/storage_provider.ts";
 import { UuidGenerator } from "/domain/providers/uuid_generator.ts";
 
 import {
-  Aggregation,
   FileNode,
   FOLDER_MIMETYPE,
   FolderNode,
   isFid,
   Node,
-  NodeFilter,
   ROOT_FOLDER_UUID,
   SMART_FOLDER_MIMETYPE,
-  SmartFolderNode,
   uuidToFid,
   META_NODE_MIMETYPE,
 } from "/domain/nodes/node.ts";
+
+import {
+  Aggregation,
+  NodeFilter,
+  SmartFolderNode,
+} from "/domain/nodes/smart_folder_node.ts";
 
 import { FolderNotFoundError } from "/domain/nodes/folder_not_found_error.ts";
 import { SmartFolderNodeNotFoundError } from "/domain/nodes/smart_folder_node_not_found_error.ts";
@@ -31,9 +34,9 @@ import { InvalidNodeToCopyError } from "/domain/nodes/invalid_node_to_copy_error
 import { DefaultFidGenerator } from "/strategies/default_fid_generator.ts";
 import { DefaultUuidGenerator } from "/strategies/default_uuid_generator.ts";
 import { UserPrincipal } from "../domain/auth/user_principal.ts";
-import { NodeCreatedEvent } from "../domain/nodes/node_created_event.ts";
-import { NodeUpdatedEvent } from "../domain/nodes/node_updated_event.ts";
-import { NodeDeletedEvent } from "../domain/nodes/node_deleted_event.ts";
+import { NodeCreatedEvent } from "/domain/nodes/node_created_event.ts";
+import { NodeUpdatedEvent } from "/domain/nodes/node_updated_event.ts";
+import { NodeDeletedEvent } from "/domain/nodes/node_deleted_event.ts";
 
 export interface NodeServiceContext {
   readonly fidGenerator?: FidGenerator;

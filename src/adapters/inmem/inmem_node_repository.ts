@@ -2,7 +2,8 @@ import {
   NodeFilterResult,
   NodeRepository,
 } from "/domain/nodes/node_repository.ts";
-import { Node, NodeFilter } from "/domain/nodes/node.ts";
+import { Node } from "/domain/nodes/node.ts";
+import { NodeFilter } from "../../domain/nodes/smart_folder_node.ts";
 
 export class InMemoryNodeRepository implements NodeRepository {
   constructor(readonly db: Record<string, Partial<Node>> = {}) {}

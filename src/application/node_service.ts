@@ -421,7 +421,7 @@ abstract class NodeDeleter<T extends Node> {
   protected readonly node: T;
   protected readonly context: NodeServiceContext;
 
-  constructor(node: T, context: NodeServiceContext) {
+  protected constructor(node: T, context: NodeServiceContext) {
     this.node = node;
     this.context = context;
   }
@@ -482,7 +482,7 @@ class FolderNodeDeleter extends NodeDeleter<FolderNode> {
 
 class SmartFolderNodeDeleter extends NodeDeleter<SmartFolderNode> {
   delete(): Promise<void> {
-    return Promise.resolve(undefined);
+    return this.deleteFromRepository();
   }
   constructor(node: SmartFolderNode, context: NodeServiceContext) {
     super(node, context);

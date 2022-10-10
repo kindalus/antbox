@@ -68,6 +68,7 @@ export class ActionService {
       mimetypeConstraints: raw.mimetypeConstraints ?? [],
       runOnCreates: raw.runOnCreates ?? false,
       runOnUpdates: raw.runOnUpdates ?? false,
+      runManually: raw.runManually ?? true,
       params: raw.params ?? [],
       run: raw.run,
     };

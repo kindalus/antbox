@@ -27,6 +27,7 @@ export interface Action {
   multiple: boolean;
   runOnCreates?: boolean;
   runOnUpdates?: boolean;
+  runManually?: boolean;
   aspectConstraints?: string[];
   mimetypeConstraints?: string[];
   params?: string[];

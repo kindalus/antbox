@@ -1,7 +1,8 @@
 import { UserPrincipal } from "/domain/auth/user_principal.ts";
 import { NodeFilterResult } from "/domain/nodes/node_repository.ts";
-import { Node, NodeFilter } from "/domain/nodes/node.ts";
+import { Node } from "/domain/nodes/node.ts";
 import { Aspect } from "/domain/aspects/aspect.ts";
+import { NodeFilter } from "../nodes/node_filter.ts";
 
 /**
  * Representado em ficheiro js com o formato:
@@ -28,22 +29,13 @@ export interface Action {
   runOnUpdates?: boolean;
   aspectConstraints?: string[];
   mimetypeConstraints?: string[];
-  params?: ActionParams[];
+  params?: string[];
 
   run: (
     ctx: RunContext,
     uuids: string[],
-    params?: Record<string, unknown>
+    params?: Record<string, string>
   ) => Promise<void | Error>;
-}
-
-export interface ActionParams {
-  name: string;
-  title: string;
-  type: string;
-  required: boolean;
-  validationRegex?: string;
-  validationList?: string[];
 }
 
 export interface RunContext {

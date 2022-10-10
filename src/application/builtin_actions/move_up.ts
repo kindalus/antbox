@@ -3,7 +3,7 @@ import { Action, RunContext } from "/domain/actions/action.ts";
 export default {
   uuid: "move_up",
   title: "Mover para cima",
-  description: "Move o nó para uma directoria acima",
+  description: "Move o nó para uma pasta acima",
   builtIn: true,
   multiple: false,
   aspectConstraints: [],

@@ -78,7 +78,7 @@ function main(program: IParseResult) {
   const port = program.options.port || "7180";
 
   if (!baseDir) {
-    console.error("No base directory specified");
+    console.error("No base folder specified");
     Deno.exit(-1);
   }
 

@@ -20,8 +20,10 @@ nodesRouter.patch("/:uuid", updateHandler);
 nodesRouter.delete("/:uuid", deleteHandler);
 
 function listHandler(req: OpineRequest, res: OpineResponse) {
+  const parent = req.query.parent?.length > 0 ? req.query.parent : undefined;
+
   return EcmRegistry.instance.nodeService
-    .list(getRequestContext(req), req.query.parent as string)
+    .list(getRequestContext(req), parent)
     .then((result) => res.json(result))
     .catch((err) => processError(err, res));
 }

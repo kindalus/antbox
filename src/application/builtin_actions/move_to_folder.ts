@@ -19,6 +19,10 @@ function run(
 ): Promise<void | Error> {
   const parent = params["destination"];
 
+  if (!parent) {
+    return Promise.reject(new Error("Error parameter not given"));
+  }
+
   const batch = uuids.map((u) =>
     ctx.nodeService.update(ctx.principal, u, { parent }, true)
   );

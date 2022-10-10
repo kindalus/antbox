@@ -1,3 +1,4 @@
+import { isRoot } from "../../domain/nodes/node.ts";
 import { Action, RunContext } from "/domain/actions/action.ts";
 
 export default {
@@ -13,9 +14,19 @@ export default {
 } as Action;
 
 function run(
-  _ctx: RunContext,
+  ctx: RunContext,
   _uuids: string[],
   _params?: Record<string, unknown>
 ): Promise<void | Error> {
-  return Promise.resolve();
+  return ctx.nodeService.get(ctx.principal, _uuids[0]).then((node) => {
+    if (!node.parent || isRoot(node.parent)) {
+      return Promise.resolve();
+    }
+
+    return ctx.nodeService
+      .get(ctx.principal, node.parent)
+      .then(({ parent }) => {
+        ctx.nodeService.update(ctx.principal, node.uuid, { parent }, true);
+      });
+  });
 }

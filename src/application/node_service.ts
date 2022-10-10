@@ -22,7 +22,6 @@ import {
 
 import {
   Aggregation,
-  NodeFilter,
   SmartFolderNode,
 } from "/domain/nodes/smart_folder_node.ts";
 
@@ -37,6 +36,7 @@ import { UserPrincipal } from "../domain/auth/user_principal.ts";
 import { NodeCreatedEvent } from "/domain/nodes/node_created_event.ts";
 import { NodeUpdatedEvent } from "/domain/nodes/node_updated_event.ts";
 import { NodeDeletedEvent } from "/domain/nodes/node_deleted_event.ts";
+import { NodeFilter } from "../domain/nodes/node_filter.ts";
 
 export interface NodeServiceContext {
   readonly fidGenerator?: FidGenerator;
@@ -162,7 +162,7 @@ export class NodeService {
       node.parent ?? ROOT_FOLDER_UUID,
       node.title,
       node.mimetype,
-      0
+      node.size
     );
 
     await this.context.storage.write(newNode.uuid, file);

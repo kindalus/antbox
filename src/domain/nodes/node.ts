@@ -33,13 +33,17 @@ export interface FileNode extends Node {
 }
 
 export function isFid(uuid: string): boolean {
-  return uuid.startsWith("fid:");
+  return uuid?.startsWith("fid:");
 }
 
 export function uuidToFid(fid: string): string {
-  return fid.startsWith("fid:") ? fid.substring(4) : fid;
+  return fid?.startsWith("fid:") ? fid.substring(4) : fid;
 }
 
 export function fidToUuid(fid: string): string {
   return `fid:${fid}`;
+}
+
+export function isRoot(uuid: string): boolean {
+  return uuid === ROOT_FOLDER_UUID;
 }

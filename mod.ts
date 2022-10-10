@@ -1,33 +1,35 @@
 export type {
-	Aggregation,
-	AggregationFormula,
-	FileNode,
-	FilterOperator,
-	FolderNode,
-	Node,
-	NodeFilter,
-	Properties,
-	SmartFolderNode,
+  FileNode,
+  FolderNode,
+  Node,
+  Properties,
 } from "/domain/nodes/node.ts";
 
 export {
-	fidToUuid,
-	FOLDER_MIMETYPE,
-	isFid,
-	ROOT_FOLDER_UUID,
-	SMART_FOLDER_MIMETYPE,
-	uuidToFid,
+  fidToUuid,
+  FOLDER_MIMETYPE,
+  isFid,
+  ROOT_FOLDER_UUID,
+  uuidToFid,
 } from "/domain/nodes/node.ts";
+
+export type { SmartFolderNode } from "/domain/nodes/smart_folder_node.ts";
+
+export { SMART_FOLDER_MIMETYPE } from "/domain/nodes/smart_folder_node.ts";
 
 export type { WebContent } from "/application/builtin_aspects/web_content.ts";
 
-export type { AspectProperty, default as Aspect, PropertyType } from "/domain/aspects/aspect.ts";
+export type {
+  AspectProperty,
+  Aspect,
+  PropertyType,
+} from "/domain/aspects/aspect.ts";
 
-export type { ActionParams, default as Action } from "/domain/actions/action.ts";
+export type { Action } from "/domain/actions/action.ts";
 
-export type { default as EcmError } from "./src/shared/ecm_error.ts";
+export type { EcmError } from "./src/shared/ecm_error.ts";
 
-export { default as FolderNotFoundError } from "/domain/nodes/folder_not_found_error.ts";
-export { default as SmartFolderNodeNotFoundError } from "/domain/nodes/smart_folder_node_not_found_error.ts";
-export { default as InvalidNodeToCopyError } from "/domain/nodes/invalid_node_to_copy_error.ts";
-export { default as NodeNotFoundError } from "/domain/nodes/node_not_found_error.ts";
+export { FolderNotFoundError } from "/domain/nodes/folder_not_found_error.ts";
+export { SmartFolderNodeNotFoundError } from "/domain/nodes/smart_folder_node_not_found_error.ts";
+export { InvalidNodeToCopyError } from "/domain/nodes/invalid_node_to_copy_error.ts";
+export { NodeNotFoundError } from "/domain/nodes/node_not_found_error.ts";

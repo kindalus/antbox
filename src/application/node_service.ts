@@ -15,7 +15,6 @@ import {
   isFid,
   Node,
   ROOT_FOLDER_UUID,
-  SMART_FOLDER_MIMETYPE,
   uuidToFid,
   META_NODE_MIMETYPE,
 } from "/domain/nodes/node.ts";
@@ -23,6 +22,7 @@ import {
 import {
   Aggregation,
   SmartFolderNode,
+  SMART_FOLDER_MIMETYPE,
 } from "/domain/nodes/smart_folder_node.ts";
 
 import { FolderNotFoundError } from "/domain/nodes/folder_not_found_error.ts";
@@ -62,20 +62,57 @@ export class NodeService {
     file: File,
     parent = ROOT_FOLDER_UUID
   ): Promise<string> {
-    const node = this.createFileMetadata(
-      principal,
-      parent,
-      file.name,
-      file.type,
-      file.size
-    );
+    let node: Node | undefined;
 
-    await this.context.storage.write(node.uuid, file);
+    if (file.type === "application/json") {
+      node = await this.tryToCreateSmartfolder(principal, file, parent);
+    }
+
+    if (!node) {
+      node = this.createFileMetadata(
+        principal,
+        parent,
+        file.name,
+        file.type,
+        file.size
+      );
+      await this.context.storage.write(node.uuid, file);
+    }
+
     await this.context.repository.add(node);
 
     DomainEvents.notify(new NodeCreatedEvent(node));
 
     return Promise.resolve(node.uuid);
+  }
+
+  private async tryToCreateSmartfolder(
+    pricipal: UserPrincipal,
+    file: File,
+    parent: string
+  ): Promise<SmartFolderNode | undefined> {
+    try {
+      const content = new TextDecoder().decode(await file.arrayBuffer());
+      const node = JSON.parse(content) as SmartFolderNode;
+
+      if (node.mimetype !== SMART_FOLDER_MIMETYPE) {
+        return undefined;
+      }
+
+      return {
+        ...this.createFileMetadata(
+          pricipal,
+          parent,
+          node.title,
+          node.mimetype,
+          0
+        ),
+        filters: node.filters,
+        aggregation: node.aggregation,
+      } as SmartFolderNode;
+    } catch (_e) {
+      return undefined;
+    }
   }
 
   async createFolder(
@@ -346,11 +383,24 @@ export class NodeService {
     return !this.isSmartFolderNode(node) && !this.isFolderNode(node);
   }
 
-  async export(principal: UserPrincipal, uuid: string): Promise<Blob> {
+  async export(principal: UserPrincipal, uuid: string): Promise<File> {
     const node = await this.get(principal, uuid);
-    const blob = await this.context.storage.read(node.uuid);
 
-    return blob;
+    if (this.isSmartFolderNode(node)) {
+      return this.exportSmartfolder(node);
+    }
+
+    const file = await this.context.storage.read(uuid);
+
+    return file;
+  }
+
+  private exportSmartfolder(node: Node) {
+    const jsonText = JSON.stringify(node);
+
+    return new File([jsonText], node.title.concat(".json"), {
+      type: "application/json",
+    });
   }
 }
 
@@ -432,7 +482,7 @@ class FolderNodeDeleter extends NodeDeleter<FolderNode> {
 
 class SmartFolderNodeDeleter extends NodeDeleter<SmartFolderNode> {
   delete(): Promise<void> {
-    return this.deleteFromStorage();
+    return Promise.resolve(undefined);
   }
   constructor(node: SmartFolderNode, context: NodeServiceContext) {
     super(node, context);
@@ -520,7 +570,7 @@ const Reducers: Record<string, ReducerFn> = {
 };
 
 export interface SmartFolderNodeEvaluation {
-  records: Record<string, unknown>[];
+  records: Node[];
   aggregations?: {
     title: string;
     value: unknown;

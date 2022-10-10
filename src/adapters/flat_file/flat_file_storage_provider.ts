@@ -12,12 +12,12 @@ export class FlatFileStorageProvider implements StorageProvider {
     }
   }
 
-  read(uuid: string): Promise<Blob> {
+  read(uuid: string): Promise<File> {
     const filePath = this.buildFilePath(uuid);
 
     const fileContent = Deno.readFileSync(filePath);
 
-    const file = new Blob([fileContent]);
+    const file = new File([fileContent], uuid);
 
     return Promise.resolve(file);
   }

@@ -90,6 +90,13 @@ export class ActionService {
   }
 
   export(_principal: UserPrincipal, uuid: string): Promise<File> {
+    const action = builtinActions.find((a) => a.uuid === uuid);
+    if (action) {
+      return Promise.resolve(
+        new File([JSON.stringify(action)], `${action.uuid}.json`)
+      );
+    }
+
     return this.context.repository.getRaw(uuid);
   }
 

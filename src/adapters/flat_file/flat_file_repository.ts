@@ -30,12 +30,8 @@ export class FlatFileRepository<T extends { uuid: string }> {
       return this.fromUint8Array(buffer);
     }
 
-    try {
-      const model = await import(filepath);
-      return { uuid: path.parse(filepath).name, ...model.default };
-    } catch (_err) {
-      return null as unknown as T;
-    }
+    const model = await import(filepath);
+    return { uuid: path.parse(filepath).name, ...model.default };
   }
 
   delete(uuid: string): Promise<void> {

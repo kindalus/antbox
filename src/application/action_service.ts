@@ -133,41 +133,43 @@ export class ActionService {
     }
   }
 
-  async runAutomaticActionsForCreates(evt: NodeCreatedEvent) {
-    const actions = await this.getAutomaticActions(
-      evt.payload,
-      (action) => action.runOnCreates || false
-    );
+  runAutomaticActionsForCreates(evt: NodeCreatedEvent) {
+    const runCriteria = (action: Action) => action.runOnCreates || false;
 
-    await this.runActions(
-      actions.map((a) => a.uuid),
-      evt.payload.uuid
+    return this.getAutomaticActions(evt.payload, runCriteria).then(
+      (actions) => {
+        return this.runActions(
+          actions.map((a) => a.uuid),
+          evt.payload.uuid
+        );
+      }
     );
   }
 
-  async runAutomaticActionsForUpdates(evt: NodeUpdatedEvent) {
-    const node = await this.context.nodeService.get(
-      null as unknown as UserPrincipal,
-      evt.payload.uuid
-    );
+  runAutomaticActionsForUpdates(evt: NodeUpdatedEvent) {
+    const runCriteria = (action: Action) => action.runOnUpdates || false;
 
-    if (!node) {
-      return;
-    }
+    return this.context.nodeService
+      .get(null as unknown as UserPrincipal, evt.payload.uuid)
+      .then(async (node) => {
+        if (!node) {
+          return;
+        }
 
-    const actions = await this.getAutomaticActions(
-      node,
-      (action) => action.runOnUpdates || false
-    );
+        const actions = await this.getAutomaticActions(node, runCriteria);
+        if (actions.length === 0) {
+          return;
+        }
 
-    await this.runActions(
-      actions.map((a) => a.uuid),
-      evt.payload.uuid
-    );
+        return this.runActions(
+          actions.map((a) => a.uuid),
+          evt.payload.uuid
+        );
+      });
   }
 
   private async getAutomaticActions(
-    _node: Node,
+    node: Node,
     runOnCriteria: (action: Action) => boolean
   ): Promise<Action[]> {
     let actions = await this.list(this.context.authService.getSystemUser());
@@ -176,74 +178,72 @@ export class ActionService {
       .filter(runOnCriteria)
       .filter(
         (a) =>
-          !a.mimetypeConstraints ||
-          a.mimetypeConstraints.includes(_node.mimetype)
+          a.mimetypeConstraints.length === 0 ||
+          a.mimetypeConstraints.includes(node.mimetype)
       )
       .filter(
         (a) =>
-          !a.aspectConstraints ||
-          a.aspectConstraints.every((aspect) => _node.aspects?.includes(aspect))
+          a.aspectConstraints.length === 0 ||
+          a.aspectConstraints.some((aspect) => node.aspects?.includes(aspect))
       );
 
-    return await Promise.resolve(actions);
+    return actions;
   }
 
-  async runOnCreateScritps(evt: NodeCreatedEvent) {
+  runOnCreateScritps(evt: NodeCreatedEvent) {
     if (evt.payload.parent === ROOT_FOLDER_UUID) {
       return;
     }
 
-    const parent = (await this.context.nodeService.get(
-      this.context.authService.getSystemUser(),
-      evt.payload.parent!
-    )) as FolderNode;
+    return this.context.nodeService
+      .get(this.context.authService.getSystemUser(), evt.payload.parent!)
+      .then((parent: Node) => {
+        if (!parent) {
+          return;
+        }
 
-    if (!parent) {
-      return;
-    }
-
-    await this.runActions(
-      parent.onCreate.filter(this.nonEmptyActions),
-      evt.payload.uuid
-    );
+        return this.runActions(
+          (parent as FolderNode).onCreate.filter(this.nonEmptyActions),
+          evt.payload.uuid
+        );
+      });
   }
 
-  async runOnUpdatedScritps(evt: NodeUpdatedEvent) {
-    const node = await this.context.nodeService.get(
-      null as unknown as UserPrincipal,
-      evt.payload.uuid
-    );
+  runOnUpdatedScritps(evt: NodeUpdatedEvent) {
+    return this.context.nodeService
+      .get(null as unknown as UserPrincipal, evt.payload.uuid)
+      .then(async (node: Node) => {
+        if (!node || node.parent === ROOT_FOLDER_UUID) {
+          return;
+        }
 
-    if (!node || node.parent === ROOT_FOLDER_UUID) {
-      return;
-    }
+        const parent = (await this.context.nodeService.get(
+          this.context.authService.getSystemUser(),
+          node.parent!
+        )) as FolderNode;
 
-    const parent = (await this.context.nodeService.get(
-      this.context.authService.getSystemUser(),
-      node.parent!
-    )) as FolderNode;
+        if (!parent) {
+          return;
+        }
 
-    if (!parent) {
-      return;
-    }
-
-    await this.runActions(
-      parent.onUpdate.filter(this.nonEmptyActions),
-      evt.payload.uuid
-    );
+        return this.runActions(
+          parent.onUpdate.filter(this.nonEmptyActions),
+          evt.payload.uuid
+        );
+      });
   }
 
   private nonEmptyActions(uuid: string): boolean {
     return uuid?.length > 0;
   }
 
-  private async runActions(actions: string[], uuid: string) {
+  private runActions(actions: string[], uuid: string) {
     for (const action of actions) {
       const [actionUuid, params] = action.split(" ");
       const j = `{${params ?? ""}}`;
       const g = j.replaceAll(/(\w+)=(\w+)/g, '"$1": "$2"');
 
-      await this.run(
+      return this.run(
         this.context.authService.getSystemUser(),
         actionUuid,
         [uuid],

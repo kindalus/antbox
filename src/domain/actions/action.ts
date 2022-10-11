@@ -28,9 +28,9 @@ export interface Action {
   runOnCreates?: boolean;
   runOnUpdates?: boolean;
   runManually?: boolean;
-  aspectConstraints?: string[];
-  mimetypeConstraints?: string[];
-  params?: string[];
+  aspectConstraints: string[];
+  mimetypeConstraints: string[];
+  params: string[];
 
   run: (
     ctx: RunContext,

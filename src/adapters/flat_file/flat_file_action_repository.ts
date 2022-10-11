@@ -61,6 +61,7 @@ function toUint8Array(action: Action): Promise<Uint8Array> {
 		params: ${JSON.stringify(action.params)},
     runOnCreates: ${action.runOnCreates},
     runOnUpdates: ${action.runOnUpdates},
+    runManually: ${action.runManually},
     ${action.run.toString()}
 	};
 `;

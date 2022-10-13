@@ -7,9 +7,9 @@ import { Either, success } from "/shared/either.ts";
 export class InMemoryGroupRepository implements GroupRepository {
   private _groups: Record<string, Group> = {};
 
-  addOrReplace(group: Group): Promise<Either<undefined, EcmError>> {
+  addOrReplace(group: Group): Promise<Either<EcmError, undefined>> {
     this._groups[group.id] = group;
 
-    return Promise.resolve(success(undefined));
+    return Promise.resolve(right(undefined));
   }
 }

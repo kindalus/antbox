@@ -1,4 +1,4 @@
-import { isRoot } from "../../domain/nodes/node.ts";
+import { Node } from "../../domain/nodes/node.ts";
 import { Action, RunContext } from "/domain/actions/action.ts";
 
 export default {
@@ -7,26 +7,41 @@ export default {
   description: "Move o nó para uma pasta acima",
   builtIn: true,
   multiple: false,
+  runManually: true,
   aspectConstraints: [],
   mimetypeConstraints: [],
   params: [],
-  run,
-} as Action;
 
-function run(
-  ctx: RunContext,
-  _uuids: string[],
-  _params?: Record<string, unknown>
-): Promise<void | Error> {
-  return ctx.nodeService.get(ctx.principal, _uuids[0]).then((node) => {
-    if (!node.parent || isRoot(node.parent)) {
-      return Promise.resolve();
+  async run(
+    ctx: RunContext,
+    _uuids: string[],
+    _params?: Record<string, unknown>
+  ): Promise<void | Error> {
+    const node = await ctx.nodeService.get(ctx.principal, _uuids[0]);
+
+    if (node.isLeft()) {
+      return node.value;
     }
 
-    return ctx.nodeService
-      .get(ctx.principal, node.parent)
-      .then(({ parent }) => {
-        ctx.nodeService.update(ctx.principal, node.uuid, { parent }, true);
-      });
-  });
-}
+    if (Node.isRootFolder(node.value.parent)) {
+      return;
+    }
+
+    const parent = await ctx.nodeService.get(ctx.principal, node.value.parent);
+
+    if (parent.isLeft()) {
+      return parent.value;
+    }
+
+    if (!parent.value.isFolder()) {
+      return;
+    }
+
+    ctx.nodeService.update(
+      ctx.principal,
+      node.value.uuid,
+      { parent: parent.value.parent },
+      true
+    );
+  },
+} as Action;

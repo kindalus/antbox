@@ -1,13 +1,12 @@
 import { EcmError } from "/shared/ecm_error.ts";
 
-export class SmartFolderNodeNotFoundError implements EcmError {
+export class SmartFolderNodeNotFoundError extends EcmError {
   static ERROR_CODE = "SmartFolderNodeNotFoundError";
 
-  readonly errorCode: string;
-  readonly message: string;
-
   constructor(uuid: string) {
-    this.errorCode = SmartFolderNodeNotFoundError.ERROR_CODE;
-    this.message = `The smart folder with uuid "${uuid}" was not found`;
+    super(
+      SmartFolderNodeNotFoundError.ERROR_CODE,
+      `The smart folder with uuid "${uuid}" was not found`
+    );
   }
 }

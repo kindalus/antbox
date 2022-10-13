@@ -1,18 +1,41 @@
-export interface Either<S, E> {
-  success?: S;
-  alt?: S;
-  error?: E;
+export type Either<L, R> = Left<L, R> | Right<L, R>;
+
+export class Left<L, R> {
+  readonly value: L;
+
+  constructor(value: L) {
+    this.value = value;
+  }
+
+  isLeft(): this is Left<L, R> {
+    return true;
+  }
+
+  isRight(): this is Right<L, R> {
+    return false;
+  }
 }
 
-export function success<S, E>(success: S): Either<S, E> {
-  return {
-    success,
-  };
+export class Right<L, R> {
+  readonly value: R;
+
+  constructor(value: R) {
+    this.value = value;
+  }
+
+  isLeft(): this is Left<L, R> {
+    return false;
+  }
+
+  isRight(): this is Right<L, R> {
+    return true;
+  }
 }
 
-export function error<S, E>(error: E, alt?: S): Either<S, E> {
-  return {
-    error,
-    alt,
-  };
-}
+export const left = <L, R>(l: L): Either<L, R> => {
+  return new Left<L, R>(l);
+};
+
+export const right = <L, R>(a: R): Either<L, R> => {
+  return new Right<L, R>(a);
+};

@@ -33,7 +33,9 @@ export function upload(fieldName = "file") {
       await Deno.mkdir(TMP_DIR, { recursive: true });
     }
 
-    const form = await new MultipartReader(req.body, boundary).readForm({
+    const reader = new MultipartReader(req.body, boundary);
+
+    const form = await reader.readForm({
       maxMemory: MAX_FILE_SIZE,
       dir: TMP_DIR,
     });

@@ -1,5 +1,7 @@
-import { NodeContentUpdatedEvent } from "./../domain/nodes/node_content_updated_event.ts";
-import { DomainEvents } from "./domain_events.ts";
+import { AggregationFormulaError } from "/domain/nodes/aggregation_formula_error.ts";
+import { NodeFactory } from "/domain/nodes/node_factory.ts";
+import { NodeContentUpdatedEvent } from "/domain/nodes/node_content_updated_event.ts";
+import { DomainEvents } from "/application/domain_events.ts";
 import { FidGenerator } from "/domain/nodes/fid_generator.ts";
 import {
   NodeRepository,
@@ -8,35 +10,25 @@ import {
 import { StorageProvider } from "/domain/providers/storage_provider.ts";
 import { UuidGenerator } from "/domain/providers/uuid_generator.ts";
 
-import {
-  FileNode,
-  FOLDER_MIMETYPE,
-  FolderNode,
-  isFid,
-  Node,
-  ROOT_FOLDER_UUID,
-  uuidToFid,
-  META_NODE_MIMETYPE,
-} from "/domain/nodes/node.ts";
+import { FileNode, FolderNode, Node } from "/domain/nodes/node.ts";
 
 import {
   Aggregation,
   SmartFolderNode,
-  SMART_FOLDER_MIMETYPE,
 } from "/domain/nodes/smart_folder_node.ts";
 
 import { FolderNotFoundError } from "/domain/nodes/folder_not_found_error.ts";
 import { SmartFolderNodeNotFoundError } from "/domain/nodes/smart_folder_node_not_found_error.ts";
 import { NodeNotFoundError } from "/domain/nodes/node_not_found_error.ts";
-import { InvalidNodeToCopyError } from "/domain/nodes/invalid_node_to_copy_error.ts";
 
 import { DefaultFidGenerator } from "/strategies/default_fid_generator.ts";
 import { DefaultUuidGenerator } from "/strategies/default_uuid_generator.ts";
-import { UserPrincipal } from "../domain/auth/user_principal.ts";
+import { UserPrincipal } from "/domain/auth/user_principal.ts";
 import { NodeCreatedEvent } from "/domain/nodes/node_created_event.ts";
-import { NodeUpdatedEvent } from "/domain/nodes/node_updated_event.ts";
 import { NodeDeletedEvent } from "/domain/nodes/node_deleted_event.ts";
-import { NodeFilter } from "../domain/nodes/node_filter.ts";
+import { NodeFilter } from "/domain/nodes/node_filter.ts";
+import { Either, left, right } from "/shared/either.ts";
+import { NodeUpdatedEvent } from "../domain/nodes/node_updated_event.ts";
 
 export interface NodeServiceContext {
   readonly fidGenerator?: FidGenerator;
@@ -60,9 +52,15 @@ export class NodeService {
   async createFile(
     principal: UserPrincipal,
     file: File,
-    parent = ROOT_FOLDER_UUID
-  ): Promise<string> {
+    parent = Node.ROOT_FOLDER_UUID
+  ): Promise<Either<FolderNotFoundError, string>> {
     let node: Node | undefined;
+
+    const folderExists = await this.folderExistsInRepo(principal, parent);
+
+    if (!folderExists) {
+      return left(new FolderNotFoundError(parent));
+    }
 
     if (file.type === "application/json") {
       node = await this.tryToCreateSmartfolder(principal, file, parent);
@@ -83,7 +81,7 @@ export class NodeService {
 
     DomainEvents.notify(new NodeCreatedEvent(node));
 
-    return Promise.resolve(node.uuid);
+    return Promise.resolve(right(node.uuid));
   }
 
   private async tryToCreateSmartfolder(
@@ -93,23 +91,18 @@ export class NodeService {
   ): Promise<SmartFolderNode | undefined> {
     try {
       const content = new TextDecoder().decode(await file.arrayBuffer());
-      const node = JSON.parse(content) as SmartFolderNode;
+      const json = JSON.parse(content);
 
-      if (node.mimetype !== SMART_FOLDER_MIMETYPE) {
+      const node = NodeFactory.fromJson(json) as SmartFolderNode;
+
+      if (!node.isSmartFolder()) {
         return undefined;
       }
 
-      return {
-        ...this.createFileMetadata(
-          pricipal,
-          parent,
-          node.title,
-          node.mimetype,
-          0
-        ),
-        filters: node.filters,
-        aggregation: node.aggregation,
-      } as SmartFolderNode;
+      NodeFactory.composeSmartFolder(
+        this.createFileMetadata(pricipal, parent, node.title, node.mimetype, 0),
+        { filters: node.filters, aggregations: node.aggregations }
+      );
     } catch (_e) {
       return undefined;
     }
@@ -118,7 +111,7 @@ export class NodeService {
   async createFolder(
     principal: UserPrincipal,
     title: string,
-    parent = ROOT_FOLDER_UUID
+    parent = Node.ROOT_FOLDER_UUID
   ): Promise<string> {
     const node = this.createFolderMetadata(principal, parent, title);
 
@@ -132,13 +125,13 @@ export class NodeService {
   async createMetanode(
     principal: UserPrincipal,
     title: string,
-    parent = ROOT_FOLDER_UUID
+    parent = Node.ROOT_FOLDER_UUID
   ): Promise<string> {
     const node = this.createFileMetadata(
       principal,
       parent,
       title,
-      META_NODE_MIMETYPE,
+      Node.META_NODE_MIMETYPE,
       0
     );
 
@@ -149,18 +142,14 @@ export class NodeService {
     return node.uuid;
   }
 
-  private isRootFolder(parent: string) {
-    return parent === ROOT_FOLDER_UUID;
-  }
-
   private createFileMetadata(
     principal: UserPrincipal,
     parent: string,
     title: string,
     mimetype: string,
     size: number
-  ): Node {
-    return {
+  ): FileNode {
+    return Object.assign(new FileNode(), {
       uuid: this.context.uuidGenerator!.generate(),
       fid: this.context.fidGenerator!.generate(title),
       title,
@@ -172,7 +161,7 @@ export class NodeService {
       size,
       createdTime: now(),
       modifiedTime: now(),
-    };
+    });
   }
 
   private createFolderMetadata(
@@ -180,26 +169,28 @@ export class NodeService {
     parent: string,
     title: string
   ): FolderNode {
-    return {
-      ...this.createFileMetadata(principal, parent, title, FOLDER_MIMETYPE, 0),
-      children: [],
-      onCreate: [],
-      onUpdate: [],
-    };
+    return NodeFactory.composeFolder(
+      this.createFileMetadata(principal, parent, title, Node.FOLDER_MIMETYPE, 0)
+    );
   }
 
-  async copy(principal: UserPrincipal, uuid: string): Promise<string> {
+  async copy(
+    principal: UserPrincipal,
+    uuid: string
+  ): Promise<Either<NodeNotFoundError, string>> {
     const node = await this.get(principal, uuid);
     const file = await this.context.storage.read(uuid);
 
-    if (!this.isFileNode(node)) throw new InvalidNodeToCopyError(uuid);
+    if (node.isLeft()) {
+      return left(node.value);
+    }
 
     const newNode = this.createFileMetadata(
       principal,
-      node.parent ?? ROOT_FOLDER_UUID,
-      node.title,
-      node.mimetype,
-      node.size
+      node.value.parent ?? Node.ROOT_FOLDER_UUID,
+      node.value.title,
+      node.value.mimetype,
+      node.value.size
     );
 
     await this.context.storage.write(newNode.uuid, file);
@@ -207,63 +198,88 @@ export class NodeService {
 
     DomainEvents.notify(new NodeCreatedEvent(newNode));
 
-    return Promise.resolve(newNode.uuid);
+    return Promise.resolve(right(newNode.uuid));
   }
 
   async updateFile(
     principal: UserPrincipal,
     uuid: string,
     file: File
-  ): Promise<void> {
-    const node = await this.get(principal, uuid);
+  ): Promise<Either<NodeNotFoundError, void>> {
+    const nodeOrErr = await this.get(principal, uuid);
 
-    node.modifiedTime = now();
-    node.size = file.size;
-    node.mimetype = file.type;
+    if (nodeOrErr.isLeft()) {
+      return left(nodeOrErr.value);
+    }
+
+    nodeOrErr.value.modifiedTime = now();
+    nodeOrErr.value.size = file.size;
+    nodeOrErr.value.mimetype = file.type;
 
     await this.context.storage.write(uuid, file);
-    await this.context.repository.update(node);
+    await this.context.repository.update(nodeOrErr.value);
 
     DomainEvents.notify(new NodeContentUpdatedEvent(uuid));
+
+    return right(undefined);
   }
 
-  async delete(principal: UserPrincipal, uuid: string): Promise<void> {
-    const node = await this.get(principal, uuid);
+  async delete(
+    principal: UserPrincipal,
+    uuid: string
+  ): Promise<Either<NodeNotFoundError, void>> {
+    const nodeOrError = await this.get(principal, uuid);
 
-    await NodeDeleter.for(node, this.context).delete();
+    if (nodeOrError.isLeft()) {
+      return left(nodeOrError.value);
+    }
+
+    await NodeDeleter.for(nodeOrError.value, this.context).delete();
     DomainEvents.notify(new NodeDeletedEvent(uuid));
+
+    return right(undefined);
   }
 
-  async get(_principal: UserPrincipal, uuid: string): Promise<Node> {
-    const node = await this.getFromRepository(uuid);
-
-    if (!node) throw new NodeNotFoundError(uuid);
-
-    return node;
+  get(
+    _principal: UserPrincipal,
+    uuid: string
+  ): Promise<Either<NodeNotFoundError, Node>> {
+    return this.getFromRepository(uuid);
   }
 
-  private getFromRepository(uuid: string): Promise<Node | undefined> {
-    if (isFid(uuid)) {
-      return this.context.repository.getByFid(uuidToFid(uuid));
+  private getFromRepository(
+    uuid: string
+  ): Promise<Either<NodeNotFoundError, Node>> {
+    if (Node.isFid(uuid)) {
+      return this.context.repository.getByFid(Node.uuidToFid(uuid));
     }
     return this.context.repository.getById(uuid);
   }
 
   async list(
-    _principal: UserPrincipal,
-    parent = ROOT_FOLDER_UUID
-  ): Promise<Node[]> {
-    if (!this.isRootFolder(parent)) {
-      const parentFolder = await this.context.repository.getById(parent);
-
-      if (parentFolder?.mimetype !== FOLDER_MIMETYPE) {
-        throw new FolderNotFoundError(parent);
-      }
+    principal: UserPrincipal,
+    parent = Node.ROOT_FOLDER_UUID
+  ): Promise<Either<FolderNotFoundError, Node[]>> {
+    const exists = await this.folderExistsInRepo(principal, parent);
+    if (!exists) {
+      return left(new FolderNotFoundError(parent));
     }
 
-    return this.context.repository
+    const nodes = await this.context.repository
       .filter([["parent", "==", parent]], Number.MAX_VALUE, 1)
       .then((result) => result.nodes);
+
+    return right(nodes);
+  }
+
+  folderExistsInRepo(principal: UserPrincipal, uuid: string): Promise<boolean> {
+    if (Node.isRootFolder(uuid)) {
+      return Promise.resolve(true);
+    }
+
+    return this.get(principal, uuid).then(
+      (result) => result.isRight() && result.value.isFolder()
+    );
   }
 
   query(
@@ -280,24 +296,29 @@ export class NodeService {
     uuid: string,
     data: Partial<Node>,
     merge = false
-  ): Promise<void> {
-    const node = await this.get(principal, uuid);
+  ): Promise<Either<NodeNotFoundError, void>> {
+    const nodeOrErr = await this.get(principal, uuid);
 
-    if (!node) throw new NodeNotFoundError(uuid);
+    if (nodeOrErr.isLeft()) {
+      return left(nodeOrErr.value);
+    }
 
     const newNode = merge
-      ? this.mergeProperties(node, data)
-      : { ...node, ...data };
+      ? this.merge(nodeOrErr.value, data)
+      : Object.assign(nodeOrErr.value, data);
 
-    await this.context.repository.update(newNode as Node);
-    DomainEvents.notify(new NodeUpdatedEvent(uuid, data));
+    const voidOrErr = await this.context.repository.update(newNode);
+
+    if (voidOrErr.isRight()) {
+      DomainEvents.notify(new NodeUpdatedEvent(uuid, data));
+    }
+
+    return voidOrErr;
   }
 
-  private mergeProperties(
-    dst: Record<string, unknown>,
-    src: Record<string, unknown>
-  ): Record<string, unknown> {
-    const result = { ...dst };
+  private merge<T>(dst: T, src: Partial<T>): T {
+    const proto = Object.getPrototypeOf(dst);
+    const result = Object.assign(Object.create(proto), dst);
 
     for (const key in src) {
       if (!src[key] && src[key] !== 0 && src[key] !== false) {
@@ -306,11 +327,8 @@ export class NodeService {
       }
 
       if (typeof src[key] === "object") {
-        result[key] = this.mergeProperties(
-          (result[key] ?? {}) as Record<string, unknown>,
-          src[key] as Record<string, unknown>
-        );
-
+        // deno-lint-ignore no-explicit-any
+        result[key] = this.merge(result[key] ?? {}, src[key] as any);
         continue;
       }
 
@@ -323,79 +341,86 @@ export class NodeService {
   async evaluate(
     _principal: UserPrincipal,
     uuid: string
-  ): Promise<SmartFolderNodeEvaluation> {
-    const node = (await this.context.repository.getById(
-      uuid
-    )) as SmartFolderNode;
+  ): Promise<
+    Either<
+      SmartFolderNodeNotFoundError | AggregationFormulaError,
+      SmartFolderNodeEvaluation
+    >
+  > {
+    const nodeOrErr = await this.context.repository.getById(uuid);
 
-    if (!this.isSmartFolderNode(node)) {
-      throw new SmartFolderNodeNotFoundError(uuid);
+    if (nodeOrErr.isLeft()) {
+      return left(new SmartFolderNodeNotFoundError(uuid));
     }
+
+    if (!nodeOrErr.value.isSmartFolder()) {
+      return left(new SmartFolderNodeNotFoundError(uuid));
+    }
+
+    const node = nodeOrErr.value;
 
     const evaluation = await this.context.repository
       .filter(node.filters, Number.MAX_VALUE, 1)
       .then((filtered) => ({ records: filtered.nodes }));
 
-    if (this.hasAggregations(node)) {
-      return this.appendAggregations(
-        evaluation,
-        node.aggregations as Aggregation[]
-      );
+    if (node.hasAggregations()) {
+      return this.appendAggregations(evaluation, node.aggregations!);
     }
 
-    return Promise.resolve(evaluation);
+    return right(evaluation);
   }
 
   private appendAggregations(
     evaluation: SmartFolderNodeEvaluation,
     aggregations: Aggregation[]
-  ) {
+  ): Either<AggregationFormulaError, SmartFolderNodeEvaluation> {
     const aggregationsMap = aggregations.map((aggregation) => {
       const formula = Reducers[aggregation.formula as string];
 
-      if (!formula) throw "Invalid formula: " + aggregation.formula;
+      if (!formula) {
+        left(new AggregationFormulaError(aggregation.formula));
+      }
 
-      return {
+      return right({
         title: aggregation.title,
         value: formula(evaluation.records as Node[], aggregation.fieldName),
-      };
+      });
     });
 
-    return Promise.resolve({
+    const err = aggregationsMap.find((aggregation) => aggregation.isLeft());
+
+    if (err) {
+      return left(err.value as AggregationFormulaError);
+    }
+
+    return right({
       ...evaluation,
-      aggregations: aggregationsMap,
+      aggregations: aggregationsMap.map(
+        (aggregation) => aggregation.value as AggregationResult
+      ),
     });
   }
 
-  private hasAggregations(node: SmartFolderNode): boolean {
-    return node.aggregations !== null && node.aggregations !== undefined;
-  }
+  async export(
+    principal: UserPrincipal,
+    uuid: string
+  ): Promise<Either<NodeNotFoundError, File>> {
+    const nodeOrErr = await this.get(principal, uuid);
 
-  private isSmartFolderNode(node: Node) {
-    return node?.mimetype === SMART_FOLDER_MIMETYPE;
-  }
+    if (nodeOrErr.isLeft()) {
+      return left(nodeOrErr.value);
+    }
 
-  private isFolderNode(node: Node) {
-    return node?.mimetype === FOLDER_MIMETYPE;
-  }
-
-  private isFileNode(node: Node): boolean {
-    return !this.isSmartFolderNode(node) && !this.isFolderNode(node);
-  }
-
-  async export(principal: UserPrincipal, uuid: string): Promise<File> {
-    const node = await this.get(principal, uuid);
-
-    if (this.isSmartFolderNode(node)) {
-      return this.exportSmartfolder(node);
+    if (nodeOrErr.value.isSmartFolder()) {
+      return right(this.exportSmartfolder(nodeOrErr.value));
     }
 
     const file = await this.context.storage.read(uuid);
 
-    return file;
+    return right(file);
   }
 
-  private exportSmartfolder(node: Node) {
+  private exportSmartfolder(node: Node): File {
     const jsonText = JSON.stringify(node);
 
     return new File([jsonText], node.title.concat(".json"), {
@@ -406,13 +431,16 @@ export class NodeService {
 
 abstract class NodeDeleter<T extends Node> {
   static for(node: Node, context: NodeServiceContext): NodeDeleter<Node> {
-    switch (node.mimetype) {
-      case FOLDER_MIMETYPE:
-        return new FolderNodeDeleter(node as FolderNode, context);
-      case SMART_FOLDER_MIMETYPE:
-        return new SmartFolderNodeDeleter(node as SmartFolderNode, context);
-      case META_NODE_MIMETYPE:
-        return new MetaNodeDeleter(node as Node, context);
+    if (node.isFolder()) {
+      return new FolderNodeDeleter(node as FolderNode, context);
+    }
+
+    if (node.isSmartFolder()) {
+      return new SmartFolderNodeDeleter(node as SmartFolderNode, context);
+    }
+
+    if (node.isMetaNode()) {
+      return new MetaNodeDeleter(node as Node, context);
     }
 
     return new FileNodeDeleter(node as FileNode, context);
@@ -426,9 +454,9 @@ abstract class NodeDeleter<T extends Node> {
     this.context = context;
   }
 
-  abstract delete(): Promise<void>;
+  abstract delete(): Promise<Either<NodeNotFoundError, void>>;
 
-  protected deleteFromRepository(): Promise<void> {
+  protected deleteFromRepository(): Promise<Either<NodeNotFoundError, void>> {
     return this.context.repository.delete(this.node.uuid);
   }
 
@@ -442,8 +470,8 @@ class MetaNodeDeleter extends NodeDeleter<Node> {
     super(node, context);
   }
 
-  async delete(): Promise<void> {
-    await this.deleteFromRepository();
+  delete(): Promise<Either<NodeNotFoundError, void>> {
+    return this.deleteFromRepository();
   }
 }
 
@@ -452,7 +480,7 @@ class FileNodeDeleter extends NodeDeleter<FileNode> {
     super(node, context);
   }
 
-  delete(): Promise<void> {
+  delete(): Promise<Either<NodeNotFoundError, void>> {
     return this.deleteFromStorage().then(() => this.deleteFromRepository());
   }
 }
@@ -462,7 +490,7 @@ class FolderNodeDeleter extends NodeDeleter<FolderNode> {
     super(node, context);
   }
 
-  async delete(): Promise<void> {
+  async delete(): Promise<Either<NodeNotFoundError, void>> {
     await this.deleteChildren();
     return this.deleteFromRepository();
   }
@@ -481,7 +509,7 @@ class FolderNodeDeleter extends NodeDeleter<FolderNode> {
 }
 
 class SmartFolderNodeDeleter extends NodeDeleter<SmartFolderNode> {
-  delete(): Promise<void> {
+  delete(): Promise<Either<NodeNotFoundError, void>> {
     return this.deleteFromRepository();
   }
   constructor(node: SmartFolderNode, context: NodeServiceContext) {
@@ -502,7 +530,8 @@ function calculateAggregation<T>(
   nodes: Node[],
   field: string
 ): T {
-  return nodes.reduce((acc, node) => {
+  // deno-lint-ignore no-explicit-any
+  return nodes.reduce((acc, node: any) => {
     const value = node[field] ?? node.properties?.[field];
 
     if (!value) throw "field not found " + field;
@@ -558,7 +587,8 @@ const Reducers: Record<string, ReducerFn> = {
     );
   },
 
-  med(nodes: Node[], fieldName: string) {
+  // deno-lint-ignore no-explicit-any
+  med(nodes: any[], fieldName: string) {
     const values = nodes
       .map((node) => node[fieldName] ?? node.properties?.[fieldName])
       .sort(<T>(a: T, b: T) => (a > b ? 1 : -1));
@@ -571,8 +601,10 @@ const Reducers: Record<string, ReducerFn> = {
 
 export interface SmartFolderNodeEvaluation {
   records: Node[];
-  aggregations?: {
-    title: string;
-    value: unknown;
-  }[];
+  aggregations?: AggregationResult[];
 }
+
+export type AggregationResult = {
+  title: string;
+  value: unknown;
+};

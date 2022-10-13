@@ -2,7 +2,7 @@ import { UserPrincipal } from "/domain/auth/user_principal.ts";
 import { PasswordGenerator } from "/domain/auth/password_generator.ts";
 import { EmailSender } from "./email_sender.ts";
 import { EcmError } from "/shared/ecm_error.ts";
-import { Either, error, success } from "/shared/either.ts";
+import { Either, left, right } from "/shared/either.ts";
 import { Email } from "/domain/auth/email.ts";
 import { Fullname } from "/domain/auth/fullname.ts";
 import { User } from "/domain/auth/user.ts";
@@ -30,81 +30,77 @@ export interface AuthServiceContext {
 export class AuthService {
   constructor(private readonly ctx: AuthServiceContext) {}
 
-  async createGroup(name: string): Promise<Either<void, EcmError>> {
+  async createGroup(name: string): Promise<Either<EcmError, void>> {
     const id = this.ctx.uuidGenerator.generate();
 
     const groupNameOrError = GroupName.make(name);
 
-    if (groupNameOrError.error) {
-      return error(groupNameOrError.error);
+    if (groupNameOrError.isLeft()) {
+      return left(groupNameOrError.value);
     }
 
     const groupOrError = Group.make(id, groupNameOrError.success as GroupName);
 
-    if (groupOrError.error) {
-      return error(groupOrError.error);
+    if (groupOrError.isLeft()) {
+      return left(groupOrError.value);
     }
 
     const group = groupOrError.success as Group;
 
     const repoResult = await this.ctx.groupRepository.addOrReplace(group);
 
-    if (repoResult.error) {
-      return error(repoResult.error);
+    if (repoResult.isLeft()) {
+      return left(repoResult.value);
     }
 
     DomainEvents.notify(new GroupCreatedEvent(id, group.name.value));
 
-    return success(undefined);
+    return right(undefined);
   }
 
   async createUser(
     email: string,
     fullname: string
-  ): Promise<Either<void, EcmError>> {
+  ): Promise<Either<EcmError, void>> {
     const emailOrError = Email.make(email);
-    if (emailOrError.error) {
-      return error(emailOrError.error);
+    if (emailOrError.isLeft()) {
+      return left(emailOrError.value);
     }
 
     const fullnameOrError = Fullname.make(fullname);
-    if (fullnameOrError.error) {
-      return error(fullnameOrError.error);
+    if (fullnameOrError.isLeft()) {
+      return left(fullnameOrError.value);
     }
 
     const plainPassword = this.ctx.passwordGenerator.generate();
     const passwordOrError = Password.make(plainPassword);
 
     const user = new User(
-      emailOrError.success!,
-      fullnameOrError.success!,
-      passwordOrError.success!
+      emailOrError.value,
+      fullnameOrError.value,
+      passwordOrError.value
     );
 
     const repoResult = await this.ctx.userRepository.addOrReplace(user);
 
-    if (repoResult.error) {
-      return error(repoResult.error);
+    if (repoResult.isLeft()) {
+      return left(repoResult.value);
     }
 
-    this.ctx.emailSender.send(
-      user.email,
-      user.fullname,
-      passwordOrError.success!
-    );
+    this.ctx.emailSender.send(user.email, user.fullname, passwordOrError.value);
 
     DomainEvents.notify(
       new UserCreatedEvent(user.email.value, user.fullname.value)
     );
 
-    return success(undefined);
+    return right(undefined);
   }
 
   authenticate(
     username: string,
     _password: string
-  ): Promise<Either<UserAuthenticationModel, UserNotFoundError>> {
-    return Promise.resolve(success({ username, roles: ["Admin"] }));
+  ): Promise<Either<UserNotFoundError, UserAuthenticationModel>> {
+    return Promise.resolve(right({ username, roles: ["Admin"] }));
   }
 
   getSystemUser(): UserPrincipal {

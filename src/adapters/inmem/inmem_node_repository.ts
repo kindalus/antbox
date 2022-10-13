@@ -1,17 +1,19 @@
+import { NodeFilter } from "/domain/nodes/node_filter.ts";
 import {
   NodeFilterResult,
   NodeRepository,
 } from "/domain/nodes/node_repository.ts";
 import { Node } from "/domain/nodes/node.ts";
-import { NodeFilter } from "../../domain/nodes/smart_folder_node.ts";
+import { NodeNotFoundError } from "/domain/nodes/node_not_found_error.ts";
+import { Either, left, right } from "/shared/either.ts";
 
 export class InMemoryNodeRepository implements NodeRepository {
   constructor(readonly db: Record<string, Partial<Node>> = {}) {}
 
-  delete(uuid: string): Promise<void> {
+  delete(uuid: string): Promise<Either<NodeNotFoundError, void>> {
     delete this.db[uuid];
 
-    return Promise.resolve();
+    return Promise.resolve(right(undefined));
   }
 
   get records(): Node[] {
@@ -22,22 +24,34 @@ export class InMemoryNodeRepository implements NodeRepository {
     return this.records.length;
   }
 
-  add(node: Node): Promise<void> {
+  add(node: Node): Promise<Either<NodeNotFoundError, void>> {
     this.db[node.uuid] = node;
-    return Promise.resolve();
+    return Promise.resolve(right(undefined));
   }
 
-  update(node: Node): Promise<void> {
+  update(node: Node): Promise<Either<NodeNotFoundError, void>> {
     this.db[node.uuid] = node;
-    return Promise.resolve();
+    return Promise.resolve(right(undefined));
   }
 
-  getByFid(fid: string): Promise<Node> {
-    return Promise.resolve(this.records.find((n) => n.fid === fid) as Node);
+  getByFid(fid: string): Promise<Either<NodeNotFoundError, Node>> {
+    const node = this.records.find((n) => n.fid === fid);
+
+    if (!node) {
+      return Promise.resolve(left(new NodeNotFoundError(Node.fidToUuid(fid))));
+    }
+
+    return Promise.resolve(right(node));
   }
 
-  getById(uuid: string): Promise<Node> {
-    return Promise.resolve(this.db[uuid] as Node);
+  getById(uuid: string): Promise<Either<NodeNotFoundError, Node>> {
+    const node = this.records.find((n) => n.uuid === uuid);
+
+    if (!node) {
+      return Promise.resolve(left(new NodeNotFoundError(uuid)));
+    }
+
+    return Promise.resolve(right(node));
   }
 
   filter(
@@ -109,7 +123,6 @@ export const filterFns: Record<string, FilterFn> = {
   in: <T>(a: T, b: T) => (b as unknown as T[])?.includes(a),
   "not-in": <T>(a: T, b: T) => !(b as unknown as T[])?.includes(a),
   "array-contains": <T>(a: T, b: T) => (a as unknown as T[])?.includes(b),
-  "array-contains-any": <T>(a: T, b: T) => !(a as unknown as T[])?.includes(b),
   match: (a, b) => {
     const a1 = a as unknown as string;
     const b1 = b as unknown as string;

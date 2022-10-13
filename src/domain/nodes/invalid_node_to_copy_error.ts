@@ -1,13 +1,12 @@
 import { EcmError } from "/shared/ecm_error.ts";
 
-export class InvalidNodeToCopyError implements EcmError {
+export class InvalidNodeToCopyError extends EcmError {
   static ERROR_CODE = "InvalidNodeToCopyError";
 
-  readonly errorCode: string;
-  readonly message: string;
-
   constructor(uuid: string) {
-    this.errorCode = InvalidNodeToCopyError.ERROR_CODE;
-    this.message = `Cannot copy the node with uuid: ${uuid}`;
+    super(
+      InvalidNodeToCopyError.ERROR_CODE,
+      `Cannot copy the node with uuid: ${uuid}`
+    );
   }
 }

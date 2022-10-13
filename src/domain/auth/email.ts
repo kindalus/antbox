@@ -1,5 +1,5 @@
 import { EcmError } from "/shared/ecm_error.ts";
-import { Either, error, success } from "/shared/either.ts";
+import { Either, left, right } from "/shared/either.ts";
 import { InvalidEmailFormatError } from "./invalid_email_format_error.ts";
 
 const EMAIL_RE =
@@ -9,12 +9,12 @@ const EMAIL_RE =
 export class Email {
   readonly value: string;
 
-  public static make(value: string): Either<Email, EcmError> {
+  public static make(value: string): Either<EcmError, Email> {
     if (!value?.match(EMAIL_RE)) {
-      return error(new InvalidEmailFormatError(value));
+      return left(new InvalidEmailFormatError(value));
     }
 
-    return success(new Email(value));
+    return right(new Email(value));
   }
 
   private constructor(value: string) {

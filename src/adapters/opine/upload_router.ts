@@ -20,7 +20,13 @@ function createNodeFileHandler(req: UploadRequest, res: OpineResponse) {
 
     return EcmRegistry.instance.nodeService
       .createFile(getRequestContext(req), file, req.parent)
-      .then((result) => res.json(result))
+      .then((result) => {
+        if (result.isLeft()) {
+          return processError(result.value, res);
+        }
+
+        res.json(result.value);
+      })
       .catch((err) => processError(err, res));
   }
   return Promise.resolve(res.sendStatus(400));
@@ -34,7 +40,13 @@ function updateNodeFileHandler(req: UploadRequest, res: OpineResponse) {
         req.params.uuid,
         getFileBlob(req.file)
       )
-      .then((result) => res.json(result))
+      .then((result) => {
+        if (result.isLeft()) {
+          return processError(result.value, res);
+        }
+
+        res.json(result.value);
+      })
       .catch((err) => processError(err, res));
   }
 

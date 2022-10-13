@@ -33,7 +33,7 @@ Deno.test("createUser", async (t) => {
   await t.step("Grava o user no repositorio", async () => {
     const ctx = makeServiceContext();
     const addOrReplaceMock = belike.fn(() =>
-      Promise.resolve(success<undefined, EcmError>(undefined))
+      Promise.resolve(right<undefined, EcmError>(undefined))
     );
     ctx.userRepository.addOrReplace = addOrReplaceMock;
 
@@ -97,7 +97,7 @@ Deno.test("createUser", async (t) => {
 
       assertNotEquals(result.error, undefined);
       assertStrictEquals(
-        result.error?.errorCode,
+        result.value.errorCode,
         InvalidEmailFormatError.ERROR_CODE
       );
     }
@@ -111,7 +111,7 @@ Deno.test("createUser", async (t) => {
 
       assertNotEquals(result.error, undefined);
       assertStrictEquals(
-        result.error?.errorCode,
+        result.value.errorCode,
         InvalidFullnameFormatError.ERROR_CODE
       );
     }
@@ -122,7 +122,7 @@ Deno.test("createGroup", async (t) => {
   await t.step("Grava o grupo no repositorio", async () => {
     const groupRepository = {
       addOrReplace: belike.fn(() =>
-        Promise.resolve(success<undefined, EcmError>(undefined))
+        Promise.resolve(right<undefined, EcmError>(undefined))
       ),
     };
 
@@ -139,9 +139,9 @@ Deno.test("createGroup", async (t) => {
       const svc = new AuthService({ ...makeServiceContext() });
       const result = await svc.createGroup("");
 
-      assertExists(result.error);
+      assertExists(result.value);
       assertStrictEquals(
-        result.error?.errorCode,
+        result.value.errorCode,
         InvalidGroupNameFormatError.ERROR_CODE
       );
     }
@@ -171,7 +171,7 @@ function makeServiceContext(): AuthServiceContext {
     userRepository: new InMemoryUserRepository(),
 
     groupRepository: {
-      addOrReplace: () => Promise.resolve(success(undefined)),
+      addOrReplace: () => Promise.resolve(right(undefined)),
     },
 
     uuidGenerator: new DefaultUuidGenerator(),

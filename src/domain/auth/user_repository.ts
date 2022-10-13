@@ -5,7 +5,7 @@ import { Either } from "/shared/either.ts";
 import { Email } from "./email.ts";
 
 export interface UserRepository {
-  get(email: Email): Promise<Either<User, UserNotFoundError>>;
-  count(): Promise<Either<number, EcmError>>;
-  addOrReplace(user: User): Promise<Either<undefined, EcmError>>;
+  get(email: Email): Promise<Either<UserNotFoundError, User>>;
+  count(): Promise<Either<EcmError, number>>;
+  addOrReplace(user: User): Promise<Either<EcmError, undefined>>;
 }

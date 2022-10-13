@@ -15,8 +15,8 @@ export class HttpCreateAspectController
     return this.service
       .create(req.userPrincipal, aspect)
       .then((res) => {
-        if (res.error) {
-          return badRequest<void>(res.error);
+        if (res.isLeft()) {
+          return badRequest<void>(res.value);
         }
 
         return ok(undefined);

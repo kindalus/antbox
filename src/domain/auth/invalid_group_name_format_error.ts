@@ -1,13 +1,12 @@
 import { EcmError } from "/shared/ecm_error.ts";
 
-export class InvalidGroupNameFormatError implements EcmError {
+export class InvalidGroupNameFormatError extends EcmError {
   static ERROR_CODE = "InvalidGroupNameFormatError";
 
-  readonly errorCode: string;
-  readonly message: string;
-
   constructor(name: string) {
-    this.errorCode = InvalidGroupNameFormatError.ERROR_CODE;
-    this.message = `Invalid Group Name Format: ${name}`;
+    super(
+      InvalidGroupNameFormatError.ERROR_CODE,
+      `Invalid Group Name Format: ${name}`
+    );
   }
 }

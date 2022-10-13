@@ -1,12 +1,11 @@
-export interface EcmError {
-  readonly errorCode: string;
-  readonly message?: string;
+export abstract class EcmError extends Error {
+  constructor(readonly errorCode: string, readonly message: string) {
+    super(message);
+  }
 }
 
-export class ForbiddenError implements EcmError {
-  readonly errorCode: string;
-
+export class ForbiddenError extends EcmError {
   constructor() {
-    this.errorCode = "ForbiddenError";
+    super("ForbiddenError", "You are not allowed to perform this action");
   }
 }

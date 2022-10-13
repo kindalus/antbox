@@ -4,7 +4,7 @@ import { Event } from "/shared/event.ts";
 export class DomainEvents {
   private static _handlers: Record<string, EventHandler<Event>[]> = {};
 
-  static notify<T extends Event>(event: T) {
+  static notify(event: Event) {
     const handlers = DomainEvents._handlers[event.eventId];
 
     if (handlers) {
@@ -12,7 +12,7 @@ export class DomainEvents {
     }
   }
 
-  static subscribe<T extends Event>(eventId: string, handler: EventHandler<T>) {
+  static subscribe(eventId: string, handler: EventHandler<Event>) {
     if (!DomainEvents._handlers[eventId]) {
       DomainEvents._handlers[eventId] = [];
     }

@@ -10,6 +10,6 @@ export class NodeCreatedEvent implements Event {
   constructor(node: Node) {
     this.eventId = NodeCreatedEvent.EVENT_ID;
     this.occurredOn = new Date();
-    this.payload = { ...node };
+    this.payload = { ...node } as Node;
   }
 }

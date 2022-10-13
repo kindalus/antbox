@@ -1,7 +1,7 @@
 import { AspectValidationError } from "./aspect_validation_error.ts";
 import { Role } from "/domain/auth/role.ts";
 import { ForbiddenError } from "/shared/ecm_error.ts";
-import { Either, error, success } from "/shared/either.ts";
+import { Either, left, right } from "/shared/either.ts";
 import { Aspect } from "/domain/aspects/aspect.ts";
 import { AspectRepository } from "/domain/aspects/aspect_repository.ts";
 
@@ -24,18 +24,18 @@ export class AspectService {
   async createOrReplace(
     principal: UserPrincipal,
     aspect: Aspect
-  ): Promise<Either<void, ForbiddenError | AspectValidationError>> {
+  ): Promise<Either<ForbiddenError | AspectValidationError, void>> {
     if (!principal.roles.includes(Role.AspectsAdmin)) {
-      return error(new ForbiddenError());
+      return left(new ForbiddenError());
     }
 
     const err = this.validateAspect(aspect);
 
     if (err) {
-      return error(err);
+      return left(err);
     }
 
-    return success(await this.context.repository.addOrReplace(aspect));
+    return right(await this.context.repository.addOrReplace(aspect));
   }
 
   async delete(_principal: UserPrincipal, uuid: string): Promise<void> {

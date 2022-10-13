@@ -1,13 +1,12 @@
 import { EcmError } from "/shared/ecm_error.ts";
 
-export class NodeNotFoundError implements EcmError {
+export class NodeNotFoundError extends EcmError {
   static ERROR_CODE = "NodeNotFoundError";
 
-  readonly errorCode: string;
-  readonly message: string;
-
   constructor(uuid: string) {
-    this.errorCode = NodeNotFoundError.ERROR_CODE;
-    this.message = `Could not find node with uuid: ${uuid}`;
+    super(
+      NodeNotFoundError.ERROR_CODE,
+      `Could not find node with uuid: ${uuid}`
+    );
   }
 }

@@ -1,10 +1,5 @@
 import { FolderNode, Node } from "/domain/nodes/node.ts";
-import { ROOT_FOLDER_UUID } from "/domain/nodes/node.ts";
-import {
-  AspectServiceForActions,
-  NodeServiceForActions,
-  Action,
-} from "/domain/actions/action.ts";
+import { Action } from "/domain/actions/action.ts";
 import { ActionRepository } from "/domain/actions/action_repository.ts";
 import { UserPrincipal } from "/domain/auth/user_principal.ts";
 
@@ -13,11 +8,13 @@ import { builtinActions } from "./builtin_actions/index.ts";
 import { DomainEvents } from "./domain_events.ts";
 import { NodeCreatedEvent } from "/domain/nodes/node_created_event.ts";
 import { NodeUpdatedEvent } from "/domain/nodes/node_updated_event.ts";
+import { AspectService } from "./aspect_service.ts";
+import { NodeService } from "./node_service.ts";
 
 export interface ActionServiceContext {
   readonly authService: AuthService;
-  readonly nodeService: NodeServiceForActions;
-  readonly aspectService: AspectServiceForActions;
+  readonly nodeService: NodeService;
+  readonly aspectService: AspectService;
   readonly repository: ActionRepository;
 }
 
@@ -27,20 +24,22 @@ export class ActionService {
   constructor(context: ActionServiceContext) {
     this.context = context;
 
-    DomainEvents.subscribe<NodeCreatedEvent>(NodeCreatedEvent.EVENT_ID, {
-      handle: (evt) => this.runOnCreateScritps(evt),
+    DomainEvents.subscribe(NodeCreatedEvent.EVENT_ID, {
+      handle: (evt) => this.runOnCreateScritps(evt as NodeCreatedEvent),
     });
 
-    DomainEvents.subscribe<NodeUpdatedEvent>(NodeUpdatedEvent.EVENT_ID, {
-      handle: (evt) => this.runOnUpdatedScritps(evt),
+    DomainEvents.subscribe(NodeUpdatedEvent.EVENT_ID, {
+      handle: (evt) => this.runOnUpdatedScritps(evt as NodeUpdatedEvent),
     });
 
-    DomainEvents.subscribe<NodeCreatedEvent>(NodeCreatedEvent.EVENT_ID, {
-      handle: (evt) => this.runAutomaticActionsForCreates(evt),
+    DomainEvents.subscribe(NodeCreatedEvent.EVENT_ID, {
+      handle: (evt) =>
+        this.runAutomaticActionsForCreates(evt as NodeCreatedEvent),
     });
 
-    DomainEvents.subscribe<NodeUpdatedEvent>(NodeUpdatedEvent.EVENT_ID, {
-      handle: (evt) => this.runAutomaticActionsForUpdates(evt),
+    DomainEvents.subscribe(NodeUpdatedEvent.EVENT_ID, {
+      handle: (evt) =>
+        this.runAutomaticActionsForUpdates(evt as NodeUpdatedEvent),
     });
   }
 
@@ -150,13 +149,13 @@ export class ActionService {
     const runCriteria = (action: Action) => action.runOnUpdates || false;
 
     return this.context.nodeService
-      .get(null as unknown as UserPrincipal, evt.payload.uuid)
+      .get(this.context.authService.getSystemUser(), evt.payload.uuid)
       .then(async (node) => {
-        if (!node) {
+        if (node.isLeft()) {
           return;
         }
 
-        const actions = await this.getAutomaticActions(node, runCriteria);
+        const actions = await this.getAutomaticActions(node.value, runCriteria);
         if (actions.length === 0) {
           return;
         }
@@ -191,19 +190,19 @@ export class ActionService {
   }
 
   runOnCreateScritps(evt: NodeCreatedEvent) {
-    if (evt.payload.parent === ROOT_FOLDER_UUID) {
+    if (Node.isRootFolder(evt.payload.parent!)) {
       return;
     }
 
     return this.context.nodeService
       .get(this.context.authService.getSystemUser(), evt.payload.parent!)
-      .then((parent: Node) => {
-        if (!parent) {
+      .then((parent) => {
+        if (parent.isLeft()) {
           return;
         }
 
         return this.runActions(
-          (parent as FolderNode).onCreate.filter(this.nonEmptyActions),
+          (parent.value as FolderNode).onCreate.filter(this.nonEmptyActions),
           evt.payload.uuid
         );
       });
@@ -211,23 +210,23 @@ export class ActionService {
 
   runOnUpdatedScritps(evt: NodeUpdatedEvent) {
     return this.context.nodeService
-      .get(null as unknown as UserPrincipal, evt.payload.uuid)
-      .then(async (node: Node) => {
-        if (!node || node.parent === ROOT_FOLDER_UUID) {
+      .get(this.context.authService.getSystemUser(), evt.payload.uuid)
+      .then(async (node) => {
+        if (node.isLeft() || Node.isRootFolder(node.value.parent)) {
           return;
         }
 
-        const parent = (await this.context.nodeService.get(
+        const parent = await this.context.nodeService.get(
           this.context.authService.getSystemUser(),
-          node.parent!
-        )) as FolderNode;
+          node.value.parent
+        );
 
-        if (!parent) {
+        if (parent.isLeft() || !parent.value.isFolder()) {
           return;
         }
 
         return this.runActions(
-          parent.onUpdate.filter(this.nonEmptyActions),
+          parent.value.onUpdate.filter(this.nonEmptyActions),
           evt.payload.uuid
         );
       });

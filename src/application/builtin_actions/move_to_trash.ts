@@ -1,4 +1,4 @@
-import { RunContext } from "/domain/actions/action.ts";
+import { Action, RunContext } from "/domain/actions/action.ts";
 
 export default {
   uuid: "move_to_trash",
@@ -9,13 +9,14 @@ export default {
   aspectConstraints: [],
   mimetypeConstraints: [],
   params: [],
+  runManually: true,
 
   async run(
     ctx: RunContext,
     uuids: string[],
     _params?: Record<string, unknown>
   ): Promise<void | Error> {
-    return await ctx.nodeService.update(
+    const resultOrErr = await ctx.nodeService.update(
       ctx.principal,
       uuids[0],
       {
@@ -23,5 +24,9 @@ export default {
       },
       true
     );
+
+    if (resultOrErr.isLeft()) {
+      return resultOrErr.value;
+    }
   },
-};
+} as Action;

@@ -24,14 +24,26 @@ function listHandler(req: OpineRequest, res: OpineResponse) {
 
   return EcmRegistry.instance.nodeService
     .list(getRequestContext(req), parent)
-    .then((result) => res.json(result))
+    .then((result) => {
+      if (result.isLeft()) {
+        return processError(result.value, res);
+      }
+
+      res.json(result.value);
+    })
     .catch((err) => processError(err, res));
 }
 
 function getHandler(req: OpineRequest, res: OpineResponse) {
   return EcmRegistry.instance.nodeService
     .get(getRequestContext(req), req.params.uuid)
-    .then((result) => res.json(result))
+    .then((result) => {
+      if (result.isLeft()) {
+        return processError(result.value, res);
+      }
+
+      res.json(result.value);
+    })
     .catch((err) => processError(err, res));
 }
 
@@ -44,10 +56,18 @@ function exportHandler(req: OpineRequest, res: OpineResponse) {
     EcmRegistry.instance.nodeService.export(requestContext, uuid),
   ])
     .then(async ([node, blob]) => {
-      res.append("Content-Type", node.mimetype);
-      res.append("Content-Length", blob.size.toString());
+      if (node.isLeft()) {
+        return processError(node.value, res);
+      }
 
-      const chunks = new Uint8Array(await blob.arrayBuffer());
+      if (blob.isLeft()) {
+        return processError(blob.value, res);
+      }
+
+      res.append("Content-Type", node.value.mimetype);
+      res.append("Content-Length", blob.value.size.toString());
+
+      const chunks = new Uint8Array(await blob.value.arrayBuffer());
 
       res.send(chunks);
     })
@@ -96,7 +116,13 @@ function deleteHandler(req: OpineRequest, res: OpineResponse) {
 function copyHandler(req: OpineRequest, res: OpineResponse) {
   return EcmRegistry.instance.nodeService
     .copy(getRequestContext(req), req.params.uuid)
-    .then((result) => res.json(result))
+    .then((result) => {
+      if (result.isLeft()) {
+        return processError(result.value, res);
+      }
+
+      res.json(result.value);
+    })
     .catch((err) => processError(err, res));
 }
 
@@ -112,6 +138,12 @@ function queryHandler(req: OpineRequest, res: OpineResponse) {
 function evaluateHandler(req: OpineRequest, res: OpineResponse) {
   return EcmRegistry.instance.nodeService
     .evaluate(getRequestContext(req), req.params.uuid)
-    .then((result) => res.json(result))
+    .then((result) => {
+      if (result.isLeft()) {
+        return processError(result.value, res);
+      }
+
+      res.json(result.value);
+    })
     .catch((err) => processError(err, res));
 }

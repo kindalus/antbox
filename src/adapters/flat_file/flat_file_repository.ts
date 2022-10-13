@@ -25,12 +25,17 @@ export class FlatFileRepository<T extends { uuid: string }> {
   }
 
   async readToModel(filepath: string): Promise<T> {
+    const buffer = Deno.readFileSync(filepath);
+
     if (this.fromUint8Array) {
-      const buffer = Deno.readFileSync(filepath);
       return this.fromUint8Array(buffer);
     }
 
-    const model = await import(filepath);
+    const moduleUrl = URL.createObjectURL(
+      new Blob([buffer], { type: "text/javascript" })
+    );
+
+    const model = await import(moduleUrl);
     return { uuid: path.parse(filepath).name, ...model.default };
   }
 

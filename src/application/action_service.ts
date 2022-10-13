@@ -103,10 +103,7 @@ export class ActionService {
   list(_principal: UserPrincipal): Promise<Action[]> {
     return this.context.repository
       .getAll()
-      .then((actions) => [
-        ...(builtinActions as unknown as Action[]),
-        ...actions,
-      ]);
+      .then((actions) => [...builtinActions, ...actions]);
   }
 
   async run(

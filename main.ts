@@ -15,9 +15,9 @@ import { EcmConfig } from "/application/ecm_registry.ts";
 import { DefaultPasswordGenerator } from "/strategies/default_password_generator.ts";
 import { DefaultUuidGenerator } from "/strategies/default_uuid_generator.ts";
 import { FlatFileActionRepository } from "/adapters/flat_file/flat_file_action_repository.ts";
-import { NodeServiceContext } from "./src/application/node_service.ts";
 import { AspectServiceContext } from "./src/application/aspect_service.ts";
 import { PouchdbNodeRepository } from "./src/adapters/pouchdb/pouchdb_node_repository.ts";
+import { NodeServiceContext } from "./src/application/node_service_context.ts";
 
 const program = await new Command()
   .name("antbox-sand")

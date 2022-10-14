@@ -9,3 +9,9 @@ export class ForbiddenError extends EcmError {
     super("ForbiddenError", "You are not allowed to perform this action");
   }
 }
+
+export class UnknownError extends EcmError {
+  constructor(message: string) {
+    super("UnknownError", message);
+  }
+}

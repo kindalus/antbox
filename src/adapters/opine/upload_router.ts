@@ -6,6 +6,7 @@ import { EcmRegistry } from "/application/ecm_registry.ts";
 import { processError } from "./process_error.ts";
 import { getRequestContext } from "./request_context_builder.ts";
 import { UploadRequest, upload } from "./upload.ts";
+import { Node } from "../../domain/nodes/node.ts";
 
 export const uploadRouter = Router();
 
@@ -15,11 +16,12 @@ uploadRouter.post("/nodes/:uuid", upload(), updateNodeFileHandler);
 uploadRouter.post("/actions", upload(), uploadActionHandler);
 
 function createNodeFileHandler(req: UploadRequest, res: OpineResponse) {
-  if (req.file) {
+  if (req.file && req.metadata) {
     const file = getFileBlob(req.file);
+    const metadata = getFileJson(req.metadata);
 
     return EcmRegistry.instance.nodeService
-      .createFile(getRequestContext(req), file, req.parent)
+      .createFile(getRequestContext(req), file, metadata)
       .then((result) => {
         if (result.isLeft()) {
           return processError(result.value, res);
@@ -66,10 +68,24 @@ async function uploadActionHandler(req: UploadRequest, res: OpineResponse) {
     .catch((err) => processError(err, res));
 }
 
-function getFileBlob(file: FormFile) {
+function getFileBlob(file: FormFile): File {
   if (!file.content) {
-    throw new Error("File too large");
+    throw new Error("File content not found");
   }
 
   return new File([file.content], file.filename, { type: file.type });
+}
+
+function getFileJson(file: FormFile): Partial<Node> {
+  if (!file.content) {
+    throw new Error("Metadata content not found");
+  }
+
+  if (file.type !== "application/json") {
+    throw new Error("Metadata content is not a JSON");
+  }
+
+  const text = new TextDecoder().decode(file.content);
+
+  return JSON.parse(text);
 }

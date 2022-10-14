@@ -5,7 +5,10 @@ import { FormFile, MultipartReader } from "/deps/mime";
 
 import { fileExistsSync } from "/shared/file_exists_sync.ts";
 
-export type UploadRequest = OpineRequest & { file?: FormFile; parent?: string };
+export type UploadRequest = OpineRequest & {
+  file?: FormFile;
+  metadata?: FormFile;
+};
 
 const { compose, nth, split } = R;
 
@@ -14,7 +17,7 @@ const MAX_FILE_SIZE = Math.pow(1024, 3); // 1GB
 
 const getBoundary = compose(nth(1), split("="), nth(1), split(";"));
 
-export function upload(fieldName = "file") {
+export function upload() {
   return async (
     oreq: OpineRequest,
     _res: OpineResponse,
@@ -40,8 +43,8 @@ export function upload(fieldName = "file") {
       dir: TMP_DIR,
     });
 
-    req.file = form.files(fieldName)?.[0];
-    req.parent = form.values("parent")?.[0];
+    req.file = form.files("file")?.[0];
+    req.metadata = form.files("metadata")?.[0];
 
     next();
   };

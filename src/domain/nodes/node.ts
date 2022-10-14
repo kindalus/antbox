@@ -1,11 +1,12 @@
+import { ValidationError } from "./validation_error.ts";
 import { SmartFolderNode } from "./smart_folder_node.ts";
 
 export type Properties = Record<string, unknown>;
 
 export class Node {
-  static FOLDER_MIMETYPE = "application/folder";
-  static META_NODE_MIMETYPE = "application/metanode";
-  static SMART_FOLDER_MIMETYPE = "application/smartfolder";
+  static FOLDER_MIMETYPE = "application/vnd.antbox.folder";
+  static META_NODE_MIMETYPE = "application/vnd.antbox.metanode";
+  static SMART_FOLDER_MIMETYPE = "application/vnd.antbox.smartfolder";
   static ROOT_FOLDER_UUID = "ROOT";
 
   static fidToUuid(fid: string): string {
@@ -39,6 +40,10 @@ export class Node {
   owner = "";
   properties?: Properties;
 
+  constructor() {
+    this.createdTime = this.modifiedTime = new Date().toISOString();
+  }
+
   isJson(): boolean {
     return this.mimetype === "application/json";
   }
@@ -57,6 +62,12 @@ export class Node {
 
   isFile(): boolean {
     return !this.isFolder() && !this.isSmartFolder() && !this.isMetaNode();
+  }
+
+  validate(
+    _uuidsGetter: (aspectUuid: string) => Promise<string[]>
+  ): Promise<ValidationError[]> {
+    return Promise.resolve([]);
   }
 }
 

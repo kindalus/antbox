@@ -2,6 +2,7 @@ import { OpineRequest, OpineResponse, Router } from "/deps/opine";
 import { EcmRegistry } from "/application/ecm_registry.ts";
 import { processError } from "./process_error.ts";
 import { getRequestContext } from "./request_context_builder.ts";
+import { Node } from "/domain/nodes/node.ts";
 
 export const nodesRouter = Router();
 
@@ -12,7 +13,7 @@ nodesRouter.get("/:uuid/-/evaluate", evaluateHandler);
 
 nodesRouter.get("/", listHandler);
 
-nodesRouter.post("/", createFolderHandler);
+nodesRouter.post("/", createHandler);
 nodesRouter.post("/-/query", queryHandler);
 
 nodesRouter.patch("/:uuid", updateHandler);
@@ -74,15 +75,13 @@ function exportHandler(req: OpineRequest, res: OpineResponse) {
     .catch((err) => processError(err, res));
 }
 
-function createFolderHandler(req: OpineRequest, res: OpineResponse) {
+function createHandler(req: OpineRequest, res: OpineResponse) {
   const {
-    title,
-    parent,
     type,
-  }: { title: string; parent?: string; type?: "Folder" | "Metanode" } =
-    req.body;
+    metadata,
+  }: { type?: "Folder" | "Metanode"; metadata: Partial<Node> } = req.body;
 
-  if (!title) {
+  if (!metadata.title) {
     return Promise.resolve(res.setStatus(400).json("{ title } not given"));
   }
 
@@ -91,8 +90,8 @@ function createFolderHandler(req: OpineRequest, res: OpineResponse) {
 
   const creator =
     type === "Metanode"
-      ? srv.createMetanode(ctx, title, parent)
-      : srv.createFolder(ctx, title, parent);
+      ? srv.createMetanode(ctx, metadata)
+      : srv.createFolder(ctx, metadata);
 
   return creator
     .then((result) => res.json(result))

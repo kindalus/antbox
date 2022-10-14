@@ -42,6 +42,7 @@ export class Node {
 
   constructor() {
     this.createdTime = this.modifiedTime = new Date().toISOString();
+    this.mimetype = Node.SMART_FOLDER_MIMETYPE;
   }
 
   isJson(): boolean {

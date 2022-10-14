@@ -69,7 +69,10 @@ export class NodeService {
       return left(validationErrors);
     }
 
-    await this.context.storage.write(node.uuid, file);
+    if (!node.isSmartFolder()) {
+      await this.context.storage.write(node.uuid, file);
+    }
+
     await this.context.repository.add(node);
 
     DomainEvents.notify(new NodeCreatedEvent(node));
@@ -108,7 +111,7 @@ export class NodeService {
   }
 
   private async tryToCreateSmartfolder(
-    pricipal: UserPrincipal,
+    principal: UserPrincipal,
     file: File,
     metadata: Partial<Node>
   ): Promise<SmartFolderNode | undefined> {
@@ -116,16 +119,23 @@ export class NodeService {
       const content = new TextDecoder().decode(await file.arrayBuffer());
       const json = JSON.parse(content);
 
-      const node = NodeFactory.fromJson(json) as SmartFolderNode;
-
-      if (!node.isSmartFolder()) {
+      if (json.mimetype !== Node.SMART_FOLDER_MIMETYPE) {
         return undefined;
       }
 
-      NodeFactory.composeSmartFolder(
-        metadata,
-        this.createFileMetadata(pricipal, metadata, node.mimetype, 0),
-        { filters: node.filters, aggregations: node.aggregations }
+      return NodeFactory.composeSmartFolder(
+        {
+          uuid: this.context.uuidGenerator!.generate(),
+          fid: this.context.fidGenerator!.generate(metadata.title!),
+          owner: principal.username,
+          size: 0,
+        },
+        this.extractMetadataFields(metadata),
+        {
+          filters: json.filters,
+          aggregations: json.aggregations,
+          title: json.title,
+        }
       );
     } catch (_e) {
       return undefined;
@@ -199,6 +209,10 @@ export class NodeService {
       },
       this.extractMetadataFields(metadata)
     ) as FileNode;
+  }
+
+  private createSmartfolderMetadata() {
+    return this.createMetanode;
   }
 
   private createFolderMetadata(

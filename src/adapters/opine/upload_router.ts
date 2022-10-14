@@ -64,7 +64,9 @@ async function uploadActionHandler(req: UploadRequest, res: OpineResponse) {
 
   return EcmRegistry.instance.actionService
     .createOrReplace(getRequestContext(req), action)
-    .then((result) => res.json(result))
+    .then((result) => {
+      res.json(result);
+    })
     .catch((err) => processError(err, res));
 }
 

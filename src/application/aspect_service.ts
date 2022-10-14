@@ -35,6 +35,10 @@ export class AspectService {
       return left(err);
     }
 
+    if (!aspect.properties) {
+      aspect.properties = [];
+    }
+
     return right(await this.context.repository.addOrReplace(aspect));
   }
 
@@ -52,7 +56,19 @@ export class AspectService {
       .then((aspects) => [WebContentAspect, ...aspects]);
   }
 
-  private validateAspect(_aspect: Aspect): AspectValidationError | void {
+  private validateAspect(aspect: Aspect): AspectValidationError | void {
+    if (!aspect.uuid) {
+      return new AspectValidationError("Aspect must have a UUID");
+    }
+
+    if (!aspect.title) {
+      return new AspectValidationError("Aspect title is required");
+    }
+
+    if (!Array.isArray(aspect.properties)) {
+      return new AspectValidationError("Aspect properties must be an array");
+    }
+
     return;
   }
 }

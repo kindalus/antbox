@@ -16,7 +16,13 @@ function createOrReplaceHandler(req: OpineRequest, res: OpineResponse) {
 
   EcmRegistry.instance.aspectService
     .createOrReplace(getRequestContext(req), aspect)
-    .then(() => res.sendStatus(200))
+    .then((voidOrErr) => {
+      if (voidOrErr.isLeft()) {
+        processError(voidOrErr.value, res);
+        return;
+      }
+      res.sendStatus(200);
+    })
     .catch((err) => processError(err, res));
 }
 
@@ -37,6 +43,8 @@ function getHandler(req: OpineRequest, res: OpineResponse) {
 function listHandler(req: OpineRequest, res: OpineResponse) {
   EcmRegistry.instance.aspectService
     .list(getRequestContext(req))
-    .then((list) => res.json(list))
+    .then((list) => {
+      res.json(list);
+    })
     .catch((err) => processError(err, res));
 }

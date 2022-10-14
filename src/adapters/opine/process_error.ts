@@ -18,7 +18,7 @@ export function processError(
   if (ecmError.errorCode && ecmError.errorCode === "NodeNotFoundError") {
     res.setStatus(404);
   } else {
-    res.setStatus(500);
+    res.setStatus(500).json(ecmError);
     console.error(error);
   }
   res.end(ecmError.message ?? "");

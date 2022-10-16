@@ -18,7 +18,7 @@ export interface NodeRepository {
   getByFid(fid: string): Promise<Either<NodeNotFoundError, Node>>;
   getById(uuid: string): Promise<Either<NodeNotFoundError, Node>>;
   filter(
-    constraints: NodeFilter[],
+    filters: NodeFilter[],
     pageSize: number,
     pageToken: number
   ): Promise<NodeFilterResult>;

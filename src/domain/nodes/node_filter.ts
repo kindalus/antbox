@@ -13,5 +13,9 @@ export type FilterOperator =
   | "!="
   | "in"
   | "not-in"
-  | "array-contains"
-  | "match";
+  | "match"
+  | "contains"
+  | "contains-all"
+  | "contains-any"
+  | "not-contains"
+  | "contains-none";

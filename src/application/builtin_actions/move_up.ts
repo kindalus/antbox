@@ -8,8 +8,9 @@ export default {
   builtIn: true,
   multiple: false,
   runManually: true,
-  aspectConstraints: [],
-  mimetypeConstraints: [],
+  runOnCreates: false,
+  runOnUpdates: false,
+  filters: [],
   params: [],
 
   async run(

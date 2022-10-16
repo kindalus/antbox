@@ -15,7 +15,7 @@ export const WebContentAspect = {
   title: "Conteúdo Web",
   builtIn: true,
   description: "Representa um conteúdo Web",
-  mimetypeConstraints: ["application/json"],
+  filters: [["mimetype", "==", "application/json"]],
   properties: [
     {
       name: "published",

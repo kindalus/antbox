@@ -53,7 +53,7 @@ export interface NodeServiceForActions {
 
   query(
     principal: UserPrincipal,
-    constraints: NodeFilter[],
+    filters: NodeFilter[],
     pageSize: number,
     pageToken: number
   ): Promise<NodeFilterResult>;

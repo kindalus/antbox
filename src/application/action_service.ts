@@ -10,6 +10,7 @@ import { NodeCreatedEvent } from "/domain/nodes/node_created_event.ts";
 import { NodeUpdatedEvent } from "/domain/nodes/node_updated_event.ts";
 import { AspectService } from "./aspect_service.ts";
 import { NodeService } from "./node_service.ts";
+import { getNodeFilterPredicate } from "../domain/nodes/node_filter_predicate.ts";
 
 export interface ActionServiceContext {
   readonly authService: AuthService;
@@ -63,8 +64,7 @@ export class ActionService {
       description: raw.description ?? "",
       builtIn: false,
       multiple: raw.multiple ?? false,
-      aspectConstraints: raw.aspectConstraints ?? [],
-      mimetypeConstraints: raw.mimetypeConstraints ?? [],
+      filters: raw.filters ?? [],
       runOnCreates: raw.runOnCreates ?? false,
       runOnUpdates: raw.runOnUpdates ?? false,
       runManually: raw.runManually ?? true,
@@ -168,22 +168,15 @@ export class ActionService {
     node: Node,
     runOnCriteria: (action: Action) => boolean
   ): Promise<Action[]> {
-    let actions = await this.list(this.context.authService.getSystemUser());
+    const actions = await this.list(this.context.authService.getSystemUser());
 
-    actions = actions
-      .filter(runOnCriteria)
-      .filter(
-        (a) =>
-          a.mimetypeConstraints.length === 0 ||
-          a.mimetypeConstraints.includes(node.mimetype)
-      )
-      .filter(
-        (a) =>
-          a.aspectConstraints.length === 0 ||
-          a.aspectConstraints.some((aspect) => node.aspects?.includes(aspect))
-      );
+    return actions.filter(runOnCriteria).filter((a) => {
+      if (a.filters.length === 0) {
+        return true;
+      }
 
-    return actions;
+      return getNodeFilterPredicate(a.filters)(node);
+    });
   }
 
   runOnCreateScritps(evt: NodeCreatedEvent) {

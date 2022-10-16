@@ -1,9 +1,11 @@
+import { NodeFilter } from "../nodes/node_filter.ts";
+
 export interface Aspect {
   uuid: string;
   title: string;
   description: string;
   builtIn: boolean;
-  mimetypeConstraints: string[];
+  filters: NodeFilter[];
   properties: AspectProperty[];
 }
 

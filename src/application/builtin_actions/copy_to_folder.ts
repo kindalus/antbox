@@ -6,10 +6,11 @@ export default {
   description: "Copia os nós para uma pasta",
   builtIn: true,
   multiple: true,
-  aspectConstraints: [],
-  mimetypeConstraints: [],
+  filters: [],
   params: ["destination"],
   runManually: true,
+  runOnCreates: false,
+  runOnUpdates: false,
 
   async run(
     ctx: RunContext,

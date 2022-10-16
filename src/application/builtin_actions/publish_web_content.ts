@@ -7,9 +7,10 @@ export default {
   builtIn: true,
   multiple: false,
   runManually: true,
-  aspectConstraints: [],
-  mimetypeConstraints: ["web-content"],
+  runOnCreates: false,
+  runOnUpdates: false,
   params: [],
+  filters: [],
 
   async run(
     ctx: RunContext,

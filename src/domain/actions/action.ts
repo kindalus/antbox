@@ -1,3 +1,4 @@
+import { NodeFilter } from "/domain/nodes/node_filter.ts";
 import { AspectService } from "/application/aspect_service.ts";
 import { UserPrincipal } from "/domain/auth/user_principal.ts";
 import { NodeService } from "../../application/node_service.ts";
@@ -26,12 +27,12 @@ export interface Action {
   description: string;
   builtIn: boolean;
   multiple: boolean;
-  runOnCreates?: boolean;
-  runOnUpdates?: boolean;
-  runManually?: boolean;
-  aspectConstraints: string[];
-  mimetypeConstraints: string[];
+  runOnCreates: boolean;
+  runOnUpdates: boolean;
+  runManually: boolean;
   params: string[];
+
+  filters: NodeFilter[];
 
   run: (
     ctx: RunContext,

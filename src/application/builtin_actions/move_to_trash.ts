@@ -6,10 +6,11 @@ export default {
   description: "Move o nó para o lixo",
   builtIn: true,
   multiple: false,
-  aspectConstraints: [],
-  mimetypeConstraints: [],
+  filters: [],
   params: [],
   runManually: true,
+  runOnCreates: false,
+  runOnUpdates: false,
 
   async run(
     ctx: RunContext,

@@ -6,10 +6,11 @@ export default {
   description: "Move os nós para uma pasta",
   builtIn: true,
   multiple: true,
-  aspectConstraints: [],
-  mimetypeConstraints: [],
+  filters: [],
   params: ["destination"],
   runManually: true,
+  runOnCreates: false,
+  runOnUpdates: false,
   run(
     ctx: RunContext,
     uuids: string[],

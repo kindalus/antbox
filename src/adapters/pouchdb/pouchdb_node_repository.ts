@@ -4,7 +4,7 @@ import DB, {
 } from "https://deno.land/x/pouchdb_deno@2.1.3-PouchDB+7.3.0/modules/pouchdb/mod.ts";
 
 import { Node } from "/domain/nodes/node.ts";
-import { NodeFilter } from "/domain/nodes/node_filter.ts";
+import { FilterOperator, NodeFilter } from "/domain/nodes/node_filter.ts";
 import { NodeNotFoundError } from "/domain/nodes/node_not_found_error.ts";
 import { EcmError } from "/shared/ecm_error.ts";
 import { Either, left, right } from "/shared/either.ts";
@@ -98,16 +98,16 @@ export class PouchdbNodeRepository implements NodeRepository {
   }
 
   async filter(
-    constraints: NodeFilter[],
+    filters: NodeFilter[],
     pageSize: number,
     pageToken: number
   ): Promise<NodeFilterResult> {
-    const filters = constraints
+    const selector = filters
       .map(filterToMango)
       .reduce((acc, filter) => ({ ...acc, ...filter }), {});
 
     const result = await this.db.find({
-      selector: filters,
+      selector,
     });
 
     const nodes = result.docs.map(docToNode);
@@ -120,8 +120,13 @@ export class PouchdbNodeRepository implements NodeRepository {
 
 function filterToMango(filter: NodeFilter): MangoFilter {
   const [field, operator, value] = filter;
-  const o = operators[operator];
 
+  switch (operator) {
+    case "contains":
+      return { [field]: { $all: [value] } };
+  }
+
+  const o = operators[operator] as string;
   return { [field]: { [o]: value } };
 }
 
@@ -130,7 +135,7 @@ function docToNode(doc: PouchDB.Core.ExistingDocument<Node>): Node {
   return NodeFactory.composeNode(node);
 }
 
-const operators: Record<string, string> = {
+const operators: Partial<Record<FilterOperator, string>> = {
   "==": "$eq",
   "!=": "$ne",
   ">": "$gt",
@@ -139,7 +144,8 @@ const operators: Record<string, string> = {
   "<=": "$lte",
   in: "$in",
   "not-in": "$nin",
-  "array-contains": "$all",
+  "contains-all": "$all",
+
   match: "$regex",
 };
 

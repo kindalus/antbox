@@ -1,6 +1,7 @@
+import { left, right } from "/shared/either.ts";
+import { NodeNotFoundError } from "/domain/nodes/node_not_found_error.ts";
 import { FolderNode, Node } from "/domain/nodes/node.ts";
 import { Action } from "/domain/actions/action.ts";
-import { ActionRepository } from "/domain/actions/action_repository.ts";
 import { UserPrincipal } from "/domain/auth/user_principal.ts";
 
 import { AuthService } from "./auth_service.ts";
@@ -11,12 +12,12 @@ import { NodeUpdatedEvent } from "/domain/nodes/node_updated_event.ts";
 import { AspectService } from "./aspect_service.ts";
 import { NodeService } from "./node_service.ts";
 import { getNodeFilterPredicate } from "../domain/nodes/node_filter_predicate.ts";
+import { Either } from "../shared/either.ts";
 
 export interface ActionServiceContext {
   readonly authService: AuthService;
   readonly nodeService: NodeService;
   readonly aspectService: AspectService;
-  readonly repository: ActionRepository;
 }
 
 export class ActionService {
@@ -44,15 +45,7 @@ export class ActionService {
     });
   }
 
-  async createOrReplace(_principal: UserPrincipal, file: File): Promise<void> {
-    const action = await this.fileToAction(file);
-
-    this.validateAction(action);
-
-    return this.context.repository.addOrReplace(action);
-  }
-
-  private async fileToAction(file: File): Promise<Action> {
+  static async fileToAction(file: File): Promise<Action> {
     const url = URL.createObjectURL(file);
     const mod = await import(url);
 
@@ -73,37 +66,68 @@ export class ActionService {
     };
   }
 
-  private validateAction(_action: Action): void {}
+  static actionToFile(action: Action): Promise<File> {
+    const text = `export default {
+    uuid: "${action.uuid}",
+		title: "${action.title}",
+		description: "${action.description}",
+		builtIn: ${action.builtIn},
+		multiple: ${action.multiple},
+		filters: ${JSON.stringify(action.filters)},
+		params: ${JSON.stringify(action.params)},
+    runOnCreates: ${action.runOnCreates},
+    runOnUpdates: ${action.runOnUpdates},
+    runManually: ${action.runManually},
+    
+    ${action.run.toString()}
+	};
+`;
 
-  async delete(_principal: UserPrincipal, uuid: string): Promise<void> {
-    await this.context.repository.delete(uuid);
+    const filename = `${action.title}.js`;
+    const type = "text/javascript";
+
+    return Promise.resolve(new File([text], filename, { type }));
   }
 
-  get(_principal: UserPrincipal, uuid: string): Promise<Action> {
+  async get(
+    principal: UserPrincipal,
+    uuid: string
+  ): Promise<Either<NodeNotFoundError, Action>> {
     const found = builtinActions.find((a) => a.uuid === uuid);
 
     if (found) {
-      return Promise.resolve(found);
+      return right(found);
     }
 
-    return this.context.repository.get(uuid);
-  }
+    const [nodeError, fileOrError] = await Promise.all([
+      this.context.nodeService.get(principal, uuid),
+      this.context.nodeService.export(principal, uuid),
+    ]);
 
-  export(_principal: UserPrincipal, uuid: string): Promise<File> {
-    const action = builtinActions.find((a) => a.uuid === uuid);
-    if (action) {
-      return Promise.resolve(
-        new File([JSON.stringify(action)], `${action.uuid}.json`)
-      );
+    if (fileOrError.isLeft()) {
+      return left(fileOrError.value);
     }
 
-    return this.context.repository.getRaw(uuid);
+    if (nodeError.isLeft()) {
+      return left(nodeError.value);
+    }
+
+    if (nodeError.value.parent !== Node.ACTIONS_FOLDER_UUID) {
+      return left(new NodeNotFoundError(uuid));
+    }
+
+    const file = fileOrError.value;
+
+    return right(await ActionService.fileToAction(file));
   }
 
-  list(_principal: UserPrincipal): Promise<Action[]> {
-    return this.context.repository
-      .getAll()
-      .then((actions) => [...builtinActions, ...actions]);
+  list(principal: UserPrincipal): Promise<Action[]> {
+    return this.context.nodeService
+      .list(principal, Node.ACTIONS_FOLDER_UUID)
+      .then((nodesOrErrs) => nodesOrErrs.value as Node[])
+      .then((nodes) => nodes.map((n) => this.get(principal, n.uuid)))
+      .then((actionPromises) => Promise.all(actionPromises))
+      .then((actionsOrErrs) => actionsOrErrs.map((a) => a.value as Action));
   }
 
   async run(
@@ -111,22 +135,24 @@ export class ActionService {
     uuid: string,
     uuids: string[],
     params: Record<string, string>
-  ): Promise<void> {
-    const action = await this.get(principal, uuid);
+  ): Promise<Either<NodeNotFoundError | Error, void>> {
+    const actionOrErr = await this.get(principal, uuid);
 
-    if (!action) {
-      throw new Error(`Action ${uuid} not found`);
+    if (actionOrErr.isLeft()) {
+      return left(actionOrErr.value);
     }
 
-    const error = await action.run(
+    const error = await actionOrErr.value.run(
       { ...this.context, principal },
       uuids,
       params
     );
 
     if (error) {
-      throw error;
+      return left(error);
     }
+
+    return right(undefined);
   }
 
   runAutomaticActionsForCreates(evt: NodeCreatedEvent) {

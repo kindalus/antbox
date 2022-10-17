@@ -1,14 +1,26 @@
-import { ActionRepository } from "/domain/actions/action_repository.ts";
-import { AuthService, AuthServiceContext } from "/application/auth_service.ts";
-import { ActionService } from "./action_service.ts";
-import { AspectServiceContext, AspectService } from "./aspect_service.ts";
-import { NodeServiceContext, NodeService } from "./node_service.ts";
+import { AuthService } from "/application/auth_service.ts";
+import { ActionService } from "/application/action_service.ts";
+import { AspectService } from "/application/aspect_service.ts";
+import { NodeService } from "/application/node_service.ts";
+import { FidGenerator } from "../domain/nodes/fid_generator.ts";
+import { NodeRepository } from "../domain/nodes/node_repository.ts";
+import { StorageProvider } from "/domain/providers/storage_provider.ts";
+import { UuidGenerator } from "../domain/providers/uuid_generator.ts";
+import { GroupRepository } from "../domain/auth/group_repository.ts";
+import { PasswordGenerator } from "../domain/auth/password_generator.ts";
+import { UserRepository } from "../domain/auth/user_repository.ts";
+import { EmailSender } from "./email_sender.ts";
 
 export interface EcmConfig {
-  readonly nodeServiceContext: NodeServiceContext;
-  readonly aspectServiceContext: AspectServiceContext;
-  readonly authServiceContext: AuthServiceContext;
-  readonly actionRepository: ActionRepository;
+  readonly fidGenerator: FidGenerator;
+  readonly uuidGenerator: UuidGenerator;
+  readonly storage: StorageProvider;
+  readonly repository: NodeRepository;
+
+  passwordGenerator: PasswordGenerator;
+  emailSender: EmailSender;
+  userRepository: UserRepository;
+  groupRepository: GroupRepository;
 }
 
 export class EcmRegistry {
@@ -31,17 +43,31 @@ export class EcmRegistry {
   }
 
   constructor(config: EcmConfig) {
-    this.nodeService = new NodeService(config.nodeServiceContext);
+    this.authService = new AuthService({
+      uuidGenerator: config.uuidGenerator,
+      passwordGenerator: config.passwordGenerator,
+      emailSender: config.emailSender,
+      userRepository: config.userRepository,
+      groupRepository: config.groupRepository,
+    });
 
-    this.aspectService = new AspectService(config.aspectServiceContext);
+    this.nodeService = new NodeService({
+      fidGenerator: config.fidGenerator,
+      uuidGenerator: config.uuidGenerator,
+      storage: config.storage,
+      repository: config.repository,
+      authService: this.authService,
+    });
 
-    this.authService = new AuthService(config.authServiceContext);
+    this.aspectService = new AspectService({
+      nodeService: this.nodeService,
+      auth: this.authService,
+    });
 
     this.actionService = new ActionService({
       authService: this.authService,
       nodeService: this.nodeService,
       aspectService: this.aspectService,
-      repository: config.actionRepository,
     });
 
     if (EcmRegistry._instance) return EcmRegistry._instance;

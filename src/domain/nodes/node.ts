@@ -7,7 +7,10 @@ export class Node {
   static FOLDER_MIMETYPE = "application/vnd.antbox.folder";
   static META_NODE_MIMETYPE = "application/vnd.antbox.metanode";
   static SMART_FOLDER_MIMETYPE = "application/vnd.antbox.smartfolder";
-  static ROOT_FOLDER_UUID = "ROOT";
+  static ROOT_FOLDER_UUID = "--root--";
+  static ACTIONS_FOLDER_UUID = "--actions--";
+  static ASPECTS_FOLDER_UUID = "--aspects--";
+  static SYSTEM_FOLDER_UUID = "--system--";
 
   static fidToUuid(fid: string): string {
     return `fid:${fid}`;
@@ -63,6 +66,18 @@ export class Node {
 
   isFile(): boolean {
     return !this.isFolder() && !this.isSmartFolder() && !this.isMetaNode();
+  }
+
+  isSystemFolder(): boolean {
+    return Node.isSystemFolder(this.uuid);
+  }
+
+  static isSystemFolder(uuid: string): boolean {
+    return (
+      uuid === Node.SYSTEM_FOLDER_UUID ||
+      uuid === Node.ASPECTS_FOLDER_UUID ||
+      uuid === Node.ACTIONS_FOLDER_UUID
+    );
   }
 
   validate(

@@ -1,3 +1,4 @@
+import { DefaultFidGenerator } from "/strategies/default_fid_generator.ts";
 import { InMemoryUserRepository } from "/adapters/inmem/inmem_user_repository.ts";
 import { InMemoryGroupRepository } from "/adapters/inmem/inmem_group_repository.ts";
 
@@ -6,18 +7,13 @@ import { VERSION } from "./version.ts";
 import { join } from "/deps/path";
 import { Command, IParseResult } from "/deps/command";
 
-import { FlatFileAspectRepository } from "/adapters/flat_file/flat_file_aspect_repository.ts";
 import { FlatFileStorageProvider } from "/adapters/flat_file/flat_file_storage_provider.ts";
 
 import { startServer } from "./server.ts";
 import { EcmConfig } from "/application/ecm_registry.ts";
-
 import { DefaultPasswordGenerator } from "/strategies/default_password_generator.ts";
 import { DefaultUuidGenerator } from "/strategies/default_uuid_generator.ts";
-import { FlatFileActionRepository } from "/adapters/flat_file/flat_file_action_repository.ts";
-import { AspectServiceContext } from "./src/application/aspect_service.ts";
 import { PouchdbNodeRepository } from "./src/adapters/pouchdb/pouchdb_node_repository.ts";
-import { NodeServiceContext } from "./src/application/node_service_context.ts";
 
 const program = await new Command()
   .name("antbox-sand")
@@ -29,10 +25,8 @@ const program = await new Command()
 
 function buildEcmConfig(portalDataFolder: string): EcmConfig {
   return {
-    nodeServiceContext: makeNodeServiceContext(portalDataFolder),
-    aspectServiceContext: makeAspectServiceContext(portalDataFolder),
-    authServiceContext: makeAuthServiceContext(),
-    actionRepository: makeActionRepository(portalDataFolder),
+    ...makeNodeServiceContext(portalDataFolder),
+    ...makeAuthServiceContext(),
   };
 }
 
@@ -50,27 +44,16 @@ function makeAuthServiceContext() {
   };
 }
 
-function makeAspectServiceContext(baseDir: string): AspectServiceContext {
-  const aspectRepository = new FlatFileAspectRepository(
-    join(baseDir, "aspects")
-  );
-
-  return { repository: aspectRepository };
-}
-
-function makeNodeServiceContext(baseDir: string): NodeServiceContext {
+function makeNodeServiceContext(baseDir: string) {
   const storage = new FlatFileStorageProvider(baseDir);
 
   const nodeRepository = new PouchdbNodeRepository(join(baseDir, "repo"));
 
   return {
+    fidGenerator: new DefaultFidGenerator(),
     repository: nodeRepository,
     storage,
   };
-}
-
-function makeActionRepository(baseDir: string): FlatFileActionRepository {
-  return new FlatFileActionRepository(join(baseDir, "actions"));
 }
 
 function main(program: IParseResult) {

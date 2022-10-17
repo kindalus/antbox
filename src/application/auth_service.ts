@@ -39,21 +39,21 @@ export class AuthService {
       return left(groupNameOrError.value);
     }
 
-    const groupOrError = Group.make(id, groupNameOrError.success as GroupName);
+    const groupOrError = Group.make(id, groupNameOrError.value);
 
     if (groupOrError.isLeft()) {
       return left(groupOrError.value);
     }
 
-    const group = groupOrError.success as Group;
-
-    const repoResult = await this.ctx.groupRepository.addOrReplace(group);
+    const repoResult = await this.ctx.groupRepository.addOrReplace(
+      groupOrError.value
+    );
 
     if (repoResult.isLeft()) {
       return left(repoResult.value);
     }
 
-    DomainEvents.notify(new GroupCreatedEvent(id, group.name.value));
+    DomainEvents.notify(new GroupCreatedEvent(id, name));
 
     return right(undefined);
   }
@@ -74,6 +74,9 @@ export class AuthService {
 
     const plainPassword = this.ctx.passwordGenerator.generate();
     const passwordOrError = Password.make(plainPassword);
+    if (passwordOrError.isLeft()) {
+      return left(passwordOrError.value);
+    }
 
     const user = new User(
       emailOrError.value,

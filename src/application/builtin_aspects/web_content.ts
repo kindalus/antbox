@@ -19,7 +19,7 @@ export const WebContentAspect = {
   properties: [
     {
       name: "published",
-      title: "uuid",
+      title: "Publicado",
       type: "Boolean",
       required: true,
       default: false,

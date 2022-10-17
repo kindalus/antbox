@@ -1,17 +1,15 @@
-import { AspectValidationError } from "./aspect_validation_error.ts";
-import { Role } from "/domain/auth/role.ts";
-import { ForbiddenError } from "/shared/ecm_error.ts";
+import { NodeNotFoundError } from "/domain/nodes/node_not_found_error.ts";
+import { NodeService } from "./node_service.ts";
 import { Either, left, right } from "/shared/either.ts";
 import { Aspect } from "/domain/aspects/aspect.ts";
-import { AspectRepository } from "/domain/aspects/aspect_repository.ts";
 
 import { AuthService } from "/application/auth_service.ts";
-import { WebContentAspect } from "/application/builtin_aspects/web_content.ts";
 import { UserPrincipal } from "/domain/auth/user_principal.ts";
+import { Node } from "/domain/nodes/node.ts";
 
 export interface AspectServiceContext {
-  readonly auth?: AuthService;
-  readonly repository: AspectRepository;
+  readonly auth: AuthService;
+  readonly nodeService: NodeService;
 }
 
 export class AspectService {
@@ -21,54 +19,78 @@ export class AspectService {
     this.context = context;
   }
 
-  async createOrReplace(
+  async get(
     principal: UserPrincipal,
-    aspect: Aspect
-  ): Promise<Either<ForbiddenError | AspectValidationError, void>> {
-    if (!principal.roles.includes(Role.AspectsAdmin)) {
-      return left(new ForbiddenError());
+    uuid: string
+  ): Promise<Either<NodeNotFoundError, Aspect>> {
+    const nodePromise = this.context.nodeService.get(principal, uuid);
+    const aspectPromise = this.context.nodeService.export(principal, uuid);
+
+    const [nodeOrErr, aspectOrErr] = await Promise.all([
+      nodePromise,
+      aspectPromise,
+    ]);
+
+    if (nodeOrErr.isLeft()) {
+      return left(nodeOrErr.value);
     }
 
-    const err = this.validateAspect(aspect);
-
-    if (err) {
-      return left(err);
+    if (aspectOrErr.isLeft()) {
+      return left(aspectOrErr.value);
     }
 
-    if (!aspect.properties) {
-      aspect.properties = [];
+    if (nodeOrErr.value.parent !== Node.ASPECTS_FOLDER_UUID) {
+      return left(new NodeNotFoundError(uuid));
     }
 
-    return right(await this.context.repository.addOrReplace(aspect));
+    const aspect = await this.fileToAspect(aspectOrErr.value);
+
+    return right(aspect);
   }
 
-  async delete(_principal: UserPrincipal, uuid: string): Promise<void> {
-    await this.context.repository.delete(uuid);
+  fileToAspect(file: File): Promise<Aspect> {
+    return file
+      .text()
+      .then((text) => JSON.parse(text))
+      .then((raw) => ({
+        uuid: raw.uuid ?? file.name.split(".")[0],
+        title: raw.title ?? file.name.split(".")[0],
+        description: raw.description ?? "",
+        builtIn: false,
+        multiple: raw.multiple ?? false,
+        filters: raw.filters ?? [],
+        aspects: raw.aspects ?? [],
+        properties: raw.properties ?? [],
+      }));
   }
 
-  get(_principal: UserPrincipal, uuid: string): Promise<Aspect> {
-    return this.context.repository.get(uuid);
+  static aspectToFile(aspect: Aspect): Promise<File> {
+    const raw = JSON.stringify(
+      {
+        uuid: aspect.uuid,
+        title: aspect.title ?? aspect.uuid,
+        description: aspect.description,
+        builtIn: aspect.builtIn ?? false,
+        filters: aspect.filters ?? [],
+        properties: aspect.properties ?? [],
+      },
+      null,
+      4
+    );
+
+    const f = new File([raw], aspect.uuid + ".json", {
+      type: "application/json",
+    });
+
+    return Promise.resolve(f);
   }
 
-  list(_principal: UserPrincipal): Promise<Aspect[]> {
-    return this.context.repository
-      .getAll()
-      .then((aspects) => [WebContentAspect, ...aspects]);
-  }
-
-  private validateAspect(aspect: Aspect): AspectValidationError | void {
-    if (!aspect.uuid) {
-      return new AspectValidationError("Aspect must have a UUID");
-    }
-
-    if (!aspect.title) {
-      return new AspectValidationError("Aspect title is required");
-    }
-
-    if (!Array.isArray(aspect.properties)) {
-      return new AspectValidationError("Aspect properties must be an array");
-    }
-
-    return;
+  list(principal: UserPrincipal): Promise<Aspect[]> {
+    return this.context.nodeService
+      .list(principal, Node.ASPECTS_FOLDER_UUID)
+      .then((nodesOrErrs) => nodesOrErrs.value as Node[])
+      .then((nodes) => nodes.map((n) => this.get(principal, n.uuid)))
+      .then((aspectsPromises) => Promise.all(aspectsPromises))
+      .then((aspectsOrErrs) => aspectsOrErrs.map((a) => a.value as Aspect));
   }
 }

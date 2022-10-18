@@ -26,7 +26,6 @@ export interface Action {
   title: string;
   description: string;
   builtIn: boolean;
-  multiple: boolean;
   runOnCreates: boolean;
   runOnUpdates: boolean;
   runManually: boolean;

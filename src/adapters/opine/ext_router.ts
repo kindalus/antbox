@@ -3,7 +3,6 @@ import { OpineRequest, OpineResponse, Router } from "/deps/opine";
 import { EcmRegistry } from "/application/ecm_registry.ts";
 import { processError } from "./process_error.ts";
 import { getRequestContext } from "./request_context_builder.ts";
-import { Buffer } from "https://deno.land/std@0.129.0/node/_buffer.mjs";
 
 export const extRouter = Router();
 

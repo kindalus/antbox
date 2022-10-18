@@ -260,8 +260,6 @@ export class NodeService {
     return {
       parent: metadata.parent,
       title: metadata.title,
-      starred: metadata.starred ?? false,
-      trashed: metadata.trashed ?? false,
       aspects: metadata.aspects ?? [],
       description: metadata.description ?? "",
       properties: metadata.properties ?? {},

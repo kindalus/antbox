@@ -25,7 +25,12 @@ export interface AspectProperty {
   /**
    * Opcional
    */
-  validationList?: string;
+  validationList?: string[];
+
+  /**
+   * Opcional. For uuids validation
+   */
+  validationFilter?: NodeFilter;
 
   /**
    * Opcional - Lista de UUIDS de um detrminado aspecto

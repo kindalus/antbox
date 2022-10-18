@@ -83,8 +83,6 @@ export interface Node {
   description?: string;
   mimetype: string;
   size: number;
-  starred: boolean;
-  trashed: boolean;
   aspects?: string[];
   parent?: string;
   createdTime: string;

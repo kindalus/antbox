@@ -35,8 +35,6 @@ export class Node {
   description?: string;
   mimetype = "";
   size = 0;
-  starred = false;
-  trashed = false;
   aspects?: string[];
   parent = Node.ROOT_FOLDER_UUID;
   createdTime = "";

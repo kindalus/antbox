@@ -1,3 +1,4 @@
+import { ExtService } from "./ext_service.ts";
 import { AuthService } from "/application/auth_service.ts";
 import { ActionService } from "/application/action_service.ts";
 import { AspectService } from "/application/aspect_service.ts";
@@ -70,6 +71,8 @@ export class EcmRegistry {
       aspectService: this.aspectService,
     });
 
+    this.extService = new ExtService({ nodeService: this.nodeService });
+
     if (EcmRegistry._instance) return EcmRegistry._instance;
   }
 
@@ -77,4 +80,5 @@ export class EcmRegistry {
   readonly nodeService: NodeService;
   readonly aspectService: AspectService;
   readonly actionService: ActionService;
+  readonly extService: ExtService;
 }

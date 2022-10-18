@@ -10,6 +10,7 @@ export class Node {
   static ROOT_FOLDER_UUID = "--root--";
   static ACTIONS_FOLDER_UUID = "--actions--";
   static ASPECTS_FOLDER_UUID = "--aspects--";
+  static EXT_FOLDER_UUID = "--ext--";
   static SYSTEM_FOLDER_UUID = "--system--";
 
   static fidToUuid(fid: string): string {
@@ -76,7 +77,8 @@ export class Node {
     return (
       uuid === Node.SYSTEM_FOLDER_UUID ||
       uuid === Node.ASPECTS_FOLDER_UUID ||
-      uuid === Node.ACTIONS_FOLDER_UUID
+      uuid === Node.ACTIONS_FOLDER_UUID ||
+      uuid === Node.EXT_FOLDER_UUID
     );
   }
 

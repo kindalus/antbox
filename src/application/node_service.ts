@@ -79,6 +79,15 @@ export class NodeService {
         title: "Actions",
       })
     );
+
+    await this.context.repository.add(
+      NodeFactory.composeFolder({
+        ...folderMetadata,
+        uuid: Node.EXT_FOLDER_UUID,
+        parent: Node.SYSTEM_FOLDER_UUID,
+        title: "Extensions",
+      })
+    );
   }
 
   async createFile(
@@ -134,9 +143,41 @@ export class NodeService {
       return this.createAction(principal, file, metadata);
     }
 
+    if (metadata?.parent === Node.EXT_FOLDER_UUID) {
+      return this.createExt(principal, file, metadata);
+    }
+
     return Promise.resolve(
       left([new ValidationError("Invalid parent folder")])
     );
+  }
+
+  private async createExt(
+    principal: UserPrincipal,
+    file: File,
+    metadata: Partial<Node>
+  ): Promise<Either<FolderNotFoundError | ValidationError[], string>> {
+    if (file.type !== "text/javascript") {
+      return left([new ValidationError("File must be a javascript file")]);
+    }
+
+    const fileNode = this.createFileMetadata(
+      principal,
+      {
+        title: file.name?.split(".")[0] ?? metadata.uuid,
+        parent: Node.EXT_FOLDER_UUID,
+      },
+      file.type,
+      file.size
+    );
+
+    fileNode.uuid = file.name?.split(".")[0] ?? metadata.uuid;
+    fileNode.fid = fileNode.uuid;
+
+    await this.context.storage.write(fileNode.uuid, file);
+    await this.context.repository.add(fileNode);
+
+    return right(fileNode.uuid);
   }
 
   private async createAction(

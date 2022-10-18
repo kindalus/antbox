@@ -6,7 +6,7 @@ import { NodeNotFoundError } from "../../domain/nodes/node_not_found_error.ts";
 
 export default {
   uuid: "delete_all",
-  title: "Eliminar todos",
+  title: "Eliminar",
   description: "Elimina todos os nós selecionados",
   builtIn: true,
   multiple: false,

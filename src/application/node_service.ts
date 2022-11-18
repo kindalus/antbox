@@ -247,7 +247,7 @@ export class NodeService {
     }
 
     const parent = metadata.parent ?? Node.ROOT_FOLDER_UUID;
-    const folderExists = await this.folderExistsInRepo(principal, parent);
+    const folderExists = await this.getFolderIfExistsInRepo(principal, parent);
 
     if (!folderExists) {
       return left(new FolderNotFoundError(parent));
@@ -519,13 +519,20 @@ export class NodeService {
     principal: UserPrincipal,
     parent = Node.ROOT_FOLDER_UUID
   ): Promise<Either<FolderNotFoundError, Node[]>> {
-    const exists = await this.folderExistsInRepo(principal, parent);
-    if (!exists) {
+    const folderOrUndefined = await this.getFolderIfExistsInRepo(
+      principal,
+      parent
+    );
+    if (folderOrUndefined.isLeft()) {
       return left(new FolderNotFoundError(parent));
     }
 
     const nodes = await this.context.repository
-      .filter([["parent", "==", parent]], Number.MAX_VALUE, 1)
+      .filter(
+        [["parent", "==", folderOrUndefined.value.uuid]],
+        Number.MAX_VALUE,
+        1
+      )
       .then((result) => result.nodes);
 
     if (parent === Node.ACTIONS_FOLDER_UUID) {
@@ -579,14 +586,21 @@ export class NodeService {
     } as Node;
   }
 
-  folderExistsInRepo(principal: UserPrincipal, uuid: string): Promise<boolean> {
+  getFolderIfExistsInRepo(
+    principal: UserPrincipal,
+    uuid: string
+  ): Promise<Either<void, FolderNode>> {
     if (Node.isRootFolder(uuid)) {
-      return Promise.resolve(true);
+      return Promise.resolve(right(Node.rootFolder()));
     }
 
-    return this.get(principal, uuid).then(
-      (result) => result.isRight() && result.value.isFolder()
-    );
+    return this.get(principal, uuid).then((result) => {
+      if (result.isRight() && result.value.isFolder()) {
+        return right(result.value);
+      }
+
+      return left(undefined);
+    });
   }
 
   query(

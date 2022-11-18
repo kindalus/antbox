@@ -13,20 +13,32 @@ export class Node {
   static EXT_FOLDER_UUID = "--ext--";
   static SYSTEM_FOLDER_UUID = "--system--";
 
+  private static FID_PREFIX = "fid--";
+
   static fidToUuid(fid: string): string {
-    return `fid:${fid}`;
+    return `${Node.FID_PREFIX}${fid}`;
   }
 
   static isFid(uuid: string): boolean {
-    return uuid?.startsWith("fid:");
+    return uuid?.startsWith(Node.FID_PREFIX);
   }
 
   static uuidToFid(fid: string): string {
-    return fid?.startsWith("fid:") ? fid.substring(4) : fid;
+    return fid?.startsWith(Node.FID_PREFIX)
+      ? fid.substring(Node.FID_PREFIX.length)
+      : fid;
   }
 
   static isRootFolder(uuid: string): boolean {
     return uuid === Node.ROOT_FOLDER_UUID;
+  }
+
+  static rootFolder(): FolderNode {
+    const root = new FolderNode();
+    root.uuid = Node.ROOT_FOLDER_UUID;
+    root.fid = Node.ROOT_FOLDER_UUID;
+    root.title = "";
+    return root;
   }
 
   uuid = "";

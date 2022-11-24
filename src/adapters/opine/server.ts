@@ -1,4 +1,4 @@
-import { json, opine } from "/deps/opine";
+import { json, opine, raw } from "/deps/opine";
 import { opineCors } from "/deps/opineCors";
 
 import { EcmConfig, EcmRegistry } from "/application/ecm_registry.ts";
@@ -16,6 +16,7 @@ export function startServer(config: EcmConfig) {
 
   app.use(opineCors());
   app.use(json()); // for parsing application/json
+  app.use(raw());
 
   app.use("/nodes", nodesRouter);
   app.use("/web-contents", webContentsRouter);

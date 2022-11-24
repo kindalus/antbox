@@ -9,15 +9,16 @@
 
     "/test/": "./test/",
 
-    "/deps/mime": "https://deno.land/std@0.130.0/mime/mod.ts",
-    "/deps/path": "https://deno.land/std@0.130.0/path/mod.ts",
+    "/deps/mime": "https://deno.land/std@0.142.0/mime/mod.ts",
+    "/deps/path": "https://deno.land/std@0.153.0/path/mod.ts",
 
-    "/deps/opine": "https://deno.land/x/opine@2.1.4/mod.ts",
+    "/deps/opine": "https://deno.land/x/opine@2.3.3/mod.ts",
     "/deps/opineCors": "https://deno.land/x/cors@v1.2.2/mod.ts",
-    "/deps/bdd": "https://deno.land/std@0.152.0/testing/bdd.ts",
+    "/deps/bdd": "https://deno.land/std@0.153.0/testing/bdd.ts",
 
     "/deps/ramda": "https://cdn.skypack.dev/ramda@^0.27.1",
     "/deps/command": "https://deno.land/x/cliffy@v0.19.2/command/mod.ts",
-    "/deps/asserts": "https://deno.land/std@0.130.0/testing/asserts.ts"
+    "/deps/asserts": "https://deno.land/std@0.153.0/testing/asserts.ts",
+    "/deps/pouchdb": "https://deno.land/x/pouchdb_deno@2.1.3-PouchDB+7.3.0/modules/pouchdb/mod.ts"
   }
 }

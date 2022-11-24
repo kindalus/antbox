@@ -1,7 +1,5 @@
 import { NodeFactory } from "/domain/nodes/node_factory.ts";
-import DB, {
-  PouchDB,
-} from "https://deno.land/x/pouchdb_deno@2.1.3-PouchDB+7.3.0/modules/pouchdb/mod.ts";
+import DB, { PouchDB } from "/deps/pouchdb";
 
 import { Node } from "/domain/nodes/node.ts";
 import { FilterOperator, NodeFilter } from "/domain/nodes/node_filter.ts";

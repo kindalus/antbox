@@ -7,6 +7,8 @@
     "/strategies/": "./src/adapters/strategies/",
     "/adapters/": "./src/adapters/",
 
+    "/test/": "./test/",
+
     "/deps/mime": "https://deno.land/std@0.130.0/mime/mod.ts",
     "/deps/path": "https://deno.land/std@0.130.0/path/mod.ts",
 
@@ -15,6 +17,7 @@
     "/deps/bdd": "https://deno.land/std@0.152.0/testing/bdd.ts",
 
     "/deps/ramda": "https://cdn.skypack.dev/ramda@^0.27.1",
-    "/deps/command": "https://deno.land/x/cliffy@v0.19.2/command/mod.ts"
+    "/deps/command": "https://deno.land/x/cliffy@v0.19.2/command/mod.ts",
+    "/deps/asserts": "https://deno.land/std@0.130.0/testing/asserts.ts"
   }
 }

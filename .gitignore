@@ -14,3 +14,5 @@ npm/
 *.njsproj
 *.sln
 *.sw?
+
+deno.lock

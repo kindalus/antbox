@@ -10,5 +10,5 @@ EXPOSE 7180
 
 VOLUME [ "/data" ]
 
-CMD ["run", "-A", "server.ts", "/data"]
+CMD ["deno", "run", "-A", "server.ts", "/data"]
 

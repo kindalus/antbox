@@ -13,8 +13,10 @@
     "/deps/path": "https://deno.land/std@0.153.0/path/mod.ts",
 
     "/deps/opine": "https://deno.land/x/opine@2.3.3/mod.ts",
-    "/deps/opineCors": "https://deno.land/x/cors@v1.2.2/mod.ts",
+    "/deps/cors": "https://deno.land/x/cors@v1.2.2/mod.ts",
     "/deps/bdd": "https://deno.land/std@0.153.0/testing/bdd.ts",
+    "/deps/oak": "https://deno.land/x/oak@v11.1.0/mod.ts",
+    "/deps/oak/helpers": "https://deno.land/x/oak@v11.1.0/helpers.ts",
 
     "/deps/ramda": "https://cdn.skypack.dev/ramda@^0.27.1",
     "/deps/command": "https://deno.land/x/cliffy@v0.19.2/command/mod.ts",

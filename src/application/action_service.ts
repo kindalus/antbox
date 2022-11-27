@@ -82,7 +82,7 @@ export class ActionService {
 `;
 
     const filename = `${action.title}.js`;
-    const type = "text/javascript";
+    const type = "application/javascript";
 
     return Promise.resolve(new File([text], filename, { type }));
   }

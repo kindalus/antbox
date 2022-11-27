@@ -9,11 +9,11 @@ import { Command, IParseResult } from "/deps/command";
 
 import { FlatFileStorageProvider } from "/adapters/flat_file/flat_file_storage_provider.ts";
 
-import { startServer } from "/adapters/opine/server.ts";
 import { EcmConfig } from "/application/ecm_registry.ts";
 import { DefaultPasswordGenerator } from "/strategies/default_password_generator.ts";
 import { DefaultUuidGenerator } from "/strategies/default_uuid_generator.ts";
 import { PouchdbNodeRepository } from "./src/adapters/pouchdb/pouchdb_node_repository.ts";
+import { setupOakServer } from "./src/adapters/oak/setup_oak_server.ts";
 
 const program = await new Command()
   .name("antbox-sand")
@@ -67,9 +67,9 @@ function main(program: IParseResult) {
 
   const config = buildEcmConfig(baseDir);
 
-  const server = startServer(config);
+  const startServer = setupOakServer(config);
 
-  server.listen({ port: parseInt(port) }, () => {
+  startServer({ port: parseInt(port) }).then(() => {
     console.log("Antbox Server started successfully on port ::" + port);
   });
 }

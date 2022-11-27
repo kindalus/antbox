@@ -94,10 +94,12 @@ export class NodeService {
     principal: UserPrincipal,
     file: File,
     metadata: Partial<Node>
-  ): Promise<Either<FolderNotFoundError | ValidationError[], string>> {
+  ): Promise<Either<FolderNotFoundError | ValidationError[], void>> {
     if (Node.isSystemFolder(metadata.parent!)) {
       return this.createSystemFile(principal, file, metadata);
     }
+
+    metadata.title = metadata.title ?? file.name;
 
     const validOrErr = await this.verifyTitleAndParent(principal, metadata);
     if (validOrErr.isLeft()) {
@@ -127,14 +129,14 @@ export class NodeService {
 
     DomainEvents.notify(new NodeCreatedEvent(node));
 
-    return right(node.uuid);
+    return right(undefined);
   }
 
   private createSystemFile(
     principal: UserPrincipal,
     file: File,
     metadata: Partial<Node>
-  ): Promise<Either<FolderNotFoundError | ValidationError[], string>> {
+  ): Promise<Either<FolderNotFoundError | ValidationError[], void>> {
     if (metadata?.parent === Node.ASPECTS_FOLDER_UUID) {
       return this.createAspect(principal, file, metadata);
     }
@@ -156,8 +158,8 @@ export class NodeService {
     principal: UserPrincipal,
     file: File,
     metadata: Partial<Node>
-  ): Promise<Either<FolderNotFoundError | ValidationError[], string>> {
-    if (file.type !== "text/javascript") {
+  ): Promise<Either<FolderNotFoundError | ValidationError[], void>> {
+    if (!this.isJavascript(file)) {
       return left([new ValidationError("File must be a javascript file")]);
     }
 
@@ -177,15 +179,21 @@ export class NodeService {
     await this.context.storage.write(fileNode.uuid, file);
     await this.context.repository.add(fileNode);
 
-    return right(fileNode.uuid);
+    return right(undefined);
+  }
+
+  private isJavascript(file: File) {
+    return (
+      file.type === "application/javascript" || file.type === "text/javascript"
+    );
   }
 
   private async createAction(
     principal: UserPrincipal,
     file: File,
     metadata: Partial<Node>
-  ): Promise<Either<FolderNotFoundError | ValidationError[], string>> {
-    if (file.type !== "text/javascript") {
+  ): Promise<Either<FolderNotFoundError | ValidationError[], void>> {
+    if (!this.isJavascript(file)) {
       return left([new ValidationError("File must be a javascript file")]);
     }
 
@@ -207,14 +215,14 @@ export class NodeService {
     );
     await this.context.repository.add(fileNode);
 
-    return right(fileNode.uuid);
+    return right(undefined);
   }
 
   private async createAspect(
     principal: UserPrincipal,
     file: File,
     metadata: Partial<Node>
-  ): Promise<Either<FolderNotFoundError | ValidationError[], string>> {
+  ): Promise<Either<FolderNotFoundError | ValidationError[], undefined>> {
     if (file.type !== "application/json") {
       return left([new ValidationError("File must be a json file")]);
     }
@@ -235,7 +243,7 @@ export class NodeService {
     await this.context.storage.write(fileNode.uuid, file);
     await this.context.repository.add(fileNode);
 
-    return right(fileNode.uuid);
+    return right(undefined);
   }
 
   private async verifyTitleAndParent(
@@ -371,7 +379,8 @@ export class NodeService {
       {
         uuid: this.context.uuidGenerator!.generate(),
         fid: this.context.fidGenerator!.generate(metadata.title!),
-        mimetype,
+        mimetype:
+          mimetype === "text/javascript" ? "application/javascript" : mimetype,
         owner: principal.username,
         size,
       },
@@ -402,7 +411,7 @@ export class NodeService {
   async copy(
     principal: UserPrincipal,
     uuid: string
-  ): Promise<Either<NodeNotFoundError, string>> {
+  ): Promise<Either<NodeNotFoundError, void>> {
     const node = await this.get(principal, uuid);
     const file = await this.context.storage.read(uuid);
 
@@ -422,7 +431,7 @@ export class NodeService {
 
     DomainEvents.notify(new NodeCreatedEvent(newNode));
 
-    return Promise.resolve(right(newNode.uuid));
+    return right(undefined);
   }
 
   async updateFile(
@@ -557,7 +566,7 @@ export class NodeService {
       uuid: action.uuid,
       fid: action.uuid,
       title: action.title,
-      mimetype: "text/javascript",
+      mimetype: "application/javascript",
       size: 0,
       parent: Node.ACTIONS_FOLDER_UUID,
       owner: this.context.authService.getSystemUser().username,

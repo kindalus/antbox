@@ -3,12 +3,17 @@ import { fileExistsSync } from "/shared/file_exists_sync.ts";
 import { StorageProvider } from "/domain/providers/storage_provider.ts";
 
 export class FlatFileStorageProvider implements StorageProvider {
+  private static storageDir = "storage";
+  private readonly path: string;
+
   /**
-   * @param path Raíz do repositorio de ficheiros
+   * @param baseDir Raíz do repositorio de ficheiros
    */
-  constructor(readonly path: string) {
-    if (!fileExistsSync(path)) {
-      Deno.mkdirSync(path, { recursive: true });
+  constructor(baseDir: string) {
+    this.path = join(baseDir, FlatFileStorageProvider.storageDir);
+
+    if (!fileExistsSync(this.path)) {
+      Deno.mkdirSync(this.path, { recursive: true });
     }
   }
 
@@ -50,10 +55,10 @@ export class FlatFileStorageProvider implements StorageProvider {
 
   private buildFileFolderPath(uuid: string) {
     const [l1, l2] = uuid;
-    return join(this.path, l1.toUpperCase(), l2.toUpperCase(), uuid);
+    return join(this.path, l1.toUpperCase(), l2.toUpperCase());
   }
 
   private buildFilePath(uuid: string) {
-    return join(this.buildFileFolderPath(uuid), "current");
+    return join(this.buildFileFolderPath(uuid), uuid);
   }
 }

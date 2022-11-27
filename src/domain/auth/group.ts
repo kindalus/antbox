@@ -1,4 +1,4 @@
-import { Either, success } from "/shared/either.ts";
+import { Either, right } from "/shared/either.ts";
 import { EcmError } from "/shared/ecm_error.ts";
 import { GroupName } from "./group_name.ts";
 

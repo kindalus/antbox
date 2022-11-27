@@ -30,14 +30,13 @@ export interface AspectProperty {
   /**
    * Opcional. For uuids validation
    */
-  validationFilter?: NodeFilter;
+  validationFilters?: NodeFilter[];
 
   /**
    * Opcional - Lista de UUIDS de um detrminado aspecto
    * Utilizado quando a propriedade é validada através dos nós de um aspecto
    * O tipo da propriedade deve ser UUID ou UUID[]
    */
-  validationLookup?: string[];
 
   required: boolean;
 

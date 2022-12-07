@@ -18,7 +18,7 @@ function handleGet(ctx: ContextWithParams) {
   const requestCtx = getRequestContext(ctx);
   const uuid = ctx.params.uuid as string;
 
-  Promise.all([
+  return Promise.all([
     EcmRegistry.instance.nodeService.get(requestCtx, uuid),
     getWebContentText(requestCtx, uuid),
   ])

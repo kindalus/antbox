@@ -12,12 +12,13 @@ export const nodesRouter = new Router({ prefix: "/nodes" });
 
 nodesRouter.get("/:uuid", getHandler);
 nodesRouter.get("/:uuid/-/export", exportHandler);
-nodesRouter.get("/:uuid/-/copy", copyHandler);
+nodesRouter.get("/:uuid/-/duplicate", duplicateHandler);
 nodesRouter.get("/:uuid/-/evaluate", evaluateHandler);
 
 nodesRouter.get("/", listHandler);
 
 nodesRouter.post("/", createHandler);
+nodesRouter.post("/:uuid/-/copy", copyHandler);
 nodesRouter.post("/-/query", queryHandler);
 
 nodesRouter.patch("/:uuid", updateHandler);
@@ -122,9 +123,24 @@ function deleteHandler(ctx: ContextWithParams) {
     .catch((err) => processError(err, ctx));
 }
 
-function copyHandler(ctx: ContextWithParams) {
+async function copyHandler(ctx: ContextWithParams) {
+  const { to }: { to: string } = await ctx.request.body().value;
+
   return EcmRegistry.instance.nodeService
-    .copy(getRequestContext(ctx), ctx.params.uuid)
+    .copy(getRequestContext(ctx), ctx.params.uuid, to)
+    .then((result) => {
+      if (result.isLeft()) {
+        return processError(result.value, ctx);
+      }
+
+      sendOK(ctx);
+    })
+    .catch((err) => processError(err, ctx));
+}
+
+function duplicateHandler(ctx: ContextWithParams) {
+  return EcmRegistry.instance.nodeService
+    .duplicate(getRequestContext(ctx), ctx.params.uuid)
     .then((result) => {
       if (result.isLeft()) {
         return processError(result.value, ctx);

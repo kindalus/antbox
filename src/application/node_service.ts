@@ -408,9 +408,23 @@ export class NodeService {
     );
   }
 
-  async copy(
+  async duplicate(
     principal: UserPrincipal,
     uuid: string
+  ): Promise<Either<NodeNotFoundError, void>> {
+    const node = await this.get(principal, uuid);
+
+    if (node.isLeft()) {
+      return left(node.value);
+    }
+
+    return this.copy(principal, uuid, node.value.parent);
+  }
+
+  async copy(
+    principal: UserPrincipal,
+    uuid: string,
+    parent: string
   ): Promise<Either<NodeNotFoundError, void>> {
     const node = await this.get(principal, uuid);
     const file = await this.context.storage.read(uuid);
@@ -421,7 +435,10 @@ export class NodeService {
 
     const newNode = this.createFileMetadata(
       principal,
-      node.value,
+      {
+        ...node.value,
+        parent,
+      },
       node.value.mimetype,
       node.value.size
     );

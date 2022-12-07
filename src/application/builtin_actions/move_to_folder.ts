@@ -12,7 +12,7 @@ export default {
   builtIn: true,
   multiple: true,
   filters: [],
-  params: ["destination"],
+  params: ["to"],
   runManually: true,
   runOnCreates: false,
   runOnUpdates: false,
@@ -22,7 +22,7 @@ export default {
     uuids: string[],
     params: Record<string, string>
   ): Promise<void | Error> {
-    const parent = params["destination"];
+    const parent = params["to"];
 
     if (!parent) {
       return new Error("Error parameter not given");

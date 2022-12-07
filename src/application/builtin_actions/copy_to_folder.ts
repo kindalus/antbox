@@ -7,35 +7,26 @@ export default {
   builtIn: true,
   multiple: true,
   filters: [],
-  params: ["destination"],
+  params: ["to"],
   runManually: true,
   runOnCreates: false,
   runOnUpdates: false,
 
-  async run(
+  run(
     ctx: RunContext,
     uuids: string[],
     params: Record<string, string>
   ): Promise<void | Error> {
-    const parent = params["destination"];
+    const parent = params["to"];
 
     if (!parent) {
       return Promise.reject(new Error("Error parameter not given"));
     }
 
-    const batchCopy = uuids.map((u) => ctx.nodeService.copy(ctx.principal, u));
+    const batchCopy = uuids.map((u) =>
+      ctx.nodeService.copy(ctx.principal, u, parent)
+    );
 
-    const batchMove = (newUuids: string[]) =>
-      newUuids.map((u) =>
-        ctx.nodeService.update(ctx.principal, u, { parent }, true)
-      );
-
-    const uuidsOrErrs = await Promise.all(batchCopy);
-
-    const newUuids = uuidsOrErrs
-      .filter((u) => u.isRight())
-      .map((u) => u.value as string);
-
-    return Promise.all(batchMove(newUuids)).then(() => {});
+    return Promise.all(batchCopy).then(() => {});
   },
 } as Action;

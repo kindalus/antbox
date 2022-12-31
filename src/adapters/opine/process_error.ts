@@ -1,9 +1,9 @@
-import { EcmError } from "/shared/ecm_error.ts";
+import { AntboxError } from "/shared/antbox_error.ts";
 import { OpineResponse } from "/deps/opine";
 import { ValidationError } from "../../domain/nodes/validation_error.ts";
 
 export function processError(
-  error: EcmError | ValidationError[],
+  error: AntboxError | ValidationError[],
   res: OpineResponse
 ) {
   if ((error as ValidationError[]).length) {
@@ -13,13 +13,13 @@ export function processError(
     return;
   }
 
-  const ecmError = error as EcmError;
+  const AntboxError = error as AntboxError;
 
-  if (ecmError.errorCode && ecmError.errorCode === "NodeNotFoundError") {
+  if (AntboxError.errorCode && AntboxError.errorCode === "NodeNotFoundError") {
     res.setStatus(404);
   } else {
-    res.setStatus(500).json(ecmError);
+    res.setStatus(500).json(AntboxError);
     console.error(error);
   }
-  res.end(ecmError.message ?? "");
+  res.end(AntboxError.message ?? "");
 }

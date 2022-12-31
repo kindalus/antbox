@@ -8,10 +8,6 @@ export class Node {
   static META_NODE_MIMETYPE = "application/vnd.antbox.metanode";
   static SMART_FOLDER_MIMETYPE = "application/vnd.antbox.smartfolder";
   static ROOT_FOLDER_UUID = "--root--";
-  static ACTIONS_FOLDER_UUID = "--actions--";
-  static ASPECTS_FOLDER_UUID = "--aspects--";
-  static EXT_FOLDER_UUID = "--ext--";
-  static SYSTEM_FOLDER_UUID = "--system--";
 
   private static FID_PREFIX = "fid--";
 
@@ -79,29 +75,36 @@ export class Node {
     return !this.isFolder() && !this.isSmartFolder() && !this.isMetaNode();
   }
 
-  isSystemFolder(): boolean {
-    return Node.isSystemFolder(this.uuid);
-  }
-
-  static isSystemFolder(uuid: string): boolean {
-    return (
-      uuid === Node.SYSTEM_FOLDER_UUID ||
-      uuid === Node.ASPECTS_FOLDER_UUID ||
-      uuid === Node.ACTIONS_FOLDER_UUID ||
-      uuid === Node.EXT_FOLDER_UUID
-    );
-  }
-
   validate(
     _uuidsGetter: (aspectUuid: string) => Promise<string[]>
   ): Promise<ValidationError[]> {
     return Promise.resolve([]);
   }
+
+  static isJavascript(file: File) {
+    return (
+      file.type === "application/javascript" || file.type === "text/javascript"
+    );
+  }
 }
+
+export type Permission = [Read: boolean, Write: boolean, Export: boolean];
+
+export type Permissions = [
+  group: Permission,
+  authenticated: Permission,
+  anonymous: Permission
+];
 
 export class FolderNode extends Node {
   onCreate: string[] = [];
   onUpdate: string[] = [];
+  group: string = null as unknown as string;
+  permissions: Permissions = [
+    [true, true, true],
+    [true, false, true],
+    [false, false, false],
+  ];
 }
 
 export class FileNode extends Node {

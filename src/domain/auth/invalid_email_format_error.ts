@@ -1,6 +1,6 @@
-import { EcmError } from "/shared/ecm_error.ts";
+import { AntboxError } from "/shared/antbox_error.ts";
 
-export class InvalidEmailFormatError extends EcmError {
+export class InvalidEmailFormatError extends AntboxError {
   static ERROR_CODE = "InvalidEmailFormatError";
 
   constructor(email: string) {

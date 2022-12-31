@@ -7,7 +7,7 @@ import {
   assertStrictEquals,
 } from "/deps/asserts";
 
-import { EcmError } from "/shared/ecm_error.ts";
+import { AntboxError } from "/shared/antbox_error.ts";
 import { AuthService, AuthServiceContext } from "./auth_service.ts";
 import { DefaultUuidGenerator } from "/strategies/default_uuid_generator.ts";
 
@@ -31,7 +31,7 @@ Deno.test("createUser", async (t) => {
   await t.step("Grava o user no repositorio", async () => {
     const ctx = makeServiceContext();
     const addOrReplaceMock = belike.fn(
-      (): Promise<Either<EcmError, undefined>> =>
+      (): Promise<Either<AntboxError, undefined>> =>
         Promise.resolve(right(undefined))
     );
     ctx.userRepository.addOrReplace = addOrReplaceMock;
@@ -121,7 +121,7 @@ Deno.test("createGroup", async (t) => {
   await t.step("Grava o grupo no repositorio", async () => {
     const groupRepository = {
       addOrReplace: belike.fn(
-        (): Promise<Either<EcmError, undefined>> =>
+        (): Promise<Either<AntboxError, undefined>> =>
           Promise.resolve(right(undefined))
       ),
     };

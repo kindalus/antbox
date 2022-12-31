@@ -1,6 +1,6 @@
-import { EcmError } from "/shared/ecm_error.ts";
+import { AntboxError } from "/shared/antbox_error.ts";
 
-export class SmartFolderNodeNotFoundError extends EcmError {
+export class SmartFolderNodeNotFoundError extends AntboxError {
   static ERROR_CODE = "SmartFolderNodeNotFoundError";
 
   constructor(uuid: string) {

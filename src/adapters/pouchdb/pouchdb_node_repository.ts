@@ -4,7 +4,7 @@ import DB, { PouchDB } from "/deps/pouchdb";
 import { Node } from "/domain/nodes/node.ts";
 import { FilterOperator, NodeFilter } from "/domain/nodes/node_filter.ts";
 import { NodeNotFoundError } from "/domain/nodes/node_not_found_error.ts";
-import { EcmError } from "/shared/ecm_error.ts";
+import { AntboxError } from "/shared/antbox_error.ts";
 import { Either, left, right } from "/shared/either.ts";
 import {
   NodeFilterResult,
@@ -51,7 +51,7 @@ export class PouchdbNodeRepository implements NodeRepository {
     });
   }
 
-  add(node: Node): Promise<Either<EcmError, void>> {
+  add(node: Node): Promise<Either<AntboxError, void>> {
     return this.db
       .put({ _id: node.uuid, ...node } as unknown as Node)
       .then(() => right(undefined));

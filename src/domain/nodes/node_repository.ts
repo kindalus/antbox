@@ -1,4 +1,4 @@
-import { EcmError } from "/shared/ecm_error.ts";
+import { AntboxError } from "/shared/antbox_error.ts";
 import { Node } from "./node.ts";
 import { NodeFilter } from "./node_filter.ts";
 import { Either } from "../../shared/either.ts";
@@ -14,7 +14,7 @@ export interface NodeFilterResult {
 export interface NodeRepository {
   delete(uuid: string): Promise<Either<NodeNotFoundError, void>>;
   update(node: Node): Promise<Either<NodeNotFoundError, void>>;
-  add(node: Node): Promise<Either<EcmError, void>>;
+  add(node: Node): Promise<Either<AntboxError, void>>;
   getByFid(fid: string): Promise<Either<NodeNotFoundError, Node>>;
   getById(uuid: string): Promise<Either<NodeNotFoundError, Node>>;
   filter(

@@ -1,9 +1,9 @@
 import { Either, left, right } from "/shared/either.ts";
-import { EcmError } from "/shared/ecm_error.ts";
+import { AntboxError } from "/shared/antbox_error.ts";
 import { InvalidGroupNameFormatError } from "./invalid_group_name_format_error.ts";
 
 export class GroupName {
-  static make(name: string): Either<EcmError, GroupName> {
+  static make(name: string): Either<AntboxError, GroupName> {
     if (name?.length < 1) {
       return left(new InvalidGroupNameFormatError(name));
     }

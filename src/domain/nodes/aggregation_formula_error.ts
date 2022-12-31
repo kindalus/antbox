@@ -1,7 +1,7 @@
 import { AggregationFormula } from "./smart_folder_node.ts";
-import { EcmError } from "/shared/ecm_error.ts";
+import { AntboxError } from "/shared/antbox_error.ts";
 
-export class AggregationFormulaError extends EcmError {
+export class AggregationFormulaError extends AntboxError {
   static ERROR_CODE = "AggregationFormulaError";
 
   constructor(formula: AggregationFormula) {

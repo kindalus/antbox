@@ -1,14 +1,12 @@
 import { left, right } from "/shared/either.ts";
 import { NodeNotFoundError } from "/domain/nodes/node_not_found_error.ts";
 import { Node } from "/domain/nodes/node.ts";
-import { UserPrincipal } from "/domain/auth/user_principal.ts";
 
 import { NodeService } from "./node_service.ts";
 import { Either } from "../shared/either.ts";
-
-export interface ExtServiceContext {
-  readonly nodeService: NodeService;
-}
+import { FolderNotFoundError } from "../domain/nodes/folder_not_found_error.ts";
+import { ValidationError } from "../domain/nodes/validation_error.ts";
+import { NodeFactory } from "../domain/nodes/node_factory.ts";
 
 export type ExtFn = (
   request: Request,
@@ -16,15 +14,54 @@ export type ExtFn = (
 ) => Promise<Response>;
 
 export class ExtService {
-  constructor(private readonly context: ExtServiceContext) {}
+  static EXT_FOLDER_UUID = "--ext--";
 
-  private async get(
-    principal: UserPrincipal,
-    uuid: string
-  ): Promise<Either<NodeNotFoundError, ExtFn>> {
+  static isExtensionsFolder(uuid: string): boolean {
+    return uuid === ExtService.EXT_FOLDER_UUID;
+  }
+
+  constructor(private readonly nodeService: NodeService) {}
+
+  async createOrReplace(
+    file: File,
+    metadata: Partial<Node>
+  ): Promise<Either<FolderNotFoundError | ValidationError[], void>> {
+    if (!ExtService.isExtensionsFolder(metadata.parent!)) {
+      return left([
+        new ValidationError(
+          "Extension must be created in the extensions folder"
+        ),
+      ]);
+    }
+
+    if (!Node.isJavascript(file)) {
+      return left([new ValidationError("File must be a javascript file")]);
+    }
+
+    const fileNode = NodeFactory.createFileMetadata(
+      this.nodeService.uuidGenerator,
+      this.nodeService.fidGenerator,
+      {
+        title: file.name?.split(".")[0] ?? metadata.uuid,
+        parent: ExtService.EXT_FOLDER_UUID,
+      },
+      file.type,
+      file.size
+    );
+
+    fileNode.uuid = file.name?.split(".")[0] ?? metadata.uuid;
+    fileNode.fid = fileNode.uuid;
+
+    await this.nodeService.storage.write(fileNode.uuid, file);
+    await this.nodeService.repository.add(fileNode);
+
+    return right(undefined);
+  }
+
+  private async get(uuid: string): Promise<Either<NodeNotFoundError, ExtFn>> {
     const [nodeError, fileOrError] = await Promise.all([
-      this.context.nodeService.get(principal, uuid),
-      this.context.nodeService.export(principal, uuid),
+      this.nodeService.get(uuid),
+      this.nodeService.export(uuid),
     ]);
 
     if (fileOrError.isLeft()) {
@@ -35,7 +72,7 @@ export class ExtService {
       return left(nodeError.value);
     }
 
-    if (nodeError.value.parent !== Node.EXT_FOLDER_UUID) {
+    if (nodeError.value.parent !== ExtService.EXT_FOLDER_UUID) {
       return left(new NodeNotFoundError(uuid));
     }
 
@@ -47,17 +84,16 @@ export class ExtService {
   }
 
   async run(
-    principal: UserPrincipal,
     uuid: string,
     request: Request
   ): Promise<Either<NodeNotFoundError | Error, Response>> {
-    const extOrErr = await this.get(principal, uuid);
+    const extOrErr = await this.get(uuid);
 
     if (extOrErr.isLeft()) {
       return left(extOrErr.value);
     }
 
-    const resp = await extOrErr.value(request, this.context.nodeService);
+    const resp = await extOrErr.value(request, this.nodeService);
 
     return right(resp);
   }

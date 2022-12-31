@@ -39,4 +39,49 @@ export class NodeFactory {
     const mimetype = p.find((n) => n.mimetype)?.mimetype;
     return Object.assign(NodeFactory.fromMimetype(mimetype!), ...p);
   }
+
+  static createFileMetadata(
+    uuid: string,
+    fid: string,
+    metadata: Partial<Node>,
+    mimetype: string,
+    size: number
+  ): FileNode {
+    return NodeFactory.composeNode(
+      {
+        uuid,
+        fid,
+        mimetype:
+          mimetype === "text/javascript" ? "application/javascript" : mimetype,
+        size,
+      },
+      this.extractMetadataFields(metadata)
+    ) as FileNode;
+  }
+
+  static createFolderMetadata(
+    uuid: string,
+    fid: string,
+    metadata: Partial<Node>
+  ): FolderNode {
+    return NodeFactory.composeFolder(
+      {
+        uuid,
+        fid,
+        mimetype: Node.FOLDER_MIMETYPE,
+        size: 0,
+      },
+      NodeFactory.extractMetadataFields(metadata)
+    );
+  }
+
+  static extractMetadataFields(metadata: Partial<Node>): Partial<Node> {
+    return {
+      parent: metadata.parent,
+      title: metadata.title,
+      aspects: metadata.aspects ?? [],
+      description: metadata.description ?? "",
+      properties: metadata.properties ?? {},
+    };
+  }
 }

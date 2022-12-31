@@ -1,6 +1,6 @@
-import { EcmError } from "/shared/ecm_error.ts";
+import { AntboxError } from "/shared/antbox_error.ts";
 
-export class InvalidGroupNameFormatError extends EcmError {
+export class InvalidGroupNameFormatError extends AntboxError {
   static ERROR_CODE = "InvalidGroupNameFormatError";
 
   constructor(name: string) {

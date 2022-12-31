@@ -2,7 +2,7 @@ import { Email } from "/domain/auth/email.ts";
 import { User } from "/domain/auth/user.ts";
 import { UserNotFoundError } from "/domain/auth/user_not_found_error.ts";
 import { UserRepository } from "/domain/auth/user_repository.ts";
-import { EcmError } from "/shared/ecm_error.ts";
+import { AntboxError } from "/shared/antbox_error.ts";
 import { Either, left, right } from "/shared/either.ts";
 
 export class InMemoryUserRepository implements UserRepository {
@@ -18,11 +18,11 @@ export class InMemoryUserRepository implements UserRepository {
     return Promise.resolve(right(user));
   }
 
-  count(): Promise<Either<EcmError, number>> {
+  count(): Promise<Either<AntboxError, number>> {
     throw new Error("Method not implemented.");
   }
 
-  addOrReplace(user: User): Promise<Either<EcmError, undefined>> {
+  addOrReplace(user: User): Promise<Either<AntboxError, undefined>> {
     this._users[user.email.value] = user;
 
     return Promise.resolve(right(undefined));

@@ -1,121 +1,70 @@
 import { UserPrincipal } from "/domain/auth/user_principal.ts";
-import { PasswordGenerator } from "/domain/auth/password_generator.ts";
-import { EmailSender } from "./email_sender.ts";
-import { EcmError } from "/shared/ecm_error.ts";
-import { Either, left, right } from "/shared/either.ts";
+import { AntboxError } from "/shared/antbox_error.ts";
+import { Either, left } from "/shared/either.ts";
 import { Email } from "/domain/auth/email.ts";
 import { Fullname } from "/domain/auth/fullname.ts";
 import { User } from "/domain/auth/user.ts";
-import { Password } from "/domain/auth/password.ts";
-import { UserRepository } from "/domain/auth/user_repository.ts";
-import { GroupRepository } from "/domain/auth/group_repository.ts";
 import { Group } from "/domain/auth/group.ts";
-import { UuidGenerator } from "/domain/providers/uuid_generator.ts";
-import { DomainEvents } from "./domain_events.ts";
-import { UserCreatedEvent } from "/domain/auth/user_created_event.ts";
-import { GroupCreatedEvent } from "/domain/auth/group_created_event.ts";
 import { GroupName } from "/domain/auth/group_name.ts";
 
-import { UserNotFoundError } from "/domain/auth/user_not_found_error.ts";
-import { Role } from "../domain/auth/role.ts";
-
-export interface AuthServiceContext {
-  uuidGenerator: UuidGenerator;
-  passwordGenerator: PasswordGenerator;
-  emailSender: EmailSender;
-  userRepository: UserRepository;
-  groupRepository: GroupRepository;
-}
+import { NodeService } from "./node_service.ts";
+import { ValidationError } from "../domain/nodes/validation_error.ts";
+import { FolderNotFoundError } from "../domain/nodes/folder_not_found_error.ts";
 
 export class AuthService {
-  constructor(private readonly ctx: AuthServiceContext) {}
+  static USERS_FOLDER_UUID = "--users--";
+  static GROUPS_FOLDER_UUID = "--groups--";
 
-  async createGroup(name: string): Promise<Either<EcmError, void>> {
-    const id = this.ctx.uuidGenerator.generate();
+  constructor(private readonly nodeService: NodeService) {}
 
-    const groupNameOrError = GroupName.make(name);
+  createGroup(
+    group: Group
+  ): Promise<Either<AntboxError | ValidationError[], string>> {
+    const groupNameOrError = GroupName.make(group.title);
 
     if (groupNameOrError.isLeft()) {
-      return left(groupNameOrError.value);
+      return Promise.resolve(left(groupNameOrError.value));
     }
 
-    const groupOrError = Group.make(id, groupNameOrError.value);
-
-    if (groupOrError.isLeft()) {
-      return left(groupOrError.value);
-    }
-
-    const repoResult = await this.ctx.groupRepository.addOrReplace(
-      groupOrError.value
-    );
-
-    if (repoResult.isLeft()) {
-      return left(repoResult.value);
-    }
-
-    DomainEvents.notify(new GroupCreatedEvent(id, name));
-
-    return right(undefined);
+    return this.nodeService.createMetanode({
+      ...group,
+      parent: AuthService.GROUPS_FOLDER_UUID,
+    });
   }
 
-  async createUser(
-    email: string,
-    fullname: string
-  ): Promise<Either<EcmError, void>> {
-    const emailOrError = Email.make(email);
+  createUser(
+    user: User
+  ): Promise<
+    Either<AntboxError | FolderNotFoundError | ValidationError[], string>
+  > {
+    const emailOrError = Email.make(user.email);
     if (emailOrError.isLeft()) {
-      return left(emailOrError.value);
+      return Promise.resolve(left(emailOrError.value));
     }
 
-    const fullnameOrError = Fullname.make(fullname);
+    const fullnameOrError = Fullname.make(user.fullname);
     if (fullnameOrError.isLeft()) {
-      return left(fullnameOrError.value);
+      return Promise.resolve(left(fullnameOrError.value));
     }
 
-    const plainPassword = this.ctx.passwordGenerator.generate();
-    const passwordOrError = Password.make(plainPassword);
-    if (passwordOrError.isLeft()) {
-      return left(passwordOrError.value);
-    }
-
-    const user = new User(
-      emailOrError.value,
-      fullnameOrError.value,
-      passwordOrError.value
-    );
-
-    const repoResult = await this.ctx.userRepository.addOrReplace(user);
-
-    if (repoResult.isLeft()) {
-      return left(repoResult.value);
-    }
-
-    this.ctx.emailSender.send(user.email, user.fullname, passwordOrError.value);
-
-    DomainEvents.notify(
-      new UserCreatedEvent(user.email.value, user.fullname.value)
-    );
-
-    return right(undefined);
-  }
-
-  authenticate(
-    username: string,
-    _password: string
-  ): Promise<Either<UserNotFoundError, UserAuthenticationModel>> {
-    return Promise.resolve(right({ username, roles: ["Admin"] }));
+    return this.nodeService.createMetanode({
+      title: user.fullname,
+      parent: AuthService.USERS_FOLDER_UUID,
+      properties: {
+        "user:username": user.username,
+        "user:email": user.email,
+        "user:group": user.group,
+        "user:groups": user.groups,
+      },
+    });
   }
 
   getSystemUser(): UserPrincipal {
     return {
       username: "system",
-      groups: ["System"],
-      roles: [Role.Admin],
+      fullname: "System",
+      group: "--system--",
+      groups: [],
     };
   }
-}
-
-export interface UserAuthenticationModel {
-  readonly username: string;
-  readonly roles: string[];
 }

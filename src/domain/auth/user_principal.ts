@@ -1,7 +1,6 @@
-import { Role } from "/domain/auth/role.ts";
-
 export interface UserPrincipal {
-  username: string;
-  groups: string[];
-  roles: Role[];
+  readonly username: string;
+  readonly fullname: string;
+  readonly group: string;
+  readonly groups: string[];
 }

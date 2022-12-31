@@ -1,6 +1,4 @@
 import { DefaultFidGenerator } from "/strategies/default_fid_generator.ts";
-import { InMemoryUserRepository } from "/adapters/inmem/inmem_user_repository.ts";
-import { InMemoryGroupRepository } from "/adapters/inmem/inmem_group_repository.ts";
 
 import { VERSION } from "./version.ts";
 
@@ -9,11 +7,11 @@ import { Command, IParseResult } from "/deps/command";
 
 import { FlatFileStorageProvider } from "/adapters/flat_file/flat_file_storage_provider.ts";
 
-import { EcmConfig } from "/application/ecm_registry.ts";
-import { DefaultPasswordGenerator } from "/strategies/default_password_generator.ts";
 import { DefaultUuidGenerator } from "/strategies/default_uuid_generator.ts";
 import { PouchdbNodeRepository } from "./src/adapters/pouchdb/pouchdb_node_repository.ts";
 import { setupOakServer } from "./src/adapters/oak/setup_oak_server.ts";
+import { AntboxService } from "./src/application/antbox_service.ts";
+import { NodeServiceContext } from "./src/application/node_service_context.ts";
 
 const program = await new Command()
   .name("antbox-sand")
@@ -23,33 +21,13 @@ const program = await new Command()
   .option("--port <port>", "porta do servidor [7180]")
   .parse(Deno.args);
 
-function buildEcmConfig(portalDataFolder: string): EcmConfig {
-  return {
-    ...makeNodeServiceContext(portalDataFolder),
-    ...makeAuthServiceContext(),
-  };
-}
-
-function makeAuthServiceContext() {
-  return {
-    emailSender: {
-      send: () => undefined,
-    },
-
-    uuidGenerator: new DefaultUuidGenerator(),
-    passwordGenerator: new DefaultPasswordGenerator(),
-
-    userRepository: new InMemoryUserRepository(),
-    groupRepository: new InMemoryGroupRepository(),
-  };
-}
-
-function makeNodeServiceContext(baseDir: string) {
+function makeNodeServiceContext(baseDir: string): NodeServiceContext {
   const storage = new FlatFileStorageProvider(baseDir);
 
   const nodeRepository = new PouchdbNodeRepository(join(baseDir, "repo"));
 
   return {
+    uuidGenerator: new DefaultUuidGenerator(),
     fidGenerator: new DefaultFidGenerator(),
     repository: nodeRepository,
     storage,
@@ -65,9 +43,10 @@ function main(program: IParseResult) {
     Deno.exit(-1);
   }
 
-  const config = buildEcmConfig(baseDir);
+  const nodeCtx = makeNodeServiceContext(baseDir);
+  const service = new AntboxService(nodeCtx);
 
-  const startServer = setupOakServer(config);
+  const startServer = setupOakServer(service);
 
   startServer({ port: parseInt(port) }).then(() => {
     console.log("Antbox Server started successfully on port ::" + port);

@@ -4,46 +4,33 @@ import { FolderNode, Node } from "/domain/nodes/node.ts";
 import { Action } from "/domain/actions/action.ts";
 import { UserPrincipal } from "/domain/auth/user_principal.ts";
 
-import { AuthService } from "./auth_service.ts";
 import { builtinActions } from "./builtin_actions/index.ts";
-import { DomainEvents } from "./domain_events.ts";
 import { NodeCreatedEvent } from "/domain/nodes/node_created_event.ts";
 import { NodeUpdatedEvent } from "/domain/nodes/node_updated_event.ts";
 import { AspectService } from "./aspect_service.ts";
 import { NodeService } from "./node_service.ts";
 import { getNodeFilterPredicate } from "../domain/nodes/node_filter_predicate.ts";
 import { Either } from "../shared/either.ts";
+import { FolderNotFoundError } from "../domain/nodes/folder_not_found_error.ts";
+import { ValidationError } from "../domain/nodes/validation_error.ts";
+import { NodeFactory } from "../domain/nodes/node_factory.ts";
 
 export interface ActionServiceContext {
-  readonly authService: AuthService;
   readonly nodeService: NodeService;
   readonly aspectService: AspectService;
 }
 
 export class ActionService {
-  private readonly context: ActionServiceContext;
+  static ACTIONS_FOLDER_UUID = "--actions--";
 
-  constructor(context: ActionServiceContext) {
-    this.context = context;
-
-    DomainEvents.subscribe(NodeCreatedEvent.EVENT_ID, {
-      handle: (evt) => this.runOnCreateScritps(evt as NodeCreatedEvent),
-    });
-
-    DomainEvents.subscribe(NodeUpdatedEvent.EVENT_ID, {
-      handle: (evt) => this.runOnUpdatedScritps(evt as NodeUpdatedEvent),
-    });
-
-    DomainEvents.subscribe(NodeCreatedEvent.EVENT_ID, {
-      handle: (evt) =>
-        this.runAutomaticActionsForCreates(evt as NodeCreatedEvent),
-    });
-
-    DomainEvents.subscribe(NodeUpdatedEvent.EVENT_ID, {
-      handle: (evt) =>
-        this.runAutomaticActionsForUpdates(evt as NodeUpdatedEvent),
-    });
+  static isActionsFolder(uuid: string): boolean {
+    return uuid === ActionService.ACTIONS_FOLDER_UUID;
   }
+
+  constructor(
+    private readonly nodeService: NodeService,
+    private readonly aspectService: AspectService
+  ) {}
 
   static async fileToAction(file: File): Promise<Action> {
     const url = URL.createObjectURL(file);
@@ -76,6 +63,7 @@ export class ActionService {
     runOnCreates: ${action.runOnCreates},
     runOnUpdates: ${action.runOnUpdates},
     runManually: ${action.runManually},
+  readonly authService: AuthService;
     
     ${action.run.toString()}
 	};
@@ -87,10 +75,7 @@ export class ActionService {
     return Promise.resolve(new File([text], filename, { type }));
   }
 
-  async get(
-    principal: UserPrincipal,
-    uuid: string
-  ): Promise<Either<NodeNotFoundError, Action>> {
+  async get(uuid: string): Promise<Either<NodeNotFoundError, Action>> {
     const found = builtinActions.find((a) => a.uuid === uuid);
 
     if (found) {
@@ -98,8 +83,8 @@ export class ActionService {
     }
 
     const [nodeError, fileOrError] = await Promise.all([
-      this.context.nodeService.get(principal, uuid),
-      this.context.nodeService.export(principal, uuid),
+      this.nodeService.get(uuid),
+      this.nodeService.export(uuid),
     ]);
 
     if (fileOrError.isLeft()) {
@@ -110,7 +95,7 @@ export class ActionService {
       return left(nodeError.value);
     }
 
-    if (nodeError.value.parent !== Node.ACTIONS_FOLDER_UUID) {
+    if (nodeError.value.parent !== ActionService.ACTIONS_FOLDER_UUID) {
       return left(new NodeNotFoundError(uuid));
     }
 
@@ -119,13 +104,49 @@ export class ActionService {
     return right(await ActionService.fileToAction(file));
   }
 
-  list(principal: UserPrincipal): Promise<Action[]> {
-    return this.context.nodeService
-      .list(principal, Node.ACTIONS_FOLDER_UUID)
+  list(): Promise<Action[]> {
+    return this.nodeService
+      .list(ActionService.ACTIONS_FOLDER_UUID)
       .then((nodesOrErrs) => nodesOrErrs.value as Node[])
-      .then((nodes) => nodes.map((n) => this.get(principal, n.uuid)))
+      .then((nodes) => nodes.map((n) => this.get(n.uuid)))
       .then((actionPromises) => Promise.all(actionPromises))
       .then((actionsOrErrs) => actionsOrErrs.map((a) => a.value as Action));
+  }
+
+  async createOrReplace(
+    file: File,
+    metadata: Partial<Node>
+  ): Promise<Either<FolderNotFoundError | ValidationError[], void>> {
+    if (!ActionService.isActionsFolder(metadata.parent!)) {
+      return left([
+        new ValidationError("Action must be in the actions folder"),
+      ]);
+    }
+
+    if (!Node.isJavascript(file)) {
+      return left([new ValidationError("File must be a javascript file")]);
+    }
+
+    const fileNode = NodeFactory.createFileMetadata(
+      this.nodeService.uuidGenerator,
+      this.nodeService.fidGenerator,
+      { ...metadata, parent: ActionService.ACTIONS_FOLDER_UUID },
+      file.type,
+      file.size
+    );
+    const action = await ActionService.fileToAction(file);
+
+    fileNode.uuid = action.uuid;
+    fileNode.title = action.title;
+    fileNode.fid = action.uuid;
+
+    await this.nodeService.storage.write(
+      fileNode.uuid,
+      await ActionService.actionToFile(action)
+    );
+    await this.nodeService.repository.add(fileNode);
+
+    return right(undefined);
   }
 
   async run(
@@ -134,14 +155,18 @@ export class ActionService {
     uuids: string[],
     params: Record<string, string>
   ): Promise<Either<NodeNotFoundError | Error, void>> {
-    const actionOrErr = await this.get(principal, uuid);
+    const actionOrErr = await this.get(uuid);
 
     if (actionOrErr.isLeft()) {
       return left(actionOrErr.value);
     }
 
     const error = await actionOrErr.value.run(
-      { ...this.context, principal },
+      {
+        aspectService: this.aspectService,
+        nodeService: this.nodeService,
+        principal,
+      },
       uuids,
       params
     );
@@ -153,12 +178,16 @@ export class ActionService {
     return right(undefined);
   }
 
-  runAutomaticActionsForCreates(evt: NodeCreatedEvent) {
+  runAutomaticActionsForCreates(
+    principal: UserPrincipal,
+    evt: NodeCreatedEvent
+  ) {
     const runCriteria = (action: Action) => action.runOnCreates || false;
 
     return this.getAutomaticActions(evt.payload, runCriteria).then(
       (actions) => {
         return this.runActions(
+          principal,
           actions.map((a) => a.uuid),
           evt.payload.uuid
         );
@@ -166,33 +195,35 @@ export class ActionService {
     );
   }
 
-  runAutomaticActionsForUpdates(evt: NodeUpdatedEvent) {
+  runAutomaticActionsForUpdates(
+    principal: UserPrincipal,
+    evt: NodeUpdatedEvent
+  ) {
     const runCriteria = (action: Action) => action.runOnUpdates || false;
 
-    return this.context.nodeService
-      .get(this.context.authService.getSystemUser(), evt.payload.uuid)
-      .then(async (node) => {
-        if (node.isLeft()) {
-          return;
-        }
+    return this.nodeService.get(evt.payload.uuid).then(async (node) => {
+      if (node.isLeft()) {
+        return;
+      }
 
-        const actions = await this.getAutomaticActions(node.value, runCriteria);
-        if (actions.length === 0) {
-          return;
-        }
+      const actions = await this.getAutomaticActions(node.value, runCriteria);
+      if (actions.length === 0) {
+        return;
+      }
 
-        return this.runActions(
-          actions.map((a) => a.uuid),
-          evt.payload.uuid
-        );
-      });
+      return this.runActions(
+        principal,
+        actions.map((a) => a.uuid),
+        evt.payload.uuid
+      );
+    });
   }
 
   private async getAutomaticActions(
     node: Node,
     runOnCriteria: (action: Action) => boolean
   ): Promise<Action[]> {
-    const actions = await this.list(this.context.authService.getSystemUser());
+    const actions = await this.list();
 
     return actions.filter(runOnCriteria).filter((a) => {
       if (a.filters.length === 0) {
@@ -203,65 +234,59 @@ export class ActionService {
     });
   }
 
-  runOnCreateScritps(evt: NodeCreatedEvent) {
+  runOnCreateScritps(principal: UserPrincipal, evt: NodeCreatedEvent) {
     if (Node.isRootFolder(evt.payload.parent!)) {
       return;
     }
 
-    return this.context.nodeService
-      .get(this.context.authService.getSystemUser(), evt.payload.parent!)
-      .then((parent) => {
-        if (parent.isLeft()) {
-          return;
-        }
+    return this.nodeService.get(evt.payload.parent!).then((parent) => {
+      if (parent.isLeft()) {
+        return;
+      }
 
-        return this.runActions(
-          (parent.value as FolderNode).onCreate.filter(this.nonEmptyActions),
-          evt.payload.uuid
-        );
-      });
+      return this.runActions(
+        principal,
+        (parent.value as FolderNode).onCreate.filter(this.nonEmptyActions),
+        evt.payload.uuid
+      );
+    });
   }
 
-  runOnUpdatedScritps(evt: NodeUpdatedEvent) {
-    return this.context.nodeService
-      .get(this.context.authService.getSystemUser(), evt.payload.uuid)
-      .then(async (node) => {
-        if (node.isLeft() || Node.isRootFolder(node.value.parent)) {
-          return;
-        }
+  runOnUpdatedScritps(principal: UserPrincipal, evt: NodeUpdatedEvent) {
+    return this.nodeService.get(evt.payload.uuid).then(async (node) => {
+      if (node.isLeft() || Node.isRootFolder(node.value.parent)) {
+        return;
+      }
 
-        const parent = await this.context.nodeService.get(
-          this.context.authService.getSystemUser(),
-          node.value.parent
-        );
+      const parent = await this.nodeService.get(node.value.parent);
 
-        if (parent.isLeft() || !parent.value.isFolder()) {
-          return;
-        }
+      if (parent.isLeft() || !parent.value.isFolder()) {
+        return;
+      }
 
-        return this.runActions(
-          parent.value.onUpdate.filter(this.nonEmptyActions),
-          evt.payload.uuid
-        );
-      });
+      return this.runActions(
+        principal,
+        parent.value.onUpdate.filter(this.nonEmptyActions),
+        evt.payload.uuid
+      );
+    });
   }
 
   private nonEmptyActions(uuid: string): boolean {
     return uuid?.length > 0;
   }
 
-  private runActions(actions: string[], uuid: string) {
+  private runActions(
+    principal: UserPrincipal,
+    actions: string[],
+    uuid: string
+  ) {
     for (const action of actions) {
       const [actionUuid, params] = action.split(" ");
       const j = `{${params ?? ""}}`;
       const g = j.replaceAll(/(\w+)=(\w+)/g, '"$1": "$2"');
 
-      return this.run(
-        this.context.authService.getSystemUser(),
-        actionUuid,
-        [uuid],
-        JSON.parse(g)
-      );
+      return this.run(principal, actionUuid, [uuid], JSON.parse(g));
     }
   }
 }

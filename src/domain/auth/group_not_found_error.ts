@@ -1,6 +1,6 @@
-import { EcmError } from "/shared/ecm_error.ts";
+import { AntboxError } from "/shared/antbox_error.ts";
 
-export default class GroupNotFoundError extends EcmError {
+export default class GroupNotFoundError extends AntboxError {
   static ERROR_CODE = "GroupNotFoundError";
 
   constructor(id: string) {

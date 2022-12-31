@@ -1,6 +1,6 @@
-import { EcmError } from "/shared/ecm_error.ts";
+import { AntboxError } from "/shared/antbox_error.ts";
 
-export class InvalidFullnameFormatError extends EcmError {
+export class InvalidFullnameFormatError extends AntboxError {
   static ERROR_CODE = "InvalidFullnameFormatError";
 
   constructor(email: string) {

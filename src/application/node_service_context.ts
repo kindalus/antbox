@@ -1,4 +1,3 @@
-import { AuthService } from "/application/auth_service.ts";
 import { FidGenerator } from "/domain/nodes/fid_generator.ts";
 import { NodeRepository } from "/domain/nodes/node_repository.ts";
 import { StorageProvider } from "/domain/providers/storage_provider.ts";
@@ -9,5 +8,4 @@ export interface NodeServiceContext {
   readonly uuidGenerator: UuidGenerator;
   readonly storage: StorageProvider;
   readonly repository: NodeRepository;
-  readonly authService: AuthService;
 }

@@ -1,7 +1,7 @@
-import { EcmError } from "/shared/ecm_error.ts";
+import { AntboxError } from "/shared/antbox_error.ts";
 import { Email } from "./email.ts";
 
-export class UserNotFoundError extends EcmError {
+export class UserNotFoundError extends AntboxError {
   static ERROR_CODE = "UserNotFoundError";
 
   constructor(email: Email) {

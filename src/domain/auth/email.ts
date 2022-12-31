@@ -1,4 +1,4 @@
-import { EcmError } from "/shared/ecm_error.ts";
+import { AntboxError } from "/shared/antbox_error.ts";
 import { Either, left, right } from "/shared/either.ts";
 import { InvalidEmailFormatError } from "./invalid_email_format_error.ts";
 
@@ -9,7 +9,7 @@ const EMAIL_RE =
 export class Email {
   readonly value: string;
 
-  public static make(value: string): Either<EcmError, Email> {
+  public static make(value: string): Either<AntboxError, Email> {
     if (!value?.match(EMAIL_RE)) {
       return left(new InvalidEmailFormatError(value));
     }

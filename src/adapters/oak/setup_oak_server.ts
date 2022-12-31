@@ -1,34 +1,40 @@
 import { Application } from "/deps/oak";
 import { oakCors } from "/deps/cors";
 
-import { EcmConfig, EcmRegistry } from "/application/ecm_registry.ts";
-import { aspectsRouter } from "./aspects_router.ts";
+import aspectsRouter from "./aspects_router.ts";
 
-import { nodesRouter } from "./nodes_router.ts";
-import { uploadRouter } from "./upload_router.ts";
-import { actionsRouter } from "./actions_router.ts";
-import { webContentsRouter } from "./web_contents_router.ts";
-import { extRouter } from "./ext_router.ts";
+import nodesRouter from "./nodes_router.ts";
+import uploadRouter from "./upload_router.ts";
+import actionsRouter from "./actions_router.ts";
+import webContentsRouter from "./web_contents_router.ts";
+import extRouter from "./ext_router.ts";
+import { AntboxService } from "../../application/antbox_service.ts";
 
-export function setupOakServer(config: EcmConfig) {
-  EcmRegistry.buildIfNone(config);
+export function setupOakServer(service: AntboxService) {
   const app = new Application();
 
   app.use(oakCors());
 
-  app.use(nodesRouter.routes());
-  app.use(webContentsRouter.routes());
-  app.use(aspectsRouter.routes());
-  app.use(actionsRouter.routes());
-  app.use(uploadRouter.routes());
-  app.use(extRouter.routes());
+  const nodes = nodesRouter(service);
+  const upload = uploadRouter(service);
+  const actions = actionsRouter(service);
+  const webContent = webContentsRouter(service);
+  const ext = extRouter(service);
+  const aspects = aspectsRouter(service);
 
-  app.use(nodesRouter.allowedMethods());
-  app.use(webContentsRouter.allowedMethods());
-  app.use(aspectsRouter.allowedMethods());
-  app.use(actionsRouter.allowedMethods());
-  app.use(uploadRouter.allowedMethods());
-  app.use(extRouter.allowedMethods());
+  app.use(nodes.routes());
+  app.use(webContent.routes());
+  app.use(aspects.routes());
+  app.use(actions.routes());
+  app.use(upload.routes());
+  app.use(ext.routes());
+
+  app.use(nodes.allowedMethods());
+  app.use(webContent.allowedMethods());
+  app.use(aspects.allowedMethods());
+  app.use(actions.allowedMethods());
+  app.use(upload.allowedMethods());
+  app.use(ext.allowedMethods());
 
   return (options: { port: number }) => {
     return new Promise<void>((resolve) => {

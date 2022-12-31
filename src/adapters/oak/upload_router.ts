@@ -1,101 +1,104 @@
 import { Router, Context, FormDataReader } from "/deps/oak";
 
-import { EcmRegistry } from "/application/ecm_registry.ts";
-
 import { processError } from "./process_error.ts";
-import { getRequestContext } from "./request_context_builder.ts";
 import { sendBadRequest, sendOK } from "./send_response.ts";
 import { ContextWithParams } from "./context_with_params.ts";
-import { Node } from "../../domain/nodes/node.ts";
+import { Node } from "/domain/nodes/node.ts";
 import { Either, left, right } from "../../shared/either.ts";
+import { AntboxService } from "/application/antbox_service.ts";
+import { getRequestContext } from "./get_request_context.ts";
 
-export const uploadRouter = new Router({ prefix: "/upload" });
+export default function (service: AntboxService) {
+  async function readRequest(
+    ctx: Context
+  ): Promise<Either<undefined, { file: File; metadata?: Partial<Node> }>> {
+    const body = ctx.request.body();
+    if (body.type !== "form-data") {
+      return left(undefined);
+    }
 
-uploadRouter.post("/nodes", createNodeFileHandler);
-uploadRouter.post("/nodes/:uuid", updateNodeFileHandler);
+    const { files } = await (body.value! as FormDataReader).read({
+      maxFileSize: 100 * 1024 ** 2,
+      customContentTypes: {
+        "text/javascript": "js",
+      },
+    });
 
-async function readRequest(
-  ctx: Context
-): Promise<Either<undefined, { file: File; metadata?: Partial<Node> }>> {
-  const body = ctx.request.body();
-  if (body.type !== "form-data") {
-    return left(undefined);
+    const metadataUploaded = files?.find((f) => f.name === "metadata");
+    const fileUploaded = files?.find((f) => f.name === "file");
+
+    if (!fileUploaded) {
+      return left(undefined);
+    }
+
+    const fileContent = Deno.readFileSync(fileUploaded.filename!);
+
+    let metadata: Partial<Node> | undefined = undefined;
+    if (metadataUploaded) {
+      const metadataContent = Deno.readFileSync(metadataUploaded.filename!);
+      metadata = JSON.parse(new TextDecoder().decode(metadataContent));
+    }
+
+    const file = new File([fileContent], fileUploaded.originalName, {
+      type: fileUploaded.contentType,
+    });
+
+    return right({ file, metadata });
   }
 
-  const { files } = await (body.value! as FormDataReader).read({
-    maxFileSize: 100 * 1024 ** 2,
-    customContentTypes: {
-      "text/javascript": "js",
-    },
-  });
+  const createNodeFileHandler = async (ctx: Context) => {
+    const fieldsOrUndefined = await readRequest(ctx);
+    if (fieldsOrUndefined.isLeft()) {
+      return sendBadRequest(ctx);
+    }
 
-  const metadataUploaded = files?.find((f) => f.name === "metadata");
-  const fileUploaded = files?.find((f) => f.name === "file");
+    if (!fieldsOrUndefined.value.metadata) {
+      return sendBadRequest(ctx);
+    }
 
-  if (!fileUploaded) {
-    return left(undefined);
-  }
+    return service
+      .createFile(
+        getRequestContext(ctx),
+        fieldsOrUndefined.value.file,
+        fieldsOrUndefined.value.metadata
+      )
+      .then((result) => {
+        if (result.isLeft()) {
+          return processError(result.value, ctx);
+        }
 
-  const fileContent = Deno.readFileSync(fileUploaded.filename!);
+        sendOK(ctx);
+      })
+      .catch((err) => processError(err, ctx));
+  };
 
-  let metadata: Partial<Node> | undefined = undefined;
-  if (metadataUploaded) {
-    const metadataContent = Deno.readFileSync(metadataUploaded.filename!);
-    metadata = JSON.parse(new TextDecoder().decode(metadataContent));
-  }
+  const updateNodeFileHandler = async (ctx: ContextWithParams) => {
+    const fieldsOrUndefined = await readRequest(ctx);
 
-  const file = new File([fileContent], fileUploaded.originalName, {
-    type: fileUploaded.contentType,
-  });
+    if (fieldsOrUndefined.isLeft()) {
+      return sendBadRequest(ctx);
+    }
 
-  return right({ file, metadata });
-}
+    return service
+      .updateFile(
+        getRequestContext(ctx),
+        ctx.params.uuid,
+        fieldsOrUndefined.value.file
+      )
+      .then((result) => {
+        if (result.isLeft()) {
+          return processError(result.value, ctx);
+        }
 
-async function createNodeFileHandler(ctx: Context) {
-  const fieldsOrUndefined = await readRequest(ctx);
-  if (fieldsOrUndefined.isLeft()) {
-    return sendBadRequest(ctx);
-  }
+        sendOK(ctx);
+      })
+      .catch((err) => processError(err, ctx));
+  };
 
-  if (!fieldsOrUndefined.value.metadata) {
-    return sendBadRequest(ctx);
-  }
+  const uploadRouter = new Router({ prefix: "/upload" });
 
-  return EcmRegistry.instance.nodeService
-    .createFile(
-      getRequestContext(ctx),
-      fieldsOrUndefined.value.file,
-      fieldsOrUndefined.value.metadata
-    )
-    .then((result) => {
-      if (result.isLeft()) {
-        return processError(result.value, ctx);
-      }
+  uploadRouter.post("/nodes", createNodeFileHandler);
+  uploadRouter.post("/nodes/:uuid", updateNodeFileHandler);
 
-      sendOK(ctx);
-    })
-    .catch((err) => processError(err, ctx));
-}
-
-async function updateNodeFileHandler(ctx: ContextWithParams) {
-  const fieldsOrUndefined = await readRequest(ctx);
-
-  if (fieldsOrUndefined.isLeft()) {
-    return sendBadRequest(ctx);
-  }
-
-  return EcmRegistry.instance.nodeService
-    .updateFile(
-      getRequestContext(ctx),
-      ctx.params.uuid,
-      fieldsOrUndefined.value.file
-    )
-    .then((result) => {
-      if (result.isLeft()) {
-        return processError(result.value, ctx);
-      }
-
-      sendOK(ctx);
-    })
-    .catch((err) => processError(err, ctx));
+  return uploadRouter;
 }

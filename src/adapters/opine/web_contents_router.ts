@@ -1,5 +1,5 @@
 import { Either, right } from "/shared/either.ts";
-import { UnknownError } from "/shared/ecm_error.ts";
+import { UnknownError } from "/shared/antbox_error.ts";
 import { UserPrincipal } from "/domain/auth/user_principal.ts";
 import { WebContent } from "/application/builtin_aspects/web_content.ts";
 import { EcmRegistry } from "/application/ecm_registry.ts";

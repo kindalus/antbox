@@ -1,6 +1,6 @@
-import { EcmError } from "/shared/ecm_error.ts";
+import { AntboxError } from "/shared/antbox_error.ts";
 
-export class NodeNotFoundError extends EcmError {
+export class NodeNotFoundError extends AntboxError {
   static ERROR_CODE = "NodeNotFoundError";
 
   constructor(uuid: string) {

@@ -17,7 +17,6 @@ import { FolderNotFoundError } from "/domain/nodes/folder_not_found_error.ts";
 import { SmartFolderNodeNotFoundError } from "/domain/nodes/smart_folder_node_not_found_error.ts";
 import { NodeNotFoundError } from "/domain/nodes/node_not_found_error.ts";
 
-import { UserPrincipal } from "/domain/auth/user_principal.ts";
 import { NodeCreatedEvent } from "/domain/nodes/node_created_event.ts";
 import { NodeDeletedEvent } from "/domain/nodes/node_deleted_event.ts";
 import { NodeFilter } from "/domain/nodes/node_filter.ts";
@@ -37,82 +36,42 @@ import { Action } from "../domain/actions/action.ts";
 import { Aspect } from "../domain/aspects/aspect.ts";
 
 export class NodeService {
-  constructor(private readonly context: NodeServiceContext) {
-    this.bootstrap();
+  constructor(private readonly context: NodeServiceContext) {}
+
+  get uuidGenerator() {
+    return this.context.uuidGenerator;
   }
 
-  private async bootstrap() {
-    const systemFolder = await this.getFromRepository(Node.SYSTEM_FOLDER_UUID);
+  get fidGenerator() {
+    return this.context.fidGenerator;
+  }
 
-    if (systemFolder.isRight()) {
-      return;
-    }
+  get storage() {
+    return this.context.storage;
+  }
 
-    const systemUser = this.context.authService.getSystemUser();
-
-    const folderMetadata = this.createFolderMetadata(systemUser, {
-      title: "__System__",
-    });
-
-    await this.context.repository.add(
-      NodeFactory.composeFolder({
-        ...folderMetadata,
-        uuid: Node.SYSTEM_FOLDER_UUID,
-        parent: Node.ROOT_FOLDER_UUID,
-      })
-    );
-
-    await this.context.repository.add(
-      NodeFactory.composeFolder({
-        ...folderMetadata,
-        uuid: Node.ASPECTS_FOLDER_UUID,
-        parent: Node.SYSTEM_FOLDER_UUID,
-        title: "Aspects",
-      })
-    );
-
-    await this.context.repository.add(
-      NodeFactory.composeFolder({
-        ...folderMetadata,
-        uuid: Node.ACTIONS_FOLDER_UUID,
-        parent: Node.SYSTEM_FOLDER_UUID,
-        title: "Actions",
-      })
-    );
-
-    await this.context.repository.add(
-      NodeFactory.composeFolder({
-        ...folderMetadata,
-        uuid: Node.EXT_FOLDER_UUID,
-        parent: Node.SYSTEM_FOLDER_UUID,
-        title: "Extensions",
-      })
-    );
+  get repository() {
+    return this.context.repository;
   }
 
   async createFile(
-    principal: UserPrincipal,
     file: File,
     metadata: Partial<Node>
   ): Promise<Either<FolderNotFoundError | ValidationError[], void>> {
-    if (Node.isSystemFolder(metadata.parent!)) {
-      return this.createSystemFile(principal, file, metadata);
-    }
-
     metadata.title = metadata.title ?? file.name;
 
-    const validOrErr = await this.verifyTitleAndParent(principal, metadata);
+    const validOrErr = await this.verifyTitleAndParent(metadata);
     if (validOrErr.isLeft()) {
       return left(validOrErr.value);
     }
 
     let node: FileNode | SmartFolderNode | undefined;
     if (file.type === "application/json") {
-      node = await this.tryToCreateSmartfolder(principal, file, metadata);
+      node = await this.tryToCreateSmartfolder(file, metadata);
     }
 
     if (!node) {
-      node = this.createFileMetadata(principal, metadata, file.type, file.size);
+      node = this.createFileMetadata(metadata, file.type, file.size);
     }
 
     const validationErrors = await node.validate(() => Promise.resolve([]));
@@ -132,122 +91,7 @@ export class NodeService {
     return right(undefined);
   }
 
-  private createSystemFile(
-    principal: UserPrincipal,
-    file: File,
-    metadata: Partial<Node>
-  ): Promise<Either<FolderNotFoundError | ValidationError[], void>> {
-    if (metadata?.parent === Node.ASPECTS_FOLDER_UUID) {
-      return this.createAspect(principal, file, metadata);
-    }
-
-    if (metadata?.parent === Node.ACTIONS_FOLDER_UUID) {
-      return this.createAction(principal, file, metadata);
-    }
-
-    if (metadata?.parent === Node.EXT_FOLDER_UUID) {
-      return this.createExt(principal, file, metadata);
-    }
-
-    return Promise.resolve(
-      left([new ValidationError("Invalid parent folder")])
-    );
-  }
-
-  private async createExt(
-    principal: UserPrincipal,
-    file: File,
-    metadata: Partial<Node>
-  ): Promise<Either<FolderNotFoundError | ValidationError[], void>> {
-    if (!this.isJavascript(file)) {
-      return left([new ValidationError("File must be a javascript file")]);
-    }
-
-    const fileNode = this.createFileMetadata(
-      principal,
-      {
-        title: file.name?.split(".")[0] ?? metadata.uuid,
-        parent: Node.EXT_FOLDER_UUID,
-      },
-      file.type,
-      file.size
-    );
-
-    fileNode.uuid = file.name?.split(".")[0] ?? metadata.uuid;
-    fileNode.fid = fileNode.uuid;
-
-    await this.context.storage.write(fileNode.uuid, file);
-    await this.context.repository.add(fileNode);
-
-    return right(undefined);
-  }
-
-  private isJavascript(file: File) {
-    return (
-      file.type === "application/javascript" || file.type === "text/javascript"
-    );
-  }
-
-  private async createAction(
-    principal: UserPrincipal,
-    file: File,
-    metadata: Partial<Node>
-  ): Promise<Either<FolderNotFoundError | ValidationError[], void>> {
-    if (!this.isJavascript(file)) {
-      return left([new ValidationError("File must be a javascript file")]);
-    }
-
-    const fileNode = this.createFileMetadata(
-      principal,
-      metadata,
-      file.type,
-      file.size
-    );
-    const action = await ActionService.fileToAction(file);
-
-    fileNode.uuid = action.uuid;
-    fileNode.title = action.title;
-    fileNode.fid = action.uuid;
-
-    await this.context.storage.write(
-      fileNode.uuid,
-      await ActionService.actionToFile(action)
-    );
-    await this.context.repository.add(fileNode);
-
-    return right(undefined);
-  }
-
-  private async createAspect(
-    principal: UserPrincipal,
-    file: File,
-    metadata: Partial<Node>
-  ): Promise<Either<FolderNotFoundError | ValidationError[], undefined>> {
-    if (file.type !== "application/json") {
-      return left([new ValidationError("File must be a json file")]);
-    }
-
-    const fileNode = this.createFileMetadata(
-      principal,
-      metadata,
-      file.type,
-      file.size
-    );
-
-    const aspect = (await file.text().then((t) => JSON.parse(t))) as Aspect;
-
-    fileNode.uuid = aspect.uuid;
-    fileNode.title = aspect.title;
-    fileNode.fid = aspect.uuid;
-
-    await this.context.storage.write(fileNode.uuid, file);
-    await this.context.repository.add(fileNode);
-
-    return right(undefined);
-  }
-
   private async verifyTitleAndParent(
-    principal: UserPrincipal,
     metadata: Partial<Node>
   ): Promise<Either<FolderNotFoundError | ValidationError[], void>> {
     if (!metadata.title) {
@@ -255,7 +99,7 @@ export class NodeService {
     }
 
     const parent = metadata.parent ?? Node.ROOT_FOLDER_UUID;
-    const folderExists = await this.getFolderIfExistsInRepo(principal, parent);
+    const folderExists = await this.getFolderIfExistsInRepo(parent);
 
     if (!folderExists) {
       return left(new FolderNotFoundError(parent));
@@ -264,18 +108,7 @@ export class NodeService {
     return right(undefined);
   }
 
-  private extractMetadataFields(metadata: Partial<Node>): Partial<Node> {
-    return {
-      parent: metadata.parent,
-      title: metadata.title,
-      aspects: metadata.aspects ?? [],
-      description: metadata.description ?? "",
-      properties: metadata.properties ?? {},
-    };
-  }
-
   private async tryToCreateSmartfolder(
-    principal: UserPrincipal,
     file: File,
     metadata: Partial<Node>
   ): Promise<SmartFolderNode | undefined> {
@@ -291,10 +124,9 @@ export class NodeService {
         {
           uuid: this.context.uuidGenerator!.generate(),
           fid: this.context.fidGenerator!.generate(metadata.title!),
-          owner: principal.username,
           size: 0,
         },
-        this.extractMetadataFields(metadata),
+        NodeFactory.extractMetadataFields(metadata),
         {
           filters: json.filters,
           aggregations: json.aggregations,
@@ -307,20 +139,18 @@ export class NodeService {
   }
 
   async createFolder(
-    principal: UserPrincipal,
     metadata: Partial<Node>
   ): Promise<Either<FolderNotFoundError | ValidationError[], string>> {
-    if (Node.isSystemFolder(metadata.parent!)) {
-      return left([
-        new ValidationError("Cannot create metanode in system folder"),
-      ]);
-    }
-
-    const validOrErr = await this.verifyTitleAndParent(principal, metadata);
+    const validOrErr = await this.verifyTitleAndParent(metadata);
     if (validOrErr.isLeft()) {
       return left(validOrErr.value);
     }
-    const node = this.createFolderMetadata(principal, metadata);
+
+    const node = NodeFactory.createFolderMetadata(
+      metadata.uuid ?? this.context.uuidGenerator.generate(),
+      metadata.fid ?? this.context.fidGenerator.generate(metadata.title!),
+      metadata
+    );
 
     const validationErrors = await node.validate(() => Promise.resolve([]));
 
@@ -336,26 +166,14 @@ export class NodeService {
   }
 
   async createMetanode(
-    principal: UserPrincipal,
     metadata: Partial<Node>
   ): Promise<Either<FolderNotFoundError | ValidationError[], string>> {
-    if (Node.isSystemFolder(metadata.parent!)) {
-      return left([
-        new ValidationError("Cannot create metanode in system folder"),
-      ]);
-    }
-
-    const validOrErr = await this.verifyTitleAndParent(principal, metadata);
+    const validOrErr = await this.verifyTitleAndParent(metadata);
     if (validOrErr.isLeft()) {
       return left(validOrErr.value);
     }
 
-    const node = this.createFileMetadata(
-      principal,
-      metadata,
-      Node.META_NODE_MIMETYPE,
-      0
-    );
+    const node = this.createFileMetadata(metadata, Node.META_NODE_MIMETYPE, 0);
 
     const validationErrors = await node.validate(() => Promise.resolve([]));
     if (validationErrors.length > 0) {
@@ -369,64 +187,21 @@ export class NodeService {
     return right(node.uuid);
   }
 
-  private createFileMetadata(
-    principal: UserPrincipal,
-    metadata: Partial<Node>,
-    mimetype: string,
-    size: number
-  ): FileNode {
-    return NodeFactory.composeNode(
-      {
-        uuid: this.context.uuidGenerator!.generate(),
-        fid: this.context.fidGenerator!.generate(metadata.title!),
-        mimetype:
-          mimetype === "text/javascript" ? "application/javascript" : mimetype,
-        owner: principal.username,
-        size,
-      },
-      this.extractMetadataFields(metadata)
-    ) as FileNode;
-  }
-
-  private createSmartfolderMetadata() {
-    return this.createMetanode;
-  }
-
-  private createFolderMetadata(
-    principal: UserPrincipal,
-    metadata: Partial<Node>
-  ): FolderNode {
-    return NodeFactory.composeFolder(
-      {
-        uuid: this.context.uuidGenerator!.generate(),
-        fid: this.context.fidGenerator!.generate(metadata.title!),
-        mimetype: Node.FOLDER_MIMETYPE,
-        owner: principal.username,
-        size: 0,
-      },
-      this.extractMetadataFields(metadata)
-    );
-  }
-
-  async duplicate(
-    principal: UserPrincipal,
-    uuid: string
-  ): Promise<Either<NodeNotFoundError, void>> {
-    const node = await this.get(principal, uuid);
+  async duplicate(uuid: string): Promise<Either<NodeNotFoundError, void>> {
+    const node = await this.get(uuid);
 
     if (node.isLeft()) {
       return left(node.value);
     }
 
-    return this.copy(principal, uuid, node.value.parent);
+    return this.copy(uuid, node.value.parent);
   }
 
   async copy(
-    principal: UserPrincipal,
     uuid: string,
     parent: string
   ): Promise<Either<NodeNotFoundError, void>> {
-    const node = await this.get(principal, uuid);
+    const node = await this.get(uuid);
     const file = await this.context.storage.read(uuid);
 
     if (node.isLeft()) {
@@ -434,11 +209,7 @@ export class NodeService {
     }
 
     const newNode = this.createFileMetadata(
-      principal,
-      {
-        ...node.value,
-        parent,
-      },
+      { ...node.value, parent },
       node.value.mimetype,
       node.value.size
     );
@@ -452,11 +223,10 @@ export class NodeService {
   }
 
   async updateFile(
-    principal: UserPrincipal,
     uuid: string,
     file: File
   ): Promise<Either<NodeNotFoundError, void>> {
-    const nodeOrErr = await this.get(principal, uuid);
+    const nodeOrErr = await this.get(uuid);
 
     if (nodeOrErr.isLeft()) {
       return left(nodeOrErr.value);
@@ -475,11 +245,8 @@ export class NodeService {
     return right(undefined);
   }
 
-  async delete(
-    principal: UserPrincipal,
-    uuid: string
-  ): Promise<Either<NodeNotFoundError, void>> {
-    const nodeOrError = await this.get(principal, uuid);
+  async delete(uuid: string): Promise<Either<NodeNotFoundError, void>> {
+    const nodeOrError = await this.get(uuid);
 
     if (nodeOrError.isLeft()) {
       return left(nodeOrError.value);
@@ -491,10 +258,7 @@ export class NodeService {
     return right(undefined);
   }
 
-  async get(
-    _principal: UserPrincipal,
-    uuid: string
-  ): Promise<Either<NodeNotFoundError, Node>> {
+  async get(uuid: string): Promise<Either<NodeNotFoundError, Node>> {
     const builtinActionOrErr = await this.getBuiltinAction(uuid);
     if (builtinActionOrErr.isRight()) {
       return right(builtinActionOrErr.value);
@@ -506,6 +270,17 @@ export class NodeService {
     }
 
     return this.getFromRepository(uuid);
+  }
+
+  private createFileMetadata(
+    metadata: Partial<Node>,
+    mimetype: string,
+    size: number
+  ) {
+    const uuid = metadata.uuid ?? this.context.uuidGenerator.generate();
+    const fid = metadata.fid ?? this.context.fidGenerator.generate(uuid);
+
+    return NodeFactory.createFileMetadata(uuid, fid, metadata, mimetype, size);
   }
 
   private getBuiltinAction(
@@ -542,13 +317,9 @@ export class NodeService {
   }
 
   async list(
-    principal: UserPrincipal,
     parent = Node.ROOT_FOLDER_UUID
   ): Promise<Either<FolderNotFoundError, Node[]>> {
-    const folderOrUndefined = await this.getFolderIfExistsInRepo(
-      principal,
-      parent
-    );
+    const folderOrUndefined = await this.getFolderIfExistsInRepo(parent);
     if (folderOrUndefined.isLeft()) {
       return left(new FolderNotFoundError(parent));
     }
@@ -561,11 +332,11 @@ export class NodeService {
       )
       .then((result) => result.nodes);
 
-    if (parent === Node.ACTIONS_FOLDER_UUID) {
+    if (parent === ActionService.ACTIONS_FOLDER_UUID) {
       return right(this.listActions(nodes));
     }
 
-    if (parent === Node.ASPECTS_FOLDER_UUID) {
+    if (parent === AspectService.ASPECTS_FOLDER_UUID) {
       return right(this.listAspects(nodes));
     }
 
@@ -583,10 +354,11 @@ export class NodeService {
       uuid: action.uuid,
       fid: action.uuid,
       title: action.title,
+
       mimetype: "application/javascript",
       size: 0,
-      parent: Node.ACTIONS_FOLDER_UUID,
-      owner: this.context.authService.getSystemUser().username,
+      parent: ActionService.ACTIONS_FOLDER_UUID,
+
       createdTime: this.now(),
       modifiedTime: this.now(),
     } as Node;
@@ -605,22 +377,19 @@ export class NodeService {
       title: aspect.title,
       mimetype: "application/json",
       size: 0,
-      parent: Node.ASPECTS_FOLDER_UUID,
-      owner: this.context.authService.getSystemUser().username,
+      parent: AspectService.ASPECTS_FOLDER_UUID,
+
       createdTime: this.now(),
       modifiedTime: this.now(),
     } as Node;
   }
 
-  getFolderIfExistsInRepo(
-    principal: UserPrincipal,
-    uuid: string
-  ): Promise<Either<void, FolderNode>> {
+  getFolderIfExistsInRepo(uuid: string): Promise<Either<void, FolderNode>> {
     if (Node.isRootFolder(uuid)) {
       return Promise.resolve(right(Node.rootFolder()));
     }
 
-    return this.get(principal, uuid).then((result) => {
+    return this.get(uuid).then((result) => {
       if (result.isRight() && result.value.isFolder()) {
         return right(result.value);
       }
@@ -630,21 +399,19 @@ export class NodeService {
   }
 
   query(
-    _principal: UserPrincipal,
     filters: NodeFilter[],
-    pageSize = 25,
-    pageToken = 1
+    pageSize: number,
+    pageToken: number
   ): Promise<NodeFilterResult> {
     return this.context.repository.filter(filters, pageSize, pageToken);
   }
 
   async update(
-    principal: UserPrincipal,
     uuid: string,
     data: Partial<Node>,
     merge = false
   ): Promise<Either<NodeNotFoundError, void>> {
-    const nodeOrErr = await this.get(principal, uuid);
+    const nodeOrErr = await this.get(uuid);
 
     if (nodeOrErr.isLeft()) {
       return left(nodeOrErr.value);
@@ -686,7 +453,6 @@ export class NodeService {
   }
 
   async evaluate(
-    _principal: UserPrincipal,
     uuid: string
   ): Promise<
     Either<
@@ -748,10 +514,7 @@ export class NodeService {
     });
   }
 
-  async export(
-    principal: UserPrincipal,
-    uuid: string
-  ): Promise<Either<NodeNotFoundError, File>> {
+  async export(uuid: string): Promise<Either<NodeNotFoundError, File>> {
     const builtinActionOrErr = await this.exportBuiltinAction(uuid);
     if (builtinActionOrErr.isRight()) {
       return builtinActionOrErr;
@@ -762,7 +525,7 @@ export class NodeService {
       return builtinAspectOrErr;
     }
 
-    const nodeOrErr = await this.get(principal, uuid);
+    const nodeOrErr = await this.get(uuid);
 
     if (nodeOrErr.isLeft()) {
       return left(nodeOrErr.value);

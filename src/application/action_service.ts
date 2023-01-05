@@ -1,8 +1,12 @@
 import { left, right } from "/shared/either.ts";
 import { NodeNotFoundError } from "/domain/nodes/node_not_found_error.ts";
 import { FolderNode, Node } from "/domain/nodes/node.ts";
-import { Action } from "/domain/actions/action.ts";
-import { UserPrincipal } from "/domain/auth/user_principal.ts";
+import {
+  Action,
+  RunContext,
+  SecureNodeService,
+  SecureAspectService,
+} from "/domain/actions/action.ts";
 
 import { builtinActions } from "./builtin_actions/index.ts";
 import { NodeCreatedEvent } from "/domain/nodes/node_created_event.ts";
@@ -11,13 +15,16 @@ import { AspectService } from "./aspect_service.ts";
 import { NodeService } from "./node_service.ts";
 import { getNodeFilterPredicate } from "../domain/nodes/node_filter_predicate.ts";
 import { Either } from "../shared/either.ts";
-import { FolderNotFoundError } from "../domain/nodes/folder_not_found_error.ts";
 import { ValidationError } from "../domain/nodes/validation_error.ts";
 import { NodeFactory } from "../domain/nodes/node_factory.ts";
+import { AntboxError } from "../shared/antbox_error.ts";
+import { UserPrincipal } from "../domain/auth/user_principal.ts";
 
 export interface ActionServiceContext {
   readonly nodeService: NodeService;
   readonly aspectService: AspectService;
+  readonly secureNodeService: NodeService;
+  readonly secureAspectService: AspectService;
 }
 
 export class ActionService {
@@ -29,7 +36,8 @@ export class ActionService {
 
   constructor(
     private readonly nodeService: NodeService,
-    private readonly aspectService: AspectService
+    private readonly secureNodeService: SecureNodeService,
+    private readonly secureAspectService: SecureAspectService
   ) {}
 
   static async fileToAction(file: File): Promise<Action> {
@@ -116,20 +124,22 @@ export class ActionService {
   async createOrReplace(
     file: File,
     metadata: Partial<Node>
-  ): Promise<Either<FolderNotFoundError | ValidationError[], void>> {
+  ): Promise<Either<AntboxError, Node>> {
     if (!ActionService.isActionsFolder(metadata.parent!)) {
-      return left([
-        new ValidationError("Action must be in the actions folder"),
-      ]);
+      return left(
+        ValidationError.fromMsgs("Action must be in the actions folder")
+      );
     }
 
     if (!Node.isJavascript(file)) {
-      return left([new ValidationError("File must be a javascript file")]);
+      return left(ValidationError.fromMsgs("File must be a javascript file"));
     }
 
+    const uuid = this.nodeService.uuidGenerator.generate();
+
     const fileNode = NodeFactory.createFileMetadata(
-      this.nodeService.uuidGenerator,
-      this.nodeService.fidGenerator,
+      uuid,
+      this.nodeService.fidGenerator.generate(uuid),
       { ...metadata, parent: ActionService.ACTIONS_FOLDER_UUID },
       file.type,
       file.size
@@ -146,7 +156,7 @@ export class ActionService {
     );
     await this.nodeService.repository.add(fileNode);
 
-    return right(undefined);
+    return right(fileNode);
   }
 
   async run(
@@ -162,11 +172,7 @@ export class ActionService {
     }
 
     const error = await actionOrErr.value.run(
-      {
-        aspectService: this.aspectService,
-        nodeService: this.nodeService,
-        principal,
-      },
+      this.buildRunContext(principal),
       uuids,
       params
     );
@@ -178,16 +184,13 @@ export class ActionService {
     return right(undefined);
   }
 
-  runAutomaticActionsForCreates(
-    principal: UserPrincipal,
-    evt: NodeCreatedEvent
-  ) {
+  runAutomaticActionsForCreates(evt: NodeCreatedEvent) {
     const runCriteria = (action: Action) => action.runOnCreates || false;
 
     return this.getAutomaticActions(evt.payload, runCriteria).then(
       (actions) => {
         return this.runActions(
-          principal,
+          evt.principal,
           actions.map((a) => a.uuid),
           evt.payload.uuid
         );
@@ -195,10 +198,7 @@ export class ActionService {
     );
   }
 
-  runAutomaticActionsForUpdates(
-    principal: UserPrincipal,
-    evt: NodeUpdatedEvent
-  ) {
+  runAutomaticActionsForUpdates(evt: NodeUpdatedEvent) {
     const runCriteria = (action: Action) => action.runOnUpdates || false;
 
     return this.nodeService.get(evt.payload.uuid).then(async (node) => {
@@ -212,11 +212,21 @@ export class ActionService {
       }
 
       return this.runActions(
-        principal,
+        evt.principal,
         actions.map((a) => a.uuid),
         evt.payload.uuid
       );
     });
+  }
+
+  private buildRunContext(principal: UserPrincipal): RunContext {
+    return {
+      authContext: {
+        getPrincipal: () => principal,
+      },
+      nodeService: this.secureNodeService,
+      aspectService: this.secureAspectService,
+    };
   }
 
   private async getAutomaticActions(
@@ -234,7 +244,7 @@ export class ActionService {
     });
   }
 
-  runOnCreateScritps(principal: UserPrincipal, evt: NodeCreatedEvent) {
+  runOnCreateScritps(evt: NodeCreatedEvent) {
     if (Node.isRootFolder(evt.payload.parent!)) {
       return;
     }
@@ -245,14 +255,14 @@ export class ActionService {
       }
 
       return this.runActions(
-        principal,
+        evt.principal,
         (parent.value as FolderNode).onCreate.filter(this.nonEmptyActions),
         evt.payload.uuid
       );
     });
   }
 
-  runOnUpdatedScritps(principal: UserPrincipal, evt: NodeUpdatedEvent) {
+  runOnUpdatedScritps(evt: NodeUpdatedEvent) {
     return this.nodeService.get(evt.payload.uuid).then(async (node) => {
       if (node.isLeft() || Node.isRootFolder(node.value.parent)) {
         return;
@@ -265,7 +275,7 @@ export class ActionService {
       }
 
       return this.runActions(
-        principal,
+        evt.principal,
         parent.value.onUpdate.filter(this.nonEmptyActions),
         evt.payload.uuid
       );

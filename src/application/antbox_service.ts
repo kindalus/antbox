@@ -1,5 +1,5 @@
 import { FolderNotFoundError } from "../domain/nodes/folder_not_found_error.ts";
-import { Node } from "/domain/nodes/node.ts";
+import { Node, Permission } from "/domain/nodes/node.ts";
 import { NodeFilter } from "/domain/nodes/node_filter.ts";
 import { Either, left, right } from "/shared/either.ts";
 import { ActionService } from "./action_service.ts";
@@ -14,8 +14,17 @@ import { SmartFolderNodeNotFoundError } from "../domain/nodes/smart_folder_node_
 import { SmartFolderNodeEvaluation } from "./smart_folder_evaluation.ts";
 import { AuthService } from "./auth_service.ts";
 import { ValidationError } from "../domain/nodes/validation_error.ts";
-import { Action } from "../domain/actions/action.ts";
+import { Action, SecureAspectService } from "../domain/actions/action.ts";
 import { Aspect } from "../domain/aspects/aspect.ts";
+import { User } from "../domain/auth/user.ts";
+import { Group } from "../domain/auth/group.ts";
+import { DomainEvents } from "./domain_events.ts";
+import { NodeCreatedEvent } from "../domain/nodes/node_created_event.ts";
+import { NodeUpdatedEvent } from "../domain/nodes/node_updated_event.ts";
+import { NodeContentUpdatedEvent } from "../domain/nodes/node_content_updated_event.ts";
+import { NodeDeletedEvent } from "../domain/nodes/node_deleted_event.ts";
+import { NodeFilterResult } from "../domain/nodes/node_repository.ts";
+import { AntboxError, ForbiddenError } from "../shared/antbox_error.ts";
 
 export class AntboxService {
   static SYSTEM_FOLDER_UUID = "--system--";
@@ -34,7 +43,8 @@ export class AntboxService {
     this.aspectService = new AspectService(this.nodeService);
     this.actionService = new ActionService(
       this.nodeService,
-      this.aspectService
+      this,
+      this.toSecureAspectService()
     );
 
     this.extService = new ExtService(this.nodeService);
@@ -42,11 +52,26 @@ export class AntboxService {
     this.start();
   }
 
+  private toSecureAspectService(): SecureAspectService {
+    return {
+      get: (authCtx: AuthContextProvider, uuid: string) =>
+        this.getAspect(authCtx, uuid),
+
+      list: (authCtx: AuthContextProvider) => this.listAspects(authCtx),
+
+      createOrReplace: (
+        authCtx: AuthContextProvider,
+        file: File,
+        metadata: Partial<Node>
+      ) => this.createFile(authCtx, file, metadata),
+    };
+  }
+
   createFile(
-    _authCtx: AuthContextProvider,
+    authCtx: AuthContextProvider,
     file: File,
     metadata: Partial<Node>
-  ) {
+  ): Promise<Either<AntboxError, Node>> {
     if (!this.started) {
       return Promise.resolve(left(new ServiceNotStartedError()));
     }
@@ -63,27 +88,51 @@ export class AntboxService {
       return this.extService.createOrReplace(file, metadata);
     }
 
-    return this.nodeService.createFile(file, metadata);
+    return this.nodeService.createFile(file, metadata).then((result) => {
+      if (result.isRight()) {
+        DomainEvents.notify(
+          new NodeCreatedEvent(authCtx.getPrincipal(), result.value)
+        );
+      }
+
+      return result;
+    });
   }
 
-  createMetanode(_authCtx: AuthContextProvider, metadata: Partial<Node>) {
+  createMetanode(
+    _authCtx: AuthContextProvider,
+    metadata: Partial<Node>
+  ): Promise<Either<AntboxError, Node>> {
     if (!this.started) {
       return Promise.resolve(left(new ServiceNotStartedError()));
     }
 
     if (AntboxService.isSystemFolder(metadata.parent!)) {
       return Promise.resolve(
-        left([new ValidationError("Cannot create metanode in system folder")])
+        left(
+          ValidationError.fromMsgs("Cannot create metanode in system folder")
+        )
       );
     }
 
-    return this.nodeService.createMetanode(metadata);
+    return this.nodeService.createMetanode(metadata).then((result) => {
+      if (result.isRight()) {
+        DomainEvents.notify(
+          new NodeCreatedEvent(_authCtx.getPrincipal(), result.value)
+        );
+      }
+
+      return result;
+    });
   }
 
-  createFolder(_authCtx: AuthContextProvider, metadata: Partial<Node>) {
+  async createFolder(
+    authCtx: AuthContextProvider,
+    metadata: Partial<Node>
+  ): Promise<Either<AntboxError, Node>> {
     if (AntboxService.isSystemFolder(metadata.parent!)) {
-      return Promise.resolve(
-        left([new ValidationError("Cannot create metanode in system folder")])
+      return left(
+        ValidationError.fromMsgs("Cannot create folders in system folder")
       );
     }
 
@@ -91,21 +140,109 @@ export class AntboxService {
       return Promise.resolve(left(new ServiceNotStartedError()));
     }
 
-    return this.nodeService.createFolder(metadata);
+    const voidOrErr = await this.assertUserCanWrite(authCtx, metadata.parent);
+    if (voidOrErr.isLeft()) {
+      return left(voidOrErr.value);
+    }
+
+    const result = await this.nodeService.createFolder(metadata);
+
+    if (result.isRight()) {
+      DomainEvents.notify(
+        new NodeCreatedEvent(authCtx.getPrincipal(), result.value)
+      );
+    }
+
+    return result;
   }
 
-  list(
+  async list(
     _authCtx: AuthContextProvider,
     uuid?: string
-  ): Promise<Either<ServiceNotStartedError | FolderNotFoundError, Node[]>> {
+  ): Promise<Either<AntboxError, Node[]>> {
+    const voidOrErr = await this.assertUserCanRead(_authCtx, uuid);
+    if (voidOrErr.isLeft()) {
+      return left(voidOrErr.value);
+    }
+
     if (!this.started) {
-      return Promise.resolve(left(new ServiceNotStartedError()));
+      return left(new ServiceNotStartedError());
     }
 
     return this.nodeService.list(uuid);
   }
 
-  get(
+  private assertUserCanRead(
+    authCtx: AuthContextProvider,
+    uuid = Node.ROOT_FOLDER_UUID
+  ): Promise<Either<AntboxError, void>> {
+    return this.assertPermission(authCtx, uuid, "Read");
+  }
+
+  private assertUserCanWrite(
+    authCtx: AuthContextProvider,
+    uuid = Node.ROOT_FOLDER_UUID
+  ): Promise<Either<AntboxError, void>> {
+    return this.assertPermission(authCtx, uuid, "Write");
+  }
+
+  private async assertPermission(
+    authCtx: AuthContextProvider,
+    uuid: string,
+    permission: Permission
+  ): Promise<Either<AntboxError, void>> {
+    const principal = authCtx.getPrincipal();
+
+    if (User.isAdmin(principal as User)) {
+      return right(undefined);
+    }
+
+    if (Node.isRootFolder(uuid) && permission === "Read") {
+      return right(undefined);
+    }
+
+    if (Node.isRootFolder(uuid) && !User.isAdmin(principal as User)) {
+      return left(new ForbiddenError());
+    }
+
+    const parentOrErr = await this.nodeService.get(uuid);
+
+    if (parentOrErr.isLeft()) {
+      return left(parentOrErr.value);
+    }
+
+    if (!parentOrErr.value.isFolder()) {
+      return left(new FolderNotFoundError(uuid));
+    }
+
+    const parent = parentOrErr.value;
+
+    if (parent.owner === authCtx.getPrincipal().email) {
+      return right(undefined);
+    }
+
+    if (parent.permissions.anonymous.includes(permission)) {
+      return right(undefined);
+    }
+
+    if (
+      principal.groups.includes(parent.group) &&
+      parent.permissions.group.includes(permission)
+    ) {
+      return right(undefined);
+    }
+
+    if (
+      principal.email !== User.ANONYMOUS_USER.email &&
+      parent.permissions.authenticated.includes(permission)
+    ) {
+      return right(undefined);
+    }
+
+    return left(new ForbiddenError());
+  }
+
+  async get(
     _authCtx: AuthContextProvider,
     uuid: string
   ): Promise<Either<ServiceNotStartedError | NodeNotFoundError, Node>> {
@@ -113,7 +250,21 @@ export class AntboxService {
       return Promise.resolve(left(new ServiceNotStartedError()));
     }
 
-    return this.nodeService.get(uuid);
+    const nodeOrErr = await this.nodeService.get(uuid);
+
+    if (nodeOrErr.isLeft()) {
+      return left(nodeOrErr.value);
+    }
+
+    const voidOrErr = await this.assertUserCanRead(
+      _authCtx,
+      nodeOrErr.value.parent
+    );
+    if (voidOrErr.isLeft()) {
+      return left(voidOrErr.value);
+    }
+
+    return nodeOrErr;
   }
 
   query(
@@ -121,13 +272,7 @@ export class AntboxService {
     filters: NodeFilter[],
     pageSize = 25,
     pageToken = 1
-  ) {
-    Promise<
-      Either<
-        SmartFolderNodeNotFoundError | AggregationFormulaError,
-        SmartFolderNodeEvaluation
-      >
-    >;
+  ): Promise<Either<AntboxError, NodeFilterResult>> {
     if (!this.started) {
       return Promise.resolve(left(new ServiceNotStartedError()));
     }
@@ -135,18 +280,31 @@ export class AntboxService {
     return this.nodeService.query(filters, pageSize, pageToken);
   }
 
-  update(_authCtx: AuthContextProvider, uuid: string, metadata: Partial<Node>) {
+  update(
+    authCtx: AuthContextProvider,
+    uuid: string,
+    metadata: Partial<Node>,
+    merge?: boolean
+  ): Promise<Either<AntboxError, void>> {
     if (!this.started) {
       return Promise.resolve(left(new ServiceNotStartedError()));
     }
 
     if (AntboxService.isSystemFolder(uuid)) {
       return Promise.resolve(
-        left([new ValidationError("Cannot update system folder")])
+        left(ValidationError.fromMsgs("Cannot update system folder"))
       );
     }
 
-    return this.nodeService.update(uuid, metadata);
+    return this.nodeService.update(uuid, metadata, merge).then((result) => {
+      if (result.isRight()) {
+        DomainEvents.notify(
+          new NodeUpdatedEvent(authCtx.getPrincipal(), uuid, metadata)
+        );
+      }
+
+      return result;
+    });
   }
 
   export(
@@ -160,40 +318,67 @@ export class AntboxService {
     return this.nodeService.export(uuid);
   }
 
-  copy(_authCtx: AuthContextProvider, uuid: string, parent: string) {
+  copy(
+    _authCtx: AuthContextProvider,
+    uuid: string,
+    parent: string
+  ): Promise<Either<AntboxError, Node>> {
     if (!this.started) {
       return Promise.resolve(left(new ServiceNotStartedError()));
     }
 
-    return this.nodeService.copy(uuid, parent);
+    return this.nodeService.copy(uuid, parent).then((result) => {
+      if (result.isRight()) {
+        DomainEvents.notify(
+          new NodeCreatedEvent(_authCtx.getPrincipal(), result.value)
+        );
+      }
+
+      return result;
+    });
   }
 
-  duplicate(_authCtx: AuthContextProvider, uuid: string) {
+  duplicate(
+    _authCtx: AuthContextProvider,
+    uuid: string
+  ): Promise<Either<AntboxError, Node>> {
     if (!this.started) {
       return Promise.resolve(left(new ServiceNotStartedError()));
     }
 
     if (AntboxService.isSystemFolder(uuid)) {
       return Promise.resolve(
-        left([new ValidationError("Cannot duplicate system folder")])
+        left(ValidationError.fromMsgs("Cannot duplicate system folder"))
       );
     }
 
     return this.nodeService.duplicate(uuid);
   }
 
-  updateFile(_authCtx: AuthContextProvider, uuid: string, file: File) {
+  updateFile(
+    _authCtx: AuthContextProvider,
+    uuid: string,
+    file: File
+  ): Promise<Either<AntboxError, void>> {
     if (!this.started) {
       return Promise.resolve(left(new ServiceNotStartedError()));
     }
 
     if (AntboxService.isSystemFolder(uuid)) {
       return Promise.resolve(
-        left([new ValidationError("Cannot update system folder")])
+        left(ValidationError.fromMsgs("Cannot update system folder"))
       );
     }
 
-    return this.nodeService.updateFile(uuid, file);
+    return this.nodeService.updateFile(uuid, file).then((result) => {
+      if (result.isRight()) {
+        DomainEvents.notify(
+          new NodeContentUpdatedEvent(_authCtx.getPrincipal(), uuid)
+        );
+      }
+
+      return result;
+    });
   }
 
   evaluate(
@@ -214,12 +399,23 @@ export class AntboxService {
     return this.nodeService.evaluate(uuid);
   }
 
-  delete(_authCtx: AuthContextProvider, uuid: string) {
+  delete(
+    _authCtx: AuthContextProvider,
+    uuid: string
+  ): Promise<Either<AntboxError, void>> {
     if (!this.started) {
       return Promise.resolve(left(new ServiceNotStartedError()));
     }
 
-    return this.nodeService.delete(uuid);
+    return this.nodeService.delete(uuid).then((result) => {
+      if (result.isRight()) {
+        DomainEvents.notify(
+          new NodeDeletedEvent(_authCtx.getPrincipal(), uuid)
+        );
+      }
+
+      return result;
+    });
   }
 
   getAction(_authCtx: AuthContextProvider, uuid: string) {
@@ -240,12 +436,7 @@ export class AntboxService {
       return Promise.resolve(left(new ServiceNotStartedError()));
     }
 
-    const principalOrErr = authCtx.getPrincipal();
-    if (principalOrErr.isLeft()) {
-      return Promise.resolve(left(principalOrErr.value));
-    }
-
-    return this.actionService.run(principalOrErr.value, uuid, uuids, params);
+    return this.actionService.run(authCtx.getPrincipal(), uuid, uuids, params);
   }
 
   listActions(
@@ -258,7 +449,10 @@ export class AntboxService {
     return this.actionService.list().then((nodes) => right(nodes));
   }
 
-  getAspect(_authCtx: AuthContextProvider, uuid: string) {
+  getAspect(
+    _authCtx: AuthContextProvider,
+    uuid: string
+  ): Promise<Either<AntboxError, Aspect>> {
     if (!this.started) {
       return Promise.resolve(left(new ServiceNotStartedError()));
     }
@@ -288,7 +482,14 @@ export class AntboxService {
     return this.extService.run(uuid, request);
   }
 
-  private processStartError(_err: Error | ValidationError[]) {}
+  private processStartError(err: Error | ValidationError[]) {
+    console.error(
+      "Error starting Antbox service",
+      JSON.stringify(err, null, 4)
+    );
+
+    Deno.exit(1);
+  }
 
   private async start() {
     if (await this.systemFolderExists()) {
@@ -302,46 +503,92 @@ export class AntboxService {
       return this.processStartError(voidOrErr.value);
     }
 
-    this.createAspectsFolder();
-    this.createActionsFolder();
-    this.createExtensionsFolder();
-    this.createAuthFolders();
+    this.createAspectsFolder()
+      .then((voidOrErr) => {
+        if (voidOrErr.isLeft()) {
+          return voidOrErr;
+        }
+        return this.createActionsFolder();
+      })
+      .then((voidOrErr) => {
+        if (voidOrErr.isLeft()) {
+          return voidOrErr;
+        }
+        return this.createExtensionsFolder();
+      })
+      .then((voidOrErr) => {
+        if (voidOrErr.isLeft()) {
+          return voidOrErr;
+        }
+        return this.createAuthFoldersAndRootObjects();
+      })
+      .then((voidOrErr) => {
+        if (voidOrErr.isLeft()) {
+          return this.processStartError(voidOrErr.value);
+        }
 
-    this.subscribeToDomainEvents();
-
-    this.started = true;
+        this.subscribeToDomainEvents();
+        this.started = true;
+      });
   }
 
   private subscribeToDomainEvents() {
-    // DomainEvents.subscribe(NodeCreatedEvent.EVENT_ID, {
-    //   handle: (evt) => this.runOnCreateScritps(evt as NodeCreatedEvent),
-    // });
-    // DomainEvents.subscribe(NodeUpdatedEvent.EVENT_ID, {
-    //   handle: (evt) => this.runOnUpdatedScritps(evt as NodeUpdatedEvent),
-    // });
-    // DomainEvents.subscribe(NodeCreatedEvent.EVENT_ID, {
-    //   handle: (evt) => this.runAutomaticActionsForCreates(evt as NodeCreatedEvent),
-    // });
-    // DomainEvents.subscribe(NodeUpdatedEvent.EVENT_ID, {
-    //   handle: (evt) => this.runAutomaticActionsForUpdates(evt as NodeUpdatedEvent),
-    // });
+    DomainEvents.subscribe(NodeCreatedEvent.EVENT_ID, {
+      handle: (evt) =>
+        this.actionService.runOnCreateScritps(evt as NodeCreatedEvent),
+    });
+    DomainEvents.subscribe(NodeUpdatedEvent.EVENT_ID, {
+      handle: (evt) =>
+        this.actionService.runOnUpdatedScritps(evt as NodeUpdatedEvent),
+    });
+    DomainEvents.subscribe(NodeCreatedEvent.EVENT_ID, {
+      handle: (evt) =>
+        this.actionService.runAutomaticActionsForCreates(
+          evt as NodeCreatedEvent
+        ),
+    });
+    DomainEvents.subscribe(NodeUpdatedEvent.EVENT_ID, {
+      handle: (evt) =>
+        this.actionService.runAutomaticActionsForUpdates(
+          evt as NodeUpdatedEvent
+        ),
+    });
   }
 
-  private createAuthFolders() {
-    return Promise.all([
-      this.nodeService.createFolder({
-        uuid: AuthService.USERS_FOLDER_UUID,
-        fid: AuthService.USERS_FOLDER_UUID,
-        title: "Users",
-        parent: AntboxService.SYSTEM_FOLDER_UUID,
-      }),
-      this.nodeService.createFolder({
-        uuid: AuthService.GROUPS_FOLDER_UUID,
-        fid: AuthService.GROUPS_FOLDER_UUID,
-        title: "Groups",
-        parent: AntboxService.SYSTEM_FOLDER_UUID,
-      }),
-    ]);
+  private async createAuthFoldersAndRootObjects() {
+    const folderOrErr = await this.createAuthFolders();
+    if (folderOrErr.isLeft()) {
+      return folderOrErr;
+    }
+
+    const userOrErr = await this.authService.createUser(User.ROOT_USER);
+    if (userOrErr.isLeft()) {
+      return userOrErr;
+    }
+
+    return this.authService.createGroup(Group.ADMIN_GROUP);
+  }
+
+  private async createAuthFolders() {
+    const usersOrErr = await this.nodeService.createFolder({
+      uuid: AuthService.USERS_FOLDER_UUID,
+      fid: AuthService.USERS_FOLDER_UUID,
+      title: "Users",
+      parent: AntboxService.SYSTEM_FOLDER_UUID,
+      group: Group.ADMIN_GROUP.uuid,
+    });
+
+    if (usersOrErr.isLeft()) {
+      return usersOrErr;
+    }
+
+    return this.nodeService.createFolder({
+      uuid: AuthService.GROUPS_FOLDER_UUID,
+      fid: AuthService.GROUPS_FOLDER_UUID,
+      title: "Groups",
+      parent: AntboxService.SYSTEM_FOLDER_UUID,
+      group: Group.ADMIN_GROUP.uuid,
+    });
   }
 
   private createExtensionsFolder() {
@@ -394,14 +641,13 @@ export class AntboxService {
     title: string,
     parent: string
   ) {
-    const systemUser = this.authService.getSystemUser();
-
     return {
       uuid,
       fid,
       title,
       parent,
-      owner: systemUser.username,
+      owner: User.ROOT_USER.email,
+      group: Group.ADMIN_GROUP.uuid,
     };
   }
 
@@ -422,8 +668,8 @@ export class AntboxService {
   }
 }
 
-export class ServiceNotStartedError extends Error {
+export class ServiceNotStartedError extends AntboxError {
   constructor() {
-    super("Service not started");
+    super("ServiceNotStartedError", "Service not started");
   }
 }

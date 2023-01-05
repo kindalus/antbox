@@ -18,7 +18,7 @@ export default {
     _params?: Record<string, unknown>
   ): Promise<void | Error> {
     await ctx.nodeService.update(
-      ctx.principal,
+      ctx.authContext,
       uuids[0],
       {
         properties: {

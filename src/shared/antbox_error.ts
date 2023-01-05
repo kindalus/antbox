@@ -5,8 +5,13 @@ export abstract class AntboxError extends Error {
 }
 
 export class ForbiddenError extends AntboxError {
+  static ERROR_CODE = "ForbiddenError";
+
   constructor() {
-    super("ForbiddenError", "You are not allowed to perform this action");
+    super(
+      ForbiddenError.ERROR_CODE,
+      "You are not allowed to perform this action"
+    );
   }
 }
 

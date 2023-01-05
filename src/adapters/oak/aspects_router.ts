@@ -9,14 +9,26 @@ export default function (service: AntboxService) {
   const getHandler = (ctx: ContextWithParams) => {
     return service
       .getAspect(getRequestContext(ctx), ctx.params.uuid)
-      .then((aspect) => sendOK(ctx, aspect))
+      .then((aspectOrErr) => {
+        if (aspectOrErr.isLeft()) {
+          return processError(aspectOrErr.value, ctx);
+        }
+
+        sendOK(ctx, aspectOrErr);
+      })
       .catch((err) => processError(err, ctx));
   };
 
   const listHandler = (ctx: Context) => {
     return service
       .listAspects(getRequestContext(ctx))
-      .then((list) => sendOK(ctx, list))
+      .then((listOrErr) => {
+        if (listOrErr.isLeft()) {
+          return processError(listOrErr.value, ctx);
+        }
+
+        sendOK(ctx, listOrErr.value);
+      })
       .catch((err) => processError(err, ctx));
   };
 

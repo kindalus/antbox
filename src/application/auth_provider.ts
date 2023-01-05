@@ -1,8 +1,7 @@
 import { UserPrincipal } from "/domain/auth/user_principal.ts";
-import { Either } from "/shared/either.ts";
 
 export interface AuthContextProvider {
-  getPrincipal(): Either<UnAuthenticatedError, UserPrincipal>;
+  getPrincipal(): UserPrincipal;
 }
 
 export class UnAuthenticatedError extends Error {

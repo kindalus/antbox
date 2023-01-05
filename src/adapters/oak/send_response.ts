@@ -17,6 +17,14 @@ export function sendBadRequest(ctx: Context, body?: ResponseBody) {
   sendResponse(ctx, Status.BadRequest, body);
 }
 
+export function sendForbidden(ctx: Context, body?: ResponseBody) {
+  sendResponse(ctx, Status.Forbidden, body);
+}
+
+export function sendUnauthorized(ctx: Context) {
+  sendResponse(ctx, Status.Unauthorized);
+}
+
 function sendResponse(ctx: Context, status: Status, body?: ResponseBody) {
   ctx.response.status = status;
   if (body) {

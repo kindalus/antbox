@@ -1,5 +1,7 @@
 import { AntboxService } from "../../application/antbox_service.ts";
 import { Node } from "../../domain/nodes/node.ts";
+import { AntboxError } from "../../shared/antbox_error.ts";
+import { Either } from "../../shared/either.ts";
 import { ContextWithParams } from "./context_with_params.ts";
 import { OakAuthRequestProvider } from "./oak_auth_request_provider.ts";
 import { processError } from "./process_error.ts";
@@ -77,19 +79,23 @@ export default function (service: AntboxService) {
     }: { type?: "Folder" | "Metanode"; metadata: Partial<Node> } =
       await ctx.request.body().value;
 
-    if (!metadata.title) {
+    if (!type) {
+      return Promise.resolve(sendBadRequest(ctx, "{ type } not given"));
+    }
+
+    if (!metadata?.title) {
       return Promise.resolve(sendBadRequest(ctx, "{ title } not given"));
     }
 
-    const _ctx = getRequestContext(ctx);
+    const authCtx = getRequestContext(ctx);
 
     const creator =
       type === "Metanode"
-        ? service.createMetanode(_ctx, metadata)
-        : service.createFolder(_ctx, metadata);
+        ? service.createMetanode(authCtx, metadata)
+        : service.createFolder(authCtx, metadata);
 
     return creator
-      .then((result) => sendOK(ctx, result))
+      .then((result) => processEither(ctx, result))
       .catch((err) => processError(err, ctx));
   };
 
@@ -98,14 +104,22 @@ export default function (service: AntboxService) {
 
     return service
       .update(getRequestContext(ctx), ctx.params.uuid, body)
-      .then(() => sendOK(ctx))
+      .then((result) => {
+        if (result.isLeft()) {
+          return processError(result.value, ctx);
+        }
+
+        sendOK(ctx);
+      })
       .catch((err) => processError(err, ctx));
   };
 
   const deleteHandler = (ctx: ContextWithParams) => {
     return service
       .delete(getRequestContext(ctx), ctx.params.uuid)
-      .then(() => sendOK(ctx))
+      .then(() => {
+        sendOK(ctx);
+      })
       .catch((err) => processError(err, ctx));
   };
 
@@ -127,13 +141,7 @@ export default function (service: AntboxService) {
   const duplicateHandler = (ctx: ContextWithParams) => {
     return service
       .duplicate(getRequestContext(ctx), ctx.params.uuid)
-      .then((result) => {
-        if (result.isLeft()) {
-          return processError(result.value, ctx);
-        }
-
-        sendOK(ctx);
-      })
+      .then((result) => processEither(ctx, result))
       .catch((err) => processError(err, ctx));
   };
 
@@ -142,20 +150,14 @@ export default function (service: AntboxService) {
 
     return service
       .query(getRequestContext(ctx), filters, pageSize, pageToken)
-      .then((result) => sendOK(ctx, result))
+      .then((result) => processEither(ctx, result, result.value))
       .catch((err) => processError(err, ctx));
   };
 
   const evaluateHandler = (ctx: ContextWithParams) => {
     return service
       .evaluate(getRequestContext(ctx), ctx.params.uuid)
-      .then((result) => {
-        if (result.isLeft()) {
-          return processError(result.value, ctx);
-        }
-
-        sendOK(ctx, result.value);
-      })
+      .then((result) => processEither(ctx, result, result.value))
       .catch((err) => processError(err, ctx));
   };
 
@@ -177,4 +179,16 @@ export default function (service: AntboxService) {
   nodesRouter.delete("/:uuid", deleteHandler);
 
   return nodesRouter;
+}
+
+function processEither<L extends AntboxError, R>(
+  ctx: Context,
+  either: Either<L, R>,
+  value?: unknown
+) {
+  if (either.isLeft()) {
+    return processError(either.value, ctx);
+  }
+
+  return sendOK(ctx, value as Record<string, unknown>);
 }

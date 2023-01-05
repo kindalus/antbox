@@ -2,8 +2,6 @@ import { ActionService } from "/application/action_service.ts";
 import { builtinAspects } from "./builtin_aspects/index.ts";
 import { AggregationFormulaError } from "/domain/nodes/aggregation_formula_error.ts";
 import { NodeFactory } from "/domain/nodes/node_factory.ts";
-import { NodeContentUpdatedEvent } from "/domain/nodes/node_content_updated_event.ts";
-import { DomainEvents } from "/application/domain_events.ts";
 import { NodeFilterResult } from "/domain/nodes/node_repository.ts";
 
 import { FileNode, FolderNode, Node } from "/domain/nodes/node.ts";
@@ -17,11 +15,8 @@ import { FolderNotFoundError } from "/domain/nodes/folder_not_found_error.ts";
 import { SmartFolderNodeNotFoundError } from "/domain/nodes/smart_folder_node_not_found_error.ts";
 import { NodeNotFoundError } from "/domain/nodes/node_not_found_error.ts";
 
-import { NodeCreatedEvent } from "/domain/nodes/node_created_event.ts";
-import { NodeDeletedEvent } from "/domain/nodes/node_deleted_event.ts";
 import { NodeFilter } from "/domain/nodes/node_filter.ts";
 import { Either, left, right } from "/shared/either.ts";
-import { NodeUpdatedEvent } from "/domain/nodes/node_updated_event.ts";
 import { NodeDeleter } from "/application/node_deleter.ts";
 import {
   AggregationResult,
@@ -34,6 +29,7 @@ import { builtinActions } from "./builtin_actions/index.ts";
 import { AspectService } from "./aspect_service.ts";
 import { Action } from "../domain/actions/action.ts";
 import { Aspect } from "../domain/aspects/aspect.ts";
+import { AntboxError } from "../shared/antbox_error.ts";
 
 export class NodeService {
   constructor(private readonly context: NodeServiceContext) {}
@@ -57,7 +53,7 @@ export class NodeService {
   async createFile(
     file: File,
     metadata: Partial<Node>
-  ): Promise<Either<FolderNotFoundError | ValidationError[], void>> {
+  ): Promise<Either<AntboxError, Node>> {
     metadata.title = metadata.title ?? file.name;
 
     const validOrErr = await this.verifyTitleAndParent(metadata);
@@ -76,7 +72,7 @@ export class NodeService {
 
     const validationErrors = await node.validate(() => Promise.resolve([]));
 
-    if (validationErrors.length > 0) {
+    if (validationErrors) {
       return left(validationErrors);
     }
 
@@ -86,16 +82,14 @@ export class NodeService {
 
     await this.context.repository.add(node);
 
-    DomainEvents.notify(new NodeCreatedEvent(node));
-
-    return right(undefined);
+    return right(node);
   }
 
   private async verifyTitleAndParent(
     metadata: Partial<Node>
-  ): Promise<Either<FolderNotFoundError | ValidationError[], void>> {
+  ): Promise<Either<AntboxError, void>> {
     if (!metadata.title) {
-      return left([new ValidationError("title")]);
+      return left(ValidationError.fromMsgs("title"));
     }
 
     const parent = metadata.parent ?? Node.ROOT_FOLDER_UUID;
@@ -139,8 +133,8 @@ export class NodeService {
   }
 
   async createFolder(
-    metadata: Partial<Node>
-  ): Promise<Either<FolderNotFoundError | ValidationError[], string>> {
+    metadata: Partial<FolderNode>
+  ): Promise<Either<AntboxError, FolderNode>> {
     const validOrErr = await this.verifyTitleAndParent(metadata);
     if (validOrErr.isLeft()) {
       return left(validOrErr.value);
@@ -154,40 +148,40 @@ export class NodeService {
 
     const validationErrors = await node.validate(() => Promise.resolve([]));
 
-    if (validationErrors.length > 0) {
+    if (validationErrors) {
       return left(validationErrors);
     }
 
     await this.context.repository.add(node);
 
-    DomainEvents.notify(new NodeCreatedEvent(node));
-
-    return right(node.uuid);
+    return right(node);
   }
 
   async createMetanode(
     metadata: Partial<Node>
-  ): Promise<Either<FolderNotFoundError | ValidationError[], string>> {
+  ): Promise<Either<AntboxError, Node>> {
     const validOrErr = await this.verifyTitleAndParent(metadata);
     if (validOrErr.isLeft()) {
       return left(validOrErr.value);
     }
 
-    const node = this.createFileMetadata(metadata, Node.META_NODE_MIMETYPE, 0);
+    const node = this.createFileMetadata(
+      metadata,
+      metadata.mimetype ?? Node.META_NODE_MIMETYPE,
+      0
+    );
 
     const validationErrors = await node.validate(() => Promise.resolve([]));
-    if (validationErrors.length > 0) {
+    if (validationErrors) {
       return left(validationErrors);
     }
 
     await this.context.repository.add(node);
 
-    DomainEvents.notify(new NodeCreatedEvent(node));
-
-    return right(node.uuid);
+    return right(node);
   }
 
-  async duplicate(uuid: string): Promise<Either<NodeNotFoundError, void>> {
+  async duplicate(uuid: string): Promise<Either<NodeNotFoundError, Node>> {
     const node = await this.get(uuid);
 
     if (node.isLeft()) {
@@ -200,7 +194,7 @@ export class NodeService {
   async copy(
     uuid: string,
     parent: string
-  ): Promise<Either<NodeNotFoundError, void>> {
+  ): Promise<Either<NodeNotFoundError, Node>> {
     const node = await this.get(uuid);
     const file = await this.context.storage.read(uuid);
 
@@ -217,9 +211,7 @@ export class NodeService {
     await this.context.storage.write(newNode.uuid, file);
     await this.context.repository.add(newNode);
 
-    DomainEvents.notify(new NodeCreatedEvent(newNode));
-
-    return right(undefined);
+    return right(newNode);
   }
 
   async updateFile(
@@ -240,8 +232,6 @@ export class NodeService {
 
     await this.context.repository.update(nodeOrErr.value);
 
-    DomainEvents.notify(new NodeContentUpdatedEvent(uuid));
-
     return right(undefined);
   }
 
@@ -253,7 +243,6 @@ export class NodeService {
     }
 
     await NodeDeleter.for(nodeOrError.value, this.context).delete();
-    DomainEvents.notify(new NodeDeletedEvent(uuid));
 
     return right(undefined);
   }
@@ -402,8 +391,10 @@ export class NodeService {
     filters: NodeFilter[],
     pageSize: number,
     pageToken: number
-  ): Promise<NodeFilterResult> {
-    return this.context.repository.filter(filters, pageSize, pageToken);
+  ): Promise<Either<AntboxError, NodeFilterResult>> {
+    return this.context.repository
+      .filter(filters, pageSize, pageToken)
+      .then((v) => right(v));
   }
 
   async update(
@@ -421,13 +412,7 @@ export class NodeService {
       ? this.merge(nodeOrErr.value, data)
       : Object.assign(nodeOrErr.value, data);
 
-    const voidOrErr = await this.context.repository.update(newNode);
-
-    if (voidOrErr.isRight()) {
-      DomainEvents.notify(new NodeUpdatedEvent(uuid, data));
-    }
-
-    return voidOrErr;
+    return this.context.repository.update(newNode);
   }
 
   private merge<T>(dst: T, src: Partial<T>): T {

@@ -1,4 +1,3 @@
-import { UserPrincipal } from "/domain/auth/user_principal.ts";
 import { AntboxError } from "/shared/antbox_error.ts";
 import { Either, left } from "/shared/either.ts";
 import { Email } from "/domain/auth/email.ts";
@@ -8,8 +7,7 @@ import { Group } from "/domain/auth/group.ts";
 import { GroupName } from "/domain/auth/group_name.ts";
 
 import { NodeService } from "./node_service.ts";
-import { ValidationError } from "../domain/nodes/validation_error.ts";
-import { FolderNotFoundError } from "../domain/nodes/folder_not_found_error.ts";
+import { Node } from "../domain/nodes/node.ts";
 
 export class AuthService {
   static USERS_FOLDER_UUID = "--users--";
@@ -17,9 +15,7 @@ export class AuthService {
 
   constructor(private readonly nodeService: NodeService) {}
 
-  createGroup(
-    group: Group
-  ): Promise<Either<AntboxError | ValidationError[], string>> {
+  createGroup(group: Group): Promise<Either<AntboxError, Node>> {
     const groupNameOrError = GroupName.make(group.title);
 
     if (groupNameOrError.isLeft()) {
@@ -28,15 +24,13 @@ export class AuthService {
 
     return this.nodeService.createMetanode({
       ...group,
+      uuid: group.uuid ?? this.nodeService.uuidGenerator.generate(),
       parent: AuthService.GROUPS_FOLDER_UUID,
+      mimetype: Node.GROUP_MIMETYPE,
     });
   }
 
-  createUser(
-    user: User
-  ): Promise<
-    Either<AntboxError | FolderNotFoundError | ValidationError[], string>
-  > {
+  createUser(user: User): Promise<Either<AntboxError, Node>> {
     const emailOrError = Email.make(user.email);
     if (emailOrError.isLeft()) {
       return Promise.resolve(left(emailOrError.value));
@@ -48,23 +42,15 @@ export class AuthService {
     }
 
     return this.nodeService.createMetanode({
+      uuid: user.uuid ?? this.nodeService.uuidGenerator.generate(),
       title: user.fullname,
       parent: AuthService.USERS_FOLDER_UUID,
+      mimetype: Node.USER_MIMETYPE,
       properties: {
-        "user:username": user.username,
         "user:email": user.email,
         "user:group": user.group,
         "user:groups": user.groups,
       },
     });
-  }
-
-  getSystemUser(): UserPrincipal {
-    return {
-      username: "system",
-      fullname: "System",
-      group: "--system--",
-      groups: [],
-    };
   }
 }

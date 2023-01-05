@@ -14,14 +14,25 @@ export default function (service: AntboxService) {
   const getHandler = (ctx: ContextWithParams) => {
     return service
       .getAction(getRequestContext(ctx), ctx.params.uuid)
-      .then((action) => sendOK(ctx, action))
+      .then((actionOrErr) => {
+        if (actionOrErr.isLeft()) {
+          return processError(actionOrErr.value, ctx);
+        }
+        sendOK(ctx, actionOrErr);
+      })
       .catch((err) => processError(err, ctx));
   };
 
   const listHandler = (ctx: Context) => {
     return service
       .listActions(getRequestContext(ctx))
-      .then((list) => sendOK(ctx, list))
+      .then((listOrErr) => {
+        if (listOrErr.isLeft()) {
+          return processError(listOrErr.value, ctx);
+        }
+
+        sendOK(ctx, listOrErr.value);
+      })
       .catch((err) => processError(err, ctx));
   };
 

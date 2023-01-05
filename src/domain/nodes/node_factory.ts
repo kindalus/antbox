@@ -1,5 +1,7 @@
 import { Node, FolderNode, FileNode } from "/domain/nodes/node.ts";
 import { SmartFolderNode } from "./smart_folder_node.ts";
+import { Group } from "../auth/group.ts";
+import { User } from "../auth/user.ts";
 export class NodeFactory {
   static fromMimetype(
     mimetype: string
@@ -75,13 +77,23 @@ export class NodeFactory {
     );
   }
 
-  static extractMetadataFields(metadata: Partial<Node>): Partial<Node> {
-    return {
+  static extractMetadataFields(
+    metadata: Partial<Node | FolderNode>
+  ): Partial<Node> {
+    const node = {
       parent: metadata.parent,
       title: metadata.title,
       aspects: metadata.aspects ?? [],
       description: metadata.description ?? "",
       properties: metadata.properties ?? {},
+      owner: metadata.owner ?? User.ROOT_USER.username,
     };
+
+    if ((metadata as FolderNode).group) {
+      (node as FolderNode).group =
+        (metadata as FolderNode).group ?? Group.ADMIN_GROUP.uuid;
+    }
+
+    return node;
   }
 }

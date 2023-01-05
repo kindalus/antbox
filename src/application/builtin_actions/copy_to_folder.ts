@@ -24,7 +24,7 @@ export default {
     }
 
     const batchCopy = uuids.map((u) =>
-      ctx.nodeService.copy(ctx.principal, u, parent)
+      ctx.nodeService.copy(ctx.authContext, u, parent)
     );
 
     return Promise.all(batchCopy).then(() => {});

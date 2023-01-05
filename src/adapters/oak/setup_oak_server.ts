@@ -9,11 +9,18 @@ import actionsRouter from "./actions_router.ts";
 import webContentsRouter from "./web_contents_router.ts";
 import extRouter from "./ext_router.ts";
 import { AntboxService } from "../../application/antbox_service.ts";
+import loginRouter from "./login_router.ts";
+import { authMiddleware } from "./auth_middleware.ts";
 
-export function setupOakServer(service: AntboxService) {
+export function setupOakServer(
+  service: AntboxService,
+  symmetricKey: string,
+  rootPasswd: string
+) {
   const app = new Application();
 
   app.use(oakCors());
+  app.use(authMiddleware([], symmetricKey));
 
   const nodes = nodesRouter(service);
   const upload = uploadRouter(service);
@@ -21,6 +28,7 @@ export function setupOakServer(service: AntboxService) {
   const webContent = webContentsRouter(service);
   const ext = extRouter(service);
   const aspects = aspectsRouter(service);
+  const login = loginRouter(symmetricKey, rootPasswd);
 
   app.use(nodes.routes());
   app.use(webContent.routes());
@@ -28,6 +36,7 @@ export function setupOakServer(service: AntboxService) {
   app.use(actions.routes());
   app.use(upload.routes());
   app.use(ext.routes());
+  app.use(login.routes());
 
   app.use(nodes.allowedMethods());
   app.use(webContent.allowedMethods());

@@ -7,8 +7,10 @@ export class Node {
   static FOLDER_MIMETYPE = "application/vnd.antbox.folder";
   static META_NODE_MIMETYPE = "application/vnd.antbox.metanode";
   static SMART_FOLDER_MIMETYPE = "application/vnd.antbox.smartfolder";
-  static ROOT_FOLDER_UUID = "--root--";
+  static USER_MIMETYPE = "application/vnd.antbox.user";
+  static GROUP_MIMETYPE = "application/vnd.antbox.group";
 
+  static ROOT_FOLDER_UUID = "--root--";
   private static FID_PREFIX = "fid--";
 
   static fidToUuid(fid: string): string {
@@ -77,8 +79,8 @@ export class Node {
 
   validate(
     _uuidsGetter: (aspectUuid: string) => Promise<string[]>
-  ): Promise<ValidationError[]> {
-    return Promise.resolve([]);
+  ): Promise<ValidationError> {
+    return Promise.resolve(null as unknown as ValidationError);
   }
 
   static isJavascript(file: File) {
@@ -88,23 +90,23 @@ export class Node {
   }
 }
 
-export type Permission = [Read: boolean, Write: boolean, Export: boolean];
+export type Permission = "Read" | "Write" | "Export";
 
-export type Permissions = [
-  group: Permission,
-  authenticated: Permission,
-  anonymous: Permission
-];
+export type Permissions = {
+  group: Permission[];
+  authenticated: Permission[];
+  anonymous: Permission[];
+};
 
 export class FolderNode extends Node {
   onCreate: string[] = [];
   onUpdate: string[] = [];
   group: string = null as unknown as string;
-  permissions: Permissions = [
-    [true, true, true],
-    [true, false, true],
-    [false, false, false],
-  ];
+  permissions: Permissions = {
+    group: ["Read", "Write", "Export"],
+    authenticated: ["Read", "Export"],
+    anonymous: [],
+  };
 }
 
 export class FileNode extends Node {

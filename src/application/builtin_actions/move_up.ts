@@ -1,9 +1,9 @@
-import { NodeService } from "/application/node_service.ts";
 import { Node } from "../../domain/nodes/node.ts";
 import { NodeNotFoundError } from "../../domain/nodes/node_not_found_error.ts";
-import { RunContext } from "/domain/actions/action.ts";
-import { UserPrincipal } from "../../domain/auth/user_principal.ts";
+import { RunContext, SecureNodeService } from "/domain/actions/action.ts";
 import { Either, left, right } from "../../shared/either.ts";
+import { AuthContextProvider } from "../auth_provider.ts";
+import { AntboxError } from "../../shared/antbox_error.ts";
 
 export default {
   uuid: "move_up",
@@ -24,7 +24,7 @@ export default {
   ): Promise<void | Error> {
     const newParentOrErr = await getNewParent(
       ctx.nodeService,
-      ctx.principal,
+      ctx.authContext,
       uuids[0]
     );
 
@@ -34,7 +34,7 @@ export default {
 
     const toUpdateTask = updateTaskPredicate(
       ctx.nodeService,
-      ctx.principal,
+      ctx.authContext,
       newParentOrErr.value
     );
 
@@ -45,7 +45,7 @@ export default {
     const errors = results.filter(errorResultsOnly);
 
     if (errors.length > 0) {
-      return errors[0].value;
+      return errors[0].value as AntboxError;
     }
 
     return;
@@ -53,24 +53,23 @@ export default {
 };
 
 function updateTaskPredicate(
-  nodeService: NodeService,
-  principal: UserPrincipal,
+  nodeService: SecureNodeService,
+  authCtx: AuthContextProvider,
   parent: string
 ) {
-  return (uuid: string) =>
-    nodeService.update(principal, uuid, { parent }, true);
+  return (uuid: string) => nodeService.update(authCtx, uuid, { parent }, true);
 }
 
-function errorResultsOnly(voidOrErr: Either<NodeNotFoundError, void>): boolean {
+function errorResultsOnly(voidOrErr: Either<AntboxError, unknown>): boolean {
   return voidOrErr.isLeft();
 }
 
 async function getNewParent(
-  nodeService: NodeService,
-  principal: UserPrincipal,
+  nodeService: SecureNodeService,
+  authCtx: AuthContextProvider,
   uuid: string
 ): Promise<Either<NodeNotFoundError, string>> {
-  const nodeOrErr = await nodeService.get(principal, uuid);
+  const nodeOrErr = await nodeService.get(authCtx, uuid);
 
   if (nodeOrErr.isLeft()) {
     return left(nodeOrErr.value);
@@ -81,7 +80,7 @@ async function getNewParent(
   }
 
   const firstParentOrErr = await nodeService.get(
-    principal,
+    authCtx,
     nodeOrErr.value.parent
   );
 

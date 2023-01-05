@@ -1,9 +1,12 @@
-import { UserPrincipal } from "../../domain/auth/user_principal.ts";
-
 import { NodeNotFoundError } from "../../domain/nodes/node_not_found_error.ts";
+import { AntboxError } from "../../shared/antbox_error.ts";
 import { Either } from "../../shared/either.ts";
-import { NodeService } from "../node_service.ts";
-import { Action, RunContext } from "/domain/actions/action.ts";
+import { AuthContextProvider } from "../auth_provider.ts";
+import {
+  Action,
+  RunContext,
+  SecureNodeService,
+} from "/domain/actions/action.ts";
 
 export default {
   uuid: "move_to_folder",
@@ -30,7 +33,7 @@ export default {
 
     const toUpdateTask = updateTaskPredicate(
       ctx.nodeService,
-      ctx.principal,
+      ctx.authContext,
       parent
     );
 
@@ -41,7 +44,7 @@ export default {
     const errors = results.filter(errorResultsOnly);
 
     if (errors.length > 0) {
-      return errors[0].value;
+      return errors[0].value as AntboxError;
     }
 
     return;
@@ -49,14 +52,15 @@ export default {
 } as Action;
 
 function updateTaskPredicate(
-  nodeService: NodeService,
-  principal: UserPrincipal,
+  nodeService: SecureNodeService,
+  authContext: AuthContextProvider,
   parent: string
 ) {
-  return (uuid: string) =>
-    nodeService.update(principal, uuid, { parent }, true);
+  return (uuid: string) => nodeService.update(authContext, uuid, { parent });
 }
 
-function errorResultsOnly(voidOrErr: Either<NodeNotFoundError, void>): boolean {
+function errorResultsOnly(
+  voidOrErr: Either<NodeNotFoundError, unknown>
+): boolean {
   return voidOrErr.isLeft();
 }

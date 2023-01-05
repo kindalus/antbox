@@ -13,6 +13,9 @@ import { setupOakServer } from "./src/adapters/oak/setup_oak_server.ts";
 import { AntboxService } from "./src/application/antbox_service.ts";
 import { NodeServiceContext } from "./src/application/node_service_context.ts";
 
+const SYMMETRIC_KEY = "ui2tPcQZvN+IxXsEW6KQOOFROS6zXB1pZdotBR3Ot8o=";
+const ROOT_PASSWD = "antboxroot";
+
 const program = await new Command()
   .name("antbox-sand")
   .version(VERSION)
@@ -46,7 +49,7 @@ function main(program: IParseResult) {
   const nodeCtx = makeNodeServiceContext(baseDir);
   const service = new AntboxService(nodeCtx);
 
-  const startServer = setupOakServer(service);
+  const startServer = setupOakServer(service, SYMMETRIC_KEY, ROOT_PASSWD);
 
   startServer({ port: parseInt(port) }).then(() => {
     console.log("Antbox Server started successfully on port ::" + port);

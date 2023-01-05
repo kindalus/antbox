@@ -4,9 +4,9 @@ import { Node } from "/domain/nodes/node.ts";
 
 import { NodeService } from "./node_service.ts";
 import { Either } from "../shared/either.ts";
-import { FolderNotFoundError } from "../domain/nodes/folder_not_found_error.ts";
 import { ValidationError } from "../domain/nodes/validation_error.ts";
 import { NodeFactory } from "../domain/nodes/node_factory.ts";
+import { AntboxError } from "../shared/antbox_error.ts";
 
 export type ExtFn = (
   request: Request,
@@ -25,22 +25,24 @@ export class ExtService {
   async createOrReplace(
     file: File,
     metadata: Partial<Node>
-  ): Promise<Either<FolderNotFoundError | ValidationError[], void>> {
+  ): Promise<Either<AntboxError, Node>> {
     if (!ExtService.isExtensionsFolder(metadata.parent!)) {
-      return left([
-        new ValidationError(
+      return left(
+        ValidationError.fromMsgs(
           "Extension must be created in the extensions folder"
-        ),
-      ]);
+        )
+      );
     }
 
     if (!Node.isJavascript(file)) {
-      return left([new ValidationError("File must be a javascript file")]);
+      return left(ValidationError.fromMsgs("File must be a javascript file"));
     }
 
+    const uuid = file.name?.split(".")[0] ?? metadata.uuid;
+
     const fileNode = NodeFactory.createFileMetadata(
-      this.nodeService.uuidGenerator,
-      this.nodeService.fidGenerator,
+      uuid,
+      uuid,
       {
         title: file.name?.split(".")[0] ?? metadata.uuid,
         parent: ExtService.EXT_FOLDER_UUID,
@@ -49,13 +51,10 @@ export class ExtService {
       file.size
     );
 
-    fileNode.uuid = file.name?.split(".")[0] ?? metadata.uuid;
-    fileNode.fid = fileNode.uuid;
-
     await this.nodeService.storage.write(fileNode.uuid, file);
     await this.nodeService.repository.add(fileNode);
 
-    return right(undefined);
+    return right(fileNode);
   }
 
   private async get(uuid: string): Promise<Either<NodeNotFoundError, ExtFn>> {

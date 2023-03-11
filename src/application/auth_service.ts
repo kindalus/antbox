@@ -12,6 +12,7 @@ import { Node } from "../domain/nodes/node.ts";
 export class AuthService {
   static USERS_FOLDER_UUID = "--users--";
   static GROUPS_FOLDER_UUID = "--groups--";
+  static ACCESS_TOKENS_FOLDER_UUID = "--access-tokens--";
 
   constructor(private readonly nodeService: NodeService) {}
 
@@ -26,7 +27,7 @@ export class AuthService {
       ...group,
       uuid: group.uuid ?? this.nodeService.uuidGenerator.generate(),
       parent: AuthService.GROUPS_FOLDER_UUID,
-      mimetype: Node.GROUP_MIMETYPE,
+      aspects: ["group"],
     });
   }
 
@@ -45,7 +46,7 @@ export class AuthService {
       uuid: user.uuid ?? this.nodeService.uuidGenerator.generate(),
       title: user.fullname,
       parent: AuthService.USERS_FOLDER_UUID,
-      mimetype: Node.USER_MIMETYPE,
+      aspects: ["user"],
       properties: {
         "user:email": user.email,
         "user:group": user.group,

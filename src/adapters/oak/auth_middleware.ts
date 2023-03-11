@@ -50,7 +50,7 @@ async function verifyRootToken(
     type: "Symmetric",
   } as AuthKey);
   try {
-    jose.jwtVerify(token, key);
+    await jose.jwtVerify(token, key);
   } catch (_e) {
     return false;
   }

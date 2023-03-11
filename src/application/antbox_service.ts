@@ -1,5 +1,4 @@
-import { FolderNotFoundError } from "../domain/nodes/folder_not_found_error.ts";
-import { Node, Permission } from "/domain/nodes/node.ts";
+import { FolderNode, Node, Permission } from "/domain/nodes/node.ts";
 import { NodeFilter } from "/domain/nodes/node_filter.ts";
 import { Either, left, right } from "/shared/either.ts";
 import { ActionService } from "./action_service.ts";
@@ -28,6 +27,7 @@ import { AntboxError, ForbiddenError } from "../shared/antbox_error.ts";
 
 export class AntboxService {
   static SYSTEM_FOLDER_UUID = "--system--";
+  static TEMPLATES_FOLDER_UUID = "--templates--";
 
   private readonly nodeService: NodeService;
   private readonly authService: AuthService;
@@ -140,12 +140,24 @@ export class AntboxService {
       return Promise.resolve(left(new ServiceNotStartedError()));
     }
 
-    const voidOrErr = await this.assertUserCanWrite(authCtx, metadata.parent);
+    const parentOrErr = await this.getParent(metadata.parent);
+    if (parentOrErr.isLeft()) {
+      return left(parentOrErr.value);
+    }
+
+    const voidOrErr = await this.assertUserCanWrite(authCtx, parentOrErr.value);
     if (voidOrErr.isLeft()) {
       return left(voidOrErr.value);
     }
 
-    const result = await this.nodeService.createFolder(metadata);
+    const result = await this.nodeService.createFolder({
+      ...metadata,
+      owner: authCtx.getPrincipal().email,
+      group: authCtx.getPrincipal().group,
+      permissions: {
+        ...parentOrErr.value.permissions,
+      },
+    });
 
     if (result.isRight()) {
       DomainEvents.notify(
@@ -157,10 +169,15 @@ export class AntboxService {
   }
 
   async list(
-    _authCtx: AuthContextProvider,
-    uuid?: string
+    authCtx: AuthContextProvider,
+    uuid = Node.ROOT_FOLDER_UUID
   ): Promise<Either<AntboxError, Node[]>> {
-    const voidOrErr = await this.assertUserCanRead(_authCtx, uuid);
+    const parentOrErr = await this.getParent(uuid);
+    if (parentOrErr.isLeft()) {
+      return left(parentOrErr.value);
+    }
+
+    const voidOrErr = await this.assertUserCanRead(authCtx, parentOrErr.value);
     if (voidOrErr.isLeft()) {
       return left(voidOrErr.value);
     }
@@ -172,50 +189,55 @@ export class AntboxService {
     return this.nodeService.list(uuid);
   }
 
+  private async getParent(
+    uuid = Node.ROOT_FOLDER_UUID
+  ): Promise<Either<AntboxError, FolderNode>> {
+    const parentOrErr = await this.nodeService.get(uuid);
+    if (parentOrErr.isLeft()) {
+      return left(parentOrErr.value);
+    }
+
+    if (!parentOrErr.value.isFolder()) {
+      return left(
+        ValidationError.fromMsgs("Cannot list children of non-folder node")
+      );
+    }
+
+    return right(parentOrErr.value);
+  }
+
   private assertUserCanRead(
     authCtx: AuthContextProvider,
-    uuid = Node.ROOT_FOLDER_UUID
-  ): Promise<Either<AntboxError, void>> {
-    return this.assertPermission(authCtx, uuid, "Read");
+    parent: FolderNode
+  ): Either<AntboxError, void> {
+    return this.assertPermission(authCtx, parent, "Read");
   }
 
   private assertUserCanWrite(
     authCtx: AuthContextProvider,
-    uuid = Node.ROOT_FOLDER_UUID
-  ): Promise<Either<AntboxError, void>> {
-    return this.assertPermission(authCtx, uuid, "Write");
+    parent: FolderNode
+  ): Either<AntboxError, void> {
+    return this.assertPermission(authCtx, parent, "Write");
   }
 
-  private async assertPermission(
+  private assertPermission(
     authCtx: AuthContextProvider,
-    uuid: string,
+    parent: FolderNode,
     permission: Permission
-  ): Promise<Either<AntboxError, void>> {
+  ): Either<AntboxError, void> {
     const principal = authCtx.getPrincipal();
 
     if (User.isAdmin(principal as User)) {
       return right(undefined);
     }
 
-    if (Node.isRootFolder(uuid) && permission === "Read") {
+    if (parent.isRootFolder() && permission === "Read") {
       return right(undefined);
     }
 
-    if (Node.isRootFolder(uuid) && !User.isAdmin(principal as User)) {
+    if (parent.isRootFolder() && !User.isAdmin(principal as User)) {
       return left(new ForbiddenError());
     }
-
-    const parentOrErr = await this.nodeService.get(uuid);
-
-    if (parentOrErr.isLeft()) {
-      return left(parentOrErr.value);
-    }
-
-    if (!parentOrErr.value.isFolder()) {
-      return left(new FolderNotFoundError(uuid));
-    }
-
-    const parent = parentOrErr.value;
 
     if (parent.owner === authCtx.getPrincipal().email) {
       return right(undefined);
@@ -256,10 +278,12 @@ export class AntboxService {
       return left(nodeOrErr.value);
     }
 
-    const voidOrErr = await this.assertUserCanRead(
-      _authCtx,
-      nodeOrErr.value.parent
-    );
+    const parentOrErr = await this.getParent(uuid);
+    if (parentOrErr.isLeft()) {
+      return left(parentOrErr.value);
+    }
+
+    const voidOrErr = await this.assertUserCanRead(_authCtx, parentOrErr.value);
     if (voidOrErr.isLeft()) {
       return left(voidOrErr.value);
     }
@@ -497,39 +521,32 @@ export class AntboxService {
       return;
     }
 
-    const voidOrErr = await this.createSystemFolder();
-
-    if (voidOrErr.isLeft()) {
-      return this.processStartError(voidOrErr.value);
-    }
-
-    this.createAspectsFolder()
-      .then((voidOrErr) => {
-        if (voidOrErr.isLeft()) {
-          return voidOrErr;
-        }
-        return this.createActionsFolder();
-      })
-      .then((voidOrErr) => {
-        if (voidOrErr.isLeft()) {
-          return voidOrErr;
-        }
-        return this.createExtensionsFolder();
-      })
-      .then((voidOrErr) => {
-        if (voidOrErr.isLeft()) {
-          return voidOrErr;
-        }
-        return this.createAuthFoldersAndRootObjects();
-      })
-      .then((voidOrErr) => {
-        if (voidOrErr.isLeft()) {
-          return this.processStartError(voidOrErr.value);
+    return this.createSystemFolder()
+      .then(this.executeOrErr(() => this.createAspectsFolder()))
+      .then(this.executeOrErr(() => this.createActionsFolder()))
+      .then(this.executeOrErr(() => this.createExtensionsFolder()))
+      .then(this.executeOrErr(() => this.createTemplatesFolder()))
+      .then(this.executeOrErr(() => this.createAuthFoldersAndRootObjects()))
+      .then(this.executeOrErr(() => this.createAccessTokensFolder()))
+      .then((UnknownOrErr) => {
+        if (UnknownOrErr.isLeft()) {
+          return this.processStartError(UnknownOrErr.value);
         }
 
         this.subscribeToDomainEvents();
         this.started = true;
       });
+  }
+
+  private executeOrErr<T>(
+    fn: () => Promise<Either<AntboxError, T>>
+  ): <U>(r: Either<AntboxError, U>) => Promise<Either<AntboxError, T | U>> {
+    return (r) => {
+      if (r.isLeft()) {
+        return Promise.resolve(r);
+      }
+      return fn();
+    };
   }
 
   private subscribeToDomainEvents() {
@@ -589,6 +606,28 @@ export class AntboxService {
       parent: AntboxService.SYSTEM_FOLDER_UUID,
       group: Group.ADMIN_GROUP.uuid,
     });
+  }
+
+  private createAccessTokensFolder() {
+    return this.nodeService.createFolder(
+      this.createSystemFolderMetadata(
+        AuthService.ACCESS_TOKENS_FOLDER_UUID,
+        AuthService.ACCESS_TOKENS_FOLDER_UUID,
+        "Access Tokens",
+        AntboxService.SYSTEM_FOLDER_UUID
+      )
+    );
+  }
+
+  private createTemplatesFolder() {
+    return this.nodeService.createFolder(
+      this.createSystemFolderMetadata(
+        AntboxService.TEMPLATES_FOLDER_UUID,
+        AntboxService.TEMPLATES_FOLDER_UUID,
+        "Templates",
+        AntboxService.SYSTEM_FOLDER_UUID
+      )
+    );
   }
 
   private createExtensionsFolder() {

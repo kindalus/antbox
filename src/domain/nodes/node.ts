@@ -7,8 +7,6 @@ export class Node {
   static FOLDER_MIMETYPE = "application/vnd.antbox.folder";
   static META_NODE_MIMETYPE = "application/vnd.antbox.metanode";
   static SMART_FOLDER_MIMETYPE = "application/vnd.antbox.smartfolder";
-  static USER_MIMETYPE = "application/vnd.antbox.user";
-  static GROUP_MIMETYPE = "application/vnd.antbox.group";
 
   static ROOT_FOLDER_UUID = "--root--";
   private static FID_PREFIX = "fid--";
@@ -31,14 +29,6 @@ export class Node {
     return uuid === Node.ROOT_FOLDER_UUID;
   }
 
-  static rootFolder(): FolderNode {
-    const root = new FolderNode();
-    root.uuid = Node.ROOT_FOLDER_UUID;
-    root.fid = Node.ROOT_FOLDER_UUID;
-    root.title = "";
-    return root;
-  }
-
   uuid = "";
   fid = "";
   title = "";
@@ -54,7 +44,6 @@ export class Node {
 
   constructor() {
     this.createdTime = this.modifiedTime = new Date().toISOString();
-    this.mimetype = Node.SMART_FOLDER_MIMETYPE;
   }
 
   isJson(): boolean {
@@ -75,6 +64,10 @@ export class Node {
 
   isFile(): boolean {
     return !this.isFolder() && !this.isSmartFolder() && !this.isMetaNode();
+  }
+
+  isRootFolder(): boolean {
+    return Node.isRootFolder(this.uuid);
   }
 
   validate(
@@ -99,6 +92,16 @@ export type Permissions = {
 };
 
 export class FolderNode extends Node {
+  static ROOT_FOLDER = FolderNode.buildRootFolder();
+
+  private static buildRootFolder(): FolderNode {
+    const root = new FolderNode();
+    root.uuid = Node.ROOT_FOLDER_UUID;
+    root.fid = Node.ROOT_FOLDER_UUID;
+    root.title = "";
+    return root;
+  }
+
   onCreate: string[] = [];
   onUpdate: string[] = [];
   group: string = null as unknown as string;
@@ -107,9 +110,18 @@ export class FolderNode extends Node {
     authenticated: ["Read", "Export"],
     anonymous: [],
   };
+
+  constructor() {
+    super();
+    this.mimetype = Node.FOLDER_MIMETYPE;
+  }
 }
 
 export class FileNode extends Node {
   // Versões têm o formato aaaa-MM-ddTHH:mm:ss
   versions: string[] = [];
+
+  constructor() {
+    super();
+  }
 }

@@ -248,6 +248,10 @@ export class NodeService {
   }
 
   async get(uuid: string): Promise<Either<NodeNotFoundError, Node>> {
+    if (Node.isRootFolder(uuid)) {
+      return right(FolderNode.ROOT_FOLDER);
+    }
+
     const builtinActionOrErr = await this.getBuiltinAction(uuid);
     if (builtinActionOrErr.isRight()) {
       return right(builtinActionOrErr.value);
@@ -375,7 +379,7 @@ export class NodeService {
 
   getFolderIfExistsInRepo(uuid: string): Promise<Either<void, FolderNode>> {
     if (Node.isRootFolder(uuid)) {
-      return Promise.resolve(right(Node.rootFolder()));
+      return Promise.resolve(right(FolderNode.ROOT_FOLDER));
     }
 
     return this.get(uuid).then((result) => {

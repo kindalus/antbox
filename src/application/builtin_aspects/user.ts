@@ -1,3 +1,4 @@
+import { AuthService } from "../auth_service.ts";
 import { Aspect } from "/domain/aspects/aspect.ts";
 
 export const UserAspect = {
@@ -5,7 +6,10 @@ export const UserAspect = {
   title: "Utilizador",
   builtIn: true,
   description: "Representa um utilizador",
-  filters: [["mimetype", "==", "application/vnd.antbox.metanode"]],
+  filters: [
+    ["mimetype", "==", "application/vnd.antbox.metanode"],
+    ["parent", "==", [AuthService.USERS_FOLDER_UUID]],
+  ],
   properties: [
     {
       name: "email",

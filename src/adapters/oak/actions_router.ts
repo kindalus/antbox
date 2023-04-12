@@ -4,11 +4,7 @@ import { getQuery } from "https://deno.land/x/oak@v11.1.0/helpers.ts";
 import { sendBadRequest, sendOK } from "./send_response.ts";
 import { ContextWithParams } from "./context_with_params.ts";
 import { AntboxService } from "../../application/antbox_service.ts";
-import { OakAuthRequestProvider } from "./oak_auth_request_provider.ts";
-
-function getRequestContext(ctx: Context) {
-  return new OakAuthRequestProvider(ctx);
-}
+import { getRequestContext } from "./get_request_context.ts";
 
 export default function (service: AntboxService) {
   const getHandler = (ctx: ContextWithParams) => {

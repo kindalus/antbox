@@ -278,7 +278,7 @@ export class AntboxService {
       return left(nodeOrErr.value);
     }
 
-    const parentOrErr = await this.getParent(uuid);
+    const parentOrErr = await this.getParent(nodeOrErr.value.parent);
     if (parentOrErr.isLeft()) {
       return left(parentOrErr.value);
     }

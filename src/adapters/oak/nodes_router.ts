@@ -3,15 +3,11 @@ import { Node } from "../../domain/nodes/node.ts";
 import { AntboxError } from "../../shared/antbox_error.ts";
 import { Either } from "../../shared/either.ts";
 import { ContextWithParams } from "./context_with_params.ts";
-import { OakAuthRequestProvider } from "./oak_auth_request_provider.ts";
+import { getRequestContext } from "./get_request_context.ts";
 import { processError } from "./process_error.ts";
 import { sendOK, sendBadRequest } from "./send_response.ts";
 import { Context, Router, Status } from "/deps/oak";
 import { getQuery } from "/deps/oak/helpers";
-
-function getRequestContext(ctx: Context) {
-  return new OakAuthRequestProvider(ctx);
-}
 
 export default function (service: AntboxService) {
   const listHandler = (ctx: Context) => {

@@ -1,13 +1,14 @@
 import { AntboxError } from "/shared/antbox_error.ts";
 import { Either, left } from "/shared/either.ts";
-import { Email } from "/domain/auth/email.ts";
-import { Fullname } from "/domain/auth/fullname.ts";
 import { User } from "/domain/auth/user.ts";
 import { Group } from "/domain/auth/group.ts";
-import { GroupName } from "/domain/auth/group_name.ts";
 
 import { NodeService } from "./node_service.ts";
 import { Node } from "../domain/nodes/node.ts";
+import { InvalidGroupNameFormatError } from "../domain/auth/invalid_group_name_format_error.ts";
+import { DomainEvents } from "./domain_events.ts";
+import { UserCreatedEvent } from "../domain/auth/user_created_event.ts";
+import { GroupCreatedEvent } from "../domain/auth/group_created_event.ts";
 
 export class AuthService {
   static USERS_FOLDER_UUID = "--users--";
@@ -16,33 +17,52 @@ export class AuthService {
 
   constructor(private readonly nodeService: NodeService) {}
 
-  createGroup(group: Group): Promise<Either<AntboxError, Node>> {
-    const groupNameOrError = GroupName.make(group.title);
-
-    if (groupNameOrError.isLeft()) {
-      return Promise.resolve(left(groupNameOrError.value));
+  async createGroup(group: Partial<Group>): Promise<Either<AntboxError, Node>> {
+    if (!group.title || group.title.length === 0) {
+      return Promise.resolve(
+        left(new InvalidGroupNameFormatError("undefined"))
+      );
     }
 
-    return this.nodeService.createMetanode({
+    const nodeOrErr = await this.nodeService.createMetanode({
       ...group,
       uuid: group.uuid ?? this.nodeService.uuidGenerator.generate(),
       parent: AuthService.GROUPS_FOLDER_UUID,
       aspects: ["group"],
     });
+
+    if (nodeOrErr.isRight()) {
+      const evt = new GroupCreatedEvent(
+        nodeOrErr.value.owner,
+        nodeOrErr.value.uuid,
+        nodeOrErr.value.title
+      );
+
+      DomainEvents.notify(evt);
+    }
+
+    return nodeOrErr;
   }
 
-  createUser(user: User): Promise<Either<AntboxError, Node>> {
-    const emailOrError = Email.make(user.email);
-    if (emailOrError.isLeft()) {
-      return Promise.resolve(left(emailOrError.value));
+  async createUser(user: User): Promise<Either<AntboxError, Node>> {
+    const node = this.#userToMetanode(user);
+    const nodeOrErr = await this.nodeService.createMetanode(node);
+
+    if (nodeOrErr.isRight()) {
+      const evt = new UserCreatedEvent(
+        nodeOrErr.value.owner,
+        user.email,
+        user.fullname
+      );
+
+      DomainEvents.notify(evt);
     }
 
-    const fullnameOrError = Fullname.make(user.fullname);
-    if (fullnameOrError.isLeft()) {
-      return Promise.resolve(left(fullnameOrError.value));
-    }
+    return nodeOrErr;
+  }
 
-    return this.nodeService.createMetanode({
+  #userToMetanode(user: User): Partial<Node> {
+    return {
       uuid: user.uuid ?? this.nodeService.uuidGenerator.generate(),
       title: user.fullname,
       parent: AuthService.USERS_FOLDER_UUID,
@@ -52,6 +72,6 @@ export class AuthService {
         "user:group": user.group,
         "user:groups": user.groups,
       },
-    });
+    };
   }
 }

@@ -19,6 +19,7 @@ import { ValidationError } from "../domain/nodes/validation_error.ts";
 import { NodeFactory } from "../domain/nodes/node_factory.ts";
 import { AntboxError } from "../shared/antbox_error.ts";
 import { UserPrincipal } from "../domain/auth/user_principal.ts";
+import { UserNotFoundError } from "../domain/auth/user_not_found_error.ts";
 
 export interface ActionServiceContext {
   readonly nodeService: NodeService;
@@ -172,7 +173,7 @@ export class ActionService {
     }
 
     const error = await actionOrErr.value.run(
-      this.buildRunContext(principal),
+      this.#buildRunContext(principal),
       uuids,
       params
     );
@@ -184,42 +185,49 @@ export class ActionService {
     return right(undefined);
   }
 
-  runAutomaticActionsForCreates(evt: NodeCreatedEvent) {
+  async runAutomaticActionsForCreates(evt: NodeCreatedEvent) {
     const runCriteria = (action: Action) => action.runOnCreates || false;
 
-    return this.getAutomaticActions(evt.payload, runCriteria).then(
-      (actions) => {
-        return this.runActions(
-          evt.principal,
-          actions.map((a) => a.uuid),
-          evt.payload.uuid
-        );
-      }
+    const userPrincipalOrErr = await this.#getPrincipalByEmail(evt.userEmail);
+    if (userPrincipalOrErr.isLeft()) {
+      return;
+    }
+
+    const actions = await this.#getAutomaticActions(evt.payload, runCriteria);
+
+    return this.#runActions(
+      userPrincipalOrErr.value,
+      actions.map((a) => a.uuid),
+      evt.payload.uuid
     );
   }
 
-  runAutomaticActionsForUpdates(evt: NodeUpdatedEvent) {
+  async runAutomaticActionsForUpdates(evt: NodeUpdatedEvent) {
     const runCriteria = (action: Action) => action.runOnUpdates || false;
 
-    return this.nodeService.get(evt.payload.uuid).then(async (node) => {
-      if (node.isLeft()) {
-        return;
-      }
+    const userPrincipalOrErr = await this.#getPrincipalByEmail(evt.userEmail);
+    if (userPrincipalOrErr.isLeft()) {
+      return;
+    }
 
-      const actions = await this.getAutomaticActions(node.value, runCriteria);
-      if (actions.length === 0) {
-        return;
-      }
+    const node = await this.nodeService.get(evt.payload.uuid);
+    if (node.isLeft()) {
+      return;
+    }
 
-      return this.runActions(
-        evt.principal,
-        actions.map((a) => a.uuid),
-        evt.payload.uuid
-      );
-    });
+    const actions = await this.#getAutomaticActions(node.value, runCriteria);
+    if (actions.length === 0) {
+      return;
+    }
+
+    return this.#runActions(
+      userPrincipalOrErr.value,
+      actions.map((a) => a.uuid),
+      evt.payload.uuid
+    );
   }
 
-  private buildRunContext(principal: UserPrincipal): RunContext {
+  #buildRunContext(principal: UserPrincipal): RunContext {
     return {
       authContext: {
         getPrincipal: () => principal,
@@ -229,7 +237,7 @@ export class ActionService {
     };
   }
 
-  private async getAutomaticActions(
+  async #getAutomaticActions(
     node: Node,
     runOnCriteria: (action: Action) => boolean
   ): Promise<Action[]> {
@@ -244,22 +252,26 @@ export class ActionService {
     });
   }
 
-  runOnCreateScritps(evt: NodeCreatedEvent) {
+  async runOnCreateScritps(evt: NodeCreatedEvent) {
     if (Node.isRootFolder(evt.payload.parent!)) {
       return;
     }
 
-    return this.nodeService.get(evt.payload.parent!).then((parent) => {
-      if (parent.isLeft()) {
-        return;
-      }
+    const userPrincipalOrErr = await this.#getPrincipalByEmail(evt.userEmail);
+    if (userPrincipalOrErr.isLeft()) {
+      return;
+    }
 
-      return this.runActions(
-        evt.principal,
-        (parent.value as FolderNode).onCreate.filter(this.nonEmptyActions),
-        evt.payload.uuid
-      );
-    });
+    const parentOrErr = await this.nodeService.get(evt.payload.parent!);
+    if (parentOrErr.isLeft()) {
+      return;
+    }
+
+    return this.#runActions(
+      userPrincipalOrErr.value,
+      (parentOrErr.value as FolderNode).onCreate.filter(this.#nonEmptyActions),
+      evt.payload.uuid
+    );
   }
 
   runOnUpdatedScritps(evt: NodeUpdatedEvent) {
@@ -274,23 +286,24 @@ export class ActionService {
         return;
       }
 
-      return this.runActions(
-        evt.principal,
-        parent.value.onUpdate.filter(this.nonEmptyActions),
+      const userPrincipalOrErr = await this.#getPrincipalByEmail(evt.userEmail);
+      if (userPrincipalOrErr.isLeft()) {
+        return;
+      }
+
+      return this.#runActions(
+        userPrincipalOrErr.value,
+        parent.value.onUpdate.filter(this.#nonEmptyActions),
         evt.payload.uuid
       );
     });
   }
 
-  private nonEmptyActions(uuid: string): boolean {
+  #nonEmptyActions(uuid: string): boolean {
     return uuid?.length > 0;
   }
 
-  private runActions(
-    principal: UserPrincipal,
-    actions: string[],
-    uuid: string
-  ) {
+  #runActions(principal: UserPrincipal, actions: string[], uuid: string) {
     for (const action of actions) {
       const [actionUuid, params] = action.split(" ");
       const j = `{${params ?? ""}}`;
@@ -298,5 +311,32 @@ export class ActionService {
 
       return this.run(principal, actionUuid, [uuid], JSON.parse(g));
     }
+  }
+
+  async #getPrincipalByEmail(
+    userEmail: string
+  ): Promise<Either<UserNotFoundError, UserPrincipal>> {
+    const resultOrErr = await this.nodeService.query(
+      [["properties.email", "==", userEmail]],
+      1,
+      1
+    );
+
+    if (resultOrErr.isLeft()) {
+      return left(resultOrErr.value);
+    }
+
+    if (resultOrErr.value.nodes.length === 0) {
+      return left(new UserNotFoundError(userEmail));
+    }
+
+    const node = resultOrErr.value.nodes[0];
+
+    return right({
+      email: userEmail,
+      fullname: node.title,
+      group: node.properties["user:group"] as unknown as string,
+      groups: (node.properties["user:groups"] as unknown as string[]) ?? [],
+    });
   }
 }

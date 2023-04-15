@@ -40,7 +40,7 @@ export class Node {
   createdTime = "";
   modifiedTime = "";
   owner = "";
-  properties?: Properties;
+  properties: Properties = {};
 
   constructor() {
     this.createdTime = this.modifiedTime = new Date().toISOString();

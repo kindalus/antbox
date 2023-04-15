@@ -22,6 +22,15 @@ export class User {
     return user.uuid === User.ANONYMOUS_USER.uuid;
   }
 
+  static create(email: string, fullname: string): User {
+    return Object.assign(new User(), {
+      email,
+      fullname,
+    });
+  }
+
+  constructor() {}
+
   uuid: string = null as unknown as string;
   email: string = null as unknown as string;
   fullname: string = null as unknown as string;

@@ -5,7 +5,13 @@ export class Group {
     description: "Admins",
   });
 
-  uuid: string = null as unknown as string;
-  title: string = null as unknown as string;
-  description: string = null as unknown as string;
+  constructor() {
+    this.uuid = null as unknown as string;
+    this.title = null as unknown as string;
+    this.description = null as unknown as string;
+  }
+
+  uuid: string;
+  title: string;
+  description: string;
 }

@@ -86,7 +86,7 @@ export class NodeFactory {
       aspects: metadata.aspects ?? [],
       description: metadata.description ?? "",
       properties: metadata.properties ?? {},
-      owner: metadata.owner ?? User.ROOT_USER.username,
+      owner: metadata.owner ?? User.ROOT_USER.email,
     };
 
     if ((metadata as FolderNode).group) {

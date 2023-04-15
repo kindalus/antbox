@@ -7,7 +7,7 @@ export class GroupCreatedEvent implements Event {
   readonly occurredOn: Date;
   readonly payload: Record<string, unknown>;
 
-  constructor(groupId: string, name: string) {
+  constructor(readonly userEmail: string, groupId: string, name: string) {
     this.eventId = GroupCreatedEvent.EVENT_ID;
     this.occurredOn = new Date();
     this.payload = {

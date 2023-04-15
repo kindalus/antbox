@@ -1,76 +1,40 @@
-import belike from "/test/belike.ts";
+import belike, { BelikerFn } from "/test/belike.ts";
 
-import {
-  assertEquals,
-  assertExists,
-  assertNotEquals,
-  assertStrictEquals,
-} from "/deps/asserts";
+import { assertNotEquals, assertStrictEquals } from "/deps/asserts";
 
-import { AntboxError } from "/shared/antbox_error.ts";
-import { AuthService, AuthServiceContext } from "./auth_service.ts";
+import { AuthService } from "./auth_service.ts";
 import { DefaultUuidGenerator } from "/strategies/default_uuid_generator.ts";
 
 import { DomainEvents } from "./domain_events.ts";
 import { UserCreatedEvent } from "/domain/auth/user_created_event.ts";
 import { GroupCreatedEvent } from "/domain/auth/group_created_event.ts";
 
-import { InMemoryUserRepository } from "/adapters/inmem/inmem_user_repository.ts";
-import { Either, right } from "/shared/either.ts";
+import { right } from "/shared/either.ts";
+import { User } from "../domain/auth/user.ts";
+import { NodeService } from "./node_service.ts";
+import { NodeServiceContext } from "./node_service_context.ts";
+import { InMemoryNodeRepository } from "../adapters/inmem/inmem_node_repository.ts";
+import { InMemoryStorageProvider } from "../adapters/inmem/inmem_storage_provider.ts";
+import { DefaultFidGenerator } from "../adapters/strategies/default_fid_generator.ts";
+import { Node } from "../domain/nodes/node.ts";
+import { InvalidGroupNameFormatError } from "../domain/auth/invalid_group_name_format_error.ts";
 
 Deno.test("createUser", async (t) => {
-  await t.step("Deve gerar uma senha", async () => {
-    const passwordGenerator = { generate: belike.fn(() => "xptoso") };
-    const svc = new AuthService({ ...makeServiceContext(), passwordGenerator });
-
-    await svc.createUser("user1@antbox.io", "Antbox User");
-
-    assertStrictEquals(passwordGenerator.generate.called(), true);
-  });
-
   await t.step("Grava o user no repositorio", async () => {
-    const ctx = makeServiceContext();
-    const addOrReplaceMock = belike.fn(
-      (): Promise<Either<AntboxError, undefined>> =>
-        Promise.resolve(right(undefined))
+    const nodeService = makeServiceContext();
+    nodeService.createMetanode = belike.fn(() =>
+      Promise.resolve(right({} as Node))
     );
-    ctx.userRepository.addOrReplace = addOrReplaceMock;
 
-    const svc = new AuthService(ctx);
+    const createMetanodeMock =
+      nodeService.createMetanode as unknown as BelikerFn;
 
-    await svc.createUser("user1@antbox.io", "Antbox User");
+    const svc = new AuthService(nodeService);
 
-    assertStrictEquals(addOrReplaceMock.called(), true);
+    await svc.createUser(User.create("user1@antbox.io", "Antbox User"));
+
+    assertStrictEquals(createMetanodeMock.called(), true);
   });
-
-  await t.step(
-    "Envia a senha pelo mecanismo de notificação por email",
-    async () => {
-      const GENERATED_PASSWORD = "coolpasswd";
-      const passwordGenerator = { generate: () => GENERATED_PASSWORD };
-      const email = "user@example.com";
-      const fullname = "John Doe";
-
-      const emailSender = { send: belike.fn(() => undefined) };
-
-      const svc = new AuthService({
-        ...makeServiceContext(),
-        passwordGenerator,
-        emailSender,
-      });
-
-      await svc.createUser(email, fullname);
-
-      assertStrictEquals(
-        emailSender.send.calledWith(
-          { value: email },
-          { value: fullname },
-          GENERATED_PASSWORD
-        ),
-        true
-      );
-    }
-  );
 
   await t.step("Deve lançar o evento UserCreatedEvent", async () => {
     const eventHandler = {
@@ -82,31 +46,31 @@ Deno.test("createUser", async (t) => {
 
     const svc = new AuthService(makeServiceContext());
 
-    const result = await svc.createUser("user@domain.com", "Some User");
+    const result = await svc.createUser(
+      User.create("user@domain.com", "Some User")
+    );
 
-    assertStrictEquals(result.value, undefined);
+    assertStrictEquals(result.isRight(), true);
     assertStrictEquals(eventHandler.handle.calledTimes(1), true);
   });
 
   await t.step(
     "Erro @InvalidEmailFormat se o formato do email for inválido",
     async () => {
-      const svc = new AuthService({ ...makeServiceContext() });
-      const result = await svc.createUser("bademailformat", "Some User");
+      const svc = new AuthService(makeServiceContext());
+      const result = await svc.createUser(
+        User.create("bademailformat", "Some User")
+      );
 
       assertNotEquals(result.value, undefined);
-      // assertStrictEquals(
-      //   result.value.errorCode,
-      //   InvalidEmailFormatError.ERROR_CODE
-      // );
     }
   );
 
   await t.step(
     "Erro @InvalidFullnameFormat se o formato do nome for inválido",
     async () => {
-      const svc = new AuthService({ ...makeServiceContext() });
-      const result = await svc.createUser("user@user.com", "");
+      const svc = new AuthService(makeServiceContext());
+      const result = await svc.createUser(User.create("user@user.com", ""));
 
       assertNotEquals(result.value, undefined);
       // assertStrictEquals(
@@ -119,31 +83,28 @@ Deno.test("createUser", async (t) => {
 
 Deno.test("createGroup", async (t) => {
   await t.step("Grava o grupo no repositorio", async () => {
-    const groupRepository = {
-      addOrReplace: belike.fn(
-        (): Promise<Either<AntboxError, undefined>> =>
-          Promise.resolve(right(undefined))
-      ),
-    };
+    const ctx = makeServiceContext();
+    ctx.createMetanode = belike.fn(() => Promise.resolve(right({} as Node)));
+    const createMetanodeMock = ctx.createMetanode as unknown as BelikerFn;
 
-    const svc = new AuthService({ ...makeServiceContext(), groupRepository });
+    const svc = new AuthService(ctx);
 
-    await svc.createGroup("Group1");
+    await svc.createGroup({ title: "Group1" });
 
-    assertStrictEquals(groupRepository.addOrReplace.called(), true);
+    assertStrictEquals(createMetanodeMock.called(), true);
   });
 
   await t.step(
     "Erro @InvalidGroupNameFormat se o formato do nome for inválido",
     async () => {
-      const svc = new AuthService({ ...makeServiceContext() });
-      const result = await svc.createGroup("");
+      const svc = new AuthService(makeServiceContext());
+      const result = await svc.createGroup({ title: "" });
 
-      assertExists(result.value);
-      // assertStrictEquals(
-      //   result.value.errorCode,
-      //   InvalidGroupNameFormatError.ERROR_CODE
-      // );
+      assertStrictEquals(result.isLeft(), true);
+      assertStrictEquals(
+        (result.value as InvalidGroupNameFormatError).errorCode,
+        InvalidGroupNameFormatError.ERROR_CODE
+      );
     }
   );
 
@@ -157,38 +118,22 @@ Deno.test("createGroup", async (t) => {
 
     const svc = new AuthService(makeServiceContext());
 
-    const result = await svc.createGroup("Group1");
+    const result = await svc.createGroup({ title: "Group1" });
 
-    assertStrictEquals(result.value, undefined);
+    assertStrictEquals(result.isRight(), true);
     assertStrictEquals(eventHandler.handle.calledTimes(1), true);
   });
 });
 
-function makeServiceContext(): AuthServiceContext {
-  return {
-    passwordGenerator: { generate: () => "passwd" + Date.now() },
-    emailSender: { send: () => undefined },
-    userRepository: new InMemoryUserRepository(),
-
-    groupRepository: {
-      addOrReplace: () => Promise.resolve(right(undefined)),
-    },
-
+function makeServiceContext(): NodeService {
+  const ctx: NodeServiceContext = {
+    fidGenerator: new DefaultFidGenerator(),
+    repository: new InMemoryNodeRepository(),
+    storage: new InMemoryStorageProvider(),
     uuidGenerator: new DefaultUuidGenerator(),
   };
+
+  const srv = new NodeService(ctx);
+
+  return srv;
 }
-
-Deno.test("authenticate", async (t) => {
-  await t.step(
-    "Se repository vazio autentica o user com o Role Admin",
-    async () => {
-      const svc = new AuthService({ ...makeServiceContext() });
-
-      const username = "user@domain";
-      const result = await svc.authenticate(username, "passwd");
-
-      assertStrictEquals(result.value, undefined);
-      assertEquals(result.value, { username, roles: ["Admin"] });
-    }
-  );
-});

@@ -5,6 +5,11 @@ export class SmartFolderNode extends Node {
   filters: NodeFilter[] = [];
   aggregations?: Aggregation[];
 
+  constructor() {
+    super();
+    this.mimetype = Node.SMART_FOLDER_MIMETYPE;
+  }
+
   hasAggregations(): boolean {
     return (this.aggregations?.length ?? 0) > 0;
   }

@@ -1,127 +1,105 @@
 import { ValidationError } from "./validation_error.ts";
 import { SmartFolderNode } from "./smart_folder_node.ts";
+import { FolderNode } from "./folder_node.ts";
 
 export type Properties = Record<string, unknown>;
 
 export class Node {
-  static FOLDER_MIMETYPE = "application/vnd.antbox.folder";
-  static META_NODE_MIMETYPE = "application/vnd.antbox.metanode";
-  static SMART_FOLDER_MIMETYPE = "application/vnd.antbox.smartfolder";
+	static FOLDER_MIMETYPE = "application/vnd.antbox.folder";
+	static META_NODE_MIMETYPE = "application/vnd.antbox.metanode";
+	static SMART_FOLDER_MIMETYPE = "application/vnd.antbox.smartfolder";
 
-  static ROOT_FOLDER_UUID = "--root--";
-  private static FID_PREFIX = "fid--";
+	static ROOT_FOLDER_UUID = "--root--";
+	static USERS_FOLDER_UUID = "--users--";
+	static GROUPS_FOLDER_UUID = "--groups--";
+	static ACCESS_TOKENS_FOLDER_UUID = "--access-tokens--";
+	static ASPECTS_FOLDER_UUID = "--aspects--";
 
-  static fidToUuid(fid: string): string {
-    return `${Node.FID_PREFIX}${fid}`;
-  }
+	private static FID_PREFIX = "fid--";
 
-  static isFid(uuid: string): boolean {
-    return uuid?.startsWith(Node.FID_PREFIX);
-  }
+	static fidToUuid(fid: string): string {
+		return `${Node.FID_PREFIX}${fid}`;
+	}
 
-  static uuidToFid(fid: string): string {
-    return fid?.startsWith(Node.FID_PREFIX)
-      ? fid.substring(Node.FID_PREFIX.length)
-      : fid;
-  }
+	static isFid(uuid: string): boolean {
+		return uuid?.startsWith(Node.FID_PREFIX);
+	}
 
-  static isRootFolder(uuid: string): boolean {
-    return uuid === Node.ROOT_FOLDER_UUID;
-  }
+	static uuidToFid(fid: string): string {
+		return fid?.startsWith(Node.FID_PREFIX) ? fid.substring(Node.FID_PREFIX.length) : fid;
+	}
 
-  uuid = "";
-  fid = "";
-  title = "";
-  description?: string;
-  mimetype = "";
-  size = 0;
-  aspects?: string[];
-  parent = Node.ROOT_FOLDER_UUID;
-  createdTime = "";
-  modifiedTime = "";
-  owner = "";
-  properties: Properties = {};
+	static isRootFolder(uuid: string): boolean {
+		return uuid === Node.ROOT_FOLDER_UUID;
+	}
 
-  constructor() {
-    this.createdTime = this.modifiedTime = new Date().toISOString();
-  }
+	uuid = "";
+	fid = "";
+	title = "";
+	description?: string;
+	mimetype = "";
+	size = 0;
+	aspects?: string[];
+	parent = Node.ROOT_FOLDER_UUID;
+	createdTime = "";
+	modifiedTime = "";
+	owner = "";
+	properties: Properties = {};
 
-  isJson(): boolean {
-    return this.mimetype === "application/json";
-  }
+	constructor() {
+		this.createdTime = this.modifiedTime = new Date().toISOString();
+	}
 
-  isFolder(): this is FolderNode {
-    return this.mimetype === Node.FOLDER_MIMETYPE;
-  }
+	isJson(): boolean {
+		return this.mimetype === "application/json";
+	}
 
-  isMetaNode(): boolean {
-    return this.mimetype === Node.META_NODE_MIMETYPE;
-  }
+	isFolder(): this is FolderNode {
+		return this.mimetype === Node.FOLDER_MIMETYPE;
+	}
 
-  isSmartFolder(): this is SmartFolderNode {
-    return this.mimetype === Node.SMART_FOLDER_MIMETYPE;
-  }
+	isMetaNode(): boolean {
+		return this.mimetype === Node.META_NODE_MIMETYPE;
+	}
 
-  isFile(): boolean {
-    return !this.isFolder() && !this.isSmartFolder() && !this.isMetaNode();
-  }
+	isSmartFolder(): this is SmartFolderNode {
+		return this.mimetype === Node.SMART_FOLDER_MIMETYPE;
+	}
 
-  isRootFolder(): boolean {
-    return Node.isRootFolder(this.uuid);
-  }
+	isFile(): boolean {
+		return !this.isFolder() && !this.isSmartFolder() && !this.isMetaNode();
+	}
 
-  validate(
-    _uuidsGetter: (aspectUuid: string) => Promise<string[]>
-  ): Promise<ValidationError> {
-    return Promise.resolve(null as unknown as ValidationError);
-  }
+	isRootFolder(): boolean {
+		return Node.isRootFolder(this.uuid);
+	}
 
-  static isJavascript(file: File) {
-    return (
-      file.type === "application/javascript" || file.type === "text/javascript"
-    );
-  }
+	validate(
+		_uuidsGetter: (aspectUuid: string) => Promise<string[]>,
+	): Promise<ValidationError> {
+		return Promise.resolve(null as unknown as ValidationError);
+	}
+
+	static isJavascript(file: File) {
+		return (
+			file.type === "application/javascript" || file.type === "text/javascript"
+		);
+	}
 }
 
 export type Permission = "Read" | "Write" | "Export";
 
 export type Permissions = {
-  group: Permission[];
-  authenticated: Permission[];
-  anonymous: Permission[];
+	group: Permission[];
+	authenticated: Permission[];
+	anonymous: Permission[];
 };
 
-export class FolderNode extends Node {
-  static ROOT_FOLDER = FolderNode.buildRootFolder();
-
-  private static buildRootFolder(): FolderNode {
-    const root = new FolderNode();
-    root.uuid = Node.ROOT_FOLDER_UUID;
-    root.fid = Node.ROOT_FOLDER_UUID;
-    root.title = "";
-    return root;
-  }
-
-  onCreate: string[] = [];
-  onUpdate: string[] = [];
-  group: string = null as unknown as string;
-  permissions: Permissions = {
-    group: ["Read", "Write", "Export"],
-    authenticated: ["Read", "Export"],
-    anonymous: [],
-  };
-
-  constructor() {
-    super();
-    this.mimetype = Node.FOLDER_MIMETYPE;
-  }
-}
-
 export class FileNode extends Node {
-  // Versões têm o formato aaaa-MM-ddTHH:mm:ss
-  versions: string[] = [];
+	// Versões têm o formato aaaa-MM-ddTHH:mm:ss
+	versions: string[] = [];
 
-  constructor() {
-    super();
-  }
+	constructor() {
+		super();
+	}
 }

@@ -15,11 +15,7 @@ import { NodeNotFoundError } from "/domain/nodes/node_not_found_error.ts";
 import { NodeFilter } from "/domain/nodes/node_filter.ts";
 import { Either, left, right } from "/shared/either.ts";
 import { NodeDeleter } from "/application/node_deleter.ts";
-import {
-	AggregationResult,
-	Reducers,
-	SmartFolderNodeEvaluation,
-} from "./smart_folder_evaluation.ts";
+import { AggregationResult, Reducers, SmartFolderNodeEvaluation } from "./smart_folder_evaluation.ts";
 import { NodeServiceContext } from "./node_service_context.ts";
 import { builtinActions } from "./builtin_actions/index.ts";
 import { AspectService } from "./aspect_service.ts";
@@ -245,6 +241,17 @@ export class NodeService {
 		return this.getFromRepository(uuid);
 	}
 
+	#listSystemFolders(): FolderNode[] {
+		return [
+			FolderNode.ACTIONS_FOLDER,
+			FolderNode.ASPECTS_FOLDER,
+			FolderNode.ACCESS_TOKENS_FOLDER,
+			FolderNode.USERS_FOLDER,
+			FolderNode.GROUPS_FOLDER,
+			FolderNode.EXT_FOLDER,
+		];
+	}
+
 	#getSystemFolder(uuid: string): Either<FolderNotFoundError, FolderNode> {
 		const nodes: FolderNode[] = [
 			FolderNode.ROOT_FOLDER,
@@ -314,6 +321,10 @@ export class NodeService {
 			return left(new FolderNotFoundError(parent));
 		}
 
+		if (parentOrErr.value == FolderNode.SYSTEM_FOLDER) {
+			return right(this.#listSystemFolders());
+		}
+
 		const nodes = await this.context.repository
 			.filter([["parent", "==", parentOrErr.value.uuid]], Number.MAX_VALUE, 1)
 			.then((result) => result.nodes);
@@ -324,6 +335,10 @@ export class NodeService {
 
 		if (parent === Node.ASPECTS_FOLDER_UUID) {
 			return right(this.listAspects(nodes));
+		}
+
+		if (parent === Node.ROOT_FOLDER_UUID) {
+			return right([FolderNode.SYSTEM_FOLDER, ...nodes]);
 		}
 
 		return right(nodes);
@@ -391,9 +406,7 @@ export class NodeService {
 			return left(nodeOrErr.value);
 		}
 
-		const newNode = merge
-			? this.merge(nodeOrErr.value, data)
-			: Object.assign(nodeOrErr.value, data);
+		const newNode = merge ? this.merge(nodeOrErr.value, data) : Object.assign(nodeOrErr.value, data);
 
 		return this.context.repository.update(newNode);
 	}

@@ -16,6 +16,7 @@ import {
 import jwk from "./demo.jwk.json" assert { type: "json" };
 
 const ROOT_PASSWD = "demo";
+const PORT = 7180;
 
 const program = await new Command()
 	.name("sandbox")
@@ -33,7 +34,7 @@ function printKeys(passwd: string, symmetricKey: string, jwk: Record<string, str
 	console.log("JSON Web Key:\t", JSON.stringify(jwk, null, 4));
 }
 
-async function main(program: IParseResult) {
+function main(program: IParseResult) {
 	const passwd = program.options.passwd || ROOT_PASSWD;
 
 	if (program.options.keys) {
@@ -48,19 +49,19 @@ async function main(program: IParseResult) {
 		storage: new InMemoryStorageProvider(),
 	});
 
-	const serverOpts: ServerOpts = {};
+	const serverOpts: ServerOpts = { port: PORT };
 	if (program.options.port) {
 		serverOpts.port = parseInt(program.options.port);
 	}
 
-	const startServer = await setupOakServer(service, passwd, jwk);
-
-	startServer(serverOpts).then(() => {
-		console.log(
-			"Antbox Server started successfully on port ::",
-			program.options.port ?? "7180",
-		);
-	});
+	setupOakServer(service, passwd, jwk)
+		.then((start) => start(serverOpts))
+		.then((evt: unknown) => {
+			console.log(
+				"Antbox Server started successfully on port ::",
+				(evt as Record<string, string>).port,
+			);
+		});
 }
 
-await main(program);
+main(program);

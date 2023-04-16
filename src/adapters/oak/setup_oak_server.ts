@@ -55,9 +55,9 @@ export async function setupOakServer(
 	app.use(ext.allowedMethods());
 
 	return (options: ServerOpts = { port: 7180 }) => {
-		return new Promise<void>((resolve) => {
-			app.addEventListener("listen", () => {
-				resolve();
+		return new Promise((resolve) => {
+			app.addEventListener("listen", (evt) => {
+				resolve(evt);
 			});
 
 			app.listen({ ...options });

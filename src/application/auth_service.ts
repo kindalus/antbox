@@ -1,16 +1,16 @@
 import { AntboxError } from "/shared/antbox_error.ts";
-import { Either, left } from "/shared/either.ts";
+import { Either, left, right } from "/shared/either.ts";
 import { User } from "/domain/auth/user.ts";
 import { Group } from "/domain/auth/group.ts";
 
 import { NodeService } from "./node_service.ts";
 import { Node } from "/domain/nodes/node.ts";
-import { InvalidGroupNameFormatError } from "/domain/auth/invalid_group_name_format_error.ts";
 import { DomainEvents } from "./domain_events.ts";
 import { UserCreatedEvent } from "/domain/auth/user_created_event.ts";
 import { GroupCreatedEvent } from "/domain/auth/group_created_event.ts";
 import { UserSpec } from "../domain/auth/user_spec.ts";
 import { GroupSpec } from "../domain/auth/group_spec.ts";
+import { UserNotFoundError } from "../domain/auth/user_not_found_error.ts";
 
 export class AuthService {
 	static USERS_FOLDER_UUID = "--users--";
@@ -21,6 +21,20 @@ export class AuthService {
 	#groupSpec = new GroupSpec();
 
 	constructor(private readonly nodeService: NodeService) {}
+
+	async getUserByEmail(email: string): Promise<Either<AntboxError, User>> {
+		const nodeOrErr = await this.nodeService.query([["properties.user:email", "==", email]], 1, 1);
+
+		if (nodeOrErr.isLeft()) {
+			return left(nodeOrErr.value);
+		}
+
+		if (nodeOrErr.value.nodes.length === 0) {
+			return left(new UserNotFoundError(email));
+		}
+
+		return right(this.#metanodeToUser(nodeOrErr.value.nodes[0]));
+	}
 
 	async createGroup(group: Partial<Group>): Promise<Either<AntboxError, Node>> {
 		const trueOrErr = this.#groupSpec.isSatisfiedBy(group as Group);
@@ -84,5 +98,15 @@ export class AuthService {
 				"user:groups": user.groups,
 			},
 		};
+	}
+
+	#metanodeToUser(node: Node): User {
+		return Object.assign(new User(), {
+			uuid: node.uuid,
+			fullname: node.title,
+			email: node.properties["user:email"] as string,
+			group: node.properties["user:group"] as string,
+			groups: node.properties["user:groups"] as string[],
+		});
 	}
 }

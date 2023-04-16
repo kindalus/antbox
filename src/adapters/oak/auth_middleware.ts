@@ -1,94 +1,102 @@
 import { User } from "/domain/auth/user.ts";
 import { Context } from "/deps/oak";
 import * as jose from "/deps/jose";
-import { AuthKey, AuthKeys } from "/application/auth_keys.ts";
+import { AuthService } from "/application/auth_service.ts";
+import { Either, left, right } from "../../shared/either.ts";
+import { JWK, KeyLike } from "/deps/jose";
+import { UserPrincipal } from "../../domain/auth/user_principal.ts";
 
-export function authMiddleware(
-	keys: AuthKeys,
+export async function authMiddleware(
+	authService: AuthService,
+	key: Record<string, string>,
 	secret: string,
-): (ctx: Context, next: () => Promise<unknown>) => Promise<unknown> {
-	return async function (ctx: Context, next: () => Promise<unknown>) {
-		const token = ctx.request.headers.get("x-access-token") ??
-			(await ctx.cookies.get("antbox-access-token"));
+): Promise<(ctx: Context, next: () => Promise<unknown>) => Promise<unknown>> {
+	const jwkOrErr = await importJwk(key);
 
+	if (jwkOrErr.isLeft()) {
+		throw jwkOrErr.value;
+	}
+
+	const jwk = jwkOrErr.value;
+	const skey = importKey(secret);
+
+	return async (ctx: Context, next: () => Promise<unknown>) => {
+		const token = await getToken(ctx);
 		ctx.state.userPrincipal = User.ANONYMOUS_USER;
 
-		if (!token) {
-			return await next();
-		}
+		if (!token) return await next();
 
 		const payload = await jose.decodeJwt(token);
+		if (!payload) return next();
 
-		if (!payload) {
-			return await next();
+		if (payload.iss === "urn:antbox") {
+			await authenticateRoot(skey, ctx, token);
+			return next();
 		}
 
-		if (
-			payload.iss === "urn:antbox" &&
-			(await verifyRootToken(token, secret))
-		) {
-			ctx.state.userPrincipal = User.ROOT_USER;
-			return await next();
-		}
-
-		if (!(await verifyToken(payload.iss!, keys, token))) {
-			return await next();
-		}
-
-		return await next();
+		await authenticateToken(jwk, authService, ctx, token);
+		return next();
 	};
 }
 
-async function verifyRootToken(
-	token: string,
-	secret: string,
-): Promise<boolean> {
-	const key = await importKey({
-		alg: "HS256",
-		key: secret,
-		type: "Symmetric",
-	} as AuthKey);
-	try {
-		await jose.jwtVerify(token, key);
-	} catch (_e) {
-		return false;
-	}
-
-	return true;
+async function getToken(ctx: Context) {
+	return ctx.request.headers.get("x-access-token") ??
+		(await ctx.cookies.get("antbox-access-token"));
 }
 
-async function verifyToken(
-	issuer: string,
-	keys: AuthKeys,
+async function authenticateRoot(
+	secret: Uint8Array,
+	ctx: Context,
 	token: string,
-): Promise<boolean> {
-	const key = keys.find((k) => k.provider === issuer);
+) {
+	const tokenOrErr = await verifyToken(secret, token);
 
-	if (!key) {
-		return false;
+	if (tokenOrErr.isLeft()) {
+		return;
 	}
 
-	const publicKey = await importKey(key);
-	if (!publicKey) {
-		return false;
-	}
-
-	try {
-		jose.jwtVerify(token, publicKey);
-	} catch (_e) {
-		return false;
-	}
-
-	return true;
+	ctx.state.userPrincipal = User.ROOT_USER;
 }
 
-function importKey(key: AuthKey): Promise<jose.KeyLike | Uint8Array> {
-	switch (key.type) {
-		case "Symmetric":
-			return Promise.resolve(new TextEncoder().encode(key.key as string));
-		case "JWK":
-			return jose.importJWK(key.key as jose.JWK, key.alg);
-		case "SPKI":
-			return jose.importSPKI(key.key as string, key.alg);
+async function authenticateToken(
+	jwk: KeyLike | Uint8Array,
+	authService: AuthService,
+	ctx: Context,
+	token: string,
+) {
+	const tokenOrErr = await verifyToken(jwk, token);
+	if (tokenOrErr.isLeft()) {
+		return;
 	}
+
+	const userOrErr = await authService.getUserByEmail(tokenOrErr.value.email);
+	if (userOrErr.isLeft()) {
+		return;
+	}
+
+	ctx.state.userPrincipal = userToPrincipal(userOrErr.value);
+}
+
+function verifyToken(key: KeyLike | Uint8Array, token: string): Promise<Either<Error, UserPrincipal>> {
+	return jose.jwtVerify(token, key).then((payload) => right(payload))
+		.catch((e) => left(e)) as Promise<Either<Error, UserPrincipal>>;
+}
+
+function importJwk(key: JWK): Promise<Either<TypeError, KeyLike | Uint8Array>> {
+	return jose.importJWK(key)
+		.then((jwk) => right(jwk))
+		.catch((e) => left(e)) as Promise<Either<TypeError, KeyLike | Uint8Array>>;
+}
+
+function importKey(key: string): Uint8Array {
+	return new TextEncoder().encode(key as string);
+}
+
+function userToPrincipal(user: User): UserPrincipal {
+	return {
+		email: user.email,
+		fullname: user.fullname,
+		group: user.group,
+		groups: user.groups,
+	} as UserPrincipal;
 }

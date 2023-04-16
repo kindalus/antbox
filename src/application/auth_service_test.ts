@@ -15,11 +15,10 @@ import { InMemoryNodeRepository } from "/adapters/inmem/inmem_node_repository.ts
 import { InMemoryStorageProvider } from "/adapters/inmem/inmem_storage_provider.ts";
 import { DefaultFidGenerator } from "/adapters/strategies/default_fid_generator.ts";
 import { InvalidGroupNameFormatError } from "/domain/auth/invalid_group_name_format_error.ts";
-import { InvalidEmailFormatError } from "/domain/auth/invalid_email_format_error.ts";
 import { AntboxError } from "/shared/antbox_error.ts";
 import { InvalidFullnameFormatError } from "/domain/auth/invalid_fullname_format_error.ts";
 import { ValidationError } from "/shared/validation_error.ts";
-import { BufferFullError } from "https://deno.land/std@0.152.0/io/buffer.ts";
+import { UserNotFoundError } from "/domain/auth/user_not_found_error.ts";
 
 function eventHandler() {
 	return { handle: () => undefined };
@@ -133,6 +132,38 @@ Deno.test("createGroup", async (t) => {
 
 		assertFalse(result.isLeft());
 		assertSpyCalls(eventHandlerSpy, 1);
+	});
+});
+
+Deno.test("getUser", async (t) => {
+	await t.step("Retorna o utilizador se ele existir", async () => {
+		const nodeService = makeNodeService();
+		const svc = new AuthService(nodeService);
+
+		const user = {
+			email: "user@domain.com",
+			fullname: "Some User",
+		} as User;
+
+		await svc.createUser(user);
+
+		const userOrErr = await svc.getUserByEmail(user.email);
+
+		assertFalse(userOrErr.isLeft());
+		assertStrictEquals((userOrErr.value as User).email, user.email);
+	});
+
+	await t.step("Retorna o error @UserNotFound se o utilizador não existir", async () => {
+		const nodeService = makeNodeService();
+		const svc = new AuthService(nodeService);
+
+		const userOrErr = await svc.getUserByEmail("bad_email@bad_domain.com");
+
+		assertStrictEquals(userOrErr.isLeft(), true);
+		assertStrictEquals(
+			(userOrErr.value as AntboxError).errorCode,
+			UserNotFoundError.ERROR_CODE,
+		);
 	});
 });
 

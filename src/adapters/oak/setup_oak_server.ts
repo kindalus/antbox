@@ -8,7 +8,7 @@ import uploadRouter from "./upload_router.ts";
 import actionsRouter from "./actions_router.ts";
 import webContentsRouter from "./web_contents_router.ts";
 import extRouter from "./ext_router.ts";
-import { AntboxService } from "../../application/antbox_service.ts";
+import { AntboxService } from "/application/antbox_service.ts";
 import loginRouter from "./login_router.ts";
 import { authMiddleware } from "./auth_middleware.ts";
 

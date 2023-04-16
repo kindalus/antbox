@@ -1,5 +1,5 @@
 import { FileNode, Node } from "/domain/nodes/node.ts";
-import { FolderNode } from "../domain/nodes/folder_node.ts";
+import { FolderNode } from "/domain/nodes/folder_node.ts";
 import { SmartFolderNode } from "/domain/nodes/smart_folder_node.ts";
 import { NodeNotFoundError } from "/domain/nodes/node_not_found_error.ts";
 import { Either } from "/shared/either.ts";

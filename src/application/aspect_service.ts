@@ -4,8 +4,7 @@ import { Either, left, right } from "/shared/either.ts";
 import { Aspect } from "/domain/aspects/aspect.ts";
 
 import { Node } from "/domain/nodes/node.ts";
-import { ValidationError } from "../domain/nodes/validation_error.ts";
-import { AntboxError } from "../shared/antbox_error.ts";
+import { AntboxError, BadRequestError } from "/shared/antbox_error.ts";
 
 export class AspectService {
 	static isAspectsFolder(uuid: string): boolean {
@@ -20,12 +19,12 @@ export class AspectService {
 	): Promise<Either<AntboxError, Node>> {
 		if (!AspectService.isAspectsFolder(metadata.parent!)) {
 			return left(
-				ValidationError.fromMsgs("Aspect must be created in the aspects folder"),
+				new BadRequestError("Aspect must be created in the aspects folder"),
 			);
 		}
 
 		if (file.type !== "application/json") {
-			return left(ValidationError.fromMsgs("File must be a json file"));
+			return left(new BadRequestError("File must be a json file"));
 		}
 
 		const aspect = (await file.text().then((t) => JSON.parse(t))) as Aspect;

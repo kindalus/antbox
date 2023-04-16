@@ -1,10 +1,10 @@
 import { NodeFilter } from "/domain/nodes/node_filter.ts";
-import { Either } from "../../shared/either.ts";
-import { AuthContextProvider } from "../../application/auth_provider.ts";
+import { Either } from "/shared/either.ts";
+import { AuthContextProvider } from "/application/auth_provider.ts";
 import { Node } from "../nodes/node.ts";
-import { AntboxError } from "../../shared/antbox_error.ts";
+import { AntboxError } from "/shared/antbox_error.ts";
 import { NodeFilterResult } from "../nodes/node_repository.ts";
-import { SmartFolderNodeEvaluation } from "../../application/smart_folder_evaluation.ts";
+import { SmartFolderNodeEvaluation } from "/application/smart_folder_evaluation.ts";
 import { Aspect } from "../aspects/aspect.ts";
 
 /**
@@ -26,115 +26,115 @@ import { Aspect } from "../aspects/aspect.ts";
  * - se não for especificado, pode correr manualmente
  */
 export interface Action {
-  uuid: string;
-  title: string;
-  description: string;
-  builtIn: boolean;
-  runOnCreates: boolean;
-  runOnUpdates: boolean;
-  runManually: boolean;
-  params: string[];
+	uuid: string;
+	title: string;
+	description: string;
+	builtIn: boolean;
+	runOnCreates: boolean;
+	runOnUpdates: boolean;
+	runManually: boolean;
+	params: string[];
 
-  filters: NodeFilter[];
+	filters: NodeFilter[];
 
-  run: (
-    ctx: RunContext,
-    uuids: string[],
-    params?: Record<string, string>
-  ) => Promise<void | Error>;
+	run: (
+		ctx: RunContext,
+		uuids: string[],
+		params?: Record<string, string>,
+	) => Promise<void | Error>;
 }
 
 export interface RunContext {
-  readonly nodeService: SecureNodeService;
-  readonly aspectService: SecureAspectService;
-  readonly authContext: AuthContextProvider;
+	readonly nodeService: SecureNodeService;
+	readonly aspectService: SecureAspectService;
+	readonly authContext: AuthContextProvider;
 }
 
 export interface SecureAspectService {
-  createOrReplace(
-    authCtx: AuthContextProvider,
-    file: File,
-    metadata: Partial<Node>
-  ): Promise<Either<AntboxError, Node>>;
+	createOrReplace(
+		authCtx: AuthContextProvider,
+		file: File,
+		metadata: Partial<Node>,
+	): Promise<Either<AntboxError, Node>>;
 
-  get(
-    authCtx: AuthContextProvider,
-    uuid: string
-  ): Promise<Either<AntboxError, Aspect>>;
+	get(
+		authCtx: AuthContextProvider,
+		uuid: string,
+	): Promise<Either<AntboxError, Aspect>>;
 
-  list(authCtx: AuthContextProvider): Promise<Either<AntboxError, Aspect[]>>;
+	list(authCtx: AuthContextProvider): Promise<Either<AntboxError, Aspect[]>>;
 }
 
 export interface SecureNodeService {
-  createFile(
-    authCtx: AuthContextProvider,
-    file: File,
-    metadata: Partial<Node>
-  ): Promise<Either<AntboxError, Node>>;
+	createFile(
+		authCtx: AuthContextProvider,
+		file: File,
+		metadata: Partial<Node>,
+	): Promise<Either<AntboxError, Node>>;
 
-  createMetanode(
-    _authCtx: AuthContextProvider,
-    metadata: Partial<Node>
-  ): Promise<Either<AntboxError, Node>>;
+	createMetanode(
+		_authCtx: AuthContextProvider,
+		metadata: Partial<Node>,
+	): Promise<Either<AntboxError, Node>>;
 
-  createFolder(
-    authCtx: AuthContextProvider,
-    metadata: Partial<Node>
-  ): Promise<Either<AntboxError, Node>>;
+	createFolder(
+		authCtx: AuthContextProvider,
+		metadata: Partial<Node>,
+	): Promise<Either<AntboxError, Node>>;
 
-  list(
-    _authCtx: AuthContextProvider,
-    uuid?: string
-  ): Promise<Either<AntboxError, Node[]>>;
+	list(
+		_authCtx: AuthContextProvider,
+		uuid?: string,
+	): Promise<Either<AntboxError, Node[]>>;
 
-  get(
-    _authCtx: AuthContextProvider,
-    uuid: string
-  ): Promise<Either<AntboxError, Node>>;
+	get(
+		_authCtx: AuthContextProvider,
+		uuid: string,
+	): Promise<Either<AntboxError, Node>>;
 
-  query(
-    _authCtx: AuthContextProvider,
-    filters: NodeFilter[],
-    pageSize?: number,
-    pageToken?: number
-  ): Promise<Either<AntboxError, NodeFilterResult>>;
+	query(
+		_authCtx: AuthContextProvider,
+		filters: NodeFilter[],
+		pageSize?: number,
+		pageToken?: number,
+	): Promise<Either<AntboxError, NodeFilterResult>>;
 
-  update(
-    authCtx: AuthContextProvider,
-    uuid: string,
-    metadata: Partial<Node>,
-    merge?: boolean
-  ): Promise<Either<AntboxError, void>>;
+	update(
+		authCtx: AuthContextProvider,
+		uuid: string,
+		metadata: Partial<Node>,
+		merge?: boolean,
+	): Promise<Either<AntboxError, void>>;
 
-  export(
-    _authCtx: AuthContextProvider,
-    uuid: string
-  ): Promise<Either<AntboxError, File>>;
+	export(
+		_authCtx: AuthContextProvider,
+		uuid: string,
+	): Promise<Either<AntboxError, File>>;
 
-  copy(
-    _authCtx: AuthContextProvider,
-    uuid: string,
-    parent: string
-  ): Promise<Either<AntboxError, Node>>;
+	copy(
+		_authCtx: AuthContextProvider,
+		uuid: string,
+		parent: string,
+	): Promise<Either<AntboxError, Node>>;
 
-  duplicate(
-    _authCtx: AuthContextProvider,
-    uuid: string
-  ): Promise<Either<AntboxError, Node>>;
+	duplicate(
+		_authCtx: AuthContextProvider,
+		uuid: string,
+	): Promise<Either<AntboxError, Node>>;
 
-  updateFile(
-    _authCtx: AuthContextProvider,
-    uuid: string,
-    file: File
-  ): Promise<Either<AntboxError, void>>;
+	updateFile(
+		_authCtx: AuthContextProvider,
+		uuid: string,
+		file: File,
+	): Promise<Either<AntboxError, void>>;
 
-  evaluate(
-    authCtx: AuthContextProvider,
-    uuid: string
-  ): Promise<Either<AntboxError, SmartFolderNodeEvaluation>>;
+	evaluate(
+		authCtx: AuthContextProvider,
+		uuid: string,
+	): Promise<Either<AntboxError, SmartFolderNodeEvaluation>>;
 
-  delete(
-    authCtx: AuthContextProvider,
-    uuid: string
-  ): Promise<Either<AntboxError, void>>;
+	delete(
+		authCtx: AuthContextProvider,
+		uuid: string,
+	): Promise<Either<AntboxError, void>>;
 }

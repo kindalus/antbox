@@ -1,7 +1,7 @@
 import { left, right } from "/shared/either.ts";
 import { NodeNotFoundError } from "/domain/nodes/node_not_found_error.ts";
 import { Node } from "/domain/nodes/node.ts";
-import { FolderNode } from "../domain/nodes/folder_node.ts";
+import { FolderNode } from "/domain/nodes/folder_node.ts";
 import {
 	Action,
 	RunContext,
@@ -14,13 +14,12 @@ import { NodeCreatedEvent } from "/domain/nodes/node_created_event.ts";
 import { NodeUpdatedEvent } from "/domain/nodes/node_updated_event.ts";
 import { AspectService } from "./aspect_service.ts";
 import { NodeService } from "./node_service.ts";
-import { getNodeFilterPredicate } from "../domain/nodes/node_filter_predicate.ts";
-import { Either } from "../shared/either.ts";
-import { ValidationError } from "../domain/nodes/validation_error.ts";
-import { NodeFactory } from "../domain/nodes/node_factory.ts";
-import { AntboxError } from "../shared/antbox_error.ts";
-import { UserPrincipal } from "../domain/auth/user_principal.ts";
-import { UserNotFoundError } from "../domain/auth/user_not_found_error.ts";
+import { getNodeFilterPredicate } from "/domain/nodes/node_filter_predicate.ts";
+import { Either } from "/shared/either.ts";
+import { NodeFactory } from "/domain/nodes/node_factory.ts";
+import { AntboxError, BadRequestError } from "/shared/antbox_error.ts";
+import { UserPrincipal } from "/domain/auth/user_principal.ts";
+import { UserNotFoundError } from "/domain/auth/user_not_found_error.ts";
 
 export interface ActionServiceContext {
 	readonly nodeService: NodeService;
@@ -129,12 +128,14 @@ export class ActionService {
 	): Promise<Either<AntboxError, Node>> {
 		if (!ActionService.isActionsFolder(metadata.parent!)) {
 			return left(
-				ValidationError.fromMsgs("Action must be in the actions folder"),
+				new BadRequestError("Must be in the actions folder"),
 			);
 		}
 
 		if (!Node.isJavascript(file)) {
-			return left(ValidationError.fromMsgs("File must be a javascript file"));
+			return left(
+				new BadRequestError("File must be a javascript file"),
+			);
 		}
 
 		const uuid = this.nodeService.uuidGenerator.generate();

@@ -1,9 +1,9 @@
-import { InMemoryStorageProvider } from "./../adapters/inmem/inmem_storage_provider.ts";
-import { InMemoryNodeRepository } from "../adapters/inmem/inmem_node_repository.ts";
+import { InMemoryStorageProvider } from "/adapters/inmem/inmem_storage_provider.ts";
+import { InMemoryNodeRepository } from "/adapters/inmem/inmem_node_repository.ts";
 import { NodeService } from "./node_service.ts";
-import { FolderNotFoundError } from "../domain/nodes/folder_not_found_error.ts";
+import { FolderNotFoundError } from "/domain/nodes/folder_not_found_error.ts";
 import { NodeServiceContext } from "./node_service_context.ts";
-import { AntboxError } from "../shared/antbox_error.ts";
+import { AntboxError } from "/shared/antbox_error.ts";
 import { assertFalse, assertStrictEquals } from "/deps/asserts";
 
 Deno.test("createFile", async (t) => {
@@ -16,7 +16,7 @@ Deno.test("createFile", async (t) => {
 
 			const result = await svc.createFile(file, { parent: "bad_parent_uuid" });
 
-			assertFalse(result.isLeft());
+			assertFalse(result.isRight());
 			assertStrictEquals(
 				(result.value as AntboxError).errorCode,
 				FolderNotFoundError.ERROR_CODE,

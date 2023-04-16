@@ -22,8 +22,6 @@
     "/strategies/": "./src/adapters/strategies/",
     "/adapters/": "./src/adapters/",
 
-    "/test/": "./test/",
-
     "/deps/mime": "https://deno.land/std@0.142.0/mime/mod.ts",
     "/deps/path": "https://deno.land/std@0.153.0/path/mod.ts",
     "/deps/crypto": "https://deno.land/std@0.170.0/crypto/mod.ts",

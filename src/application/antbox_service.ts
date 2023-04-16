@@ -26,11 +26,11 @@ import { NodeFilterResult } from "/domain/nodes/node_repository.ts";
 import { AntboxError, BadRequestError, ForbiddenError } from "/shared/antbox_error.ts";
 
 export class AntboxService {
-	private readonly nodeService: NodeService;
-	private readonly authService: AuthService;
-	private readonly aspectService: AspectService;
-	private readonly actionService: ActionService;
-	private readonly extService: ExtService;
+	readonly nodeService: NodeService;
+	readonly authService: AuthService;
+	readonly aspectService: AspectService;
+	readonly actionService: ActionService;
+	readonly extService: ExtService;
 
 	constructor(nodeCtx: NodeServiceContext) {
 		this.nodeService = new NodeService(nodeCtx);

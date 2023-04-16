@@ -10,7 +10,10 @@ import {
 	InMemoryStorageProvider,
 	ServerOpts,
 	setupOakServer,
+	SYMMETRIC_KEY,
 } from "./mod.ts";
+
+import jwk from "./demo.jwk.json" assert { type: "json" };
 
 const ROOT_PASSWD = "demo";
 
@@ -20,10 +23,23 @@ const program = await new Command()
 	.description("Prova de conceito em memória")
 	.option("--port <port>", "porta do servidor [7180]")
 	.option("--passwd <passwd>", "senha do root [demo]")
+	.option("--keys", "imprime as chaves de criptografia")
 	.parse(Deno.args);
 
-function main(program: IParseResult) {
+function printKeys(passwd: string, symmetricKey: string, jwk: Record<string, string>) {
+	console.log("Root passwd:\t", passwd);
+
+	console.log("Symmetric Key:\t", symmetricKey);
+	console.log("JSON Web Key:\t", JSON.stringify(jwk, null, 4));
+}
+
+async function main(program: IParseResult) {
 	const passwd = program.options.passwd || ROOT_PASSWD;
+
+	if (program.options.keys) {
+		printKeys(passwd, SYMMETRIC_KEY, jwk);
+		Deno.exit(0);
+	}
 
 	const service = new AntboxService({
 		uuidGenerator: new DefaultUuidGenerator(),
@@ -37,7 +53,7 @@ function main(program: IParseResult) {
 		serverOpts.port = parseInt(program.options.port);
 	}
 
-	const startServer = setupOakServer(service, passwd);
+	const startServer = await setupOakServer(service, passwd, jwk);
 
 	startServer(serverOpts).then(() => {
 		console.log(
@@ -47,4 +63,4 @@ function main(program: IParseResult) {
 	});
 }
 
-main(program);
+await main(program);

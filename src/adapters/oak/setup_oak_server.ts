@@ -10,23 +10,26 @@ import webContentsRouter from "./web_contents_router.ts";
 import extRouter from "./ext_router.ts";
 import { AntboxService } from "/application/antbox_service.ts";
 import loginRouter from "./login_router.ts";
-import { authMiddleware } from "./auth_middleware.ts";
+import { createAuthMiddleware } from "./create_auth_middleware.ts";
 
-const SYMMETRIC_KEY = "ui2tPcQZvN+IxXsEW6KQOOFROS6zXB1pZdotBR3Ot8o=";
+export const SYMMETRIC_KEY = "ui2tPcQZvN+IxXsEW6KQOOFROS6zXB1pZdotBR3Ot8o=";
 
 export interface ServerOpts {
 	port?: number;
 }
 
-export function setupOakServer(
+export async function setupOakServer(
 	service: AntboxService,
 	rootPasswd: string,
+	rawJwk: Record<string, string>,
 	symmetricKey = SYMMETRIC_KEY,
 ) {
 	const app = new Application();
 
 	app.use(oakCors());
-	app.use(authMiddleware([], symmetricKey));
+
+	const authMiddleware = await createAuthMiddleware(service.authService, rawJwk, symmetricKey);
+	app.use(authMiddleware);
 
 	const nodes = nodesRouter(service);
 	const upload = uploadRouter(service);

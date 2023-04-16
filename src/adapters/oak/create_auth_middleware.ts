@@ -2,23 +2,23 @@ import { User } from "/domain/auth/user.ts";
 import { Context } from "/deps/oak";
 import * as jose from "/deps/jose";
 import { AuthService } from "/application/auth_service.ts";
-import { Either, left, right } from "../../shared/either.ts";
+import { Either, left, right } from "/shared/either.ts";
 import { JWK, KeyLike } from "/deps/jose";
-import { UserPrincipal } from "../../domain/auth/user_principal.ts";
+import { UserPrincipal } from "/domain/auth/user_principal.ts";
 
-export async function authMiddleware(
+export async function createAuthMiddleware(
 	authService: AuthService,
-	key: Record<string, string>,
-	secret: string,
+	rawJwk: Record<string, string>,
+	rawSecret: string,
 ): Promise<(ctx: Context, next: () => Promise<unknown>) => Promise<unknown>> {
-	const jwkOrErr = await importJwk(key);
+	const jwkOrErr = await importJwk(rawJwk);
 
 	if (jwkOrErr.isLeft()) {
 		throw jwkOrErr.value;
 	}
 
 	const jwk = jwkOrErr.value;
-	const skey = importKey(secret);
+	const secret = importKey(rawSecret);
 
 	return async (ctx: Context, next: () => Promise<unknown>) => {
 		const token = await getToken(ctx);
@@ -30,7 +30,7 @@ export async function authMiddleware(
 		if (!payload) return next();
 
 		if (payload.iss === "urn:antbox") {
-			await authenticateRoot(skey, ctx, token);
+			await authenticateRoot(secret, ctx, token);
 			return next();
 		}
 

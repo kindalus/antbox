@@ -12,5 +12,5 @@ export type { NodeServiceContext } from "./src/application/node_service_context.
 
 export { PouchdbNodeRepository } from "/adapters/pouchdb/pouchdb_node_repository.ts";
 
-export { setupOakServer } from "/adapters/oak/setup_oak_server.ts";
+export { setupOakServer, SYMMETRIC_KEY } from "/adapters/oak/setup_oak_server.ts";
 export type { ServerOpts } from "/adapters/oak/setup_oak_server.ts";

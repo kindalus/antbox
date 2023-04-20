@@ -2,7 +2,7 @@ import { left, right } from "/shared/either.ts";
 import { specFn, Specification } from "/shared/specification.ts";
 import { AspectProperty } from "./aspect.ts";
 import { AntboxError } from "/shared/antbox_error.ts";
-import { ValidationError } from "../../shared/validation_error.ts";
+import { ValidationError } from "/shared/validation_error.ts";
 
 function propertyTypeSpec<T>(p: AspectProperty): Specification<T> {
 	return specFn((t: T) => {

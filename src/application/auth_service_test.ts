@@ -4,7 +4,7 @@ import { assertSpyCalls, spy } from "/deps/mock";
 import { AuthService } from "./auth_service.ts";
 import { DefaultUuidGenerator } from "/strategies/default_uuid_generator.ts";
 
-import { DomainEvents } from "./domain_events.ts";
+import { DomainEvents } from "/application/domain_events.ts";
 import { UserCreatedEvent } from "/domain/auth/user_created_event.ts";
 import { GroupCreatedEvent } from "/domain/auth/group_created_event.ts";
 

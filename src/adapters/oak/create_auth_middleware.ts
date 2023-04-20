@@ -5,6 +5,8 @@ import { AuthService } from "/application/auth_service.ts";
 import { Either, left, right } from "/shared/either.ts";
 import { JWK, KeyLike } from "/deps/jose";
 import { UserPrincipal } from "/domain/auth/user_principal.ts";
+import { Anonymous } from "../../application/builtin_users/anonymous.ts";
+import { Root } from "../../application/builtin_users/root.ts";
 
 export async function createAuthMiddleware(
 	authService: AuthService,
@@ -21,8 +23,8 @@ export async function createAuthMiddleware(
 	const secret = importKey(rawSecret);
 
 	return async (ctx: Context, next: () => Promise<unknown>) => {
-		const token = await getToken(ctx);
-		ctx.state.userPrincipal = User.ANONYMOUS_USER;
+		const token = getToken(ctx);
+		ctx.state.userPrincipal = Anonymous;
 
 		if (!token) return await next();
 
@@ -39,9 +41,8 @@ export async function createAuthMiddleware(
 	};
 }
 
-async function getToken(ctx: Context) {
-	return ctx.request.headers.get("x-access-token") ??
-		(await ctx.cookies.get("antbox-access-token"));
+function getToken(ctx: Context) {
+	return ctx.request.headers.get("x-access-token");
 }
 
 async function authenticateRoot(
@@ -55,7 +56,7 @@ async function authenticateRoot(
 		return;
 	}
 
-	ctx.state.userPrincipal = User.ROOT_USER;
+	ctx.state.userPrincipal = Root;
 }
 
 async function authenticateToken(

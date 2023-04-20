@@ -11,7 +11,6 @@ export class Node {
 	static ROOT_FOLDER_UUID = "--root--";
 	static USERS_FOLDER_UUID = "--users--";
 	static GROUPS_FOLDER_UUID = "--groups--";
-	static ACCESS_TOKENS_FOLDER_UUID = "--access-tokens--";
 	static ASPECTS_FOLDER_UUID = "--aspects--";
 	static ACTIONS_FOLDER_UUID = "--actions--";
 	static EXT_FOLDER_UUID = "--ext--";
@@ -72,8 +71,12 @@ export class Node {
 		return !this.isFolder() && !this.isSmartFolder() && !this.isMetaNode();
 	}
 
-	isRootFolder(): boolean {
-		return Node.isRootFolder(this.uuid);
+	isRootFolder(): this is FolderNode {
+		return this.uuid === Node.ROOT_FOLDER_UUID;
+	}
+
+	isSystemFolder(): this is FolderNode {
+		return this.uuid === Node.SYSTEM_FOLDER_UUID;
 	}
 
 	static isJavascript(file: File) {

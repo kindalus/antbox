@@ -2,7 +2,7 @@ import { Context, Router } from "/deps/oak";
 import { crypto } from "/deps/crypto";
 import * as jose from "/deps/jose";
 import { sendBadRequest, sendOK, sendUnauthorized } from "./send_response.ts";
-import { User } from "/domain/auth/user.ts";
+import { Root } from "../../application/builtin_users/root.ts";
 
 export default function (symmetricKey: string, rootPasswd: string) {
 	let digestedRootPasswd: string;
@@ -21,7 +21,7 @@ export default function (symmetricKey: string, rootPasswd: string) {
 
 		const secret = new TextEncoder().encode(symmetricKey);
 
-		const jwt = await new jose.SignJWT({ email: User.ROOT_USER.email })
+		const jwt = await new jose.SignJWT({ email: Root.email })
 			.setProtectedHeader({ alg: "HS256" })
 			.setIssuedAt()
 			.setIssuer("urn:antbox")
@@ -29,10 +29,7 @@ export default function (symmetricKey: string, rootPasswd: string) {
 			.sign(secret);
 
 		sendOK(ctx, { jwt });
-		ctx.response.headers.set(
-			"Set-Cookie",
-			"antbox-access-token=" + jwt + ";Max-Age=" + 30 * 60 + "; Path=/;",
-		);
+
 		return sendOK(ctx);
 	};
 

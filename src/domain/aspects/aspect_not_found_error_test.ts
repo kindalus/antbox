@@ -1,4 +1,4 @@
-import { ValidationError } from "../../shared/validation_error.ts";
+import { ValidationError } from "/shared/validation_error.ts";
 import { AspectProperty } from "./aspect.ts";
 import { buildAspectPropertySpec, PropertyTypeError, RequiredPropertyError } from "./aspect_property_spec.ts";
 import { assertEquals, assertFalse } from "/deps/asserts";

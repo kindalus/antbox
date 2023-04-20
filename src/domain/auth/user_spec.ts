@@ -3,7 +3,7 @@ import { left, right } from "/shared/either.ts";
 import { ValidationError } from "/shared/validation_error.ts";
 
 import { InvalidFullnameFormatError } from "./invalid_fullname_format_error.ts";
-import { RegexSpec } from "../../shared/regex_spec.ts";
+import { RegexSpec } from "/shared/regex_spec.ts";
 import { InvalidEmailFormatError } from "./invalid_email_format_error.ts";
 import { User } from "./user.ts";
 

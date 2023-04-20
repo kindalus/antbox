@@ -5,18 +5,15 @@ import { Group } from "/domain/auth/group.ts";
 
 import { NodeService } from "./node_service.ts";
 import { Node } from "/domain/nodes/node.ts";
-import { DomainEvents } from "./domain_events.ts";
 import { UserCreatedEvent } from "/domain/auth/user_created_event.ts";
 import { GroupCreatedEvent } from "/domain/auth/group_created_event.ts";
-import { UserSpec } from "../domain/auth/user_spec.ts";
-import { GroupSpec } from "../domain/auth/group_spec.ts";
-import { UserNotFoundError } from "../domain/auth/user_not_found_error.ts";
+import { UserSpec } from "/domain/auth/user_spec.ts";
+import { GroupSpec } from "/domain/auth/group_spec.ts";
+import { UserNotFoundError } from "/domain/auth/user_not_found_error.ts";
+import { nodeToUser, userToNode } from "/application/node_mapper.ts";
+import { DomainEvents } from "/application/domain_events.ts";
 
 export class AuthService {
-	static USERS_FOLDER_UUID = "--users--";
-	static GROUPS_FOLDER_UUID = "--groups--";
-	static ACCESS_TOKENS_FOLDER_UUID = "--access-tokens--";
-
 	#userSpec = new UserSpec();
 	#groupSpec = new GroupSpec();
 
@@ -33,7 +30,7 @@ export class AuthService {
 			return left(new UserNotFoundError(email));
 		}
 
-		return right(this.#metanodeToUser(nodeOrErr.value.nodes[0]));
+		return right(nodeToUser(nodeOrErr.value.nodes[0]));
 	}
 
 	async createGroup(group: Partial<Group>): Promise<Either<AntboxError, Node>> {
@@ -46,7 +43,7 @@ export class AuthService {
 		const nodeOrErr = await this.nodeService.createMetanode({
 			...group,
 			uuid: group.uuid ?? this.nodeService.uuidGenerator.generate(),
-			parent: AuthService.GROUPS_FOLDER_UUID,
+			parent: Node.GROUPS_FOLDER_UUID,
 			aspects: ["group"],
 		});
 
@@ -70,7 +67,9 @@ export class AuthService {
 			return left(trueOrErr.value);
 		}
 
-		const node = this.#userToMetanode(user);
+		const node = userToNode(
+			Object.assign(user, { uuid: user.uuid ?? this.nodeService.uuidGenerator.generate() }),
+		);
 		const nodeOrErr = await this.nodeService.createMetanode(node);
 
 		if (nodeOrErr.isRight()) {
@@ -84,29 +83,5 @@ export class AuthService {
 		}
 
 		return nodeOrErr;
-	}
-
-	#userToMetanode(user: User): Partial<Node> {
-		return {
-			uuid: user.uuid ?? this.nodeService.uuidGenerator.generate(),
-			title: user.fullname,
-			parent: AuthService.USERS_FOLDER_UUID,
-			aspects: ["user"],
-			properties: {
-				"user:email": user.email,
-				"user:group": user.group,
-				"user:groups": user.groups,
-			},
-		};
-	}
-
-	#metanodeToUser(node: Node): User {
-		return Object.assign(new User(), {
-			uuid: node.uuid,
-			fullname: node.title,
-			email: node.properties["user:email"] as string,
-			group: node.properties["user:group"] as string,
-			groups: node.properties["user:groups"] as string[],
-		});
 	}
 }

@@ -2,14 +2,9 @@ import { left, right } from "/shared/either.ts";
 import { NodeNotFoundError } from "/domain/nodes/node_not_found_error.ts";
 import { Node } from "/domain/nodes/node.ts";
 import { FolderNode } from "/domain/nodes/folder_node.ts";
-import {
-	Action,
-	RunContext,
-	SecureAspectService,
-	SecureNodeService,
-} from "/domain/actions/action.ts";
+import { Action, RunContext, SecureAspectService, SecureNodeService } from "/domain/actions/action.ts";
 
-import { builtinActions } from "./builtin_actions/index.ts";
+import { builtinActions } from "./builtin_actions/mod.ts";
 import { NodeCreatedEvent } from "/domain/nodes/node_created_event.ts";
 import { NodeUpdatedEvent } from "/domain/nodes/node_updated_event.ts";
 import { AspectService } from "./aspect_service.ts";
@@ -29,10 +24,8 @@ export interface ActionServiceContext {
 }
 
 export class ActionService {
-	static ACTIONS_FOLDER_UUID = "--actions--";
-
 	static isActionsFolder(uuid: string): boolean {
-		return uuid === ActionService.ACTIONS_FOLDER_UUID;
+		return uuid === Node.ACTIONS_FOLDER_UUID;
 	}
 
 	constructor(
@@ -61,27 +54,26 @@ export class ActionService {
 		};
 	}
 
-	static actionToFile(action: Action): Promise<File> {
+	static actionToFile(action: Action): File {
 		const text = `export default {
-    uuid: "${action.uuid}",
-		title: "${action.title}",
-		description: "${action.description}",
-		builtIn: ${action.builtIn},
-		filters: ${JSON.stringify(action.filters)},
-		params: ${JSON.stringify(action.params)},
-    runOnCreates: ${action.runOnCreates},
-    runOnUpdates: ${action.runOnUpdates},
-    runManually: ${action.runManually},
-  readonly authService: AuthService;
-    
-    ${action.run.toString()}
-	};
-`;
+			uuid: "${action.uuid}",
+			title: "${action.title}",
+			description: "${action.description}",
+			builtIn: ${action.builtIn},
+			filters: ${JSON.stringify(action.filters)},
+			params: ${JSON.stringify(action.params)},
+			runOnCreates: ${action.runOnCreates},
+			runOnUpdates: ${action.runOnUpdates},
+			runManually: ${action.runManually},
+			readonly authService: AuthService;
+
+			${action.run.toString()}
+		};`;
 
 		const filename = `${action.title}.js`;
 		const type = "application/javascript";
 
-		return Promise.resolve(new File([text], filename, { type }));
+		return new File([text], filename, { type });
 	}
 
 	async get(uuid: string): Promise<Either<NodeNotFoundError, Action>> {
@@ -104,7 +96,7 @@ export class ActionService {
 			return left(nodeError.value);
 		}
 
-		if (nodeError.value.parent !== ActionService.ACTIONS_FOLDER_UUID) {
+		if (nodeError.value.parent !== Node.ACTIONS_FOLDER_UUID) {
 			return left(new NodeNotFoundError(uuid));
 		}
 
@@ -115,7 +107,7 @@ export class ActionService {
 
 	list(): Promise<Action[]> {
 		return this.nodeService
-			.list(ActionService.ACTIONS_FOLDER_UUID)
+			.list(Node.ACTIONS_FOLDER_UUID)
 			.then((nodesOrErrs) => nodesOrErrs.value as Node[])
 			.then((nodes) => nodes.map((n) => this.get(n.uuid)))
 			.then((actionPromises) => Promise.all(actionPromises))
@@ -143,7 +135,7 @@ export class ActionService {
 		const fileNode = NodeFactory.createFileMetadata(
 			uuid,
 			this.nodeService.fidGenerator.generate(uuid),
-			{ ...metadata, parent: ActionService.ACTIONS_FOLDER_UUID },
+			{ ...metadata, parent: Node.ACTIONS_FOLDER_UUID },
 			file.type,
 			file.size,
 		);

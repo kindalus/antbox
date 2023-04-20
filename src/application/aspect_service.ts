@@ -5,6 +5,7 @@ import { Aspect } from "/domain/aspects/aspect.ts";
 
 import { Node } from "/domain/nodes/node.ts";
 import { AntboxError, BadRequestError } from "/shared/antbox_error.ts";
+import { fileToAspect } from "./node_mapper.ts";
 
 export class AspectService {
 	static isAspectsFolder(uuid: string): boolean {
@@ -58,46 +59,9 @@ export class AspectService {
 			return left(new NodeNotFoundError(uuid));
 		}
 
-		const aspect = await this.fileToAspect(aspectOrErr.value);
+		const aspect = await fileToAspect(aspectOrErr.value);
 
 		return right(aspect);
-	}
-
-	fileToAspect(file: File): Promise<Aspect> {
-		return file
-			.text()
-			.then((text) => JSON.parse(text))
-			.then((raw) => ({
-				uuid: raw.uuid ?? file.name.split(".")[0],
-				title: raw.title ?? file.name.split(".")[0],
-				description: raw.description ?? "",
-				builtIn: false,
-				multiple: raw.multiple ?? false,
-				filters: raw.filters ?? [],
-				aspects: raw.aspects ?? [],
-				properties: raw.properties ?? [],
-			}));
-	}
-
-	static aspectToFile(aspect: Aspect): Promise<File> {
-		const raw = JSON.stringify(
-			{
-				uuid: aspect.uuid,
-				title: aspect.title ?? aspect.uuid,
-				description: aspect.description,
-				builtIn: aspect.builtIn ?? false,
-				filters: aspect.filters ?? [],
-				properties: aspect.properties ?? [],
-			},
-			null,
-			4,
-		);
-
-		const f = new File([raw], aspect.uuid + ".json", {
-			type: "application/json",
-		});
-
-		return Promise.resolve(f);
 	}
 
 	list(): Promise<Aspect[]> {

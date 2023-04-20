@@ -90,7 +90,7 @@ export default function (service: AntboxService) {
 			: service.createFolder(authCtx, metadata);
 
 		return creator
-			.then((result) => processEither(ctx, result))
+			.then((result) => processEither(ctx, result, result.value))
 			.catch((err) => processError(err, ctx));
 	};
 

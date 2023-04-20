@@ -16,14 +16,15 @@ import { AuthService } from "./auth_service.ts";
 import { Action, SecureAspectService } from "/domain/actions/action.ts";
 import { Aspect } from "/domain/aspects/aspect.ts";
 import { User } from "/domain/auth/user.ts";
-import { Group } from "/domain/auth/group.ts";
-import { DomainEvents } from "./domain_events.ts";
+
 import { NodeCreatedEvent } from "/domain/nodes/node_created_event.ts";
 import { NodeUpdatedEvent } from "/domain/nodes/node_updated_event.ts";
 import { NodeContentUpdatedEvent } from "/domain/nodes/node_content_updated_event.ts";
 import { NodeDeletedEvent } from "/domain/nodes/node_deleted_event.ts";
 import { NodeFilterResult } from "/domain/nodes/node_repository.ts";
 import { AntboxError, BadRequestError, ForbiddenError } from "/shared/antbox_error.ts";
+import { DomainEvents } from "./domain_events.ts";
+import { Group } from "/domain/auth/group.ts";
 
 export class AntboxService {
 	readonly nodeService: NodeService;
@@ -233,7 +234,7 @@ export class AntboxService {
 		}
 
 		if (
-			principal.email !== User.ANONYMOUS_USER.email &&
+			principal.email !== User.ANONYMOUS_USER_EMAIL &&
 			parent.permissions.authenticated.includes(permission)
 		) {
 			return right(undefined);
@@ -445,27 +446,13 @@ export class AntboxService {
 		});
 	}
 
-	private async createAuthFoldersAndRootObjects() {
-		const folderOrErr = await this.createAuthFolders();
-		if (folderOrErr.isLeft()) {
-			return folderOrErr;
-		}
-
-		const userOrErr = await this.authService.createUser(User.ROOT_USER);
-		if (userOrErr.isLeft()) {
-			return userOrErr;
-		}
-
-		return this.authService.createGroup(Group.ADMIN_GROUP);
-	}
-
 	private async createAuthFolders() {
 		const usersOrErr = await this.nodeService.createFolder({
-			uuid: AuthService.USERS_FOLDER_UUID,
-			fid: AuthService.USERS_FOLDER_UUID,
+			uuid: Node.USERS_FOLDER_UUID,
+			fid: Node.USERS_FOLDER_UUID,
 			title: "Users",
 			parent: Node.SYSTEM_FOLDER_UUID,
-			group: Group.ADMIN_GROUP.uuid,
+			group: Group.ADMINS_GROUP_UUID,
 		});
 
 		if (usersOrErr.isLeft()) {
@@ -473,89 +460,12 @@ export class AntboxService {
 		}
 
 		return this.nodeService.createFolder({
-			uuid: AuthService.GROUPS_FOLDER_UUID,
-			fid: AuthService.GROUPS_FOLDER_UUID,
+			uuid: Node.GROUPS_FOLDER_UUID,
+			fid: Node.GROUPS_FOLDER_UUID,
 			title: "Groups",
 			parent: Node.SYSTEM_FOLDER_UUID,
-			group: Group.ADMIN_GROUP.uuid,
+			group: Group.ADMINS_GROUP_UUID,
 		});
-	}
-
-	private createAccessTokensFolder() {
-		return this.nodeService.createFolder(
-			this.createSystemFolderMetadata(
-				AuthService.ACCESS_TOKENS_FOLDER_UUID,
-				AuthService.ACCESS_TOKENS_FOLDER_UUID,
-				"Access Tokens",
-				Node.SYSTEM_FOLDER_UUID,
-			),
-		);
-	}
-
-	private createExtensionsFolder() {
-		return this.nodeService.createFolder(
-			this.createSystemFolderMetadata(
-				ExtService.EXT_FOLDER_UUID,
-				ExtService.EXT_FOLDER_UUID,
-				"Extensions",
-				Node.SYSTEM_FOLDER_UUID,
-			),
-		);
-	}
-
-	private createActionsFolder() {
-		return this.nodeService.createFolder(
-			this.createSystemFolderMetadata(
-				ActionService.ACTIONS_FOLDER_UUID,
-				ActionService.ACTIONS_FOLDER_UUID,
-				"Actions",
-				Node.SYSTEM_FOLDER_UUID,
-			),
-		);
-	}
-
-	private createAspectsFolder() {
-		return this.nodeService.createFolder(
-			this.createSystemFolderMetadata(
-				Node.ASPECTS_FOLDER_UUID,
-				Node.ASPECTS_FOLDER_UUID,
-				"Aspects",
-				Node.SYSTEM_FOLDER_UUID,
-			),
-		);
-	}
-
-	private createSystemFolder() {
-		return this.nodeService.createFolder(
-			this.createSystemFolderMetadata(
-				Node.SYSTEM_FOLDER_UUID,
-				Node.SYSTEM_FOLDER_UUID,
-				"__System__",
-				Node.ROOT_FOLDER_UUID,
-			),
-		);
-	}
-
-	private createSystemFolderMetadata(
-		uuid: string,
-		fid: string,
-		title: string,
-		parent: string,
-	) {
-		return {
-			uuid,
-			fid,
-			title,
-			parent,
-			owner: User.ROOT_USER.email,
-			group: Group.ADMIN_GROUP.uuid,
-		};
-	}
-
-	private systemFolderExists() {
-		return this.nodeService
-			.get(Node.SYSTEM_FOLDER_UUID)
-			.then((voidOrErr) => voidOrErr.isRight());
 	}
 
 	static isSystemFolder(uuid: string): boolean {

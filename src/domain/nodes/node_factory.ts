@@ -1,8 +1,8 @@
 import { FileNode, Node } from "/domain/nodes/node.ts";
 import { FolderNode } from "./folder_node.ts";
 import { SmartFolderNode } from "./smart_folder_node.ts";
+import { User } from "/domain/auth/user.ts";
 import { Group } from "../auth/group.ts";
-import { User } from "../auth/user.ts";
 export class NodeFactory {
 	static fromMimetype(
 		mimetype: string,
@@ -86,11 +86,11 @@ export class NodeFactory {
 			aspects: metadata.aspects ?? [],
 			description: metadata.description ?? "",
 			properties: metadata.properties ?? {},
-			owner: metadata.owner ?? User.ROOT_USER.email,
+			owner: metadata.owner ?? User.ROOT_USER_EMAIL,
 		};
 
 		if ((metadata as FolderNode).group) {
-			(node as FolderNode).group = (metadata as FolderNode).group ?? Group.ADMIN_GROUP.uuid;
+			(node as FolderNode).group = (metadata as FolderNode).group ?? Group.ADMINS_GROUP_UUID;
 		}
 
 		return node;

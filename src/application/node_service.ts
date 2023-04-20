@@ -1,5 +1,5 @@
 import { ActionService } from "/application/action_service.ts";
-import { builtinAspects } from "./builtin_aspects/index.ts";
+import { builtinAspects } from "./builtin_aspects/mod.ts";
 import { AggregationFormulaError } from "/domain/nodes/aggregation_formula_error.ts";
 import { NodeFactory } from "/domain/nodes/node_factory.ts";
 import { NodeFilterResult } from "/domain/nodes/node_repository.ts";
@@ -17,15 +17,23 @@ import { Either, left, right } from "/shared/either.ts";
 import { NodeDeleter } from "/application/node_deleter.ts";
 import { AggregationResult, Reducers, SmartFolderNodeEvaluation } from "./smart_folder_evaluation.ts";
 import { NodeServiceContext } from "./node_service_context.ts";
-import { builtinActions } from "./builtin_actions/index.ts";
-import { AspectService } from "./aspect_service.ts";
-import { Action } from "/domain/actions/action.ts";
-import { Aspect } from "/domain/aspects/aspect.ts";
+import { builtinActions } from "./builtin_actions/mod.ts";
 import { AntboxError, BadRequestError } from "/shared/antbox_error.ts";
 import { FolderNode } from "/domain/nodes/folder_node.ts";
+import { actionToNode, aspectToFile, aspectToNode, groupToNode, userToNode } from "./node_mapper.ts";
+import { builtinUsers } from "./builtin_users/mod.ts";
+import { builtinGroups } from "./builtin_groups/mod.ts";
 
 export class NodeService {
-	constructor(private readonly context: NodeServiceContext) {}
+	readonly #systemListCreator: Record<string, Node[]>;
+
+	constructor(private readonly context: NodeServiceContext) {
+		this.#systemListCreator = {};
+		this.#systemListCreator[Node.ACTIONS_FOLDER_UUID] = builtinActions.map(actionToNode);
+		this.#systemListCreator[Node.ASPECTS_FOLDER_UUID] = builtinAspects.map(aspectToNode);
+		this.#systemListCreator[Node.USERS_FOLDER_UUID] = builtinUsers.map(userToNode);
+		this.#systemListCreator[Node.GROUPS_FOLDER_UUID] = builtinGroups.map(groupToNode);
+	}
 
 	get uuidGenerator() {
 		return this.context.uuidGenerator;
@@ -199,7 +207,7 @@ export class NodeService {
 			return left(nodeOrErr.value);
 		}
 
-		nodeOrErr.value.modifiedTime = this.now();
+		nodeOrErr.value.modifiedTime = new Date().toISOString();
 		nodeOrErr.value.size = file.size;
 		nodeOrErr.value.mimetype = file.type;
 
@@ -245,7 +253,6 @@ export class NodeService {
 		return [
 			FolderNode.ACTIONS_FOLDER,
 			FolderNode.ASPECTS_FOLDER,
-			FolderNode.ACCESS_TOKENS_FOLDER,
 			FolderNode.USERS_FOLDER,
 			FolderNode.GROUPS_FOLDER,
 			FolderNode.EXT_FOLDER,
@@ -258,7 +265,6 @@ export class NodeService {
 			FolderNode.SYSTEM_FOLDER,
 			FolderNode.ACTIONS_FOLDER,
 			FolderNode.ASPECTS_FOLDER,
-			FolderNode.ACCESS_TOKENS_FOLDER,
 			FolderNode.USERS_FOLDER,
 			FolderNode.GROUPS_FOLDER,
 			FolderNode.EXT_FOLDER,
@@ -289,7 +295,7 @@ export class NodeService {
 			return Promise.resolve(left(new NodeNotFoundError(uuid)));
 		}
 
-		return Promise.resolve(right(this.builtinActionToNode(action)));
+		return Promise.resolve(right(actionToNode(action)));
 	}
 
 	private getBuiltinAspect(
@@ -301,7 +307,7 @@ export class NodeService {
 			return Promise.resolve(left(new NodeNotFoundError(uuid)));
 		}
 
-		return Promise.resolve(right(this.builtinAspectToNode(aspect)));
+		return Promise.resolve(right(aspectToNode(aspect)));
 	}
 
 	private getFromRepository(
@@ -321,7 +327,7 @@ export class NodeService {
 			return left(new FolderNotFoundError(parent));
 		}
 
-		if (parentOrErr.value == FolderNode.SYSTEM_FOLDER) {
+		if (parentOrErr.value.isSystemFolder()) {
 			return right(this.#listSystemFolders());
 		}
 
@@ -329,12 +335,9 @@ export class NodeService {
 			.filter([["parent", "==", parentOrErr.value.uuid]], Number.MAX_VALUE, 1)
 			.then((result) => result.nodes);
 
-		if (parent === ActionService.ACTIONS_FOLDER_UUID) {
-			return right(this.listActions(nodes));
-		}
-
-		if (parent === Node.ASPECTS_FOLDER_UUID) {
-			return right(this.listAspects(nodes));
+		const systemNodes = this.#systemListCreator[parentOrErr.value.uuid];
+		if (systemNodes) {
+			return right([...systemNodes, ...nodes]);
 		}
 
 		if (parent === Node.ROOT_FOLDER_UUID) {
@@ -342,47 +345,6 @@ export class NodeService {
 		}
 
 		return right(nodes);
-	}
-
-	private listActions(nodes: Node[]): Node[] {
-		const actions = builtinActions.map((a) => this.builtinActionToNode(a));
-
-		return [...nodes, ...actions];
-	}
-
-	private builtinActionToNode(action: Action): Node {
-		return {
-			uuid: action.uuid,
-			fid: action.uuid,
-			title: action.title,
-
-			mimetype: "application/javascript",
-			size: 0,
-			parent: ActionService.ACTIONS_FOLDER_UUID,
-
-			createdTime: this.now(),
-			modifiedTime: this.now(),
-		} as Node;
-	}
-
-	private listAspects(nodes: Node[]): Node[] {
-		const aspects = builtinAspects.map((a) => this.builtinAspectToNode(a));
-
-		return [...nodes, ...aspects];
-	}
-
-	private builtinAspectToNode(aspect: Aspect): Node {
-		return {
-			uuid: aspect.uuid,
-			fid: aspect.uuid,
-			title: aspect.title,
-			mimetype: "application/json",
-			size: 0,
-			parent: Node.ASPECTS_FOLDER_UUID,
-
-			createdTime: this.now(),
-			modifiedTime: this.now(),
-		} as Node;
 	}
 
 	query(
@@ -496,14 +458,9 @@ export class NodeService {
 	}
 
 	async export(uuid: string): Promise<Either<NodeNotFoundError, File>> {
-		const builtinActionOrErr = await this.exportBuiltinAction(uuid);
-		if (builtinActionOrErr.isRight()) {
-			return builtinActionOrErr;
-		}
-
-		const builtinAspectOrErr = await this.exportBuiltinAspect(uuid);
-		if (builtinAspectOrErr.isRight()) {
-			return builtinAspectOrErr;
+		const builtinOrErr = this.#exportBuiltinNode(uuid);
+		if (builtinOrErr.isRight()) {
+			return builtinOrErr;
 		}
 
 		const nodeOrErr = await this.get(uuid);
@@ -513,7 +470,7 @@ export class NodeService {
 		}
 
 		if (nodeOrErr.value.isSmartFolder()) {
-			return right(this.exportSmartfolder(nodeOrErr.value));
+			return right(this.#exportSmartfolder(nodeOrErr.value));
 		}
 
 		const file = await this.context.storage.read(uuid);
@@ -521,39 +478,49 @@ export class NodeService {
 		return right(file);
 	}
 
-	private exportBuiltinAction(
+	#exportBuiltinNode(uuid: string): Either<NodeNotFoundError, File> {
+		const builtinActionOrErr = this.#exportBuiltinAction(uuid);
+		if (builtinActionOrErr.isRight()) {
+			return builtinActionOrErr;
+		}
+
+		const builtinAspectOrErr = this.#exportBuiltinAspect(uuid);
+		if (builtinAspectOrErr.isRight()) {
+			return builtinAspectOrErr;
+		}
+
+		return left(new NodeNotFoundError(uuid));
+	}
+
+	#exportBuiltinAction(
 		uuid: string,
-	): Promise<Either<NodeNotFoundError, File>> {
+	): Either<NodeNotFoundError, File> {
 		const action = builtinActions.find((action) => action.uuid === uuid);
 
 		if (!action) {
-			return Promise.resolve(left(new NodeNotFoundError(uuid)));
+			return left(new NodeNotFoundError(uuid));
 		}
 
-		return ActionService.actionToFile(action).then((file) => right(file));
+		return right(ActionService.actionToFile(action));
 	}
 
-	private exportBuiltinAspect(
+	#exportBuiltinAspect(
 		uuid: string,
-	): Promise<Either<NodeNotFoundError, File>> {
+	): Either<NodeNotFoundError, File> {
 		const aspect = builtinAspects.find((aspect) => aspect.uuid === uuid);
 
 		if (!aspect) {
-			return Promise.resolve(left(new NodeNotFoundError(uuid)));
+			return left(new NodeNotFoundError(uuid));
 		}
 
-		return AspectService.aspectToFile(aspect).then((file) => right(file));
+		return right(aspectToFile(aspect));
 	}
 
-	private exportSmartfolder(node: Node): File {
+	#exportSmartfolder(node: Node): File {
 		const jsonText = JSON.stringify(node);
 
 		return new File([jsonText], node.title.concat(".json"), {
 			type: "application/json",
 		});
-	}
-
-	private now() {
-		return new Date().toISOString();
 	}
 }

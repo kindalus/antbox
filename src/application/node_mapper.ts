@@ -75,6 +75,8 @@ export function groupToNode(group: Group): Node {
 		mimetype: Node.META_NODE_MIMETYPE,
 		size: 0,
 
+		aspects: ["group"],
+
 		createdTime: nowIso(),
 		modifiedTime: nowIso(),
 	} as Node;

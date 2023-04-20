@@ -22,14 +22,14 @@ export const UserAspect = {
 			title: "Grupo Principal",
 			type: "UUID",
 			required: true,
-			validationFilters: [["aspects", "==", ["group"]]],
+			validationFilters: [["aspects", "contains", "group"]],
 		},
 		{
 			name: "groups",
 			title: "Grupos Complementares",
 			type: "UUID[]",
 			required: false,
-			validationFilters: [["aspects", "contains", ["group"]]],
+			validationFilters: [["aspects", "contains", "group"]],
 		},
 	],
 } as Aspect;

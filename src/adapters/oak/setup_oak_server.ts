@@ -12,8 +12,6 @@ import { AntboxService } from "/application/antbox_service.ts";
 import loginRouter from "./login_router.ts";
 import { createAuthMiddleware } from "./create_auth_middleware.ts";
 
-export const SYMMETRIC_KEY = "ui2tPcQZvN+IxXsEW6KQOOFROS6zXB1pZdotBR3Ot8o=";
-
 export interface ServerOpts {
 	port?: number;
 }
@@ -22,7 +20,7 @@ export async function setupOakServer(
 	service: AntboxService,
 	rootPasswd: string,
 	rawJwk: Record<string, string>,
-	symmetricKey = SYMMETRIC_KEY,
+	symmetricKey: string,
 ) {
 	const app = new Application();
 

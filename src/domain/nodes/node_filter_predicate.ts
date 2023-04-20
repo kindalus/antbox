@@ -1,6 +1,7 @@
 // deno-lint-ignore-file no-explicit-any
+
 import { Node } from "./node.ts";
-import { FilterOperator, NodeFilter } from "./node_filter.ts";
+import { NodeFilter, FilterOperator } from "./node_filter.ts";
 
 export function getNodeFilterPredicate(
   filters: NodeFilter[] = []

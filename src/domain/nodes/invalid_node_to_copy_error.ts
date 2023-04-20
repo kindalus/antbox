@@ -1,4 +1,4 @@
-import { AntboxError } from "/shared/antbox_error.ts";
+import { AntboxError } from "../../shared/antbox_error.ts";
 
 export class InvalidNodeToCopyError extends AntboxError {
   static ERROR_CODE = "InvalidNodeToCopyError";

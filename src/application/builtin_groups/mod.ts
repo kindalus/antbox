@@ -1,6 +1,4 @@
+import { Group } from "../../domain/auth/group.ts";
 import { Admins } from "./admins.ts";
-import { Group } from "/domain/auth/group.ts";
 
-export const builtinGroups: Group[] = [
-	Admins,
-];
+export const builtinGroups: Group[] = [Admins];

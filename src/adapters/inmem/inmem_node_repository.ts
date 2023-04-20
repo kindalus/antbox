@@ -1,12 +1,12 @@
-import { NodeFilter } from "/domain/nodes/node_filter.ts";
+import { Node } from "../../domain/nodes/node.ts";
+import { NodeFilter } from "../../domain/nodes/node_filter.ts";
+import { getNodeFilterPredicate } from "../../domain/nodes/node_filter_predicate.ts";
+import { NodeNotFoundError } from "../../domain/nodes/node_not_found_error.ts";
 import {
   NodeFilterResult,
   NodeRepository,
-} from "/domain/nodes/node_repository.ts";
-import { Node } from "/domain/nodes/node.ts";
-import { NodeNotFoundError } from "/domain/nodes/node_not_found_error.ts";
-import { Either, left, right } from "/shared/either.ts";
-import { getNodeFilterPredicate } from "/domain/nodes/node_filter_predicate.ts";
+} from "../../domain/nodes/node_repository.ts";
+import { Either, right, left } from "../../shared/either.ts";
 
 export class InMemoryNodeRepository implements NodeRepository {
   constructor(readonly db: Record<string, Partial<Node>> = {}) {}

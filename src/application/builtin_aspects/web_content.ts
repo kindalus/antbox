@@ -1,4 +1,5 @@
-import { Aspect } from "/domain/aspects/aspect.ts";
+import { Aspect } from "../../domain/aspects/aspect.ts";
+
 export interface WebContent {
   uuid: string;
   fid: string;

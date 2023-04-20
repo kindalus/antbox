@@ -1,4 +1,4 @@
-import { StorageProvider } from "/domain/providers/storage_provider.ts";
+import { StorageProvider } from "../../domain/providers/storage_provider.ts";
 
 export class InMemoryStorageProvider implements StorageProvider {
   constructor(readonly fs: Record<string, File> = {}) {}

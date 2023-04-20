@@ -1,5 +1,4 @@
-import { ResponseBody } from "https://deno.land/x/oak@v11.1.0/response.ts";
-import { Context, Status } from "/deps/oak";
+import { Context, ResponseBody, Status } from "../../../deps.ts";
 
 export function sendOK(ctx: Context, body?: ResponseBody) {
   sendResponse(ctx, Status.OK, body);

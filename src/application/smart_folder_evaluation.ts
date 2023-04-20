@@ -1,4 +1,4 @@
-import { Node } from "/domain/nodes/node.ts";
+import { Node } from "../domain/nodes/node.ts";
 
 export interface SmartFolderNodeEvaluation {
   records: Node[];

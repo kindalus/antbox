@@ -1,4 +1,4 @@
-import { Action, RunContext } from "/domain/actions/action.ts";
+import { RunContext, Action } from "../../domain/actions/action.ts";
 
 export default {
   uuid: "copy_to_folder",

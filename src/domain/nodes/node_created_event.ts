@@ -1,5 +1,6 @@
 import { Node } from "./node.ts";
-import { Event } from "/shared/event.ts";
+import { Event } from "../../shared/event.ts";
+
 export class NodeCreatedEvent implements Event {
   static EVENT_ID = "NodeCreatedEvent";
 

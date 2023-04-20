@@ -1,4 +1,3 @@
-import { AntboxError } from "/shared/antbox_error.ts";
 const ASPECT_NOT_FOUND_ERROR = "AspectNotFoundError";
 
 export class AspectNotFoundError extends AntboxError {

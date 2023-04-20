@@ -149,6 +149,7 @@ function toNodeDomain(doc: WithId<Document>): Node {
 	const { _id, ...node } = doc;
 
 	const nodeFields: Partial<Node> = {
+		uuid: node.uuid,
 		fid: node.fid,
 		title: node.title,
 		description: node.description,
@@ -176,7 +177,7 @@ function toNodeDomain(doc: WithId<Document>): Node {
 		folderFields.onUpdate = node.onUpdate;
 	}
 
-	return NodeFactory.composeNode({ uuid: _id.toString() }, nodeFields, smartfolderFields, folderFields);
+	return NodeFactory.composeNode(nodeFields, smartfolderFields, folderFields);
 }
 
 function buildMongoQuery(filters: NodeFilter[]): Filter<Document> {

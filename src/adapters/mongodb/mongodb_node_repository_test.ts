@@ -3,7 +3,7 @@ import { MongoClient } from "/deps/mongodb";
 import { Node } from "/domain/nodes/node.ts";
 import { assert, assertExists, fail } from "/deps/asserts";
 
-const url = "mongodb+srv://safira:safira@safira.y8lbc.gcp.mongodb.net/?retryWrites=true&w=majority";
+const url = "mongodb+srv://user:passwd@project.y8lbc.gcp.mongodb.net/?retryWrites=true&w=majority";
 const dbName = "main";
 const collectionName = "nodes";
 

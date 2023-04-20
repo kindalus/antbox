@@ -9,12 +9,13 @@ import { AntboxService } from "./src/application/antbox_service.ts";
 import { NodeRepository } from "./src/domain/nodes/node_repository.ts";
 import { StorageProvider } from "./src/domain/providers/storage_provider.ts";
 
+import defaultJwk from "./demo.jwk.json" assert { type: "json" };
+
 export type { AntboxService, NodeRepository, StorageProvider };
 
 const SYMMETRIC_KEY = "ui2tPcQZvN+IxXsEW6KQOOFROS6zXB1pZdotBR3Ot8o=";
 const ROOT_PASSWD = "demo";
 const PORT = 7180;
-const JWK_PATH = "./demo.jwk.json";
 
 export type ModuleConfiguration = [modulePath: string, ...params: string[]];
 export interface ServerOpts {
@@ -67,7 +68,11 @@ export async function printKeys(opts?: {
 }
 
 async function loadJwk(jwkPath?: string): Promise<Record<string, string>> {
-  const jwk = await Deno.readTextFile(jwkPath ?? JWK_PATH);
+  if (!jwkPath) {
+    return defaultJwk;
+  }
+
+  const jwk = await Deno.readTextFile(jwkPath);
   return JSON.parse(jwk);
 }
 

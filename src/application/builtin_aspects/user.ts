@@ -14,20 +14,20 @@ export const UserAspect = {
     {
       name: "email",
       title: "email",
-      type: "String",
+      type: "string",
       required: true,
     },
     {
       name: "group",
       title: "Grupo Principal",
-      type: "UUID",
+      type: "uuid",
       required: true,
       validationFilters: [["aspects", "contains", "group"]],
     },
     {
       name: "groups",
       title: "Grupos Complementares",
-      type: "UUID[]",
+      type: "uuid[]",
       required: false,
       validationFilters: [["aspects", "contains", "group"]],
     },

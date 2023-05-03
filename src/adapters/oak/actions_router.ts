@@ -28,7 +28,9 @@ export default function (service: AntboxService) {
 
         sendOK(ctx, listOrErr.value);
       })
-      .catch((err) => processError(err, ctx));
+      .catch((err) => {
+        return processError(err, ctx);
+      });
   };
 
   const runHandler = (ctx: ContextWithParams) => {

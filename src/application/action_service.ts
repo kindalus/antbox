@@ -68,7 +68,6 @@ export class ActionService {
 			runOnCreates: ${action.runOnCreates},
 			runOnUpdates: ${action.runOnUpdates},
 			runManually: ${action.runManually},
-			readonly authService: AuthService;
 
 			${action.run.toString()}
 		};`;

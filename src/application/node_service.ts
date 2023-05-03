@@ -294,7 +294,9 @@ export class NodeService {
 
   #createFileMetadata(metadata: Partial<Node>, mimetype: string, size: number) {
     const uuid = metadata.uuid ?? this.context.uuidGenerator.generate();
-    const fid = metadata.fid ?? this.context.fidGenerator.generate(uuid);
+    const fid =
+      metadata.fid ??
+      this.context.fidGenerator.generate(metadata.title ?? uuid);
 
     return NodeFactory.createFileMetadata(uuid, fid, metadata, mimetype, size);
   }

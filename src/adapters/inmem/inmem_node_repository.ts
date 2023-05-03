@@ -9,16 +9,24 @@ import {
 import { Either, right, left } from "../../shared/either.ts";
 
 export class InMemoryNodeRepository implements NodeRepository {
-  constructor(readonly db: Record<string, Partial<Node>> = {}) {}
+  readonly #data: Record<string, Partial<Node>>;
+
+  constructor(data: Record<string, Node> = {}) {
+    this.#data = data;
+  }
+
+  get data(): Record<string, Node> {
+    return this.#data as Record<string, Node>;
+  }
 
   delete(uuid: string): Promise<Either<NodeNotFoundError, void>> {
-    delete this.db[uuid];
+    delete this.#data[uuid];
 
     return Promise.resolve(right(undefined));
   }
 
   get records(): Node[] {
-    return Object.values(this.db) as Node[];
+    return Object.values(this.#data) as Node[];
   }
 
   get count(): number {
@@ -26,12 +34,12 @@ export class InMemoryNodeRepository implements NodeRepository {
   }
 
   add(node: Node): Promise<Either<NodeNotFoundError, void>> {
-    this.db[node.uuid] = node;
+    this.#data[node.uuid] = node;
     return Promise.resolve(right(undefined));
   }
 
   update(node: Node): Promise<Either<NodeNotFoundError, void>> {
-    this.db[node.uuid] = node;
+    this.#data[node.uuid] = node;
     return Promise.resolve(right(undefined));
   }
 

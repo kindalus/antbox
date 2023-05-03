@@ -3,7 +3,7 @@ import { NodeFilter } from "../nodes/node_filter.ts";
 export interface Aspect {
   uuid: string;
   title: string;
-  description: string;
+  description?: string;
   builtIn: boolean;
   filters: NodeFilter[];
   properties: AspectProperty[];
@@ -40,11 +40,15 @@ export interface AspectProperty {
 }
 
 export type PropertyType =
-  | "String"
-  | "Number"
-  | "DateTime"
-  | "Boolean"
-  | "UUID"
-  | "String[]"
-  | "Number[]"
-  | "UUID[]";
+  | "boolean"
+  | "date"
+  | "dateTime"
+  | "json"
+  | "number"
+  | "number[]"
+  | "richText"
+  | "string"
+  | "string[]"
+  | "text"
+  | "uuid"
+  | "uuid[]";

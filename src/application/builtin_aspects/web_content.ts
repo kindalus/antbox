@@ -21,7 +21,7 @@ export const WebContentAspect = {
     {
       name: "published",
       title: "Publicado",
-      type: "Boolean",
+      type: "boolean",
       required: true,
       default: false,
     },

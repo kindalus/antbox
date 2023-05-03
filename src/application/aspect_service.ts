@@ -30,10 +30,10 @@ export class AspectService {
     const aspect = (await file.text().then((t) => JSON.parse(t))) as Aspect;
 
     return this.nodeService.createFile(file, {
+      ...metadata,
       uuid: aspect.uuid,
       fid: aspect.uuid,
       title: aspect.title,
-      ...metadata,
     });
   }
 

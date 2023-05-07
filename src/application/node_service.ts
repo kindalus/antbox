@@ -365,7 +365,7 @@ export class NodeService {
   query(
     filters: NodeFilter[],
     pageSize: number,
-    pageToken: number
+    pageToken = 1
   ): Promise<Either<AntboxError, NodeFilterResult>> {
     return this.context.repository
       .filter(filters, pageSize, pageToken)

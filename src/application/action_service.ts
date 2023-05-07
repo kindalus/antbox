@@ -2,11 +2,10 @@ import { Action } from "../domain/actions/action.ts";
 import { RunContext } from "../domain/actions/run_context.ts";
 import { UserNotFoundError } from "../domain/auth/user_not_found_error.ts";
 import { UserPrincipal } from "../domain/auth/user_principal.ts";
-import { FolderNode } from "../domain/nodes/folder_node.ts";
+import { getFiltersPredicate } from "../domain/nodes/filters_predicate.ts";
 import { Node } from "../domain/nodes/node.ts";
 import { NodeCreatedEvent } from "../domain/nodes/node_created_event.ts";
 import { NodeFactory } from "../domain/nodes/node_factory.ts";
-import { getNodeFilterPredicate } from "../domain/nodes/node_filter_predicate.ts";
 import { NodeNotFoundError } from "../domain/nodes/node_not_found_error.ts";
 import { NodeUpdatedEvent } from "../domain/nodes/node_updated_event.ts";
 import { AntboxError, BadRequestError } from "../shared/antbox_error.ts";
@@ -14,6 +13,7 @@ import { Either, right, left } from "../shared/either.ts";
 import { AntboxService } from "./antbox_service.ts";
 import { antboxToNodeService } from "./antbox_to_node_service.ts";
 import { builtinActions } from "./builtin_actions/mod.ts";
+import { Root } from "./builtin_users/root.ts";
 import { NodeService } from "./node_service.ts";
 
 export class ActionService {
@@ -153,9 +153,22 @@ export class ActionService {
       return left(actionOrErr.value);
     }
 
+    const uuidsOrErr = await this.#getValidNodesForAction(
+      actionOrErr.value,
+      uuids
+    );
+
+    if (uuidsOrErr.isLeft()) {
+      return left(uuidsOrErr.value);
+    }
+
+    if (uuidsOrErr.value.length === 0) {
+      return right(undefined);
+    }
+
     const error = await actionOrErr.value.run(
       this.#buildRunContext(principal),
-      uuids,
+      uuidsOrErr.value,
       params
     );
 
@@ -164,6 +177,28 @@ export class ActionService {
     }
 
     return right(undefined);
+  }
+
+  async #getValidNodesForAction(
+    action: Action,
+    uuids: string[]
+  ): Promise<Either<AntboxError, string[]>> {
+    if (action.filters?.length < 1) {
+      return right(uuids);
+    }
+
+    const nodesOrErr = await Promise.all(
+      uuids.map((uuid) => this.nodeService.get(uuid))
+    );
+
+    if (nodesOrErr.some((n) => n.isLeft())) {
+      return nodesOrErr.find((n) => n.isLeft()) as Either<AntboxError, never>;
+    }
+
+    const validNodes = getFiltersPredicate(action.filters);
+    const nodes = nodesOrErr.map((n) => n.value as Node).filter(validNodes);
+
+    return right(nodes.map((n) => n.uuid));
   }
 
   async runAutomaticActionsForCreates(evt: NodeCreatedEvent) {
@@ -229,7 +264,7 @@ export class ActionService {
         return true;
       }
 
-      return getNodeFilterPredicate(a.filters)(node);
+      return getFiltersPredicate(a.filters)(node);
     });
   }
 
@@ -244,13 +279,13 @@ export class ActionService {
     }
 
     const parentOrErr = await this.nodeService.get(evt.payload.parent!);
-    if (parentOrErr.isLeft()) {
+    if (parentOrErr.isLeft() || !parentOrErr.value.isFolder()) {
       return;
     }
 
     return this.#runActions(
       userPrincipalOrErr.value,
-      (parentOrErr.value as FolderNode).onCreate.filter(this.#nonEmptyActions),
+      parentOrErr.value.onCreate.filter(this.#nonEmptyActions),
       evt.payload.uuid
     );
   }
@@ -297,9 +332,12 @@ export class ActionService {
   async #getPrincipalByEmail(
     userEmail: string
   ): Promise<Either<UserNotFoundError, UserPrincipal>> {
+    if (userEmail === Root.email) {
+      return right(Root);
+    }
+
     const resultOrErr = await this.nodeService.query(
       [["properties.email", "==", userEmail]],
-      1,
       1
     );
 

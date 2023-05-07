@@ -1,7 +1,6 @@
 import { Action } from "../domain/actions/action.ts";
 import { Aspect } from "../domain/aspects/aspect.ts";
 import { AuthContextProvider } from "../domain/auth/auth_provider.ts";
-import { Group } from "../domain/auth/group.ts";
 import { User } from "../domain/auth/user.ts";
 import { AggregationFormulaError } from "../domain/nodes/aggregation_formula_error.ts";
 import { FolderNode } from "../domain/nodes/folder_node.ts";
@@ -422,28 +421,6 @@ export class AntboxService {
         this.actionService.runAutomaticActionsForUpdates(
           evt as NodeUpdatedEvent
         ),
-    });
-  }
-
-  private async createAuthFolders() {
-    const usersOrErr = await this.nodeService.createFolder({
-      uuid: Node.USERS_FOLDER_UUID,
-      fid: Node.USERS_FOLDER_UUID,
-      title: "Users",
-      parent: Node.SYSTEM_FOLDER_UUID,
-      group: Group.ADMINS_GROUP_UUID,
-    });
-
-    if (usersOrErr.isLeft()) {
-      return usersOrErr;
-    }
-
-    return this.nodeService.createFolder({
-      uuid: Node.GROUPS_FOLDER_UUID,
-      fid: Node.GROUPS_FOLDER_UUID,
-      title: "Groups",
-      parent: Node.SYSTEM_FOLDER_UUID,
-      group: Group.ADMINS_GROUP_UUID,
     });
   }
 

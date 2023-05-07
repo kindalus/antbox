@@ -51,7 +51,7 @@ export interface INodeService {
   query(
     filters: NodeFilter[],
     pageSize: number,
-    pageToken: number
+    pageToken?: number
   ): Promise<Either<AntboxError, NodeFilterResult>>;
 
   update(

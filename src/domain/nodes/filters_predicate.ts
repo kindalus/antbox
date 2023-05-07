@@ -3,7 +3,7 @@
 import { Node } from "./node.ts";
 import { NodeFilter, FilterOperator } from "./node_filter.ts";
 
-export function getNodeFilterPredicate(
+export function getFiltersPredicate(
   filters: NodeFilter[] = []
 ): (n: Node) => boolean {
   const predicates = filters.map(nodeFilterToPredicate);

@@ -1,7 +1,7 @@
 /**
  * Version of Antbox.
  */
-export const VERSION = "0.1.0v20230416";
+export const VERSION = "0.1.0v20230508";
 
 /**
  * Supported version of Deno.

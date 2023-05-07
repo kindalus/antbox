@@ -22,12 +22,8 @@ export default function (service: AntboxService) {
   const listHandler = (ctx: Context) => {
     return service
       .listAspects(getRequestContext(ctx))
-      .then((listOrErr) => {
-        if (listOrErr.isLeft()) {
-          return processError(listOrErr.value, ctx);
-        }
-
-        sendOK(ctx, listOrErr.value);
+      .then((aspects) => {
+        sendOK(ctx, aspects);
       })
       .catch((err) => processError(err, ctx));
   };

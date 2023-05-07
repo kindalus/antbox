@@ -1,7 +1,7 @@
 import { Router } from "../../../deps.ts";
 import { AntboxService } from "../../application/antbox_service.ts";
-import { AuthContextProvider } from "../../application/auth_provider.ts";
 import { WebContent } from "../../application/builtin_aspects/web_content.ts";
+import { AuthContextProvider } from "../../domain/auth/auth_provider.ts";
 import { AntboxError } from "../../shared/antbox_error.ts";
 import { Either, left, right } from "../../shared/either.ts";
 import { ContextWithParams } from "./context_with_params.ts";

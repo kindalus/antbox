@@ -1,11 +1,7 @@
-import {
-  RunContext,
-  Action,
-  SecureNodeService,
-} from "../../domain/actions/action.ts";
+import { Action } from "../../domain/actions/action.ts";
+import { RunContext } from "../../domain/actions/run_context.ts";
 import { NodeNotFoundError } from "../../domain/nodes/node_not_found_error.ts";
 import { Either } from "../../shared/either.ts";
-import { AuthContextProvider } from "../auth_provider.ts";
 
 export default {
   uuid: "delete_all",
@@ -24,8 +20,7 @@ export default {
     uuids: string[],
     _params?: Record<string, unknown>
   ): Promise<void | Error> {
-    const toDeleteTask = deleteTaskPredicate(ctx.authContext, ctx.nodeService);
-    const tasks = uuids.map(toDeleteTask);
+    const tasks = uuids.map((uuid) => ctx.nodeService.delete(uuid));
 
     const results = await Promise.all(tasks);
 
@@ -41,13 +36,4 @@ export default {
 
 function errorResultsOnly(voidOrErr: Either<NodeNotFoundError, void>): boolean {
   return voidOrErr.isLeft();
-}
-
-function deleteTaskPredicate(
-  authContext: AuthContextProvider,
-  nodeService: SecureNodeService
-) {
-  return (uuid: string) => {
-    return nodeService.delete(authContext, uuid);
-  };
 }

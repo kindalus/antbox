@@ -1,4 +1,5 @@
-import { RunContext, Action } from "../../domain/actions/action.ts";
+import { Action } from "../../domain/actions/action.ts";
+import { RunContext } from "../../domain/actions/run_context.ts";
 
 export default {
   uuid: "copy_to_folder",
@@ -23,9 +24,7 @@ export default {
       return Promise.reject(new Error("Error parameter not given"));
     }
 
-    const batchCopy = uuids.map((u) =>
-      ctx.nodeService.copy(ctx.authContext, u, parent)
-    );
+    const batchCopy = uuids.map((u) => ctx.nodeService.copy(u, parent));
 
     return Promise.all(batchCopy).then(() => {});
   },

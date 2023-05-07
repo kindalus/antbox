@@ -1,4 +1,4 @@
-FROM denoland/deno:alpine-1.28.1
+FROM denoland/deno:alpine-1.32.5
 
 WORKDIR /app
 COPY . .
@@ -10,5 +10,5 @@ EXPOSE 7180
 
 VOLUME [ "/data" ]
 
-CMD ["deno", "run", "-A", "server.ts", "/data"]
+CMD ["deno", "run", "-A", "demo.ts", "/data"]
 

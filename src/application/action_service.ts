@@ -1,9 +1,5 @@
-import {
-  SecureNodeService,
-  SecureAspectService,
-  Action,
-  RunContext,
-} from "../domain/actions/action.ts";
+import { Action } from "../domain/actions/action.ts";
+import { RunContext } from "../domain/actions/run_context.ts";
 import { UserNotFoundError } from "../domain/auth/user_not_found_error.ts";
 import { UserPrincipal } from "../domain/auth/user_principal.ts";
 import { FolderNode } from "../domain/nodes/folder_node.ts";
@@ -15,16 +11,10 @@ import { NodeNotFoundError } from "../domain/nodes/node_not_found_error.ts";
 import { NodeUpdatedEvent } from "../domain/nodes/node_updated_event.ts";
 import { AntboxError, BadRequestError } from "../shared/antbox_error.ts";
 import { Either, right, left } from "../shared/either.ts";
-import { AspectService } from "./aspect_service.ts";
+import { AntboxService } from "./antbox_service.ts";
+import { antboxToNodeService } from "./antbox_to_node_service.ts";
 import { builtinActions } from "./builtin_actions/mod.ts";
 import { NodeService } from "./node_service.ts";
-
-export interface ActionServiceContext {
-  readonly nodeService: NodeService;
-  readonly aspectService: AspectService;
-  readonly secureNodeService: NodeService;
-  readonly secureAspectService: AspectService;
-}
 
 export class ActionService {
   static isActionsFolder(uuid: string): boolean {
@@ -33,8 +23,7 @@ export class ActionService {
 
   constructor(
     private readonly nodeService: NodeService,
-    private readonly secureNodeService: SecureNodeService,
-    private readonly secureAspectService: SecureAspectService
+    private readonly antboxService: AntboxService
   ) {}
 
   static async fileToAction(file: File): Promise<Action> {
@@ -220,12 +209,12 @@ export class ActionService {
   }
 
   #buildRunContext(principal: UserPrincipal): RunContext {
+    const authContext = {
+      getPrincipal: () => principal,
+    };
     return {
-      authContext: {
-        getPrincipal: () => principal,
-      },
-      nodeService: this.secureNodeService,
-      aspectService: this.secureAspectService,
+      authContext,
+      nodeService: antboxToNodeService(authContext, this.antboxService),
     };
   }
 

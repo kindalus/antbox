@@ -1,4 +1,5 @@
-import { RunContext, Action } from "../../domain/actions/action.ts";
+import { Action } from "../../domain/actions/action.ts";
+import { RunContext } from "../../domain/actions/run_context.ts";
 
 export default {
   uuid: "move_to_trash",
@@ -18,7 +19,6 @@ export default {
     _params?: Record<string, unknown>
   ): Promise<void | Error> {
     await ctx.nodeService.update(
-      ctx.authContext,
       uuids[0],
       {
         properties: {

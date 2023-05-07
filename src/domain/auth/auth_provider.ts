@@ -1,4 +1,4 @@
-import { UserPrincipal } from "../domain/auth/user_principal.ts";
+import { UserPrincipal } from "./user_principal.ts";
 
 export interface AuthContextProvider {
   getPrincipal(): UserPrincipal;

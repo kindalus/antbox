@@ -6,12 +6,10 @@ import { InMemoryStorageProvider } from "./src/adapters/inmem/inmem_storage_prov
 import { DefaultFidGenerator } from "./src/adapters/strategies/default_fid_generator.ts";
 import { DefaultUuidGenerator } from "./src/adapters/strategies/default_uuid_generator.ts";
 import { AntboxService } from "./src/application/antbox_service.ts";
-import { NodeRepository } from "./src/domain/nodes/node_repository.ts";
-import { StorageProvider } from "./src/domain/providers/storage_provider.ts";
 
 import defaultJwk from "./demo.jwk.json" assert { type: "json" };
 
-export type { AntboxService, NodeRepository, StorageProvider };
+// export type { AntboxService, NodeRepository, StorageProvider };
 
 const SYMMETRIC_KEY = "ui2tPcQZvN+IxXsEW6KQOOFROS6zXB1pZdotBR3Ot8o=";
 const ROOT_PASSWD = "demo";

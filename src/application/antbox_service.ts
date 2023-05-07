@@ -1,5 +1,6 @@
-import { SecureAspectService, Action } from "../domain/actions/action.ts";
+import { Action } from "../domain/actions/action.ts";
 import { Aspect } from "../domain/aspects/aspect.ts";
+import { AuthContextProvider } from "../domain/auth/auth_provider.ts";
 import { Group } from "../domain/auth/group.ts";
 import { User } from "../domain/auth/user.ts";
 import { AggregationFormulaError } from "../domain/nodes/aggregation_formula_error.ts";
@@ -12,6 +13,7 @@ import { NodeFilter } from "../domain/nodes/node_filter.ts";
 import { NodeNotFoundError } from "../domain/nodes/node_not_found_error.ts";
 import { NodeFilterResult } from "../domain/nodes/node_repository.ts";
 import { NodeUpdatedEvent } from "../domain/nodes/node_updated_event.ts";
+import { SmartFolderNodeEvaluation } from "../domain/nodes/smart_folder_evaluation.ts";
 import { SmartFolderNodeNotFoundError } from "../domain/nodes/smart_folder_node_not_found_error.ts";
 import {
   AntboxError,
@@ -21,13 +23,11 @@ import {
 import { Either, left, right } from "../shared/either.ts";
 import { ActionService } from "./action_service.ts";
 import { AspectService } from "./aspect_service.ts";
-import { AuthContextProvider } from "./auth_provider.ts";
 import { AuthService } from "./auth_service.ts";
 import { DomainEvents } from "./domain_events.ts";
 import { ExtService } from "./ext_service.ts";
 import { NodeService } from "./node_service.ts";
 import { NodeServiceContext } from "./node_service_context.ts";
-import { SmartFolderNodeEvaluation } from "./smart_folder_evaluation.ts";
 
 export class AntboxService {
   readonly nodeService: NodeService;
@@ -40,30 +40,11 @@ export class AntboxService {
     this.nodeService = new NodeService(nodeCtx);
     this.authService = new AuthService(this.nodeService);
     this.aspectService = new AspectService(this.nodeService);
-    this.actionService = new ActionService(
-      this.nodeService,
-      this,
-      this.toSecureAspectService()
-    );
+    this.actionService = new ActionService(this.nodeService, this);
 
     this.extService = new ExtService(this.nodeService);
 
     this.subscribeToDomainEvents();
-  }
-
-  private toSecureAspectService(): SecureAspectService {
-    return {
-      get: (authCtx: AuthContextProvider, uuid: string) =>
-        this.getAspect(authCtx, uuid),
-
-      list: (authCtx: AuthContextProvider) => this.listAspects(authCtx),
-
-      createOrReplace: (
-        authCtx: AuthContextProvider,
-        file: File,
-        metadata: Partial<Node>
-      ) => this.createFile(authCtx, file, metadata),
-    };
   }
 
   createFile(
@@ -118,7 +99,7 @@ export class AntboxService {
   async createFolder(
     authCtx: AuthContextProvider,
     metadata: Partial<Node>
-  ): Promise<Either<AntboxError, Node>> {
+  ): Promise<Either<AntboxError, FolderNode>> {
     if (AntboxService.isSystemFolder(metadata.parent!)) {
       return left(
         new BadRequestError("Cannot create folders in system folder")
@@ -248,7 +229,7 @@ export class AntboxService {
   async get(
     _authCtx: AuthContextProvider,
     uuid: string
-  ): Promise<Either<ServiceNotStartedError | NodeNotFoundError, Node>> {
+  ): Promise<Either<NodeNotFoundError, Node>> {
     const nodeOrErr = await this.nodeService.get(uuid);
 
     if (nodeOrErr.isLeft()) {
@@ -303,7 +284,7 @@ export class AntboxService {
   export(
     _authCtx: AuthContextProvider,
     uuid: string
-  ): Promise<Either<ServiceNotStartedError | NodeNotFoundError, File>> {
+  ): Promise<Either<NodeNotFoundError, File>> {
     return this.nodeService.export(uuid);
   }
 
@@ -363,9 +344,7 @@ export class AntboxService {
     uuid: string
   ): Promise<
     Either<
-      | ServiceNotStartedError
-      | SmartFolderNodeNotFoundError
-      | AggregationFormulaError,
+      SmartFolderNodeNotFoundError | AggregationFormulaError,
       SmartFolderNodeEvaluation
     >
   > {
@@ -400,10 +379,8 @@ export class AntboxService {
     return this.actionService.run(authCtx.getPrincipal(), uuid, uuids, params);
   }
 
-  listActions(
-    _authCtx: AuthContextProvider
-  ): Promise<Either<ServiceNotStartedError, Action[]>> {
-    return this.actionService.list().then((nodes) => right(nodes));
+  listActions(_authCtx: AuthContextProvider): Promise<Action[]> {
+    return this.actionService.list().then((nodes) => nodes);
   }
 
   getAspect(
@@ -413,10 +390,8 @@ export class AntboxService {
     return this.aspectService.get(uuid);
   }
 
-  listAspects(
-    _authCtx: AuthContextProvider
-  ): Promise<Either<ServiceNotStartedError, Aspect[]>> {
-    return this.aspectService.list().then((nodes) => right(nodes));
+  listAspects(_authCtx: AuthContextProvider): Promise<Aspect[]> {
+    return this.aspectService.list().then((nodes) => nodes);
   }
 
   runExtension(
@@ -479,11 +454,5 @@ export class AntboxService {
       ActionService.isActionsFolder(uuid) ||
       ExtService.isExtensionsFolder(uuid)
     );
-  }
-}
-
-export class ServiceNotStartedError extends AntboxError {
-  constructor() {
-    super("ServiceNotStartedError", "Service not started");
   }
 }

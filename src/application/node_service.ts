@@ -7,6 +7,11 @@ import { NodeFilter } from "../domain/nodes/node_filter.ts";
 import { NodeNotFoundError } from "../domain/nodes/node_not_found_error.ts";
 import { NodeFilterResult } from "../domain/nodes/node_repository.ts";
 import {
+  SmartFolderNodeEvaluation,
+  Reducers,
+  AggregationResult,
+} from "../domain/nodes/smart_folder_evaluation.ts";
+import {
   SmartFolderNode,
   Aggregation,
 } from "../domain/nodes/smart_folder_node.ts";
@@ -27,11 +32,6 @@ import {
   aspectToFile,
 } from "./node_mapper.ts";
 import { NodeServiceContext } from "./node_service_context.ts";
-import {
-  SmartFolderNodeEvaluation,
-  Reducers,
-  AggregationResult,
-} from "./smart_folder_evaluation.ts";
 
 export class NodeService {
   readonly #systemListCreator: Record<string, Node[]>;

@@ -17,6 +17,9 @@ export interface AspectProperty {
   title: string;
   type: PropertyType;
 
+  //TODO: Dont't really know how to enforce this, for now in application layer
+  readonly: boolean;
+
   /**
    * Opcional
    */

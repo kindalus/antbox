@@ -66,7 +66,7 @@ export class AntboxService {
     return this.nodeService.createFile(file, metadata).then((result) => {
       if (result.isRight()) {
         DomainEvents.notify(
-          new NodeCreatedEvent(authCtx.getPrincipal().email, result.value)
+          new NodeCreatedEvent(authCtx.principal.email, result.value)
         );
       }
 
@@ -87,7 +87,7 @@ export class AntboxService {
     return this.nodeService.createMetanode(metadata).then((result) => {
       if (result.isRight()) {
         DomainEvents.notify(
-          new NodeCreatedEvent(_authCtx.getPrincipal().email, result.value)
+          new NodeCreatedEvent(_authCtx.principal.email, result.value)
         );
       }
 
@@ -117,8 +117,8 @@ export class AntboxService {
 
     const result = await this.nodeService.createFolder({
       ...metadata,
-      owner: authCtx.getPrincipal().email,
-      group: authCtx.getPrincipal().group,
+      owner: authCtx.principal.email,
+      group: authCtx.principal.group,
       permissions: {
         ...parentOrErr.value.permissions,
       },
@@ -126,7 +126,7 @@ export class AntboxService {
 
     if (result.isRight()) {
       DomainEvents.notify(
-        new NodeCreatedEvent(authCtx.getPrincipal().email, result.value)
+        new NodeCreatedEvent(authCtx.principal.email, result.value)
       );
     }
 
@@ -186,7 +186,7 @@ export class AntboxService {
     parent: FolderNode,
     permission: Permission
   ): Either<AntboxError, void> {
-    const principal = authCtx.getPrincipal();
+    const principal = authCtx.principal;
 
     if (User.isAdmin(principal as User)) {
       return right(undefined);
@@ -200,7 +200,7 @@ export class AntboxService {
       return left(new ForbiddenError());
     }
 
-    if (parent.owner === authCtx.getPrincipal().email) {
+    if (parent.owner === authCtx.principal.email) {
       return right(undefined);
     }
 
@@ -272,7 +272,7 @@ export class AntboxService {
     return this.nodeService.update(uuid, metadata, merge).then((result) => {
       if (result.isRight()) {
         DomainEvents.notify(
-          new NodeUpdatedEvent(authCtx.getPrincipal().email, uuid, metadata)
+          new NodeUpdatedEvent(authCtx.principal.email, uuid, metadata)
         );
       }
 
@@ -295,7 +295,7 @@ export class AntboxService {
     return this.nodeService.copy(uuid, parent).then((result) => {
       if (result.isRight()) {
         DomainEvents.notify(
-          new NodeCreatedEvent(_authCtx.getPrincipal().email, result.value)
+          new NodeCreatedEvent(_authCtx.principal.email, result.value)
         );
       }
 
@@ -330,7 +330,7 @@ export class AntboxService {
     return this.nodeService.updateFile(uuid, file).then((result) => {
       if (result.isRight()) {
         DomainEvents.notify(
-          new NodeContentUpdatedEvent(_authCtx.getPrincipal().email, uuid)
+          new NodeContentUpdatedEvent(_authCtx.principal.email, uuid)
         );
       }
 
@@ -357,7 +357,7 @@ export class AntboxService {
     return this.nodeService.delete(uuid).then((result) => {
       if (result.isRight()) {
         DomainEvents.notify(
-          new NodeDeletedEvent(_authCtx.getPrincipal().email, uuid)
+          new NodeDeletedEvent(_authCtx.principal.email, uuid)
         );
       }
 
@@ -375,7 +375,7 @@ export class AntboxService {
     uuids: string[],
     params: Record<string, string>
   ) {
-    return this.actionService.run(authCtx.getPrincipal(), uuid, uuids, params);
+    return this.actionService.run(authCtx, uuid, uuids, params);
   }
 
   listActions(_authCtx: AuthContextProvider): Promise<Action[]> {

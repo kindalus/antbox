@@ -1,14 +1,18 @@
 import { Action } from "../domain/actions/action.ts";
 import { RunContext } from "../domain/actions/run_context.ts";
+import { AuthContextProvider } from "../domain/auth/auth_provider.ts";
 import { UserNotFoundError } from "../domain/auth/user_not_found_error.ts";
-import { UserPrincipal } from "../domain/auth/user_principal.ts";
 import { getFiltersPredicate } from "../domain/nodes/filters_predicate.ts";
 import { Node } from "../domain/nodes/node.ts";
 import { NodeCreatedEvent } from "../domain/nodes/node_created_event.ts";
 import { NodeFactory } from "../domain/nodes/node_factory.ts";
 import { NodeNotFoundError } from "../domain/nodes/node_not_found_error.ts";
 import { NodeUpdatedEvent } from "../domain/nodes/node_updated_event.ts";
-import { AntboxError, BadRequestError } from "../shared/antbox_error.ts";
+import {
+  AntboxError,
+  BadRequestError,
+  UnknownError,
+} from "../shared/antbox_error.ts";
 import { Either, right, left } from "../shared/either.ts";
 import { AntboxService } from "./antbox_service.ts";
 import { antboxToNodeService } from "./antbox_to_node_service.ts";
@@ -142,15 +146,21 @@ export class ActionService {
   }
 
   async run(
-    principal: UserPrincipal,
+    authContext: AuthContextProvider,
     uuid: string,
     uuids: string[],
     params: Record<string, string>
-  ): Promise<Either<NodeNotFoundError | Error, void>> {
+  ): Promise<Either<AntboxError, void>> {
     const actionOrErr = await this.get(uuid);
 
     if (actionOrErr.isLeft()) {
       return left(actionOrErr.value);
+    }
+
+    const action = actionOrErr.value;
+
+    if (!action.runManually && authContext.mode === "Direct") {
+      return left(new BadRequestError("Action cannot be run manually"));
     }
 
     const uuidsOrErr = await this.#getValidNodesForAction(
@@ -167,13 +177,15 @@ export class ActionService {
     }
 
     const error = await actionOrErr.value.run(
-      this.#buildRunContext(principal),
+      this.#buildRunContext(authContext),
       uuidsOrErr.value,
       params
     );
 
     if (error) {
-      return left(error);
+      return (error as AntboxError).errorCode
+        ? left(error as AntboxError)
+        : left(new UnknownError(error.message));
     }
 
     return right(undefined);
@@ -204,7 +216,7 @@ export class ActionService {
   async runAutomaticActionsForCreates(evt: NodeCreatedEvent) {
     const runCriteria = (action: Action) => action.runOnCreates || false;
 
-    const userPrincipalOrErr = await this.#getPrincipalByEmail(evt.userEmail);
+    const userPrincipalOrErr = await this.#getAuthCtxByEmail(evt.userEmail);
     if (userPrincipalOrErr.isLeft()) {
       return;
     }
@@ -221,7 +233,7 @@ export class ActionService {
   async runAutomaticActionsForUpdates(evt: NodeUpdatedEvent) {
     const runCriteria = (action: Action) => action.runOnUpdates || false;
 
-    const userPrincipalOrErr = await this.#getPrincipalByEmail(evt.userEmail);
+    const userPrincipalOrErr = await this.#getAuthCtxByEmail(evt.userEmail);
     if (userPrincipalOrErr.isLeft()) {
       return;
     }
@@ -243,10 +255,7 @@ export class ActionService {
     );
   }
 
-  #buildRunContext(principal: UserPrincipal): RunContext {
-    const authContext = {
-      getPrincipal: () => principal,
-    };
+  #buildRunContext(authContext: AuthContextProvider): RunContext {
     return {
       authContext,
       nodeService: antboxToNodeService(authContext, this.antboxService),
@@ -273,7 +282,7 @@ export class ActionService {
       return;
     }
 
-    const userPrincipalOrErr = await this.#getPrincipalByEmail(evt.userEmail);
+    const userPrincipalOrErr = await this.#getAuthCtxByEmail(evt.userEmail);
     if (userPrincipalOrErr.isLeft()) {
       return;
     }
@@ -302,7 +311,7 @@ export class ActionService {
         return;
       }
 
-      const userPrincipalOrErr = await this.#getPrincipalByEmail(evt.userEmail);
+      const userPrincipalOrErr = await this.#getAuthCtxByEmail(evt.userEmail);
       if (userPrincipalOrErr.isLeft()) {
         return;
       }
@@ -319,21 +328,25 @@ export class ActionService {
     return uuid?.length > 0;
   }
 
-  #runActions(principal: UserPrincipal, actions: string[], uuid: string) {
+  #runActions(
+    authContext: AuthContextProvider,
+    actions: string[],
+    uuid: string
+  ) {
     for (const action of actions) {
       const [actionUuid, params] = action.split(" ");
       const j = `{${params ?? ""}}`;
       const g = j.replaceAll(/(\w+)=(\w+)/g, '"$1": "$2"');
 
-      return this.run(principal, actionUuid, [uuid], JSON.parse(g));
+      return this.run(authContext, actionUuid, [uuid], JSON.parse(g));
     }
   }
 
-  async #getPrincipalByEmail(
+  async #getAuthCtxByEmail(
     userEmail: string
-  ): Promise<Either<UserNotFoundError, UserPrincipal>> {
+  ): Promise<Either<UserNotFoundError, AuthContextProvider>> {
     if (userEmail === Root.email) {
-      return right(Root);
+      return right({ principal: Root, mode: "Action" });
     }
 
     const resultOrErr = await this.nodeService.query(
@@ -352,10 +365,13 @@ export class ActionService {
     const node = resultOrErr.value.nodes[0];
 
     return right({
-      email: userEmail,
-      fullname: node.title,
-      group: node.properties["user:group"] as unknown as string,
-      groups: (node.properties["user:groups"] as unknown as string[]) ?? [],
+      principal: {
+        email: userEmail,
+        fullname: node.title,
+        group: node.properties["user:group"] as unknown as string,
+        groups: (node.properties["user:groups"] as unknown as string[]) ?? [],
+      },
+      mode: "Action",
     });
   }
 }

@@ -6,7 +6,11 @@ import { UserPrincipal } from "../../domain/auth/user_principal.ts";
 export class OakAuthRequestProvider implements AuthContextProvider {
   constructor(private ctx: Context) {}
 
-  getPrincipal(): UserPrincipal {
+  get principal(): UserPrincipal {
     return this.ctx.state.userPrincipal || Anonymous;
+  }
+
+  get mode(): "Direct" | "Action" {
+    return "Direct";
   }
 }

@@ -19,17 +19,17 @@ function propertyTypeSpec<T>(p: AspectProperty): Specification<T> {
     const p1 = p.type.endsWith("[]") ? p.type.slice(0, -2) : p.type;
 
     switch (p1) {
-      case "String":
-      case "UUID":
+      case "string":
+      case "uuid":
         if (typeof t1 !== "string") return left(err);
         return right(true);
-      case "Number":
+      case "number":
         if (typeof t1 !== "number") return left(err);
         return right(true);
-      case "Boolean":
+      case "boolean":
         if (typeof t1 !== "boolean") return left(err);
         return right(true);
-      case "DateTime":
+      case "dateTime":
         if (typeof t1 !== "string") return left(err);
         if (!t1.match(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/))
           return left(err);
@@ -54,10 +54,27 @@ function requiredSpec<T>(p: AspectProperty): Specification<T> {
   });
 }
 
+function readonlySpec<T>(p: AspectProperty): Specification<T> {
+  return specFn((t: T) => {
+    if (t) {
+      return left(ValidationError.from(new ReadonlyPropertyError(p.name)));
+    }
+
+    return right(true);
+  });
+}
+
 export class RequiredPropertyError extends AntboxError {
   static readonly ERROR_CODE = "RequiredProperty";
   constructor(public readonly property: string) {
     super(RequiredPropertyError.ERROR_CODE, property);
+  }
+}
+
+export class ReadonlyPropertyError extends AntboxError {
+  static readonly ERROR_CODE = "ReadonlyProperty";
+  constructor(public readonly property: string) {
+    super(ReadonlyPropertyError.ERROR_CODE, property);
   }
 }
 
@@ -74,6 +91,8 @@ export function buildAspectPropertySpec<T>(
   const specs = [propertyTypeSpec(p)];
 
   if (p.required) specs.push(requiredSpec(p));
+
+  if (p.readonly) specs.push(readonlySpec(p));
 
   return specs.reduce((acc, spec) => acc.and(spec));
 }

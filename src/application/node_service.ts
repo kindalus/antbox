@@ -196,7 +196,7 @@ export class NodeService {
 		const file = await this.context.storage.read(uuid);
 
 		const newNode = this.#createFileMetadata(
-			{ ...nodeOrErr.value, parent },
+			{ title: "cópia de ".concat(nodeOrErr.value.title), parent },
 			nodeOrErr.value.mimetype,
 			nodeOrErr.value.size,
 		);

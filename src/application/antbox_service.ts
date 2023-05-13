@@ -163,21 +163,21 @@ export class AntboxService {
 		uuid = Node.ROOT_FOLDER_UUID,
 		permission: Permission,
 	): Promise<Either<AntboxError, FolderNode>> {
-		const parentOrErr = await this.nodeService.get(uuid);
-		if (parentOrErr.isLeft()) {
-			return left(parentOrErr.value);
+		const folderOrErr = await this.nodeService.get(uuid);
+		if (folderOrErr.isLeft()) {
+			return left(folderOrErr.value);
 		}
 
-		if (!parentOrErr.value.isFolder()) {
+		if (!folderOrErr.value.isFolder()) {
 			return left(new BadRequestError("Is not a folder"));
 		}
 
-		const voidOrErr = this.#assertPermission(auth, parentOrErr.value, permission);
+		const voidOrErr = this.#assertPermission(auth, folderOrErr.value, permission);
 		if (voidOrErr.isLeft()) {
 			return left(voidOrErr.value);
 		}
 
-		return right(parentOrErr.value);
+		return right(folderOrErr.value);
 	}
 
 	#assertCanRead(
@@ -306,6 +306,17 @@ export class AntboxService {
 			return left(new ForbiddenError());
 		}
 
+		if (metadata.parent) {
+			const newParentOrErr = await this.#getFolderWithPermission(
+				authCtx,
+				metadata.parent,
+				"Write",
+			);
+			if (newParentOrErr.isLeft()) {
+				return left(new ForbiddenError());
+			}
+		}
+
 		const voidOrErr = await this.nodeService.update(uuid, metadata, merge);
 		if (voidOrErr.isRight()) {
 			DomainEvents.notify(
@@ -324,6 +335,17 @@ export class AntboxService {
 		const assertNodeOrErr = this.#assertCanWrite(authCtx, folder);
 		if (assertNodeOrErr.isLeft()) {
 			return left(assertNodeOrErr.value);
+		}
+
+		if (metadata.parent) {
+			const newParentOrErr = await this.#getFolderWithPermission(
+				authCtx,
+				metadata.parent,
+				"Write",
+			);
+			if (newParentOrErr.isLeft()) {
+				return left(new ForbiddenError());
+			}
 		}
 
 		const voidOrErr = await this.nodeService.update(folder.uuid, metadata);
@@ -345,7 +367,11 @@ export class AntboxService {
 			return left(nodeOrErr.value);
 		}
 
-		const parentOrErr = await this.#getFolderWithPermission(authCtx, uuid, "Export");
+		const parentOrErr = await this.#getFolderWithPermission(
+			authCtx,
+			nodeOrErr.value.parent,
+			"Export",
+		);
 		if (parentOrErr.isLeft()) {
 			return left(parentOrErr.value);
 		}
@@ -421,8 +447,8 @@ export class AntboxService {
 		});
 	}
 
-	evaluate(
-		_authCtx: AuthContextProvider,
+	async evaluate(
+		authCtx: AuthContextProvider,
 		uuid: string,
 	): Promise<
 		Either<
@@ -430,6 +456,11 @@ export class AntboxService {
 			SmartFolderNodeEvaluation
 		>
 	> {
+		const nodeOrErr = await this.get(authCtx, uuid);
+		if (nodeOrErr.isLeft()) {
+			return left(nodeOrErr.value);
+		}
+
 		return this.nodeService.evaluate(uuid);
 	}
 

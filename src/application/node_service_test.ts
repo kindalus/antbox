@@ -7,29 +7,29 @@ import { NodeService } from "./node_service.ts";
 import { NodeServiceContext } from "./node_service_context.ts";
 
 Deno.test("createFile", async (t) => {
-  await t.step(
-    "Devolve FolderNotFoundError se o parent não existir no repositório",
-    async () => {
-      const svc = new NodeService(makeServiceContext());
+	await t.step(
+		"Devolve FolderNotFoundError se o parent não existir no repositório",
+		async () => {
+			const svc = new NodeService(makeServiceContext());
 
-      const file = new File([""], "test.txt", { type: "text/plain" });
+			const file = new File([""], "test.txt", { type: "text/plain" });
 
-      const result = await svc.createFile(file, { parent: "bad_parent_uuid" });
+			const result = await svc.createFile(file, { parent: "bad_parent_uuid" });
 
-      assertFalse(result.isRight());
-      assertStrictEquals(
-        (result.value as AntboxError).errorCode,
-        FolderNotFoundError.ERROR_CODE
-      );
-    }
-  );
+			assertFalse(result.isRight());
+			assertStrictEquals(
+				(result.value as AntboxError).errorCode,
+				FolderNotFoundError.ERROR_CODE,
+			);
+		},
+	);
 });
 
 function makeServiceContext(): NodeServiceContext {
-  return {
-    repository: new InMemoryNodeRepository(),
-    storage: new InMemoryStorageProvider(),
-    fidGenerator: { generate: () => "fid" },
-    uuidGenerator: { generate: () => "uuid" },
-  };
+	return {
+		repository: new InMemoryNodeRepository(),
+		storage: new InMemoryStorageProvider(),
+		fidGenerator: { generate: () => "fid" },
+		uuidGenerator: { generate: () => "uuid" },
+	};
 }

@@ -15,100 +15,100 @@ import { Either } from "../shared/either.ts";
 import { AntboxService } from "./antbox_service.ts";
 
 export function antboxToNodeService(
-  auth: AuthContextProvider,
-  srv: AntboxService
+	auth: AuthContextProvider,
+	srv: AntboxService,
 ): INodeService {
-  return new InternalNodeService(auth, srv);
+	return new InternalNodeService(auth, srv);
 }
 
 class InternalNodeService implements INodeService {
-  constructor(
-    private auth: AuthContextProvider,
-    private readonly srv: AntboxService
-  ) {}
+	constructor(
+		private auth: AuthContextProvider,
+		private readonly srv: AntboxService,
+	) {}
 
-  createFile(
-    file: File,
-    metadata: Partial<Node>
-  ): Promise<Either<AntboxError, Node>> {
-    return this.srv.createFile(this.auth, file, metadata);
-  }
+	createFile(
+		file: File,
+		metadata: Partial<Node>,
+	): Promise<Either<AntboxError, Node>> {
+		return this.srv.createFile(this.auth, file, metadata);
+	}
 
-  createFolder(
-    metadata: Partial<FolderNode>
-  ): Promise<Either<AntboxError, FolderNode>> {
-    return this.srv.createFolder(this.auth, metadata);
-  }
+	createFolder(
+		metadata: Partial<FolderNode>,
+	): Promise<Either<AntboxError, FolderNode>> {
+		return this.srv.createFolder(this.auth, metadata);
+	}
 
-  createMetanode(metadata: Partial<Node>): Promise<Either<AntboxError, Node>> {
-    return this.srv.createMetanode(this.auth, metadata);
-  }
+	createMetanode(metadata: Partial<Node>): Promise<Either<AntboxError, Node>> {
+		return this.srv.createMetanode(this.auth, metadata);
+	}
 
-  duplicate(uuid: string): Promise<Either<NodeNotFoundError, Node>> {
-    return this.srv.duplicate(this.auth, uuid);
-  }
+	duplicate(uuid: string): Promise<Either<NodeNotFoundError, Node>> {
+		return this.srv.duplicate(this.auth, uuid);
+	}
 
-  copy(uuid: string, parent: string): Promise<Either<NodeNotFoundError, Node>> {
-    return this.srv.copy(this.auth, uuid, parent);
-  }
+	copy(uuid: string, parent: string): Promise<Either<NodeNotFoundError, Node>> {
+		return this.srv.copy(this.auth, uuid, parent);
+	}
 
-  updateFile(
-    uuid: string,
-    file: File
-  ): Promise<Either<NodeNotFoundError, void>> {
-    return this.srv.updateFile(this.auth, uuid, file);
-  }
+	updateFile(
+		uuid: string,
+		file: File,
+	): Promise<Either<NodeNotFoundError, void>> {
+		return this.srv.updateFile(this.auth, uuid, file);
+	}
 
-  delete(uuid: string): Promise<Either<NodeNotFoundError, void>> {
-    return this.srv.delete(this.auth, uuid);
-  }
+	delete(uuid: string): Promise<Either<NodeNotFoundError, void>> {
+		return this.srv.delete(this.auth, uuid);
+	}
 
-  get(uuid: string): Promise<Either<NodeNotFoundError, Node>> {
-    return this.srv.get(this.auth, uuid);
-  }
+	get(uuid: string): Promise<Either<NodeNotFoundError, Node>> {
+		return this.srv.get(this.auth, uuid);
+	}
 
-  getAspect(uuid: string): Promise<Either<NodeNotFoundError, Aspect>> {
-    return this.srv.getAspect(this.auth, uuid);
-  }
+	getAspect(uuid: string): Promise<Either<NodeNotFoundError, Aspect>> {
+		return this.srv.getAspect(this.auth, uuid);
+	}
 
-  list(
-    parent?: string | undefined
-  ): Promise<Either<FolderNotFoundError, Node[]>> {
-    return this.srv.list(this.auth, parent);
-  }
+	list(
+		parent?: string | undefined,
+	): Promise<Either<FolderNotFoundError, Node[]>> {
+		return this.srv.list(this.auth, parent);
+	}
 
-  listAspects(): Promise<Aspect[]> {
-    return this.srv.listAspects(this.auth);
-  }
+	listAspects(): Promise<Aspect[]> {
+		return this.srv.listAspects(this.auth);
+	}
 
-  query(
-    filters: NodeFilter[],
-    pageSize: number,
-    pageToken: number
-  ): Promise<Either<AntboxError, NodeFilterResult>> {
-    return this.srv.query(this.auth, filters, pageSize, pageToken);
-  }
+	query(
+		filters: NodeFilter[],
+		pageSize: number,
+		pageToken: number,
+	): Promise<Either<AntboxError, NodeFilterResult>> {
+		return this.srv.query(this.auth, filters, pageSize, pageToken);
+	}
 
-  update(
-    uuid: string,
-    data: Partial<Node>,
-    merge?: boolean | undefined
-  ): Promise<Either<NodeNotFoundError, void>> {
-    return this.srv.update(this.auth, uuid, data, merge);
-  }
+	update(
+		uuid: string,
+		data: Partial<Node>,
+		merge?: boolean | undefined,
+	): Promise<Either<NodeNotFoundError, void>> {
+		return this.srv.update(this.auth, uuid, data, merge);
+	}
 
-  evaluate(
-    uuid: string
-  ): Promise<
-    Either<
-      SmartFolderNodeNotFoundError | AggregationFormulaError,
-      SmartFolderNodeEvaluation
-    >
-  > {
-    return this.srv.evaluate(this.auth, uuid);
-  }
+	evaluate(
+		uuid: string,
+	): Promise<
+		Either<
+			SmartFolderNodeNotFoundError | AggregationFormulaError,
+			SmartFolderNodeEvaluation
+		>
+	> {
+		return this.srv.evaluate(this.auth, uuid);
+	}
 
-  export(uuid: string): Promise<Either<NodeNotFoundError, File>> {
-    return this.srv.export(this.auth, uuid);
-  }
+	export(uuid: string): Promise<Either<NodeNotFoundError, File>> {
+		return this.srv.export(this.auth, uuid);
+	}
 }

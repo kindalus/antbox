@@ -14,11 +14,7 @@ import { NodeFilterResult } from "../domain/nodes/node_repository.ts";
 import { NodeUpdatedEvent } from "../domain/nodes/node_updated_event.ts";
 import { SmartFolderNodeEvaluation } from "../domain/nodes/smart_folder_evaluation.ts";
 import { SmartFolderNodeNotFoundError } from "../domain/nodes/smart_folder_node_not_found_error.ts";
-import {
-  AntboxError,
-  BadRequestError,
-  ForbiddenError,
-} from "../shared/antbox_error.ts";
+import { AntboxError, BadRequestError, ForbiddenError } from "../shared/antbox_error.ts";
 import { Either, left, right } from "../shared/either.ts";
 import { ActionService } from "./action_service.ts";
 import { AspectService } from "./aspect_service.ts";
@@ -29,407 +25,507 @@ import { NodeService } from "./node_service.ts";
 import { NodeServiceContext } from "./node_service_context.ts";
 
 export class AntboxService {
-  readonly nodeService: NodeService;
-  readonly authService: AuthService;
-  readonly aspectService: AspectService;
-  readonly actionService: ActionService;
-  readonly extService: ExtService;
+	readonly nodeService: NodeService;
+	readonly authService: AuthService;
+	readonly aspectService: AspectService;
+	readonly actionService: ActionService;
+	readonly extService: ExtService;
 
-  constructor(nodeCtx: NodeServiceContext) {
-    this.nodeService = new NodeService(nodeCtx);
-    this.authService = new AuthService(this.nodeService);
-    this.aspectService = new AspectService(this.nodeService);
-    this.actionService = new ActionService(this.nodeService, this);
+	constructor(nodeCtx: NodeServiceContext) {
+		this.nodeService = new NodeService(nodeCtx);
+		this.authService = new AuthService(this.nodeService);
+		this.aspectService = new AspectService(this.nodeService);
+		this.actionService = new ActionService(this.nodeService, this);
 
-    this.extService = new ExtService(this.nodeService);
+		this.extService = new ExtService(this.nodeService);
 
-    this.subscribeToDomainEvents();
-  }
+		this.subscribeToDomainEvents();
+	}
 
-  createFile(
-    authCtx: AuthContextProvider,
-    file: File,
-    metadata: Partial<Node>
-  ): Promise<Either<AntboxError, Node>> {
-    if (ActionService.isActionsFolder(metadata.parent!)) {
-      return this.actionService.createOrReplace(file, metadata);
-    }
+	async createFile(
+		authCtx: AuthContextProvider,
+		file: File,
+		metadata: Partial<Node>,
+	): Promise<Either<AntboxError, Node>> {
+		if (ActionService.isActionsFolder(metadata.parent!)) {
+			return this.actionService.createOrReplace(file, metadata);
+		}
 
-    if (AspectService.isAspectsFolder(metadata.parent!)) {
-      return this.aspectService.createOrReplace(file, metadata);
-    }
+		if (AspectService.isAspectsFolder(metadata.parent!)) {
+			return this.aspectService.createOrReplace(file, metadata);
+		}
 
-    if (ExtService.isExtensionsFolder(metadata.parent!)) {
-      return this.extService.createOrReplace(file, metadata);
-    }
+		if (ExtService.isExtensionsFolder(metadata.parent!)) {
+			return this.extService.createOrReplace(file, metadata);
+		}
 
-    return this.nodeService.createFile(file, metadata).then((result) => {
-      if (result.isRight()) {
-        DomainEvents.notify(
-          new NodeCreatedEvent(authCtx.principal.email, result.value)
-        );
-      }
+		const parentOrErr = await this.#getFolderWithPermission(
+			authCtx,
+			metadata.parent ?? Node.ROOT_FOLDER_UUID,
+			"Write",
+		);
 
-      return result;
-    });
-  }
+		if (parentOrErr.isLeft()) {
+			return left(parentOrErr.value);
+		}
 
-  createMetanode(
-    _authCtx: AuthContextProvider,
-    metadata: Partial<Node>
-  ): Promise<Either<AntboxError, Node>> {
-    if (AntboxService.isSystemFolder(metadata.parent!)) {
-      return Promise.resolve(
-        left(new BadRequestError("Cannot create metanode in system folder"))
-      );
-    }
+		const voidOrErr = await this.nodeService.createFile(file, metadata);
+		if (voidOrErr.isRight()) {
+			DomainEvents.notify(
+				new NodeCreatedEvent(authCtx.principal.email, voidOrErr.value),
+			);
+		}
 
-    return this.nodeService.createMetanode(metadata).then((result) => {
-      if (result.isRight()) {
-        DomainEvents.notify(
-          new NodeCreatedEvent(_authCtx.principal.email, result.value)
-        );
-      }
+		return voidOrErr;
+	}
 
-      return result;
-    });
-  }
+	async createMetanode(
+		authCtx: AuthContextProvider,
+		metadata: Partial<Node>,
+	): Promise<Either<AntboxError, Node>> {
+		const parentOrErr = await this.#getFolderWithPermission(
+			authCtx,
+			metadata.parent ?? Node.ROOT_FOLDER_UUID,
+			"Write",
+		);
+		if (parentOrErr.isLeft()) {
+			return left(parentOrErr.value);
+		}
 
-  async createFolder(
-    authCtx: AuthContextProvider,
-    metadata: Partial<Node>
-  ): Promise<Either<AntboxError, FolderNode>> {
-    if (AntboxService.isSystemFolder(metadata.parent!)) {
-      return left(
-        new BadRequestError("Cannot create folders in system folder")
-      );
-    }
+		return this.nodeService.createMetanode(metadata).then((result) => {
+			if (result.isRight()) {
+				DomainEvents.notify(
+					new NodeCreatedEvent(authCtx.principal.email, result.value),
+				);
+			}
 
-    const parentOrErr = await this.getParent(metadata.parent);
-    if (parentOrErr.isLeft()) {
-      return left(parentOrErr.value);
-    }
+			return result;
+		});
+	}
 
-    const voidOrErr = await this.assertUserCanWrite(authCtx, parentOrErr.value);
-    if (voidOrErr.isLeft()) {
-      return left(voidOrErr.value);
-    }
+	async createFolder(
+		authCtx: AuthContextProvider,
+		metadata: Partial<Node>,
+	): Promise<Either<AntboxError, FolderNode>> {
+		if (AntboxService.isSystemFolder(metadata.parent!)) {
+			return left(new BadRequestError("Cannot create folders in system folder"));
+		}
 
-    const result = await this.nodeService.createFolder({
-      ...metadata,
-      owner: authCtx.principal.email,
-      group: authCtx.principal.group,
-      permissions: {
-        ...parentOrErr.value.permissions,
-      },
-    });
+		const parentOrErr = await this.#getFolderWithPermission(
+			authCtx,
+			metadata.parent ?? Node.ROOT_FOLDER_UUID,
+			"Write",
+		);
 
-    if (result.isRight()) {
-      DomainEvents.notify(
-        new NodeCreatedEvent(authCtx.principal.email, result.value)
-      );
-    }
+		if (parentOrErr.isLeft()) {
+			return left(parentOrErr.value);
+		}
 
-    return result;
-  }
+		const result = await this.nodeService.createFolder({
+			...metadata,
+			owner: authCtx.principal.email,
+			group: authCtx.principal.group,
+			permissions: {
+				...parentOrErr.value.permissions,
+			},
+		});
 
-  async list(
-    authCtx: AuthContextProvider,
-    uuid = Node.ROOT_FOLDER_UUID
-  ): Promise<Either<AntboxError, Node[]>> {
-    const parentOrErr = await this.getParent(uuid);
-    if (parentOrErr.isLeft()) {
-      return left(parentOrErr.value);
-    }
+		if (result.isRight()) {
+			DomainEvents.notify(new NodeCreatedEvent(authCtx.principal.email, result.value));
+		}
 
-    const voidOrErr = await this.assertUserCanRead(authCtx, parentOrErr.value);
-    if (voidOrErr.isLeft()) {
-      return left(voidOrErr.value);
-    }
+		return result;
+	}
 
-    return this.nodeService.list(uuid);
-  }
+	async list(
+		authCtx: AuthContextProvider,
+		uuid = Node.ROOT_FOLDER_UUID,
+	): Promise<Either<AntboxError, Node[]>> {
+		const parentOrErr = await this.#getFolderWithPermission(authCtx, uuid, "Read");
+		if (parentOrErr.isLeft()) {
+			return left(parentOrErr.value);
+		}
 
-  private async getParent(
-    uuid = Node.ROOT_FOLDER_UUID
-  ): Promise<Either<AntboxError, FolderNode>> {
-    const parentOrErr = await this.nodeService.get(uuid);
-    if (parentOrErr.isLeft()) {
-      return left(parentOrErr.value);
-    }
+		const listOrErr = await this.nodeService.list(uuid);
+		if (listOrErr.isLeft()) {
+			return left(listOrErr.value);
+		}
 
-    if (!parentOrErr.value.isFolder()) {
-      return left(
-        new BadRequestError("Cannot list children of non-folder node")
-      );
-    }
+		const nodes = listOrErr.value.filter(
+			(n) => !n.isFolder() || this.#assertCanRead(authCtx, n).isRight(),
+		);
 
-    return right(parentOrErr.value);
-  }
+		return right(nodes);
+	}
 
-  private assertUserCanRead(
-    authCtx: AuthContextProvider,
-    parent: FolderNode
-  ): Either<AntboxError, void> {
-    return this.assertPermission(authCtx, parent, "Read");
-  }
+	async #getFolderWithPermission(
+		auth: AuthContextProvider,
+		uuid = Node.ROOT_FOLDER_UUID,
+		permission: Permission,
+	): Promise<Either<AntboxError, FolderNode>> {
+		const parentOrErr = await this.nodeService.get(uuid);
+		if (parentOrErr.isLeft()) {
+			return left(parentOrErr.value);
+		}
 
-  private assertUserCanWrite(
-    authCtx: AuthContextProvider,
-    parent: FolderNode
-  ): Either<AntboxError, void> {
-    return this.assertPermission(authCtx, parent, "Write");
-  }
+		if (!parentOrErr.value.isFolder()) {
+			return left(new BadRequestError("Is not a folder"));
+		}
 
-  private assertPermission(
-    authCtx: AuthContextProvider,
-    parent: FolderNode,
-    permission: Permission
-  ): Either<AntboxError, void> {
-    const principal = authCtx.principal;
+		const voidOrErr = this.#assertPermission(auth, parentOrErr.value, permission);
+		if (voidOrErr.isLeft()) {
+			return left(voidOrErr.value);
+		}
 
-    if (User.isAdmin(principal as User)) {
-      return right(undefined);
-    }
+		return right(parentOrErr.value);
+	}
 
-    if (parent.isRootFolder() && permission === "Read") {
-      return right(undefined);
-    }
+	#assertCanRead(
+		authCtx: AuthContextProvider,
+		folder: FolderNode,
+	): Either<AntboxError, void> {
+		return this.#assertPermission(authCtx, folder, "Read");
+	}
 
-    if (parent.isRootFolder() && !User.isAdmin(principal as User)) {
-      return left(new ForbiddenError());
-    }
+	#assertCanWrite(
+		authCtx: AuthContextProvider,
+		parent: FolderNode,
+	): Either<AntboxError, void> {
+		return this.#assertPermission(authCtx, parent, "Write");
+	}
 
-    if (parent.owner === authCtx.principal.email) {
-      return right(undefined);
-    }
+	#assertPermission(
+		authCtx: AuthContextProvider,
+		node: Node,
+		permission: Permission,
+	): Either<AntboxError, void> {
+		const principal = authCtx.principal;
 
-    if (parent.permissions.anonymous.includes(permission)) {
-      return right(undefined);
-    }
+		if (!node.isFolder()) {
+			return right(undefined);
+		}
 
-    if (
-      principal.groups.includes(parent.group) &&
-      parent.permissions.group.includes(permission)
-    ) {
-      return right(undefined);
-    }
+		if (User.isAdmin(principal as User)) {
+			return right(undefined);
+		}
 
-    if (
-      principal.email !== User.ANONYMOUS_USER_EMAIL &&
-      parent.permissions.authenticated.includes(permission)
-    ) {
-      return right(undefined);
-    }
+		if (node.isRootFolder() && permission === "Read") {
+			return right(undefined);
+		}
 
-    return left(new ForbiddenError());
-  }
+		if (node.isRootFolder() && !User.isAdmin(principal as User)) {
+			return left(new ForbiddenError());
+		}
 
-  async get(
-    _authCtx: AuthContextProvider,
-    uuid: string
-  ): Promise<Either<NodeNotFoundError, Node>> {
-    const nodeOrErr = await this.nodeService.get(uuid);
+		if (node.owner === authCtx.principal.email) {
+			return right(undefined);
+		}
 
-    if (nodeOrErr.isLeft()) {
-      return left(nodeOrErr.value);
-    }
+		if (node.permissions.anonymous.includes(permission)) {
+			return right(undefined);
+		}
 
-    const parentOrErr = await this.getParent(nodeOrErr.value.parent);
-    if (parentOrErr.isLeft()) {
-      return left(parentOrErr.value);
-    }
+		if (
+			principal.groups.includes(node.group) &&
+			node.permissions.group.includes(permission)
+		) {
+			return right(undefined);
+		}
 
-    const voidOrErr = await this.assertUserCanRead(_authCtx, parentOrErr.value);
-    if (voidOrErr.isLeft()) {
-      return left(voidOrErr.value);
-    }
+		if (
+			principal.email !== User.ANONYMOUS_USER_EMAIL &&
+			node.permissions.authenticated.includes(permission)
+		) {
+			return right(undefined);
+		}
 
-    return nodeOrErr;
-  }
+		return left(new ForbiddenError());
+	}
 
-  query(
-    _authCtx: AuthContextProvider,
-    filters: NodeFilter[],
-    pageSize = 25,
-    pageToken = 1
-  ): Promise<Either<AntboxError, NodeFilterResult>> {
-    return this.nodeService.query(filters, pageSize, pageToken);
-  }
+	async get(
+		authCtx: AuthContextProvider,
+		uuid: string,
+	): Promise<Either<NodeNotFoundError, Node>> {
+		const nodeOrErr = await this.nodeService.get(uuid);
+		if (nodeOrErr.isLeft()) {
+			return left(nodeOrErr.value);
+		}
 
-  update(
-    authCtx: AuthContextProvider,
-    uuid: string,
-    metadata: Partial<Node>,
-    merge?: boolean
-  ): Promise<Either<AntboxError, void>> {
-    if (AntboxService.isSystemFolder(uuid)) {
-      return Promise.resolve(
-        left(new BadRequestError("Cannot update system folder"))
-      );
-    }
+		if (nodeOrErr.value.isFolder()) {
+			return this.#getFolder(authCtx, nodeOrErr.value);
+		}
 
-    return this.nodeService.update(uuid, metadata, merge).then((result) => {
-      if (result.isRight()) {
-        DomainEvents.notify(
-          new NodeUpdatedEvent(authCtx.principal.email, uuid, metadata)
-        );
-      }
+		const parentOrErr = await this.#getFolderWithPermission(
+			authCtx,
+			nodeOrErr.value.parent,
+			"Read",
+		);
+		if (parentOrErr.isLeft()) {
+			return left(parentOrErr.value);
+		}
 
-      return result;
-    });
-  }
+		return right(nodeOrErr.value);
+	}
 
-  export(
-    _authCtx: AuthContextProvider,
-    uuid: string
-  ): Promise<Either<NodeNotFoundError, File>> {
-    return this.nodeService.export(uuid);
-  }
+	#getFolder(authCtx: AuthContextProvider, folder: FolderNode): Either<AntboxError, FolderNode> {
+		const assertNodeOrErr = this.#assertCanRead(authCtx, folder);
+		if (assertNodeOrErr.isLeft()) {
+			return left(assertNodeOrErr.value);
+		}
 
-  copy(
-    _authCtx: AuthContextProvider,
-    uuid: string,
-    parent: string
-  ): Promise<Either<AntboxError, Node>> {
-    return this.nodeService.copy(uuid, parent).then((result) => {
-      if (result.isRight()) {
-        DomainEvents.notify(
-          new NodeCreatedEvent(_authCtx.principal.email, result.value)
-        );
-      }
+		return right(folder);
+	}
 
-      return result;
-    });
-  }
+	query(
+		_authCtx: AuthContextProvider,
+		filters: NodeFilter[],
+		pageSize = 25,
+		pageToken = 1,
+	): Promise<Either<AntboxError, NodeFilterResult>> {
+		return this.nodeService.query(filters, pageSize, pageToken);
+	}
 
-  duplicate(
-    _authCtx: AuthContextProvider,
-    uuid: string
-  ): Promise<Either<AntboxError, Node>> {
-    if (AntboxService.isSystemFolder(uuid)) {
-      return Promise.resolve(
-        left(new BadRequestError("Cannot duplicate system folder"))
-      );
-    }
+	async update(
+		authCtx: AuthContextProvider,
+		uuid: string,
+		metadata: Partial<Node>,
+		merge?: boolean,
+	): Promise<Either<AntboxError, void>> {
+		const nodeOrErr = await this.nodeService.get(uuid);
+		if (nodeOrErr.isLeft()) {
+			return left(nodeOrErr.value);
+		}
 
-    return this.nodeService.duplicate(uuid);
-  }
+		const node = nodeOrErr.value;
+		if (node.isFolder()) {
+			return this.updateFolder(authCtx, node, metadata as Partial<FolderNode>);
+		}
 
-  updateFile(
-    _authCtx: AuthContextProvider,
-    uuid: string,
-    file: File
-  ): Promise<Either<AntboxError, void>> {
-    if (AntboxService.isSystemFolder(uuid)) {
-      return Promise.resolve(
-        left(new BadRequestError("Cannot update system folder"))
-      );
-    }
+		const parentOrErr = await this.#getFolderWithPermission(authCtx, node.parent, "Write");
+		if (parentOrErr.isLeft()) {
+			return left(new ForbiddenError());
+		}
 
-    return this.nodeService.updateFile(uuid, file).then((result) => {
-      if (result.isRight()) {
-        DomainEvents.notify(
-          new NodeContentUpdatedEvent(_authCtx.principal.email, uuid)
-        );
-      }
+		const voidOrErr = await this.nodeService.update(uuid, metadata, merge);
+		if (voidOrErr.isRight()) {
+			DomainEvents.notify(
+				new NodeUpdatedEvent(authCtx.principal.email, uuid, metadata),
+			);
+		}
 
-      return result;
-    });
-  }
+		return voidOrErr;
+	}
 
-  evaluate(
-    _authCtx: AuthContextProvider,
-    uuid: string
-  ): Promise<
-    Either<
-      SmartFolderNodeNotFoundError | AggregationFormulaError,
-      SmartFolderNodeEvaluation
-    >
-  > {
-    return this.nodeService.evaluate(uuid);
-  }
+	async updateFolder(
+		authCtx: AuthContextProvider,
+		folder: FolderNode,
+		metadata: Partial<FolderNode>,
+	): Promise<Either<AntboxError, void>> {
+		const assertNodeOrErr = this.#assertCanWrite(authCtx, folder);
+		if (assertNodeOrErr.isLeft()) {
+			return left(assertNodeOrErr.value);
+		}
 
-  delete(
-    _authCtx: AuthContextProvider,
-    uuid: string
-  ): Promise<Either<AntboxError, void>> {
-    return this.nodeService.delete(uuid).then((result) => {
-      if (result.isRight()) {
-        DomainEvents.notify(
-          new NodeDeletedEvent(_authCtx.principal.email, uuid)
-        );
-      }
+		const voidOrErr = await this.nodeService.update(folder.uuid, metadata);
+		if (voidOrErr.isRight()) {
+			DomainEvents.notify(
+				new NodeUpdatedEvent(folder.owner, folder.uuid, metadata),
+			);
+		}
 
-      return result;
-    });
-  }
+		return voidOrErr;
+	}
 
-  getAction(_authCtx: AuthContextProvider, uuid: string) {
-    return this.actionService.get(uuid);
-  }
+	async export(
+		authCtx: AuthContextProvider,
+		uuid: string,
+	): Promise<Either<NodeNotFoundError | ForbiddenError, File>> {
+		const nodeOrErr = await this.nodeService.get(uuid);
+		if (nodeOrErr.isLeft()) {
+			return left(nodeOrErr.value);
+		}
 
-  runAction(
-    authCtx: AuthContextProvider,
-    uuid: string,
-    uuids: string[],
-    params: Record<string, string>
-  ) {
-    return this.actionService.run(authCtx, uuid, uuids, params);
-  }
+		const parentOrErr = await this.#getFolderWithPermission(authCtx, uuid, "Export");
+		if (parentOrErr.isLeft()) {
+			return left(parentOrErr.value);
+		}
 
-  listActions(_authCtx: AuthContextProvider): Promise<Action[]> {
-    return this.actionService.list().then((nodes) => nodes);
-  }
+		return this.nodeService.export(uuid);
+	}
 
-  getAspect(
-    _authCtx: AuthContextProvider,
-    uuid: string
-  ): Promise<Either<AntboxError, Aspect>> {
-    return this.aspectService.get(uuid);
-  }
+	async copy(
+		authCtx: AuthContextProvider,
+		uuid: string,
+		parent: string,
+	): Promise<Either<AntboxError, Node>> {
+		const parentOrErr = await this.#getFolderWithPermission(authCtx, parent, "Write");
+		if (parentOrErr.isLeft()) {
+			return left(parentOrErr.value);
+		}
 
-  listAspects(_authCtx: AuthContextProvider): Promise<Aspect[]> {
-    return this.aspectService.list().then((nodes) => nodes);
-  }
+		const noderOrErr = await this.get(authCtx, uuid);
+		if (noderOrErr.isLeft()) {
+			return left(noderOrErr.value);
+		}
 
-  runExtension(
-    _authCtx: AuthContextProvider,
-    uuid: string,
-    request: Request
-  ): Promise<Either<Error, Response>> {
-    return this.extService.run(uuid, request);
-  }
+		const voidOrErr = await this.nodeService.copy(uuid, parent);
+		if (voidOrErr.isRight()) {
+			DomainEvents.notify(
+				new NodeCreatedEvent(authCtx.principal.email, voidOrErr.value),
+			);
+		}
 
-  private subscribeToDomainEvents() {
-    DomainEvents.subscribe(NodeCreatedEvent.EVENT_ID, {
-      handle: (evt) =>
-        this.actionService.runOnCreateScritps(evt as NodeCreatedEvent),
-    });
-    DomainEvents.subscribe(NodeUpdatedEvent.EVENT_ID, {
-      handle: (evt) =>
-        this.actionService.runOnUpdatedScritps(evt as NodeUpdatedEvent),
-    });
-    DomainEvents.subscribe(NodeCreatedEvent.EVENT_ID, {
-      handle: (evt) =>
-        this.actionService.runAutomaticActionsForCreates(
-          evt as NodeCreatedEvent
-        ),
-    });
-    DomainEvents.subscribe(NodeUpdatedEvent.EVENT_ID, {
-      handle: (evt) =>
-        this.actionService.runAutomaticActionsForUpdates(
-          evt as NodeUpdatedEvent
-        ),
-    });
-  }
+		return voidOrErr;
+	}
 
-  static isSystemFolder(uuid: string): boolean {
-    return (
-      uuid === Node.SYSTEM_FOLDER_UUID ||
-      AspectService.isAspectsFolder(uuid) ||
-      ActionService.isActionsFolder(uuid) ||
-      ExtService.isExtensionsFolder(uuid)
-    );
-  }
+	async duplicate(
+		authCtx: AuthContextProvider,
+		uuid: string,
+	): Promise<Either<AntboxError, Node>> {
+		const noderOrErr = await this.get(authCtx, uuid);
+		if (noderOrErr.isLeft()) {
+			return left(noderOrErr.value);
+		}
+
+		const parentOrErr = await this.#getFolderWithPermission(
+			authCtx,
+			noderOrErr.value.parent,
+			"Write",
+		);
+		if (parentOrErr.isLeft()) {
+			return left(parentOrErr.value);
+		}
+
+		return this.nodeService.duplicate(uuid);
+	}
+
+	updateFile(
+		_authCtx: AuthContextProvider,
+		uuid: string,
+		file: File,
+	): Promise<Either<AntboxError, void>> {
+		if (AntboxService.isSystemFolder(uuid)) {
+			return Promise.resolve(
+				left(new BadRequestError("Cannot update system folder")),
+			);
+		}
+
+		return this.nodeService.updateFile(uuid, file).then((result) => {
+			if (result.isRight()) {
+				DomainEvents.notify(
+					new NodeContentUpdatedEvent(_authCtx.principal.email, uuid),
+				);
+			}
+
+			return result;
+		});
+	}
+
+	evaluate(
+		_authCtx: AuthContextProvider,
+		uuid: string,
+	): Promise<
+		Either<
+			SmartFolderNodeNotFoundError | AggregationFormulaError,
+			SmartFolderNodeEvaluation
+		>
+	> {
+		return this.nodeService.evaluate(uuid);
+	}
+
+	async delete(
+		authCtx: AuthContextProvider,
+		uuid: string,
+	): Promise<Either<AntboxError, void>> {
+		const nodeOrErr = await this.nodeService.get(uuid);
+		if (nodeOrErr.isLeft()) {
+			return left(nodeOrErr.value);
+		}
+
+		if (nodeOrErr.value.isFolder() && this.#assertCanWrite(authCtx, nodeOrErr.value).isLeft()) {
+			return left(new ForbiddenError());
+		}
+
+		const parentOrErr = await this.#getFolderWithPermission(
+			authCtx,
+			nodeOrErr.value.parent,
+			"Write",
+		);
+		if (parentOrErr.isLeft()) {
+			return left(parentOrErr.value);
+		}
+
+		const voidOrErr = await this.nodeService.delete(uuid);
+		if (voidOrErr.isRight()) {
+			DomainEvents.notify(new NodeDeletedEvent(authCtx.principal.email, uuid));
+		}
+
+		return voidOrErr;
+	}
+
+	getAction(_authCtx: AuthContextProvider, uuid: string) {
+		return this.actionService.get(uuid);
+	}
+
+	runAction(
+		authCtx: AuthContextProvider,
+		uuid: string,
+		uuids: string[],
+		params: Record<string, string>,
+	) {
+		return this.actionService.run(authCtx, uuid, uuids, params);
+	}
+
+	listActions(_authCtx: AuthContextProvider): Promise<Action[]> {
+		return this.actionService.list().then((nodes) => nodes);
+	}
+
+	getAspect(
+		_authCtx: AuthContextProvider,
+		uuid: string,
+	): Promise<Either<AntboxError, Aspect>> {
+		return this.aspectService.get(uuid);
+	}
+
+	listAspects(_authCtx: AuthContextProvider): Promise<Aspect[]> {
+		return this.aspectService.list().then((nodes) => nodes);
+	}
+
+	runExtension(
+		_authCtx: AuthContextProvider,
+		uuid: string,
+		request: Request,
+	): Promise<Either<Error, Response>> {
+		return this.extService.run(uuid, request);
+	}
+
+	private subscribeToDomainEvents() {
+		DomainEvents.subscribe(NodeCreatedEvent.EVENT_ID, {
+			handle: (evt) => this.actionService.runOnCreateScritps(evt as NodeCreatedEvent),
+		});
+		DomainEvents.subscribe(NodeUpdatedEvent.EVENT_ID, {
+			handle: (evt) => this.actionService.runOnUpdatedScritps(evt as NodeUpdatedEvent),
+		});
+		DomainEvents.subscribe(NodeCreatedEvent.EVENT_ID, {
+			handle: (evt) =>
+				this.actionService.runAutomaticActionsForCreates(
+					evt as NodeCreatedEvent,
+				),
+		});
+		DomainEvents.subscribe(NodeUpdatedEvent.EVENT_ID, {
+			handle: (evt) =>
+				this.actionService.runAutomaticActionsForUpdates(
+					evt as NodeUpdatedEvent,
+				),
+		});
+	}
+
+	static isSystemFolder(uuid: string): boolean {
+		return (
+			uuid === Node.SYSTEM_FOLDER_UUID ||
+			AspectService.isAspectsFolder(uuid) ||
+			ActionService.isActionsFolder(uuid) ||
+			ExtService.isExtensionsFolder(uuid)
+		);
+	}
 }

@@ -376,7 +376,7 @@ export class AntboxService {
 			return left(parentOrErr.value);
 		}
 
-		return this.nodeService.export(uuid);
+		return this.nodeService.export(nodeOrErr.value.uuid);
 	}
 
 	async copy(

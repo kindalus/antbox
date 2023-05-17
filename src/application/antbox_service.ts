@@ -47,6 +47,10 @@ export class AntboxService {
 		file: File,
 		metadata: Partial<Node>,
 	): Promise<Either<AntboxError, Node>> {
+		if (Node.isRootFolder(metadata?.parent!)) {
+			return left(new ForbiddenError());
+		}
+
 		if (ActionService.isActionsFolder(metadata.parent!)) {
 			return this.actionService.createOrReplace(file, metadata);
 		}

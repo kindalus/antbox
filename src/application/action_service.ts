@@ -147,6 +147,12 @@ export class ActionService {
 		uuids: string[],
 		params: Record<string, string>,
 	): Promise<Either<AntboxError, void>> {
+		if (await this.#ranTooManyTimes(uuid, uuids)) {
+			const message = `Action ran too many times: ${uuid}${uuids.join(",")}`;
+			console.error(message);
+			return left(new BadRequestError(message));
+		}
+
 		const actionOrErr = await this.get(uuid);
 
 		if (actionOrErr.isLeft()) {
@@ -183,6 +189,29 @@ export class ActionService {
 		}
 
 		return right(undefined);
+	}
+
+	async #ranTooManyTimes(uuid: string, uuids: string[]): Promise<boolean> {
+		const kv = await Deno.openKv();
+		const key = uuids.join(",");
+		const timestamp = Date.now();
+		const timeout = 1000 * 10; // 10 seconds
+		const maxCount = 10;
+
+		const entry = await kv.get<{ count: number; timestamp: number }>([uuid, key]);
+
+		if (!entry || !entry.value || entry.value.timestamp + timeout < timestamp) {
+			await kv.set([uuid, key], { count: 1, timestamp });
+			return false;
+		}
+
+		if (entry.value.count >= maxCount) {
+			await kv.delete([uuid, key]);
+			return true;
+		}
+
+		await kv.set([uuid, key], { count: entry.value.count + 1, timestamp });
+		return false;
 	}
 
 	async #getValidNodesForAction(

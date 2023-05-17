@@ -40,7 +40,7 @@ export function aspectToFile(aspect: Aspect): File {
 }
 
 export function userToNode(user: User): Node {
-	const node = {
+	const node = Object.assign(new Node(), {
 		uuid: user.uuid,
 		fid: user.uuid,
 		title: user.fullname,
@@ -56,7 +56,7 @@ export function userToNode(user: User): Node {
 
 		createdTime: nowIso(),
 		modifiedTime: nowIso(),
-	} as unknown as Node;
+	});
 
 	if (user.builtIn) {
 		node.owner = User.ROOT_USER_EMAIL;

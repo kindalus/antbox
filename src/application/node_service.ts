@@ -1,3 +1,4 @@
+import { Aspect, AspectProperty } from "../domain/aspects/aspect.ts";
 import { AggregationFormulaError } from "../domain/nodes/aggregation_formula_error.ts";
 import { FolderNode } from "../domain/nodes/folder_node.ts";
 import { FolderNotFoundError } from "../domain/nodes/folder_not_found_error.ts";
@@ -25,6 +26,7 @@ import {
 	actionToNode,
 	aspectToFile,
 	aspectToNode,
+	fileToAspect,
 	groupToNode,
 	userToNode,
 } from "./node_mapper.ts";
@@ -81,6 +83,7 @@ export class NodeService {
 			await this.context.storage.write(node.uuid, file);
 		}
 
+		node.fulltext = await this.#calculateFulltext(node);
 		await this.context.repository.add(node);
 
 		return right(node);
@@ -146,6 +149,7 @@ export class NodeService {
 			metadata,
 		);
 
+		node.fulltext = await this.#calculateFulltext(node);
 		await this.context.repository.add(node);
 
 		return right(node);
@@ -165,6 +169,7 @@ export class NodeService {
 			0,
 		);
 
+		node.fulltext = await this.#calculateFulltext(node);
 		await this.context.repository.add(node);
 
 		return right(node);
@@ -202,9 +207,51 @@ export class NodeService {
 		);
 
 		await this.context.storage.write(newNode.uuid, file);
+		newNode.fulltext = await this.#calculateFulltext(newNode);
 		await this.context.repository.add(newNode);
 
 		return right(newNode);
+	}
+
+	#escapeFulltext(fulltext: string): string {
+		return fulltext.toLocaleLowerCase()
+			.replace(/[áàâäãå]/g, "a")
+			.replace(/[ç]/g, "c")
+			.replace(/[éèêë]/g, "e")
+			.replace(/[íìîï]/g, "i")
+			.replace(/ñ/g, "n")
+			.replace(/[óòôöõ]/g, "o")
+			.replace(/[úùûü]/g, "u")
+			.replace(/[ýÿ]/g, "y")
+			.replace(/[\W\._]/g, " ")
+			.replace(/(^|\s)\w{1,2}\s/g, " ")
+			.replace(/\s+/g, " ")
+			.trim();
+	}
+
+	async #calculateFulltext(node: Node): Promise<string> {
+		// Get all node aspect properties and filter the ones with searchable = true
+		if (!node.aspects || node.aspects.length === 0) {
+			return this.#escapeFulltext(node.title);
+		}
+
+		const aspectGetters = node.aspects.map((a) => this.context.storage.read(a));
+
+		const files = await Promise.all(aspectGetters);
+		const aspects = await Promise.all(files.map(fileToAspect));
+		const fulltext = aspects.map((a) => this.#aspectToProperties(a))
+			.flat()
+			.filter((p) => p.searchable)
+			.map((p) => p.name)
+			.map((p) => node.properties[p]);
+
+		return this.#escapeFulltext([node.title, ...fulltext].join(" "));
+	}
+
+	#aspectToProperties(aspect: Aspect): AspectProperty[] {
+		return aspect.properties.map((p) => {
+			return { ...p, name: `${aspect.uuid}:${p.name}` };
+		});
 	}
 
 	async updateFile(
@@ -223,6 +270,7 @@ export class NodeService {
 
 		await this.context.storage.write(uuid, file);
 
+		nodeOrErr.value.fulltext = await this.#calculateFulltext(nodeOrErr.value);
 		await this.context.repository.update(nodeOrErr.value);
 
 		return right(undefined);
@@ -383,6 +431,7 @@ export class NodeService {
 			? this.merge(nodeOrErr.value, data)
 			: Object.assign(nodeOrErr.value, data);
 
+		newNode.fulltext = await this.#calculateFulltext(newNode);
 		return this.context.repository.update(newNode);
 	}
 

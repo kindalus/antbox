@@ -63,12 +63,23 @@ export class AspectService {
 		return right(aspect);
 	}
 
-	list(): Promise<Aspect[]> {
-		return this.nodeService
-			.list(Node.ASPECTS_FOLDER_UUID)
-			.then((nodesOrErrs) => nodesOrErrs.value as Node[])
-			.then((nodes) => nodes.map((n) => this.get(n.uuid)))
-			.then((aspectsPromises) => Promise.all(aspectsPromises))
-			.then((aspectsOrErrs) => aspectsOrErrs.map((a) => a.value as Aspect));
+	async list(): Promise<Aspect[]> {
+		const nodesOrErrs = await this.nodeService.list(Node.ASPECTS_FOLDER_UUID);
+		if (nodesOrErrs.isLeft()) {
+			console.error(nodesOrErrs.value);
+			return [];
+		}
+
+		const aspectsPromises = nodesOrErrs.value.map((n) => this.get(n.uuid));
+
+		const aspectsOrErrs = await Promise.all(aspectsPromises);
+		const errs = aspectsOrErrs.filter((a) => a.isLeft());
+		const aspects = aspectsOrErrs.filter((a) => a.isRight()).map((a) => a.value! as Aspect);
+
+		if (errs.length > 0) {
+			errs.forEach((e) => console.error(e.value));
+		}
+
+		return aspects;
 	}
 }

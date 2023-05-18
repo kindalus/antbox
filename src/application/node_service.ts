@@ -14,7 +14,7 @@ import {
 } from "../domain/nodes/smart_folder_evaluation.ts";
 import { Aggregation, SmartFolderNode } from "../domain/nodes/smart_folder_node.ts";
 import { SmartFolderNodeNotFoundError } from "../domain/nodes/smart_folder_node_not_found_error.ts";
-import { AntboxError, BadRequestError } from "../shared/antbox_error.ts";
+import { AntboxError, BadRequestError, UnknownError } from "../shared/antbox_error.ts";
 import { Either, left, right } from "../shared/either.ts";
 import { ActionService } from "./action_service.ts";
 import { builtinActions } from "./builtin_actions/mod.ts";
@@ -535,9 +535,12 @@ export class NodeService {
 			return right(this.#exportSmartfolder(nodeOrErr.value));
 		}
 
-		const file = await this.context.storage.read(uuid);
-
-		return right(file);
+		try {
+			const file = await this.context.storage.read(uuid);
+			return right(file);
+		} catch (e) {
+			return left(new UnknownError(e.message));
+		}
 	}
 
 	#exportBuiltinNode(uuid: string): Either<NodeNotFoundError, File> {

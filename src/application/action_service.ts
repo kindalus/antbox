@@ -96,13 +96,26 @@ export class ActionService {
 		return right(await ActionService.fileToAction(file));
 	}
 
-	list(): Promise<Action[]> {
-		return this.nodeService
-			.list(Node.ACTIONS_FOLDER_UUID)
-			.then((nodesOrErrs) => nodesOrErrs.value as Node[])
-			.then((nodes) => nodes.map((n) => this.get(n.uuid)))
-			.then((actionPromises) => Promise.all(actionPromises))
-			.then((actionsOrErrs) => actionsOrErrs.map((a) => a.value as Action));
+	async list(): Promise<Action[]> {
+		const nodesOrErrs = await this.nodeService
+			.list(Node.ACTIONS_FOLDER_UUID);
+
+		if (nodesOrErrs.isLeft()) {
+			console.error(nodesOrErrs.value);
+			return [];
+		}
+
+		const aspectsPromises = nodesOrErrs.value.map((n) => this.get(n.uuid));
+
+		const aspectsOrErrs = await Promise.all(aspectsPromises);
+		const errs = aspectsOrErrs.filter((a) => a.isLeft());
+		const aspects = aspectsOrErrs.filter((a) => a.isRight()).map((a) => a.value! as Action);
+
+		if (errs.length > 0) {
+			errs.forEach((e) => console.error(e.value));
+		}
+
+		return aspects;
 	}
 
 	async createOrReplace(

@@ -96,9 +96,6 @@ export type Permissions = {
 };
 
 export class FileNode extends Node {
-	// Versões têm o formato aaaa-MM-ddTHH:mm:ss
-	versions: string[] = [];
-
 	constructor() {
 		super();
 	}

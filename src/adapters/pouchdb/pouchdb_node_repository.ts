@@ -1,4 +1,4 @@
-import { DB, PouchDB } from "../../../deps.ts";
+import { PouchDB, PouchDbFind } from "../../../deps.ts";
 import { Node } from "../../domain/nodes/node.ts";
 import { NodeFactory } from "../../domain/nodes/node_factory.ts";
 import { FilterOperator, NodeFilter } from "../../domain/nodes/node_filter.ts";
@@ -14,17 +14,40 @@ export default function buildPouchdbNodeRepository(
 }
 
 export class PouchdbNodeRepository implements NodeRepository {
-	private readonly db: PouchDB.Database<Node>;
+	private readonly db: PouchDB;
 
 	constructor(dbpath: string) {
-		this.db = new DB("nodes", {
-			adapter: "indexeddb",
+		PouchDB.plugin(PouchDbFind);
+
+		this.db = new PouchDB("nodes", {
+			adapter: "leveldb",
 			systemPath: dbpath,
 			prefix: dbpath + "/",
 		});
+
+		const path = dbpath + "/nodes";
+		if (!this.#directoryExists(path)) {
+			Deno.mkdirSync(path, { recursive: true });
+		}
+
 		this.db.createIndex({
 			index: { fields: ["title", "fid", "parent", "aspects"] },
-		});
+		}).catch(console.error);
+	}
+
+	#directoryExists(path: string): boolean {
+		try {
+			const stats = Deno.statSync(path);
+			// stats.isDirectory will be true if path is a directory.
+			return stats.isDirectory;
+		} catch (error) {
+			if (error instanceof Deno.errors.NotFound) {
+				// path does not exist
+				return false;
+			}
+			// unexpected error, rethrow it
+			throw error;
+		}
 	}
 
 	async delete(uuid: string): Promise<Either<NodeNotFoundError, void>> {
@@ -62,9 +85,9 @@ export class PouchdbNodeRepository implements NodeRepository {
 	getByFid(fid: string): Promise<Either<NodeNotFoundError, Node>> {
 		return this.db
 			.find({ selector: { fid } })
-			.then((r) => r.docs)
-			.then((docs) => docs.map(docToNode))
-			.then((nodes) => {
+			.then((r: MangoResult) => r.docs)
+			.then((docs: MangoDocument[]) => docs.map(docToNode))
+			.then((nodes: Node[]) => {
 				if (nodes.length === 0) {
 					return left(new NodeNotFoundError(Node.fidToUuid(fid)));
 				}
@@ -133,7 +156,7 @@ function filterToMango(filter: NodeFilter): MangoFilter {
 	return { [field]: { [o]: value } };
 }
 
-function docToNode(doc: PouchDB.Core.ExistingDocument<Node>): Node {
+function docToNode(doc: MangoDocument): Node {
 	const { _id, _rev, ...node } = doc;
 	return NodeFactory.composeNode(node);
 }
@@ -153,3 +176,9 @@ const operators: Partial<Record<FilterOperator, string>> = {
 };
 
 type MangoFilter = { [key: string]: { [key: string]: unknown } };
+
+type MangoDocument = Node & { _id: string; _rev: string };
+
+interface MangoResult {
+	docs: MangoDocument[];
+}

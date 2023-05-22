@@ -230,15 +230,11 @@ export class NodeService {
 	}
 
 	async #calculateFulltext(node: Node): Promise<string> {
-		// Get all node aspect properties and filter the ones with searchable = true
+		const aspects = await this.#getNodeAspects(node);
 		if (!node.aspects || node.aspects.length === 0) {
 			return this.#escapeFulltext(node.title);
 		}
 
-		const aspectGetters = node.aspects.map((a) => this.context.storage.read(a));
-
-		const files = await Promise.all(aspectGetters);
-		const aspects = await Promise.all(files.map(fileToAspect));
 		const fulltext = aspects.map((a) => this.#aspectToProperties(a))
 			.flat()
 			.filter((p) => p.searchable)
@@ -428,14 +424,33 @@ export class NodeService {
 		}
 
 		const newNode = merge
-			? this.merge(nodeOrErr.value, data)
+			? this.#merge(nodeOrErr.value, data)
 			: Object.assign(nodeOrErr.value, data);
 
 		newNode.fulltext = await this.#calculateFulltext(newNode);
 		return this.context.repository.update(newNode);
 	}
 
-	private merge<T>(dst: T, src: Partial<T>): T {
+	async #getNodeAspects(node: Node): Promise<Aspect[]> {
+		try {
+			const aspectGetters = node.aspects?.map((a) => this.context.storage.read(a));
+
+			if (!aspectGetters) {
+				return Promise.resolve([]);
+			}
+
+			const files = (await Promise.all(aspectGetters)).filter((a) =>
+				a !== null && a !== undefined
+			) as File[];
+
+			return Promise.all(files.map(fileToAspect));
+		} catch (err) {
+			console.error("Error loading aspect:", err);
+			return [];
+		}
+	}
+
+	#merge<T>(dst: T, src: Partial<T>): T {
 		const proto = Object.getPrototypeOf(dst);
 		const result = Object.assign(Object.create(proto), dst);
 
@@ -447,7 +462,7 @@ export class NodeService {
 
 			if (typeof src[key] === "object") {
 				// deno-lint-ignore no-explicit-any
-				result[key] = this.merge(result[key] ?? {}, src[key] as any);
+				result[key] = this.#merge(result[key] ?? {}, src[key] as any);
 				continue;
 			}
 

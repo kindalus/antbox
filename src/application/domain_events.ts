@@ -4,12 +4,15 @@ import { Event } from "../shared/event.ts";
 export class DomainEvents {
 	private static _handlers: Record<string, EventHandler<Event>[]> = {};
 
-	static notify(event: Event) {
-		const handlers = DomainEvents._handlers[event.eventId];
+	static notify(event: Event): Promise<void> {
+		return new Promise((resolve, _reject) => {
+			const handlers = DomainEvents._handlers[event.eventId];
 
-		if (handlers) {
-			handlers.forEach((handler) => handler.handle(event));
-		}
+			if (handlers) {
+				handlers.forEach((handler) => handler.handle(event));
+			}
+			resolve();
+		});
 	}
 
 	static subscribe(eventId: string, handler: EventHandler<Event>) {

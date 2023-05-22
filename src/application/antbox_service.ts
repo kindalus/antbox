@@ -73,14 +73,14 @@ export class AntboxService {
 			return left(parentOrErr.value);
 		}
 
-		const voidOrErr = await this.nodeService.createFile(file, metadata);
-		if (voidOrErr.isRight()) {
+		const nodeOrErr = await this.nodeService.createFile(file, metadata);
+		if (nodeOrErr.isRight()) {
 			DomainEvents.notify(
-				new NodeCreatedEvent(authCtx.principal.email, voidOrErr.value),
+				new NodeCreatedEvent(authCtx.principal.email, nodeOrErr.value),
 			);
 		}
 
-		return voidOrErr;
+		return nodeOrErr;
 	}
 
 	async createMetanode(

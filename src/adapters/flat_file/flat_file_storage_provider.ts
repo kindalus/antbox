@@ -35,9 +35,7 @@ export class FlatFileStorageProvider implements StorageProvider {
 	}
 
 	delete(uuid: string): Promise<void> {
-		return Deno.remove(this.#buildFilePath(uuid), {
-			recursive: true,
-		});
+		return Deno.remove(this.#buildFilePath(uuid));
 	}
 
 	async write(uuid: string, file: File): Promise<void> {

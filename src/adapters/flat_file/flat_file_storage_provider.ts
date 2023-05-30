@@ -1,7 +1,7 @@
 import { join } from "../../../deps.ts";
 import { StorageProvider } from "../../domain/providers/storage_provider.ts";
-import { AntboxError } from "../../shared/antbox_error.ts";
-import { Either, right } from "../../shared/either.ts";
+import { AntboxError, UnknownError } from "../../shared/antbox_error.ts";
+import { Either, left, right } from "../../shared/either.ts";
 import { fileExistsSync } from "../../shared/file_exists_sync.ts";
 
 export default function buildFlatFileStorageProvider(
@@ -24,21 +24,24 @@ export class FlatFileStorageProvider implements StorageProvider {
 		}
 	}
 
-	read(uuid: string): Promise<File> {
-		const filePath = this.#buildFilePath(uuid);
+	read(uuid: string): Promise<Either<AntboxError, File>> {
+		const path = this.#buildFilePath(uuid);
 
-		const fileContent = Deno.readFileSync(filePath);
-
-		const file = new File([fileContent], uuid);
-
-		return Promise.resolve(file);
+		return Deno.readFile(path)
+			.then((fileContent) => new File([fileContent], uuid))
+			.then(right)
+			.catch((e) => left(error(uuid, e.message))) as Promise<Either<AntboxError, File>>;
 	}
 
-	delete(uuid: string): Promise<void> {
-		return Deno.remove(this.#buildFilePath(uuid));
+	delete(uuid: string): Promise<Either<AntboxError, void>> {
+		const path = this.#buildFilePath(uuid);
+
+		return Deno.remove(path)
+			.then(right)
+			.catch((e) => left(error(uuid, e.message))) as Promise<Either<AntboxError, void>>;
 	}
 
-	async write(uuid: string, file: File): Promise<void> {
+	write(uuid: string, file: File): Promise<Either<AntboxError, void>> {
 		const folderPath = this.#buildFileFolderPath(uuid);
 		const filePath = this.#buildFilePath(uuid);
 
@@ -46,11 +49,11 @@ export class FlatFileStorageProvider implements StorageProvider {
 			Deno.mkdirSync(folderPath, { recursive: true });
 		}
 
-		const buffer = new Uint8Array(await file.arrayBuffer());
-
-		Deno.writeFileSync(filePath, buffer, {});
-
-		return Promise.resolve(undefined);
+		return file.arrayBuffer()
+			.then((buffer) => new Uint8Array(buffer))
+			.then((buffer) => Deno.writeFileSync(filePath, buffer, {}))
+			.then(right)
+			.catch((e) => left(error(uuid, e.message))) as Promise<Either<AntboxError, void>>;
 	}
 
 	list(): Promise<string[]> {
@@ -66,4 +69,14 @@ export class FlatFileStorageProvider implements StorageProvider {
 	#buildFilePath(uuid: string) {
 		return join(this.#buildFileFolderPath(uuid), uuid);
 	}
+}
+
+class FlatFileStorageProviderError extends AntboxError {
+	constructor(message: string) {
+		super("FlatFileStorageProviderError", message);
+	}
+}
+
+function error(uuid: string, message: string) {
+	return new FlatFileStorageProviderError(`[${uuid}] ${message}`);
 }

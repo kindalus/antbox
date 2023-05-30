@@ -14,7 +14,7 @@ import {
 } from "../domain/nodes/smart_folder_evaluation.ts";
 import { Aggregation, SmartFolderNode } from "../domain/nodes/smart_folder_node.ts";
 import { SmartFolderNodeNotFoundError } from "../domain/nodes/smart_folder_node_not_found_error.ts";
-import { AntboxError, BadRequestError, UnknownError } from "../shared/antbox_error.ts";
+import { AntboxError, BadRequestError } from "../shared/antbox_error.ts";
 import { Either, left, right } from "../shared/either.ts";
 import { ActionService } from "./action_service.ts";
 import { builtinActions } from "./builtin_actions/mod.ts";
@@ -188,7 +188,7 @@ export class NodeService {
 	async copy(
 		uuid: string,
 		parent: string,
-	): Promise<Either<NodeNotFoundError, Node>> {
+	): Promise<Either<AntboxError, Node>> {
 		const nodeOrErr = await this.get(uuid);
 		if (nodeOrErr.isLeft()) {
 			return left(nodeOrErr.value);
@@ -198,17 +198,28 @@ export class NodeService {
 			return left(new BadRequestError("Cannot copy folder"));
 		}
 
-		const file = await this.context.storage.read(uuid);
+		const fileOrErr = await this.context.storage.read(uuid);
+		if (fileOrErr.isLeft()) {
+			return left(fileOrErr.value);
+		}
 
 		const newNode = this.#createFileMetadata(
-			{ title: "cópia de ".concat(nodeOrErr.value.title), parent },
+			{ title: `cópia de ${nodeOrErr.value.title}`, parent },
 			nodeOrErr.value.mimetype,
 			nodeOrErr.value.size,
 		);
 
-		await this.context.storage.write(newNode.uuid, file);
+		const writeOrErr = await this.context.storage.write(newNode.uuid, fileOrErr.value);
+		if (writeOrErr.isLeft()) {
+			return left(writeOrErr.value);
+		}
+
 		newNode.fulltext = await this.#calculateFulltext(newNode);
-		await this.context.repository.add(newNode);
+
+		const addOrErr = await this.context.repository.add(newNode);
+		if (addOrErr.isLeft()) {
+			return left(addOrErr.value);
+		}
 
 		return right(newNode);
 	}
@@ -431,23 +442,25 @@ export class NodeService {
 		return this.context.repository.update(newNode);
 	}
 
-	async #getNodeAspects(node: Node): Promise<Aspect[]> {
-		try {
-			const aspectGetters = node.aspects?.map((a) => this.context.storage.read(a));
+	#getNodeAspects(node: Node): Promise<Aspect[]> {
+		const aspectGetters = node.aspects?.map(this.context.storage.read);
 
-			if (!aspectGetters) {
-				return Promise.resolve([]);
-			}
-
-			const files = (await Promise.all(aspectGetters)).filter((a) =>
-				a !== null && a !== undefined
-			) as File[];
-
-			return Promise.all(files.map(fileToAspect));
-		} catch (err) {
-			console.error("Error loading aspect:", err);
-			return [];
+		if (!aspectGetters) {
+			return Promise.resolve([]);
 		}
+
+		return Promise.all(aspectGetters).then((fileOrErrs) => {
+			fileOrErrs.filter((fileOrErr) => fileOrErr.isLeft())
+				.map((fileOrErr) => fileOrErr.value)
+				.forEach(console.error);
+
+			const aspectsPromises = fileOrErrs
+				.filter((fileOrErr) => fileOrErr.isRight())
+				.map((fileOrErr) => fileOrErr.value as File)
+				.map(fileToAspect);
+
+			return Promise.all(aspectsPromises);
+		});
 	}
 
 	#merge<T>(dst: T, src: Partial<T>): T {
@@ -550,12 +563,7 @@ export class NodeService {
 			return right(this.#exportSmartfolder(nodeOrErr.value));
 		}
 
-		try {
-			const file = await this.context.storage.read(uuid);
-			return right(file);
-		} catch (e) {
-			return left(new UnknownError(e.message));
-		}
+		return this.context.storage.read(uuid);
 	}
 
 	#exportBuiltinNode(uuid: string): Either<NodeNotFoundError, File> {

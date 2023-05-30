@@ -1,19 +1,27 @@
+import { NodeFileNotFoundError } from "../../domain/nodes/node_file_not_found_error.ts";
 import { StorageProvider } from "../../domain/providers/storage_provider.ts";
+import { AntboxError } from "../../shared/antbox_error.ts";
+import { Either, left, right } from "../../shared/either.ts";
 
 export class InMemoryStorageProvider implements StorageProvider {
-  constructor(readonly fs: Record<string, File> = {}) {}
-  read(uuid: string): Promise<File> {
-    return Promise.resolve(this.fs[uuid]);
-  }
+	constructor(readonly fs: Record<string, File> = {}) {}
+	read(uuid: string): Promise<Either<AntboxError, File>> {
+		const file = this.fs[uuid];
+		if (!file) {
+			const error = new NodeFileNotFoundError(uuid);
+			return Promise.resolve(left(error));
+		}
+		return Promise.resolve(right(file));
+	}
 
-  delete(uuid: string): Promise<void> {
-    delete this.fs[uuid];
-    return Promise.resolve();
-  }
+	delete(uuid: string): Promise<Either<AntboxError, void>> {
+		delete this.fs[uuid];
+		return Promise.resolve(right(undefined));
+	}
 
-  write(uuid: string, file: File): Promise<void> {
-    this.fs[uuid] = file;
+	write(uuid: string, file: File): Promise<Either<AntboxError, void>> {
+		this.fs[uuid] = file;
 
-    return Promise.resolve(undefined);
-  }
+		return Promise.resolve(right(undefined));
+	}
 }

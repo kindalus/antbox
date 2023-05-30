@@ -302,7 +302,12 @@ export class AntboxService {
 
 		const node = nodeOrErr.value;
 		if (node.isFolder()) {
-			return this.updateFolder(authCtx, node, metadata as Partial<FolderNode>);
+			return this.updateFolder(
+				authCtx,
+				node,
+				metadata as Partial<FolderNode>,
+				metadata.parent !== node.parent,
+			);
 		}
 
 		const parentOrErr = await this.#getFolderWithPermission(authCtx, node.parent, "Write");
@@ -335,13 +340,14 @@ export class AntboxService {
 		authCtx: AuthContextProvider,
 		folder: FolderNode,
 		metadata: Partial<FolderNode>,
+		changeParent = false,
 	): Promise<Either<AntboxError, void>> {
 		const assertNodeOrErr = this.#assertCanWrite(authCtx, folder);
 		if (assertNodeOrErr.isLeft()) {
 			return left(assertNodeOrErr.value);
 		}
 
-		if (metadata.parent) {
+		if (changeParent) {
 			const newParentOrErr = await this.#getFolderWithPermission(
 				authCtx,
 				metadata.parent,

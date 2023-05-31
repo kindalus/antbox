@@ -170,7 +170,11 @@ export class NodeService {
 		);
 
 		node.fulltext = await this.#calculateFulltext(node);
-		await this.context.repository.add(node);
+		const addOrErr = await this.context.repository.add(node);
+
+		if (addOrErr.isLeft()) {
+			return left(addOrErr.value);
+		}
 
 		return right(node);
 	}

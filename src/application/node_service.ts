@@ -445,7 +445,7 @@ export class NodeService {
 	}
 
 	#getNodeAspects(node: Node): Promise<Aspect[]> {
-		const aspectGetters = node.aspects?.map(this.context.storage.read);
+		const aspectGetters = node.aspects?.map((a) => this.context.storage.read(a));
 
 		if (!aspectGetters) {
 			return Promise.resolve([]);

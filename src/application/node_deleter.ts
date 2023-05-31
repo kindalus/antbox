@@ -3,7 +3,7 @@ import { FileNode, Node } from "../domain/nodes/node.ts";
 import { NodeNotFoundError } from "../domain/nodes/node_not_found_error.ts";
 import { SmartFolderNode } from "../domain/nodes/smart_folder_node.ts";
 import { AntboxError } from "../shared/antbox_error.ts";
-import { Either } from "../shared/either.ts";
+import { Either, right } from "../shared/either.ts";
 import { NodeServiceContext } from "./node_service_context.ts";
 
 export abstract class NodeDeleter<T extends Node> {
@@ -58,7 +58,13 @@ export class FileNodeDeleter extends NodeDeleter<FileNode> {
 	}
 
 	delete(): Promise<Either<NodeNotFoundError, void>> {
-		return this.deleteFromStorage();
+		return this.deleteFromStorage().then((deletelOrErr) => {
+			if (deletelOrErr.isLeft()) {
+				return deletelOrErr;
+			}
+
+			return this.deleteFromRepository();
+		});
 	}
 }
 
@@ -67,12 +73,17 @@ export class FolderNodeDeleter extends NodeDeleter<FolderNode> {
 		super(node, context);
 	}
 
-	async delete(): Promise<Either<NodeNotFoundError, void>> {
-		await this.deleteChildren();
-		return this.deleteFromRepository();
+	delete(): Promise<Either<AntboxError, void>> {
+		return this.deleteChildren().then((deleteOrErr) => {
+			if (deleteOrErr.isLeft()) {
+				return deleteOrErr;
+			}
+
+			return this.deleteFromRepository();
+		});
 	}
 
-	private async deleteChildren() {
+	private async deleteChildren(): Promise<Either<AntboxError, void>> {
 		const { nodes: children } = await this.context.repository.filter(
 			[["parent", "==", this.node.uuid]],
 			Number.MAX_VALUE,
@@ -80,8 +91,14 @@ export class FolderNodeDeleter extends NodeDeleter<FolderNode> {
 		);
 
 		for (const child of children) {
-			await NodeDeleter.for(child, this.context).delete();
+			const deleteOrErr = await NodeDeleter.for(child, this.context).delete();
+
+			if (deleteOrErr.isLeft()) {
+				return deleteOrErr;
+			}
 		}
+
+		return right(undefined);
 	}
 }
 

@@ -290,9 +290,7 @@ export class NodeService {
 			return left(nodeOrError.value);
 		}
 
-		await NodeDeleter.for(nodeOrError.value, this.context).delete();
-
-		return right(undefined);
+		return NodeDeleter.for(nodeOrError.value, this.context).delete();
 	}
 
 	async get(uuid: string): Promise<Either<NodeNotFoundError, Node>> {

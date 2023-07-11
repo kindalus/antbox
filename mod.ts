@@ -33,25 +33,23 @@ export interface ServerOpts {
 
 function setupTenants(o: ServerOpts): Promise<AntboxTenant[]> {
   return Promise.all(
-    o.tentants.map(async (tenantCfg) => {
-      const passwd = tenantCfg?.rootPasswd ?? ROOT_PASSWD;
-      const symmetricKey = tenantCfg?.symmetricKey ?? SYMMETRIC_KEY;
+    o.tentants.map(async (cfg) => {
+      const passwd = cfg?.rootPasswd ?? ROOT_PASSWD;
+      const symmetricKey = cfg?.symmetricKey ?? SYMMETRIC_KEY;
 
-      const jwk = await loadJwk(tenantCfg?.jwkPath);
+      const jwk = await loadJwk(cfg?.jwkPath);
 
       const service = new AntboxService({
         uuidGenerator: new DefaultUuidGenerator(),
         fidGenerator: new DefaultFidGenerator(),
         repository:
-          (await providerFrom(tenantCfg?.repository)) ??
-          new InMemoryNodeRepository(),
+          (await providerFrom(cfg?.repository)) ?? new InMemoryNodeRepository(),
         storage:
-          (await providerFrom(tenantCfg?.storage)) ??
-          new InMemoryStorageProvider(),
+          (await providerFrom(cfg?.storage)) ?? new InMemoryStorageProvider(),
       });
 
       return {
-        name: tenantCfg.name,
+        name: cfg.name,
         service,
         rootPasswd: passwd,
         symmetricKey,

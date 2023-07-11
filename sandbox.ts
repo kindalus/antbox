@@ -20,7 +20,12 @@ function main(program: IParseResult) {
 
   startServer({
     port: program.options.port,
-    rootPasswd: program.options.passwd,
+    tentants: [
+      {
+        name: "demo",
+        rootPasswd: program.options.passwd,
+      },
+    ],
   });
 }
 

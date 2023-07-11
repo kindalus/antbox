@@ -1,12 +1,18 @@
 import { Context, jose, Router } from "../../../deps.ts";
 import { Root } from "../../application/builtin_users/root.ts";
+import { getTenant } from "./get_tenant.ts";
 import { sendBadRequest, sendUnauthorized, sendOK } from "./send_response.ts";
+import { AntboxTenant } from "./setup_oak_server.ts";
 
-export default function (symmetricKey: string, rootPasswd: string) {
-  let digestedRootPasswd: string;
-  sha256(rootPasswd).then((v) => (digestedRootPasswd = v));
-
+export default function (tenants: AntboxTenant[]) {
   const rootHandler = async (ctx: Context) => {
+    const tenant = getTenant(ctx, tenants);
+
+    const rootPasswd = tenant.rootPasswd;
+    const symmetricKey = tenant.symmetricKey;
+
+    const digestedRootPasswd = await sha256(rootPasswd);
+
     if (ctx.request.hasBody === false) {
       return sendBadRequest(ctx);
     }

@@ -28,14 +28,19 @@ function main(program: IParseResult) {
 
   startServer({
     port: program.options.port ? parseInt(program.options.port) : undefined,
-    rootPasswd: program.options.passwd,
-    storage: [
-      "flat_file/flat_file_storage_provider.ts",
-      join(baseDir, "storage"),
-    ],
-    repository: [
-      "pouchdb/pouchdb_node_repository.ts",
-      join(baseDir, "repository"),
+    tentants: [
+      {
+        name: "demo",
+        rootPasswd: program.options.passwd,
+        storage: [
+          "flat_file/flat_file_storage_provider.ts",
+          join(baseDir, "storage"),
+        ],
+        repository: [
+          "pouchdb/pouchdb_node_repository.ts",
+          join(baseDir, "repository"),
+        ],
+      },
     ],
   });
 }

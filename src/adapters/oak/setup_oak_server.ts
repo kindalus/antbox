@@ -15,30 +15,29 @@ export interface ServerOpts {
   port?: number;
 }
 
-export async function setupOakServer(
-  service: AntboxService,
-  rootPasswd: string,
-  rawJwk: Record<string, string>,
-  symmetricKey: string
-) {
+export interface AntboxTenant {
+  name: string;
+  service: AntboxService;
+  rootPasswd: string;
+  rawJwk: Record<string, string>;
+  symmetricKey: string;
+}
+
+export async function setupOakServer(tenants: AntboxTenant[]) {
   const app = new Application();
 
   app.use(oakCors());
 
-  const authMiddleware = await createAuthMiddleware(
-    service.authService,
-    rawJwk,
-    symmetricKey
-  );
+  const authMiddleware = await createAuthMiddleware(tenants);
   app.use(authMiddleware);
 
-  const nodes = nodesRouter(service);
-  const upload = uploadRouter(service);
-  const actions = actionsRouter(service);
-  const webContent = webContentsRouter(service);
-  const ext = extRouter(service);
-  const aspects = aspectsRouter(service);
-  const login = loginRouter(symmetricKey, rootPasswd);
+  const nodes = nodesRouter(tenants);
+  const upload = uploadRouter(tenants);
+  const actions = actionsRouter(tenants);
+  const webContent = webContentsRouter(tenants);
+  const ext = extRouter(tenants);
+  const aspects = aspectsRouter(tenants);
+  const login = loginRouter(tenants);
 
   app.use(nodes.routes());
   app.use(webContent.routes());

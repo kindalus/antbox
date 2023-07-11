@@ -5,22 +5,38 @@ import { Root } from "../../application/builtin_users/root.ts";
 import { User } from "../../domain/auth/user.ts";
 import { UserPrincipal } from "../../domain/auth/user_principal.ts";
 import { Either, right, left } from "../../shared/either.ts";
+import { getTenant } from "./get_tenant.ts";
+import { AntboxTenant } from "./setup_oak_server.ts";
 
 export async function createAuthMiddleware(
-  authService: AuthService,
-  rawJwk: Record<string, string>,
-  rawSecret: string
+  tenants: AntboxTenant[]
 ): Promise<(ctx: Context, next: () => Promise<unknown>) => Promise<unknown>> {
-  const jwkOrErr = await importJwk(rawJwk);
+  const jwks = new Map<string, KeyLike | Uint8Array>();
+  const secrets = new Map<string, Uint8Array>();
+  const authServices = new Map<string, AuthService>();
 
-  if (jwkOrErr.isLeft()) {
-    throw jwkOrErr.value;
-  }
+  await tenants.forEach(async (tenant) => {
+    const jwkOrErr = await importJwk(tenant.rawJwk);
 
-  const jwk = jwkOrErr.value;
-  const secret = importKey(rawSecret);
+    if (jwkOrErr.isLeft()) {
+      throw jwkOrErr.value;
+    }
+
+    const jwk = jwkOrErr.value;
+    const secret = importKey(tenant.symmetricKey);
+
+    jwks.set(tenant.name, jwk);
+    secrets.set(tenant.name, secret);
+    authServices.set(tenant.name, tenant.service.authService);
+  });
 
   return async (ctx: Context, next: () => Promise<unknown>) => {
+    const tenantName = getTenant(ctx, tenants).name;
+
+    const jwk = jwks.get(tenantName)!;
+    const secret = secrets.get(tenantName)!;
+    const authService = authServices.get(tenantName)!;
+
     const token = getToken(ctx);
     ctx.state.userPrincipal = Anonymous;
 

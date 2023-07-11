@@ -1,14 +1,16 @@
 import { Router, Context } from "../../../deps.ts";
-import { AntboxService } from "../../application/antbox_service.ts";
 import { ContextWithParams } from "./context_with_params.ts";
 import { getRequestContext } from "./get_request_context.ts";
+import { getTenant } from "./get_tenant.ts";
 import { processError } from "./process_error.ts";
 import { sendInternalServerError } from "./send_response.ts";
+import { AntboxTenant } from "./setup_oak_server.ts";
 
-export default function (service: AntboxService) {
+export default function (tenants: AntboxTenant[]) {
   const extRouter = new Router({ prefix: "/ext" });
 
   const runHandler = (ctx: ContextWithParams) => {
+    const service = getTenant(ctx, tenants).service;
     const request: Request = {} as Request;
 
     return service

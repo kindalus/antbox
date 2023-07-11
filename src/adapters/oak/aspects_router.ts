@@ -1,12 +1,15 @@
 import { Context, Router } from "../../../deps.ts";
-import { AntboxService } from "../../application/antbox_service.ts";
+
 import { ContextWithParams } from "./context_with_params.ts";
 import { getRequestContext } from "./get_request_context.ts";
+import { getTenant } from "./get_tenant.ts";
 import { processError } from "./process_error.ts";
 import { sendOK } from "./send_response.ts";
+import { AntboxTenant } from "./setup_oak_server.ts";
 
-export default function (service: AntboxService) {
+export default function (tenants: AntboxTenant[]) {
   const getHandler = (ctx: ContextWithParams) => {
+    const service = getTenant(ctx, tenants).service;
     return service
       .getAspect(getRequestContext(ctx), ctx.params.uuid)
       .then((aspectOrErr) => {
@@ -20,6 +23,7 @@ export default function (service: AntboxService) {
   };
 
   const listHandler = (ctx: Context) => {
+    const service = getTenant(ctx, tenants).service;
     return service
       .listAspects(getRequestContext(ctx))
       .then((aspects) => {

@@ -6,11 +6,14 @@ import { AntboxError } from "../../shared/antbox_error.ts";
 import { Either, left, right } from "../../shared/either.ts";
 import { ContextWithParams } from "./context_with_params.ts";
 import { getRequestContext } from "./get_request_context.ts";
+import { getTenant } from "./get_tenant.ts";
 import { processError } from "./process_error.ts";
 import { sendOK } from "./send_response.ts";
+import { AntboxTenant } from "./setup_oak_server.ts";
 
-export default function (service: AntboxService) {
+export default function (tenants: AntboxTenant[]) {
   const handleGet = (ctx: ContextWithParams) => {
+    const service = getTenant(ctx, tenants).service;
     const requestCtx = getRequestContext(ctx);
     const uuid = ctx.params.uuid as string;
 
@@ -38,6 +41,7 @@ export default function (service: AntboxService) {
   };
 
   const handleGetByLanguage = (ctx: ContextWithParams) => {
+    const service = getTenant(ctx, tenants).service;
     const lang = ctx.params.lang as "pt" | "en" | "es" | "fr";
     return getWebContentText(service, getRequestContext(ctx), ctx.params.uuid)
       .then((webContent) => {

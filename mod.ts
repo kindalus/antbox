@@ -1,4 +1,7 @@
-import { setupOakServer } from "./src/adapters/oak/setup_oak_server.ts";
+import {
+  AntboxTenant,
+  setupOakServer,
+} from "./src/adapters/oak/setup_oak_server.ts";
 import { Either } from "./src/shared/either.ts";
 import { AntboxError } from "./src/shared/antbox_error.ts";
 import { InMemoryNodeRepository } from "./src/adapters/inmem/inmem_node_repository.ts";
@@ -9,15 +12,13 @@ import { AntboxService } from "./src/application/antbox_service.ts";
 
 import defaultJwk from "./demo.jwk.json" assert { type: "json" };
 
-// export type { AntboxService, NodeRepository, StorageProvider };
-
 const SYMMETRIC_KEY = "ui2tPcQZvN+IxXsEW6KQOOFROS6zXB1pZdotBR3Ot8o=";
 const ROOT_PASSWD = "demo";
 const PORT = 7180;
 
 export type ModuleConfiguration = [modulePath: string, ...params: string[]];
-export interface ServerOpts {
-  port?: number;
+export interface TenantConfiguration {
+  name: string;
   rootPasswd?: string;
   symmetricKey?: string;
   jwkPath?: string;
@@ -25,23 +26,46 @@ export interface ServerOpts {
   repository?: ModuleConfiguration;
 }
 
-export async function startServer(opts?: ServerOpts) {
-  const passwd = opts?.rootPasswd ?? ROOT_PASSWD;
+export interface ServerOpts {
+  port?: number;
+  tentants: TenantConfiguration[];
+}
+
+function setupTenants(o: ServerOpts): Promise<AntboxTenant[]> {
+  return Promise.all(
+    o.tentants.map(async (tenantCfg) => {
+      const passwd = tenantCfg?.rootPasswd ?? ROOT_PASSWD;
+      const symmetricKey = tenantCfg?.symmetricKey ?? SYMMETRIC_KEY;
+
+      const jwk = await loadJwk(tenantCfg?.jwkPath);
+
+      const service = new AntboxService({
+        uuidGenerator: new DefaultUuidGenerator(),
+        fidGenerator: new DefaultFidGenerator(),
+        repository:
+          (await providerFrom(tenantCfg?.repository)) ??
+          new InMemoryNodeRepository(),
+        storage:
+          (await providerFrom(tenantCfg?.storage)) ??
+          new InMemoryStorageProvider(),
+      });
+
+      return {
+        name: tenantCfg.name,
+        service,
+        rootPasswd: passwd,
+        symmetricKey,
+        rawJwk: jwk,
+      };
+    })
+  );
+}
+
+export async function startServer(opts: ServerOpts) {
+  const tenants = await setupTenants(opts);
   const port = opts?.port ?? PORT;
-  const symmetricKey = opts?.symmetricKey ?? SYMMETRIC_KEY;
 
-  const jwk = await loadJwk(opts?.jwkPath);
-
-  const service = new AntboxService({
-    uuidGenerator: new DefaultUuidGenerator(),
-    fidGenerator: new DefaultFidGenerator(),
-    repository:
-      (await providerFrom(opts?.repository)) ?? new InMemoryNodeRepository(),
-    storage:
-      (await providerFrom(opts?.storage)) ?? new InMemoryStorageProvider(),
-  });
-
-  setupOakServer(service, passwd, jwk, symmetricKey)
+  setupOakServer(tenants)
     .then((start) => start({ port }))
     .then((evt: unknown) => {
       console.log(

@@ -1,6 +1,6 @@
 import { join } from "../../../deps.ts";
 import { StorageProvider } from "../../domain/providers/storage_provider.ts";
-import { AntboxError, UnknownError } from "../../shared/antbox_error.ts";
+import { AntboxError } from "../../shared/antbox_error.ts";
 import { Either, left, right } from "../../shared/either.ts";
 import { fileExistsSync } from "../../shared/file_exists_sync.ts";
 

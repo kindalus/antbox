@@ -1,5 +1,6 @@
 import { Aspect } from "../domain/aspects/aspect.ts";
 import { Node } from "../domain/nodes/node.ts";
+import { NodeFactory } from "../domain/nodes/node_factory.ts";
 import { NodeNotFoundError } from "../domain/nodes/node_not_found_error.ts";
 import { AntboxError, BadRequestError } from "../shared/antbox_error.ts";
 import { Either, left, right } from "../shared/either.ts";
@@ -7,34 +8,31 @@ import { fileToAspect } from "./node_mapper.ts";
 import { NodeService } from "./node_service.ts";
 
 export class AspectService {
-	static isAspectsFolder(uuid: string): boolean {
-		return uuid === Node.ASPECTS_FOLDER_UUID;
-	}
-
 	constructor(private readonly nodeService: NodeService) {}
 
 	async createOrReplace(
 		file: File,
-		metadata: Partial<Node>,
+		_metadata: Partial<Node>,
 	): Promise<Either<AntboxError, Node>> {
-		if (!AspectService.isAspectsFolder(metadata.parent!)) {
-			return left(
-				new BadRequestError("Aspect must be created in the aspects folder"),
-			);
-		}
-
-		if (file.type !== "application/json") {
-			return left(new BadRequestError("File must be a json file"));
+		if (file.type !== Node.ASPECT_MIMETYPE) {
+			return left(new BadRequestError(`Invalid file type ${file.type}`));
 		}
 
 		const aspect = (await file.text().then((t) => JSON.parse(t))) as Aspect;
 
-		return this.nodeService.createFile(file, {
-			...metadata,
-			uuid: aspect.uuid,
-			fid: aspect.uuid,
-			title: aspect.title,
-		});
+		const metadata = NodeFactory.createFileMetadata(
+			aspect.uuid,
+			aspect.uuid,
+			{
+				title: aspect.title,
+				description: aspect.description,
+				parent: Node.ASPECTS_FOLDER_UUID,
+			},
+			Node.ASPECT_MIMETYPE,
+			file.size,
+		);
+
+		return this.nodeService.createFile(file, metadata);
 	}
 
 	async get(uuid: string): Promise<Either<NodeNotFoundError, Aspect>> {

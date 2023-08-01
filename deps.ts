@@ -7,6 +7,7 @@ export {
 	Application,
 	Context,
 	FormDataReader,
+	Request as OakRequest,
 	Router,
 	Status,
 } from "https://deno.land/x/oak@v11.1.0/mod.ts";
@@ -14,10 +15,6 @@ export {
 export type { ResponseBody } from "https://deno.land/x/oak@v11.1.0/response.ts";
 
 export { getQuery } from "https://deno.land/x/oak@v11.1.0/helpers.ts";
-
-import PouchDB from "npm:pouchdb-node@8.0.1";
-import PouchDbFind from "npm:pouchdb-find@8.0.1";
-export { PouchDB, PouchDbFind };
 
 export * as jose from "https://deno.land/x/jose@v4.11.2/index.ts";
 export type { JWK, KeyLike } from "https://deno.land/x/jose@v4.11.2/index.ts";

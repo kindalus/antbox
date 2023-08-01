@@ -1,4 +1,3 @@
-import { INodeService } from "../domain/actions/run_context.ts";
 import { Aspect } from "../domain/aspects/aspect.ts";
 import { AuthContextProvider } from "../domain/auth/auth_provider.ts";
 import { AggregationFormulaError } from "../domain/nodes/aggregation_formula_error.ts";
@@ -13,15 +12,16 @@ import { SmartFolderNodeNotFoundError } from "../domain/nodes/smart_folder_node_
 import { AntboxError } from "../shared/antbox_error.ts";
 import { Either } from "../shared/either.ts";
 import { AntboxService } from "./antbox_service.ts";
+import { NodeService } from "./node_service.ts";
 
 export function antboxToNodeService(
 	auth: AuthContextProvider,
 	srv: AntboxService,
-): INodeService {
-	return new InternalNodeService(auth, srv);
+): NodeService {
+	return new SecuredNodeService(auth, srv);
 }
 
-class InternalNodeService implements INodeService {
+class SecuredNodeService implements NodeService {
 	constructor(
 		private auth: AuthContextProvider,
 		private readonly srv: AntboxService,

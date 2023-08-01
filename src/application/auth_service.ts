@@ -9,7 +9,7 @@ import { Node } from "../domain/nodes/node.ts";
 import { AntboxError } from "../shared/antbox_error.ts";
 import { Either, left, right } from "../shared/either.ts";
 import { DomainEvents } from "./domain_events.ts";
-import { nodeToUser, userToNode } from "./node_mapper.ts";
+import { groupToNode, nodeToUser, userToNode } from "./node_mapper.ts";
 import { NodeService } from "./node_service.ts";
 
 export class AuthService {
@@ -43,12 +43,7 @@ export class AuthService {
 			return left(trueOrErr.value);
 		}
 
-		const nodeOrErr = await this.nodeService.createMetanode({
-			...group,
-			uuid: group.uuid ?? this.nodeService.uuidGenerator.generate(),
-			parent: Node.GROUPS_FOLDER_UUID,
-			aspects: ["group"],
-		});
+		const nodeOrErr = await this.nodeService.createMetanode(groupToNode(group as Group));
 
 		if (nodeOrErr.isRight()) {
 			const evt = new GroupCreatedEvent(
@@ -70,11 +65,7 @@ export class AuthService {
 			return left(trueOrErr.value);
 		}
 
-		const node = userToNode(
-			Object.assign(user, {
-				uuid: user.uuid ?? this.nodeService.uuidGenerator.generate(),
-			}),
-		);
+		const node = userToNode(user);
 		const nodeOrErr = await this.nodeService.createMetanode(node);
 
 		if (nodeOrErr.isRight()) {

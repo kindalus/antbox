@@ -18,22 +18,24 @@ import { RunContext } from "./run_context.ts";
  *     especificados na mimetype e aspect constraints
  *
  * - se não for especificado, pode correr manualmente
+ * - se não for especificado pelo runAs, corre com os privilégios do grupo
  */
 export interface Action {
-  uuid: string;
-  title: string;
-  description: string;
-  builtIn: boolean;
-  runOnCreates: boolean;
-  runOnUpdates: boolean;
-  runManually: boolean;
-  params: string[];
+	uuid: string;
+	title: string;
+	description: string;
+	builtIn: boolean;
+	runOnCreates: boolean;
+	runOnUpdates: boolean;
+	runManually: boolean;
+	runAs?: string;
+	params: string[];
 
-  filters: NodeFilter[];
+	filters: NodeFilter[];
 
-  run: (
-    ctx: RunContext,
-    uuids: string[],
-    params?: Record<string, string>
-  ) => Promise<void | Error>;
+	run: (
+		ctx: RunContext,
+		uuids: string[],
+		params?: Record<string, string>,
+	) => Promise<void | Error>;
 }

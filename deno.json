@@ -1,11 +1,12 @@
 {
 	"fmt": {
 		"useTabs": true,
-		"lineWidth": 100,
 		"indentWidth": 4,
+		"lineWidth": 100,
 		"singleQuote": false,
 		"proseWrap": "preserve"
 	},
+
 	"lint": {
 		"rules": {
 			"tags": ["recommended"]

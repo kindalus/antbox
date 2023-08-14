@@ -1,6 +1,4 @@
-export {} from "https://deno.land/std@0.142.0/mime/mod.ts";
 export { join } from "https://deno.land/std@0.153.0/path/mod.ts";
-export {} from "https://deno.land/std@0.170.0/crypto/mod.ts";
 
 export { oakCors } from "https://deno.land/x/cors@v1.2.2/mod.ts";
 export {

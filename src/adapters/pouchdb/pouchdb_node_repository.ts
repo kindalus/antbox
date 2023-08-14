@@ -1,4 +1,4 @@
-import { PouchDB, PouchDbFind } from "../../../deps.ts";
+import { PouchDB, PouchDbFind } from "../../../deps_not_arm8_portable.ts";
 import { Node } from "../../domain/nodes/node.ts";
 import { NodeFactory } from "../../domain/nodes/node_factory.ts";
 import { FilterOperator, NodeFilter } from "../../domain/nodes/node_filter.ts";

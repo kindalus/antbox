@@ -7,6 +7,12 @@ export class Node {
 	static FOLDER_MIMETYPE = "application/vnd.antbox.folder";
 	static META_NODE_MIMETYPE = "application/vnd.antbox.metanode";
 	static SMART_FOLDER_MIMETYPE = "application/vnd.antbox.smartfolder";
+	static ASPECT_MIMETYPE = "application/vnd.antbox.aspect";
+	static ACTION_MIMETYPE = "application/vnd.antbox.action";
+	static EXT_MIMETYPE = "application/vnd.antbox.extension";
+	static USER_MIMETYPE = "application/vnd.antbox.user";
+	static GROUP_MIMETYPE = "application/vnd.antbox.group";
+	static OCR_TEMPLATE_MIMETYPE = "application/vnd.antbox.ocrtemplate";
 
 	static ROOT_FOLDER_UUID = "--root--";
 	static USERS_FOLDER_UUID = "--users--";
@@ -15,6 +21,7 @@ export class Node {
 	static ACTIONS_FOLDER_UUID = "--actions--";
 	static EXT_FOLDER_UUID = "--ext--";
 	static SYSTEM_FOLDER_UUID = "--system--";
+	static OCR_TEMPLATES_FOLDER_UUID = "--ocrtemplates--";
 
 	private static FID_PREFIX = "fid--";
 
@@ -32,6 +39,10 @@ export class Node {
 
 	static isRootFolder(uuid: string): boolean {
 		return uuid === Node.ROOT_FOLDER_UUID;
+	}
+
+	static isFolder(metadata: Partial<Node>): boolean {
+		return metadata?.mimetype === Node.FOLDER_MIMETYPE;
 	}
 
 	uuid = "";
@@ -76,7 +87,7 @@ export class Node {
 		return this.uuid === Node.ROOT_FOLDER_UUID;
 	}
 
-	isSystemFolder(): this is FolderNode {
+	isSystemRootFolder(): this is FolderNode {
 		return this.uuid === Node.SYSTEM_FOLDER_UUID;
 	}
 

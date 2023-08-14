@@ -11,47 +11,32 @@ export type ExtFn = (
 ) => Promise<Response>;
 
 export class ExtService {
-	static EXT_FOLDER_UUID = "--ext--";
-
-	static isExtensionsFolder(uuid: string): boolean {
-		return uuid === ExtService.EXT_FOLDER_UUID;
-	}
-
 	constructor(private readonly nodeService: NodeService) {}
 
-	async createOrReplace(
+	createOrReplace(
 		file: File,
-		metadata: Partial<Node>,
+		_metadata: Partial<Node>,
 	): Promise<Either<AntboxError, Node>> {
-		if (!ExtService.isExtensionsFolder(metadata.parent!)) {
-			return left(
-				new BadRequestError(
-					"Extension must be created in the extensions folder",
-				),
+		if (file.type !== Node.EXT_MIMETYPE) {
+			return Promise.resolve(
+				left(new BadRequestError(`Invalid mimetype: ${file.type}`)),
 			);
 		}
 
-		if (!Node.isJavascript(file)) {
-			return left(new BadRequestError("File must be a javascript file"));
-		}
+		const uuid = file.name?.split(".")[0].trim();
 
-		const uuid = file.name?.split(".")[0] ?? metadata.uuid;
-
-		const fileNode = NodeFactory.createFileMetadata(
+		const metadata = NodeFactory.createFileMetadata(
 			uuid,
 			uuid,
 			{
-				title: file.name?.split(".")[0] ?? metadata.uuid,
-				parent: ExtService.EXT_FOLDER_UUID,
+				title: uuid,
+				parent: Node.EXT_FOLDER_UUID,
 			},
-			file.type,
+			Node.EXT_MIMETYPE,
 			file.size,
 		);
 
-		await this.nodeService.storage.write(fileNode.uuid, file);
-		await this.nodeService.repository.add(fileNode);
-
-		return right(fileNode);
+		return this.nodeService.createFile(file, metadata);
 	}
 
 	private async get(uuid: string): Promise<Either<NodeNotFoundError, ExtFn>> {
@@ -68,7 +53,7 @@ export class ExtService {
 			return left(nodeError.value);
 		}
 
-		if (nodeError.value.parent !== ExtService.EXT_FOLDER_UUID) {
+		if (nodeError.value.parent !== Node.EXT_FOLDER_UUID) {
 			return left(new NodeNotFoundError(uuid));
 		}
 

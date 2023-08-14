@@ -21,7 +21,7 @@ import { AspectService } from "./aspect_service.ts";
 import { AuthService } from "./auth_service.ts";
 import { DomainEvents } from "./domain_events.ts";
 import { ExtService } from "./ext_service.ts";
-import { NodeService } from "./node_service.ts";
+import { NodeService, NodeServiceImpl } from "./node_service.ts";
 import { NodeServiceContext } from "./node_service_context.ts";
 
 export class AntboxService {
@@ -31,13 +31,24 @@ export class AntboxService {
 	readonly actionService: ActionService;
 	readonly extService: ExtService;
 
+	readonly #fileCreators: Record<
+		string,
+		(file: File, metadata: Partial<Node>) => Promise<Either<AntboxError, Node>>
+	>;
+
 	constructor(nodeCtx: NodeServiceContext) {
-		this.nodeService = new NodeService(nodeCtx);
+		this.nodeService = new NodeServiceImpl(nodeCtx);
 		this.authService = new AuthService(this.nodeService);
 		this.aspectService = new AspectService(this.nodeService);
 		this.actionService = new ActionService(this.nodeService, this);
 
 		this.extService = new ExtService(this.nodeService);
+
+		this.#fileCreators = {
+			[Node.ACTION_MIMETYPE]: (f, m) => this.actionService.createOrReplace(f, m),
+			[Node.ASPECT_MIMETYPE]: (f, m) => this.aspectService.createOrReplace(f, m),
+			[Node.EXT_MIMETYPE]: (f, m) => this.extService.createOrReplace(f, m),
+		};
 
 		this.subscribeToDomainEvents();
 	}
@@ -47,25 +58,23 @@ export class AntboxService {
 		file: File,
 		metadata: Partial<Node>,
 	): Promise<Either<AntboxError, Node>> {
-		if (Node.isRootFolder(metadata?.parent!)) {
+		const createSystemFile = this.#fileCreators[metadata.mimetype ?? ""];
+		if (createSystemFile) {
+			return createSystemFile(file, metadata);
+		}
+
+		const parent = metadata.parent ?? Node.ROOT_FOLDER_UUID;
+		if (Node.isRootFolder(parent)) {
 			return left(new ForbiddenError());
 		}
 
-		if (ActionService.isActionsFolder(metadata.parent!)) {
-			return this.actionService.createOrReplace(file, metadata);
-		}
-
-		if (AspectService.isAspectsFolder(metadata.parent!)) {
-			return this.aspectService.createOrReplace(file, metadata);
-		}
-
-		if (ExtService.isExtensionsFolder(metadata.parent!)) {
-			return this.extService.createOrReplace(file, metadata);
+		if (AntboxService.isSystemFolder(parent)) {
+			return left(new BadRequestError("Cannot create regular files in system folder"));
 		}
 
 		const parentOrErr = await this.#getFolderWithPermission(
 			authCtx,
-			metadata.parent ?? Node.ROOT_FOLDER_UUID,
+			parent,
 			"Write",
 		);
 
@@ -533,7 +542,6 @@ export class AntboxService {
 	}
 
 	runExtension(
-		_authCtx: AuthContextProvider,
 		uuid: string,
 		request: Request,
 	): Promise<Either<Error, Response>> {
@@ -562,11 +570,15 @@ export class AntboxService {
 	}
 
 	static isSystemFolder(uuid: string): boolean {
-		return (
-			uuid === Node.SYSTEM_FOLDER_UUID ||
-			AspectService.isAspectsFolder(uuid) ||
-			ActionService.isActionsFolder(uuid) ||
-			ExtService.isExtensionsFolder(uuid)
-		);
+		const systemUuids = [
+			Node.ASPECTS_FOLDER_UUID,
+			Node.ACTIONS_FOLDER_UUID,
+			Node.EXT_FOLDER_UUID,
+			Node.GROUPS_FOLDER_UUID,
+			Node.USERS_FOLDER_UUID,
+			Node.OCR_TEMPLATES_FOLDER_UUID,
+		];
+
+		return systemUuids.includes(uuid);
 	}
 }

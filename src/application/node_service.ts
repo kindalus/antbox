@@ -2,7 +2,7 @@ import { Aspect, AspectProperty } from "../domain/aspects/aspect.ts";
 import { AggregationFormulaError } from "../domain/nodes/aggregation_formula_error.ts";
 import { FolderNode } from "../domain/nodes/folder_node.ts";
 import { FolderNotFoundError } from "../domain/nodes/folder_not_found_error.ts";
-import { FileNode, Node } from "../domain/nodes/node.ts";
+import { Node } from "../domain/nodes/node.ts";
 import { NodeFactory } from "../domain/nodes/node_factory.ts";
 import { NodeFilter } from "../domain/nodes/node_filter.ts";
 import { NodeNotFoundError } from "../domain/nodes/node_not_found_error.ts";
@@ -32,15 +32,73 @@ import {
 } from "./node_mapper.ts";
 import { NodeServiceContext } from "./node_service_context.ts";
 
-export class NodeService {
-	readonly #systemListCreator: Record<string, Node[]>;
+export interface NodeService {
+	createFile(
+		file: File,
+		metadata: Partial<Node>,
+	): Promise<Either<AntboxError, Node>>;
+
+	createFolder(
+		metadata: Partial<FolderNode>,
+	): Promise<Either<AntboxError, FolderNode>>;
+
+	createMetanode(metadata: Partial<Node>): Promise<Either<AntboxError, Node>>;
+
+	duplicate(uuid: string): Promise<Either<NodeNotFoundError, Node>>;
+
+	copy(uuid: string, parent: string): Promise<Either<NodeNotFoundError, Node>>;
+
+	updateFile(
+		uuid: string,
+		file: File,
+	): Promise<Either<NodeNotFoundError, void>>;
+
+	delete(uuid: string): Promise<Either<NodeNotFoundError, void>>;
+
+	get(uuid: string): Promise<Either<NodeNotFoundError, Node>>;
+
+	list(parent?: string): Promise<Either<FolderNotFoundError, Node[]>>;
+
+	query(
+		filters: NodeFilter[],
+		pageSize: number,
+		pageToken?: number,
+	): Promise<Either<AntboxError, NodeFilterResult>>;
+
+	update(
+		uuid: string,
+		data: Partial<Node>,
+		merge?: boolean,
+	): Promise<Either<NodeNotFoundError, void>>;
+
+	evaluate(
+		uuid: string,
+	): Promise<
+		Either<
+			SmartFolderNodeNotFoundError | AggregationFormulaError,
+			SmartFolderNodeEvaluation
+		>
+	>;
+
+	export(uuid: string): Promise<Either<NodeNotFoundError, File>>;
+}
+
+export class NodeServiceImpl implements NodeService {
+	readonly #builtinNodeListCreator: Record<string, Node[]>;
+	readonly #fileCreators: Record<
+		string,
+		(file: File, metadata: Partial<Node>) => Promise<Either<AntboxError, Node>>
+	>;
 
 	constructor(private readonly context: NodeServiceContext) {
-		this.#systemListCreator = {};
-		this.#systemListCreator[Node.ACTIONS_FOLDER_UUID] = builtinActions.map(actionToNode);
-		this.#systemListCreator[Node.ASPECTS_FOLDER_UUID] = builtinAspects.map(aspectToNode);
-		this.#systemListCreator[Node.USERS_FOLDER_UUID] = builtinUsers.map(userToNode);
-		this.#systemListCreator[Node.GROUPS_FOLDER_UUID] = builtinGroups.map(groupToNode);
+		this.#builtinNodeListCreator = {};
+		this.#builtinNodeListCreator[Node.ACTIONS_FOLDER_UUID] = builtinActions.map(actionToNode);
+		this.#builtinNodeListCreator[Node.ASPECTS_FOLDER_UUID] = builtinAspects.map(aspectToNode);
+		this.#builtinNodeListCreator[Node.USERS_FOLDER_UUID] = builtinUsers.map(userToNode);
+		this.#builtinNodeListCreator[Node.GROUPS_FOLDER_UUID] = builtinGroups.map(groupToNode);
+
+		this.#fileCreators = {};
+		this.#fileCreators[Node.SMART_FOLDER_MIMETYPE] = (f, m) => this.#createSmartfolder(f, m);
 	}
 
 	get uuidGenerator() {
@@ -65,31 +123,34 @@ export class NodeService {
 	): Promise<Either<AntboxError, Node>> {
 		metadata.title = metadata.title ?? file.name;
 
-		const validOrErr = await this.verifyTitleAndParent(metadata);
+		const validOrErr = await this.#verifyTitleAndParent(metadata);
 		if (validOrErr.isLeft()) {
 			return left(validOrErr.value);
 		}
 
-		let node: FileNode | SmartFolderNode | undefined;
-		if (file.type === "application/json") {
-			node = await this.tryToCreateSmartfolder(file, metadata);
+		const creator = this.#fileCreators[file.type];
+		if (creator) {
+			return creator(file, metadata);
 		}
 
-		if (!node) {
-			node = this.#createFileMetadata(metadata, file.type, file.size);
-		}
+		const node = this.#createFileMetadata(metadata, file.type, file.size);
 
-		if (!node.isSmartFolder()) {
-			await this.context.storage.write(node.uuid, file);
+		let voidOrErr = await this.context.storage.write(node.uuid, file);
+		if (voidOrErr.isLeft()) {
+			return left(voidOrErr.value);
 		}
 
 		node.fulltext = await this.#calculateFulltext(node);
-		await this.context.repository.add(node);
+
+		voidOrErr = await this.context.repository.add(node);
+		if (voidOrErr.isLeft()) {
+			return left(voidOrErr.value);
+		}
 
 		return right(node);
 	}
 
-	private async verifyTitleAndParent(
+	async #verifyTitleAndParent(
 		metadata: Partial<Node>,
 	): Promise<Either<AntboxError, true>> {
 		if (!metadata.title) {
@@ -105,40 +166,48 @@ export class NodeService {
 		return right(true);
 	}
 
-	private async tryToCreateSmartfolder(
+	async #createSmartfolder(
 		file: File,
 		metadata: Partial<Node>,
-	): Promise<SmartFolderNode | undefined> {
+	): Promise<Either<AntboxError, Node>> {
+		let json: SmartFolderNode;
 		try {
 			const content = new TextDecoder().decode(await file.arrayBuffer());
-			const json = JSON.parse(content);
-
-			if (json.mimetype !== Node.SMART_FOLDER_MIMETYPE) {
-				return undefined;
-			}
-
-			return NodeFactory.composeSmartFolder(
-				{
-					uuid: this.context.uuidGenerator!.generate(),
-					fid: this.context.fidGenerator!.generate(metadata.title!),
-					size: 0,
-				},
-				NodeFactory.extractMetadataFields(metadata),
-				{
-					filters: json.filters,
-					aggregations: json.aggregations,
-					title: json.title,
-				},
-			);
+			json = JSON.parse(content);
 		} catch (_e) {
-			return undefined;
+			return left(new BadRequestError("not a valid JSON file"));
 		}
+
+		json.mimetype = Node.SMART_FOLDER_MIMETYPE;
+
+		const node = NodeFactory.composeSmartFolder(
+			{
+				uuid: this.context.uuidGenerator!.generate(),
+				fid: this.context.fidGenerator!.generate(metadata.title!),
+				size: 0,
+			},
+			NodeFactory.extractMetadataFields(metadata),
+			{
+				filters: json.filters,
+				aggregations: json.aggregations,
+				title: json.title,
+			},
+		);
+
+		node.fulltext = await this.#calculateFulltext(node);
+
+		const voidOrErr = await this.context.repository.add(node);
+		if (voidOrErr.isLeft()) {
+			return left(voidOrErr.value);
+		}
+
+		return right(node);
 	}
 
 	async createFolder(
 		metadata: Partial<FolderNode>,
 	): Promise<Either<AntboxError, FolderNode>> {
-		const validOrErr = await this.verifyTitleAndParent(metadata);
+		const validOrErr = await this.#verifyTitleAndParent(metadata);
 		if (validOrErr.isLeft()) {
 			return left(validOrErr.value);
 		}
@@ -158,7 +227,7 @@ export class NodeService {
 	async createMetanode(
 		metadata: Partial<Node>,
 	): Promise<Either<AntboxError, Node>> {
-		const validOrErr = await this.verifyTitleAndParent(metadata);
+		const validOrErr = await this.#verifyTitleAndParent(metadata);
 		if (validOrErr.isLeft()) {
 			return left(validOrErr.value);
 		}
@@ -189,10 +258,7 @@ export class NodeService {
 		return this.copy(uuid, node.value.parent);
 	}
 
-	async copy(
-		uuid: string,
-		parent: string,
-	): Promise<Either<AntboxError, Node>> {
+	async copy(uuid: string, parent: string): Promise<Either<AntboxError, Node>> {
 		const nodeOrErr = await this.get(uuid);
 		if (nodeOrErr.isLeft()) {
 			return left(nodeOrErr.value);
@@ -213,7 +279,10 @@ export class NodeService {
 			nodeOrErr.value.size,
 		);
 
-		const writeOrErr = await this.context.storage.write(newNode.uuid, fileOrErr.value);
+		const writeOrErr = await this.context.storage.write(
+			newNode.uuid,
+			fileOrErr.value,
+		);
 		if (writeOrErr.isLeft()) {
 			return left(writeOrErr.value);
 		}
@@ -229,7 +298,8 @@ export class NodeService {
 	}
 
 	#escapeFulltext(fulltext: string): string {
-		return fulltext.toLocaleLowerCase()
+		return fulltext
+			.toLocaleLowerCase()
 			.replace(/[áàâäãå]/g, "a")
 			.replace(/[ç]/g, "c")
 			.replace(/[éèêë]/g, "e")
@@ -250,7 +320,8 @@ export class NodeService {
 			return this.#escapeFulltext(node.title);
 		}
 
-		const fulltext = aspects.map((a) => this.#aspectToProperties(a))
+		const fulltext = aspects
+			.map((a) => this.#aspectToProperties(a))
 			.flat()
 			.filter((p) => p.searchable)
 			.map((p) => p.name)
@@ -316,13 +387,14 @@ export class NodeService {
 		return this.getFromRepository(uuid);
 	}
 
-	#listSystemFolders(): FolderNode[] {
+	#listSystemRootFolder(): FolderNode[] {
 		return [
 			FolderNode.ACTIONS_FOLDER,
 			FolderNode.ASPECTS_FOLDER,
 			FolderNode.USERS_FOLDER,
 			FolderNode.GROUPS_FOLDER,
 			FolderNode.EXT_FOLDER,
+			FolderNode.OCR_TEMPLATES_FOLDER,
 		];
 	}
 
@@ -395,15 +467,15 @@ export class NodeService {
 			return left(new FolderNotFoundError(parent));
 		}
 
-		if (parentOrErr.value.isSystemFolder()) {
-			return right(this.#listSystemFolders());
+		if (parentOrErr.value.isSystemRootFolder()) {
+			return right(this.#listSystemRootFolder());
 		}
 
 		const nodes = await this.context.repository
 			.filter([["parent", "==", parentOrErr.value.uuid]], Number.MAX_VALUE, 1)
 			.then((result) => result.nodes);
 
-		const systemNodes = this.#systemListCreator[parentOrErr.value.uuid];
+		const systemNodes = this.#builtinNodeListCreator[parentOrErr.value.uuid];
 		if (systemNodes) {
 			return right([...systemNodes, ...nodes]);
 		}
@@ -452,7 +524,8 @@ export class NodeService {
 		}
 
 		return Promise.all(aspectGetters).then((fileOrErrs) => {
-			fileOrErrs.filter((fileOrErr) => fileOrErr.isLeft())
+			fileOrErrs
+				.filter((fileOrErr) => fileOrErr.isLeft())
 				.map((fileOrErr) => fileOrErr.value)
 				.forEach(console.error);
 
@@ -571,12 +644,18 @@ export class NodeService {
 	#exportBuiltinNode(uuid: string): Either<NodeNotFoundError, File> {
 		const builtinActionOrErr = this.#exportBuiltinAction(uuid);
 		if (builtinActionOrErr.isRight()) {
-			return builtinActionOrErr;
+			return right(
+				new File([builtinActionOrErr.value], builtinActionOrErr.value.name, {
+					type: "text/javascript",
+				}),
+			);
 		}
 
 		const builtinAspectOrErr = this.#exportBuiltinAspect(uuid);
 		if (builtinAspectOrErr.isRight()) {
-			return builtinAspectOrErr;
+			return right(
+				new File([builtinAspectOrErr.value], builtinAspectOrErr.value.name),
+			);
 		}
 
 		return left(new NodeNotFoundError(uuid));

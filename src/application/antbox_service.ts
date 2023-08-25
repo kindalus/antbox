@@ -118,7 +118,7 @@ export class AntboxService {
 
 	async createFolder(
 		authCtx: AuthContextProvider,
-		metadata: Partial<Node>,
+		metadata: Partial<FolderNode>,
 	): Promise<Either<AntboxError, FolderNode>> {
 		if (AntboxService.isSystemFolder(metadata.parent!)) {
 			return left(new BadRequestError("Cannot create folders in system folder"));
@@ -138,7 +138,7 @@ export class AntboxService {
 			...metadata,
 			owner: authCtx.principal.email,
 			group: authCtx.principal.group,
-			permissions: {
+			permissions: metadata.permissions ?? {
 				...parentOrErr.value.permissions,
 			},
 		});

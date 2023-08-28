@@ -74,13 +74,12 @@ export default function (tenants: AntboxTenant[]) {
 	const createHandler = async (ctx: Context) => {
 		const service = getTenant(ctx, tenants).service;
 		const {
-			type,
 			metadata,
-		}: { type?: "Folder" | "Metanode"; metadata: Partial<Node> } = await ctx.request.body()
+		}: { metadata: Partial<Node> } = await ctx.request.body()
 			.value;
 
-		if (!type) {
-			return Promise.resolve(sendBadRequest(ctx, "{ type } not given"));
+		if (!metadata.mimetype) {
+			return Promise.resolve(sendBadRequest(ctx, "{ mimetype } not given"));
 		}
 
 		if (!metadata?.title) {
@@ -89,7 +88,7 @@ export default function (tenants: AntboxTenant[]) {
 
 		const authCtx = getRequestContext(ctx);
 
-		const creator = type === "Metanode"
+		const creator = metadata.mimetype === Node.META_NODE_MIMETYPE
 			? service.createMetanode(authCtx, metadata)
 			: service.createFolder(authCtx, metadata);
 

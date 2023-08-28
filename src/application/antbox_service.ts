@@ -82,7 +82,10 @@ export class AntboxService {
 			return left(parentOrErr.value);
 		}
 
-		const nodeOrErr = await this.nodeService.createFile(file, metadata);
+		const nodeOrErr = await this.nodeService.createFile(file, {
+			...metadata,
+			parent: parentOrErr.value.uuid,
+		});
 		if (nodeOrErr.isRight()) {
 			DomainEvents.notify(
 				new NodeCreatedEvent(authCtx.principal.email, nodeOrErr.value),
@@ -105,15 +108,16 @@ export class AntboxService {
 			return left(parentOrErr.value);
 		}
 
-		return this.nodeService.createMetanode(metadata).then((result) => {
-			if (result.isRight()) {
-				DomainEvents.notify(
-					new NodeCreatedEvent(authCtx.principal.email, result.value),
-				);
-			}
+		return this.nodeService.createMetanode({ ...metadata, parent: parentOrErr.value.uuid })
+			.then((result) => {
+				if (result.isRight()) {
+					DomainEvents.notify(
+						new NodeCreatedEvent(authCtx.principal.email, result.value),
+					);
+				}
 
-			return result;
-		});
+				return result;
+			});
 	}
 
 	async createFolder(
@@ -136,6 +140,7 @@ export class AntboxService {
 
 		const result = await this.nodeService.createFolder({
 			...metadata,
+			parent: parentOrErr.value.uuid,
 			owner: authCtx.principal.email,
 			group: authCtx.principal.group,
 			permissions: metadata.permissions ?? {

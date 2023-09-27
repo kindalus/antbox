@@ -116,7 +116,7 @@ function authenticate(keyFile: string): drive_v3.Drive {
 	return drive;
 }
 
-export default function createStorageProvider(
+export default function buildGoogleDriveStorageProvider(
 	keyPath: string,
 	rootFolderId: string,
 ): Promise<Either<AntboxError, StorageProvider>> {

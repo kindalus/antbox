@@ -1,6 +1,6 @@
 # Antbox
 
-Antbox is a smart and flexible content management server designed to provide powerful solutions for content storage, retrieval, and manipulation. Built with Deno, it comes packed with features that make it suitable for various applications and organizational needs.
+Antbox is a smart and flexible ECM designed to provide powerful solutions for content storage, retrieval, and manipulation. Built with Deno, it comes packed with features that make it suitable for various applications and organizational needs.
 
 ## Features
 
@@ -9,7 +9,6 @@ Antbox is a smart and flexible content management server designed to provide pow
 - **Programmatic Behavior:** Define behaviors and logic using JavaScript scripts (referred to as actions).
 - **Integration with Custom Endpoints:** Connect with other services and data sources.
 - **Folder-based Security:** Secure your content through a hierarchical folder-based access control system.
-- **Automatic Metadata Extraction:** Utilize Optical Character Recognition (OCR) to extract and store metadata automatically.
 
 ## Installation
 
@@ -53,6 +52,12 @@ docker run -p 7180:7180 antbox-image
 ## Documentation
 
 For more details on configuration, customization, and usage, please refer to the official documentation.
+
+- [Understanding Nodes and Aspects](./undestanding_node_and_aspects.md)
+- [Antbox Storage and Persistence Providers](./providers.md)
+- [The Power of Node Behaviors in AntBox ECM Actions](./actions.md)
+- [Superior Security in AntBox ECM](./security.md)
+- [Unlocking the Potential with Antbox ECM Extensions](./ext.md)
 
 ### Contributing
 

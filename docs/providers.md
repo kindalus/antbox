@@ -20,7 +20,7 @@ To use any of the defined storage or persistence providers, follow the example:
 ```typescript
 startServer({
 	port: program.options.port ? parseInt(program.options.port) : undefined,
-	tentants: [
+	tenants: [
 		{
 			name: "demo",
 			rootPasswd: "secret",

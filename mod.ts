@@ -1,7 +1,4 @@
-import {
-  AntboxTenant,
-  setupOakServer,
-} from "./src/adapters/oak/setup_oak_server.ts";
+import { AntboxTenant, setupOakServer } from "./src/adapters/oak/setup_oak_server.ts";
 import { Either } from "./src/shared/either.ts";
 import { AntboxError } from "./src/shared/antbox_error.ts";
 import { InMemoryNodeRepository } from "./src/adapters/inmem/inmem_node_repository.ts";
@@ -18,117 +15,113 @@ const PORT = 7180;
 
 export type ModuleConfiguration = [modulePath: string, ...params: string[]];
 export interface TenantConfiguration {
-  name: string;
-  rootPasswd?: string;
-  symmetricKey?: string;
-  jwkPath?: string;
-  storage?: ModuleConfiguration;
-  repository?: ModuleConfiguration;
+	name: string;
+	rootPasswd?: string;
+	symmetricKey?: string;
+	jwkPath?: string;
+	storage?: ModuleConfiguration;
+	repository?: ModuleConfiguration;
 }
 
 export interface ServerOpts {
-  port?: number;
-  tentants: TenantConfiguration[];
+	port?: number;
+	tenants: TenantConfiguration[];
 }
 
 function setupTenants(o: ServerOpts): Promise<AntboxTenant[]> {
-  return Promise.all(
-    o.tentants.map(async (cfg) => {
-      const passwd = cfg?.rootPasswd ?? ROOT_PASSWD;
-      const symmetricKey = cfg?.symmetricKey ?? SYMMETRIC_KEY;
+	return Promise.all(
+		o.tenants.map(async (cfg) => {
+			const passwd = cfg?.rootPasswd ?? ROOT_PASSWD;
+			const symmetricKey = cfg?.symmetricKey ?? SYMMETRIC_KEY;
 
-      const jwk = await loadJwk(cfg?.jwkPath);
+			const jwk = await loadJwk(cfg?.jwkPath);
 
-      const service = new AntboxService({
-        uuidGenerator: new DefaultUuidGenerator(),
-        fidGenerator: new DefaultFidGenerator(),
-        repository:
-          (await providerFrom(cfg?.repository)) ?? new InMemoryNodeRepository(),
-        storage:
-          (await providerFrom(cfg?.storage)) ?? new InMemoryStorageProvider(),
-      });
+			const service = new AntboxService({
+				uuidGenerator: new DefaultUuidGenerator(),
+				fidGenerator: new DefaultFidGenerator(),
+				repository: (await providerFrom(cfg?.repository)) ?? new InMemoryNodeRepository(),
+				storage: (await providerFrom(cfg?.storage)) ?? new InMemoryStorageProvider(),
+			});
 
-      return {
-        name: cfg.name,
-        service,
-        rootPasswd: passwd,
-        symmetricKey,
-        rawJwk: jwk,
-      };
-    })
-  );
+			return {
+				name: cfg.name,
+				service,
+				rootPasswd: passwd,
+				symmetricKey,
+				rawJwk: jwk,
+			};
+		}),
+	);
 }
 
 export async function startServer(opts: ServerOpts) {
-  const tenants = await setupTenants(opts);
-  const port = opts?.port ?? PORT;
+	const tenants = await setupTenants(opts);
+	const port = opts?.port ?? PORT;
 
-  setupOakServer(tenants)
-    .then((start) => start({ port }))
-    .then((evt: unknown) => {
-      console.log(
-        "Antbox Server started successfully on port ::",
-        (evt as Record<string, string>).port
-      );
-    });
+	setupOakServer(tenants)
+		.then((start) => start({ port }))
+		.then((evt: unknown) => {
+			console.log(
+				"Antbox Server started successfully on port ::",
+				(evt as Record<string, string>).port,
+			);
+		});
 }
 
 export async function printKeys(opts?: {
-  passwd?: string;
-  symmetricKey?: string;
-  jwkPath?: string;
+	passwd?: string;
+	symmetricKey?: string;
+	jwkPath?: string;
 }) {
-  console.log("Root passwd:\t", opts?.passwd ?? ROOT_PASSWD);
+	console.log("Root passwd:\t", opts?.passwd ?? ROOT_PASSWD);
 
-  console.log("Symmetric Key:\t", opts?.symmetricKey ?? SYMMETRIC_KEY);
-  console.log(
-    "JSON Web Key:\t",
-    JSON.stringify(await loadJwk(opts?.jwkPath), null, 4)
-  );
+	console.log("Symmetric Key:\t", opts?.symmetricKey ?? SYMMETRIC_KEY);
+	console.log(
+		"JSON Web Key:\t",
+		JSON.stringify(await loadJwk(opts?.jwkPath), null, 4),
+	);
 }
 
 async function loadJwk(jwkPath?: string): Promise<Record<string, string>> {
-  if (!jwkPath) {
-    return defaultJwk;
-  }
+	if (!jwkPath) {
+		return defaultJwk;
+	}
 
-  const jwk = await Deno.readTextFile(jwkPath);
-  return JSON.parse(jwk);
+	const jwk = await Deno.readTextFile(jwkPath);
+	return JSON.parse(jwk);
 }
 
 async function providerFrom<T>(
-  cfg?: ModuleConfiguration
+	cfg?: ModuleConfiguration,
 ): Promise<T | undefined> {
-  if (!cfg) {
-    return;
-  }
+	if (!cfg) {
+		return;
+	}
 
-  const [modulePath, ...params] = cfg;
-  const mod = await loadModule<T>(modulePath);
+	const [modulePath, ...params] = cfg;
+	const mod = await loadModule<T>(modulePath);
 
-  const providerOrErr = await mod(...params);
+	const providerOrErr = await mod(...params);
 
-  if (providerOrErr.isLeft()) {
-    console.error("could not load provider");
-    console.error(providerOrErr.value);
-    Deno.exit(-1);
-  }
+	if (providerOrErr.isLeft()) {
+		console.error("could not load provider");
+		console.error(providerOrErr.value);
+		Deno.exit(-1);
+	}
 
-  return providerOrErr.value;
+	return providerOrErr.value;
 }
 
 function loadModule<T>(
-  modulePath: string
+	modulePath: string,
 ): Promise<(...p: string[]) => Promise<Either<AntboxError, T>>> {
-  const path = modulePath.startsWith("/")
-    ? modulePath
-    : `./src/adapters/${modulePath}`;
+	const path = modulePath.startsWith("/") ? modulePath : `./src/adapters/${modulePath}`;
 
-  return import(path)
-    .then((m) => m.default)
-    .catch((e) => {
-      console.error("could not load module");
-      console.error(e);
-      Deno.exit(-1);
-    });
+	return import(path)
+		.then((m) => m.default)
+		.catch((e) => {
+			console.error("could not load module");
+			console.error(e);
+			Deno.exit(-1);
+		});
 }

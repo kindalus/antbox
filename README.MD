@@ -53,11 +53,12 @@ docker run -p 7180:7180 antbox-image
 
 For more details on configuration, customization, and usage, please refer to the official documentation.
 
-- [Understanding Nodes and Aspects](./undestanding_node_and_aspects.md)
-- [Antbox Storage and Persistence Providers](./providers.md)
-- [The Power of Node Behaviors in AntBox ECM Actions](./actions.md)
-- [Superior Security in AntBox ECM](./security.md)
-- [Unlocking the Potential with Antbox ECM Extensions](./ext.md)
+- [Understanding Nodes and Aspects](./docs/undestanding_node_and_aspects.md)
+- [Antbox Storage and Persistence Providers](./docs/providers.md)
+- [The Power of Node Behaviors in AntBox ECM Actions](./docs/actions.md)
+- [Superior Security in AntBox ECM](./docs/security.md)
+- [Unlocking the Potential with Antbox ECM Extensions](./docs/ext.md)
+- [REST API (ongoing)](./docs/api.md)
 
 ### Contributing
 

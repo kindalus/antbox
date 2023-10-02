@@ -1,15 +1,16 @@
 import { Event } from "../../shared/event.ts";
+import { Node } from "./node.ts";
 
 export class NodeDeletedEvent implements Event {
-  static EVENT_ID = "NodeDeletedEvent";
+	static EVENT_ID = "NodeDeletedEvent";
 
-  readonly eventId: string;
-  readonly occurredOn: Date;
-  readonly payload: { uuid: string };
+	readonly eventId: string;
+	readonly occurredOn: Date;
+	readonly payload: Node;
 
-  constructor(readonly userEmail: string, uuid: string) {
-    this.eventId = NodeDeletedEvent.EVENT_ID;
-    this.occurredOn = new Date();
-    this.payload = { uuid };
-  }
+	constructor(readonly userEmail: string, node: Node) {
+		this.eventId = NodeDeletedEvent.EVENT_ID;
+		this.occurredOn = new Date();
+		this.payload = node;
+	}
 }

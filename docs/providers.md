@@ -89,8 +89,8 @@ Providers can be referenced by path relative to the folder "src/adapters" or by 
   name: "myTenant",
   rootPasswd: "myPassword",
   storage: [
-    "path_to_google_drive_storage_provider.ts",
-    "/path/to/google_drive_api_key"
+    "google_drive/google_drive_storage_provider.ts",
+    "/path/to/google_drive_api_key",
     "root_folder_id"
   ]
 }
@@ -135,9 +135,35 @@ To create a credentials file to access the Google Drive API using the Node.js go
    - Click **Create**.
    - A JSON key file will be downloaded to your computer. Save this file in a safe place.
 
+4. **Create a folder in Google Drive**
+   - Go to Google Drive.
+   - Click **New**.
+   - Click **Folder**.
+   - Enter a name for your folder.
+   - Click **Create**.
+   - Click on the folder you just created.
+   - The folder ID will be in the URL. It is the string of characters after the last slash. For example, if the URL is `https://drive.google.com/drive/folders/1XyZ3X4Y5Z6X7Y8Z`, the folder ID is `1XyZ3X4Y5Z6X7Y8Z`.
+
+5. **Use the credentials file path and the folder ID in your Antbox configuration file**
+   - In your Antbox configuration file, use the credentials file path and the folder ID in the following format:
+
+```typescript
+{
+  name: "myTenant",
+  rootPasswd: "myPassword",
+  storage: [
+    "google_drive/google_drive_storage_provider.ts",
+    "/path/to/google_drive_api_key",
+    "1XyZ3X4Y5Z6X7Y8Z"
+  ]
+}
+```
+
 **Once you have completed all of these steps, you will have a credentials file that you can use to access the Google Drive API using the Node.js googleapis package.**
 
 For more information on how to use the Google Drive API, please see the official documentation: https://developers.google.com/drive/api/guides/about-sdk.
+
+⚠️ **Warning**: The googleapi packa does **not** work on deno 1.33.4+.
 
 ### 4. MongoDB Node Repository
 

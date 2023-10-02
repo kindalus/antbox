@@ -51,6 +51,9 @@ export class AntboxService {
 		};
 
 		this.subscribeToDomainEvents();
+		nodeCtx.storage.startListeners((eventId, handler) => {
+			DomainEvents.subscribe(eventId, handler);
+		});
 	}
 
 	async createFile(
@@ -315,12 +318,13 @@ export class AntboxService {
 		}
 
 		const node = nodeOrErr.value;
+		const diffs = this.#getDiffs(node, metadata);
+
 		if (node.isFolder()) {
 			return this.updateFolder(
 				authCtx,
 				node,
-				metadata as Partial<FolderNode>,
-				metadata.parent !== node.parent,
+				diffs as Partial<FolderNode>,
 			);
 		}
 
@@ -329,7 +333,7 @@ export class AntboxService {
 			return left(new ForbiddenError());
 		}
 
-		if (metadata.parent) {
+		if (diffs.parent) {
 			const newParentOrErr = await this.#getFolderWithPermission(
 				authCtx,
 				metadata.parent,
@@ -340,28 +344,49 @@ export class AntboxService {
 			}
 		}
 
-		const voidOrErr = await this.nodeService.update(uuid, metadata, merge);
+		const voidOrErr = await this.nodeService.update(uuid, diffs, merge);
 		if (voidOrErr.isRight()) {
 			DomainEvents.notify(
-				new NodeUpdatedEvent(authCtx.principal.email, uuid, metadata),
+				new NodeUpdatedEvent(authCtx.principal.email, uuid, diffs),
 			);
 		}
 
 		return voidOrErr;
 	}
 
+	#getDiffs(node: Node, metadata: Partial<Node>): Partial<Node> {
+		const diffs: Record<string, unknown> = {};
+
+		const n = node as unknown as Record<string, unknown>;
+		const m = metadata as Record<string, unknown>;
+
+		for (const key in metadata) {
+			if (n[key] !== m[key]) {
+				diffs[key] = m[key];
+			}
+		}
+
+		if (metadata.properties) {
+			diffs.properties = {
+				...node.properties,
+				...metadata.properties,
+			};
+		}
+
+		return diffs;
+	}
+
 	async updateFolder(
 		authCtx: AuthContextProvider,
 		folder: FolderNode,
 		metadata: Partial<FolderNode>,
-		changeParent = false,
 	): Promise<Either<AntboxError, void>> {
 		const assertNodeOrErr = this.#assertCanWrite(authCtx, folder);
 		if (assertNodeOrErr.isLeft()) {
 			return left(assertNodeOrErr.value);
 		}
 
-		if (changeParent) {
+		if (metadata.parent) {
 			const newParentOrErr = await this.#getFolderWithPermission(
 				authCtx,
 				metadata.parent,
@@ -512,7 +537,7 @@ export class AntboxService {
 
 		const voidOrErr = await this.nodeService.delete(uuid);
 		if (voidOrErr.isRight()) {
-			DomainEvents.notify(new NodeDeletedEvent(authCtx.principal.email, uuid));
+			DomainEvents.notify(new NodeDeletedEvent(authCtx.principal.email, nodeOrErr.value));
 		}
 
 		return voidOrErr;

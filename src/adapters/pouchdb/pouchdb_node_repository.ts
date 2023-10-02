@@ -13,7 +13,7 @@ export default function buildPouchdbNodeRepository(
 	return Promise.resolve(right(new PouchdbNodeRepository(dbpath)));
 }
 
-export class PouchdbNodeRepository implements NodeRepository {
+class PouchdbNodeRepository implements NodeRepository {
 	private readonly db: PouchDB;
 
 	constructor(dbpath: string) {
@@ -148,7 +148,7 @@ function filterToMango(filter: NodeFilter): MangoFilter {
 		return { [field]: { $all: [value] } };
 	}
 
-	if (operator === "match" && typeof (value) === "string") {
+	if (operator === "match" && typeof value === "string") {
 		return { [field]: { $regex: new RegExp(value, "i") } };
 	}
 

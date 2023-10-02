@@ -1,4 +1,4 @@
-FROM denoland/deno:alpine-1.35.1
+FROM denoland/deno:alpine-1.33.3
 
 RUN apk add libstdc++6
 

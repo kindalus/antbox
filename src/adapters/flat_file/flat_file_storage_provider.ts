@@ -2,6 +2,8 @@ import { join } from "../../../deps.ts";
 import { StorageProvider } from "../../domain/providers/storage_provider.ts";
 import { AntboxError } from "../../shared/antbox_error.ts";
 import { Either, left, right } from "../../shared/either.ts";
+import { Event } from "../../shared/event.ts";
+import { EventHandler } from "../../shared/event_handler.ts";
 import { fileExistsSync } from "../../shared/file_exists_sync.ts";
 
 export default function buildFlatFileStorageProvider(
@@ -10,7 +12,7 @@ export default function buildFlatFileStorageProvider(
 	return Promise.resolve(right(new FlatFileStorageProvider(baseDir)));
 }
 
-export class FlatFileStorageProvider implements StorageProvider {
+class FlatFileStorageProvider implements StorageProvider {
 	readonly #path: string;
 
 	/**
@@ -41,7 +43,7 @@ export class FlatFileStorageProvider implements StorageProvider {
 			.catch((e) => left(error(uuid, e.message))) as Promise<Either<AntboxError, void>>;
 	}
 
-	write(uuid: string, file: File): Promise<Either<AntboxError, void>> {
+	write(uuid: string, file: File, _opt: never): Promise<Either<AntboxError, void>> {
 		const folderPath = this.#buildFileFolderPath(uuid);
 		const filePath = this.#buildFilePath(uuid);
 
@@ -59,6 +61,9 @@ export class FlatFileStorageProvider implements StorageProvider {
 	list(): Promise<string[]> {
 		const files = [...Deno.readDirSync(this.#path)].map((file) => file.name);
 		return Promise.resolve(files);
+	}
+
+	startListeners(_bus: (eventId: string, handler: EventHandler<Event>) => void): void {
 	}
 
 	#buildFileFolderPath(uuid: string) {

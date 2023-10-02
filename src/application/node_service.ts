@@ -135,7 +135,10 @@ export class NodeServiceImpl implements NodeService {
 
 		const node = this.#createFileMetadata(metadata, file.type, file.size);
 
-		let voidOrErr = await this.context.storage.write(node.uuid, file);
+		let voidOrErr = await this.context.storage.write(node.uuid, file, {
+			title: node.title,
+			parent: node.parent,
+		});
 		if (voidOrErr.isLeft()) {
 			return left(voidOrErr.value);
 		}
@@ -282,6 +285,10 @@ export class NodeServiceImpl implements NodeService {
 		const writeOrErr = await this.context.storage.write(
 			newNode.uuid,
 			fileOrErr.value,
+			{
+				title: newNode.title,
+				parent: newNode.parent,
+			},
 		);
 		if (writeOrErr.isLeft()) {
 			return left(writeOrErr.value);
@@ -350,7 +357,10 @@ export class NodeServiceImpl implements NodeService {
 		nodeOrErr.value.size = file.size;
 		nodeOrErr.value.mimetype = file.type;
 
-		await this.context.storage.write(uuid, file);
+		await this.context.storage.write(uuid, file, {
+			title: nodeOrErr.value.title,
+			parent: nodeOrErr.value.parent,
+		});
 
 		nodeOrErr.value.fulltext = await this.#calculateFulltext(nodeOrErr.value);
 		await this.context.repository.update(nodeOrErr.value);

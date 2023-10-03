@@ -45,8 +45,8 @@ You can also build and configure Antbox according to your unique requirements.
 Antbox is also available as a Docker image, providing an easy way to run the server within a containerized environment.
 
 ```shell
-docker pull antbox-image:latest
-docker run -p 7180:7180 antbox-image
+docker pull kindalus/antbox:latest
+docker run -p 7180:7180 -v [data_dir]:/data kindalus/antbox:latest
 ```
 
 ## Documentation

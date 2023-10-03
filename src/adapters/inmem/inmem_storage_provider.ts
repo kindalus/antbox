@@ -24,4 +24,8 @@ export class InMemoryStorageProvider implements StorageProvider {
 
 		return Promise.resolve(right(undefined));
 	}
+
+	startListeners(): void {
+		// Do nothing
+	}
 }

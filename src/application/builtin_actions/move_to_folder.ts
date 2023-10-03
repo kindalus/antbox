@@ -1,8 +1,9 @@
 import { Action } from "../../domain/actions/action.ts";
-import { INodeService, RunContext } from "../../domain/actions/run_context.ts";
+import { RunContext } from "../../domain/actions/run_context.ts";
 import { NodeNotFoundError } from "../../domain/nodes/node_not_found_error.ts";
 import { AntboxError } from "../../shared/antbox_error.ts";
 import { Either } from "../../shared/either.ts";
+import { NodeService } from "../node_service.ts";
 
 export default {
 	uuid: "move_to_folder",
@@ -43,7 +44,7 @@ export default {
 	},
 } as Action;
 
-function updateTaskPredicate(nodeService: INodeService, parent: string) {
+function updateTaskPredicate(nodeService: NodeService, parent: string) {
 	return (uuid: string) => nodeService.update(uuid, { parent });
 }
 

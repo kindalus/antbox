@@ -69,7 +69,7 @@ export interface NodeService {
 		uuid: string,
 		data: Partial<Node>,
 		merge?: boolean,
-	): Promise<Either<NodeNotFoundError, void>>;
+	): Promise<Either<AntboxError, void>>;
 
 	evaluate(
 		uuid: string,
@@ -128,7 +128,7 @@ export class NodeServiceImpl implements NodeService {
 			return left(validOrErr.value);
 		}
 
-		const creator = this.#fileCreators[file.type];
+		const creator = this.#fileCreators[metadata.mimetype ?? file.type];
 		if (creator) {
 			return creator(file, metadata);
 		}
@@ -351,6 +351,12 @@ export class NodeServiceImpl implements NodeService {
 
 		if (nodeOrErr.isLeft()) {
 			return left(nodeOrErr.value);
+		}
+
+		if (nodeOrErr.value.isSmartFolder()) {
+			const metadataText = await file.text();
+			const metadata = JSON.parse(metadataText);
+			return this.update(uuid, metadata);
 		}
 
 		nodeOrErr.value.modifiedTime = new Date().toISOString();
@@ -691,8 +697,9 @@ export class NodeServiceImpl implements NodeService {
 		return right(aspectToFile(aspect));
 	}
 
-	#exportSmartfolder(node: Node): File {
-		const jsonText = JSON.stringify(node);
+	#exportSmartfolder(node: SmartFolderNode): File {
+		const { title, filters, aggregations } = node;
+		const jsonText = JSON.stringify({ title, filters, aggregations }, null, 2);
 
 		return new File([jsonText], node.title.concat(".json"), {
 			type: "application/json",

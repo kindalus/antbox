@@ -32,7 +32,23 @@ export class AspectService {
 			file.size,
 		);
 
-		return this.nodeService.createFile(file, metadata);
+		const nodeOrErr = await this.nodeService.get(metadata.uuid);
+
+		if (nodeOrErr.isLeft()) {
+			return this.nodeService.createFile(file, metadata);
+		}
+
+		let voidOrErr = await this.nodeService.updateFile(metadata.uuid, file);
+		if (voidOrErr.isLeft()) {
+			return left<AntboxError, Node>(voidOrErr.value);
+		}
+
+		voidOrErr = await this.nodeService.update(metadata.uuid, metadata);
+		if (voidOrErr.isLeft()) {
+			return left<AntboxError, Node>(voidOrErr.value);
+		}
+
+		return right<AntboxError, Node>(metadata);
 	}
 
 	async get(uuid: string): Promise<Either<NodeNotFoundError, Aspect>> {

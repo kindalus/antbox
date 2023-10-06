@@ -139,7 +139,22 @@ export class ActionService {
 			file.size,
 		);
 
-		return this.nodeService.createFile(actionFile, metadata);
+		const nodeOrErr = await this.nodeService.get(action.uuid);
+		if (nodeOrErr.isLeft()) {
+			return this.nodeService.createFile(actionFile, metadata);
+		}
+
+		let voidOrErr = await this.nodeService.updateFile(action.uuid, actionFile);
+		if (voidOrErr.isLeft()) {
+			return left<AntboxError, Node>(voidOrErr.value);
+		}
+
+		voidOrErr = await this.nodeService.update(action.uuid, metadata);
+		if (voidOrErr.isLeft()) {
+			return left<AntboxError, Node>(voidOrErr.value);
+		}
+
+		return right<AntboxError, Node>(metadata);
 	}
 
 	async run(

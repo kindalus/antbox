@@ -13,14 +13,12 @@ export type ExtFn = (
 export class ExtService {
 	constructor(private readonly nodeService: NodeService) {}
 
-	createOrReplace(
+	async createOrReplace(
 		file: File,
 		_metadata: Partial<Node>,
 	): Promise<Either<AntboxError, Node>> {
 		if (file.type !== Node.EXT_MIMETYPE) {
-			return Promise.resolve(
-				left(new BadRequestError(`Invalid mimetype: ${file.type}`)),
-			);
+			return left(new BadRequestError(`Invalid mimetype: ${file.type}`));
 		}
 
 		const uuid = file.name?.split(".")[0].trim();
@@ -36,7 +34,18 @@ export class ExtService {
 			file.size,
 		);
 
-		return this.nodeService.createFile(file, metadata);
+		const nodeOrErr = await this.nodeService.get(uuid);
+		if (nodeOrErr.isLeft()) {
+			return this.nodeService.createFile(file, metadata);
+		}
+
+		const voidOrErr = await this.nodeService.updateFile(uuid, file);
+
+		if (voidOrErr.isLeft()) {
+			return left(voidOrErr.value);
+		}
+
+		return right(nodeOrErr.value);
 	}
 
 	private async get(uuid: string): Promise<Either<NodeNotFoundError, ExtFn>> {

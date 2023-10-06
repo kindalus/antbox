@@ -4,7 +4,7 @@ import { AuthContextProvider } from "../domain/auth/auth_provider.ts";
 import { User } from "../domain/auth/user.ts";
 import { AggregationFormulaError } from "../domain/nodes/aggregation_formula_error.ts";
 import { FolderNode } from "../domain/nodes/folder_node.ts";
-import { Node, Permission } from "../domain/nodes/node.ts";
+import { FileNode, Node, Permission } from "../domain/nodes/node.ts";
 import { NodeContentUpdatedEvent } from "../domain/nodes/node_content_updated_event.ts";
 import { NodeCreatedEvent } from "../domain/nodes/node_created_event.ts";
 import { NodeDeletedEvent } from "../domain/nodes/node_deleted_event.ts";
@@ -474,26 +474,49 @@ export class AntboxService {
 		return this.nodeService.duplicate(uuid);
 	}
 
-	updateFile(
-		_authCtx: AuthContextProvider,
+	async updateFile(
+		authCtx: AuthContextProvider,
 		uuid: string,
 		file: File,
 	): Promise<Either<AntboxError, void>> {
-		if (AntboxService.isSystemFolder(uuid)) {
-			return Promise.resolve(
-				left(new BadRequestError("Cannot update system folder")),
-			);
+		const nodeOrErr = await this.nodeService.get(uuid);
+		if (nodeOrErr.isLeft()) {
+			return Promise.resolve(left(nodeOrErr.value));
+		}
+
+		if (this.#fileCreators[nodeOrErr.value.mimetype]) {
+			return this.#updateSystemFile(authCtx, nodeOrErr.value, file);
 		}
 
 		return this.nodeService.updateFile(uuid, file).then((result) => {
 			if (result.isRight()) {
 				DomainEvents.notify(
-					new NodeContentUpdatedEvent(_authCtx.principal.email, uuid),
+					new NodeContentUpdatedEvent(authCtx.principal.email, uuid),
 				);
 			}
 
 			return result;
 		});
+	}
+
+	async #updateSystemFile(
+		authCtx: AuthContextProvider,
+		metadata: FileNode,
+		file: File,
+	): Promise<Either<AntboxError, void>> {
+		const createSystemFile = this.#fileCreators[metadata.mimetype];
+
+		const voidOrErr = await createSystemFile(file, metadata);
+
+		if (voidOrErr.isLeft()) {
+			return left<AntboxError, void>(voidOrErr.value);
+		}
+
+		DomainEvents.notify(
+			new NodeContentUpdatedEvent(authCtx.principal.email, metadata.uuid),
+		);
+
+		return right(undefined);
 	}
 
 	async evaluate(

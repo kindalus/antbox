@@ -15,7 +15,16 @@ export default {
 	runManually: true,
 	runOnCreates: false,
 	runOnUpdates: false,
-	filters: [],
+	filters: [["parent", "not-in", [
+		Node.ACTIONS_FOLDER_UUID,
+		Node.ASPECTS_FOLDER_UUID,
+		Node.EXT_FOLDER_UUID,
+		Node.GROUPS_FOLDER_UUID,
+		Node.OCR_TEMPLATES_FOLDER_UUID,
+		Node.ROOT_FOLDER_UUID,
+		Node.SYSTEM_FOLDER_UUID,
+		Node.USERS_FOLDER_UUID,
+	]]],
 	params: [],
 
 	async run(

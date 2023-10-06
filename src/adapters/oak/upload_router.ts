@@ -9,46 +9,6 @@ import { sendBadRequest, sendOK } from "./send_response.ts";
 import { AntboxTenant } from "./setup_oak_server.ts";
 
 export default function (tenants: AntboxTenant[]) {
-	async function readRequest(
-		ctx: Context,
-	): Promise<Either<undefined, { file: File; metadata?: Partial<Node> }>> {
-		const body = ctx.request.body();
-		if (body.type !== "form-data") {
-			return left(undefined);
-		}
-
-		const { files } = await (body.value! as FormDataReader).read({
-			maxFileSize: 100 * 1024 ** 2,
-			customContentTypes: {
-				"text/javascript": "js",
-				[Node.EXT_MIMETYPE]: "js",
-				[Node.ASPECT_MIMETYPE]: "json",
-				[Node.ACTION_MIMETYPE]: "js",
-			},
-		});
-
-		const metadataUploaded = files?.find((f) => f.name === "metadata");
-		const fileUploaded = files?.find((f) => f.name === "file");
-
-		if (!fileUploaded) {
-			return left(undefined);
-		}
-
-		const fileContent = Deno.readFileSync(fileUploaded.filename!);
-
-		let metadata: Partial<Node> | undefined = undefined;
-		if (metadataUploaded) {
-			const metadataContent = Deno.readFileSync(metadataUploaded.filename!);
-			metadata = JSON.parse(new TextDecoder().decode(metadataContent));
-		}
-
-		const file = new File([fileContent], fileUploaded.originalName, {
-			type: fileUploaded.contentType,
-		});
-
-		return right({ file, metadata });
-	}
-
 	const createNodeFileHandler = async (ctx: Context) => {
 		const service = getTenant(ctx, tenants).service;
 		const fieldsOrUndefined = await readRequest(ctx);
@@ -106,4 +66,45 @@ export default function (tenants: AntboxTenant[]) {
 	uploadRouter.post("/nodes/:uuid", updateNodeFileHandler);
 
 	return uploadRouter;
+}
+
+async function readRequest(
+	ctx: Context,
+): Promise<Either<undefined, { file: File; metadata?: Partial<Node> }>> {
+	const body = ctx.request.body();
+	if (body.type !== "form-data") {
+		return left(undefined);
+	}
+
+	const { files } = await (body.value! as FormDataReader).read({
+		maxFileSize: 100 * 1024 ** 2,
+		customContentTypes: {
+			"text/javascript": "js",
+			[Node.EXT_MIMETYPE]: "js",
+			[Node.ASPECT_MIMETYPE]: "json",
+			[Node.ACTION_MIMETYPE]: "js",
+			[Node.SMART_FOLDER_MIMETYPE]: "json",
+		},
+	});
+
+	const metadataUploaded = files?.find((f) => f.name === "metadata");
+	const fileUploaded = files?.find((f) => f.name === "file");
+
+	if (!fileUploaded) {
+		return left(undefined);
+	}
+
+	const fileContent = Deno.readFileSync(fileUploaded.filename!);
+
+	let metadata: Partial<Node> | undefined = undefined;
+	if (metadataUploaded) {
+		const metadataContent = Deno.readFileSync(metadataUploaded.filename!);
+		metadata = JSON.parse(new TextDecoder().decode(metadataContent));
+	}
+
+	const file = new File([fileContent], fileUploaded.originalName, {
+		type: fileUploaded.contentType,
+	});
+
+	return right({ file, metadata });
 }

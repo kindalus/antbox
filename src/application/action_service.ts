@@ -258,15 +258,15 @@ export class ActionService {
 	async runAutomaticActionsForCreates(evt: NodeCreatedEvent) {
 		const runCriteria = (action: Action) => action.runOnCreates || false;
 
-		const userPrincipalOrErr = await this.#getAuthCtxByEmail(evt.userEmail);
-		if (userPrincipalOrErr.isLeft()) {
+		const userOrErr = await this.#getAuthCtxByEmail(evt.userEmail);
+		if (userOrErr.isLeft()) {
 			return;
 		}
 
 		const actions = await this.#getAutomaticActions(evt.payload, runCriteria);
 
 		return this.#runActions(
-			userPrincipalOrErr.value,
+			userOrErr.value,
 			actions.map((a) => a.uuid),
 			evt.payload.uuid,
 		);
@@ -275,8 +275,8 @@ export class ActionService {
 	async runAutomaticActionsForUpdates(evt: NodeUpdatedEvent) {
 		const runCriteria = (action: Action) => action.runOnUpdates || false;
 
-		const userPrincipalOrErr = await this.#getAuthCtxByEmail(evt.userEmail);
-		if (userPrincipalOrErr.isLeft()) {
+		const userOrErr = await this.#getAuthCtxByEmail(evt.userEmail);
+		if (userOrErr.isLeft()) {
 			return;
 		}
 
@@ -291,7 +291,7 @@ export class ActionService {
 		}
 
 		return this.#runActions(
-			userPrincipalOrErr.value,
+			userOrErr.value,
 			actions.map((a) => a.uuid),
 			evt.payload.uuid,
 		);
@@ -324,8 +324,8 @@ export class ActionService {
 			return;
 		}
 
-		const userPrincipalOrErr = await this.#getAuthCtxByEmail(evt.userEmail);
-		if (userPrincipalOrErr.isLeft()) {
+		const userOrErr = await this.#getAuthCtxByEmail(evt.userEmail);
+		if (userOrErr.isLeft()) {
 			return;
 		}
 
@@ -335,7 +335,7 @@ export class ActionService {
 		}
 
 		return this.#runActions(
-			userPrincipalOrErr.value,
+			userOrErr.value,
 			parentOrErr.value.onCreate.filter(this.#nonEmptyActions),
 			evt.payload.uuid,
 		);
@@ -353,13 +353,13 @@ export class ActionService {
 				return;
 			}
 
-			const userPrincipalOrErr = await this.#getAuthCtxByEmail(evt.userEmail);
-			if (userPrincipalOrErr.isLeft()) {
+			const userOrErr = await this.#getAuthCtxByEmail(evt.userEmail);
+			if (userOrErr.isLeft()) {
 				return;
 			}
 
 			return this.#runActions(
-				userPrincipalOrErr.value,
+				userOrErr.value,
 				parent.value.onUpdate.filter(this.#nonEmptyActions),
 				evt.payload.uuid,
 			);

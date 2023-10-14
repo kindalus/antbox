@@ -1,4 +1,5 @@
 import { Aspect, AspectProperty } from "../domain/aspects/aspect.ts";
+import { Group } from "../domain/auth/group.ts";
 import { AggregationFormulaError } from "../domain/nodes/aggregation_formula_error.ts";
 import { FolderNode } from "../domain/nodes/folder_node.ts";
 import { FolderNotFoundError } from "../domain/nodes/folder_not_found_error.ts";
@@ -19,6 +20,7 @@ import { Either, left, right } from "../shared/either.ts";
 import { ActionService } from "./action_service.ts";
 import { builtinActions } from "./builtin_actions/mod.ts";
 import { builtinAspects } from "./builtin_aspects/mod.ts";
+import { Admins } from "./builtin_groups/admins.ts";
 import { builtinGroups } from "./builtin_groups/mod.ts";
 import { builtinUsers } from "./builtin_users/mod.ts";
 import { NodeDeleter } from "./node_deleter.ts";
@@ -400,7 +402,21 @@ export class NodeServiceImpl implements NodeService {
 			return right(builtinAspectOrErr.value);
 		}
 
-		return this.getFromRepository(uuid);
+		const builtinGroupOrErr = await this.getBuiltinGroup(uuid);
+		if (builtinGroupOrErr.isRight()) {
+			return right(builtinGroupOrErr.value);
+		}
+
+		const nodeOrErr = await this.getFromRepository(uuid);
+		if (nodeOrErr.isLeft()) {
+			return left(nodeOrErr.value);
+		}
+
+		if (nodeOrErr.value.isApikey()) {
+			return right(nodeOrErr.value.cloneWithSecret());
+		}
+
+		return right(nodeOrErr.value);
 	}
 
 	#listSystemRootFolder(): FolderNode[] {
@@ -411,6 +427,7 @@ export class NodeServiceImpl implements NodeService {
 			FolderNode.GROUPS_FOLDER,
 			FolderNode.EXT_FOLDER,
 			FolderNode.OCR_TEMPLATES_FOLDER,
+			FolderNode.API_KEYS_FOLDER,
 		];
 	}
 
@@ -423,6 +440,8 @@ export class NodeServiceImpl implements NodeService {
 			FolderNode.USERS_FOLDER,
 			FolderNode.GROUPS_FOLDER,
 			FolderNode.EXT_FOLDER,
+			FolderNode.OCR_TEMPLATES_FOLDER,
+			FolderNode.API_KEYS_FOLDER,
 		];
 
 		const node = nodes.find((n) => n.uuid === uuid);
@@ -440,6 +459,14 @@ export class NodeServiceImpl implements NodeService {
 			this.context.fidGenerator.generate(metadata.title ?? uuid);
 
 		return NodeFactory.createFileMetadata(uuid, fid, metadata, mimetype, size);
+	}
+
+	private getBuiltinGroup(uuid: string): Promise<Either<NodeNotFoundError, Node>> {
+		if (uuid === Group.ADMINS_GROUP_UUID) {
+			return Promise.resolve(right(groupToNode(Admins)));
+		}
+
+		return Promise.resolve(left(new NodeNotFoundError(uuid)));
 	}
 
 	private getBuiltinAction(
@@ -510,7 +537,30 @@ export class NodeServiceImpl implements NodeService {
 	): Promise<Either<AntboxError, NodeFilterResult>> {
 		return this.context.repository
 			.filter(filters, pageSize, pageToken)
-			.then((v) => right(v));
+			.then((v) => {
+				const r = {
+					nodes: v.nodes.map((n) =>
+						({
+							uuid: n.uuid,
+							fid: n.fid,
+							title: n.title,
+							description: n.description,
+							mimetype: n.mimetype,
+							aspects: n.aspects,
+							size: n.size,
+							parent: n.parent,
+							createdTime: n.createdTime,
+							modifiedTime: n.modifiedTime,
+							owner: n.owner,
+							properties: n.properties,
+						}) as Node
+					),
+					pageToken: v.pageToken,
+					pageCount: v.pageCount,
+					pageSize: v.pageSize,
+				};
+				return right(r);
+			});
 	}
 
 	async update(
@@ -522,6 +572,10 @@ export class NodeServiceImpl implements NodeService {
 
 		if (nodeOrErr.isLeft()) {
 			return left(nodeOrErr.value);
+		}
+
+		if (nodeOrErr.value.isApikey()) {
+			return left(new BadRequestError("Cannot update apikey"));
 		}
 
 		const newNode = merge

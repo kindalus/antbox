@@ -2,7 +2,9 @@ import { Action } from "../domain/actions/action.ts";
 import { Aspect } from "../domain/aspects/aspect.ts";
 import { Group } from "../domain/auth/group.ts";
 import { User } from "../domain/auth/user.ts";
+import { GroupNode } from "../domain/nodes/group_node.ts";
 import { Node } from "../domain/nodes/node.ts";
+import { UserNode } from "../domain/nodes/user_node.ts";
 import { OcrTemplate } from "../domain/orc_templates/ocr_template.ts";
 
 export function fileToAspect(file: File): Promise<Aspect> {
@@ -56,20 +58,28 @@ export function aspectToFile(aspect: Aspect): File {
 	return f;
 }
 
-export function userToNode(user: User): Node {
-	const node = Object.assign(new Node(), {
+export function nodeToUser(node: UserNode): User {
+	return Object.assign(new User(), {
+		uuid: node.uuid,
+		fullname: node.title,
+		email: node.email,
+		group: node.group,
+		groups: [...(node.groups ?? [])],
+	});
+}
+
+export function userToNode(user: User): UserNode {
+	const node = Object.assign(new UserNode(), {
 		uuid: user.uuid,
 		fid: user.uuid,
 		title: user.fullname,
 		mimetype: Node.USER_MIMETYPE,
 		size: 0,
 		parent: Node.USERS_FOLDER_UUID,
-		aspects: ["user"],
-		properties: {
-			"user:email": user.email,
-			"user:group": user.group,
-			"user:groups": user.groups,
-		},
+
+		email: user.email,
+		group: user.group,
+		groups: [...(user.groups ?? [])],
 
 		createdTime: nowIso(),
 		modifiedTime: nowIso(),
@@ -82,17 +92,11 @@ export function userToNode(user: User): Node {
 	return node;
 }
 
-export function groupToNode(group: Group): Node {
-	const node = Object.assign(new Node(), {
+export function groupToNode(group: Group): GroupNode {
+	const node = Object.assign(new GroupNode(), {
 		uuid: group.uuid,
 		fid: group.uuid,
 		title: group.title,
-		mimetype: Node.GROUP_MIMETYPE,
-		parent: Node.GROUPS_FOLDER_UUID,
-		size: 0,
-
-		createdTime: nowIso(),
-		modifiedTime: nowIso(),
 	});
 
 	if (group.builtIn) {
@@ -102,13 +106,13 @@ export function groupToNode(group: Group): Node {
 	return node;
 }
 
-export function nodeToUser(node: Node): User {
-	return Object.assign(new User(), {
+export function nodeToGroup(node: GroupNode): Group {
+	return Object.assign(new Group(), {
 		uuid: node.uuid,
-		fullname: node.title,
-		email: node.properties["user:email"] as string,
-		group: node.properties["user:group"] as string,
-		groups: node.properties["user:groups"] as string[],
+		fid: node.uuid,
+		title: node.title,
+		description: node.description,
+		builtIn: node.owner === User.ROOT_USER_EMAIL,
 	});
 }
 

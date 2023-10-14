@@ -1,8 +1,16 @@
 import { Action } from "../domain/actions/action.ts";
 import { Aspect } from "../domain/aspects/aspect.ts";
 import { AuthContextProvider } from "../domain/auth/auth_provider.ts";
+import { Group } from "../domain/auth/group.ts";
+import { GroupCreatedEvent } from "../domain/auth/group_created_event.ts";
+import { GroupDeletedEvent } from "../domain/auth/group_deleted_event.ts";
+import { GroupUpdatedEvent } from "../domain/auth/group_updated_event%20.ts";
 import { User } from "../domain/auth/user.ts";
+import { UserCreatedEvent } from "../domain/auth/user_created_event.ts";
+import { UserDeletedEvent } from "../domain/auth/user_deleted_event.ts";
+import { UserUpdatedEvent } from "../domain/auth/user_updated_event.ts";
 import { AggregationFormulaError } from "../domain/nodes/aggregation_formula_error.ts";
+import { ApiKeyNode } from "../domain/nodes/api_key_node.ts";
 import { FolderNode } from "../domain/nodes/folder_node.ts";
 import { FileNode, Node, Permission } from "../domain/nodes/node.ts";
 import { NodeContentUpdatedEvent } from "../domain/nodes/node_content_updated_event.ts";
@@ -17,6 +25,7 @@ import { SmartFolderNodeNotFoundError } from "../domain/nodes/smart_folder_node_
 import { AntboxError, BadRequestError, ForbiddenError } from "../shared/antbox_error.ts";
 import { Either, left, right } from "../shared/either.ts";
 import { ActionService } from "./action_service.ts";
+import { ApiKeyService } from "./api_keys_service.ts";
 import { AspectService } from "./aspect_service.ts";
 import { AuthService } from "./auth_service.ts";
 import { DomainEvents } from "./domain_events.ts";
@@ -30,6 +39,7 @@ export class AntboxService {
 	readonly aspectService: AspectService;
 	readonly actionService: ActionService;
 	readonly extService: ExtService;
+	readonly apiKeysService: ApiKeyService;
 
 	readonly #fileCreators: Record<
 		string,
@@ -41,6 +51,7 @@ export class AntboxService {
 		this.authService = new AuthService(this.nodeService);
 		this.aspectService = new AspectService(this.nodeService);
 		this.actionService = new ActionService(this.nodeService, this);
+		this.apiKeysService = new ApiKeyService(this.nodeService, nodeCtx.uuidGenerator);
 
 		this.extService = new ExtService(this.nodeService);
 
@@ -102,6 +113,10 @@ export class AntboxService {
 		authCtx: AuthContextProvider,
 		metadata: Partial<Node>,
 	): Promise<Either<AntboxError, Node>> {
+		if (AntboxService.isSystemFolder(metadata.parent!)) {
+			return left(new BadRequestError("Cannot create metanodes in system folder"));
+		}
+
 		const parentOrErr = await this.#getFolderWithPermission(
 			authCtx,
 			metadata.parent ?? Node.ROOT_FOLDER_UUID,
@@ -226,7 +241,7 @@ export class AntboxService {
 			return right(undefined);
 		}
 
-		if (User.isAdmin(principal as User)) {
+		if (User.isAdmin(principal)) {
 			return right(undefined);
 		}
 
@@ -234,7 +249,7 @@ export class AntboxService {
 			return right(undefined);
 		}
 
-		if (node.isRootFolder() && !User.isAdmin(principal as User)) {
+		if (node.isRootFolder() && !User.isAdmin(principal)) {
 			return left(new ForbiddenError());
 		}
 
@@ -545,6 +560,14 @@ export class AntboxService {
 			return left(nodeOrErr.value);
 		}
 
+		if (nodeOrErr.value.isUser()) {
+			return this.deleteUser(authCtx, uuid);
+		}
+
+		if (nodeOrErr.value.isGroup()) {
+			return this.deleteGroup(authCtx, uuid);
+		}
+
 		if (nodeOrErr.value.isFolder() && this.#assertCanWrite(authCtx, nodeOrErr.value).isLeft()) {
 			return left(new ForbiddenError());
 		}
@@ -594,6 +617,215 @@ export class AntboxService {
 		return this.aspectService.list().then((nodes) => nodes);
 	}
 
+	async createUser(authCtx: AuthContextProvider, user: User): Promise<Either<AntboxError, Node>> {
+		if (!User.isAdmin(authCtx.principal)) {
+			return Promise.resolve(left(new ForbiddenError()));
+		}
+
+		const nodeOrErr = await this.authService.createUser({
+			...user,
+			owner: authCtx.principal.email,
+		});
+
+		if (nodeOrErr.isRight()) {
+			const evt = new UserCreatedEvent(
+				authCtx.principal.email,
+				nodeOrErr.value.uuid,
+				nodeOrErr.value.title,
+			);
+
+			DomainEvents.notify(evt);
+		}
+
+		return nodeOrErr;
+	}
+
+	listUsers(authCtx: AuthContextProvider): Promise<Either<AntboxError, User[]>> {
+		if (!User.isAdmin(authCtx.principal)) {
+			return Promise.resolve(left(new ForbiddenError()));
+		}
+
+		return this.authService.listUsers();
+	}
+
+	getUser(authCtx: AuthContextProvider, uuid: string): Promise<Either<AntboxError, User>> {
+		if (!User.isAdmin(authCtx.principal) && authCtx.principal.uuid !== uuid) {
+			return Promise.resolve(left(new ForbiddenError()));
+		}
+
+		return this.authService.getUser(uuid);
+	}
+
+	async updateUser(
+		authCtx: AuthContextProvider,
+		uuid: string,
+		user: User,
+	): Promise<Either<AntboxError, void>> {
+		if (!User.isAdmin(authCtx.principal) && authCtx.principal.uuid !== uuid) {
+			return Promise.resolve(left(new ForbiddenError()));
+		}
+
+		const voidOrErr = await this.authService.updateUser(uuid, user);
+
+		if (voidOrErr.isRight()) {
+			const evt = new UserUpdatedEvent(
+				authCtx.principal.email,
+				uuid,
+				user.fullname,
+			);
+
+			DomainEvents.notify(evt);
+		}
+
+		return voidOrErr;
+	}
+
+	async deleteUser(
+		authCtx: AuthContextProvider,
+		uuid: string,
+	): Promise<Either<AntboxError, void>> {
+		if (!User.isAdmin(authCtx.principal) && authCtx.principal.uuid !== uuid) {
+			return Promise.resolve(left(new ForbiddenError()));
+		}
+
+		const voidOrErr = await this.authService.deleteUser(uuid);
+
+		if (voidOrErr.isRight()) {
+			const evt = new UserDeletedEvent(authCtx.principal.email, uuid);
+
+			DomainEvents.notify(evt);
+		}
+
+		return voidOrErr;
+	}
+
+	listGroups(authCtx: AuthContextProvider): Promise<Either<AntboxError, Group[]>> {
+		if (!User.isAdmin(authCtx.principal)) {
+			return Promise.resolve(left(new ForbiddenError()));
+		}
+
+		return this.authService.listGroups();
+	}
+
+	getGroup(authCtx: AuthContextProvider, uuid: string): Promise<Either<AntboxError, Group>> {
+		if (!User.isAdmin(authCtx.principal)) {
+			return Promise.resolve(left(new ForbiddenError()));
+		}
+
+		return this.authService.getGroup(uuid);
+	}
+
+	async createGroup(
+		authCtx: AuthContextProvider,
+		group: Group,
+	): Promise<Either<AntboxError, Node>> {
+		if (!User.isAdmin(authCtx.principal)) {
+			return Promise.resolve(left(new ForbiddenError()));
+		}
+
+		const nodeOrErr = await this.authService.createGroup({
+			...group,
+			owner: authCtx.principal.email,
+		});
+
+		if (nodeOrErr.isRight()) {
+			const evt = new GroupCreatedEvent(
+				authCtx.principal.email,
+				nodeOrErr.value.uuid,
+				nodeOrErr.value.title,
+			);
+
+			DomainEvents.notify(evt);
+		}
+
+		return nodeOrErr;
+	}
+
+	async updateGroup(
+		authCtx: AuthContextProvider,
+		uuid: string,
+		group: Group,
+	): Promise<Either<AntboxError, void>> {
+		if (!User.isAdmin(authCtx.principal)) {
+			return Promise.resolve(left(new ForbiddenError()));
+		}
+
+		const voidOrErr = await this.authService.updateGroup(uuid, group);
+
+		if (voidOrErr.isRight()) {
+			const evt = new GroupUpdatedEvent(
+				authCtx.principal.email,
+				uuid,
+				group.title,
+			);
+
+			DomainEvents.notify(evt);
+		}
+
+		return voidOrErr;
+	}
+
+	async deleteGroup(
+		authCtx: AuthContextProvider,
+		uuid: string,
+	): Promise<Either<AntboxError, void>> {
+		if (!User.isAdmin(authCtx.principal)) {
+			return Promise.resolve(left(new ForbiddenError()));
+		}
+
+		const voidOrErr = await this.authService.deleteGroup(uuid);
+
+		if (voidOrErr.isRight()) {
+			const evt = new GroupDeletedEvent(authCtx.principal.email, uuid);
+
+			DomainEvents.notify(evt);
+		}
+
+		return voidOrErr;
+	}
+
+	getApiKey(
+		authCtx: AuthContextProvider,
+		uuid: string,
+	): Promise<Either<AntboxError, ApiKeyNode>> {
+		if (!User.isAdmin(authCtx.principal)) {
+			return Promise.resolve(left(new ForbiddenError()));
+		}
+
+		return this.apiKeysService.get(uuid);
+	}
+
+	listApiKeys(authCtx: AuthContextProvider): Promise<Either<AntboxError, ApiKeyNode[]>> {
+		if (!User.isAdmin(authCtx.principal)) {
+			return Promise.resolve(left(new ForbiddenError()));
+		}
+
+		return this.apiKeysService.list();
+	}
+
+	createApiKey(
+		authCtx: AuthContextProvider,
+		group: string,
+	): Promise<Either<AntboxError, ApiKeyNode>> {
+		if (!User.isAdmin(authCtx.principal)) {
+			return Promise.resolve(left(new ForbiddenError()));
+		}
+
+		if (!group) {
+			return Promise.resolve(left(new BadRequestError("Group is required")));
+		}
+
+		return this.apiKeysService.create(group, authCtx.principal.email);
+	}
+
+	deleteApiKey(authCtx: AuthContextProvider, uuid: string): Promise<Either<AntboxError, void>> {
+		if (!User.isAdmin(authCtx.principal)) {
+			return Promise.resolve(left(new ForbiddenError()));
+		}
+
+		return this.apiKeysService.delete(uuid);
+	}
+
 	runExtension(
 		uuid: string,
 		request: Request,
@@ -630,6 +862,7 @@ export class AntboxService {
 			Node.GROUPS_FOLDER_UUID,
 			Node.USERS_FOLDER_UUID,
 			Node.OCR_TEMPLATES_FOLDER_UUID,
+			Node.API_KEYS_FOLDER_UUID,
 		];
 
 		return systemUuids.includes(uuid);

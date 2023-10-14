@@ -5,6 +5,9 @@ import uploadRouter from "./upload_router.ts";
 import actionsRouter from "./actions_router.ts";
 import webContentsRouter from "./web_contents_router.ts";
 import extRouter from "./ext_router.ts";
+import groupsRouter from "./groups_router.ts";
+import usersRouter from "./users_router.ts";
+import apiKeysRouter from "./api_keys_router.ts";
 
 import loginRouter from "./login_router.ts";
 import { Application, oakCors } from "../../../deps.ts";
@@ -38,6 +41,9 @@ export async function setupOakServer(tenants: AntboxTenant[]) {
 	const ext = extRouter(tenants);
 	const aspects = aspectsRouter(tenants);
 	const login = loginRouter(tenants);
+	const groups = groupsRouter(tenants);
+	const users = usersRouter(tenants);
+	const apikeys = apiKeysRouter(tenants);
 
 	app.use(nodes.routes());
 	app.use(webContent.routes());
@@ -46,6 +52,9 @@ export async function setupOakServer(tenants: AntboxTenant[]) {
 	app.use(upload.routes());
 	app.use(ext.routes());
 	app.use(login.routes());
+	app.use(groups.routes());
+	app.use(users.routes());
+	app.use(apikeys.routes());
 
 	app.use(nodes.allowedMethods());
 	app.use(webContent.allowedMethods());
@@ -53,6 +62,10 @@ export async function setupOakServer(tenants: AntboxTenant[]) {
 	app.use(actions.allowedMethods());
 	app.use(upload.allowedMethods());
 	app.use(ext.allowedMethods());
+	app.use(login.allowedMethods());
+	app.use(groups.allowedMethods());
+	app.use(users.allowedMethods());
+	app.use(apikeys.allowedMethods());
 
 	return (options: ServerOpts = { port: 7180 }) => {
 		return new Promise((resolve) => {

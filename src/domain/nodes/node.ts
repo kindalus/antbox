@@ -1,5 +1,8 @@
+import { ApiKeyNode } from "./api_key_node.ts";
 import { FolderNode } from "./folder_node.ts";
+import { GroupNode } from "./group_node.ts";
 import { SmartFolderNode } from "./smart_folder_node.ts";
+import { UserNode } from "./user_node.ts";
 
 export type Properties = Record<string, unknown>;
 
@@ -13,6 +16,7 @@ export class Node {
 	static USER_MIMETYPE = "application/vnd.antbox.user";
 	static GROUP_MIMETYPE = "application/vnd.antbox.group";
 	static OCR_TEMPLATE_MIMETYPE = "application/vnd.antbox.ocrtemplate";
+	static API_KEY_MIMETYPE = "application/vnd.antbox.apikey";
 
 	static ROOT_FOLDER_UUID = "--root--";
 	static USERS_FOLDER_UUID = "--users--";
@@ -22,6 +26,7 @@ export class Node {
 	static EXT_FOLDER_UUID = "--ext--";
 	static SYSTEM_FOLDER_UUID = "--system--";
 	static OCR_TEMPLATES_FOLDER_UUID = "--ocrtemplates--";
+	static API_KEYS_FOLDER_UUID = "--apikeys--";
 
 	private static FID_PREFIX = "fid--";
 
@@ -43,6 +48,14 @@ export class Node {
 
 	static isFolder(metadata: Partial<Node>): boolean {
 		return metadata?.mimetype === Node.FOLDER_MIMETYPE;
+	}
+
+	static isUser(metadata: Partial<Node>): boolean {
+		return metadata?.mimetype === Node.USER_MIMETYPE;
+	}
+
+	static isApikey(metadata: Partial<Node>): boolean {
+		return metadata?.mimetype === Node.API_KEY_MIMETYPE;
 	}
 
 	uuid = "";
@@ -67,6 +80,10 @@ export class Node {
 		return this.mimetype === "application/json";
 	}
 
+	isApikey(): this is ApiKeyNode {
+		return this.mimetype === Node.API_KEY_MIMETYPE;
+	}
+
 	isFolder(): this is FolderNode {
 		return this.mimetype === Node.FOLDER_MIMETYPE;
 	}
@@ -79,8 +96,8 @@ export class Node {
 		return this.mimetype === Node.SMART_FOLDER_MIMETYPE;
 	}
 
-	isFile(): boolean {
-		return !this.isFolder() && !this.isSmartFolder() && !this.isMetaNode();
+	isFile(): this is FileNode {
+		return this.mimetype.match(/^application\/vnd\.antbox\./) === null;
 	}
 
 	isRootFolder(): this is FolderNode {
@@ -89,6 +106,14 @@ export class Node {
 
 	isSystemRootFolder(): this is FolderNode {
 		return this.uuid === Node.SYSTEM_FOLDER_UUID;
+	}
+
+	isGroup(): this is GroupNode {
+		return this.mimetype === Node.GROUP_MIMETYPE;
+	}
+
+	isUser(): this is UserNode {
+		return this.mimetype === Node.USER_MIMETYPE;
 	}
 
 	static isJavascript(file: File) {

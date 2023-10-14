@@ -16,11 +16,11 @@ export abstract class NodeDeleter<T extends Node> {
 			return new SmartFolderNodeDeleter(node as SmartFolderNode, context);
 		}
 
-		if (node.isMetaNode()) {
-			return new MetaNodeDeleter(node as Node, context);
+		if (node.isFile()) {
+			return new FileNodeDeleter(node as FileNode, context);
 		}
 
-		return new FileNodeDeleter(node as FileNode, context);
+		return new MetaNodeDeleter(node as Node, context);
 	}
 
 	protected readonly node: T;

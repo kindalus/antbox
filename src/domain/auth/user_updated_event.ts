@@ -1,14 +1,14 @@
 import { Event } from "../../shared/event.ts";
 
-export class UserCreatedEvent implements Event {
-	static EVENT_ID = "UserCreatedEvent";
+export class UserUpdatedEvent implements Event {
+	static EVENT_ID = "UserUpdatedEvent";
 
 	readonly eventId: string;
 	readonly occurredOn: Date;
 	readonly payload: Record<string, unknown>;
 
 	constructor(readonly userEmail: string, email: string, fullname: string) {
-		this.eventId = UserCreatedEvent.EVENT_ID;
+		this.eventId = UserUpdatedEvent.EVENT_ID;
 		this.occurredOn = new Date();
 		this.payload = {
 			email,

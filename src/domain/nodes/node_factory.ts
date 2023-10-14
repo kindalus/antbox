@@ -1,13 +1,16 @@
 import { Group } from "../auth/group.ts";
 import { User } from "../auth/user.ts";
+import { ApiKeyNode } from "./api_key_node.ts";
 import { FolderNode } from "./folder_node.ts";
+import { GroupNode } from "./group_node.ts";
 import { FileNode, Node } from "./node.ts";
 import { SmartFolderNode } from "./smart_folder_node.ts";
+import { UserNode } from "./user_node.ts";
 
 export class NodeFactory {
 	static fromMimetype(
 		mimetype: string,
-	): Node | FileNode | SmartFolderNode | FolderNode {
+	): Node | FileNode | SmartFolderNode | FolderNode | GroupNode | UserNode | ApiKeyNode {
 		switch (mimetype) {
 			case Node.FOLDER_MIMETYPE:
 				return new FolderNode();
@@ -15,6 +18,12 @@ export class NodeFactory {
 				return new SmartFolderNode();
 			case Node.META_NODE_MIMETYPE:
 				return new Node();
+			case Node.GROUP_MIMETYPE:
+				return new GroupNode();
+			case Node.USER_MIMETYPE:
+				return new UserNode();
+			case Node.API_KEY_MIMETYPE:
+				return new ApiKeyNode();
 			default:
 				return new FileNode();
 		}
@@ -97,6 +106,20 @@ export class NodeFactory {
 			};
 		}
 
+		if (Node.isUser(metadata)) {
+			return {
+				...node,
+				...NodeFactory.extractUserMetadataFields(metadata),
+			};
+		}
+
+		if (Node.isApikey(metadata)) {
+			return {
+				...node,
+				...NodeFactory.extractApikeyMetadataFields(metadata),
+			};
+		}
+
 		return node;
 	}
 
@@ -110,5 +133,20 @@ export class NodeFactory {
 		}
 
 		return folderNode;
+	}
+
+	private static extractUserMetadataFields(metadata: Partial<UserNode>): Partial<UserNode> {
+		return {
+			email: metadata.email ?? "",
+			group: metadata.group ?? Group.ADMINS_GROUP_UUID,
+			groups: metadata.groups ?? [],
+		};
+	}
+
+	private static extractApikeyMetadataFields(metadata: Partial<ApiKeyNode>): Partial<ApiKeyNode> {
+		return {
+			group: metadata.group,
+			secret: metadata.secret,
+		};
 	}
 }

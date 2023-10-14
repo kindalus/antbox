@@ -1,3 +1,3 @@
 export interface UuidGenerator {
-  generate(): string;
+	generate(length?: number): string;
 }

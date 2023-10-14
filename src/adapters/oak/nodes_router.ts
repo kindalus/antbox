@@ -1,7 +1,7 @@
 import { Context, getQuery, Router, Status } from "../../../deps.ts";
 import { Node } from "../../domain/nodes/node.ts";
-import { AntboxError } from "../../shared/antbox_error.ts";
-import { Either } from "../../shared/either.ts";
+import { AntboxError, BadRequestError } from "../../shared/antbox_error.ts";
+import { Either, left } from "../../shared/either.ts";
 import { ContextWithParams } from "./context_with_params.ts";
 import { getRequestContext } from "./get_request_context.ts";
 import { getTenant } from "./get_tenant.ts";
@@ -87,6 +87,14 @@ export default function (tenants: AntboxTenant[]) {
 		}
 
 		const authCtx = getRequestContext(ctx);
+
+		if (
+			metadata.mimetype !== Node.META_NODE_MIMETYPE &&
+			metadata.mimetype !== Node.FOLDER_MIMETYPE
+		) {
+			const err = new BadRequestError("Only folders and metanodes can be created.");
+			return processEither(ctx, left(err));
+		}
 
 		const creator = metadata.mimetype === Node.META_NODE_MIMETYPE
 			? service.createMetanode(authCtx, metadata)

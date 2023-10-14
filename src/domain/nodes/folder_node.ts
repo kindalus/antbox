@@ -11,6 +11,7 @@ export class FolderNode extends Node {
 	static ACTIONS_FOLDER = FolderNode.#buildActionsFolder();
 	static EXT_FOLDER = FolderNode.#buildExtFolder();
 	static OCR_TEMPLATES_FOLDER = FolderNode.#buildOcrTemplatesFolder();
+	static API_KEYS_FOLDER = FolderNode.#buildApiKeysFolder();
 
 	static #buildRootFolder(): FolderNode {
 		const root = new FolderNode();
@@ -87,6 +88,15 @@ export class FolderNode extends Node {
 			Node.OCR_TEMPLATES_FOLDER_UUID,
 			Node.OCR_TEMPLATES_FOLDER_UUID,
 			"OCR Templates",
+			Node.SYSTEM_FOLDER_UUID,
+		);
+	}
+
+	static #buildApiKeysFolder(): FolderNode {
+		return FolderNode.#createSystemFolderMetadata(
+			Node.API_KEYS_FOLDER_UUID,
+			Node.API_KEYS_FOLDER_UUID,
+			"API Keys",
 			Node.SYSTEM_FOLDER_UUID,
 		);
 	}

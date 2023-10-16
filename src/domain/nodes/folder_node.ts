@@ -117,6 +117,20 @@ export class FolderNode extends Node {
 		});
 	}
 
+	static isSystemFolder(uuid: string): boolean {
+		const systemUuids = [
+			Node.ASPECTS_FOLDER_UUID,
+			Node.ACTIONS_FOLDER_UUID,
+			Node.EXT_FOLDER_UUID,
+			Node.GROUPS_FOLDER_UUID,
+			Node.USERS_FOLDER_UUID,
+			Node.OCR_TEMPLATES_FOLDER_UUID,
+			Node.API_KEYS_FOLDER_UUID,
+		];
+
+		return systemUuids.includes(uuid);
+	}
+
 	onCreate: string[] = [];
 	onUpdate: string[] = [];
 	group: string = null as unknown as string;

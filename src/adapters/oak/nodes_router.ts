@@ -97,7 +97,7 @@ export default function (tenants: AntboxTenant[]) {
 		}
 
 		const creator = metadata.mimetype === Node.META_NODE_MIMETYPE
-			? service.createMetanode(authCtx, metadata)
+			? service.create(authCtx, metadata)
 			: service.createFolder(authCtx, metadata);
 
 		return creator

@@ -1,6 +1,7 @@
 import { Action } from "../domain/actions/action.ts";
 import { RunContext } from "../domain/actions/run_context.ts";
 import { AuthContextProvider } from "../domain/auth/auth_provider.ts";
+import { User } from "../domain/auth/user.ts";
 import { UserNotFoundError } from "../domain/auth/user_not_found_error.ts";
 import { getFiltersPredicate } from "../domain/nodes/filters_predicate.ts";
 import { Node } from "../domain/nodes/node.ts";
@@ -127,16 +128,16 @@ export class ActionService {
 		const action = await ActionService.fileToAction(file);
 		const actionFile = await ActionService.actionToFile(action);
 
-		const metadata = NodeFactory.createFileMetadata(
+		const metadata = NodeFactory.createMetadata(
 			action.uuid,
 			action.uuid,
+			Node.ACTION_MIMETYPE,
+			file.size,
 			{
 				title: action.title,
 				description: action.description,
 				parent: Node.ACTIONS_FOLDER_UUID,
 			},
-			Node.ACTION_MIMETYPE,
-			file.size,
 		);
 
 		const nodeOrErr = await this.nodeService.get(action.uuid);
@@ -418,7 +419,7 @@ export class ActionService {
 				fullname: node.title,
 				group: node.properties["user:group"] as unknown as string,
 				groups: (node.properties["user:groups"] as unknown as string[]) ?? [],
-			},
+			} as User,
 			mode: "Action",
 		});
 	}

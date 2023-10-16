@@ -68,7 +68,7 @@ class PouchdbNodeRepository implements NodeRepository {
 				return left(doc.value);
 			}
 
-			const updatedDoc = NodeFactory.composeNode(doc.value, node);
+			const updatedDoc = NodeFactory.compose(doc.value, node);
 
 			this.db.put(updatedDoc);
 
@@ -158,7 +158,7 @@ function filterToMango(filter: NodeFilter): MangoFilter {
 
 function docToNode(doc: MangoDocument): Node {
 	const { _id, _rev, ...node } = doc;
-	return NodeFactory.composeNode(node);
+	return NodeFactory.compose(node);
 }
 
 const operators: Partial<Record<FilterOperator, string>> = {

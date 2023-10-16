@@ -13,6 +13,7 @@ import { AntboxError } from "../shared/antbox_error.ts";
 import { Either } from "../shared/either.ts";
 import { AntboxService } from "./antbox_service.ts";
 import { NodeService } from "./node_service.ts";
+import { NodeServiceContext } from "./node_service_context.ts";
 
 export function antboxToNodeService(
 	auth: AuthContextProvider,
@@ -21,11 +22,13 @@ export function antboxToNodeService(
 	return new SecuredNodeService(auth, srv);
 }
 
-class SecuredNodeService implements NodeService {
+class SecuredNodeService extends NodeService {
 	constructor(
 		private auth: AuthContextProvider,
 		private readonly srv: AntboxService,
-	) {}
+	) {
+		super({} as NodeServiceContext);
+	}
 
 	createFile(
 		file: File,
@@ -41,7 +44,7 @@ class SecuredNodeService implements NodeService {
 	}
 
 	createMetanode(metadata: Partial<Node>): Promise<Either<AntboxError, Node>> {
-		return this.srv.createMetanode(this.auth, metadata);
+		return this.srv.create(this.auth, metadata);
 	}
 
 	duplicate(uuid: string): Promise<Either<NodeNotFoundError, Node>> {

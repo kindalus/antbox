@@ -1,3 +1,4 @@
+import { Action } from "../../domain/actions/action.ts";
 import { RunContext } from "../../domain/actions/run_context.ts";
 
 import { Node } from "../../domain/nodes/node.ts";
@@ -55,7 +56,7 @@ export default {
 
 		return;
 	},
-};
+} as Action;
 
 function updateTaskPredicate(nodeService: NodeService, parent: string) {
 	return (uuid: string) => nodeService.update(uuid, { parent }, true);

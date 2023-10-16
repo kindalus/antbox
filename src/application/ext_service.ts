@@ -23,15 +23,15 @@ export class ExtService {
 
 		const uuid = file.name?.split(".")[0].trim();
 
-		const metadata = NodeFactory.createFileMetadata(
+		const metadata = NodeFactory.createMetadata(
 			uuid,
 			uuid,
+			Node.EXT_MIMETYPE,
+			file.size,
 			{
 				title: uuid,
 				parent: Node.EXT_FOLDER_UUID,
 			},
-			Node.EXT_MIMETYPE,
-			file.size,
 		);
 
 		const nodeOrErr = await this.nodeService.get(uuid);

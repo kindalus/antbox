@@ -58,6 +58,10 @@ export class Node {
 		return metadata?.mimetype === Node.API_KEY_MIMETYPE;
 	}
 
+	static isSmartFolder(metadata: Partial<Node>): boolean {
+		return metadata?.mimetype === Node.SMART_FOLDER_MIMETYPE;
+	}
+
 	uuid = "";
 	fid = "";
 	title = "";
@@ -96,7 +100,7 @@ export class Node {
 		return this.mimetype === Node.SMART_FOLDER_MIMETYPE;
 	}
 
-	isFile(): this is FileNode {
+	isFile(): this is Node {
 		return this.mimetype.match(/^application\/vnd\.antbox\./) === null;
 	}
 
@@ -130,9 +134,3 @@ export type Permissions = {
 	authenticated: Permission[];
 	anonymous: Permission[];
 };
-
-export class FileNode extends Node {
-	constructor() {
-		super();
-	}
-}

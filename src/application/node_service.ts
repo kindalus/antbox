@@ -8,6 +8,7 @@ import { NodeFactory } from "../domain/nodes/node_factory.ts";
 import { NodeFilter } from "../domain/nodes/node_filter.ts";
 import { NodeNotFoundError } from "../domain/nodes/node_not_found_error.ts";
 import { NodeFilterResult } from "../domain/nodes/node_repository.ts";
+import { NodeSpec } from "../domain/nodes/node_spec.ts";
 import {
 	AggregationResult,
 	Reducers,
@@ -34,63 +35,20 @@ import {
 } from "./node_mapper.ts";
 import { NodeServiceContext } from "./node_service_context.ts";
 
-export interface NodeService {
-	createFile(
-		file: File,
-		metadata: Partial<Node>,
-	): Promise<Either<AntboxError, Node>>;
-
-	createFolder(
-		metadata: Partial<FolderNode>,
-	): Promise<Either<AntboxError, FolderNode>>;
-
-	createMetanode(metadata: Partial<Node>): Promise<Either<AntboxError, Node>>;
-
-	duplicate(uuid: string): Promise<Either<NodeNotFoundError, Node>>;
-
-	copy(uuid: string, parent: string): Promise<Either<NodeNotFoundError, Node>>;
-
-	updateFile(
-		uuid: string,
-		file: File,
-	): Promise<Either<NodeNotFoundError, void>>;
-
-	delete(uuid: string): Promise<Either<NodeNotFoundError, void>>;
-
-	get(uuid: string): Promise<Either<NodeNotFoundError, Node>>;
-
-	list(parent?: string): Promise<Either<FolderNotFoundError, Node[]>>;
-
-	query(
-		filters: NodeFilter[],
-		pageSize: number,
-		pageToken?: number,
-	): Promise<Either<AntboxError, NodeFilterResult>>;
-
-	update(
-		uuid: string,
-		data: Partial<Node>,
-		merge?: boolean,
-	): Promise<Either<AntboxError, void>>;
-
-	evaluate(
-		uuid: string,
-	): Promise<
-		Either<
-			SmartFolderNodeNotFoundError | AggregationFormulaError,
-			SmartFolderNodeEvaluation
-		>
-	>;
-
-	export(uuid: string): Promise<Either<NodeNotFoundError, File>>;
-}
-
-export class NodeServiceImpl implements NodeService {
+/**
+ * The `NodeService` class is responsible for managing raw nodes in the system.
+ * It provides functionality for handling nodes without enforcing any specific rules
+ * other than ensuring node integrity.
+ *
+ * Node integrity refers to the basic structural and data consistency of nodes, such as
+ * ensuring they have the required properties and relationships.
+ *
+ * This class serves as a foundational service for working with nodes and can be used
+ * in various parts of the application where raw nodes need to be manipulated or
+ * processed.
+ */
+export class NodeService {
 	readonly #builtinNodeListCreator: Record<string, Node[]>;
-	readonly #fileCreators: Record<
-		string,
-		(file: File, metadata: Partial<Node>) => Promise<Either<AntboxError, Node>>
-	>;
 
 	constructor(private readonly context: NodeServiceContext) {
 		this.#builtinNodeListCreator = {};
@@ -98,25 +56,6 @@ export class NodeServiceImpl implements NodeService {
 		this.#builtinNodeListCreator[Node.ASPECTS_FOLDER_UUID] = builtinAspects.map(aspectToNode);
 		this.#builtinNodeListCreator[Node.USERS_FOLDER_UUID] = builtinUsers.map(userToNode);
 		this.#builtinNodeListCreator[Node.GROUPS_FOLDER_UUID] = builtinGroups.map(groupToNode);
-
-		this.#fileCreators = {};
-		this.#fileCreators[Node.SMART_FOLDER_MIMETYPE] = (f, m) => this.#createSmartfolder(f, m);
-	}
-
-	get uuidGenerator() {
-		return this.context.uuidGenerator;
-	}
-
-	get fidGenerator() {
-		return this.context.fidGenerator;
-	}
-
-	get storage() {
-		return this.context.storage;
-	}
-
-	get repository() {
-		return this.context.repository;
 	}
 
 	async createFile(
@@ -125,17 +64,17 @@ export class NodeServiceImpl implements NodeService {
 	): Promise<Either<AntboxError, Node>> {
 		metadata.title = metadata.title ?? file.name;
 
-		const validOrErr = await this.#verifyTitleAndParent(metadata);
+		const validOrErr = await this.#verifyParent(metadata);
 		if (validOrErr.isLeft()) {
 			return left(validOrErr.value);
 		}
 
-		const creator = this.#fileCreators[metadata.mimetype ?? file.type];
-		if (creator) {
-			return creator(file, metadata);
-		}
-
 		const node = this.#createFileMetadata(metadata, file.type, file.size);
+
+		const trueOrErr = NodeSpec.isSatisfiedBy(node);
+		if (trueOrErr.isLeft()) {
+			return left(trueOrErr.value);
+		}
 
 		let voidOrErr = await this.context.storage.write(node.uuid, file, {
 			title: node.title,
@@ -155,13 +94,9 @@ export class NodeServiceImpl implements NodeService {
 		return right(node);
 	}
 
-	async #verifyTitleAndParent(
+	async #verifyParent(
 		metadata: Partial<Node>,
 	): Promise<Either<AntboxError, true>> {
-		if (!metadata.title) {
-			return left(new BadRequestError("title"));
-		}
-
 		const parentUuid = metadata.parent ?? Node.ROOT_FOLDER_UUID;
 		const parentOrErr = await this.get(parentUuid);
 		if (parentOrErr.isLeft()) {
@@ -171,77 +106,24 @@ export class NodeServiceImpl implements NodeService {
 		return right(true);
 	}
 
-	async #createSmartfolder(
-		file: File,
-		metadata: Partial<Node>,
-	): Promise<Either<AntboxError, Node>> {
-		let json: SmartFolderNode;
-		try {
-			const content = new TextDecoder().decode(await file.arrayBuffer());
-			json = JSON.parse(content);
-		} catch (_e) {
-			return left(new BadRequestError("not a valid JSON file"));
-		}
-
-		json.mimetype = Node.SMART_FOLDER_MIMETYPE;
-
-		const node = NodeFactory.composeSmartFolder(
-			{
-				uuid: this.context.uuidGenerator!.generate(),
-				fid: this.context.fidGenerator!.generate(metadata.title!),
-				size: 0,
-			},
-			NodeFactory.extractMetadataFields(metadata),
-			{
-				filters: json.filters,
-				aggregations: json.aggregations,
-				title: json.title,
-			},
-		);
-
-		node.fulltext = await this.#calculateFulltext(node);
-
-		const voidOrErr = await this.context.repository.add(node);
-		if (voidOrErr.isLeft()) {
-			return left(voidOrErr.value);
-		}
-
-		return right(node);
-	}
-
-	async createFolder(
-		metadata: Partial<FolderNode>,
-	): Promise<Either<AntboxError, FolderNode>> {
-		const validOrErr = await this.#verifyTitleAndParent(metadata);
+	async create(metadata: Partial<Node>): Promise<Either<AntboxError, Node>> {
+		const validOrErr = await this.#verifyParent(metadata);
 		if (validOrErr.isLeft()) {
 			return left(validOrErr.value);
 		}
 
-		const node = NodeFactory.createFolderMetadata(
-			metadata.uuid ?? this.context.uuidGenerator.generate(),
-			metadata.fid ?? this.context.fidGenerator.generate(metadata.title!),
-			metadata,
-		);
-
-		node.fulltext = await this.#calculateFulltext(node);
-		await this.context.repository.add(node);
-
-		return right(node);
-	}
-
-	async createMetanode(
-		metadata: Partial<Node>,
-	): Promise<Either<AntboxError, Node>> {
-		const validOrErr = await this.#verifyTitleAndParent(metadata);
-		if (validOrErr.isLeft()) {
-			return left(validOrErr.value);
+		if (!metadata.mimetype) {
+			return left(new BadRequestError("mimetype is required"));
 		}
 
-		const node = this.#createFileMetadata(
-			metadata,
-			metadata.mimetype ?? Node.META_NODE_MIMETYPE,
-			0,
-		);
+		const uuid = metadata.uuid ?? this.context.uuidGenerator.generate();
+		const fid = metadata.fid ?? this.context.fidGenerator.generate(metadata.title ?? uuid);
+		const node = NodeFactory.createMetadata(uuid, fid, metadata.mimetype, 0, metadata);
+
+		const trueOrErr = NodeSpec.isSatisfiedBy(node);
+		if (trueOrErr.isLeft()) {
+			return left(trueOrErr.value);
+		}
 
 		node.fulltext = await this.#calculateFulltext(node);
 		const addOrErr = await this.context.repository.add(node);
@@ -458,7 +340,7 @@ export class NodeServiceImpl implements NodeService {
 		const fid = metadata.fid ??
 			this.context.fidGenerator.generate(metadata.title ?? uuid);
 
-		return NodeFactory.createFileMetadata(uuid, fid, metadata, mimetype, size);
+		return NodeFactory.createMetadata(uuid, fid, mimetype, size, metadata);
 	}
 
 	private getBuiltinGroup(uuid: string): Promise<Either<NodeNotFoundError, Node>> {

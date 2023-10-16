@@ -39,7 +39,7 @@ export class AuthService {
 		const { uuid, ...rest } = user;
 
 		const node = userToNode(rest as User);
-		const nodeOrErr = await this.nodeService.createMetanode({ ...node, owner: user.owner });
+		const nodeOrErr = await this.nodeService.create({ ...node, owner: user.owner });
 
 		return nodeOrErr as Either<AntboxError, UserNode>;
 	}
@@ -164,7 +164,7 @@ export class AuthService {
 		const { uuid, ...rest } = group;
 
 		const node = groupToNode(rest as Group);
-		const nodeOrErr = await this.nodeService.createMetanode({ ...node, owner: group.owner });
+		const nodeOrErr = await this.nodeService.create({ ...node, owner: group.owner });
 
 		return nodeOrErr as Either<AntboxError, GroupNode>;
 	}

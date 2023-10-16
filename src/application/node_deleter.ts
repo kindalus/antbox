@@ -1,5 +1,5 @@
 import { FolderNode } from "../domain/nodes/folder_node.ts";
-import { FileNode, Node } from "../domain/nodes/node.ts";
+import { Node } from "../domain/nodes/node.ts";
 import { NodeNotFoundError } from "../domain/nodes/node_not_found_error.ts";
 import { SmartFolderNode } from "../domain/nodes/smart_folder_node.ts";
 import { AntboxError } from "../shared/antbox_error.ts";
@@ -17,7 +17,7 @@ export abstract class NodeDeleter<T extends Node> {
 		}
 
 		if (node.isFile()) {
-			return new FileNodeDeleter(node as FileNode, context);
+			return new FileNodeDeleter(node as Node, context);
 		}
 
 		return new MetaNodeDeleter(node as Node, context);
@@ -52,8 +52,8 @@ export class MetaNodeDeleter extends NodeDeleter<Node> {
 	}
 }
 
-export class FileNodeDeleter extends NodeDeleter<FileNode> {
-	constructor(node: FileNode, context: NodeServiceContext) {
+export class FileNodeDeleter extends NodeDeleter<Node> {
+	constructor(node: Node, context: NodeServiceContext) {
 		super(node, context);
 	}
 

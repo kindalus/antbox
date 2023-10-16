@@ -38,7 +38,7 @@ export class ApiKeyService {
 			owner,
 		};
 
-		const nodeOrErr = await this.#nodeService.createMetanode(metadata);
+		const nodeOrErr = await this.#nodeService.create(metadata);
 		return nodeOrErr as Either<AntboxError, ApiKeyNode>;
 	}
 

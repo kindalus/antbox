@@ -20,16 +20,16 @@ export class AspectService {
 
 		const aspect = (await file.text().then((t) => JSON.parse(t))) as Aspect;
 
-		const metadata = NodeFactory.createFileMetadata(
+		const metadata = NodeFactory.createMetadata(
 			aspect.uuid,
 			aspect.uuid,
+			Node.ASPECT_MIMETYPE,
+			file.size,
 			{
 				title: aspect.title,
 				description: aspect.description,
 				parent: Node.ASPECTS_FOLDER_UUID,
 			},
-			Node.ASPECT_MIMETYPE,
-			file.size,
 		);
 
 		const nodeOrErr = await this.nodeService.get(metadata.uuid);

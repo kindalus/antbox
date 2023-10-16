@@ -199,7 +199,7 @@ function toNodeDomain(doc: WithId<Document>): Node {
 		folderFields.onUpdate = node.onUpdate;
 	}
 
-	return NodeFactory.composeNode(nodeFields, smartfolderFields, folderFields);
+	return NodeFactory.compose(nodeFields, smartfolderFields, folderFields);
 }
 
 function buildMongoQuery(filters: NodeFilter[]): Filter<Document> {

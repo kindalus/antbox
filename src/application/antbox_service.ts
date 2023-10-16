@@ -12,7 +12,7 @@ import { UserUpdatedEvent } from "../domain/auth/user_updated_event.ts";
 import { AggregationFormulaError } from "../domain/nodes/aggregation_formula_error.ts";
 import { ApiKeyNode } from "../domain/nodes/api_key_node.ts";
 import { FolderNode } from "../domain/nodes/folder_node.ts";
-import { FileNode, Node, Permission } from "../domain/nodes/node.ts";
+import { Node, Permission } from "../domain/nodes/node.ts";
 import { NodeContentUpdatedEvent } from "../domain/nodes/node_content_updated_event.ts";
 import { NodeCreatedEvent } from "../domain/nodes/node_created_event.ts";
 import { NodeDeletedEvent } from "../domain/nodes/node_deleted_event.ts";
@@ -30,7 +30,7 @@ import { AspectService } from "./aspect_service.ts";
 import { AuthService } from "./auth_service.ts";
 import { DomainEvents } from "./domain_events.ts";
 import { ExtService } from "./ext_service.ts";
-import { NodeService, NodeServiceImpl } from "./node_service.ts";
+import { NodeService } from "./node_service.ts";
 import { NodeServiceContext } from "./node_service_context.ts";
 
 export class AntboxService {
@@ -47,7 +47,7 @@ export class AntboxService {
 	>;
 
 	constructor(nodeCtx: NodeServiceContext) {
-		this.nodeService = new NodeServiceImpl(nodeCtx);
+		this.nodeService = new NodeService(nodeCtx);
 		this.authService = new AuthService(this.nodeService);
 		this.aspectService = new AspectService(this.nodeService);
 		this.actionService = new ActionService(this.nodeService, this);
@@ -82,7 +82,7 @@ export class AntboxService {
 			return left(new ForbiddenError());
 		}
 
-		if (AntboxService.isSystemFolder(parent)) {
+		if (FolderNode.isSystemFolder(parent)) {
 			return left(new BadRequestError("Cannot create regular files in system folder"));
 		}
 
@@ -109,11 +109,11 @@ export class AntboxService {
 		return nodeOrErr;
 	}
 
-	async createMetanode(
+	async create(
 		authCtx: AuthContextProvider,
 		metadata: Partial<Node>,
 	): Promise<Either<AntboxError, Node>> {
-		if (AntboxService.isSystemFolder(metadata.parent!)) {
+		if (FolderNode.isSystemFolder(metadata.parent!)) {
 			return left(new BadRequestError("Cannot create metanodes in system folder"));
 		}
 
@@ -126,7 +126,7 @@ export class AntboxService {
 			return left(parentOrErr.value);
 		}
 
-		return this.nodeService.createMetanode({ ...metadata, parent: parentOrErr.value.uuid })
+		return this.nodeService.create({ ...metadata, parent: parentOrErr.value.uuid })
 			.then((result) => {
 				if (result.isRight()) {
 					DomainEvents.notify(
@@ -142,7 +142,7 @@ export class AntboxService {
 		authCtx: AuthContextProvider,
 		metadata: Partial<FolderNode>,
 	): Promise<Either<AntboxError, FolderNode>> {
-		if (AntboxService.isSystemFolder(metadata.parent!)) {
+		if (FolderNode.isSystemFolder(metadata.parent!)) {
 			return left(new BadRequestError("Cannot create folders in system folder"));
 		}
 
@@ -156,7 +156,7 @@ export class AntboxService {
 			return left(parentOrErr.value);
 		}
 
-		const result = await this.nodeService.createFolder({
+		const result = await this.nodeService.create({
 			...metadata,
 			parent: parentOrErr.value.uuid,
 			owner: authCtx.principal.email,
@@ -164,13 +164,13 @@ export class AntboxService {
 			permissions: metadata.permissions ?? {
 				...parentOrErr.value.permissions,
 			},
-		});
+		} as Partial<FolderNode>);
 
 		if (result.isRight()) {
 			DomainEvents.notify(new NodeCreatedEvent(authCtx.principal.email, result.value));
 		}
 
-		return result;
+		return right(result.value as FolderNode);
 	}
 
 	async list(
@@ -516,7 +516,7 @@ export class AntboxService {
 
 	async #updateSystemFile(
 		authCtx: AuthContextProvider,
-		metadata: FileNode,
+		metadata: Node,
 		file: File,
 	): Promise<Either<AntboxError, void>> {
 		const createSystemFile = this.#fileCreators[metadata.mimetype];
@@ -852,19 +852,5 @@ export class AntboxService {
 					evt as NodeUpdatedEvent,
 				),
 		});
-	}
-
-	static isSystemFolder(uuid: string): boolean {
-		const systemUuids = [
-			Node.ASPECTS_FOLDER_UUID,
-			Node.ACTIONS_FOLDER_UUID,
-			Node.EXT_FOLDER_UUID,
-			Node.GROUPS_FOLDER_UUID,
-			Node.USERS_FOLDER_UUID,
-			Node.OCR_TEMPLATES_FOLDER_UUID,
-			Node.API_KEYS_FOLDER_UUID,
-		];
-
-		return systemUuids.includes(uuid);
 	}
 }

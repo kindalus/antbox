@@ -7,20 +7,6 @@ import { Node } from "../domain/nodes/node.ts";
 import { UserNode } from "../domain/nodes/user_node.ts";
 import { OcrTemplate } from "../domain/orc_templates/ocr_template.ts";
 
-export function fileToAspect(file: File): Promise<Aspect> {
-	return file
-		.text()
-		.then((text) => JSON.parse(text))
-		.then((raw) => ({
-			uuid: raw.uuid ?? file.name.split(".")[0],
-			title: raw.title ?? file.name.split(".")[0],
-			description: raw.description ?? "",
-			builtIn: false,
-			filters: raw.filters ?? [],
-			properties: raw.properties ?? [],
-		}));
-}
-
 export function fileToOcrTemplate(file: File): Promise<OcrTemplate> {
 	return file
 		.text()
@@ -35,27 +21,6 @@ export function fileToOcrTemplate(file: File): Promise<OcrTemplate> {
 			targetAspect: raw.targetAspect,
 			properties: raw.properties ?? [],
 		}));
-}
-
-export function aspectToFile(aspect: Aspect): File {
-	const raw = JSON.stringify(
-		{
-			uuid: aspect.uuid,
-			title: aspect.title ?? aspect.uuid,
-			description: aspect.description,
-			builtIn: aspect.builtIn ?? false,
-			filters: aspect.filters ?? [],
-			properties: aspect.properties ?? [],
-		},
-		null,
-		4,
-	);
-
-	const f = new File([raw], aspect.uuid + ".json", {
-		type: "application/json",
-	});
-
-	return f;
 }
 
 export function nodeToUser(node: UserNode): User {

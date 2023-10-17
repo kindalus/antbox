@@ -17,7 +17,7 @@ import { groupToNode, nodeToGroup, nodeToUser, userToNode } from "./node_mapper.
 import { NodeService } from "./node_service.ts";
 
 export class AuthService {
-	#userSpec = new UserSpec();
+	#userSpec = UserSpec;
 	#groupSpec = new GroupSpec();
 
 	constructor(private readonly nodeService: NodeService) {}

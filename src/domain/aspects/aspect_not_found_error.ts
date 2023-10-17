@@ -1,7 +1,8 @@
-const ASPECT_NOT_FOUND_ERROR = "AspectNotFoundError";
+import { AntboxError } from "../../shared/antbox_error.ts";
 
 export class AspectNotFoundError extends AntboxError {
-  constructor(uuid: string) {
-    super(ASPECT_NOT_FOUND_ERROR, `Aspect not found: '${uuid}'`);
-  }
+	static ASPECT_NOT_FOUND_ERROR = "AspectNotFoundError";
+	constructor(uuid: string) {
+		super(AspectNotFoundError.ASPECT_NOT_FOUND_ERROR, `Aspect not found: '${uuid}'`);
+	}
 }

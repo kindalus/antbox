@@ -78,29 +78,12 @@ export default function (tenants: AntboxTenant[]) {
 		}: { metadata: Partial<Node> } = await ctx.request.body()
 			.value;
 
-		if (!metadata.mimetype) {
+		if (!metadata?.mimetype) {
 			return Promise.resolve(sendBadRequest(ctx, "{ mimetype } not given"));
 		}
 
-		if (!metadata?.title) {
-			return Promise.resolve(sendBadRequest(ctx, "{ title } not given"));
-		}
-
-		const authCtx = getRequestContext(ctx);
-
-		if (
-			metadata.mimetype !== Node.META_NODE_MIMETYPE &&
-			metadata.mimetype !== Node.FOLDER_MIMETYPE
-		) {
-			const err = new BadRequestError("Only folders and metanodes can be created.");
-			return processEither(ctx, left(err));
-		}
-
-		const creator = metadata.mimetype === Node.META_NODE_MIMETYPE
-			? service.create(authCtx, metadata)
-			: service.createFolder(authCtx, metadata);
-
-		return creator
+		return service
+			.create(getRequestContext(ctx), metadata)
 			.then((result) => processEither(ctx, result))
 			.catch((err) => processError(err, ctx));
 	};

@@ -1,3 +1,4 @@
+import { AspectNode } from "../aspects/aspect_node.ts";
 import { Group } from "../auth/group.ts";
 import { User } from "../auth/user.ts";
 import { Node, Permissions } from "./node.ts";
@@ -143,5 +144,9 @@ export class FolderNode extends Node {
 	constructor() {
 		super();
 		this.mimetype = Node.FOLDER_MIMETYPE;
+	}
+
+	isAspectsFolder(): boolean {
+		return this.uuid === Node.ASPECTS_FOLDER_UUID;
 	}
 }

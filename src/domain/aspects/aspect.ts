@@ -1,4 +1,8 @@
+import { builtinAspects } from "../../application/builtin_aspects/mod.ts";
+import { Node } from "../nodes/node.ts";
+import { NodeFactory } from "../nodes/node_factory.ts";
 import { NodeFilter } from "../nodes/node_filter.ts";
+import { AspectNode } from "./aspect_node.ts";
 
 export interface Aspect {
 	uuid: string;
@@ -57,3 +61,29 @@ export type PropertyType =
 	| "text"
 	| "uuid"
 	| "uuid[]";
+
+export function nodeToAspect(aspect: AspectNode): Aspect {
+	return {
+		uuid: aspect.uuid,
+		title: aspect.title,
+		description: aspect.description,
+		builtIn: builtinAspects.find((a) => a.uuid === aspect.uuid) !== undefined,
+		filters: aspect.filters,
+		properties: aspect.aspectProperties,
+	};
+}
+
+export function aspectToNode(aspect: Aspect): AspectNode {
+	const { properties, ...safeMetadata } = aspect;
+
+	const metadata: Partial<AspectNode> = { ...safeMetadata };
+	metadata.aspectProperties = properties;
+
+	return NodeFactory.createMetadata(
+		aspect.uuid,
+		aspect.uuid,
+		Node.ASPECT_MIMETYPE,
+		0,
+		metadata,
+	) as AspectNode;
+}

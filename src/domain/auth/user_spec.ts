@@ -1,17 +1,17 @@
 import { left, right } from "../../shared/either.ts";
 import { RegexSpec } from "../../shared/regex_spec.ts";
-import { AndSpecification, specFn, ValidationResult } from "../../shared/specification.ts";
+import { andSpecification, specFn, ValidationResult } from "../../shared/specification.ts";
 import { ValidationError } from "../../shared/validation_error.ts";
 import { InvalidEmailFormatError } from "./invalid_email_format_error.ts";
 import { InvalidFullnameFormatError } from "./invalid_fullname_format_error.ts";
 import { User } from "./user.ts";
 import { UserGroupRequiredError } from "./user_group_required_error.ts";
 
-export class UserSpec extends AndSpecification<User> {
-	constructor() {
-		super(specFn(fullnameSpec), specFn(emailSpec), specFn(groupRequiredSpec));
-	}
-}
+export const UserSpec = andSpecification<User>(
+	specFn(fullnameSpec),
+	specFn(emailSpec),
+	specFn(groupRequiredSpec),
+);
 
 function emailSpec(u: User): ValidationResult {
 	const EMAIL_REGEX =

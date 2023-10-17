@@ -1,3 +1,4 @@
+import { returnsNext } from "https://deno.land/std@0.183.0/testing/mock.ts?source";
 import { Action } from "../domain/actions/action.ts";
 import { Aspect } from "../domain/aspects/aspect.ts";
 import { AuthContextProvider } from "../domain/auth/auth_provider.ts";
@@ -32,6 +33,7 @@ import { DomainEvents } from "./domain_events.ts";
 import { ExtService } from "./ext_service.ts";
 import { NodeService } from "./node_service.ts";
 import { NodeServiceContext } from "./node_service_context.ts";
+import { aspectToNode } from "./node_mapper.ts";
 
 export class AntboxService {
 	readonly nodeService: NodeService;
@@ -57,7 +59,6 @@ export class AntboxService {
 
 		this.#fileCreators = {
 			[Node.ACTION_MIMETYPE]: (f, m) => this.actionService.createOrReplace(f, m),
-			[Node.ASPECT_MIMETYPE]: (f, m) => this.aspectService.createOrReplace(f, m),
 			[Node.EXT_MIMETYPE]: (f, m) => this.extService.createOrReplace(f, m),
 		};
 
@@ -113,6 +114,10 @@ export class AntboxService {
 		authCtx: AuthContextProvider,
 		metadata: Partial<Node>,
 	): Promise<Either<AntboxError, Node>> {
+		if (Node.isAspect(metadata)) {
+			return this.aspectService.createOrReplace(metadata);
+		}
+
 		if (FolderNode.isSystemFolder(metadata.parent!)) {
 			return left(new BadRequestError("Cannot create metanodes in system folder"));
 		}
@@ -180,6 +185,12 @@ export class AntboxService {
 		const parentOrErr = await this.#getFolderWithPermission(authCtx, uuid, "Read");
 		if (parentOrErr.isLeft()) {
 			return left(parentOrErr.value);
+		}
+
+		if (parentOrErr.value.isAspectsFolder()) {
+			return this.aspectService.list()
+				.then((v) => v.map(aspectToNode))
+				.then(right<AntboxError, Node[]>);
 		}
 
 		const listOrErr = await this.nodeService.list(uuid);
@@ -333,6 +344,15 @@ export class AntboxService {
 		}
 
 		const node = nodeOrErr.value;
+		const parentOrErr = await this.#getFolderWithPermission(authCtx, node.parent, "Write");
+		if (parentOrErr.isLeft()) {
+			return left(new ForbiddenError());
+		}
+
+		if (node.isAspect()) {
+			return this.#updateAspect(authCtx, uuid, metadata);
+		}
+
 		const diffs = this.#getDiffs(node, metadata);
 
 		if (node.isFolder()) {
@@ -341,11 +361,6 @@ export class AntboxService {
 				node,
 				diffs as Partial<FolderNode>,
 			);
-		}
-
-		const parentOrErr = await this.#getFolderWithPermission(authCtx, node.parent, "Write");
-		if (parentOrErr.isLeft()) {
-			return left(new ForbiddenError());
 		}
 
 		if (diffs.parent) {
@@ -367,6 +382,22 @@ export class AntboxService {
 		}
 
 		return voidOrErr;
+	}
+
+	#updateAspect(
+		authCtx: AuthContextProvider,
+		uuid: string,
+		metadata: Partial<Node>,
+	): Either<AntboxError, void> | PromiseLike<Either<AntboxError, void>> {
+		return this.aspectService.createOrReplace({ uuid, ...metadata }).then((result) => {
+			if (result.isLeft()) {
+				return left(result.value);
+			}
+
+			DomainEvents.notify(new NodeUpdatedEvent(authCtx.principal.email, uuid, metadata));
+
+			return right(undefined);
+		});
 	}
 
 	#getDiffs(node: Node, metadata: Partial<Node>): Partial<Node> {
@@ -429,6 +460,10 @@ export class AntboxService {
 		const nodeOrErr = await this.nodeService.get(uuid);
 		if (nodeOrErr.isLeft()) {
 			return left(nodeOrErr.value);
+		}
+
+		if (nodeOrErr.value.isAspect()) {
+			return this.aspectService.export(nodeOrErr.value);
 		}
 
 		const parentOrErr = await this.#getFolderWithPermission(

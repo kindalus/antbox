@@ -1,3 +1,5 @@
+import { Aspect } from "../aspects/aspect.ts";
+import { AspectNode } from "../aspects/aspect_node.ts";
 import { ApiKeyNode } from "./api_key_node.ts";
 import { FolderNode } from "./folder_node.ts";
 import { GroupNode } from "./group_node.ts";
@@ -25,10 +27,10 @@ export class Node {
 	static ACTIONS_FOLDER_UUID = "--actions--";
 	static EXT_FOLDER_UUID = "--ext--";
 	static SYSTEM_FOLDER_UUID = "--system--";
-	static OCR_TEMPLATES_FOLDER_UUID = "--ocrtemplates--";
-	static API_KEYS_FOLDER_UUID = "--apikeys--";
+	static OCR_TEMPLATES_FOLDER_UUID = "--ocr-templates--";
+	static API_KEYS_FOLDER_UUID = "--api-keys--";
 
-	private static FID_PREFIX = "fid--";
+	private static FID_PREFIX = "--fid--";
 
 	static fidToUuid(fid: string): string {
 		return `${Node.FID_PREFIX}${fid}`;
@@ -60,6 +62,10 @@ export class Node {
 
 	static isSmartFolder(metadata: Partial<Node>): boolean {
 		return metadata?.mimetype === Node.SMART_FOLDER_MIMETYPE;
+	}
+
+	static isAspect(metadata: Partial<Node>): boolean {
+		return metadata?.mimetype === Node.ASPECT_MIMETYPE;
 	}
 
 	uuid = "";
@@ -110,6 +116,10 @@ export class Node {
 
 	isSystemRootFolder(): this is FolderNode {
 		return this.uuid === Node.SYSTEM_FOLDER_UUID;
+	}
+
+	isAspect(): this is AspectNode {
+		return this.mimetype === Node.ASPECT_MIMETYPE;
 	}
 
 	isGroup(): this is GroupNode {

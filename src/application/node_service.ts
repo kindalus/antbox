@@ -1,8 +1,11 @@
-import { Aspect, AspectProperty } from "../domain/aspects/aspect.ts";
+import { AspectProperty, aspectToNode } from "../domain/aspects/aspect.ts";
+import { AspectNode } from "../domain/aspects/aspect_node.ts";
 import { Group } from "../domain/auth/group.ts";
 import { AggregationFormulaError } from "../domain/nodes/aggregation_formula_error.ts";
+import { ApiKeyNode } from "../domain/nodes/api_key_node.ts";
 import { FolderNode } from "../domain/nodes/folder_node.ts";
 import { FolderNotFoundError } from "../domain/nodes/folder_not_found_error.ts";
+import { GroupNode } from "../domain/nodes/group_node.ts";
 import { Node } from "../domain/nodes/node.ts";
 import { NodeFactory } from "../domain/nodes/node_factory.ts";
 import { NodeFilter } from "../domain/nodes/node_filter.ts";
@@ -16,23 +19,17 @@ import {
 } from "../domain/nodes/smart_folder_evaluation.ts";
 import { Aggregation, SmartFolderNode } from "../domain/nodes/smart_folder_node.ts";
 import { SmartFolderNodeNotFoundError } from "../domain/nodes/smart_folder_node_not_found_error.ts";
+import { UserNode } from "../domain/nodes/user_node.ts";
 import { AntboxError, BadRequestError } from "../shared/antbox_error.ts";
 import { Either, left, right } from "../shared/either.ts";
-import { ActionService } from "./action_service.ts";
 import { builtinActions } from "./builtin_actions/mod.ts";
 import { builtinAspects } from "./builtin_aspects/mod.ts";
 import { Admins } from "./builtin_groups/admins.ts";
 import { builtinGroups } from "./builtin_groups/mod.ts";
 import { builtinUsers } from "./builtin_users/mod.ts";
 import { NodeDeleter } from "./node_deleter.ts";
-import {
-	actionToNode,
-	aspectToFile,
-	aspectToNode,
-	fileToAspect,
-	groupToNode,
-	userToNode,
-} from "./node_mapper.ts";
+import { actionToNode, groupToNode, userToNode } from "./node_mapper.ts";
+
 import { NodeServiceContext } from "./node_service_context.ts";
 
 /**
@@ -71,6 +68,13 @@ export class NodeService {
 
 		const node = this.#createFileMetadata(metadata, file.type, file.size);
 
+		new SmartFolderNode();
+		new GroupNode();
+		new UserNode();
+		new ApiKeyNode();
+		new AspectNode();
+		new Node();
+
 		const trueOrErr = NodeSpec.isSatisfiedBy(node);
 		if (trueOrErr.isLeft()) {
 			return left(trueOrErr.value);
@@ -97,6 +101,14 @@ export class NodeService {
 	async #verifyParent(
 		metadata: Partial<Node>,
 	): Promise<Either<AntboxError, true>> {
+		if (!metadata.parent) {
+			return left(new BadRequestError("parent is required"));
+		}
+
+		if (FolderNode.isSystemFolder(metadata.parent)) {
+			return right(true);
+		}
+
 		const parentUuid = metadata.parent ?? Node.ROOT_FOLDER_UUID;
 		const parentOrErr = await this.get(parentUuid);
 		if (parentOrErr.isLeft()) {
@@ -207,9 +219,6 @@ export class NodeService {
 
 	async #calculateFulltext(node: Node): Promise<string> {
 		const aspects = await this.#getNodeAspects(node);
-		if (!node.aspects || node.aspects.length === 0) {
-			return this.#escapeFulltext(node.title);
-		}
 
 		const fulltext = aspects
 			.map((a) => this.#aspectToProperties(a))
@@ -218,11 +227,11 @@ export class NodeService {
 			.map((p) => p.name)
 			.map((p) => node.properties[p]);
 
-		return this.#escapeFulltext([node.title, ...fulltext].join(" "));
+		return this.#escapeFulltext([node.title, node.description ?? "", ...fulltext].join(" "));
 	}
 
-	#aspectToProperties(aspect: Aspect): AspectProperty[] {
-		return aspect.properties.map((p) => {
+	#aspectToProperties(aspect: AspectNode): AspectProperty[] {
+		return aspect.aspectProperties.map((p) => {
 			return { ...p, name: `${aspect.uuid}:${p.name}` };
 		});
 	}
@@ -400,11 +409,6 @@ export class NodeService {
 			.filter([["parent", "==", parentOrErr.value.uuid]], Number.MAX_VALUE, 1)
 			.then((result) => result.nodes);
 
-		const systemNodes = this.#builtinNodeListCreator[parentOrErr.value.uuid];
-		if (systemNodes) {
-			return right([...systemNodes, ...nodes]);
-		}
-
 		if (parent === Node.ROOT_FOLDER_UUID) {
 			return right([FolderNode.SYSTEM_FOLDER, ...nodes]);
 		}
@@ -464,30 +468,22 @@ export class NodeService {
 			? this.#merge(nodeOrErr.value, data)
 			: Object.assign(nodeOrErr.value, data);
 
+		newNode.modifiedTime = new Date().toISOString();
+
 		newNode.fulltext = await this.#calculateFulltext(newNode);
 		return this.context.repository.update(newNode);
 	}
 
-	#getNodeAspects(node: Node): Promise<Aspect[]> {
-		const aspectGetters = node.aspects?.map((a) => this.context.storage.read(a));
-
-		if (!aspectGetters) {
-			return Promise.resolve([]);
+	async #getNodeAspects(node: Node): Promise<AspectNode[]> {
+		if (!node.aspects || node.aspects.length === 0) {
+			return [];
 		}
 
-		return Promise.all(aspectGetters).then((fileOrErrs) => {
-			fileOrErrs
-				.filter((fileOrErr) => fileOrErr.isLeft())
-				.map((fileOrErr) => fileOrErr.value)
-				.forEach(console.error);
+		const nodesOrErrs = await Promise.all(node.aspects.map((a) => this.get(a)));
 
-			const aspectsPromises = fileOrErrs
-				.filter((fileOrErr) => fileOrErr.isRight())
-				.map((fileOrErr) => fileOrErr.value as File)
-				.map(fileToAspect);
-
-			return Promise.all(aspectsPromises);
-		});
+		return nodesOrErrs
+			.filter((nodeOrErr) => nodeOrErr.isLeft())
+			.map((nodeOrErr) => nodeOrErr.value as AspectNode);
 	}
 
 	#merge<T>(dst: T, src: Partial<T>): T {
@@ -575,62 +571,18 @@ export class NodeService {
 	}
 
 	async export(uuid: string): Promise<Either<NodeNotFoundError, File>> {
-		const builtinOrErr = this.#exportBuiltinNode(uuid);
-		if (builtinOrErr.isRight()) {
-			return builtinOrErr;
-		}
-
 		const nodeOrErr = await this.get(uuid);
-
 		if (nodeOrErr.isLeft()) {
 			return left(nodeOrErr.value);
 		}
 
-		if (nodeOrErr.value.isSmartFolder()) {
-			return right(this.#exportSmartfolder(nodeOrErr.value));
+		const node = nodeOrErr.value;
+
+		if (node.isSmartFolder()) {
+			return right(this.#exportSmartfolder(node));
 		}
 
 		return this.context.storage.read(uuid);
-	}
-
-	#exportBuiltinNode(uuid: string): Either<NodeNotFoundError, File> {
-		const builtinActionOrErr = this.#exportBuiltinAction(uuid);
-		if (builtinActionOrErr.isRight()) {
-			return right(
-				new File([builtinActionOrErr.value], builtinActionOrErr.value.name, {
-					type: "text/javascript",
-				}),
-			);
-		}
-
-		const builtinAspectOrErr = this.#exportBuiltinAspect(uuid);
-		if (builtinAspectOrErr.isRight()) {
-			return right(
-				new File([builtinAspectOrErr.value], builtinAspectOrErr.value.name),
-			);
-		}
-
-		return left(new NodeNotFoundError(uuid));
-	}
-
-	#exportBuiltinAction(uuid: string): Either<NodeNotFoundError, File> {
-		const action = builtinActions.find((action) => action.uuid === uuid);
-
-		if (!action) {
-			return left(new NodeNotFoundError(uuid));
-		}
-
-		return right(ActionService.actionToFile(action));
-	}
-
-	#exportBuiltinAspect(uuid: string): Either<NodeNotFoundError, File> {
-		const aspect = builtinAspects.find((aspect) => aspect.uuid === uuid);
-
-		if (!aspect) {
-			return left(new NodeNotFoundError(uuid));
-		}
-
-		return right(aspectToFile(aspect));
 	}
 
 	#exportSmartfolder(node: SmartFolderNode): File {

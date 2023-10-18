@@ -1,4 +1,4 @@
-import { Aspect } from "../aspects/aspect.ts";
+import { ActionNode } from "../actions/action_node.ts";
 import { AspectNode } from "../aspects/aspect_node.ts";
 import { ApiKeyNode } from "./api_key_node.ts";
 import { FolderNode } from "./folder_node.ts";
@@ -128,6 +128,10 @@ export class Node {
 
 	isUser(): this is UserNode {
 		return this.mimetype === Node.USER_MIMETYPE;
+	}
+
+	isAction(): this is ActionNode {
+		return this.mimetype === Node.ACTION_MIMETYPE;
 	}
 
 	static isJavascript(file: File) {

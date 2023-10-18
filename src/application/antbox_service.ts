@@ -1,6 +1,4 @@
-import { returnsNext } from "https://deno.land/std@0.183.0/testing/mock.ts?source";
-import { Action } from "../domain/actions/action.ts";
-import { Aspect } from "../domain/aspects/aspect.ts";
+import { Aspect, aspectToNode } from "../domain/aspects/aspect.ts";
 import { AuthContextProvider } from "../domain/auth/auth_provider.ts";
 import { Group } from "../domain/auth/group.ts";
 import { GroupCreatedEvent } from "../domain/auth/group_created_event.ts";
@@ -33,7 +31,8 @@ import { DomainEvents } from "./domain_events.ts";
 import { ExtService } from "./ext_service.ts";
 import { NodeService } from "./node_service.ts";
 import { NodeServiceContext } from "./node_service_context.ts";
-import { aspectToNode } from "./node_mapper.ts";
+
+import { ActionNode } from "../domain/actions/action_node.ts";
 
 export class AntboxService {
 	readonly nodeService: NodeService;
@@ -74,6 +73,11 @@ export class AntboxService {
 		metadata: Partial<Node>,
 	): Promise<Either<AntboxError, Node>> {
 		const createSystemFile = this.#fileCreators[metadata.mimetype ?? ""];
+
+		if (createSystemFile !== undefined && !User.isAdmin(authCtx.principal)) {
+			return left(new ForbiddenError());
+		}
+
 		if (createSystemFile) {
 			return createSystemFile(file, metadata);
 		}
@@ -103,7 +107,7 @@ export class AntboxService {
 		});
 		if (nodeOrErr.isRight()) {
 			DomainEvents.notify(
-				new NodeCreatedEvent(authCtx.principal.email, nodeOrErr.value),
+				new NodeCreatedEvent(authCtx.principal.email!, nodeOrErr.value),
 			);
 		}
 
@@ -119,7 +123,7 @@ export class AntboxService {
 		}
 
 		if (FolderNode.isSystemFolder(metadata.parent!)) {
-			return left(new BadRequestError("Cannot create metanodes in system folder"));
+			return left(new BadRequestError("Cannot regular nodes in system folder"));
 		}
 
 		const parentOrErr = await this.#getFolderWithPermission(
@@ -135,7 +139,7 @@ export class AntboxService {
 			.then((result) => {
 				if (result.isRight()) {
 					DomainEvents.notify(
-						new NodeCreatedEvent(authCtx.principal.email, result.value),
+						new NodeCreatedEvent(authCtx.principal.email!, result.value),
 					);
 				}
 
@@ -164,7 +168,7 @@ export class AntboxService {
 		const result = await this.nodeService.create({
 			...metadata,
 			parent: parentOrErr.value.uuid,
-			owner: authCtx.principal.email,
+			owner: authCtx.principal.email!,
 			group: authCtx.principal.group,
 			permissions: metadata.permissions ?? {
 				...parentOrErr.value.permissions,
@@ -172,7 +176,7 @@ export class AntboxService {
 		} as Partial<FolderNode>);
 
 		if (result.isRight()) {
-			DomainEvents.notify(new NodeCreatedEvent(authCtx.principal.email, result.value));
+			DomainEvents.notify(new NodeCreatedEvent(authCtx.principal.email!, result.value));
 		}
 
 		return right(result.value as FolderNode);
@@ -191,6 +195,10 @@ export class AntboxService {
 			return this.aspectService.list()
 				.then((v) => v.map(aspectToNode))
 				.then(right<AntboxError, Node[]>);
+		}
+
+		if (parentOrErr.value.isActionsFolder()) {
+			return this.actionService.list();
 		}
 
 		const listOrErr = await this.nodeService.list(uuid);
@@ -264,7 +272,7 @@ export class AntboxService {
 			return left(new ForbiddenError());
 		}
 
-		if (node.owner === authCtx.principal.email) {
+		if (node.owner === authCtx.principal.email!) {
 			return right(undefined);
 		}
 
@@ -280,7 +288,7 @@ export class AntboxService {
 		}
 
 		if (
-			principal.email !== User.ANONYMOUS_USER_EMAIL &&
+			principal.email! !== User.ANONYMOUS_USER_EMAIL &&
 			node.permissions.authenticated.includes(permission)
 		) {
 			return right(undefined);
@@ -377,7 +385,7 @@ export class AntboxService {
 		const voidOrErr = await this.nodeService.update(uuid, diffs, merge);
 		if (voidOrErr.isRight()) {
 			DomainEvents.notify(
-				new NodeUpdatedEvent(authCtx.principal.email, uuid, diffs),
+				new NodeUpdatedEvent(authCtx.principal.email!, uuid, diffs),
 			);
 		}
 
@@ -394,7 +402,7 @@ export class AntboxService {
 				return left(result.value);
 			}
 
-			DomainEvents.notify(new NodeUpdatedEvent(authCtx.principal.email, uuid, metadata));
+			DomainEvents.notify(new NodeUpdatedEvent(authCtx.principal.email!, uuid, metadata));
 
 			return right(undefined);
 		});
@@ -466,6 +474,10 @@ export class AntboxService {
 			return this.aspectService.export(nodeOrErr.value);
 		}
 
+		if (nodeOrErr.value.isAction()) {
+			return this.actionService.export(nodeOrErr.value.uuid);
+		}
+
 		const parentOrErr = await this.#getFolderWithPermission(
 			authCtx,
 			nodeOrErr.value.parent,
@@ -496,7 +508,7 @@ export class AntboxService {
 		const voidOrErr = await this.nodeService.copy(uuid, parent);
 		if (voidOrErr.isRight()) {
 			DomainEvents.notify(
-				new NodeCreatedEvent(authCtx.principal.email, voidOrErr.value),
+				new NodeCreatedEvent(authCtx.principal.email!, voidOrErr.value),
 			);
 		}
 
@@ -538,15 +550,14 @@ export class AntboxService {
 			return this.#updateSystemFile(authCtx, nodeOrErr.value, file);
 		}
 
-		return this.nodeService.updateFile(uuid, file).then((result) => {
-			if (result.isRight()) {
-				DomainEvents.notify(
-					new NodeContentUpdatedEvent(authCtx.principal.email, uuid),
-				);
-			}
+		const result = await this.nodeService.updateFile(uuid, file);
+		if (result.isRight()) {
+			DomainEvents.notify(
+				new NodeContentUpdatedEvent(authCtx.principal.email!, uuid),
+			);
+		}
 
-			return result;
-		});
+		return result;
 	}
 
 	async #updateSystemFile(
@@ -563,7 +574,7 @@ export class AntboxService {
 		}
 
 		DomainEvents.notify(
-			new NodeContentUpdatedEvent(authCtx.principal.email, metadata.uuid),
+			new NodeContentUpdatedEvent(authCtx.principal.email!, metadata.uuid),
 		);
 
 		return right(undefined);
@@ -618,7 +629,7 @@ export class AntboxService {
 
 		const voidOrErr = await this.nodeService.delete(uuid);
 		if (voidOrErr.isRight()) {
-			DomainEvents.notify(new NodeDeletedEvent(authCtx.principal.email, nodeOrErr.value));
+			DomainEvents.notify(new NodeDeletedEvent(authCtx.principal.email!, nodeOrErr.value));
 		}
 
 		return voidOrErr;
@@ -637,8 +648,14 @@ export class AntboxService {
 		return this.actionService.run(authCtx, uuid, uuids, params);
 	}
 
-	listActions(_authCtx: AuthContextProvider): Promise<Action[]> {
-		return this.actionService.list().then((nodes) => nodes);
+	listActions(_authCtx: AuthContextProvider): Promise<ActionNode[]> {
+		return this.actionService.list().then((nodesOrErr) => {
+			if (nodesOrErr.isLeft()) {
+				return [];
+			}
+
+			return nodesOrErr.value;
+		});
 	}
 
 	getAspect(
@@ -659,12 +676,12 @@ export class AntboxService {
 
 		const nodeOrErr = await this.authService.createUser({
 			...user,
-			owner: authCtx.principal.email,
+			owner: authCtx.principal.email!,
 		});
 
 		if (nodeOrErr.isRight()) {
 			const evt = new UserCreatedEvent(
-				authCtx.principal.email,
+				authCtx.principal.email!,
 				nodeOrErr.value.uuid,
 				nodeOrErr.value.title,
 			);
@@ -704,9 +721,9 @@ export class AntboxService {
 
 		if (voidOrErr.isRight()) {
 			const evt = new UserUpdatedEvent(
-				authCtx.principal.email,
+				authCtx.principal.email!,
 				uuid,
-				user.fullname,
+				user.fullname!,
 			);
 
 			DomainEvents.notify(evt);
@@ -726,7 +743,7 @@ export class AntboxService {
 		const voidOrErr = await this.authService.deleteUser(uuid);
 
 		if (voidOrErr.isRight()) {
-			const evt = new UserDeletedEvent(authCtx.principal.email, uuid);
+			const evt = new UserDeletedEvent(authCtx.principal.email!, uuid);
 
 			DomainEvents.notify(evt);
 		}
@@ -760,12 +777,12 @@ export class AntboxService {
 
 		const nodeOrErr = await this.authService.createGroup({
 			...group,
-			owner: authCtx.principal.email,
+			owner: authCtx.principal.email!,
 		});
 
 		if (nodeOrErr.isRight()) {
 			const evt = new GroupCreatedEvent(
-				authCtx.principal.email,
+				authCtx.principal.email!,
 				nodeOrErr.value.uuid,
 				nodeOrErr.value.title,
 			);
@@ -789,7 +806,7 @@ export class AntboxService {
 
 		if (voidOrErr.isRight()) {
 			const evt = new GroupUpdatedEvent(
-				authCtx.principal.email,
+				authCtx.principal.email!,
 				uuid,
 				group.title,
 			);
@@ -811,7 +828,7 @@ export class AntboxService {
 		const voidOrErr = await this.authService.deleteGroup(uuid);
 
 		if (voidOrErr.isRight()) {
-			const evt = new GroupDeletedEvent(authCtx.principal.email, uuid);
+			const evt = new GroupDeletedEvent(authCtx.principal.email!, uuid);
 
 			DomainEvents.notify(evt);
 		}
@@ -850,7 +867,7 @@ export class AntboxService {
 			return Promise.resolve(left(new BadRequestError("Group is required")));
 		}
 
-		return this.apiKeysService.create(group, authCtx.principal.email);
+		return this.apiKeysService.create(group, authCtx.principal.email!);
 	}
 
 	deleteApiKey(authCtx: AuthContextProvider, uuid: string): Promise<Either<AntboxError, void>> {

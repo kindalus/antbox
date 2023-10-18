@@ -87,3 +87,17 @@ export function aspectToNode(aspect: Aspect): AspectNode {
 		metadata,
 	) as AspectNode;
 }
+
+// export function aspectToNode(aspect: Aspect): Node {
+// 	return Object.assign(new Node(), {
+// 		uuid: aspect.uuid,
+// 		fid: aspect.uuid,
+// 		title: aspect.title,
+// 		mimetype: Node.ASPECT_MIMETYPE,
+// 		size: 0,
+// 		parent: Node.ASPECTS_FOLDER_UUID,
+
+// 		createdTime: nowIso(),
+// 		modifiedTime: nowIso(),
+// 	});
+// }

@@ -16,20 +16,26 @@ export class User {
 	}
 
 	static create(email: string, fullname: string): User {
+		return new User(undefined, email, fullname);
+	}
+
+	static createWithGroup(email: string, fullname: string, group: string): User {
 		return Object.assign(new User(), {
 			email,
 			fullname,
+			group,
 		});
 	}
 
-	constructor() {}
-
-	readonly uuid: string = null as unknown as string;
-	readonly email: string = null as unknown as string;
-	readonly fullname: string = null as unknown as string;
-	readonly group: string = null as unknown as string;
-	readonly groups: string[] = [];
-	readonly builtIn: boolean = false;
+	constructor(
+		readonly uuid?: string,
+		readonly email?: string,
+		readonly fullname?: string,
+		readonly group?: string,
+		readonly groups: string[] = [],
+		readonly builtIn = false,
+	) {
+	}
 
 	isAdmin(): boolean {
 		return User.isAdmin(this);

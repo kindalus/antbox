@@ -1,3 +1,4 @@
+import { ActionNode } from "../actions/action_node.ts";
 import { AspectNode } from "../aspects/aspect_node.ts";
 import { User } from "../auth/user.ts";
 import { ApiKeyNode } from "./api_key_node.ts";
@@ -12,6 +13,9 @@ function templateFromMimetype<T extends Node>(
 ): T {
 	let node: Node;
 	switch (mimetype) {
+		case Node.ACTION_MIMETYPE:
+			node = new ActionNode();
+			break;
 		case Node.API_KEY_MIMETYPE:
 			node = new ApiKeyNode();
 			break;

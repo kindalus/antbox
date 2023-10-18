@@ -1,9 +1,10 @@
-import { Action } from "../domain/actions/action.ts";
+import { Action, actionToFile, actionToNode, fileToAction } from "../domain/actions/action.ts";
+import { ActionNode } from "../domain/actions/action_node.ts";
 import { RunContext } from "../domain/actions/run_context.ts";
 import { AuthContextProvider } from "../domain/auth/auth_provider.ts";
 import { User } from "../domain/auth/user.ts";
 import { UserNotFoundError } from "../domain/auth/user_not_found_error.ts";
-import { getFiltersPredicate } from "../domain/nodes/filters_predicate.ts";
+import { filtersSpecFrom, withNodeFilters } from "../domain/nodes/filters_spec.ts";
 import { Node } from "../domain/nodes/node.ts";
 import { NodeCreatedEvent } from "../domain/nodes/node_created_event.ts";
 import { NodeFactory } from "../domain/nodes/node_factory.ts";
@@ -23,129 +24,70 @@ export class ActionService {
 		private readonly antboxService: AntboxService,
 	) {}
 
-	static async fileToAction(file: File): Promise<Action> {
-		const url = URL.createObjectURL(file);
-		const mod = await import(url);
-
-		const raw = mod.default as Action;
-
-		return {
-			uuid: raw.uuid ?? file.name.split(".")[0],
-			title: raw.title ?? file.name.split(".")[0],
-			description: raw.description ?? "",
-			builtIn: false,
-			filters: raw.filters ?? [],
-			runOnCreates: raw.runOnCreates ?? false,
-			runOnUpdates: raw.runOnUpdates ?? false,
-			runManually: raw.runManually ?? true,
-			params: raw.params ?? [],
-
-			run: raw.run,
-		};
-	}
-
-	static actionToFile(action: Action): File {
-		const text = `export default {
-			uuid: "${action.uuid}",
-			title: "${action.title}",
-			description: "${action.description}",
-			builtIn: ${action.builtIn},
-			filters: ${JSON.stringify(action.filters)},
-			params: ${JSON.stringify(action.params)},
-			runOnCreates: ${action.runOnCreates},
-			runOnUpdates: ${action.runOnUpdates},
-			runManually: ${action.runManually},
-
-			${action.run.toString()}
-		};`;
-
-		const filename = `${action.title}.js`;
-		const type = Node.ACTION_MIMETYPE;
-
-		return new File([text], filename, { type });
-	}
-
-	async get(uuid: string): Promise<Either<NodeNotFoundError, Action>> {
+	async get(uuid: string): Promise<Either<NodeNotFoundError, ActionNode>> {
 		const found = builtinActions.find((a) => a.uuid === uuid);
 
 		if (found) {
-			return right(found);
+			return right(actionToNode(found));
 		}
 
-		const [nodeError, fileOrError] = await Promise.all([
-			this.nodeService.get(uuid),
-			this.nodeService.export(uuid),
-		]);
+		const nodeOrErr = await this.nodeService.get(uuid);
 
-		if (fileOrError.isLeft()) {
-			return left(fileOrError.value);
+		if (nodeOrErr.isLeft()) {
+			return left(nodeOrErr.value);
 		}
 
-		if (nodeError.isLeft()) {
-			return left(nodeError.value);
-		}
-
-		if (nodeError.value.parent !== Node.ACTIONS_FOLDER_UUID) {
+		if (!nodeOrErr.value.isAction()) {
 			return left(new NodeNotFoundError(uuid));
 		}
 
-		const file = fileOrError.value;
-
-		return right(await ActionService.fileToAction(file));
+		return right(nodeOrErr.value);
 	}
 
-	async list(): Promise<Action[]> {
+	async list(): Promise<Either<AntboxError, ActionNode[]>> {
 		const nodesOrErrs = await this.nodeService.list(Node.ACTIONS_FOLDER_UUID);
 
 		if (nodesOrErrs.isLeft()) {
-			console.error(nodesOrErrs.value);
-			return [];
+			return left(nodesOrErrs.value);
 		}
 
-		const aspectsPromises = nodesOrErrs.value.map((n) => this.get(n.uuid));
+		const nodes = [
+			...nodesOrErrs.value as ActionNode[],
+			...builtinActions.map(actionToNode),
+		].sort((a, b) => a.title.localeCompare(b.title));
 
-		const aspectsOrErrs = await Promise.all(aspectsPromises);
-		const errs = aspectsOrErrs.filter((a) => a.isLeft());
-		const aspects = aspectsOrErrs
-			.filter((a) => a.isRight())
-			.map((a) => a.value! as Action);
-
-		if (errs.length > 0) {
-			errs.forEach((e) => console.error(e.value));
-		}
-
-		return aspects;
+		return right(nodes);
 	}
 
 	async createOrReplace(
 		file: File,
-		_metadata: Partial<Node>,
+		_: Partial<Node>,
 	): Promise<Either<AntboxError, Node>> {
-		if (file.type !== Node.ACTION_MIMETYPE) {
-			return left(new BadRequestError(`Invalid mimetype: ${file.type}`));
-		}
-
-		const action = await ActionService.fileToAction(file);
-		const actionFile = await ActionService.actionToFile(action);
-
-		const metadata = NodeFactory.createMetadata(
-			action.uuid,
-			action.uuid,
-			Node.ACTION_MIMETYPE,
-			file.size,
-			{
-				title: action.title,
-				description: action.description,
-				parent: Node.ACTIONS_FOLDER_UUID,
-			},
-		);
+		const action = await fileToAction(file);
+		const actionFile = await actionToFile(action);
 
 		const nodeOrErr = await this.nodeService.get(action.uuid);
 		if (nodeOrErr.isLeft()) {
+			const metadata = NodeFactory.createMetadata(
+				action.uuid,
+				action.uuid,
+				Node.ACTION_MIMETYPE,
+				file.size,
+				action,
+			);
+
 			return this.nodeService.createFile(actionFile, metadata);
 		}
 
-		let voidOrErr = await this.nodeService.updateFile(action.uuid, actionFile);
+		const metadata = NodeFactory.extractMetadata(action);
+
+		const decoratedFile = new File(
+			[file],
+			nodeOrErr.value.title,
+			{ type: nodeOrErr.value.mimetype },
+		);
+
+		let voidOrErr = await this.nodeService.updateFile(action.uuid, decoratedFile);
 		if (voidOrErr.isLeft()) {
 			return left<AntboxError, Node>(voidOrErr.value);
 		}
@@ -155,23 +97,22 @@ export class ActionService {
 			return left<AntboxError, Node>(voidOrErr.value);
 		}
 
-		return right<AntboxError, Node>(metadata);
+		return this.nodeService.get(action.uuid);
 	}
 
 	async run(
 		authContext: AuthContextProvider,
-		uuid: string,
-		uuids: string[],
+		actionUuid: string,
+		nodesUuids: string[],
 		params: Record<string, string>,
 	): Promise<Either<AntboxError, void>> {
-		if (await this.#ranTooManyTimes(uuid, uuids)) {
-			const message = `Action ran too many times: ${uuid}${uuids.join(",")}`;
+		if (await this.#ranTooManyTimes(actionUuid, nodesUuids)) {
+			const message = `Action ran too many times: ${actionUuid}${nodesUuids.join(",")}`;
 			console.error(message);
 			return left(new BadRequestError(message));
 		}
 
-		const actionOrErr = await this.get(uuid);
-
+		const actionOrErr = await this.#getNodeAsAction(actionUuid);
 		if (actionOrErr.isLeft()) {
 			return left(actionOrErr.value);
 		}
@@ -183,8 +124,8 @@ export class ActionService {
 		}
 
 		const uuidsOrErr = await this.#getValidNodesForAction(
-			actionOrErr.value,
-			uuids,
+			action,
+			nodesUuids,
 		);
 
 		if (uuidsOrErr.isLeft()) {
@@ -195,8 +136,12 @@ export class ActionService {
 			return right(undefined);
 		}
 
-		const error = await actionOrErr.value
-			.run(this.#buildRunContext(authContext), uuidsOrErr.value, params)
+		const error = await action
+			.run(
+				this.#buildRunContext(authContext, action.runAs),
+				uuidsOrErr.value,
+				params,
+			)
 			.catch((e) => e);
 
 		if (error) {
@@ -206,6 +151,46 @@ export class ActionService {
 		}
 
 		return right(undefined);
+	}
+
+	async #getNodeAsAction(uuid: string): Promise<Either<AntboxError, Action>> {
+		if (builtinActions.some((a) => a.uuid === uuid)) {
+			return right(builtinActions.find((a) => a.uuid === uuid)!);
+		}
+
+		const nodeOrErr = await this.nodeService.get(uuid);
+
+		if (nodeOrErr.isLeft()) {
+			return left(nodeOrErr.value);
+		}
+
+		if (!nodeOrErr.value.isAction()) {
+			return left(new NodeNotFoundError(uuid));
+		}
+
+		const fileOrErr = await this.nodeService.export(uuid);
+		if (fileOrErr.isLeft()) {
+			return left(fileOrErr.value);
+		}
+		const action = await fileToAction(fileOrErr.value);
+		return right(action);
+	}
+
+	async export(uuid: string): Promise<Either<AntboxError, File>> {
+		if (builtinActions.some((a) => a.uuid === uuid)) {
+			return right(actionToFile(builtinActions.find((a) => a.uuid === uuid)!));
+		}
+
+		const nodeOrErr = await this.nodeService.get(uuid);
+		if (nodeOrErr.isLeft()) {
+			return left(nodeOrErr.value);
+		}
+
+		if (!nodeOrErr.value.isAction()) {
+			return left(new NodeNotFoundError(uuid));
+		}
+
+		return this.nodeService.export(uuid);
 	}
 
 	async #ranTooManyTimes(uuid: string, uuids: string[]): Promise<boolean> {
@@ -250,8 +235,9 @@ export class ActionService {
 			return nodesOrErr.find((n) => n.isLeft()) as Either<AntboxError, never>;
 		}
 
-		const validNodes = getFiltersPredicate(action.filters);
-		const nodes = nodesOrErr.map((n) => n.value as Node).filter(validNodes);
+		const nodes = nodesOrErr
+			.map((n) => n.value as Node)
+			.filter(withNodeFilters(action.filters));
 
 		return right(nodes.map((n) => n.uuid));
 	}
@@ -298,7 +284,15 @@ export class ActionService {
 		);
 	}
 
-	#buildRunContext(authContext: AuthContextProvider): RunContext {
+	#buildRunContext(aCtx: AuthContextProvider, runAs?: string): RunContext {
+		const { uuid, email, fullname, groups, group } = aCtx.principal;
+		const principal = new User(uuid, email, fullname, runAs ?? group, groups);
+
+		const authContext: AuthContextProvider = {
+			principal,
+			mode: aCtx.mode,
+		};
+
 		return {
 			authContext,
 			nodeService: antboxToNodeService(authContext, this.antboxService),
@@ -309,15 +303,25 @@ export class ActionService {
 		node: Node,
 		runOnCriteria: (action: Action) => boolean,
 	): Promise<Action[]> {
-		const actions = await this.list();
+		const actionsNodes = await this.list();
 
-		return actions.filter(runOnCriteria).filter((a) => {
-			if (a.filters.length === 0) {
-				return true;
-			}
+		if (actionsNodes.isLeft()) {
+			return [];
+		}
 
-			return getFiltersPredicate(a.filters)(node);
-		});
+		const actionsTasks = actionsNodes.value.map((a) => this.nodeService.export(a.uuid));
+		const actionsOrErrs = await Promise.all(actionsTasks);
+
+		const actions = await Promise.all(
+			actionsOrErrs
+				.filter((a) => a.isRight())
+				.map((a) => a.value as File)
+				.map(fileToAction),
+		);
+
+		return actions
+			.filter(runOnCriteria)
+			.filter((a) => filtersSpecFrom(a.filters).isSatisfiedBy(node));
 	}
 
 	async runOnCreateScritps(evt: NodeCreatedEvent) {

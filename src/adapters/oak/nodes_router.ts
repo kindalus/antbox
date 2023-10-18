@@ -73,10 +73,7 @@ export default function (tenants: AntboxTenant[]) {
 
 	const createHandler = async (ctx: Context) => {
 		const service = getTenant(ctx, tenants).service;
-		const {
-			metadata,
-		}: { metadata: Partial<Node> } = await ctx.request.body()
-			.value;
+		const metadata: Partial<Node> = await ctx.request.body().value;
 
 		if (!metadata?.mimetype) {
 			return Promise.resolve(sendBadRequest(ctx, "{ mimetype } not given"));

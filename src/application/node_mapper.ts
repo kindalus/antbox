@@ -81,35 +81,6 @@ export function nodeToGroup(node: GroupNode): Group {
 	});
 }
 
-export function aspectToNode(aspect: Aspect): Node {
-	return Object.assign(new Node(), {
-		uuid: aspect.uuid,
-		fid: aspect.uuid,
-		title: aspect.title,
-		mimetype: Node.ASPECT_MIMETYPE,
-		size: 0,
-		parent: Node.ASPECTS_FOLDER_UUID,
-
-		createdTime: nowIso(),
-		modifiedTime: nowIso(),
-	});
-}
-
-export function actionToNode(action: Action): Node {
-	return Object.assign(new Node(), {
-		uuid: action.uuid,
-		fid: action.uuid,
-		title: action.title,
-
-		mimetype: Node.ACTION_MIMETYPE,
-		size: 0,
-		parent: Node.ACTIONS_FOLDER_UUID,
-
-		createdTime: nowIso(),
-		modifiedTime: nowIso(),
-	});
-}
-
 function nowIso() {
 	return new Date().toISOString();
 }

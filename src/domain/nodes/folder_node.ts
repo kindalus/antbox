@@ -149,4 +149,8 @@ export class FolderNode extends Node {
 	isAspectsFolder(): boolean {
 		return this.uuid === Node.ASPECTS_FOLDER_UUID;
 	}
+
+	isActionsFolder(): boolean {
+		return this.uuid === Node.ACTIONS_FOLDER_UUID;
+	}
 }

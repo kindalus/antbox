@@ -11,6 +11,7 @@ import { AntboxTenant } from "./setup_oak_server.ts";
 export default function (tenants: AntboxTenant[]) {
 	const createNodeFileHandler = async (ctx: Context) => {
 		const service = getTenant(ctx, tenants).service;
+
 		const fieldsOrUndefined = await readRequest(ctx);
 		if (fieldsOrUndefined.isLeft()) {
 			return sendBadRequest(ctx);

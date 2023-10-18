@@ -1,11 +1,10 @@
+import { actionToNode } from "../domain/actions/action.ts";
 import { AspectProperty, aspectToNode } from "../domain/aspects/aspect.ts";
 import { AspectNode } from "../domain/aspects/aspect_node.ts";
 import { Group } from "../domain/auth/group.ts";
 import { AggregationFormulaError } from "../domain/nodes/aggregation_formula_error.ts";
-import { ApiKeyNode } from "../domain/nodes/api_key_node.ts";
 import { FolderNode } from "../domain/nodes/folder_node.ts";
 import { FolderNotFoundError } from "../domain/nodes/folder_not_found_error.ts";
-import { GroupNode } from "../domain/nodes/group_node.ts";
 import { Node } from "../domain/nodes/node.ts";
 import { NodeFactory } from "../domain/nodes/node_factory.ts";
 import { NodeFilter } from "../domain/nodes/node_filter.ts";
@@ -19,7 +18,6 @@ import {
 } from "../domain/nodes/smart_folder_evaluation.ts";
 import { Aggregation, SmartFolderNode } from "../domain/nodes/smart_folder_node.ts";
 import { SmartFolderNodeNotFoundError } from "../domain/nodes/smart_folder_node_not_found_error.ts";
-import { UserNode } from "../domain/nodes/user_node.ts";
 import { AntboxError, BadRequestError } from "../shared/antbox_error.ts";
 import { Either, left, right } from "../shared/either.ts";
 import { builtinActions } from "./builtin_actions/mod.ts";
@@ -28,7 +26,7 @@ import { Admins } from "./builtin_groups/admins.ts";
 import { builtinGroups } from "./builtin_groups/mod.ts";
 import { builtinUsers } from "./builtin_users/mod.ts";
 import { NodeDeleter } from "./node_deleter.ts";
-import { actionToNode, groupToNode, userToNode } from "./node_mapper.ts";
+import { groupToNode, userToNode } from "./node_mapper.ts";
 
 import { NodeServiceContext } from "./node_service_context.ts";
 
@@ -66,14 +64,16 @@ export class NodeService {
 			return left(validOrErr.value);
 		}
 
-		const node = this.#createFileMetadata(metadata, file.type, file.size);
+		const uuid = metadata.uuid ?? this.context.uuidGenerator.generate();
+		const fid = metadata.fid ?? this.context.fidGenerator.generate(metadata.title ?? uuid);
 
-		new SmartFolderNode();
-		new GroupNode();
-		new UserNode();
-		new ApiKeyNode();
-		new AspectNode();
-		new Node();
+		const node = NodeFactory.createMetadata(
+			uuid,
+			fid,
+			metadata.mimetype ?? file.type,
+			file.size,
+			metadata,
+		);
 
 		const trueOrErr = NodeSpec.isSatisfiedBy(node);
 		if (trueOrErr.isLeft()) {
@@ -172,10 +172,16 @@ export class NodeService {
 			return left(fileOrErr.value);
 		}
 
-		const newNode = this.#createFileMetadata(
-			{ title: `cópia de ${nodeOrErr.value.title}`, parent },
+		const newUuid = this.context.uuidGenerator.generate();
+		const title = `cópia de ${nodeOrErr.value.title}`;
+		const fid = this.context.fidGenerator.generate(title);
+
+		const newNode = NodeFactory.createMetadata(
+			newUuid,
+			fid,
 			nodeOrErr.value.mimetype,
 			nodeOrErr.value.size,
+			{ title, parent: parent ?? nodeOrErr.value.parent },
 		);
 
 		const writeOrErr = await this.context.storage.write(
@@ -342,14 +348,6 @@ export class NodeService {
 		}
 
 		return right(node);
-	}
-
-	#createFileMetadata(metadata: Partial<Node>, mimetype: string, size: number) {
-		const uuid = metadata.uuid ?? this.context.uuidGenerator.generate();
-		const fid = metadata.fid ??
-			this.context.fidGenerator.generate(metadata.title ?? uuid);
-
-		return NodeFactory.createMetadata(uuid, fid, mimetype, size, metadata);
 	}
 
 	private getBuiltinGroup(uuid: string): Promise<Either<NodeNotFoundError, Node>> {

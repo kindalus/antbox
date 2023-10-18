@@ -1,4 +1,4 @@
-import { getFiltersPredicate } from "../../domain/nodes/filters_predicate.ts";
+import { withNodeFilters } from "../../domain/nodes/filters_spec.ts";
 import { Node } from "../../domain/nodes/node.ts";
 import { NodeFilter } from "../../domain/nodes/node_filter.ts";
 import { NodeNotFoundError } from "../../domain/nodes/node_not_found_error.ts";
@@ -68,7 +68,7 @@ export class InMemoryNodeRepository implements NodeRepository {
 		const firstIndex = (pageToken - 1) * pageSize;
 		const lastIndex = firstIndex + pageSize;
 
-		const filtered = this.records.filter(getFiltersPredicate(filters));
+		const filtered = this.records.filter(withNodeFilters(filters));
 
 		const nodes = filtered.slice(firstIndex, lastIndex);
 

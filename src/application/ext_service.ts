@@ -15,28 +15,32 @@ export class ExtService {
 
 	async createOrReplace(
 		file: File,
-		_metadata: Partial<Node>,
+		metadata: Partial<Node>,
 	): Promise<Either<AntboxError, Node>> {
-		if (file.type !== Node.EXT_MIMETYPE) {
+		if (metadata.mimetype !== Node.EXT_MIMETYPE) {
 			return left(new BadRequestError(`Invalid mimetype: ${file.type}`));
 		}
 
-		const uuid = file.name?.split(".")[0].trim();
+		const uuid = metadata.uuid ?? file.name?.split(".")[0].trim();
+		const fid = metadata.fid ?? uuid;
 
-		const metadata = NodeFactory.createMetadata(
+		const m = NodeFactory.createMetadata(
 			uuid,
-			uuid,
+			fid,
 			Node.EXT_MIMETYPE,
 			file.size,
 			{
-				title: uuid,
+				title: metadata.title ?? uuid,
 				parent: Node.EXT_FOLDER_UUID,
+				description: metadata.description ?? "",
+				aspects: metadata.aspects ?? [],
+				properties: metadata.properties ?? {},
 			},
 		);
 
 		const nodeOrErr = await this.nodeService.get(uuid);
 		if (nodeOrErr.isLeft()) {
-			return this.nodeService.createFile(file, metadata);
+			return this.nodeService.createFile(file, m);
 		}
 
 		const voidOrErr = await this.nodeService.updateFile(uuid, file);
@@ -48,9 +52,80 @@ export class ExtService {
 		return right(nodeOrErr.value);
 	}
 
-	private async get(uuid: string): Promise<Either<NodeNotFoundError, ExtFn>> {
+	async get(uuid: string): Promise<Either<NodeNotFoundError, Node>> {
+		const nodeOrErr = await this.nodeService.get(uuid);
+
+		if (nodeOrErr.isLeft()) {
+			return left(nodeOrErr.value);
+		}
+
+		if (!nodeOrErr.value.isExt()) {
+			return left(new NodeNotFoundError(uuid));
+		}
+
+		return right(nodeOrErr.value);
+	}
+
+	async update(uuid: string, metadata: Partial<Node>): Promise<Either<NodeNotFoundError, void>> {
+		const nodeOrErr = await this.get(uuid);
+
+		if (nodeOrErr.isLeft()) {
+			return left(nodeOrErr.value);
+		}
+
+		const safe: Partial<Node> = {};
+		for (const key of ["title", "description", "aspects", "properties"]) {
+			if (Object.hasOwnProperty.call(metadata, key)) {
+				// deno-lint-ignore no-explicit-any
+				(safe as any)[key] = (metadata as any)[key];
+			}
+		}
+
+		const voidOrErr = await this.nodeService.update(uuid, safe);
+
+		if (voidOrErr.isLeft()) {
+			return left(voidOrErr.value);
+		}
+
+		return right(undefined);
+	}
+
+	async list(): Promise<Either<AntboxError, Node[]>> {
+		const nodesOrErrs = await this.nodeService.query(
+			[["mimetype", "==", Node.EXT_MIMETYPE], ["parent", "==", Node.EXT_FOLDER_UUID]],
+			Number.MAX_SAFE_INTEGER,
+		);
+
+		if (nodesOrErrs.isLeft()) {
+			return left(nodesOrErrs.value);
+		}
+
+		return right(nodesOrErrs.value.nodes);
+	}
+
+	async delete(uuid: string): Promise<Either<NodeNotFoundError, void>> {
+		const nodeOrErr = await this.get(uuid);
+
+		if (nodeOrErr.isLeft()) {
+			return left(nodeOrErr.value);
+		}
+
+		return this.nodeService.delete(uuid);
+	}
+
+	async export(uuid: string): Promise<Either<NodeNotFoundError, File>> {
+		const nodeOrErr = await this.get(uuid);
+
+		if (nodeOrErr.isLeft()) {
+			return left(nodeOrErr.value);
+		}
+
+		return this.nodeService.export(uuid);
+	}
+
+	async #getAsModule(uuid: string): Promise<Either<NodeNotFoundError, ExtFn>> {
 		const [nodeError, fileOrError] = await Promise.all([
-			this.nodeService.get(uuid),
+			this.get(uuid),
 			this.nodeService.export(uuid),
 		]);
 
@@ -60,10 +135,6 @@ export class ExtService {
 
 		if (nodeError.isLeft()) {
 			return left(nodeError.value);
-		}
-
-		if (nodeError.value.parent !== Node.EXT_FOLDER_UUID) {
-			return left(new NodeNotFoundError(uuid));
 		}
 
 		const file = fileOrError.value;
@@ -77,7 +148,7 @@ export class ExtService {
 		uuid: string,
 		request: Request,
 	): Promise<Either<NodeNotFoundError | Error, Response>> {
-		const extOrErr = await this.get(uuid);
+		const extOrErr = await this.#getAsModule(uuid);
 
 		if (extOrErr.isLeft()) {
 			return left(extOrErr.value);

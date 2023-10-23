@@ -29,10 +29,10 @@ export interface AntboxTenant {
 export async function setupOakServer(tenants: AntboxTenant[]) {
 	const app = new Application();
 
-	app.use(oakCors());
-
 	const authMiddleware = await createAuthMiddleware(tenants);
 	app.use(authMiddleware);
+
+	app.use(oakCors());
 
 	const nodes = nodesRouter(tenants);
 	const upload = uploadRouter(tenants);

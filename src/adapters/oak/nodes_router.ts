@@ -1,10 +1,9 @@
 import { Context, getQuery, Router, Status } from "../../../deps.ts";
 import { Node } from "../../domain/nodes/node.ts";
-import { AntboxError, BadRequestError } from "../../shared/antbox_error.ts";
-import { Either, left } from "../../shared/either.ts";
 import { ContextWithParams } from "./context_with_params.ts";
 import { getRequestContext } from "./get_request_context.ts";
 import { getTenant } from "./get_tenant.ts";
+import { processEither } from "./process_either.ts";
 import { processError } from "./process_error.ts";
 import { sendBadRequest, sendOK } from "./send_response.ts";
 import { AntboxTenant } from "./setup_oak_server.ts";
@@ -157,17 +156,6 @@ export default function (tenants: AntboxTenant[]) {
 	nodesRouter.delete("/:uuid", deleteHandler);
 
 	return nodesRouter;
-}
-
-function processEither<L extends AntboxError, R>(
-	ctx: Context,
-	result: Either<L, R>,
-) {
-	if (result.isLeft()) {
-		return processError(result.value, ctx);
-	}
-
-	return sendOK(ctx, result.value as Record<string, unknown>);
 }
 
 function mapSystemNodeType(type: string): string {

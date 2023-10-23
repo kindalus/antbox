@@ -62,7 +62,7 @@ export async function createAuthMiddleware(
 
 		const authService = authServices.get(tenantName)!;
 		const jwk = jwks.get(tenantName)!;
-		authenticateToken(jwk, authService, ctx, token);
+		await authenticateToken(jwk, authService, ctx, token);
 		return next();
 	};
 }
@@ -116,7 +116,7 @@ async function authenticateToken(
 		return;
 	}
 
-	const userOrErr = await authService.getUserByEmail(tokenOrErr.value.email);
+	const userOrErr = await authService.getUserByEmail(tokenOrErr.value.payload.email);
 	if (userOrErr.isLeft()) {
 		return;
 	}
@@ -127,11 +127,11 @@ async function authenticateToken(
 function verifyToken(
 	key: KeyLike | Uint8Array,
 	token: string,
-): Promise<Either<Error, UserPrincipal>> {
+): Promise<Either<Error, { payload: UserPrincipal }>> {
 	return jose
 		.jwtVerify(token, key)
 		.then((payload) => right(payload))
-		.catch((e) => left(e)) as Promise<Either<Error, UserPrincipal>>;
+		.catch((e) => left(e)) as Promise<Either<Error, { payload: UserPrincipal }>>;
 }
 
 function importJwk(key: JWK): Promise<Either<TypeError, KeyLike | Uint8Array>> {

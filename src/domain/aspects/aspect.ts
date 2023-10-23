@@ -10,7 +10,7 @@ export interface Aspect {
 	description?: string;
 	builtIn: boolean;
 	filters: NodeFilter[];
-	properties: AspectProperty[];
+	aspectProperties: AspectProperty[];
 }
 
 export interface AspectProperty {
@@ -69,15 +69,17 @@ export function nodeToAspect(aspect: AspectNode): Aspect {
 		description: aspect.description,
 		builtIn: builtinAspects.find((a) => a.uuid === aspect.uuid) !== undefined,
 		filters: aspect.filters,
-		properties: aspect.aspectProperties,
+		aspectProperties: aspect.aspectProperties,
 	};
 }
 
 export function aspectToNode(aspect: Aspect): AspectNode {
-	const { properties, ...safeMetadata } = aspect;
-
-	const metadata: Partial<AspectNode> = { ...safeMetadata };
-	metadata.aspectProperties = properties;
+	const metadata: Partial<AspectNode> = {
+		title: aspect.title,
+		description: aspect.description,
+		filters: aspect.filters,
+		aspectProperties: aspect.aspectProperties,
+	};
 
 	return NodeFactory.createMetadata(
 		aspect.uuid,
@@ -87,17 +89,3 @@ export function aspectToNode(aspect: Aspect): AspectNode {
 		metadata,
 	) as AspectNode;
 }
-
-// export function aspectToNode(aspect: Aspect): Node {
-// 	return Object.assign(new Node(), {
-// 		uuid: aspect.uuid,
-// 		fid: aspect.uuid,
-// 		title: aspect.title,
-// 		mimetype: Node.ASPECT_MIMETYPE,
-// 		size: 0,
-// 		parent: Node.ASPECTS_FOLDER_UUID,
-
-// 		createdTime: nowIso(),
-// 		modifiedTime: nowIso(),
-// 	});
-// }

@@ -125,9 +125,10 @@ class PouchdbNodeRepository implements NodeRepository {
 		pageSize: number,
 		pageToken: number,
 	): Promise<NodeFilterResult> {
-		const selector = filters
-			.map(filterToMango)
-			.reduce((acc, filter) => ({ ...acc, ...filter }), {});
+		const selectors = filters
+			.map(filterToMango);
+
+		const selector = composeMangoQuery(selectors);
 
 		const result = await this.db.find({
 			selector,
@@ -139,6 +140,20 @@ class PouchdbNodeRepository implements NodeRepository {
 
 		return { nodes, pageCount, pageSize, pageToken };
 	}
+}
+
+function composeMangoQuery(filters: MangoFilter[]): Record<string, unknown> {
+	if (filters.length === 0) {
+		return {};
+	}
+
+	if (filters.length === 1) {
+		return filters[0];
+	}
+
+	return {
+		$and: filters,
+	};
 }
 
 function filterToMango(filter: NodeFilter): MangoFilter {
@@ -171,8 +186,6 @@ const operators: Partial<Record<FilterOperator, string>> = {
 	in: "$in",
 	"not-in": "$nin",
 	"contains-all": "$all",
-
-	match: "$regex",
 };
 
 type MangoFilter = { [key: string]: { [key: string]: unknown } };

@@ -18,8 +18,8 @@ function emailSpec(u: User): ValidationResult {
 		/^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
 	const spec = new RegexSpec(EMAIL_REGEX);
 
-	if (spec.isSatisfiedBy(u.email).isLeft()) {
-		return left(ValidationError.from(new InvalidEmailFormatError(u.email)));
+	if (spec.isSatisfiedBy(u.email!).isLeft()) {
+		return left(ValidationError.from(new InvalidEmailFormatError(u.email!)));
 	}
 
 	return right(true);
@@ -28,7 +28,7 @@ function emailSpec(u: User): ValidationResult {
 function fullnameSpec(u: User): ValidationResult {
 	if (!u.fullname || u.fullname.length < 3) {
 		return left(
-			ValidationError.from(new InvalidFullnameFormatError(u.fullname)),
+			ValidationError.from(new InvalidFullnameFormatError(u.fullname!)),
 		);
 	}
 

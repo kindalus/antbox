@@ -1,4 +1,4 @@
-import { Action, actionToFile, actionToNode, fileToAction } from "../domain/actions/action.ts";
+import { Action, actionToNode, fileToAction } from "../domain/actions/action.ts";
 import { ActionNode } from "../domain/actions/action_node.ts";
 import { RunContext } from "../domain/actions/run_context.ts";
 import { AuthContextProvider } from "../domain/auth/auth_provider.ts";
@@ -45,14 +45,17 @@ export class ActionService {
 	}
 
 	async list(): Promise<Either<AntboxError, ActionNode[]>> {
-		const nodesOrErrs = await this.nodeService.list(Node.ACTIONS_FOLDER_UUID);
+		const nodesOrErrs = await this.nodeService.query([
+			["mimetype", "==", Node.ACTION_MIMETYPE],
+			["parent", "==", Node.ACTIONS_FOLDER_UUID],
+		], Number.MAX_SAFE_INTEGER);
 
 		if (nodesOrErrs.isLeft()) {
 			return left(nodesOrErrs.value);
 		}
 
 		const nodes = [
-			...nodesOrErrs.value as ActionNode[],
+			...nodesOrErrs.value.nodes as ActionNode[],
 			...builtinActions.map(actionToNode),
 		].sort((a, b) => a.title.localeCompare(b.title));
 
@@ -61,10 +64,14 @@ export class ActionService {
 
 	async createOrReplace(
 		file: File,
-		_: Partial<Node>,
 	): Promise<Either<AntboxError, Node>> {
-		const action = await fileToAction(file);
-		const actionFile = await actionToFile(action);
+		const actionOrErr = await fileToAction(file);
+
+		if (actionOrErr.isLeft()) {
+			return left(actionOrErr.value);
+		}
+
+		const action = actionOrErr.value;
 
 		const nodeOrErr = await this.nodeService.get(action.uuid);
 		if (nodeOrErr.isLeft()) {
@@ -76,7 +83,7 @@ export class ActionService {
 				action,
 			);
 
-			return this.nodeService.createFile(actionFile, metadata);
+			return this.nodeService.createFile(file, metadata);
 		}
 
 		const metadata = NodeFactory.extractMetadata(action);
@@ -98,6 +105,16 @@ export class ActionService {
 		}
 
 		return this.nodeService.get(action.uuid);
+	}
+
+	async delete(uuid: string): Promise<Either<AntboxError, void>> {
+		const nodeOrErr = await this.get(uuid);
+
+		if (nodeOrErr.isLeft()) {
+			return left(nodeOrErr.value);
+		}
+
+		return this.nodeService.delete(uuid);
 	}
 
 	async run(
@@ -172,22 +189,22 @@ export class ActionService {
 		if (fileOrErr.isLeft()) {
 			return left(fileOrErr.value);
 		}
-		const action = await fileToAction(fileOrErr.value);
-		return right(action);
+
+		return fileToAction(fileOrErr.value);
 	}
 
 	async export(uuid: string): Promise<Either<AntboxError, File>> {
-		if (builtinActions.some((a) => a.uuid === uuid)) {
-			return right(actionToFile(builtinActions.find((a) => a.uuid === uuid)!));
+		const builtIn = builtinActions.find((a) => a.uuid === uuid);
+		if (builtIn) {
+			const file = new File([builtIn.toString()], builtIn.title, {
+				"type": "application/javascript",
+			});
+			return right(file);
 		}
 
-		const nodeOrErr = await this.nodeService.get(uuid);
+		const nodeOrErr = await this.get(uuid);
 		if (nodeOrErr.isLeft()) {
 			return left(nodeOrErr.value);
-		}
-
-		if (!nodeOrErr.value.isAction()) {
-			return left(new NodeNotFoundError(uuid));
 		}
 
 		return this.nodeService.export(uuid);
@@ -316,7 +333,7 @@ export class ActionService {
 			actionsOrErrs
 				.filter((a) => a.isRight())
 				.map((a) => a.value as File)
-				.map(fileToAction),
+				.map(fileToAction).map((a) => a.then((a) => a.value as Action)),
 		);
 
 		return actions

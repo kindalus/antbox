@@ -27,7 +27,7 @@ Deno.test("createAspect", async (t) => {
 			title: "Advogado",
 			builtIn: false,
 			filters: [],
-			properties: [],
+			aspectProperties: [],
 		};
 
 		const file = new File([JSON.stringify(aspect)], "advogado.json", {

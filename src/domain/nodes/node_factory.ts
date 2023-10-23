@@ -61,11 +61,11 @@ function createMetadata(
 	metadata: Partial<Node>,
 ): Node {
 	return compose(
-		{ uuid, fid, size },
-		extractMetadata(metadata),
+		extractMetadata({ ...metadata, mimetype }),
 		{
 			mimetype: mimetype === "text/javascript" ? "application/javascript" : mimetype,
 		},
+		{ uuid, fid, size },
 	);
 }
 

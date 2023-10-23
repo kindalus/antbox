@@ -30,6 +30,16 @@ export class Node {
 	static OCR_TEMPLATES_FOLDER_UUID = "--ocr-templates--";
 	static API_KEYS_FOLDER_UUID = "--api-keys--";
 
+	static SYSTEM_MIMETYPES = [
+		Node.ASPECT_MIMETYPE,
+		Node.ACTION_MIMETYPE,
+		Node.EXT_MIMETYPE,
+		Node.USER_MIMETYPE,
+		Node.GROUP_MIMETYPE,
+		Node.OCR_TEMPLATE_MIMETYPE,
+		Node.API_KEY_MIMETYPE,
+	];
+
 	private static FID_PREFIX = "--fid--";
 
 	static fidToUuid(fid: string): string {
@@ -46,6 +56,10 @@ export class Node {
 
 	static isRootFolder(uuid: string): boolean {
 		return uuid === Node.ROOT_FOLDER_UUID;
+	}
+
+	static isSystemRootFolder(uuid: string): boolean {
+		return uuid === Node.SYSTEM_FOLDER_UUID;
 	}
 
 	static isFolder(metadata: Partial<Node>): boolean {
@@ -132,6 +146,10 @@ export class Node {
 
 	isAction(): this is ActionNode {
 		return this.mimetype === Node.ACTION_MIMETYPE;
+	}
+
+	isExt(): boolean {
+		return this.mimetype === Node.EXT_MIMETYPE;
 	}
 
 	static isJavascript(file: File) {

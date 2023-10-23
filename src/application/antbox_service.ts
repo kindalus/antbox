@@ -1,4 +1,3 @@
-import { Aspect, aspectToNode } from "../domain/aspects/aspect.ts";
 import { AuthContextProvider } from "../domain/auth/auth_provider.ts";
 import { Group } from "../domain/auth/group.ts";
 import { GroupCreatedEvent } from "../domain/auth/group_created_event.ts";
@@ -33,6 +32,8 @@ import { NodeService } from "./node_service.ts";
 import { NodeServiceContext } from "./node_service_context.ts";
 
 import { ActionNode } from "../domain/actions/action_node.ts";
+import { AspectNode } from "../domain/aspects/aspect_node.ts";
+import { builtinActions } from "./builtin_actions/mod.ts";
 
 export class AntboxService {
 	readonly nodeService: NodeService;
@@ -42,11 +43,6 @@ export class AntboxService {
 	readonly extService: ExtService;
 	readonly apiKeysService: ApiKeyService;
 
-	readonly #fileCreators: Record<
-		string,
-		(file: File, metadata: Partial<Node>) => Promise<Either<AntboxError, Node>>
-	>;
-
 	constructor(nodeCtx: NodeServiceContext) {
 		this.nodeService = new NodeService(nodeCtx);
 		this.authService = new AuthService(this.nodeService);
@@ -55,11 +51,6 @@ export class AntboxService {
 		this.apiKeysService = new ApiKeyService(this.nodeService, nodeCtx.uuidGenerator);
 
 		this.extService = new ExtService(this.nodeService);
-
-		this.#fileCreators = {
-			[Node.ACTION_MIMETYPE]: (f, m) => this.actionService.createOrReplace(f, m),
-			[Node.EXT_MIMETYPE]: (f, m) => this.extService.createOrReplace(f, m),
-		};
 
 		this.subscribeToDomainEvents();
 		nodeCtx.storage.startListeners((eventId, handler) => {
@@ -72,23 +63,13 @@ export class AntboxService {
 		file: File,
 		metadata: Partial<Node>,
 	): Promise<Either<AntboxError, Node>> {
-		const createSystemFile = this.#fileCreators[metadata.mimetype ?? ""];
-
-		if (createSystemFile !== undefined && !User.isAdmin(authCtx.principal)) {
-			return left(new ForbiddenError());
-		}
-
-		if (createSystemFile) {
-			return createSystemFile(file, metadata);
-		}
-
 		const parent = metadata.parent ?? Node.ROOT_FOLDER_UUID;
-		if (Node.isRootFolder(parent)) {
-			return left(new ForbiddenError());
-		}
-
 		if (FolderNode.isSystemFolder(parent)) {
 			return left(new BadRequestError("Cannot create regular files in system folder"));
+		}
+
+		if (Node.isRootFolder(parent)) {
+			return left(new ForbiddenError());
 		}
 
 		const parentOrErr = await this.#getFolderWithPermission(
@@ -103,6 +84,7 @@ export class AntboxService {
 
 		const nodeOrErr = await this.nodeService.createFile(file, {
 			...metadata,
+			owner: authCtx.principal.email!,
 			parent: parentOrErr.value.uuid,
 		});
 		if (nodeOrErr.isRight()) {
@@ -116,12 +98,8 @@ export class AntboxService {
 
 	async create(
 		authCtx: AuthContextProvider,
-		metadata: Partial<Node>,
+		metadata: Partial<Node | FolderNode>,
 	): Promise<Either<AntboxError, Node>> {
-		if (Node.isAspect(metadata)) {
-			return this.aspectService.createOrReplace(metadata);
-		}
-
 		if (FolderNode.isSystemFolder(metadata.parent!)) {
 			return left(new BadRequestError("Cannot regular nodes in system folder"));
 		}
@@ -131,11 +109,20 @@ export class AntboxService {
 			metadata.parent ?? Node.ROOT_FOLDER_UUID,
 			"Write",
 		);
+
 		if (parentOrErr.isLeft()) {
 			return left(parentOrErr.value);
 		}
 
-		return this.nodeService.create({ ...metadata, parent: parentOrErr.value.uuid })
+		if (Node.isFolder(metadata)) {
+			return this.#createFolder(authCtx, metadata, parentOrErr.value);
+		}
+
+		return this.nodeService.create({
+			...metadata,
+			parent: parentOrErr.value.uuid,
+			owner: authCtx.principal.email!,
+		})
 			.then((result) => {
 				if (result.isRight()) {
 					DomainEvents.notify(
@@ -147,31 +134,18 @@ export class AntboxService {
 			});
 	}
 
-	async createFolder(
+	async #createFolder(
 		authCtx: AuthContextProvider,
 		metadata: Partial<FolderNode>,
+		parent: FolderNode,
 	): Promise<Either<AntboxError, FolderNode>> {
-		if (FolderNode.isSystemFolder(metadata.parent!)) {
-			return left(new BadRequestError("Cannot create folders in system folder"));
-		}
-
-		const parentOrErr = await this.#getFolderWithPermission(
-			authCtx,
-			metadata.parent ?? Node.ROOT_FOLDER_UUID,
-			"Write",
-		);
-
-		if (parentOrErr.isLeft()) {
-			return left(parentOrErr.value);
-		}
-
 		const result = await this.nodeService.create({
 			...metadata,
-			parent: parentOrErr.value.uuid,
+			parent: parent.uuid,
 			owner: authCtx.principal.email!,
 			group: authCtx.principal.group,
 			permissions: metadata.permissions ?? {
-				...parentOrErr.value.permissions,
+				...parent.permissions,
 			},
 		} as Partial<FolderNode>);
 
@@ -186,19 +160,17 @@ export class AntboxService {
 		authCtx: AuthContextProvider,
 		uuid = Node.ROOT_FOLDER_UUID,
 	): Promise<Either<AntboxError, Node[]>> {
+		if (FolderNode.isSystemFolder(uuid)) {
+			return left(new NodeNotFoundError(uuid));
+		}
+
+		if (FolderNode.isSystemRootFolder(uuid) && !User.isAdmin(authCtx.principal)) {
+			return left(new ForbiddenError());
+		}
+
 		const parentOrErr = await this.#getFolderWithPermission(authCtx, uuid, "Read");
 		if (parentOrErr.isLeft()) {
 			return left(parentOrErr.value);
-		}
-
-		if (parentOrErr.value.isAspectsFolder()) {
-			return this.aspectService.list()
-				.then((v) => v.map(aspectToNode))
-				.then(right<AntboxError, Node[]>);
-		}
-
-		if (parentOrErr.value.isActionsFolder()) {
-			return this.actionService.list();
 		}
 
 		const listOrErr = await this.nodeService.list(uuid);
@@ -301,9 +273,21 @@ export class AntboxService {
 		authCtx: AuthContextProvider,
 		uuid: string,
 	): Promise<Either<NodeNotFoundError, Node>> {
+		if (FolderNode.isSystemFolder(uuid) && !User.isAdmin(authCtx.principal)) {
+			return left(new ForbiddenError());
+		}
+
+		if (FolderNode.isSystemFolder(uuid)) {
+			return right(FolderNode.SYSTEM_FOLDERS.find((folder) => folder.uuid === uuid)!);
+		}
+
 		const nodeOrErr = await this.nodeService.get(uuid);
 		if (nodeOrErr.isLeft()) {
 			return left(nodeOrErr.value);
+		}
+
+		if (FolderNode.isSystemFolder(nodeOrErr.value.parent!)) {
+			return left(new NodeNotFoundError(uuid));
 		}
 
 		if (nodeOrErr.value.isFolder()) {
@@ -337,7 +321,26 @@ export class AntboxService {
 		pageSize = 25,
 		pageToken = 1,
 	): Promise<Either<AntboxError, NodeFilterResult>> {
-		return this.nodeService.query(filters, pageSize, pageToken);
+		const noSystemNodes = this.#removeSystemNodesUnlessRequested(filters);
+		return this.nodeService.query(noSystemNodes, pageSize, pageToken);
+	}
+
+	#removeSystemNodesUnlessRequested(filters: NodeFilter[]): NodeFilter[] {
+		let systemNodes = [...Node.SYSTEM_MIMETYPES];
+
+		const withMimetype = filters.filter(([field, _operator, _value]) => field === "mimetype");
+
+		withMimetype.forEach(([_, operator, value]) => {
+			if (operator === "==") {
+				systemNodes = systemNodes.filter((mimetype) => mimetype !== value);
+			}
+
+			if (operator === "in") {
+				systemNodes = systemNodes.filter((v) => !(value as string[]).includes(v));
+			}
+		});
+
+		return [...filters, ["mimetype", "not-in", systemNodes]];
 	}
 
 	async update(
@@ -346,7 +349,7 @@ export class AntboxService {
 		metadata: Partial<Node>,
 		merge?: boolean,
 	): Promise<Either<AntboxError, void>> {
-		const nodeOrErr = await this.nodeService.get(uuid);
+		const nodeOrErr = await this.get(authCtx, uuid);
 		if (nodeOrErr.isLeft()) {
 			return left(nodeOrErr.value);
 		}
@@ -465,17 +468,13 @@ export class AntboxService {
 		authCtx: AuthContextProvider,
 		uuid: string,
 	): Promise<Either<NodeNotFoundError | ForbiddenError, File>> {
-		const nodeOrErr = await this.nodeService.get(uuid);
+		const nodeOrErr = await this.get(authCtx, uuid);
 		if (nodeOrErr.isLeft()) {
 			return left(nodeOrErr.value);
 		}
 
-		if (nodeOrErr.value.isAspect()) {
-			return this.aspectService.export(nodeOrErr.value);
-		}
-
-		if (nodeOrErr.value.isAction()) {
-			return this.actionService.export(nodeOrErr.value.uuid);
+		if (FolderNode.isSystemFolder(nodeOrErr.value.parent!)) {
+			return left(new NodeNotFoundError(uuid));
 		}
 
 		const parentOrErr = await this.#getFolderWithPermission(
@@ -495,14 +494,14 @@ export class AntboxService {
 		uuid: string,
 		parent: string,
 	): Promise<Either<AntboxError, Node>> {
-		const parentOrErr = await this.#getFolderWithPermission(authCtx, parent, "Write");
-		if (parentOrErr.isLeft()) {
-			return left(parentOrErr.value);
-		}
-
 		const noderOrErr = await this.get(authCtx, uuid);
 		if (noderOrErr.isLeft()) {
 			return left(noderOrErr.value);
+		}
+
+		const parentOrErr = await this.#getFolderWithPermission(authCtx, parent, "Write");
+		if (parentOrErr.isLeft()) {
+			return left(parentOrErr.value);
 		}
 
 		const voidOrErr = await this.nodeService.copy(uuid, parent);
@@ -541,13 +540,13 @@ export class AntboxService {
 		uuid: string,
 		file: File,
 	): Promise<Either<AntboxError, void>> {
-		const nodeOrErr = await this.nodeService.get(uuid);
+		const nodeOrErr = await this.get(authCtx, uuid);
 		if (nodeOrErr.isLeft()) {
 			return Promise.resolve(left(nodeOrErr.value));
 		}
 
-		if (this.#fileCreators[nodeOrErr.value.mimetype]) {
-			return this.#updateSystemFile(authCtx, nodeOrErr.value, file);
+		if (FolderNode.isSystemFolder(nodeOrErr.value.parent!)) {
+			return left(new NodeNotFoundError(uuid));
 		}
 
 		const result = await this.nodeService.updateFile(uuid, file);
@@ -558,26 +557,6 @@ export class AntboxService {
 		}
 
 		return result;
-	}
-
-	async #updateSystemFile(
-		authCtx: AuthContextProvider,
-		metadata: Node,
-		file: File,
-	): Promise<Either<AntboxError, void>> {
-		const createSystemFile = this.#fileCreators[metadata.mimetype];
-
-		const voidOrErr = await createSystemFile(file, metadata);
-
-		if (voidOrErr.isLeft()) {
-			return left<AntboxError, void>(voidOrErr.value);
-		}
-
-		DomainEvents.notify(
-			new NodeContentUpdatedEvent(authCtx.principal.email!, metadata.uuid),
-		);
-
-		return right(undefined);
 	}
 
 	async evaluate(
@@ -601,7 +580,7 @@ export class AntboxService {
 		authCtx: AuthContextProvider,
 		uuid: string,
 	): Promise<Either<AntboxError, void>> {
-		const nodeOrErr = await this.nodeService.get(uuid);
+		const nodeOrErr = await this.get(authCtx, uuid);
 		if (nodeOrErr.isLeft()) {
 			return left(nodeOrErr.value);
 		}
@@ -635,8 +614,40 @@ export class AntboxService {
 		return voidOrErr;
 	}
 
-	getAction(_authCtx: AuthContextProvider, uuid: string) {
+	/**** ACTION ****/
+
+	createOrReplaceAction(authCtx: AuthContextProvider, action: File) {
+		if (!User.isAdmin(authCtx.principal)) {
+			return Promise.resolve(left(new ForbiddenError()));
+		}
+
+		return this.actionService.createOrReplace(action);
+	}
+
+	deleteAction(authCtx: AuthContextProvider, uuid: string) {
+		if (!User.isAdmin(authCtx.principal)) {
+			return Promise.resolve(left(new ForbiddenError()));
+		}
+
+		return this.actionService.delete(uuid);
+	}
+
+	getAction(
+		_authCtx: AuthContextProvider,
+		uuid: string,
+	): Promise<Either<AntboxError, ActionNode>> {
 		return this.actionService.get(uuid);
+	}
+
+	exportAction(
+		authCtx: AuthContextProvider,
+		uuid: string,
+	): Promise<Either<AntboxError, File>> {
+		if (!User.isAdmin(authCtx.principal)) {
+			return Promise.resolve(left(new ForbiddenError()));
+		}
+
+		return this.actionService.export(uuid);
 	}
 
 	runAction(
@@ -648,25 +659,97 @@ export class AntboxService {
 		return this.actionService.run(authCtx, uuid, uuids, params);
 	}
 
-	listActions(_authCtx: AuthContextProvider): Promise<ActionNode[]> {
+	listActions(_authCtx: AuthContextProvider): Promise<Either<AntboxError, ActionNode[]>> {
 		return this.actionService.list().then((nodesOrErr) => {
 			if (nodesOrErr.isLeft()) {
-				return [];
+				return left(nodesOrErr.value);
 			}
 
-			return nodesOrErr.value;
+			return right(nodesOrErr.value);
 		});
 	}
 
+	/**** ACTION ****/
+	createOrReplaceExtension(authCtx: AuthContextProvider, file: File, metadata: Partial<Node>) {
+		if (!User.isAdmin(authCtx.principal)) {
+			return Promise.resolve(left(new ForbiddenError()));
+		}
+
+		return this.extService.createOrReplace(file, metadata);
+	}
+
+	updateExtension(authCtx: AuthContextProvider, uuid: string, metadata: Partial<Node>) {
+		if (!User.isAdmin(authCtx.principal)) {
+			return Promise.resolve(left(new ForbiddenError()));
+		}
+
+		return this.extService.update(uuid, metadata);
+	}
+
+	deleteExtension(authCtx: AuthContextProvider, uuid: string) {
+		if (!User.isAdmin(authCtx.principal)) {
+			return Promise.resolve(left(new ForbiddenError()));
+		}
+
+		return this.extService.delete(uuid);
+	}
+
+	getExtension(
+		_authCtx: AuthContextProvider,
+		uuid: string,
+	): Promise<Either<AntboxError, Node>> {
+		return this.extService.get(uuid);
+	}
+
+	exportExtension(
+		authCtx: AuthContextProvider,
+		uuid: string,
+	): Promise<Either<AntboxError, File>> {
+		if (!User.isAdmin(authCtx.principal)) {
+			return Promise.resolve(left(new ForbiddenError()));
+		}
+
+		return this.extService.export(uuid);
+	}
+
+	listExtensions(_authCtx: AuthContextProvider): Promise<Either<AntboxError, Node[]>> {
+		return this.extService.list();
+	}
+
+	/**** ASPECTS  ****/
 	getAspect(
 		_authCtx: AuthContextProvider,
 		uuid: string,
-	): Promise<Either<AntboxError, Aspect>> {
+	): Promise<Either<AntboxError, AspectNode>> {
 		return this.aspectService.get(uuid);
 	}
 
-	listAspects(_authCtx: AuthContextProvider): Promise<Aspect[]> {
-		return this.aspectService.list().then((nodes) => nodes);
+	listAspects(_authCtx: AuthContextProvider): Promise<Either<AntboxError, AspectNode[]>> {
+		return this.aspectService.list().then((nodes) => right(nodes));
+	}
+
+	createOrReplaceAspect(authCtx: AuthContextProvider, aspect: Partial<AspectNode>) {
+		if (!User.isAdmin(authCtx.principal)) {
+			return Promise.resolve(left(new ForbiddenError()));
+		}
+
+		return this.aspectService.createOrReplace(aspect);
+	}
+
+	exportAspect(authCtx: AuthContextProvider, uuid: string): Promise<Either<AntboxError, File>> {
+		if (!User.isAdmin(authCtx.principal)) {
+			return Promise.resolve(left(new ForbiddenError()));
+		}
+
+		return this.aspectService.export(uuid);
+	}
+
+	deleteAspect(authCtx: AuthContextProvider, uuid: string) {
+		if (!User.isAdmin(authCtx.principal)) {
+			return Promise.resolve(left(new ForbiddenError()));
+		}
+
+		return this.aspectService.delete(uuid);
 	}
 
 	async createUser(authCtx: AuthContextProvider, user: User): Promise<Either<AntboxError, Node>> {
@@ -836,6 +919,7 @@ export class AntboxService {
 		return voidOrErr;
 	}
 
+	/**** API KEYS  ****/
 	getApiKey(
 		authCtx: AuthContextProvider,
 		uuid: string,

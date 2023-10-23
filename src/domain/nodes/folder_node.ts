@@ -1,4 +1,3 @@
-import { AspectNode } from "../aspects/aspect_node.ts";
 import { Group } from "../auth/group.ts";
 import { User } from "../auth/user.ts";
 import { Node, Permissions } from "./node.ts";
@@ -13,6 +12,16 @@ export class FolderNode extends Node {
 	static EXT_FOLDER = FolderNode.#buildExtFolder();
 	static OCR_TEMPLATES_FOLDER = FolderNode.#buildOcrTemplatesFolder();
 	static API_KEYS_FOLDER = FolderNode.#buildApiKeysFolder();
+
+	static SYSTEM_FOLDERS = [
+		FolderNode.ASPECTS_FOLDER,
+		FolderNode.USERS_FOLDER,
+		FolderNode.GROUPS_FOLDER,
+		FolderNode.ACTIONS_FOLDER,
+		FolderNode.EXT_FOLDER,
+		FolderNode.OCR_TEMPLATES_FOLDER,
+		FolderNode.API_KEYS_FOLDER,
+	];
 
 	static #buildRootFolder(): FolderNode {
 		const root = new FolderNode();
@@ -119,17 +128,7 @@ export class FolderNode extends Node {
 	}
 
 	static isSystemFolder(uuid: string): boolean {
-		const systemUuids = [
-			Node.ASPECTS_FOLDER_UUID,
-			Node.ACTIONS_FOLDER_UUID,
-			Node.EXT_FOLDER_UUID,
-			Node.GROUPS_FOLDER_UUID,
-			Node.USERS_FOLDER_UUID,
-			Node.OCR_TEMPLATES_FOLDER_UUID,
-			Node.API_KEYS_FOLDER_UUID,
-		];
-
-		return systemUuids.includes(uuid);
+		return this.SYSTEM_FOLDERS.some((folder) => folder.uuid === uuid);
 	}
 
 	onCreate: string[] = [];
@@ -152,5 +151,9 @@ export class FolderNode extends Node {
 
 	isActionsFolder(): boolean {
 		return this.uuid === Node.ACTIONS_FOLDER_UUID;
+	}
+
+	isApiKeysFolder(): boolean {
+		return this.uuid === Node.API_KEYS_FOLDER_UUID;
 	}
 }

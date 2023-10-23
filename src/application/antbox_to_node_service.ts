@@ -1,4 +1,4 @@
-import { Aspect } from "../domain/aspects/aspect.ts";
+import { AspectNode } from "../domain/aspects/aspect_node.ts";
 import { AuthContextProvider } from "../domain/auth/auth_provider.ts";
 import { AggregationFormulaError } from "../domain/nodes/aggregation_formula_error.ts";
 import { FolderNode } from "../domain/nodes/folder_node.ts";
@@ -37,10 +37,10 @@ class SecuredNodeService extends NodeService {
 		return this.srv.createFile(this.auth, file, metadata);
 	}
 
-	createFolder(
+	create(
 		metadata: Partial<FolderNode>,
-	): Promise<Either<AntboxError, FolderNode>> {
-		return this.srv.createFolder(this.auth, metadata);
+	): Promise<Either<AntboxError, Node>> {
+		return this.srv.create(this.auth, metadata);
 	}
 
 	createMetanode(metadata: Partial<Node>): Promise<Either<AntboxError, Node>> {
@@ -70,7 +70,7 @@ class SecuredNodeService extends NodeService {
 		return this.srv.get(this.auth, uuid);
 	}
 
-	getAspect(uuid: string): Promise<Either<NodeNotFoundError, Aspect>> {
+	getAspect(uuid: string): Promise<Either<NodeNotFoundError, AspectNode>> {
 		return this.srv.getAspect(this.auth, uuid);
 	}
 
@@ -80,7 +80,7 @@ class SecuredNodeService extends NodeService {
 		return this.srv.list(this.auth, parent);
 	}
 
-	listAspects(): Promise<Aspect[]> {
+	listAspects(): Promise<Either<AntboxError, AspectNode[]>> {
 		return this.srv.listAspects(this.auth);
 	}
 

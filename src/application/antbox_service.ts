@@ -104,6 +104,10 @@ export class AntboxService {
 			return left(new BadRequestError("Cannot regular nodes in system folder"));
 		}
 
+		if (FolderNode.isRootFolder(metadata.parent!) && !Node.isFolder(metadata)) {
+			return left(new BadRequestError("Cannot create regular files in root folder"));
+		}
+
 		const parentOrErr = await this.#getFolderWithPermission(
 			authCtx,
 			metadata.parent ?? Node.ROOT_FOLDER_UUID,

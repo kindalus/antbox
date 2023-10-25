@@ -33,7 +33,7 @@ import { NodeServiceContext } from "./node_service_context.ts";
 
 import { ActionNode } from "../domain/actions/action_node.ts";
 import { AspectNode } from "../domain/aspects/aspect_node.ts";
-import { builtinActions } from "./builtin_actions/mod.ts";
+import { GroupNode } from "../domain/nodes/group_node.ts";
 
 export class AntboxService {
 	readonly nodeService: NodeService;
@@ -838,12 +838,12 @@ export class AntboxService {
 		return voidOrErr;
 	}
 
-	listGroups(authCtx: AuthContextProvider): Promise<Either<AntboxError, Group[]>> {
+	listGroups(authCtx: AuthContextProvider): Promise<Either<AntboxError, GroupNode[]>> {
 		if (!User.isAdmin(authCtx.principal)) {
 			return Promise.resolve(left(new ForbiddenError()));
 		}
 
-		return this.authService.listGroups();
+		return this.authService.listGroups().then((groups) => right(groups));
 	}
 
 	getGroup(authCtx: AuthContextProvider, uuid: string): Promise<Either<AntboxError, Group>> {
@@ -856,7 +856,7 @@ export class AntboxService {
 
 	async createGroup(
 		authCtx: AuthContextProvider,
-		group: Group,
+		group: GroupNode,
 	): Promise<Either<AntboxError, Node>> {
 		if (!User.isAdmin(authCtx.principal)) {
 			return Promise.resolve(left(new ForbiddenError()));

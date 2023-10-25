@@ -11,6 +11,7 @@ import { UserNode } from "../domain/nodes/user_node.ts";
 import { AntboxError, BadRequestError } from "../shared/antbox_error.ts";
 import { Either, left, right } from "../shared/either.ts";
 import { Admins } from "./builtin_groups/admins.ts";
+import { builtinGroups } from "./builtin_groups/mod.ts";
 import { Anonymous } from "./builtin_users/anonymous.ts";
 import { Root } from "./builtin_users/root.ts";
 import { groupToNode, nodeToGroup, nodeToUser, userToNode } from "./node_mapper.ts";
@@ -152,19 +153,19 @@ export class AuthService {
 
 	// Groups
 	async createGroup(
-		group: Partial<Group & { owner: string }>,
+		groupNode: Partial<GroupNode>,
 	): Promise<Either<AntboxError, GroupNode>> {
-		const trueOrErr = this.#groupSpec.isSatisfiedBy(group as Group);
+		const group = nodeToGroup(groupNode as GroupNode);
+		const trueOrErr = this.#groupSpec.isSatisfiedBy(group);
 
 		if (trueOrErr.isLeft()) {
 			return Promise.resolve(left(trueOrErr.value));
 		}
 
 		// deno-lint-ignore no-unused-vars
-		const { uuid, ...rest } = group;
+		const { uuid, ...rest } = groupNode;
 
-		const node = groupToNode(rest as Group);
-		const nodeOrErr = await this.nodeService.create({ ...node, owner: group.owner });
+		const nodeOrErr = await this.nodeService.create({ ...rest });
 
 		return nodeOrErr as Either<AntboxError, GroupNode>;
 	}
@@ -187,14 +188,23 @@ export class AuthService {
 		return right(nodeToGroup(nodeOrErr.value));
 	}
 
-	async listGroups(): Promise<Either<AntboxError, Group[]>> {
-		const groupsOrErr = await this.nodeService.list(Node.GROUPS_FOLDER_UUID);
-
-		if (groupsOrErr.isLeft()) {
-			return left(groupsOrErr.value);
+	async listGroups(): Promise<GroupNode[]> {
+		const nodesOrErrs = await this.nodeService.query(
+			[["mimetype", "==", Node.GROUP_MIMETYPE], ["parent", "==", Node.GROUPS_FOLDER_UUID]],
+			Number.MAX_SAFE_INTEGER,
+		);
+		if (nodesOrErrs.isLeft()) {
+			console.error(nodesOrErrs.value);
+			return [];
 		}
 
-		return right(groupsOrErr.value.map((node) => nodeToGroup(node as GroupNode)));
+		const groups = nodesOrErrs.value.nodes as GroupNode[];
+		const systemGroups = builtinGroups.map(groupToNode);
+
+		return [
+			...groups,
+			...systemGroups,
+		].sort((a, b) => a.title.localeCompare(b.title));
 	}
 
 	async updateGroup(uuid: string, data: Partial<Group>): Promise<Either<AntboxError, void>> {
@@ -211,8 +221,8 @@ export class AuthService {
 		}
 
 		const group: Record<string, unknown> = {};
-		Object.entries(data).forEach(([key, value]) => {
-			if (fields.includes(key)) group[key] = value;
+		Object.entries(data).forEach((entry) => {
+			if (fields.includes(entry[0])) group[entry[0]] = entry[1];
 		});
 
 		const merged = Object.assign(existing, group);

@@ -13,6 +13,7 @@ import { Either, left, right } from "../shared/either.ts";
 import { Admins } from "./builtin_groups/admins.ts";
 import { builtinGroups } from "./builtin_groups/mod.ts";
 import { Anonymous } from "./builtin_users/anonymous.ts";
+import { builtinUsers } from "./builtin_users/mod.ts";
 import { Root } from "./builtin_users/root.ts";
 import { groupToNode, nodeToGroup, nodeToUser, userToNode } from "./node_mapper.ts";
 import { NodeService } from "./node_service.ts";
@@ -24,9 +25,9 @@ export class AuthService {
 	constructor(private readonly nodeService: NodeService) {}
 
 	async createUser(
-		user: Partial<User & { owner: string }>,
+		user: Partial<UserNode>,
 	): Promise<Either<AntboxError, UserNode>> {
-		const trueOrErr = this.#userSpec.isSatisfiedBy(user as User);
+		const trueOrErr = this.#userSpec.isSatisfiedBy(user as UserNode);
 		if (trueOrErr.isLeft()) {
 			return left(trueOrErr.value);
 		}
@@ -36,22 +37,28 @@ export class AuthService {
 			return left(new UserExistsError(user.email!));
 		}
 
-		// deno-lint-ignore no-unused-vars
-		const { uuid, ...rest } = user;
+		const clenanedUser = {
+			title: user.title,
+			email: user.email,
+			group: user.group,
+			groups: user.groups,
+			owner: user.owner,
+			mimetype: Node.USER_MIMETYPE,
+			parent: Node.USERS_FOLDER_UUID,
+		};
 
-		const node = userToNode(rest as User);
-		const nodeOrErr = await this.nodeService.create({ ...node, owner: user.owner });
+		const nodeOrErr = await this.nodeService.create(clenanedUser);
 
 		return nodeOrErr as Either<AntboxError, UserNode>;
 	}
 
-	async getUser(uuid: string): Promise<Either<AntboxError, User>> {
+	async getUser(uuid: string): Promise<Either<AntboxError, UserNode>> {
 		if (uuid === User.ROOT_USER_UUID) {
-			return right(Root);
+			return right(userToNode(Root));
 		}
 
 		if (uuid === User.ANONYMOUS_USER_UUID) {
-			return right(Anonymous);
+			return right(userToNode(Anonymous));
 		}
 
 		const nodeOrErr = await this.nodeService.get(uuid);
@@ -65,7 +72,7 @@ export class AuthService {
 			return left(new UserNotFoundError(uuid));
 		}
 
-		return right(nodeToUser(node));
+		return right(node);
 	}
 
 	async getUserByEmail(email: string): Promise<Either<AntboxError, User>> {
@@ -99,18 +106,31 @@ export class AuthService {
 		return right(nodeToUser(node));
 	}
 
-	async listUsers(): Promise<Either<AntboxError, User[]>> {
-		const usersOrErr = await this.nodeService.list(Node.USERS_FOLDER_UUID);
-
-		if (usersOrErr.isLeft()) {
-			return left(usersOrErr.value);
+	async listUsers(): Promise<UserNode[]> {
+		const nodesOrErrs = await this.nodeService.query(
+			[["mimetype", "==", Node.USER_MIMETYPE], ["parent", "==", Node.USERS_FOLDER_UUID]],
+			Number.MAX_SAFE_INTEGER,
+		);
+		if (nodesOrErrs.isLeft()) {
+			console.error(nodesOrErrs.value);
+			return [];
 		}
 
-		return right(usersOrErr.value.map((node) => nodeToUser(node as UserNode)));
+		const users = nodesOrErrs.value.nodes as UserNode[];
+		const systemUsers = builtinUsers.map(userToNode);
+
+		return [
+			...users,
+			...systemUsers,
+		].sort((a, b) => a.title.localeCompare(b.title));
 	}
 
 	async updateUser(uuid: string, data: Partial<User>): Promise<Either<AntboxError, void>> {
-		const fields = ["fullname", "group", "groups"];
+		if (uuid === User.ROOT_USER_UUID || uuid === User.ANONYMOUS_USER_UUID) {
+			return left(new BadRequestError("Cannot update built-in user"));
+		}
+
+		const fields = ["title", "group", "groups"];
 
 		const existingOrErr = await this.getUser(uuid);
 		if (existingOrErr.isLeft()) {
@@ -118,10 +138,6 @@ export class AuthService {
 		}
 
 		const existing = existingOrErr.value;
-		if (existing.builtIn) {
-			return left(new BadRequestError("Cannot update built-in user"));
-		}
-
 		const user: Record<string, unknown> = {};
 		Object.entries(data).forEach(([key, value]) => {
 			if (fields.includes(key)) user[key] = value;
@@ -138,14 +154,13 @@ export class AuthService {
 	}
 
 	async deleteUser(uuid: string): Promise<Either<AntboxError, void>> {
+		if (uuid === User.ROOT_USER_UUID || uuid === User.ANONYMOUS_USER_UUID) {
+			return left(new BadRequestError("Cannot delete built-in user"));
+		}
+
 		const existingOrErr = await this.getUser(uuid);
 		if (existingOrErr.isLeft()) {
 			return left(existingOrErr.value);
-		}
-
-		const existing = existingOrErr.value;
-		if (existing.builtIn) {
-			return left(new BadRequestError("Cannot delete built-in user"));
 		}
 
 		return this.nodeService.delete(uuid);

@@ -34,6 +34,7 @@ import { NodeServiceContext } from "./node_service_context.ts";
 import { ActionNode } from "../domain/actions/action_node.ts";
 import { AspectNode } from "../domain/aspects/aspect_node.ts";
 import { GroupNode } from "../domain/nodes/group_node.ts";
+import { UserNode } from "../domain/nodes/user_node.ts";
 
 export class AntboxService {
 	readonly nodeService: NodeService;
@@ -779,15 +780,15 @@ export class AntboxService {
 		return nodeOrErr;
 	}
 
-	listUsers(authCtx: AuthContextProvider): Promise<Either<AntboxError, User[]>> {
+	listUsers(authCtx: AuthContextProvider): Promise<Either<AntboxError, UserNode[]>> {
 		if (!User.isAdmin(authCtx.principal)) {
 			return Promise.resolve(left(new ForbiddenError()));
 		}
 
-		return this.authService.listUsers();
+		return this.authService.listUsers().then((users) => right(users));
 	}
 
-	getUser(authCtx: AuthContextProvider, uuid: string): Promise<Either<AntboxError, User>> {
+	getUser(authCtx: AuthContextProvider, uuid: string): Promise<Either<AntboxError, UserNode>> {
 		if (!User.isAdmin(authCtx.principal) && authCtx.principal.uuid !== uuid) {
 			return Promise.resolve(left(new ForbiddenError()));
 		}

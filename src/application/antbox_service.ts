@@ -23,7 +23,7 @@ import { SmartFolderNodeNotFoundError } from "../domain/nodes/smart_folder_node_
 import { AntboxError, BadRequestError, ForbiddenError } from "../shared/antbox_error.ts";
 import { Either, left, right } from "../shared/either.ts";
 import { ActionService } from "./action_service.ts";
-import { ApiKeyService } from "./api_keys_service.ts";
+import { ApiKeyService } from "./api_key_service.ts";
 import { AspectService } from "./aspect_service.ts";
 import { AuthService } from "./auth_service.ts";
 import { DomainEvents } from "./domain_events.ts";
@@ -838,11 +838,7 @@ export class AntboxService {
 		return voidOrErr;
 	}
 
-	listGroups(authCtx: AuthContextProvider): Promise<Either<AntboxError, GroupNode[]>> {
-		if (!User.isAdmin(authCtx.principal)) {
-			return Promise.resolve(left(new ForbiddenError()));
-		}
-
+	listGroups(_authCtx: AuthContextProvider): Promise<Either<AntboxError, GroupNode[]>> {
 		return this.authService.listGroups().then((groups) => right(groups));
 	}
 
@@ -940,12 +936,13 @@ export class AntboxService {
 			return Promise.resolve(left(new ForbiddenError()));
 		}
 
-		return this.apiKeysService.list();
+		return this.apiKeysService.list().then((v) => right(v));
 	}
 
 	createApiKey(
 		authCtx: AuthContextProvider,
 		group: string,
+		description: string,
 	): Promise<Either<AntboxError, ApiKeyNode>> {
 		if (!User.isAdmin(authCtx.principal)) {
 			return Promise.resolve(left(new ForbiddenError()));
@@ -955,7 +952,7 @@ export class AntboxService {
 			return Promise.resolve(left(new BadRequestError("Group is required")));
 		}
 
-		return this.apiKeysService.create(group, authCtx.principal.email!);
+		return this.apiKeysService.create(group, authCtx.principal.email!, description);
 	}
 
 	deleteApiKey(authCtx: AuthContextProvider, uuid: string): Promise<Either<AntboxError, void>> {

@@ -3,7 +3,7 @@ import { Node } from "./node.ts";
 export class ApiKeyNode extends Node {
 	group: string;
 	secret: string;
-	constructor(group = "", secret = "") {
+	constructor(group = "", secret = "", description = "") {
 		super();
 
 		this.mimetype = Node.API_KEY_MIMETYPE;
@@ -11,6 +11,7 @@ export class ApiKeyNode extends Node {
 		this.group = group;
 		this.secret = secret;
 		this.title = secret.replace(/^(\w{4}).*$/g, "$1******");
+		this.description = description;
 	}
 
 	cloneWithSecret(): ApiKeyNode {

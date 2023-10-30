@@ -1,5 +1,5 @@
 import { Context, getQuery, jose, JWK, KeyLike } from "../../../deps.ts";
-import { ApiKeyService } from "../../application/api_keys_service.ts";
+import { ApiKeyService } from "../../application/api_key_service.ts";
 import { AuthService } from "../../application/auth_service.ts";
 import { Anonymous } from "../../application/builtin_users/anonymous.ts";
 import { Root } from "../../application/builtin_users/root.ts";

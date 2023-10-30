@@ -6,7 +6,7 @@ import { ContextWithParams } from "./context_with_params.ts";
 import { getRequestContext } from "./get_request_context.ts";
 import { getTenant } from "./get_tenant.ts";
 import { processError } from "./process_error.ts";
-import { sendOK } from "./send_response.ts";
+import { sendBadRequest, sendOK } from "./send_response.ts";
 import { AntboxTenant } from "./setup_oak_server.ts";
 
 export default function (tenants: AntboxTenant[]) {
@@ -57,6 +57,21 @@ export default function (tenants: AntboxTenant[]) {
 			.catch((err) => processError(err, ctx));
 	};
 
+	const createOrReplaceAspect = async (ctx: Context) => {
+		const service = getTenant(ctx, tenants).service;
+		const authCtx = getRequestContext(ctx);
+
+		const metadata = await ctx.request.body().value;
+		if (!metadata) {
+			return sendBadRequest(ctx, "Missing metadata");
+		}
+
+		return service
+			.createOrReplaceAspect(authCtx, metadata)
+			.then((result) => processEither(ctx, result))
+			.catch((err) => processError(err, ctx));
+	};
+
 	const deleteHandler = (ctx: ContextWithParams) => {
 		const service = getTenant(ctx, tenants).service;
 		return service
@@ -69,6 +84,7 @@ export default function (tenants: AntboxTenant[]) {
 
 	aspectsRouter.get("/", listHandler);
 	aspectsRouter.get("/:uuid", getHandler);
+	aspectsRouter.post("/", createOrReplaceAspect);
 	aspectsRouter.delete("/:uuid", deleteHandler);
 	aspectsRouter.get("/:uuid/-/export", exportHandler);
 

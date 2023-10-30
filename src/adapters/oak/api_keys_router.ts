@@ -44,7 +44,7 @@ export default function (tenants: AntboxTenant[]) {
 		const service = getTenant(ctx, tenants).service;
 		const body = await ctx.request.body().value;
 
-		return service.createApiKey(getRequestContext(ctx), body.group)
+		return service.createApiKey(getRequestContext(ctx), body.group, body.description)
 			.then((result) => processEither(ctx, result))
 			.catch((err) => processError(err, ctx));
 	};

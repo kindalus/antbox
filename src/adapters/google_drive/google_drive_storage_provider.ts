@@ -1,9 +1,9 @@
 import { createReadStream } from "node:fs";
-import { drive_v3, google } from "npm:googleapis@124.0.0";
+import { drive_v3, google } from "npm:googleapis@128.0.0";
 
 import { StorageProvider, WriteFileOpts } from "../../domain/providers/storage_provider.ts";
 import { Either, left, right } from "../../shared/either.ts";
-import { AntboxError, UnknownError } from "../../shared/antbox_error.ts";
+import { AntboxError, BadRequestError, UnknownError } from "../../shared/antbox_error.ts";
 import { NodeNotFoundError } from "../../domain/nodes/node_not_found_error.ts";
 import { Node } from "../../domain/nodes/node.ts";
 import { EventHandler } from "../../shared/event_handler.ts";
@@ -11,6 +11,7 @@ import { Event } from "../../shared/event.ts";
 import { NodeDeletedEvent } from "../../domain/nodes/node_deleted_event.ts";
 import { NodeUpdatedEvent } from "../../domain/nodes/node_updated_event.ts";
 import { NodeCreatedEvent } from "../../domain/nodes/node_created_event.ts";
+import { FolderNode } from "../../domain/nodes/folder_node.ts";
 
 class GoogleDriveStorageProvider implements StorageProvider {
 	readonly #drive: drive_v3.Drive;
@@ -69,11 +70,22 @@ class GoogleDriveStorageProvider implements StorageProvider {
 	}
 
 	async #updateParentFolderId(fileId: string, parent: string) {
-		const parentOrErr = await this.#getDriveMedata(parent);
+		let parentOrErr = await this.#getDriveMedata(parent);
 
 		if (parentOrErr.isLeft()) {
-			console.error(parentOrErr.value);
-			return;
+			const res = await this.#createSystemFolderIfApplicable(parent);
+
+			if (res.isLeft()) {
+				console.error(res.value);
+				return;
+			}
+
+			parentOrErr = await this.#getDriveMedata(parent);
+
+			if (parentOrErr.isLeft()) {
+				console.error(parentOrErr.value.message);
+				return;
+			}
 		}
 
 		this.#drive.files.update({
@@ -149,14 +161,18 @@ class GoogleDriveStorageProvider implements StorageProvider {
 			parentId = parentOrErr.value.id;
 		}
 
+		return this.#createGoogleDriveFolder(node.uuid, node.title, parentId);
+	}
+
+	#createGoogleDriveFolder(uuid: string, title: string, parentId: string) {
 		const requestBody = {
-			name: node.title,
+			name: title,
 			parents: [parentId],
-			appProperties: { uuid: node.uuid },
+			appProperties: { uuid },
 			mimeType: "application/vnd.google-apps.folder",
 		};
 
-		this.#drive.files.create({ requestBody })
+		return this.#drive.files.create({ requestBody })
 			.catch((e) => console.error(e.message));
 	}
 
@@ -210,6 +226,20 @@ class GoogleDriveStorageProvider implements StorageProvider {
 		const { id, mimeType, name, parents } = files[0];
 
 		return right({ id, mimeType, name, parents } as DriveMetada);
+	}
+
+	async #createSystemFolderIfApplicable(uuid: string) {
+		if (!FolderNode.isSystemFolder(uuid)) {
+			return left(new BadRequestError("Invalid system folder uuid"));
+		}
+
+		const res = await this.#createGoogleDriveFolder(uuid, uuid, this.#rootFolderId);
+
+		if (!res || res.status !== 200) {
+			return left(new UnknownError("Error creating system folder"));
+		}
+
+		return right(undefined);
 	}
 }
 

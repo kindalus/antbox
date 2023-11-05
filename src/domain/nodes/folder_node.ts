@@ -118,6 +118,35 @@ export class FolderNode extends Node {
 		title: string,
 		parent: string,
 	): FolderNode {
+		const childFilters: NodeFilter[] = [];
+
+		switch (uuid) {
+			case Node.ROOT_FOLDER_UUID:
+				childFilters.push(["mimetype", "==", Node.FOLDER_MIMETYPE]);
+				break;
+			case Node.ASPECTS_FOLDER_UUID:
+				childFilters.push(["mimetype", "==", Node.ASPECT_MIMETYPE]);
+				break;
+			case Node.USERS_FOLDER_UUID:
+				childFilters.push(["mimetype", "==", Node.USER_MIMETYPE]);
+				break;
+			case Node.GROUPS_FOLDER_UUID:
+				childFilters.push(["mimetype", "==", Node.GROUP_MIMETYPE]);
+				break;
+			case Node.ACTIONS_FOLDER_UUID:
+				childFilters.push(["mimetype", "==", Node.ACTION_MIMETYPE]);
+				break;
+			case Node.EXT_FOLDER_UUID:
+				childFilters.push(["mimetype", "==", Node.EXT_MIMETYPE]);
+				break;
+			case Node.OCR_TEMPLATES_FOLDER_UUID:
+				childFilters.push(["mimetype", "==", Node.OCR_TEMPLATE_MIMETYPE]);
+				break;
+			case Node.API_KEYS_FOLDER_UUID:
+				childFilters.push(["mimetype", "==", Node.API_KEY_MIMETYPE]);
+				break;
+		}
+
 		return Object.assign(new FolderNode(), {
 			uuid,
 			fid,
@@ -131,6 +160,7 @@ export class FolderNode extends Node {
 				anonymous: [],
 				advanced: {},
 			},
+			childFilters,
 		});
 	}
 

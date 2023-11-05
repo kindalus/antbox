@@ -1,6 +1,7 @@
 import { Group } from "../auth/group.ts";
 import { User } from "../auth/user.ts";
 import { Node, Permissions } from "./node.ts";
+import { NodeFilter } from "./node_filter.ts";
 
 export class FolderNode extends Node {
 	static ROOT_FOLDER = FolderNode.#buildRootFolder();
@@ -139,6 +140,8 @@ export class FolderNode extends Node {
 		authenticated: ["Read", "Export"],
 		anonymous: [],
 	};
+
+	childFilters: NodeFilter[] = [];
 
 	constructor() {
 		super();

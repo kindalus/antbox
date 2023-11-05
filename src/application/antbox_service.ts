@@ -35,6 +35,7 @@ import { ActionNode } from "../domain/actions/action_node.ts";
 import { AspectNode } from "../domain/aspects/aspect_node.ts";
 import { GroupNode } from "../domain/nodes/group_node.ts";
 import { UserNode } from "../domain/nodes/user_node.ts";
+import { filtersSpecFrom } from "../domain/nodes/filters_spec.ts";
 
 export class AntboxService {
 	readonly nodeService: NodeService;
@@ -83,11 +84,16 @@ export class AntboxService {
 			return left(parentOrErr.value);
 		}
 
+		if (!filtersSpecFrom(parentOrErr.value.childFilters).isSatisfiedBy(metadata as Node)) {
+			return left(new BadRequestError("Node does not satisfy parent folder filters"));
+		}
+
 		const nodeOrErr = await this.nodeService.createFile(file, {
 			...metadata,
 			owner: authCtx.principal.email!,
 			parent: parentOrErr.value.uuid,
 		});
+
 		if (nodeOrErr.isRight()) {
 			DomainEvents.notify(
 				new NodeCreatedEvent(authCtx.principal.email!, nodeOrErr.value),
@@ -117,6 +123,10 @@ export class AntboxService {
 
 		if (parentOrErr.isLeft()) {
 			return left(parentOrErr.value);
+		}
+
+		if (!filtersSpecFrom(parentOrErr.value.childFilters).isSatisfiedBy(metadata as Node)) {
+			return left(new BadRequestError("Node does not satisfy parent folder filters"));
 		}
 
 		if (Node.isFolder(metadata)) {

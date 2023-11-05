@@ -6,6 +6,10 @@ export class User {
 	static ROOT_USER_UUID = "--root--";
 	static ROOT_USER_EMAIL = "root@antbox.io";
 
+	static isRoot(user: User): boolean {
+		return user.uuid === User.ROOT_USER_UUID;
+	}
+
 	static isAdmin(user: User): boolean {
 		return user.group === Group.ADMINS_GROUP_UUID ||
 			user.groups.includes(Group.ADMINS_GROUP_UUID);
@@ -43,5 +47,9 @@ export class User {
 
 	isAnonymous(): boolean {
 		return User.isAnonymous(this);
+	}
+
+	isRoot(): boolean {
+		return User.isRoot(this);
 	}
 }

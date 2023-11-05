@@ -161,4 +161,5 @@ export type Permissions = {
 	group: Permission[];
 	authenticated: Permission[];
 	anonymous: Permission[];
+	advanced?: Record<string, Permission[]>;
 };

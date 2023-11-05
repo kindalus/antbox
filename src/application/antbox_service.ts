@@ -36,6 +36,7 @@ import { AspectNode } from "../domain/aspects/aspect_node.ts";
 import { GroupNode } from "../domain/nodes/group_node.ts";
 import { UserNode } from "../domain/nodes/user_node.ts";
 import { filtersSpecFrom } from "../domain/nodes/filters_spec.ts";
+import { NodeFactory } from "../domain/nodes/node_factory.ts";
 
 export class AntboxService {
 	readonly nodeService: NodeService;
@@ -242,12 +243,18 @@ export class AntboxService {
 		permission: Permission,
 	): Either<AntboxError, void> {
 		const principal = authCtx.principal;
+		const userGroups = [principal.group, ...principal.groups ?? []];
 
 		if (!node.isFolder()) {
 			return right(undefined);
 		}
 
-		if (User.isAdmin(principal)) {
+		if (
+			User.isRoot(principal) ||
+			User.isAdmin(principal) ||
+			node.owner === principal.email! ||
+			node.permissions.anonymous.includes(permission)
+		) {
 			return right(undefined);
 		}
 
@@ -259,16 +266,8 @@ export class AntboxService {
 			return left(new ForbiddenError());
 		}
 
-		if (node.owner === authCtx.principal.email!) {
-			return right(undefined);
-		}
-
-		if (node.permissions.anonymous.includes(permission)) {
-			return right(undefined);
-		}
-
 		if (
-			principal.groups.includes(node.group) &&
+			userGroups.includes(node.group) &&
 			node.permissions.group.includes(permission)
 		) {
 			return right(undefined);
@@ -278,6 +277,16 @@ export class AntboxService {
 			principal.email! !== User.ANONYMOUS_USER_EMAIL &&
 			node.permissions.authenticated.includes(permission)
 		) {
+			return right(undefined);
+		}
+
+		const hasAdvancedPermission = Object.entries(node.permissions.advanced ?? {})
+			.filter(([g, _]) => userGroups.includes(g))
+			.map(([_, p]) => p)
+			.flat()
+			.includes(permission);
+
+		if (hasAdvancedPermission) {
 			return right(undefined);
 		}
 
@@ -370,9 +379,18 @@ export class AntboxService {
 		}
 
 		const node = nodeOrErr.value;
-		const parentOrErr = await this.#getFolderWithPermission(authCtx, node.parent, "Write");
+		const parentOrErr = await this.#getFolderWithPermission(
+			authCtx,
+			metadata.parent ?? node.parent,
+			"Write",
+		);
 		if (parentOrErr.isLeft()) {
 			return left(new ForbiddenError());
+		}
+
+		const candidate = NodeFactory.compose(node, metadata);
+		if (!filtersSpecFrom(parentOrErr.value.childFilters).isSatisfiedBy(candidate)) {
+			return left(new BadRequestError("Node does not satisfy parent folder filters"));
 		}
 
 		if (node.isAspect()) {
@@ -517,6 +535,10 @@ export class AntboxService {
 		const parentOrErr = await this.#getFolderWithPermission(authCtx, parent, "Write");
 		if (parentOrErr.isLeft()) {
 			return left(parentOrErr.value);
+		}
+
+		if (!filtersSpecFrom(parentOrErr.value.childFilters).isSatisfiedBy(noderOrErr.value)) {
+			return left(new BadRequestError("Node does not satisfy parent folder filters"));
 		}
 
 		const voidOrErr = await this.nodeService.copy(uuid, parent);

@@ -125,6 +125,12 @@ export class FolderNode extends Node {
 			parent,
 			owner: User.ROOT_USER_EMAIL,
 			group: Group.ADMINS_GROUP_UUID,
+			permissions: {
+				group: ["Read", "Write", "Export"],
+				authenticated: [],
+				anonymous: [],
+				advanced: {},
+			},
 		});
 	}
 
@@ -139,6 +145,7 @@ export class FolderNode extends Node {
 		group: ["Read", "Write", "Export"],
 		authenticated: ["Read", "Export"],
 		anonymous: [],
+		advanced: {},
 	};
 
 	childFilters: NodeFilter[] = [];

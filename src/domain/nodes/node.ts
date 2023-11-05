@@ -120,10 +120,6 @@ export class Node {
 		return this.mimetype === Node.SMART_FOLDER_MIMETYPE;
 	}
 
-	isFile(): this is Node {
-		return this.mimetype.match(/^application\/vnd\.antbox\./) === null;
-	}
-
 	isRootFolder(): this is FolderNode {
 		return this.uuid === Node.ROOT_FOLDER_UUID;
 	}

@@ -42,6 +42,8 @@ class GoogleDriveStorageProvider implements StorageProvider {
 		const tmp = Deno.makeTempFileSync();
 		await Deno.writeFile(tmp, file.stream());
 
+		const existingOrErr = await this.#getDriveMedata(uuid);
+
 		const requestBody = {
 			name: opts.title,
 			parents: [this.#rootFolderId],
@@ -54,7 +56,9 @@ class GoogleDriveStorageProvider implements StorageProvider {
 			body: createReadStream(tmp),
 		};
 
-		const res = await this.#drive.files.create({ media, requestBody });
+		const res = existingOrErr.isRight()
+			? await this.#drive.files.update({ fileId: existingOrErr.value.id, media })
+			: await this.#drive.files.create({ media, requestBody });
 
 		if (res.status !== 200) {
 			return left(new UnknownError(res.statusText));
@@ -62,7 +66,7 @@ class GoogleDriveStorageProvider implements StorageProvider {
 
 		const id = res.data.id!;
 
-		if (opts.parent !== Node.ROOT_FOLDER_UUID) {
+		if (existingOrErr.isLeft() && opts.parent !== Node.ROOT_FOLDER_UUID) {
 			this.#updateParentFolderId(id, opts.parent);
 		}
 
@@ -214,7 +218,7 @@ class GoogleDriveStorageProvider implements StorageProvider {
 
 		const { data } = await this.#drive.files.list({
 			q: query,
-			fields: "files(id,mimeType,name,parents)",
+			fields: "files(id,mimeType,name,parents,trashed)",
 		});
 
 		const files = data.files;
@@ -223,9 +227,9 @@ class GoogleDriveStorageProvider implements StorageProvider {
 			return left(new NodeNotFoundError(uuid));
 		}
 
-		const { id, mimeType, name, parents } = files[0];
+		const { id, mimeType, name, parents, trashed } = files[0];
 
-		return right({ id, mimeType, name, parents } as DriveMetada);
+		return right({ id, mimeType, name, parents, trashed } as DriveMetada);
 	}
 
 	async #createSystemFolderIfApplicable(uuid: string) {

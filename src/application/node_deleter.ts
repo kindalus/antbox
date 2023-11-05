@@ -1,7 +1,6 @@
 import { FolderNode } from "../domain/nodes/folder_node.ts";
 import { Node } from "../domain/nodes/node.ts";
 import { NodeNotFoundError } from "../domain/nodes/node_not_found_error.ts";
-import { SmartFolderNode } from "../domain/nodes/smart_folder_node.ts";
 import { AntboxError } from "../shared/antbox_error.ts";
 import { Either, right } from "../shared/either.ts";
 import { NodeServiceContext } from "./node_service_context.ts";
@@ -12,15 +11,14 @@ export abstract class NodeDeleter<T extends Node> {
 			return new FolderNodeDeleter(node as FolderNode, context);
 		}
 
-		if (node.isSmartFolder()) {
-			return new SmartFolderNodeDeleter(node as SmartFolderNode, context);
+		if (
+			node.isSmartFolder() || node.isMetaNode() || node.isAspect() || node.isApikey() ||
+			node.isUser() || node.isGroup()
+		) {
+			return new NonFileNodeDeleter(node as Node, context);
 		}
 
-		if (node.isFile()) {
-			return new FileNodeDeleter(node as Node, context);
-		}
-
-		return new MetaNodeDeleter(node as Node, context);
+		return new FileNodeDeleter(node as Node, context);
 	}
 
 	protected readonly node: T;
@@ -39,16 +37,6 @@ export abstract class NodeDeleter<T extends Node> {
 
 	protected deleteFromStorage(): Promise<Either<AntboxError, void>> {
 		return this.context.storage.delete(this.node.uuid);
-	}
-}
-
-export class MetaNodeDeleter extends NodeDeleter<Node> {
-	constructor(node: Node, context: NodeServiceContext) {
-		super(node, context);
-	}
-
-	delete(): Promise<Either<NodeNotFoundError, void>> {
-		return this.deleteFromRepository();
 	}
 }
 
@@ -102,11 +90,11 @@ export class FolderNodeDeleter extends NodeDeleter<FolderNode> {
 	}
 }
 
-export class SmartFolderNodeDeleter extends NodeDeleter<SmartFolderNode> {
+export class NonFileNodeDeleter extends NodeDeleter<Node> {
 	delete(): Promise<Either<NodeNotFoundError, void>> {
 		return this.deleteFromRepository();
 	}
-	constructor(node: SmartFolderNode, context: NodeServiceContext) {
+	constructor(node: Node, context: NodeServiceContext) {
 		super(node, context);
 	}
 }

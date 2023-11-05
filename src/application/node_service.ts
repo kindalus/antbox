@@ -65,6 +65,8 @@ export class NodeService {
 			return left(trueOrErr.value);
 		}
 
+		node.fulltext = await this.#calculateFulltext(node);
+
 		let voidOrErr = await this.context.storage.write(node.uuid, file, {
 			title: node.title,
 			parent: node.parent,
@@ -72,8 +74,6 @@ export class NodeService {
 		if (voidOrErr.isLeft()) {
 			return left(voidOrErr.value);
 		}
-
-		node.fulltext = await this.#calculateFulltext(node);
 
 		voidOrErr = await this.context.repository.add(node);
 		if (voidOrErr.isLeft()) {
@@ -378,7 +378,7 @@ export class NodeService {
 		const nodesOrErrs = await Promise.all(node.aspects.map((a) => this.get(a)));
 
 		return nodesOrErrs
-			.filter((nodeOrErr) => nodeOrErr.isLeft())
+			.filter((nodeOrErr) => nodeOrErr.isRight())
 			.map((nodeOrErr) => nodeOrErr.value as AspectNode);
 	}
 

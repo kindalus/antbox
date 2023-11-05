@@ -8,6 +8,7 @@ import { filtersSpecFrom, withNodeFilters } from "../domain/nodes/filters_spec.t
 import { Node } from "../domain/nodes/node.ts";
 import { NodeCreatedEvent } from "../domain/nodes/node_created_event.ts";
 import { NodeFactory } from "../domain/nodes/node_factory.ts";
+import { NodeFilter } from "../domain/nodes/node_filter.ts";
 import { NodeNotFoundError } from "../domain/nodes/node_not_found_error.ts";
 import { NodeUpdatedEvent } from "../domain/nodes/node_updated_event.ts";
 import { AntboxError, BadRequestError, UnknownError } from "../shared/antbox_error.ts";
@@ -260,7 +261,7 @@ export class ActionService {
 	}
 
 	async runAutomaticActionsForCreates(evt: NodeCreatedEvent) {
-		const runCriteria = (action: Action) => action.runOnCreates || false;
+		const runCriteria: NodeFilter = ["runOnCreates", "==", true];
 
 		const userOrErr = await this.#getAuthCtxByEmail(evt.userEmail);
 		if (userOrErr.isLeft()) {
@@ -277,7 +278,7 @@ export class ActionService {
 	}
 
 	async runAutomaticActionsForUpdates(evt: NodeUpdatedEvent) {
-		const runCriteria = (action: Action) => action.runOnUpdates || false;
+		const runCriteria: NodeFilter = ["runOnUpdates", "==", true];
 
 		const userOrErr = await this.#getAuthCtxByEmail(evt.userEmail);
 		if (userOrErr.isLeft()) {
@@ -318,27 +319,29 @@ export class ActionService {
 
 	async #getAutomaticActions(
 		node: Node,
-		runOnCriteria: (action: Action) => boolean,
+		runOnCriteria: NodeFilter,
 	): Promise<Action[]> {
-		const actionsNodes = await this.list();
-
-		if (actionsNodes.isLeft()) {
+		const filters: NodeFilter[] = [["mimetype", "==", Node.ACTION_MIMETYPE], runOnCriteria];
+		const actionsOrErr = await this.nodeService.query(filters, Number.MAX_SAFE_INTEGER);
+		if (actionsOrErr.isLeft()) {
 			return [];
 		}
 
-		const actionsTasks = actionsNodes.value.map((a) => this.nodeService.export(a.uuid));
-		const actionsOrErrs = await Promise.all(actionsTasks);
+		const nodes = actionsOrErr.value.nodes as ActionNode[];
 
-		const actions = await Promise.all(
-			actionsOrErrs
-				.filter((a) => a.isRight())
-				.map((a) => a.value as File)
-				.map(fileToAction).map((a) => a.then((a) => a.value as Action)),
+		const actionsTasks = nodes
+			.filter((a) => filtersSpecFrom(a.filters).isSatisfiedBy(node))
+			.map((a) => this.nodeService.export(a.uuid));
+
+		const filesOrErrs = await Promise.all(actionsTasks);
+
+		const actions = filesOrErrs.filter((v) => v.isRight())
+			.map((v) => v.value as File)
+			.map(async (v) => await fileToAction(v));
+
+		return Promise.all(actions).then((a) =>
+			a.filter((v) => v.isRight()).map((v) => v.value as Action)
 		);
-
-		return actions
-			.filter(runOnCriteria)
-			.filter((a) => filtersSpecFrom(a.filters).isSatisfiedBy(node));
 	}
 
 	async runOnCreateScritps(evt: NodeCreatedEvent) {
@@ -420,7 +423,8 @@ export class ActionService {
 		}
 
 		const resultOrErr = await this.nodeService.query(
-			[["properties.email", "==", userEmail]],
+			[["email", "==", userEmail], ["mimetype", "==", Node.USER_MIMETYPE]],
+			1,
 			1,
 		);
 

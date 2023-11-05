@@ -1,5 +1,5 @@
 import { createReadStream } from "node:fs";
-import { drive_v3, google } from "npm:googleapis@128.0.0";
+import { auth, drive, drive_v3 } from "npm:@googleapis/drive@8.4.0";
 
 import { StorageProvider, WriteFileOpts } from "../../domain/providers/storage_provider.ts";
 import { Either, left, right } from "../../shared/either.ts";
@@ -262,7 +262,7 @@ function authenticate(keyFile: string): drive_v3.Drive {
 	 * and use that to authenticate to Google APIs. To create a service account:
 	 * https://console.cloud.google.com/apis/credentials/serviceaccountkey
 	 */
-	const auth = new google.auth.GoogleAuth({
+	const client = new auth.GoogleAuth({
 		keyFile,
 		scopes: [
 			"https://www.googleapis.com/auth/drive",
@@ -272,12 +272,10 @@ function authenticate(keyFile: string): drive_v3.Drive {
 		],
 	});
 
-	const drive = google.drive({
+	return drive({
 		version: "v3",
-		auth,
+		auth: client,
 	});
-
-	return drive;
 }
 
 export default async function buildGoogleDriveStorageProvider(

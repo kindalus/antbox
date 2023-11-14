@@ -23,5 +23,7 @@ export { MurmurHash3 };
 export { Command } from "https://deno.land/x/cliffy@v0.19.2/command/mod.ts";
 export type { IParseResult } from "https://deno.land/x/cliffy@v0.19.2/command/mod.ts";
 
-export { Collection, Db, MongoClient, ObjectId } from "npm:mongodb";
-export type { Document, Filter, WithId } from "npm:mongodb";
+export { Collection, Db, MongoClient, ObjectId } from "npm:mongodb@6.2.0";
+export type { Document, Filter, WithId } from "npm:mongodb@6.2.0";
+
+export { DOMParser } from "https://deno.land/x/deno_dom@v0.1.43/deno-dom-wasm.ts";

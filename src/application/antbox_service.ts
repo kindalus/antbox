@@ -37,6 +37,8 @@ import { GroupNode } from "../domain/nodes/group_node.ts";
 import { UserNode } from "../domain/nodes/user_node.ts";
 import { filtersSpecFrom } from "../domain/nodes/filters_spec.ts";
 import { NodeFactory } from "../domain/nodes/node_factory.ts";
+import { WebContentService } from "./web_content_service.ts";
+import { WebContent } from "./web_content.ts";
 
 export class AntboxService {
 	readonly nodeService: NodeService;
@@ -45,6 +47,7 @@ export class AntboxService {
 	readonly actionService: ActionService;
 	readonly extService: ExtService;
 	readonly apiKeysService: ApiKeyService;
+	readonly webContentService: WebContentService;
 
 	constructor(nodeCtx: NodeServiceContext) {
 		this.nodeService = new NodeService(nodeCtx);
@@ -52,6 +55,7 @@ export class AntboxService {
 		this.aspectService = new AspectService(this.nodeService);
 		this.actionService = new ActionService(this.nodeService, this);
 		this.apiKeysService = new ApiKeyService(this.nodeService, nodeCtx.uuidGenerator);
+		this.webContentService = new WebContentService(this.nodeService);
 
 		this.extService = new ExtService(this.nodeService);
 
@@ -926,7 +930,6 @@ export class AntboxService {
 				uuid,
 				group.title,
 			);
-
 			DomainEvents.notify(evt);
 		}
 
@@ -950,6 +953,22 @@ export class AntboxService {
 		}
 
 		return voidOrErr;
+	}
+
+	/**** WEB CONTENTS  ****/
+	getWebContent(
+		_authCtx: AuthContextProvider,
+		uuid: string,
+	): Promise<Either<AntboxError, Partial<WebContent>>> {
+		return this.webContentService.get(uuid);
+	}
+
+	getWebContentByLanguage(
+		_authCtx: AuthContextProvider,
+		uuid: string,
+		lang: "pt" | "en" | "fr" | "es",
+	): Promise<Either<AntboxError, string>> {
+		return this.webContentService.getByLanguage(uuid, lang);
 	}
 
 	/**** API KEYS  ****/

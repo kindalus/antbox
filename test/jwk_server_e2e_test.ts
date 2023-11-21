@@ -11,7 +11,7 @@ startServer({
 				"/tmp/antbox/storage",
 			],
 			repository: [
-				"pouchdb/pouchdb_node_repository.ts",
+				"flat_file/flat_file_node_repository.ts",
 				"/tmp/antbox/repository",
 			],
 		},

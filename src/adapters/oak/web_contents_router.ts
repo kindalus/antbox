@@ -1,9 +1,5 @@
 import { Router } from "../../../deps.ts";
-import { AntboxService } from "../../application/antbox_service.ts";
-import { WebContent } from "../../application/builtin_aspects/web_content.ts";
-import { AuthContextProvider } from "../../domain/auth/auth_provider.ts";
-import { AntboxError } from "../../shared/antbox_error.ts";
-import { Either, left, right } from "../../shared/either.ts";
+
 import { ContextWithParams } from "./context_with_params.ts";
 import { getRequestContext } from "./get_request_context.ts";
 import { getTenant } from "./get_tenant.ts";
@@ -12,69 +8,43 @@ import { sendOK } from "./send_response.ts";
 import { AntboxTenant } from "./setup_oak_server.ts";
 
 export default function (tenants: AntboxTenant[]) {
-  const handleGet = (ctx: ContextWithParams) => {
-    const service = getTenant(ctx, tenants).service;
-    const requestCtx = getRequestContext(ctx);
-    const uuid = ctx.params.uuid as string;
+	const handleGet = async (ctx: ContextWithParams) => {
+		const service = getTenant(ctx, tenants).service;
 
-    return Promise.all([
-      service.get(requestCtx, uuid),
-      getWebContentText(service, requestCtx, uuid),
-    ])
-      .then(([node, webContent]) => {
-        if (node.isLeft()) {
-          return processError(node.value, ctx);
-        }
+		const result = await service.getWebContent(
+			getRequestContext(ctx),
+			ctx.params.uuid,
+		);
 
-        if (webContent.isLeft()) {
-          return processError(webContent.value, ctx);
-        }
+		if (result.isLeft()) {
+			return processError(result.value, ctx);
+		}
 
-        sendOK(ctx, {
-          ...webContent.value,
-          uuid: node.value.uuid,
-          fid: node.value.fid,
-          title: node.value.title,
-        });
-      })
-      .catch((err) => processError(err, ctx));
-  };
+		return sendOK(ctx, result.value);
+	};
 
-  const handleGetByLanguage = (ctx: ContextWithParams) => {
-    const service = getTenant(ctx, tenants).service;
-    const lang = ctx.params.lang as "pt" | "en" | "es" | "fr";
-    return getWebContentText(service, getRequestContext(ctx), ctx.params.uuid)
-      .then((webContent) => {
-        if (webContent.isLeft()) {
-          return processError(webContent.value, ctx);
-        }
+	const handleGetByLanguage = async (ctx: ContextWithParams) => {
+		const service = getTenant(ctx, tenants).service;
+		const lang = ctx.params.lang as "pt" | "en" | "es" | "fr";
 
-        sendOK(ctx, webContent.value[lang] ?? webContent.value.pt);
-      })
-      .catch((err) => processError(err, ctx));
-  };
+		const result = await service.getWebContentByLanguage(
+			getRequestContext(ctx),
+			ctx.params.uuid,
+			lang,
+		);
 
-  const webContentsRouter = new Router({ prefix: "/web-contents" });
+		if (result.isLeft()) {
+			return processError(result.value, ctx);
+		}
 
-  webContentsRouter.get("/:uuid/:lang", handleGetByLanguage);
-  webContentsRouter.get("/:uuid", handleGet);
+		ctx.response.type = "text/html; charset=UTF-8";
+		ctx.response.body = result.value;
+	};
 
-  return webContentsRouter;
-}
+	const webContentsRouter = new Router({ prefix: "/web-contents" });
 
-function getWebContentText(
-  service: AntboxService,
-  authCtx: AuthContextProvider,
-  uuid: string
-): Promise<Either<AntboxError, Partial<WebContent>>> {
-  return service.export(authCtx, uuid).then((fileOrError) => {
-    if (fileOrError.isLeft()) {
-      return left(fileOrError.value);
-    }
+	webContentsRouter.get("/:uuid/:lang", handleGetByLanguage);
+	webContentsRouter.get("/:uuid", handleGet);
 
-    return fileOrError.value
-      .text()
-      .then((text) => JSON.parse(text))
-      .then((json) => right(json));
-  });
+	return webContentsRouter;
 }

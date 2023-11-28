@@ -1,21 +1,20 @@
 {
-	"fmt": {
-		"useTabs": true,
-		"indentWidth": 4,
-		"lineWidth": 100,
-		"singleQuote": false,
-		"proseWrap": "preserve"
-	},
+  "fmt": {
+    "useTabs": true,
+    "indentWidth": 4,
+    "lineWidth": 100,
+    "singleQuote": false,
+    "proseWrap": "preserve"
+  },
 
-	"lint": {
-		"rules": {
-			"tags": ["recommended"]
-		}
-	},
+  "lint": {
+    "rules": {
+      "tags": ["recommended"]
+    }
+  },
 
-	"test": {
-		"files": {
-			"exclude": ["src/adapters/mongodb/mongodb_node_repository_test.ts"]
-		}
-	}
+  "test": {
+    "exclude": ["src", "src/adapters/mongodb/mongodb_node_repository_test.ts"],
+    "include": ["test"]
+  }
 }

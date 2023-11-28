@@ -16,4 +16,4 @@ RUN addgroup -S antx && adduser -S antx -G antx
 
 USER antx
 
-CMD ["deno", "run", "-A", "--unstable", "sandbox.ts"]
+CMD ["deno", "run", "-A", "sandbox.ts"]

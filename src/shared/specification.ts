@@ -15,7 +15,7 @@ export interface Specification<T> {
 }
 
 export class CompositeSpecification<T> implements Specification<T> {
-	constructor(readonly isSatisfiedBy: (c: T) => ValidationResult) {}
+	constructor(readonly isSatisfiedBy: (c: T) => ValidationResult = (_v) => right(true)) {}
 
 	and(s: Specification<T>, ...specs: Specification<T>[]): Specification<T> {
 		return andSpecification<T>(this, s, ...specs);

@@ -39,6 +39,7 @@ import { filtersSpecFrom } from "../domain/nodes/filters_spec.ts";
 import { NodeFactory } from "../domain/nodes/node_factory.ts";
 import { WebContentService } from "./web_content_service.ts";
 import { WebContent } from "./web_content.ts";
+import { Anonymous } from "./builtin_users/anonymous.ts";
 
 export class AntboxService {
 	readonly nodeService: NodeService;
@@ -657,7 +658,10 @@ export class AntboxService {
 
 	/**** ACTION ****/
 
-	createOrReplaceAction(authCtx: AuthContextProvider, action: File) {
+	createOrReplaceAction(
+		authCtx: AuthContextProvider,
+		action: File,
+	): Promise<Either<AntboxError, Node>> {
 		if (!User.isAdmin(authCtx.principal)) {
 			return Promise.resolve(left(new ForbiddenError()));
 		}
@@ -691,12 +695,26 @@ export class AntboxService {
 		return this.actionService.export(uuid);
 	}
 
-	runAction(
+	async runAction(
 		authCtx: AuthContextProvider,
 		uuid: string,
 		uuids: string[],
-		params: Record<string, string>,
-	) {
+		params?: Record<string, string>,
+	): Promise<Either<AntboxError, void>> {
+		const actionNodeOrErr = await this.actionService.get(uuid);
+
+		if (actionNodeOrErr.isLeft()) {
+			return left(actionNodeOrErr.value);
+		}
+
+		const allowed = actionNodeOrErr.value.groupsAllowed;
+		const myGroups = [authCtx.principal.group ?? Anonymous.uuid!, ...authCtx.principal.groups];
+		const isUserAllowed = myGroups.some((g) => allowed.includes(g));
+
+		if (allowed.length > 0 && !authCtx.principal.isAdmin() && !isUserAllowed) {
+			return left(new ForbiddenError());
+		}
+
 		return this.actionService.run(authCtx, uuid, uuids, params);
 	}
 

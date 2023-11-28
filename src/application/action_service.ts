@@ -19,7 +19,32 @@ import { builtinActions } from "./builtin_actions/mod.ts";
 import { Root } from "./builtin_users/root.ts";
 import { NodeService } from "./node_service.ts";
 
+type RecordKey = [string, string];
+interface RunnableRecord {
+	count: number;
+	timestamp: number;
+}
+
 export class ActionService {
+	static #runnable: Map<RecordKey, RunnableRecord> = new Map();
+
+	static #getRunnable(key: RecordKey): RunnableRecord {
+		if (!this.#runnable.has(key)) {
+			this.#runnable.set(key, { count: 1, timestamp: Date.now() });
+		}
+
+		return this.#runnable.get(key)!;
+	}
+
+	static #incRunnable(key: RecordKey) {
+		const runnable = this.#getRunnable(key);
+		this.#runnable.set(key, { count: runnable?.count ?? 0 + 1, timestamp: Date.now() });
+	}
+
+	static #deleteRunnable(key: RecordKey) {
+		this.#runnable.delete(key);
+	}
+
 	constructor(
 		private readonly nodeService: NodeService,
 		private readonly antboxService: AntboxService,
@@ -87,7 +112,7 @@ export class ActionService {
 			return this.nodeService.createFile(file, metadata);
 		}
 
-		const metadata = NodeFactory.extractMetadata(action);
+		const metadata = NodeFactory.extractMetadata({ ...action, mimetype: Node.ACTION_MIMETYPE });
 
 		const decoratedFile = new File(
 			[file],
@@ -122,7 +147,7 @@ export class ActionService {
 		authContext: AuthContextProvider,
 		actionUuid: string,
 		nodesUuids: string[],
-		params: Record<string, string>,
+		params?: Record<string, string>,
 	): Promise<Either<AntboxError, void>> {
 		if (await this.#ranTooManyTimes(actionUuid, nodesUuids)) {
 			const message = `Action ran too many times: ${actionUuid}${nodesUuids.join(",")}`;
@@ -211,29 +236,20 @@ export class ActionService {
 		return this.nodeService.export(uuid);
 	}
 
-	async #ranTooManyTimes(uuid: string, uuids: string[]): Promise<boolean> {
-		const kv = await Deno.openKv();
+	#ranTooManyTimes(uuid: string, uuids: string[]): boolean {
 		const key = uuids.join(",");
 		const timestamp = Date.now();
 		const timeout = 1000 * 10; // 10 seconds
 		const maxCount = 10;
 
-		const entry = await kv.get<{ count: number; timestamp: number }>([
-			uuid,
-			key,
-		]);
+		const entry = ActionService.#getRunnable([uuid, key]);
 
-		if (!entry || !entry.value || entry.value.timestamp + timeout < timestamp) {
-			await kv.set([uuid, key], { count: 1, timestamp });
-			return false;
-		}
-
-		if (entry.value.count >= maxCount) {
-			await kv.delete([uuid, key]);
+		if (entry.count >= maxCount || entry.timestamp + timeout < timestamp) {
+			ActionService.#deleteRunnable([uuid, key]);
 			return true;
 		}
 
-		await kv.set([uuid, key], { count: entry.value.count + 1, timestamp });
+		ActionService.#incRunnable([uuid, key]);
 		return false;
 	}
 

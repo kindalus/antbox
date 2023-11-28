@@ -32,7 +32,7 @@ export default function buildMongodbNodeRepository(
 		>;
 }
 
-class MongodbNodeRepository implements NodeRepository {
+export class MongodbNodeRepository implements NodeRepository {
 	static readonly #COLLECTION_NAME = "nodes";
 
 	readonly #db: Db;

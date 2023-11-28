@@ -37,6 +37,7 @@ export interface Action {
 	params: string[];
 
 	filters: NodeFilter[];
+	groupsAllowed: string[];
 
 	run: (
 		ctx: RunContext,

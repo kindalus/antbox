@@ -12,6 +12,7 @@ export default {
 	builtIn: true,
 	multiple: false,
 	filters: [["mimetype", "not-in", Node.SYSTEM_MIMETYPES]],
+	groupsAllowed: [],
 	params: [],
 	runManually: true,
 	runOnCreates: false,

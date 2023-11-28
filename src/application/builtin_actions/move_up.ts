@@ -26,6 +26,7 @@ export default {
 		Node.SYSTEM_FOLDER_UUID,
 		Node.USERS_FOLDER_UUID,
 	]]],
+	groupsAllowed: [],
 	params: [],
 
 	async run(

@@ -344,14 +344,51 @@ export class AntboxService {
 		return right(folder);
 	}
 
-	query(
-		_authCtx: AuthContextProvider,
+	async query(
+		authCtx: AuthContextProvider,
 		filters: NodeFilter[],
 		pageSize = 25,
 		pageToken = 1,
 	): Promise<Either<AntboxError, NodeFilterResult>> {
 		const noSystemNodes = this.#removeSystemNodesUnlessRequested(filters);
-		return this.nodeService.query(noSystemNodes, pageSize, pageToken);
+		// return this.nodeService.query(noSystemNodes, pageSize, pageToken);
+
+		const result = await this.nodeService.query(noSystemNodes, Number.MAX_SAFE_INTEGER);
+
+		if (result.isLeft()) {
+			return left(result.value);
+		}
+
+		const parents: string[] = [];
+		result.value.nodes.forEach((node) => {
+			if (!parents.includes(node.parent)) {
+				parents.push(node.parent);
+			}
+		});
+
+		const parentNodes = await this.nodeService.query(
+			[["uuid", "in", parents]],
+			Number.MAX_SAFE_INTEGER,
+		);
+		if (parentNodes.isLeft()) {
+			return left(parentNodes.value);
+		}
+
+		const forbidenNodes = parentNodes.value.nodes.filter((n) => {
+			const voidOrErr = this.#assertCanRead(authCtx, n as FolderNode);
+			return voidOrErr.isLeft();
+		}).map((n) => n.uuid);
+
+		const filteredNodes = result.value.nodes.filter((n) => !forbidenNodes.includes(n.parent));
+
+		const sliced = filteredNodes.slice((pageToken - 1) * pageSize, pageToken * pageSize);
+
+		return right({
+			nodes: sliced,
+			pageToken,
+			pageSize,
+			pageCount: Math.ceil(filteredNodes.length / pageSize),
+		});
 	}
 
 	#removeSystemNodesUnlessRequested(filters: NodeFilter[]): NodeFilter[] {

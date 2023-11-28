@@ -132,13 +132,18 @@ class PouchdbNodeRepository implements NodeRepository {
 
 		const result = await this.db.find({
 			selector,
+			limit: pageSize * pageToken,
 		});
 
 		const nodes = result.docs.map(docToNode);
-		// const pageCount = Math.ceil(nodes.length / pageSize);
-		const pageCount = 1;
+		const pageCount = Math.ceil(nodes.length / pageSize);
 
-		return { nodes, pageCount, pageSize, pageToken };
+		return {
+			nodes: nodes.slice(pageSize * (pageToken - 1), pageSize * pageToken),
+			pageCount,
+			pageSize,
+			pageToken,
+		};
 	}
 }
 

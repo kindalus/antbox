@@ -11,7 +11,7 @@ export class FolderNode extends Node {
 	static SYSTEM_FOLDER = FolderNode.#buildSystemFolder();
 	static ACTIONS_FOLDER = FolderNode.#buildActionsFolder();
 	static EXT_FOLDER = FolderNode.#buildExtFolder();
-	static OCR_TEMPLATES_FOLDER = FolderNode.#buildOcrTemplatesFolder();
+	static FORMS_SPECIFICICATIONS_FOLDER = FolderNode.#buildFormSpecificationsFolder();
 	static API_KEYS_FOLDER = FolderNode.#buildApiKeysFolder();
 
 	static SYSTEM_FOLDERS = [
@@ -20,7 +20,7 @@ export class FolderNode extends Node {
 		FolderNode.GROUPS_FOLDER,
 		FolderNode.ACTIONS_FOLDER,
 		FolderNode.EXT_FOLDER,
-		FolderNode.OCR_TEMPLATES_FOLDER,
+		FolderNode.FORMS_SPECIFICICATIONS_FOLDER,
 		FolderNode.API_KEYS_FOLDER,
 	];
 
@@ -94,11 +94,11 @@ export class FolderNode extends Node {
 		);
 	}
 
-	static #buildOcrTemplatesFolder(): FolderNode {
+	static #buildFormSpecificationsFolder(): FolderNode {
 		return FolderNode.#createSystemFolderMetadata(
-			Node.OCR_TEMPLATES_FOLDER_UUID,
-			Node.OCR_TEMPLATES_FOLDER_UUID,
-			"OCR Templates",
+			Node.FORMS_SPECIFICATIONS_FOLDER_UUID,
+			Node.FORMS_SPECIFICATIONS_FOLDER_UUID,
+			"Forms Specifications",
 			Node.SYSTEM_FOLDER_UUID,
 		);
 	}
@@ -139,8 +139,8 @@ export class FolderNode extends Node {
 			case Node.EXT_FOLDER_UUID:
 				childFilters.push(["mimetype", "==", Node.EXT_MIMETYPE]);
 				break;
-			case Node.OCR_TEMPLATES_FOLDER_UUID:
-				childFilters.push(["mimetype", "==", Node.OCR_TEMPLATE_MIMETYPE]);
+			case Node.FORMS_SPECIFICATIONS_FOLDER_UUID:
+				childFilters.push(["mimetype", "==", Node.FORM_SPECIFICATION_MIMETYPE]);
 				break;
 			case Node.API_KEYS_FOLDER_UUID:
 				childFilters.push(["mimetype", "==", Node.API_KEY_MIMETYPE]);

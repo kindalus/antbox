@@ -1,11 +1,11 @@
 import { Group } from "../domain/auth/group.ts";
 import { User } from "../domain/auth/user.ts";
+import { FormSpecification } from "../domain/forms_specifications/form_specification.ts";
 import { GroupNode } from "../domain/nodes/group_node.ts";
 import { Node } from "../domain/nodes/node.ts";
 import { UserNode } from "../domain/nodes/user_node.ts";
-import { OcrTemplate } from "../domain/orc_templates/ocr_template.ts";
 
-export function fileToOcrTemplate(file: File): Promise<OcrTemplate> {
+export function fileToFormSpecification(file: File): Promise<FormSpecification> {
 	return file
 		.text()
 		.then((text) => JSON.parse(text))

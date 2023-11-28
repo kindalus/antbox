@@ -1,24 +1,19 @@
-FROM denoland/deno:alpine-1.19.3
+# Dockerfile
+FROM denoland/deno:alpine-1.38.3
 
-EXPOSE 7180
+RUN apk add --no-cache libstdc++
+ADD https://worldtimeapi.org/api/timezone/Etc/UTC /.timestamp
 
-WORKDIR /antbox
+WORKDIR /app
+COPY . .
 
-# Prefer not to run as root.
-USER deno
-
-VOLUME /data
-
-# Cache the dependencies as a layer (the following two steps are re-run only when deps.ts is modified).
-# Ideally cache deps.ts will download and compile _all_ external files used in main.ts.
-COPY deps.ts .
-RUN deno cache deps.ts
-
-# These steps will be re-run upon each file change in your working directory:
-ADD . .
-# Compile the main app so that it doesn't need to be compiled each startup/entry.
 RUN deno cache sandbox.ts
 
+ENV PORT=7180
+EXPOSE 7180
 
+RUN addgroup -S antx && adduser -S antx -G antx
 
-CMD ["run", "--allow-all", "sandbox.ts", "/data"]
+USER antx
+
+CMD ["deno", "run", "-A", "--unstable", "sandbox.ts"]

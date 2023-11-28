@@ -17,7 +17,7 @@ export class Node {
 	static EXT_MIMETYPE = "application/vnd.antbox.extension";
 	static USER_MIMETYPE = "application/vnd.antbox.user";
 	static GROUP_MIMETYPE = "application/vnd.antbox.group";
-	static OCR_TEMPLATE_MIMETYPE = "application/vnd.antbox.ocrtemplate";
+	static FORM_SPECIFICATION_MIMETYPE = "application/vnd.antbox.formspecification";
 	static API_KEY_MIMETYPE = "application/vnd.antbox.apikey";
 
 	static ROOT_FOLDER_UUID = "--root--";
@@ -27,7 +27,7 @@ export class Node {
 	static ACTIONS_FOLDER_UUID = "--actions--";
 	static EXT_FOLDER_UUID = "--ext--";
 	static SYSTEM_FOLDER_UUID = "--system--";
-	static OCR_TEMPLATES_FOLDER_UUID = "--ocr-templates--";
+	static FORMS_SPECIFICATIONS_FOLDER_UUID = "--forms-specifications--";
 	static API_KEYS_FOLDER_UUID = "--api-keys--";
 
 	static SYSTEM_MIMETYPES = [
@@ -36,7 +36,7 @@ export class Node {
 		Node.EXT_MIMETYPE,
 		Node.USER_MIMETYPE,
 		Node.GROUP_MIMETYPE,
-		Node.OCR_TEMPLATE_MIMETYPE,
+		Node.FORM_SPECIFICATION_MIMETYPE,
 		Node.API_KEY_MIMETYPE,
 	];
 

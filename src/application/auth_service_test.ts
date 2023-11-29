@@ -12,7 +12,7 @@ import { DefaultUuidGenerator } from "../adapters/strategies/default_uuid_genera
 import { GroupCreatedEvent } from "../domain/auth/group_created_event.ts";
 import { InvalidFullnameFormatError } from "../domain/auth/invalid_fullname_format_error.ts";
 import { InvalidGroupNameFormatError } from "../domain/auth/invalid_group_name_format_error.ts";
-import { User } from "../domain/auth/user.ts";
+import { UserNode } from "../domain/nodes/user_node.ts";
 import { UserCreatedEvent } from "../domain/auth/user_created_event.ts";
 import { UserNotFoundError } from "../domain/auth/user_not_found_error.ts";
 import { AntboxError } from "../shared/antbox_error.ts";
@@ -30,11 +30,11 @@ Deno.test("createUser", async (t) => {
 	await t.step("Grava o user no repositorio", async () => {
 		const nodeService = makeNodeService();
 
-		const createMetanodeSpy = spy(nodeService, "createMetanode");
+		const createMetanodeSpy = spy(nodeService, "create");
 
 		const svc = new AuthService(nodeService);
 
-		await svc.createUser(User.create("user1@antbox.io", "Antbox User"));
+		await svc.createUser({ email: "user1@antbox.io", title: "Antbox User" });
 		assertSpyCalls(createMetanodeSpy, 1);
 	});
 
@@ -48,7 +48,7 @@ Deno.test("createUser", async (t) => {
 		const svc = new AuthService(makeNodeService());
 
 		const result = await svc.createUser(
-			User.create("user@domain.com", "Some User"),
+			{ email: "user@domain.com", title: "Some User" },
 		);
 
 		assertFalse(result.isLeft());
@@ -60,7 +60,7 @@ Deno.test("createUser", async (t) => {
 		async () => {
 			const svc = new AuthService(makeNodeService());
 			const result = await svc.createUser(
-				User.create("bademailformat", "Some User"),
+				{ email: "bademailformat", title: "Some User" },
 			);
 
 			assertStrictEquals(result.isLeft(), true);
@@ -75,7 +75,7 @@ Deno.test("createUser", async (t) => {
 		"Erro @InvalidFullnameFormat se o formato do nome for inválido",
 		async () => {
 			const svc = new AuthService(makeNodeService());
-			const result = await svc.createUser(User.create("user@user.com", ""));
+			const result = await svc.createUser({ email: "user@user.com", title: "" });
 
 			assertFalse(result.isRight(), undefined);
 			assertEquals(
@@ -95,7 +95,7 @@ Deno.test("createUser", async (t) => {
 Deno.test("createGroup", async (t) => {
 	await t.step("Grava o grupo no repositorio", async () => {
 		const nodeService = makeNodeService();
-		const createMetanodeSpy = spy(nodeService, "createMetanode");
+		const createMetanodeSpy = spy(nodeService, "create");
 
 		const svc = new AuthService(nodeService);
 
@@ -149,14 +149,14 @@ Deno.test("getUser", async (t) => {
 		const user = {
 			email: "user@domain.com",
 			fullname: "Some User",
-		} as User;
+		};
 
 		await svc.createUser(user);
 
 		const userOrErr = await svc.getUserByEmail(user.email);
 
 		assertFalse(userOrErr.isLeft());
-		assertStrictEquals((userOrErr.value as User).email, user.email);
+		assertStrictEquals((userOrErr.value as UserNode).email, user.email);
 	});
 
 	await t.step(

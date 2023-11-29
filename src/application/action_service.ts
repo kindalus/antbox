@@ -2,7 +2,6 @@ import { Action, actionToNode, fileToAction } from "../domain/actions/action.ts"
 import { ActionNode } from "../domain/actions/action_node.ts";
 import { RunContext } from "../domain/actions/run_context.ts";
 import { AuthContextProvider } from "../domain/auth/auth_provider.ts";
-import { User } from "../domain/auth/user.ts";
 import { UserNotFoundError } from "../domain/auth/user_not_found_error.ts";
 import { filtersSpecFrom, withNodeFilters } from "../domain/nodes/filters_spec.ts";
 import { Node } from "../domain/nodes/node.ts";
@@ -11,6 +10,8 @@ import { NodeFactory } from "../domain/nodes/node_factory.ts";
 import { NodeFilter } from "../domain/nodes/node_filter.ts";
 import { NodeNotFoundError } from "../domain/nodes/node_not_found_error.ts";
 import { NodeUpdatedEvent } from "../domain/nodes/node_updated_event.ts";
+import { UserNode } from "../domain/nodes/user_node.ts";
+import { UserNodeBuilder } from "../domain/nodes/user_node_builder.ts";
 import { AntboxError, BadRequestError, UnknownError } from "../shared/antbox_error.ts";
 import { Either, left, right } from "../shared/either.ts";
 import { AntboxService } from "./antbox_service.ts";
@@ -319,8 +320,12 @@ export class ActionService {
 	}
 
 	#buildRunContext(aCtx: AuthContextProvider, runAs?: string): RunContext {
-		const { uuid, email, fullname, groups, group } = aCtx.principal;
-		const principal = new User(uuid, email, fullname, runAs ?? group, groups);
+		const principal = new UserNodeBuilder().withUuid(aCtx.principal.uuid)
+			.withEmail(aCtx.principal.email)
+			.withTitle(aCtx.principal.title)
+			.withGroup(runAs ?? aCtx.principal.group)
+			.withGroups(aCtx.principal.groups)
+			.build().value as UserNode;
 
 		const authContext: AuthContextProvider = {
 			principal,
@@ -452,15 +457,16 @@ export class ActionService {
 			return left(new UserNotFoundError(userEmail));
 		}
 
-		const node = resultOrErr.value.nodes[0];
+		const node = resultOrErr.value.nodes[0] as UserNode;
+		const principal = new UserNodeBuilder()
+			.withUuid(node.uuid)
+			.withEmail(node.email)
+			.withTitle(node.title).withGroup(node.group)
+			.withGroups(node.groups)
+			.build().value as UserNode;
 
 		return right({
-			principal: {
-				email: userEmail,
-				fullname: node.title,
-				group: node.properties["user:group"] as unknown as string,
-				groups: (node.properties["user:groups"] as unknown as string[]) ?? [],
-			} as User,
+			principal,
 			mode: "Action",
 		});
 	}

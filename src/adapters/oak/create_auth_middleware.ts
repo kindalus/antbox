@@ -3,7 +3,9 @@ import { ApiKeyService } from "../../application/api_key_service.ts";
 import { AuthService } from "../../application/auth_service.ts";
 import { Anonymous } from "../../application/builtin_users/anonymous.ts";
 import { Root } from "../../application/builtin_users/root.ts";
-import { User } from "../../domain/auth/user.ts";
+import { UserNode } from "../../domain/nodes/user_node.ts";
+import { UserNodeBuilder } from "../../domain/nodes/user_node_builder.ts";
+
 import { Either, left, right } from "../../shared/either.ts";
 import { getTenant } from "./get_tenant.ts";
 import { AntboxTenant } from "./setup_oak_server.ts";
@@ -100,9 +102,12 @@ async function authenticateApiKey(
 		return;
 	}
 
-	ctx.state.user = Object.assign(new User(), Anonymous, {
-		group: apiKeyOrErr.value.group,
-	});
+	ctx.state.user = new UserNodeBuilder()
+		.withUuid(Anonymous.uuid).withTitle(Anonymous.title)
+		.withEmail(Anonymous.email)
+		.withGroup(Anonymous.group)
+		.withGroups([apiKeyOrErr.value.group])
+		.build().value as UserNode;
 }
 
 async function authenticateToken(

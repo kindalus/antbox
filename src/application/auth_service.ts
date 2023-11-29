@@ -1,7 +1,6 @@
 import { Group } from "../domain/auth/group.ts";
 import GroupNotFoundError from "../domain/auth/group_not_found_error.ts";
 import { GroupSpec } from "../domain/auth/group_spec.ts";
-import { User } from "../domain/auth/user.ts";
 import { UserExistsError } from "../domain/auth/user_exists_error.ts";
 import { UserNotFoundError } from "../domain/auth/user_not_found_error.ts";
 import { UserSpec } from "../domain/auth/user_spec.ts";
@@ -15,7 +14,7 @@ import { builtinGroups } from "./builtin_groups/mod.ts";
 import { Anonymous } from "./builtin_users/anonymous.ts";
 import { builtinUsers } from "./builtin_users/mod.ts";
 import { Root } from "./builtin_users/root.ts";
-import { groupToNode, nodeToGroup, nodeToUser, userToNode } from "./node_mapper.ts";
+import { groupToNode, nodeToGroup } from "./node_mapper.ts";
 import { NodeService } from "./node_service.ts";
 
 export class AuthService {
@@ -60,12 +59,12 @@ export class AuthService {
 	}
 
 	async getUser(uuid: string): Promise<Either<AntboxError, UserNode>> {
-		if (uuid === User.ROOT_USER_UUID) {
-			return right(userToNode(Root));
+		if (uuid === UserNode.ROOT_USER_UUID) {
+			return right(Root);
 		}
 
-		if (uuid === User.ANONYMOUS_USER_UUID) {
-			return right(userToNode(Anonymous));
+		if (uuid === UserNode.ANONYMOUS_USER_UUID) {
+			return right(Anonymous);
 		}
 
 		const nodeOrErr = await this.nodeService.get(uuid);
@@ -82,12 +81,12 @@ export class AuthService {
 		return right(node);
 	}
 
-	async getUserByEmail(email: string): Promise<Either<AntboxError, User>> {
-		if (email === User.ROOT_USER_EMAIL) {
+	async getUserByEmail(email: string): Promise<Either<AntboxError, UserNode>> {
+		if (email === UserNode.ROOT_USER_EMAIL) {
 			return right(Root);
 		}
 
-		if (email === User.ANONYMOUS_USER_EMAIL) {
+		if (email === UserNode.ANONYMOUS_USER_EMAIL) {
 			return right(Anonymous);
 		}
 
@@ -110,7 +109,7 @@ export class AuthService {
 			return left(new UserNotFoundError(email));
 		}
 
-		return right(nodeToUser(node));
+		return right(node);
 	}
 
 	async listUsers(): Promise<UserNode[]> {
@@ -124,7 +123,7 @@ export class AuthService {
 		}
 
 		const users = nodesOrErrs.value.nodes as UserNode[];
-		const systemUsers = builtinUsers.map(userToNode);
+		const systemUsers = builtinUsers;
 
 		return [
 			...users,
@@ -132,8 +131,8 @@ export class AuthService {
 		].sort((a, b) => a.title.localeCompare(b.title));
 	}
 
-	async updateUser(uuid: string, data: Partial<User>): Promise<Either<AntboxError, void>> {
-		if (uuid === User.ROOT_USER_UUID || uuid === User.ANONYMOUS_USER_UUID) {
+	async updateUser(uuid: string, data: Partial<UserNode>): Promise<Either<AntboxError, void>> {
+		if (uuid === UserNode.ROOT_USER_UUID || uuid === UserNode.ANONYMOUS_USER_UUID) {
 			return left(new BadRequestError("Cannot update built-in user"));
 		}
 
@@ -161,7 +160,7 @@ export class AuthService {
 	}
 
 	async deleteUser(uuid: string): Promise<Either<AntboxError, void>> {
-		if (uuid === User.ROOT_USER_UUID || uuid === User.ANONYMOUS_USER_UUID) {
+		if (uuid === UserNode.ROOT_USER_UUID || uuid === UserNode.ANONYMOUS_USER_UUID) {
 			return left(new BadRequestError("Cannot delete built-in user"));
 		}
 

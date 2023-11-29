@@ -1,6 +1,5 @@
 import { ActionNode } from "../actions/action_node.ts";
 import { AspectNode } from "../aspects/aspect_node.ts";
-import { User } from "../auth/user.ts";
 import { ApiKeyNode } from "./api_key_node.ts";
 import { FolderNode } from "./folder_node.ts";
 import { GroupNode } from "./group_node.ts";
@@ -85,7 +84,7 @@ function extractMetadata<T extends Node>(
 		...final,
 		aspects: final.aspects ?? [],
 		properties: final.properties ?? {},
-		owner: final.owner ?? User.ROOT_USER_EMAIL,
+		owner: final.owner ?? UserNode.ROOT_USER_EMAIL,
 	} as Partial<T>;
 }
 

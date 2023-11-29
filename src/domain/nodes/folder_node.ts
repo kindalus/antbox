@@ -1,7 +1,8 @@
 import { Group } from "../auth/group.ts";
-import { User } from "../auth/user.ts";
+
 import { Node, Permissions } from "./node.ts";
 import { NodeFilter } from "./node_filter.ts";
+import { UserNode } from "./user_node.ts";
 
 export class FolderNode extends Node {
 	static ROOT_FOLDER = FolderNode.#buildRootFolder();
@@ -152,7 +153,7 @@ export class FolderNode extends Node {
 			fid,
 			title,
 			parent,
-			owner: User.ROOT_USER_EMAIL,
+			owner: UserNode.ROOT_USER_EMAIL,
 			group: Group.ADMINS_GROUP_UUID,
 			permissions: {
 				group: ["Read", "Write", "Export"],

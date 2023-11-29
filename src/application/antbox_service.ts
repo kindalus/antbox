@@ -3,7 +3,7 @@ import { Group } from "../domain/auth/group.ts";
 import { GroupCreatedEvent } from "../domain/auth/group_created_event.ts";
 import { GroupDeletedEvent } from "../domain/auth/group_deleted_event.ts";
 import { GroupUpdatedEvent } from "../domain/auth/group_updated_event%20.ts";
-import { User } from "../domain/auth/user.ts";
+
 import { UserCreatedEvent } from "../domain/auth/user_created_event.ts";
 import { UserDeletedEvent } from "../domain/auth/user_deleted_event.ts";
 import { UserUpdatedEvent } from "../domain/auth/user_updated_event.ts";
@@ -40,7 +40,6 @@ import { NodeFactory } from "../domain/nodes/node_factory.ts";
 import { WebContentService } from "./web_content_service.ts";
 import { WebContent } from "./web_content.ts";
 import { Anonymous } from "./builtin_users/anonymous.ts";
-import { nodeToUser } from "./node_mapper.ts";
 
 export class AntboxService {
 	readonly nodeService: NodeService;
@@ -186,7 +185,7 @@ export class AntboxService {
 			return left(new NodeNotFoundError(uuid));
 		}
 
-		if (FolderNode.isSystemRootFolder(uuid) && !User.isAdmin(authCtx.principal)) {
+		if (FolderNode.isSystemRootFolder(uuid) && !authCtx.principal.isAdmin) {
 			return left(new ForbiddenError());
 		}
 
@@ -256,8 +255,8 @@ export class AntboxService {
 		}
 
 		if (
-			User.isRoot(principal) ||
-			User.isAdmin(principal) ||
+			principal.isRoot() ||
+			principal.isAdmin() ||
 			node.owner === principal.email! ||
 			node.permissions.anonymous.includes(permission)
 		) {
@@ -268,7 +267,7 @@ export class AntboxService {
 			return right(undefined);
 		}
 
-		if (node.isRootFolder() && !User.isAdmin(principal)) {
+		if (node.isRootFolder() && !principal.isAdmin()) {
 			return left(new ForbiddenError());
 		}
 
@@ -280,7 +279,7 @@ export class AntboxService {
 		}
 
 		if (
-			principal.email! !== User.ANONYMOUS_USER_EMAIL &&
+			!principal.isAnonymous() &&
 			node.permissions.authenticated.includes(permission)
 		) {
 			return right(undefined);
@@ -303,7 +302,7 @@ export class AntboxService {
 		authCtx: AuthContextProvider,
 		uuid: string,
 	): Promise<Either<NodeNotFoundError, Node>> {
-		if (FolderNode.isSystemFolder(uuid) && !User.isAdmin(authCtx.principal)) {
+		if (FolderNode.isSystemFolder(uuid) && !authCtx.principal.isAdmin()) {
 			return left(new ForbiddenError());
 		}
 
@@ -700,7 +699,7 @@ export class AntboxService {
 		authCtx: AuthContextProvider,
 		action: File,
 	): Promise<Either<AntboxError, Node>> {
-		if (!User.isAdmin(authCtx.principal)) {
+		if (!authCtx.principal.isAdmin()) {
 			return Promise.resolve(left(new ForbiddenError()));
 		}
 
@@ -708,7 +707,7 @@ export class AntboxService {
 	}
 
 	deleteAction(authCtx: AuthContextProvider, uuid: string) {
-		if (!User.isAdmin(authCtx.principal)) {
+		if (!authCtx.principal.isAdmin()) {
 			return Promise.resolve(left(new ForbiddenError()));
 		}
 
@@ -726,7 +725,7 @@ export class AntboxService {
 		authCtx: AuthContextProvider,
 		uuid: string,
 	): Promise<Either<AntboxError, File>> {
-		if (!User.isAdmin(authCtx.principal)) {
+		if (!authCtx.principal.isAdmin()) {
 			return Promise.resolve(left(new ForbiddenError()));
 		}
 
@@ -768,7 +767,7 @@ export class AntboxService {
 
 	/**** ACTION ****/
 	createOrReplaceExtension(authCtx: AuthContextProvider, file: File, metadata: Partial<Node>) {
-		if (!User.isAdmin(authCtx.principal)) {
+		if (!authCtx.principal.isAdmin()) {
 			return Promise.resolve(left(new ForbiddenError()));
 		}
 
@@ -776,7 +775,7 @@ export class AntboxService {
 	}
 
 	updateExtension(authCtx: AuthContextProvider, uuid: string, metadata: Partial<Node>) {
-		if (!User.isAdmin(authCtx.principal)) {
+		if (!authCtx.principal.isAdmin()) {
 			return Promise.resolve(left(new ForbiddenError()));
 		}
 
@@ -784,7 +783,7 @@ export class AntboxService {
 	}
 
 	deleteExtension(authCtx: AuthContextProvider, uuid: string) {
-		if (!User.isAdmin(authCtx.principal)) {
+		if (!authCtx.principal.isAdmin()) {
 			return Promise.resolve(left(new ForbiddenError()));
 		}
 
@@ -802,7 +801,7 @@ export class AntboxService {
 		authCtx: AuthContextProvider,
 		uuid: string,
 	): Promise<Either<AntboxError, File>> {
-		if (!User.isAdmin(authCtx.principal)) {
+		if (!authCtx.principal.isAdmin()) {
 			return Promise.resolve(left(new ForbiddenError()));
 		}
 
@@ -826,7 +825,7 @@ export class AntboxService {
 	}
 
 	createOrReplaceAspect(authCtx: AuthContextProvider, aspect: Partial<AspectNode>) {
-		if (!User.isAdmin(authCtx.principal)) {
+		if (!authCtx.principal.isAdmin()) {
 			return Promise.resolve(left(new ForbiddenError()));
 		}
 
@@ -834,7 +833,7 @@ export class AntboxService {
 	}
 
 	exportAspect(authCtx: AuthContextProvider, uuid: string): Promise<Either<AntboxError, File>> {
-		if (!User.isAdmin(authCtx.principal)) {
+		if (!authCtx.principal.isAdmin()) {
 			return Promise.resolve(left(new ForbiddenError()));
 		}
 
@@ -842,7 +841,7 @@ export class AntboxService {
 	}
 
 	deleteAspect(authCtx: AuthContextProvider, uuid: string) {
-		if (!User.isAdmin(authCtx.principal)) {
+		if (!authCtx.principal.isAdmin()) {
 			return Promise.resolve(left(new ForbiddenError()));
 		}
 
@@ -850,27 +849,26 @@ export class AntboxService {
 	}
 
 	/**** USERS  ****/
-	async getMe(authCtx: AuthContextProvider): Promise<Either<AntboxError, User>> {
+	async getMe(authCtx: AuthContextProvider): Promise<Either<AntboxError, UserNode>> {
 		const userOrErr = await this.getUser(authCtx, authCtx.principal.uuid!);
 
 		if (userOrErr.isLeft()) {
 			return left(userOrErr.value);
 		}
 
-		return right(nodeToUser(userOrErr.value));
+		return right(userOrErr.value);
 	}
 
 	async createUser(
 		authCtx: AuthContextProvider,
-		user: Partial<User>,
+		user: Partial<UserNode>,
 	): Promise<Either<AntboxError, Node>> {
-		if (!User.isAdmin(authCtx.principal)) {
+		if (!authCtx.principal.isAdmin()) {
 			return Promise.resolve(left(new ForbiddenError()));
 		}
 
 		const nodeOrErr = await this.authService.createUser({
 			...user,
-			title: user.fullname!,
 			owner: authCtx.principal.email!,
 		});
 
@@ -888,7 +886,7 @@ export class AntboxService {
 	}
 
 	listUsers(authCtx: AuthContextProvider): Promise<Either<AntboxError, UserNode[]>> {
-		if (!User.isAdmin(authCtx.principal)) {
+		if (!authCtx.principal.isAdmin()) {
 			return Promise.resolve(left(new ForbiddenError()));
 		}
 
@@ -896,7 +894,7 @@ export class AntboxService {
 	}
 
 	getUser(authCtx: AuthContextProvider, uuid: string): Promise<Either<AntboxError, UserNode>> {
-		if (!User.isAdmin(authCtx.principal) && authCtx.principal.uuid !== uuid) {
+		if (!authCtx.principal.isAdmin() && authCtx.principal.uuid !== uuid) {
 			return Promise.resolve(left(new ForbiddenError()));
 		}
 
@@ -906,9 +904,9 @@ export class AntboxService {
 	async updateUser(
 		authCtx: AuthContextProvider,
 		uuid: string,
-		user: User,
+		user: UserNode,
 	): Promise<Either<AntboxError, void>> {
-		if (!User.isAdmin(authCtx.principal) && authCtx.principal.uuid !== uuid) {
+		if (!authCtx.principal.isAdmin() && authCtx.principal.uuid !== uuid) {
 			return Promise.resolve(left(new ForbiddenError()));
 		}
 
@@ -918,7 +916,7 @@ export class AntboxService {
 			const evt = new UserUpdatedEvent(
 				authCtx.principal.email!,
 				uuid,
-				user.fullname!,
+				user.title!,
 			);
 
 			DomainEvents.notify(evt);
@@ -931,7 +929,7 @@ export class AntboxService {
 		authCtx: AuthContextProvider,
 		uuid: string,
 	): Promise<Either<AntboxError, void>> {
-		if (!User.isAdmin(authCtx.principal) && authCtx.principal.uuid !== uuid) {
+		if (!authCtx.principal.isAdmin() && authCtx.principal.uuid !== uuid) {
 			return Promise.resolve(left(new ForbiddenError()));
 		}
 
@@ -951,7 +949,7 @@ export class AntboxService {
 	}
 
 	getGroup(authCtx: AuthContextProvider, uuid: string): Promise<Either<AntboxError, Group>> {
-		if (!User.isAdmin(authCtx.principal)) {
+		if (!authCtx.principal.isAdmin()) {
 			return Promise.resolve(left(new ForbiddenError()));
 		}
 
@@ -962,7 +960,7 @@ export class AntboxService {
 		authCtx: AuthContextProvider,
 		group: GroupNode,
 	): Promise<Either<AntboxError, Node>> {
-		if (!User.isAdmin(authCtx.principal)) {
+		if (!authCtx.principal.isAdmin()) {
 			return Promise.resolve(left(new ForbiddenError()));
 		}
 
@@ -989,7 +987,7 @@ export class AntboxService {
 		uuid: string,
 		group: Group,
 	): Promise<Either<AntboxError, void>> {
-		if (!User.isAdmin(authCtx.principal)) {
+		if (!authCtx.principal.isAdmin()) {
 			return Promise.resolve(left(new ForbiddenError()));
 		}
 
@@ -1011,7 +1009,7 @@ export class AntboxService {
 		authCtx: AuthContextProvider,
 		uuid: string,
 	): Promise<Either<AntboxError, void>> {
-		if (!User.isAdmin(authCtx.principal)) {
+		if (!authCtx.principal.isAdmin()) {
 			return Promise.resolve(left(new ForbiddenError()));
 		}
 
@@ -1047,7 +1045,7 @@ export class AntboxService {
 		authCtx: AuthContextProvider,
 		uuid: string,
 	): Promise<Either<AntboxError, ApiKeyNode>> {
-		if (!User.isAdmin(authCtx.principal)) {
+		if (!authCtx.principal.isAdmin()) {
 			return Promise.resolve(left(new ForbiddenError()));
 		}
 
@@ -1055,7 +1053,7 @@ export class AntboxService {
 	}
 
 	listApiKeys(authCtx: AuthContextProvider): Promise<Either<AntboxError, ApiKeyNode[]>> {
-		if (!User.isAdmin(authCtx.principal)) {
+		if (!authCtx.principal.isAdmin()) {
 			return Promise.resolve(left(new ForbiddenError()));
 		}
 
@@ -1067,7 +1065,7 @@ export class AntboxService {
 		group: string,
 		description: string,
 	): Promise<Either<AntboxError, ApiKeyNode>> {
-		if (!User.isAdmin(authCtx.principal)) {
+		if (!authCtx.principal.isAdmin()) {
 			return Promise.resolve(left(new ForbiddenError()));
 		}
 
@@ -1079,7 +1077,7 @@ export class AntboxService {
 	}
 
 	deleteApiKey(authCtx: AuthContextProvider, uuid: string): Promise<Either<AntboxError, void>> {
-		if (!User.isAdmin(authCtx.principal)) {
+		if (!authCtx.principal.isAdmin()) {
 			return Promise.resolve(left(new ForbiddenError()));
 		}
 

@@ -1,7 +1,7 @@
-import { User } from "./user.ts";
+import { UserNode } from "../nodes/user_node.ts";
 
 export interface AuthContextProvider {
-	readonly principal: User;
+	readonly principal: UserNode;
 	readonly mode: "Direct" | "Action";
 }
 

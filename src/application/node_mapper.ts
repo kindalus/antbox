@@ -1,8 +1,6 @@
 import { Group } from "../domain/auth/group.ts";
-import { User } from "../domain/auth/user.ts";
 import { FormSpecification } from "../domain/forms_specifications/form_specification.ts";
 import { GroupNode } from "../domain/nodes/group_node.ts";
-import { Node } from "../domain/nodes/node.ts";
 import { UserNode } from "../domain/nodes/user_node.ts";
 
 export function fileToFormSpecification(file: File): Promise<FormSpecification> {
@@ -21,36 +19,6 @@ export function fileToFormSpecification(file: File): Promise<FormSpecification> 
 		}));
 }
 
-export function nodeToUser(node: UserNode): User {
-	return Object.assign(new User(), {
-		uuid: node.uuid,
-		fullname: node.title,
-		email: node.email,
-		group: node.group,
-		groups: [...(node.groups ?? [])],
-	});
-}
-
-export function userToNode(user: User): UserNode {
-	const node = Object.assign(new UserNode(), {
-		uuid: user.uuid,
-		fid: user.uuid,
-		title: user.fullname,
-		mimetype: Node.USER_MIMETYPE,
-		size: 0,
-		parent: Node.USERS_FOLDER_UUID,
-
-		email: user.email,
-		group: user.group,
-		groups: [...(user.groups ?? [])],
-
-		createdTime: nowIso(),
-		modifiedTime: nowIso(),
-	});
-
-	return node;
-}
-
 export function groupToNode(group: Group): GroupNode {
 	const node = Object.assign(new GroupNode(), {
 		uuid: group.uuid,
@@ -59,7 +27,7 @@ export function groupToNode(group: Group): GroupNode {
 	});
 
 	if (group.builtIn) {
-		node.owner = User.ROOT_USER_EMAIL;
+		node.owner = UserNode.ROOT_USER_EMAIL;
 	}
 
 	return node;
@@ -71,10 +39,6 @@ export function nodeToGroup(node: GroupNode): Group {
 		fid: node.uuid,
 		title: node.title,
 		description: node.description,
-		builtIn: node.owner === User.ROOT_USER_EMAIL,
+		builtIn: node.owner === UserNode.ROOT_USER_EMAIL,
 	});
-}
-
-function nowIso() {
-	return new Date().toISOString();
 }

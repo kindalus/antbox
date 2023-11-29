@@ -9,6 +9,21 @@ import { sendOK } from "./send_response.ts";
 import { AntboxTenant } from "./setup_oak_server.ts";
 
 export default function (tenants: AntboxTenant[]) {
+	const meHandler = (ctx: Context) => {
+		const service = getTenant(ctx, tenants).service;
+
+		return service
+			.getMe(getRequestContext(ctx))
+			.then((result) => {
+				if (result.isLeft()) {
+					return processError(result.value, ctx);
+				}
+
+				return sendOK(ctx, result.value);
+			})
+			.catch((err) => processError(err, ctx));
+	};
+
 	const listHandler = (ctx: Context) => {
 		const service = getTenant(ctx, tenants).service;
 
@@ -67,6 +82,8 @@ export default function (tenants: AntboxTenant[]) {
 	};
 
 	const usersRouter = new Router({ prefix: "/users" });
+
+	usersRouter.use("/me", meHandler);
 
 	usersRouter.get("/:uuid", getHandler);
 

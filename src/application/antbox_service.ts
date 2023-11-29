@@ -40,6 +40,7 @@ import { NodeFactory } from "../domain/nodes/node_factory.ts";
 import { WebContentService } from "./web_content_service.ts";
 import { WebContent } from "./web_content.ts";
 import { Anonymous } from "./builtin_users/anonymous.ts";
+import { nodeToUser } from "./node_mapper.ts";
 
 export class AntboxService {
 	readonly nodeService: NodeService;
@@ -848,13 +849,28 @@ export class AntboxService {
 		return this.aspectService.delete(uuid);
 	}
 
-	async createUser(authCtx: AuthContextProvider, user: User): Promise<Either<AntboxError, Node>> {
+	/**** USERS  ****/
+	async getMe(authCtx: AuthContextProvider): Promise<Either<AntboxError, User>> {
+		const userOrErr = await this.getUser(authCtx, authCtx.principal.uuid!);
+
+		if (userOrErr.isLeft()) {
+			return left(userOrErr.value);
+		}
+
+		return right(nodeToUser(userOrErr.value));
+	}
+
+	async createUser(
+		authCtx: AuthContextProvider,
+		user: Partial<User>,
+	): Promise<Either<AntboxError, Node>> {
 		if (!User.isAdmin(authCtx.principal)) {
 			return Promise.resolve(left(new ForbiddenError()));
 		}
 
 		const nodeOrErr = await this.authService.createUser({
 			...user,
+			title: user.fullname!,
 			owner: authCtx.principal.email!,
 		});
 

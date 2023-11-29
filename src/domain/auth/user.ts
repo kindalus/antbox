@@ -37,7 +37,6 @@ export class User {
 		readonly fullname?: string,
 		readonly group?: string,
 		readonly groups: string[] = [],
-		readonly builtIn = false,
 	) {
 	}
 

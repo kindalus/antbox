@@ -48,10 +48,6 @@ export function userToNode(user: User): UserNode {
 		modifiedTime: nowIso(),
 	});
 
-	if (user.builtIn) {
-		node.owner = User.ROOT_USER_EMAIL;
-	}
-
 	return node;
 }
 

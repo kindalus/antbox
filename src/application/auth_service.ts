@@ -37,11 +37,18 @@ export class AuthService {
 			return left(new UserExistsError(user.email!));
 		}
 
+		const groups: string[] = [];
+		user.groups?.forEach((group) => {
+			if (!groups.includes(group)) groups.push(group);
+		});
+		if (!groups.includes(user.group!)) groups.push(user.group!);
+		groups.sort((a, b) => a.localeCompare(b));
+
 		const clenanedUser = {
 			title: user.title,
 			email: user.email,
 			group: user.group,
-			groups: user.groups,
+			groups: groups,
 			owner: user.owner,
 			mimetype: Node.USER_MIMETYPE,
 			parent: Node.USERS_FOLDER_UUID,

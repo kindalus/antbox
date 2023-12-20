@@ -7,7 +7,7 @@ import { UserNode } from "../../domain/nodes/user_node.ts";
 import { UserNodeBuilder } from "../../domain/nodes/user_node_builder.ts";
 
 import { Either, left, right } from "../../shared/either.ts";
-import { getTenantByHeaders } from "./get_tenant.ts";
+import { getTenant } from "./get_tenant.ts";
 import { AntboxTenant } from "./setup_oak_server.ts";
 
 interface UserPrincipal {
@@ -39,7 +39,7 @@ export async function createAuthMiddleware(
 	});
 
 	return async (ctx: Context, next: () => Promise<unknown>) => {
-		const tenantName = getTenantByHeaders(ctx, tenants).name;
+		const tenantName = getTenant(ctx, tenants).name;
 
 		ctx.state.user = Anonymous;
 

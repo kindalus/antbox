@@ -1,7 +1,7 @@
 import { Context, OakRequest, Router } from "../../../deps.ts";
 import { ContextWithParams } from "./context_with_params.ts";
 import { getRequestContext } from "./get_request_context.ts";
-import { getTenantByHeaders } from "./get_tenant.ts";
+import { getTenant } from "./get_tenant.ts";
 import { processEither } from "./process_either.ts";
 import { processError } from "./process_error.ts";
 import { sendInternalServerError } from "./send_response.ts";
@@ -11,7 +11,7 @@ export default function (tenants: AntboxTenant[]) {
 	const extRouter = new Router({ prefix: "/ext" });
 
 	const runHandler = async (ctx: ContextWithParams) => {
-		const service = getTenantByHeaders(ctx, tenants).service;
+		const service = getTenant(ctx, tenants).service;
 		const request = await fromOakRequest(ctx.request);
 
 		return service
@@ -27,7 +27,7 @@ export default function (tenants: AntboxTenant[]) {
 	};
 
 	const listHandler = (ctx: Context) => {
-		const service = getTenantByHeaders(ctx, tenants).service;
+		const service = getTenant(ctx, tenants).service;
 		const authCtx = getRequestContext(ctx);
 
 		return service
@@ -37,7 +37,7 @@ export default function (tenants: AntboxTenant[]) {
 	};
 
 	const getHandler = (ctx: ContextWithParams) => {
-		const service = getTenantByHeaders(ctx, tenants).service;
+		const service = getTenant(ctx, tenants).service;
 		const authCtx = getRequestContext(ctx);
 
 		return service
@@ -47,7 +47,7 @@ export default function (tenants: AntboxTenant[]) {
 	};
 
 	const deleteHandler = (ctx: ContextWithParams) => {
-		const service = getTenantByHeaders(ctx, tenants).service;
+		const service = getTenant(ctx, tenants).service;
 		const authCtx = getRequestContext(ctx);
 
 		return service
@@ -57,7 +57,7 @@ export default function (tenants: AntboxTenant[]) {
 	};
 
 	const exportHandler = (ctx: ContextWithParams) => {
-		const service = getTenantByHeaders(ctx, tenants).service;
+		const service = getTenant(ctx, tenants).service;
 		const requestContext = getRequestContext(ctx);
 		const uuid = ctx.params.uuid;
 
@@ -88,7 +88,7 @@ export default function (tenants: AntboxTenant[]) {
 	};
 
 	const updateHandler = async (ctx: ContextWithParams) => {
-		const service = getTenantByHeaders(ctx, tenants).service;
+		const service = getTenant(ctx, tenants).service;
 		const authCtx = getRequestContext(ctx);
 
 		const fieldsOrUndefined = await ctx.request.body({ type: "json" }).value;

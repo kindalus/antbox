@@ -4,14 +4,14 @@ import { Either } from "../../shared/either.ts";
 
 import { ContextWithParams } from "./context_with_params.ts";
 import { getRequestContext } from "./get_request_context.ts";
-import { getTenantByHeaders } from "./get_tenant.ts";
+import { getTenant } from "./get_tenant.ts";
 import { processError } from "./process_error.ts";
 import { sendBadRequest, sendOK } from "./send_response.ts";
 import { AntboxTenant } from "./setup_oak_server.ts";
 
 export default function (tenants: AntboxTenant[]) {
 	const getHandler = (ctx: ContextWithParams) => {
-		const service = getTenantByHeaders(ctx, tenants).service;
+		const service = getTenant(ctx, tenants).service;
 		return service
 			.getAspect(getRequestContext(ctx), ctx.params.uuid)
 			.then((result) => processEither(ctx, result))
@@ -19,7 +19,7 @@ export default function (tenants: AntboxTenant[]) {
 	};
 
 	const listHandler = (ctx: Context) => {
-		const service = getTenantByHeaders(ctx, tenants).service;
+		const service = getTenant(ctx, tenants).service;
 		return service
 			.listAspects(getRequestContext(ctx))
 			.then((result) => processEither(ctx, result))
@@ -27,7 +27,7 @@ export default function (tenants: AntboxTenant[]) {
 	};
 
 	const exportHandler = (ctx: ContextWithParams) => {
-		const service = getTenantByHeaders(ctx, tenants).service;
+		const service = getTenant(ctx, tenants).service;
 		const requestContext = getRequestContext(ctx);
 		const uuid = ctx.params.uuid;
 
@@ -58,7 +58,7 @@ export default function (tenants: AntboxTenant[]) {
 	};
 
 	const createOrReplaceAspect = async (ctx: Context) => {
-		const service = getTenantByHeaders(ctx, tenants).service;
+		const service = getTenant(ctx, tenants).service;
 		const authCtx = getRequestContext(ctx);
 
 		const metadata = await ctx.request.body().value;
@@ -73,7 +73,7 @@ export default function (tenants: AntboxTenant[]) {
 	};
 
 	const deleteHandler = (ctx: ContextWithParams) => {
-		const service = getTenantByHeaders(ctx, tenants).service;
+		const service = getTenant(ctx, tenants).service;
 		return service
 			.deleteAspect(getRequestContext(ctx), ctx.params.uuid)
 			.then((result) => processEither(ctx, result))

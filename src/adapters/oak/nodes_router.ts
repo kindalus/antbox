@@ -2,7 +2,7 @@ import { Context, getQuery, Router, Status } from "../../../deps.ts";
 import { Node } from "../../domain/nodes/node.ts";
 import { ContextWithParams } from "./context_with_params.ts";
 import { getRequestContext } from "./get_request_context.ts";
-import { getTenantByHeaders, getTenantBySearchParams } from "./get_tenant.ts";
+import { getTenant } from "./get_tenant.ts";
 import { processEither } from "./process_either.ts";
 import { processError } from "./process_error.ts";
 import { sendBadRequest, sendOK } from "./send_response.ts";
@@ -10,7 +10,7 @@ import { AntboxTenant } from "./setup_oak_server.ts";
 
 export default function (tenants: AntboxTenant[]) {
 	const listHandler = (ctx: Context) => {
-		const service = getTenantByHeaders(ctx, tenants).service;
+		const service = getTenant(ctx, tenants).service;
 		const query = getQuery(ctx);
 
 		const parent = query.parent?.length > 0 ? query.parent : undefined;
@@ -28,7 +28,7 @@ export default function (tenants: AntboxTenant[]) {
 	};
 
 	const getHandler = (ctx: ContextWithParams) => {
-		const service = getTenantByHeaders(ctx, tenants).service;
+		const service = getTenant(ctx, tenants).service;
 		return service
 			.get(getRequestContext(ctx), ctx.params.uuid)
 			.then((result) => {
@@ -46,7 +46,7 @@ export default function (tenants: AntboxTenant[]) {
 	const exportHandler = (ctx: ContextWithParams) => {
 		const requestContext = getRequestContext(ctx);
 		const uuid = ctx.params.uuid;
-		const service = getTenantBySearchParams(ctx, tenants).service;
+		const service = getTenant(ctx, tenants).service;
 
 		return Promise.all([
 			service.get(requestContext, uuid),
@@ -74,7 +74,7 @@ export default function (tenants: AntboxTenant[]) {
 	};
 
 	const createHandler = async (ctx: Context) => {
-		const service = getTenantByHeaders(ctx, tenants).service;
+		const service = getTenant(ctx, tenants).service;
 		const metadata: Partial<Node> = await ctx.request.body().value;
 
 		if (!metadata?.mimetype) {
@@ -88,7 +88,7 @@ export default function (tenants: AntboxTenant[]) {
 	};
 
 	const updateHandler = async (ctx: ContextWithParams) => {
-		const service = getTenantByHeaders(ctx, tenants).service;
+		const service = getTenant(ctx, tenants).service;
 		const body = await ctx.request.body().value;
 
 		return service
@@ -98,7 +98,7 @@ export default function (tenants: AntboxTenant[]) {
 	};
 
 	const deleteHandler = (ctx: ContextWithParams) => {
-		const service = getTenantByHeaders(ctx, tenants).service;
+		const service = getTenant(ctx, tenants).service;
 		return service
 			.delete(getRequestContext(ctx), ctx.params.uuid)
 			.then((result) => processEither(ctx, result))
@@ -106,7 +106,7 @@ export default function (tenants: AntboxTenant[]) {
 	};
 
 	const copyHandler = async (ctx: ContextWithParams) => {
-		const service = getTenantByHeaders(ctx, tenants).service;
+		const service = getTenant(ctx, tenants).service;
 		const { to }: { to: string } = await ctx.request.body().value;
 
 		return service
@@ -116,7 +116,7 @@ export default function (tenants: AntboxTenant[]) {
 	};
 
 	const duplicateHandler = (ctx: ContextWithParams) => {
-		const service = getTenantByHeaders(ctx, tenants).service;
+		const service = getTenant(ctx, tenants).service;
 		return service
 			.duplicate(getRequestContext(ctx), ctx.params.uuid)
 			.then((result) => processEither(ctx, result))
@@ -124,7 +124,7 @@ export default function (tenants: AntboxTenant[]) {
 	};
 
 	const queryHandler = async (ctx: Context) => {
-		const service = getTenantByHeaders(ctx, tenants).service;
+		const service = getTenant(ctx, tenants).service;
 		const { filters, pageSize, pageToken } = await ctx.request.body().value;
 
 		return service
@@ -134,7 +134,7 @@ export default function (tenants: AntboxTenant[]) {
 	};
 
 	const evaluateHandler = (ctx: ContextWithParams) => {
-		const service = getTenantByHeaders(ctx, tenants).service;
+		const service = getTenant(ctx, tenants).service;
 		return service
 			.evaluate(getRequestContext(ctx), ctx.params.uuid)
 			.then((result) => processEither(ctx, result))

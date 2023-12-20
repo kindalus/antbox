@@ -2,14 +2,14 @@ import { Router } from "../../../deps.ts";
 
 import { ContextWithParams } from "./context_with_params.ts";
 import { getRequestContext } from "./get_request_context.ts";
-import { getTenantByHeaders } from "./get_tenant.ts";
+import { getTenant } from "./get_tenant.ts";
 import { processError } from "./process_error.ts";
 import { sendOK } from "./send_response.ts";
 import { AntboxTenant } from "./setup_oak_server.ts";
 
 export default function (tenants: AntboxTenant[]) {
 	const handleGet = async (ctx: ContextWithParams) => {
-		const service = getTenantByHeaders(ctx, tenants).service;
+		const service = getTenant(ctx, tenants).service;
 
 		const result = await service.getWebContent(
 			getRequestContext(ctx),
@@ -24,7 +24,7 @@ export default function (tenants: AntboxTenant[]) {
 	};
 
 	const handleGetByLanguage = async (ctx: ContextWithParams) => {
-		const service = getTenantByHeaders(ctx, tenants).service;
+		const service = getTenant(ctx, tenants).service;
 		const lang = ctx.params.lang as "pt" | "en" | "es" | "fr";
 
 		const result = await service.getWebContentByLanguage(

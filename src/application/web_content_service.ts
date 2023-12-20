@@ -28,7 +28,7 @@ export class WebContentService {
 			return left(new NodeNotFoundError(uuid));
 		}
 
-		const webContentOrErr = await this.#getWebContentText(uuid);
+		const webContentOrErr = await this.#getWebContentText(node.uuid);
 		if (webContentOrErr.isLeft()) {
 			return left(webContentOrErr.value);
 		}

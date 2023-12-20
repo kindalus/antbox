@@ -3,14 +3,14 @@ import { AntboxError } from "../../shared/antbox_error.ts";
 import { Either } from "../../shared/either.ts";
 import { ContextWithParams } from "./context_with_params.ts";
 import { getRequestContext } from "./get_request_context.ts";
-import { getTenant } from "./get_tenant.ts";
+import { getTenantByHeaders } from "./get_tenant.ts";
 import { processError } from "./process_error.ts";
 import { sendOK } from "./send_response.ts";
 import { AntboxTenant } from "./setup_oak_server.ts";
 
 export default function (tenants: AntboxTenant[]) {
 	const meHandler = (ctx: Context) => {
-		const service = getTenant(ctx, tenants).service;
+		const service = getTenantByHeaders(ctx, tenants).service;
 
 		return service
 			.getMe(getRequestContext(ctx))
@@ -25,7 +25,7 @@ export default function (tenants: AntboxTenant[]) {
 	};
 
 	const listHandler = (ctx: Context) => {
-		const service = getTenant(ctx, tenants).service;
+		const service = getTenantByHeaders(ctx, tenants).service;
 
 		return service
 			.listUsers(getRequestContext(ctx))
@@ -40,7 +40,7 @@ export default function (tenants: AntboxTenant[]) {
 	};
 
 	const getHandler = (ctx: ContextWithParams) => {
-		const service = getTenant(ctx, tenants).service;
+		const service = getTenantByHeaders(ctx, tenants).service;
 		return service
 			.getUser(getRequestContext(ctx), ctx.params.uuid)
 			.then((result) => {
@@ -56,25 +56,27 @@ export default function (tenants: AntboxTenant[]) {
 	};
 
 	const createHandler = async (ctx: Context) => {
-		const service = getTenant(ctx, tenants).service;
+		const service = getTenantByHeaders(ctx, tenants).service;
 		const body = await ctx.request.body().value;
 
-		return service.createUser(getRequestContext(ctx), body)
+		return service
+			.createUser(getRequestContext(ctx), body)
 			.then((result) => processEither(ctx, result))
 			.catch((err) => processError(err, ctx));
 	};
 
 	const updateHandler = async (ctx: ContextWithParams) => {
-		const service = getTenant(ctx, tenants).service;
+		const service = getTenantByHeaders(ctx, tenants).service;
 		const body = await ctx.request.body().value;
 
-		return service.updateUser(getRequestContext(ctx), ctx.params.uuid, body)
+		return service
+			.updateUser(getRequestContext(ctx), ctx.params.uuid, body)
 			.then((result) => processEither(ctx, result))
 			.catch((err) => processError(err, ctx));
 	};
 
 	const deleteHandler = (ctx: ContextWithParams) => {
-		const service = getTenant(ctx, tenants).service;
+		const service = getTenantByHeaders(ctx, tenants).service;
 		return service
 			.deleteUser(getRequestContext(ctx), ctx.params.uuid)
 			.then((result) => processEither(ctx, result))

@@ -1,5 +1,5 @@
 import { Context } from "../../../deps.ts";
 
 export type ContextWithParams = Context & {
-  params: Record<string, string>;
+	params: Record<string, string>;
 };

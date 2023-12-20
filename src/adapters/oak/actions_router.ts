@@ -3,14 +3,14 @@ import { AntboxError } from "../../shared/antbox_error.ts";
 import { Either } from "../../shared/either.ts";
 import { ContextWithParams } from "./context_with_params.ts";
 import { getRequestContext } from "./get_request_context.ts";
-import { getTenant } from "./get_tenant.ts";
+import { getTenantByHeaders } from "./get_tenant.ts";
 import { processError } from "./process_error.ts";
 import { sendBadRequest, sendOK } from "./send_response.ts";
 import { AntboxTenant } from "./setup_oak_server.ts";
 
 export default function (tenants: AntboxTenant[]) {
 	const getHandler = (ctx: ContextWithParams) => {
-		const service = getTenant(ctx, tenants).service;
+		const service = getTenantByHeaders(ctx, tenants).service;
 		return service
 			.getAction(getRequestContext(ctx), ctx.params.uuid)
 			.then((result) => processEither(ctx, result))
@@ -18,7 +18,7 @@ export default function (tenants: AntboxTenant[]) {
 	};
 
 	const listHandler = (ctx: Context) => {
-		const service = getTenant(ctx, tenants).service;
+		const service = getTenantByHeaders(ctx, tenants).service;
 		return service
 			.listActions(getRequestContext(ctx))
 			.then((result) => processEither(ctx, result))
@@ -26,7 +26,7 @@ export default function (tenants: AntboxTenant[]) {
 	};
 
 	const runHandler = (ctx: ContextWithParams) => {
-		const service = getTenant(ctx, tenants).service;
+		const service = getTenantByHeaders(ctx, tenants).service;
 		const query = getQuery(ctx);
 		if (!query.uuids) {
 			return sendBadRequest(ctx, "Missing uuids query parameter");
@@ -47,7 +47,7 @@ export default function (tenants: AntboxTenant[]) {
 	};
 
 	const exportHandler = (ctx: ContextWithParams) => {
-		const service = getTenant(ctx, tenants).service;
+		const service = getTenantByHeaders(ctx, tenants).service;
 		const requestContext = getRequestContext(ctx);
 		const uuid = ctx.params.uuid;
 
@@ -78,7 +78,7 @@ export default function (tenants: AntboxTenant[]) {
 	};
 
 	const deleteHandler = (ctx: ContextWithParams) => {
-		const service = getTenant(ctx, tenants).service;
+		const service = getTenantByHeaders(ctx, tenants).service;
 		return service
 			.deleteAction(getRequestContext(ctx), ctx.params.uuid)
 			.then((result) => processEither(ctx, result))

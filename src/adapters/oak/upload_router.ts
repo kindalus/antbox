@@ -3,7 +3,7 @@ import { Node } from "../../domain/nodes/node.ts";
 import { Either, left, right } from "../../shared/either.ts";
 import { ContextWithParams } from "./context_with_params.ts";
 import { getRequestContext } from "./get_request_context.ts";
-import { getTenant } from "./get_tenant.ts";
+import { getTenantByHeaders } from "./get_tenant.ts";
 import { processEither } from "./process_either.ts";
 import { processError } from "./process_error.ts";
 import { sendBadRequest, sendOK } from "./send_response.ts";
@@ -11,7 +11,7 @@ import { AntboxTenant } from "./setup_oak_server.ts";
 
 export default function (tenants: AntboxTenant[]) {
 	const createNodeFileHandler = async (ctx: Context) => {
-		const service = getTenant(ctx, tenants).service;
+		const service = getTenantByHeaders(ctx, tenants).service;
 
 		const fieldsOrUndefined = await readRequest(ctx);
 		if (fieldsOrUndefined.isLeft()) {
@@ -39,7 +39,7 @@ export default function (tenants: AntboxTenant[]) {
 	};
 
 	const updateNodeFileHandler = async (ctx: ContextWithParams) => {
-		const service = getTenant(ctx, tenants).service;
+		const service = getTenantByHeaders(ctx, tenants).service;
 		const fieldsOrUndefined = await readRequest(ctx);
 
 		if (fieldsOrUndefined.isLeft()) {
@@ -63,7 +63,7 @@ export default function (tenants: AntboxTenant[]) {
 	};
 
 	const createOrReplaceAction = async (ctx: Context) => {
-		const service = getTenant(ctx, tenants).service;
+		const service = getTenantByHeaders(ctx, tenants).service;
 		const authCtx = getRequestContext(ctx);
 
 		const fieldsOrUndefined = await readRequest(ctx);
@@ -78,7 +78,7 @@ export default function (tenants: AntboxTenant[]) {
 	};
 
 	const createOrReplaceExtension = async (ctx: Context) => {
-		const service = getTenant(ctx, tenants).service;
+		const service = getTenantByHeaders(ctx, tenants).service;
 		const authCtx = getRequestContext(ctx);
 
 		const fieldsOrUndefined = await readRequest(ctx);

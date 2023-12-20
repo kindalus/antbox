@@ -7,7 +7,7 @@ import { UserNode } from "../../domain/nodes/user_node.ts";
 import { UserNodeBuilder } from "../../domain/nodes/user_node_builder.ts";
 
 import { Either, left, right } from "../../shared/either.ts";
-import { getTenant } from "./get_tenant.ts";
+import { getTenantByHeaders } from "./get_tenant.ts";
 import { AntboxTenant } from "./setup_oak_server.ts";
 
 interface UserPrincipal {
@@ -39,7 +39,7 @@ export async function createAuthMiddleware(
 	});
 
 	return async (ctx: Context, next: () => Promise<unknown>) => {
-		const tenantName = getTenant(ctx, tenants).name;
+		const tenantName = getTenantByHeaders(ctx, tenants).name;
 
 		ctx.state.user = Anonymous;
 
@@ -103,7 +103,8 @@ async function authenticateApiKey(
 	}
 
 	ctx.state.user = new UserNodeBuilder()
-		.withUuid(Anonymous.uuid).withTitle(Anonymous.title)
+		.withUuid(Anonymous.uuid)
+		.withTitle(Anonymous.title)
 		.withEmail(Anonymous.email)
 		.withGroup(Anonymous.group)
 		.withGroups([apiKeyOrErr.value.group])
@@ -121,7 +122,9 @@ async function authenticateToken(
 		return;
 	}
 
-	const userOrErr = await authService.getUserByEmail(tokenOrErr.value.payload.email);
+	const userOrErr = await authService.getUserByEmail(
+		tokenOrErr.value.payload.email,
+	);
 	if (userOrErr.isLeft()) {
 		return;
 	}
@@ -136,7 +139,9 @@ function verifyToken(
 	return jose
 		.jwtVerify(token, key)
 		.then((payload) => right(payload))
-		.catch((e) => left(e)) as Promise<Either<Error, { payload: UserPrincipal }>>;
+		.catch((e) => left(e)) as Promise<
+			Either<Error, { payload: UserPrincipal }>
+		>;
 }
 
 function importJwk(key: JWK): Promise<Either<TypeError, KeyLike | Uint8Array>> {

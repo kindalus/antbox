@@ -144,7 +144,7 @@ export default function (tenants: AntboxTenant[]) {
 	const nodesRouter = new Router({ prefix: "/nodes" });
 
 	nodesRouter.get("/:uuid", getHandler);
-	nodesRouter.get("/:uuid/-/export?x-tenant=:tenant", exportHandler);
+	nodesRouter.get("/:uuid/-/export?", exportHandler);
 	nodesRouter.get("/:uuid/-/duplicate", duplicateHandler);
 	nodesRouter.get("/:uuid/-/evaluate", evaluateHandler);
 

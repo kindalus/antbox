@@ -3,14 +3,14 @@ import { AntboxError } from "../../shared/antbox_error.ts";
 import { Either } from "../../shared/either.ts";
 import { ContextWithParams } from "./context_with_params.ts";
 import { getRequestContext } from "./get_request_context.ts";
-import { getTenantByHeaders } from "./get_tenant.ts";
+import { getTenantByContext } from "./get_tenant.ts";
 import { processError } from "./process_error.ts";
 import { sendOK } from "./send_response.ts";
 import { AntboxTenant } from "./setup_oak_server.ts";
 
 export default function (tenants: AntboxTenant[]) {
 	const listHandler = (ctx: Context) => {
-		const service = getTenantByHeaders(ctx, tenants).service;
+		const service = getTenantByContext(ctx, tenants).service;
 
 		return service
 			.listApiKeys(getRequestContext(ctx))
@@ -25,7 +25,7 @@ export default function (tenants: AntboxTenant[]) {
 	};
 
 	const getHandler = (ctx: ContextWithParams) => {
-		const service = getTenantByHeaders(ctx, tenants).service;
+		const service = getTenantByContext(ctx, tenants).service;
 		return service
 			.getApiKey(getRequestContext(ctx), ctx.params.uuid)
 			.then((result) => {
@@ -41,7 +41,7 @@ export default function (tenants: AntboxTenant[]) {
 	};
 
 	const createHandler = async (ctx: Context) => {
-		const service = getTenantByHeaders(ctx, tenants).service;
+		const service = getTenantByContext(ctx, tenants).service;
 		const body = await ctx.request.body().value;
 
 		return service
@@ -51,7 +51,7 @@ export default function (tenants: AntboxTenant[]) {
 	};
 
 	const deleteHandler = (ctx: ContextWithParams) => {
-		const service = getTenantByHeaders(ctx, tenants).service;
+		const service = getTenantByContext(ctx, tenants).service;
 		return service
 			.deleteApiKey(getRequestContext(ctx), ctx.params.uuid)
 			.then((result) => processEither(ctx, result))

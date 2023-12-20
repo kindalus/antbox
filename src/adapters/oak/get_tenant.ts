@@ -1,7 +1,7 @@
 import { Context } from "../../../deps.ts";
 import { AntboxTenant } from "./setup_oak_server.ts";
 
-export function getTenantByHeaders(ctx: Context, tenants: AntboxTenant[]) {
+export function getTenantByContext(ctx: Context, tenants: AntboxTenant[]) {
 	const tenant = ctx.request.headers.get("x-tenant") ?? tenants[0].name;
 
 	return tenants.find((t) => t.name === tenant) ?? tenants[0];

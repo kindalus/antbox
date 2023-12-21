@@ -1,4 +1,4 @@
-import { Context } from "../../../deps.ts";
+import { Context, getQuery } from "../../../deps.ts";
 import { AntboxTenant } from "./setup_oak_server.ts";
 
 export function getTenantByHeaders(ctx: Context, tenants: AntboxTenant[]) {
@@ -8,9 +8,14 @@ export function getTenantByHeaders(ctx: Context, tenants: AntboxTenant[]) {
 }
 
 export function getTenantBySearchParams(ctx: Context, tenants: AntboxTenant[]) {
-  const tenantName = ctx.request.url.searchParams.get("x-tenant") || "";
+  const params = getQuery(ctx);
+  const tenant = params["x-tenant"].trim();
 
-  return tenants.find((t) => t.name === tenantName);
+  if (!tenant || tenant.length === 0) {
+    return undefined;
+  }
+
+  return tenants.find((t) => t.name === tenant);
 }
 
 export function getTenant(ctx: Context, tenants: AntboxTenant[]) {

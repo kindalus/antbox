@@ -75,7 +75,7 @@ function getToken(ctx: Context) {
 
 function getApiKey(ctx: Context) {
 	const query = getQuery(ctx);
-	return query["api-key"];
+	return query["x-api-key"] ?? ctx.request.headers.get("x-api-key");
 }
 
 async function authenticateRoot(

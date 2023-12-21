@@ -9,7 +9,7 @@ export function getTenantByHeaders(ctx: Context, tenants: AntboxTenant[]) {
 
 export function getTenantBySearchParams(ctx: Context, tenants: AntboxTenant[]) {
   const params = getQuery(ctx);
-  const tenant = params["x-tenant"].trim();
+  const tenant = params["x-tenant"];
 
   if (!tenant || tenant.length === 0) {
     return undefined;

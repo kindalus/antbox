@@ -94,7 +94,7 @@ For the majority of the APIs, authentication and authorization are critical. The
 
 3. **Tenant Information**:
    - Requests should also include tenant information in the `x-tenant` header. If no tenant is specified, the system defaults to the first tenant in the configuration.
-   - In some cases, is not possible pass the tenant in the header, like when using export function, in this cases in the URL query params set the key `x-tenant` with the intended tenant.
+   - When is not possible include the tenant information in the header, like when using export function or another simple url request, set the key `x-tenant` with the intended tenant on the request url search (query) params.
 
 4. **User Information**:
    - Once a JWT is verified, the system extracts the user's details and attaches them to the request context. This allows for fine-grained access control based on the user's roles and permissions.

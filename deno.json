@@ -14,7 +14,7 @@
   },
 
   "test": {
-    "exclude": ["src", "src/adapters/mongodb/mongodb_node_repository_test.ts"],
+    "exclude": ["src"],
     "include": ["test"]
   }
 }

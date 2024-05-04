@@ -1,0 +1,13 @@
+{
+  "forcePathStyle": false,
+
+  "endpoint": "https://ams3.digitaloceanspaces.com",
+  "region": "ams3",
+
+  "bucket": "global-antbox-storage",
+
+  "credentials": {
+    "accessKeyId": "DO00Y7JUAGF8VEA7KNZ4",
+    "secretAccessKey": "p0GW8OCUtd+MkgjCFvAsj7YCNX6Ns17prqR0xzPV/ik"
+  }
+}

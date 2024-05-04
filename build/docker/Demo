@@ -1,5 +1,5 @@
 # Dockerfile
-FROM denoland/deno:alpine-1.38.3
+FROM denoland/deno:alpine-1.43.1
 
 RUN echo "http://dl-cdn.alpinelinux.org/alpine/v3.17/community" >> /etc/apk/repositories
 

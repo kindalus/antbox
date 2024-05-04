@@ -1,5 +1,5 @@
 # Dockerfile
-FROM denoland/deno:alpine-1.38.3
+FROM denoland/deno:alpine-1.43.1
 
 RUN apk add --no-cache libstdc++
 ADD https://worldtimeapi.org/api/timezone/Etc/UTC /.timestamp

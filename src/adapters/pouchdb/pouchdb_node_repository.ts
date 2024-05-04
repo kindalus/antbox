@@ -10,44 +10,43 @@ import { Either, left, right } from "../../shared/either.ts";
 export default function buildPouchdbNodeRepository(
 	dbpath: string,
 ): Promise<Either<AntboxError, NodeRepository>> {
-	return Promise.resolve(right(new PouchdbNodeRepository(dbpath)));
+	if (dbpath.startsWith("http")) {
+		return Promise.resolve(right(new PouchdbNodeRepository(new PouchDB(dbpath))));
+	}
+
+	const path = dbpath + "/nodes";
+	if (!directoryExists(path)) {
+		Deno.mkdirSync(path, { recursive: true });
+	}
+
+	const db = new PouchDB("nodes", {
+		adapter: "leveldb",
+		systemPath: dbpath,
+		prefix: dbpath + "/",
+	});
+
+	return Promise.resolve(right(new PouchdbNodeRepository(db)));
+}
+
+function directoryExists(path: string): boolean {
+	try {
+		return Deno.statSync(path).isDirectory;
+	} catch (error) {
+		if (error instanceof Deno.errors.NotFound) {
+			return false;
+		}
+
+		throw error;
+	}
 }
 
 class PouchdbNodeRepository implements NodeRepository {
-	private readonly db: PouchDB;
-
-	constructor(dbpath: string) {
+	constructor(private readonly db: PouchDB) {
 		PouchDB.plugin(PouchDbFind);
-
-		this.db = new PouchDB("nodes", {
-			adapter: "leveldb",
-			systemPath: dbpath,
-			prefix: dbpath + "/",
-		});
-
-		const path = dbpath + "/nodes";
-		if (!this.#directoryExists(path)) {
-			Deno.mkdirSync(path, { recursive: true });
-		}
 
 		this.db.createIndex({
 			index: { fields: ["title", "fid", "parent", "aspects"] },
 		}).catch(console.error);
-	}
-
-	#directoryExists(path: string): boolean {
-		try {
-			const stats = Deno.statSync(path);
-			// stats.isDirectory will be true if path is a directory.
-			return stats.isDirectory;
-		} catch (error) {
-			if (error instanceof Deno.errors.NotFound) {
-				// path does not exist
-				return false;
-			}
-			// unexpected error, rethrow it
-			throw error;
-		}
 	}
 
 	async delete(uuid: string): Promise<Either<NodeNotFoundError, void>> {

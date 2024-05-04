@@ -11,6 +11,7 @@ Project Antbox is a lightweight ECM server that offers flexibility in storage an
   - [3. Google Drive Storage Provider](#3-google-drive-storage-provider)
   - [4. Mongodb Node Repository](#4-mongodb-node-repository)
   - [5. PouchDB Node Repository](#5-pouchdb-node-repository)
+  - [6. S3 Storage Provider](#6-s3-storage-provider)
 - [Interfaces](#interfaces)
 
 ## How to Use
@@ -19,21 +20,15 @@ To use any of the defined storage or persistence providers, follow the example:
 
 ```typescript
 startServer({
-	port: program.options.port ? parseInt(program.options.port) : undefined,
-	tenants: [
-		{
-			name: "demo",
-			rootPasswd: "secret",
-			storage: [
-				"flat_file/flat_file_storage_provider.ts",
-				"/var/lib/data",
-			],
-			repository: [
-				"pouchdb/pouchdb_node_repository.ts",
-				"/var/lib/db",
-			],
-		},
-	],
+  port: program.options.port ? parseInt(program.options.port) : undefined,
+  tenants: [
+    {
+      name: "demo",
+      rootPasswd: "secret",
+      storage: ["flat_file/flat_file_storage_provider.ts", "/var/lib/data"],
+      repository: ["pouchdb/pouchdb_node_repository.ts", "/var/lib/db"],
+    },
+  ],
 });
 ```
 
@@ -107,6 +102,7 @@ To create a credentials file to access the Google Drive API using the Node.js go
 **Steps:**
 
 1. **Create a service account**
+
    - Go to the Google Cloud Platform Console.
    - Click the **hamburger menu** (three lines) in the top left corner of the page.
    - Select **IAM & Admin**.
@@ -118,6 +114,7 @@ To create a credentials file to access the Google Drive API using the Node.js go
    - Click **Continue**.
 
 2. **Enable the Google Drive API**
+
    - Go to the Google Cloud Platform Console.
    - Click the **hamburger menu** (three lines) in the top left corner of the page.
    - Select **APIs & Services**.
@@ -126,6 +123,7 @@ To create a credentials file to access the Google Drive API using the Node.js go
    - Click **Enable**.
 
 3. **Download the JSON key file for your service account**
+
    - Go to the Google Cloud Platform Console.
    - Click the **hamburger menu** (three lines) in the top left corner of the page.
    - Select **IAM & Admin**.
@@ -136,6 +134,7 @@ To create a credentials file to access the Google Drive API using the Node.js go
    - A JSON key file will be downloaded to your computer. Save this file in a safe place.
 
 4. **Create a folder in Google Drive**
+
    - Go to Google Drive.
    - Click **New**.
    - Click **Folder**.
@@ -183,9 +182,9 @@ For more information on how to use the Google Drive API, please see the official
 }
 ```
 
-### 5. PouchDB Node Repository
+### 5. PouchDB / CouchDB Node Repository
 
-- **Description**: Uses PouchDB, a JavaScript database inspired by CouchDB, for node persistence. This implementation provides an offline-first database solution, allowing applications to store data locally and synchronize with compatible servers when online.
+- **Description**: Uses PouchDB, a JavaScript database inspired by CouchDB, for node persistence. This implementation provides an offline-first database solution, allowing applications to store data locally and synchronize with compatible servers when online. This provider can be used with CouchDB as well, minus the offline-first feature.
 - **Path**: `pouchdb/pouchdb_node_repository.ts`
 
 **Usage Example**:
@@ -201,13 +200,48 @@ For more information on how to use the Google Drive API, please see the official
 }
 ```
 
+---
+
+With the PouchDB Node Repository, Antbox offers an offline-first solution which can be particularly useful for applications that might not always have a reliable internet connection but still need a robust database solution. This way, data can be stored locally and synced when online connectivity is restored.
+
 #### Limitations:
 
 ⚠️ **Warning**: The PouchDB Node Repository does **not** work on ARM macOS.
 
----
+### 6. S3 Storage Provider
 
-With the PouchDB Node Repository, Antbox offers an offline-first solution which can be particularly useful for applications that might not always have a reliable internet connection but still need a robust database solution. This way, data can be stored locally and synced when online connectivity is restored.
+- **Description**: Uses Amazon S3 for data storage. Ideal for cloud-based applications and for data accessibility across devices.
+- **Path**: `s3/s3_storage_provider.ts`
+
+**Usage Example**:
+
+```typescript
+{
+name: "myTenant",
+rootPasswd: "myPassword",
+storage: [
+    "s3/s3_storage_provider.ts",
+    "/path/to/s3_config.json"
+  ]
+}
+```
+
+#### 6.1. Structure of the S3 Configuration File
+
+The S3 configuration file should be a JSON file with the following structure:
+
+```json
+{
+  "forcePathStyle": false,
+  "endpoint": "s3.amazonaws.com", // or the endpoint of your S3-compatible storage provider
+  "region": "us-east-1", // or the region of your S3-compatible storage provider
+  "bucket": "my-bucket-name",
+  "credentials": {
+    "accessKeyId": "my_access_key",
+    "secretAccessKey": "my_secret_access_key"
+  }
+}
+```
 
 ## Interfaces
 

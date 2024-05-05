@@ -6,6 +6,7 @@ import { Event } from "../../shared/event.ts";
 export interface WriteFileOpts {
 	title: string;
 	parent: string;
+	mimetype: string;
 }
 
 export interface StorageProvider {

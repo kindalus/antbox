@@ -70,6 +70,7 @@ export class NodeService {
 		let voidOrErr = await this.context.storage.write(node.uuid, file, {
 			title: node.title,
 			parent: node.parent,
+			mimetype: node.mimetype,
 		});
 		if (voidOrErr.isLeft()) {
 			return left(voidOrErr.value);
@@ -175,6 +176,7 @@ export class NodeService {
 			{
 				title: newNode.title,
 				parent: newNode.parent,
+				mimetype: newNode.mimetype,
 			},
 		);
 		if (writeOrErr.isLeft()) {
@@ -250,6 +252,7 @@ export class NodeService {
 		await this.context.storage.write(uuid, file, {
 			title: nodeOrErr.value.title,
 			parent: nodeOrErr.value.parent,
+			mimetype: nodeOrErr.value.mimetype,
 		});
 
 		nodeOrErr.value.fulltext = await this.#calculateFulltext(nodeOrErr.value);

@@ -59,6 +59,7 @@ For more details on configuration, customization, and usage, please refer to the
 - [Superior Security in AntBox ECM](./docs/security.md)
 - [Unlocking the Potential with Antbox ECM Extensions](./docs/ext.md)
 - [REST API (ongoing)](./docs/api.md)
+- [Tools and Utilities](./docs/tools.md)
 
 ### Contributing
 

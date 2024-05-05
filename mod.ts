@@ -91,7 +91,7 @@ async function loadJwk(jwkPath?: string): Promise<Record<string, string>> {
 	return JSON.parse(jwk);
 }
 
-async function providerFrom<T>(
+export async function providerFrom<T>(
 	cfg?: ModuleConfiguration,
 ): Promise<T | undefined> {
 	if (!cfg) {

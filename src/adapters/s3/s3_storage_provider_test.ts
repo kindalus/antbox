@@ -3,7 +3,7 @@ import { S3 } from "npm:@aws-sdk/client-s3";
 import { assert } from "../../../dev_deps.ts";
 import { S3StorageProvider } from "./s3_storage_provider.ts";
 
-import s3config from "./s3_storage_provider_key.json" with { type: "json" };
+import s3config from "./s3_storage_provider_key.transient.json" with { type: "json" };
 import { DefaultUuidGenerator } from "../strategies/default_uuid_generator.ts";
 
 Deno.test("S3StorageProvidser", async (t) => {

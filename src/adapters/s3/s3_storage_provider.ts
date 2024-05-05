@@ -89,3 +89,12 @@ export class S3StorageProvider implements StorageProvider {
 
 	startListeners(_bus: (eventId: string, handler: EventHandler<Event>) => void): void {}
 }
+
+export default function buildS3StorageProvider(
+	configPath: string,
+): Promise<Either<AntboxError, S3StorageProvider>> {
+	return import(configPath, { with: { type: "json" } })
+		.then((config) => new S3StorageProvider(new S3(config), config.bucket))
+		.then((provider) => right<AntboxError, S3StorageProvider>(provider))
+		.catch((error) => left(new UnknownError(error.message)));
+}

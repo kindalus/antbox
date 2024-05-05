@@ -20,8 +20,16 @@ Deno.test("S3StorageProvidser", async (t) => {
 	const file_2 = new File(["content"], "filename2.json");
 
 	await t.step("write", async () => {
-		const voidOrErr_1 = await storage.write(uuid_1, file_1, { parent, title: file_1.name });
-		const voidOrErr_2 = await storage.write(uuid_2, file_2, { parent, title: file_2.name });
+		const voidOrErr_1 = await storage.write(uuid_1, file_1, {
+			parent,
+			title: file_1.name,
+			mimetype: file_1.type,
+		});
+		const voidOrErr_2 = await storage.write(uuid_2, file_2, {
+			parent,
+			title: file_2.name,
+			mimetype: file_2.type,
+		});
 
 		assert(voidOrErr_1.isRight());
 		assert(voidOrErr_2.isRight());

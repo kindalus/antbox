@@ -18,7 +18,8 @@ import { UnknownError } from "../../shared/antbox_error.ts";
  */
 
 export class S3StorageProvider implements StorageProvider {
-	constructor(private readonly s3: S3, private readonly bucket: string) {}
+	constructor(private readonly s3: S3, private readonly bucket: string) {
+	}
 
 	delete(uuid: string): Promise<Either<AntboxError, void>> {
 		const cmd = new DeleteObjectCommand({
@@ -40,19 +41,30 @@ export class S3StorageProvider implements StorageProvider {
 		opts?: WriteFileOpts | undefined,
 	): Promise<Either<AntboxError, void>> {
 		const buffer = await file.arrayBuffer();
+		const mimetype = opts?.mimetype ?? file.type;
 
 		const cmd = new PutObjectCommand({
 			Bucket: this.bucket,
 			Key: this.#getKey(uuid),
 			Body: new Uint8Array(buffer),
-			ContentType: file.type,
-			Metadata: { parent: opts?.parent!, title: opts?.title! },
+			Metadata: {
+				parent: opts?.parent!,
+			},
 		});
+
+		if (mimetype?.length > 0) {
+			cmd.input.ContentType = mimetype;
+			cmd.input.Metadata = {
+				...cmd.input.Metadata,
+				mimetype: mimetype,
+			};
+		}
 
 		return this.s3.send(cmd)
 			.then(() => right<AntboxError, void>(undefined))
 			.catch((error) => {
 				console.error(error);
+				console.log(cmd);
 				return left(new UnknownError(error.message));
 			});
 	}
@@ -94,6 +106,7 @@ export default function buildS3StorageProvider(
 	configPath: string,
 ): Promise<Either<AntboxError, S3StorageProvider>> {
 	return import(configPath, { with: { type: "json" } })
+		.then((config) => config.default)
 		.then((config) => new S3StorageProvider(new S3(config), config.bucket))
 		.then((provider) => right<AntboxError, S3StorageProvider>(provider))
 		.catch((error) => left(new UnknownError(error.message)));

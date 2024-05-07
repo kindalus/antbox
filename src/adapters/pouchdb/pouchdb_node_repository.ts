@@ -7,11 +7,13 @@ import { NodeFilterResult, NodeRepository } from "../../domain/nodes/node_reposi
 import { AntboxError } from "../../shared/antbox_error.ts";
 import { Either, left, right } from "../../shared/either.ts";
 
+type Provider = "CouchDb" | "PouchDb";
+
 export default function buildPouchdbNodeRepository(
 	dbpath: string,
 ): Promise<Either<AntboxError, NodeRepository>> {
 	if (dbpath.startsWith("http")) {
-		return Promise.resolve(right(new PouchdbNodeRepository(new PouchDB(dbpath))));
+		return Promise.resolve(right(new PouchdbNodeRepository(new PouchDB(dbpath), "CouchDb")));
 	}
 
 	const path = dbpath + "/nodes";
@@ -41,7 +43,10 @@ function directoryExists(path: string): boolean {
 }
 
 class PouchdbNodeRepository implements NodeRepository {
-	constructor(private readonly db: PouchDB) {
+	readonly #provider: Provider;
+
+	constructor(private readonly db: PouchDB, provider: Provider = "PouchDb") {
+		this.#provider = provider;
 		PouchDB.plugin(PouchDbFind);
 
 		this.db.createIndex({
@@ -125,21 +130,32 @@ class PouchdbNodeRepository implements NodeRepository {
 		pageToken: number,
 	): Promise<NodeFilterResult> {
 		const selectors = filters
-			.map(filterToMango);
+			.map((s) => filterToMango(this.#provider, s));
 
 		const selector = composeMangoQuery(selectors);
 
-		const result = await this.db.find({
-			selector,
-			limit: pageSize * pageToken,
-		});
+		try {
+			const result = await this.db.find({
+				selector,
+				limit: pageSize * pageToken,
+			});
 
-		const nodes = result.docs.map(docToNode);
-		const pageCount = Math.ceil(nodes.length / pageSize);
+			const nodes = result.docs.map(docToNode);
+			const pageCount = Math.ceil(nodes.length / pageSize);
+
+			return {
+				nodes: nodes.slice(pageSize * (pageToken - 1), pageSize * pageToken),
+				pageCount,
+				pageSize,
+				pageToken,
+			};
+		} catch (err) {
+			console.log(err);
+		}
 
 		return {
-			nodes: nodes.slice(pageSize * (pageToken - 1), pageSize * pageToken),
-			pageCount,
+			nodes: [],
+			pageCount: 0,
 			pageSize,
 			pageToken,
 		};
@@ -160,7 +176,7 @@ function composeMangoQuery(filters: MangoFilter[]): Record<string, unknown> {
 	};
 }
 
-function filterToMango(filter: NodeFilter): MangoFilter {
+function filterToMango(dbprovider: Provider, filter: NodeFilter): MangoFilter {
 	const [field, operator, value] = filter;
 
 	if (operator === "contains") {
@@ -168,7 +184,9 @@ function filterToMango(filter: NodeFilter): MangoFilter {
 	}
 
 	if (operator === "match" && typeof value === "string") {
-		return { [field]: { $regex: new RegExp(value, "i") } };
+		return {
+			[field]: { $regex: dbprovider === "CouchDb" ? `(?i)${value}` : new RegExp(value, "i") },
+		};
 	}
 
 	const o = operators[operator] as string;

@@ -337,7 +337,7 @@ export class NodeService {
           return FolderNode.SYSTEM_FOLDERS;
      }
 
-     async query(
+     async find(
           filters: NodeFilter[],
           pageSize: number,
           pageToken = 1,

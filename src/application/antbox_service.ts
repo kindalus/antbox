@@ -344,16 +344,15 @@ export class AntboxService {
 		return right(folder);
 	}
 
-	async query(
+	async find(
 		authCtx: AuthContextProvider,
 		filters: NodeFilter[],
 		pageSize = 25,
 		pageToken = 1,
 	): Promise<Either<AntboxError, NodeFilterResult>> {
 		const noSystemNodes = this.#removeSystemNodesUnlessRequested(filters);
-		// return this.nodeService.query(noSystemNodes, pageSize, pageToken);
 
-		const result = await this.nodeService.query(noSystemNodes, Number.MAX_SAFE_INTEGER);
+		const result = await this.nodeService.find(noSystemNodes, Number.MAX_SAFE_INTEGER);
 
 		if (result.isLeft()) {
 			return left(result.value);
@@ -366,7 +365,7 @@ export class AntboxService {
 			}
 		});
 
-		const parentNodes = await this.nodeService.query(
+		const parentNodes = await this.nodeService.find(
 			[["uuid", "in", parents]],
 			Number.MAX_SAFE_INTEGER,
 		);

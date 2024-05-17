@@ -90,7 +90,7 @@ export class AuthService {
 			return right(Anonymous);
 		}
 
-		const nodeOrErr = await this.nodeService.query(
+		const nodeOrErr = await this.nodeService.find(
 			[["email", "==", email], ["mimetype", "==", Node.USER_MIMETYPE]],
 			1,
 			1,
@@ -113,7 +113,7 @@ export class AuthService {
 	}
 
 	async listUsers(): Promise<UserNode[]> {
-		const nodesOrErrs = await this.nodeService.query(
+		const nodesOrErrs = await this.nodeService.find(
 			[["mimetype", "==", Node.USER_MIMETYPE], ["parent", "==", Node.USERS_FOLDER_UUID]],
 			Number.MAX_SAFE_INTEGER,
 		);
@@ -210,7 +210,7 @@ export class AuthService {
 	}
 
 	async listGroups(): Promise<GroupNode[]> {
-		const nodesOrErrs = await this.nodeService.query(
+		const nodesOrErrs = await this.nodeService.find(
 			[["mimetype", "==", Node.GROUP_MIMETYPE], ["parent", "==", Node.GROUPS_FOLDER_UUID]],
 			Number.MAX_SAFE_INTEGER,
 		);

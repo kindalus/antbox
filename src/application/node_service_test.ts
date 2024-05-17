@@ -64,7 +64,7 @@ Deno.test("query @filters", async (t) => {
      const srv = new NodeService(ctx);
 
      await t.step("Devolve apenas os nodes que correspondem ao filtro", async () => {
-          const result = await srv.query([
+          const result = await srv.find([
                ["@title", "==", "Gatos"],
                ["aspects", "contains", "fcp"],
           ], 10);
@@ -80,7 +80,7 @@ Deno.test("query @filters", async (t) => {
      });
 
      await t.step("Não devolve nada se os @filters não devolverem nada", async () => {
-          const result = await srv.query([
+          const result = await srv.find([
                ["@title", "==", "Caprinos"],
                ["aspects", "contains", "fcp"],
           ], 10);

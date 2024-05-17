@@ -72,7 +72,7 @@ export class ActionService {
 	}
 
 	async list(): Promise<Either<AntboxError, ActionNode[]>> {
-		const nodesOrErrs = await this.nodeService.query([
+		const nodesOrErrs = await this.nodeService.find([
 			["mimetype", "==", Node.ACTION_MIMETYPE],
 			["parent", "==", Node.ACTIONS_FOLDER_UUID],
 		], Number.MAX_SAFE_INTEGER);
@@ -343,7 +343,7 @@ export class ActionService {
 		runOnCriteria: NodeFilter,
 	): Promise<Action[]> {
 		const filters: NodeFilter[] = [["mimetype", "==", Node.ACTION_MIMETYPE], runOnCriteria];
-		const actionsOrErr = await this.nodeService.query(filters, Number.MAX_SAFE_INTEGER);
+		const actionsOrErr = await this.nodeService.find(filters, Number.MAX_SAFE_INTEGER);
 		if (actionsOrErr.isLeft()) {
 			return [];
 		}
@@ -443,7 +443,7 @@ export class ActionService {
 			return right({ principal: Root, mode: "Action" });
 		}
 
-		const resultOrErr = await this.nodeService.query(
+		const resultOrErr = await this.nodeService.find(
 			[["email", "==", userEmail], ["mimetype", "==", Node.USER_MIMETYPE]],
 			1,
 			1,

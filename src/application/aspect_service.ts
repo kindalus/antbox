@@ -68,7 +68,7 @@ export class AspectService {
 	}
 
 	async list(): Promise<AspectNode[]> {
-		const nodesOrErrs = await this.nodeService.query(
+		const nodesOrErrs = await this.nodeService.find(
 			[["mimetype", "==", Node.ASPECT_MIMETYPE], ["parent", "==", Node.ASPECTS_FOLDER_UUID]],
 			Number.MAX_SAFE_INTEGER,
 		);

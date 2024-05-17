@@ -84,12 +84,12 @@ class SecuredNodeService extends NodeService {
 		return this.srv.listAspects(this.auth);
 	}
 
-	query(
+	find(
 		filters: NodeFilter[],
 		pageSize: number,
 		pageToken: number,
 	): Promise<Either<AntboxError, NodeFilterResult>> {
-		return this.srv.query(this.auth, filters, pageSize, pageToken);
+		return this.srv.find(this.auth, filters, pageSize, pageToken);
 	}
 
 	update(

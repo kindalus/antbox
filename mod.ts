@@ -7,7 +7,7 @@ import { DefaultFidGenerator } from "./src/adapters/strategies/default_fid_gener
 import { DefaultUuidGenerator } from "./src/adapters/strategies/default_uuid_generator.ts";
 import { AntboxService } from "./src/application/antbox_service.ts";
 
-import defaultJwk from "./demo.jwk.json" assert { type: "json" };
+import defaultJwk from "./demo.jwk.json" with { type: "json" };
 
 const SYMMETRIC_KEY = "ui2tPcQZvN+IxXsEW6KQOOFROS6zXB1pZdotBR3Ot8o=";
 const ROOT_PASSWD = "demo";
@@ -112,16 +112,17 @@ export async function providerFrom<T>(
 	return providerOrErr.value;
 }
 
-function loadModule<T>(
+async function loadModule<T>(
 	modulePath: string,
 ): Promise<(...p: string[]) => Promise<Either<AntboxError, T>>> {
 	const path = modulePath.startsWith("/") ? modulePath : `./src/adapters/${modulePath}`;
 
-	return import(path)
-		.then((m) => m.default)
-		.catch((e) => {
-			console.error("could not load module");
-			console.error(e);
-			Deno.exit(-1);
-		});
+	try {
+		const m = await import(path);
+		return m.default;
+	} catch (e) {
+		console.error("could not load module");
+		console.error(e);
+		Deno.exit(-1);
+	}
 }

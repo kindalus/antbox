@@ -8,6 +8,8 @@ import { DefaultUuidGenerator } from "./src/adapters/strategies/default_uuid_gen
 import { AntboxService } from "./src/application/antbox_service.ts";
 
 import defaultJwk from "./demo.jwk.json" with { type: "json" };
+import { TesseractOcrEngine } from "./src/adapters/tesseract/tesseract_ocr_engine.ts";
+import { OcrEngine } from "./src/application/OcrEngine.ts";
 
 const SYMMETRIC_KEY = "ui2tPcQZvN+IxXsEW6KQOOFROS6zXB1pZdotBR3Ot8o=";
 const ROOT_PASSWD = "demo";
@@ -25,10 +27,14 @@ export interface TenantConfiguration {
 
 export interface ServerOpts {
 	port?: number;
+	ocrEngine: ModuleConfiguration;
 	tenants: TenantConfiguration[];
 }
 
-function setupTenants(o: ServerOpts): Promise<AntboxTenant[]> {
+async function setupTenants(o: ServerOpts): Promise<AntboxTenant[]> {
+	const ocrEngine = (await providerFrom<OcrEngine>(o.ocrEngine)) ??
+		new TesseractOcrEngine("tesseract");
+
 	return Promise.all(
 		o.tenants.map(async (cfg) => {
 			const passwd = cfg?.rootPasswd ?? ROOT_PASSWD;
@@ -41,7 +47,7 @@ function setupTenants(o: ServerOpts): Promise<AntboxTenant[]> {
 				fidGenerator: new DefaultFidGenerator(),
 				repository: (await providerFrom(cfg?.repository)) ?? new InMemoryNodeRepository(),
 				storage: (await providerFrom(cfg?.storage)) ?? new InMemoryStorageProvider(),
-			});
+			}, ocrEngine);
 
 			return {
 				name: cfg.name,

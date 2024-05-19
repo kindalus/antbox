@@ -91,7 +91,7 @@ export class ExtService {
 	}
 
 	async list(): Promise<Either<AntboxError, Node[]>> {
-		const nodesOrErrs = await this.nodeService.query(
+		const nodesOrErrs = await this.nodeService.find(
 			[["mimetype", "==", Node.EXT_MIMETYPE], ["parent", "==", Node.EXT_FOLDER_UUID]],
 			Number.MAX_SAFE_INTEGER,
 		);

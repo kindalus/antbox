@@ -76,7 +76,7 @@ export class ApiKeyService {
 	}
 
 	async getBySecret(secret: string): Promise<Either<AntboxError, ApiKeyNode>> {
-		const nodeOrErr = await this.#nodeService.query([
+		const nodeOrErr = await this.#nodeService.find([
 			["secret", "==", secret],
 			["mimetype", "==", Node.API_KEY_MIMETYPE],
 		], 1);
@@ -93,7 +93,7 @@ export class ApiKeyService {
 	}
 
 	async list(): Promise<ApiKeyNode[]> {
-		const nodesOrErrs = await this.#nodeService.query(
+		const nodesOrErrs = await this.#nodeService.find(
 			[["mimetype", "==", Node.API_KEY_MIMETYPE], [
 				"parent",
 				"==",

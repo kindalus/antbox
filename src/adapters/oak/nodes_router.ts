@@ -120,12 +120,12 @@ export default function (tenants: AntboxTenant[]) {
 			.catch((err) => processError(err, ctx));
 	};
 
-	const queryHandler = async (ctx: Context) => {
+	const findHandler = async (ctx: Context) => {
 		const service = getTenant(ctx, tenants).service;
 		const { filters, pageSize, pageToken } = await ctx.request.body().value;
 
 		return service
-			.query(getRequestContext(ctx), filters, pageSize, pageToken)
+			.find(getRequestContext(ctx), filters, pageSize, pageToken)
 			.then((result) => processEither(ctx, result))
 			.catch((err) => processError(err, ctx));
 	};
@@ -134,6 +134,15 @@ export default function (tenants: AntboxTenant[]) {
 		const service = getTenant(ctx, tenants).service;
 		return service
 			.evaluate(getRequestContext(ctx), ctx.params.uuid)
+			.then((result) => processEither(ctx, result))
+			.catch((err) => processError(err, ctx));
+	};
+
+	const recognizeHandler = (ctx: ContextWithParams) => {
+		const service = getTenant(ctx, tenants).service;
+
+		return service
+			.recognizeText(getRequestContext(ctx), ctx.params.uuid)
 			.then((result) => processEither(ctx, result))
 			.catch((err) => processError(err, ctx));
 	};
@@ -149,11 +158,15 @@ export default function (tenants: AntboxTenant[]) {
 
 	nodesRouter.post("/", createHandler);
 	nodesRouter.post("/:uuid/-/copy", copyHandler);
-	nodesRouter.post("/-/query", queryHandler);
+
+	nodesRouter.post("/-/query", findHandler);
+	nodesRouter.post("/-/find", findHandler);
 
 	nodesRouter.patch("/:uuid", updateHandler);
 
 	nodesRouter.delete("/:uuid", deleteHandler);
+
+	nodesRouter.get("/:uuid/-/ocr", recognizeHandler);
 
 	return nodesRouter;
 }

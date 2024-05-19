@@ -53,6 +53,10 @@ export class WebContentService {
 
 		const node = webContentOrErr.value;
 
+		if (!node[lang] && !["pt", "en", "es", "fr"].includes(lang)) {
+			return left(new NodeNotFoundError(uuid));
+		}
+
 		return right(node[lang] ?? node.pt);
 	}
 

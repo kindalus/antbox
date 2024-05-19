@@ -138,6 +138,15 @@ export default function (tenants: AntboxTenant[]) {
 			.catch((err) => processError(err, ctx));
 	};
 
+	const recognizeHandler = (ctx: ContextWithParams) => {
+		const service = getTenant(ctx, tenants).service;
+
+		return service
+			.recognizeText(getRequestContext(ctx), ctx.params.uuid)
+			.then((result) => processEither(ctx, result))
+			.catch((err) => processError(err, ctx));
+	};
+
 	const nodesRouter = new Router({ prefix: "/nodes" });
 
 	nodesRouter.get("/:uuid", getHandler);
@@ -149,13 +158,15 @@ export default function (tenants: AntboxTenant[]) {
 
 	nodesRouter.post("/", createHandler);
 	nodesRouter.post("/:uuid/-/copy", copyHandler);
-	
-    nodesRouter.post("/-/query", findHandler);    
+
+	nodesRouter.post("/-/query", findHandler);
 	nodesRouter.post("/-/find", findHandler);
 
 	nodesRouter.patch("/:uuid", updateHandler);
 
 	nodesRouter.delete("/:uuid", deleteHandler);
+
+	nodesRouter.get("/:uuid/-/ocr", recognizeHandler);
 
 	return nodesRouter;
 }

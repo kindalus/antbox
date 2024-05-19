@@ -28,6 +28,7 @@ function main(program: IParseResult) {
 
 	startServer({
 		port: program.options.port ? parseInt(program.options.port) : undefined,
+        ocrEngine: ["tesseract/tesseract_ocr_engine.ts", "tesseract"],
 		tenants: [
 			{
 				name: "demo",

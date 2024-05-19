@@ -21,7 +21,7 @@ import { NodeUpdatedEvent } from "../domain/nodes/node_updated_event.ts";
 import { SmartFolderNodeEvaluation } from "../domain/nodes/smart_folder_evaluation.ts";
 import { SmartFolderNodeNotFoundError } from "../domain/nodes/smart_folder_node_not_found_error.ts";
 import { AntboxError, BadRequestError, ForbiddenError } from "../shared/antbox_error.ts";
-import { Either, left, right } from "../shared/either.ts";
+import { Either, Left, left, right } from "../shared/either.ts";
 import { ActionService } from "./action_service.ts";
 import { ApiKeyService } from "./api_key_service.ts";
 import { AspectService } from "./aspect_service.ts";
@@ -40,6 +40,8 @@ import { NodeFactory } from "../domain/nodes/node_factory.ts";
 import { WebContentService } from "./web_content_service.ts";
 import { WebContent } from "./web_content.ts";
 import { Anonymous } from "./builtin_users/anonymous.ts";
+import { OcrEngine } from "./OcrEngine.ts";
+import { Application } from "../../deps.ts";
 
 export class AntboxService {
 	readonly nodeService: NodeService;
@@ -49,8 +51,9 @@ export class AntboxService {
 	readonly extService: ExtService;
 	readonly apiKeysService: ApiKeyService;
 	readonly webContentService: WebContentService;
+	readonly ocrEngine: OcrEngine;
 
-	constructor(nodeCtx: NodeServiceContext) {
+	constructor(nodeCtx: NodeServiceContext, ocrEngine: OcrEngine) {
 		this.nodeService = new NodeService(nodeCtx);
 		this.authService = new AuthService(this.nodeService);
 		this.aspectService = new AspectService(this.nodeService);
@@ -59,6 +62,8 @@ export class AntboxService {
 		this.webContentService = new WebContentService(this.nodeService);
 
 		this.extService = new ExtService(this.nodeService);
+
+		this.ocrEngine = ocrEngine;
 
 		this.subscribeToDomainEvents();
 		nodeCtx.storage.startListeners((eventId, handler) => {
@@ -1109,5 +1114,40 @@ export class AntboxService {
 					evt as NodeUpdatedEvent,
 				),
 		});
+	}
+
+	async recognizeText(
+		authCtx: AuthContextProvider,
+		uuid: string,
+	): Promise<Either<AntboxError, string>> {
+		const recognizableMimetypes = [
+			"image/png",
+			"image/jpeg",
+			"image/jpg",
+			"image/gif",
+			"image/bmp",
+			"image/tiff",
+			"image/webp",
+			"image/svg+xml",
+			"application/pdf",
+		];
+
+		const nodeOrErr = await this.get(authCtx, uuid);
+		if (nodeOrErr.isLeft()) {
+			return left(nodeOrErr.value);
+		}
+
+		if (!recognizableMimetypes.includes(nodeOrErr.value.mimetype)) {
+			return left(
+				new BadRequestError(`File type not supported: ${nodeOrErr.value.mimetype}`),
+			);
+		}
+
+		const fileOrErr = await this.export(authCtx, uuid);
+		if (fileOrErr.isLeft()) {
+			return left(fileOrErr.value);
+		}
+
+		return this.ocrEngine.recognize(fileOrErr.value);
 	}
 }

@@ -1,6 +1,6 @@
 import { Either, left, right } from "../../shared/either.ts";
 import { AntboxError, UnknownError } from "../../shared/antbox_error.ts";
-import { OcrEngine } from "../../application/OcrEngine.ts";
+import { OcrEngine } from "../../application/ocr_engine.ts";
 
 export default function buildTesseractOcrEngine(
 	cmdName = "tesseract",

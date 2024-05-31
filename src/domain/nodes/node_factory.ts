@@ -1,5 +1,6 @@
 import { ActionNode } from "../actions/action_node.ts";
 import { AspectNode } from "../aspects/aspect_node.ts";
+import { FormSpecificationNode } from "../forms_specifications/form_specification.ts";
 import { ApiKeyNode } from "./api_key_node.ts";
 import { FolderNode } from "./folder_node.ts";
 import { GroupNode } from "./group_node.ts";
@@ -23,6 +24,9 @@ function templateFromMimetype<T extends Node>(
 			break;
 		case Node.FOLDER_MIMETYPE:
 			node = new FolderNode();
+			break;
+		case Node.FORM_SPECIFICATION_MIMETYPE:
+			node = new FormSpecificationNode();
 			break;
 		case Node.GROUP_MIMETYPE:
 			node = new GroupNode();

@@ -1,14 +1,30 @@
 import { PropertyType } from "../aspects/aspect.ts";
+import { Node } from "../nodes/node.ts";
 
-export interface FormSpecification {
-	uuid: string;
-	title: string;
-	description?: string;
+export class FormSpecificationNode extends Node {
 	builtIn: boolean;
 	targetAspect: string;
-	sourceImageUrl?: string;
-	properties: FormPropertySpecification[];
-	viewport: Viewport;
+	formProperties: FormPropertySpecification[];
+	height: number;
+    width: number;
+     
+
+    constructor() {
+
+         super();
+
+         this.mimetype = Node.FORM_SPECIFICATION_MIMETYPE;
+
+         this.targetAspect = "";
+         this.formProperties = [];
+
+         this.builtIn = false;
+         
+         this.height = 0;
+         this.width = 0;
+
+    }
+
 }
 
 export interface Viewport {
@@ -20,7 +36,9 @@ export interface Viewport {
 }
 
 export interface FormPropertySpecification {
-	name: string;
+	name: string
 	type: PropertyType;
 	viewport: Viewport;
+    formats?: string[];
 }
+

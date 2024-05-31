@@ -1,4 +1,4 @@
-import { FormSpecification } from "../domain/forms_specifications/form_specification.ts";
+import { FormSpecificationNode } from "../domain/forms_specifications/form_specification.ts";
 import { Node } from "../domain/nodes/node.ts";
 import { NodeFactory } from "../domain/nodes/node_factory.ts";
 import { NodeNotFoundError } from "../domain/nodes/node_not_found_error.ts";
@@ -19,7 +19,7 @@ export class FormSpecificationService {
 			return left(new BadRequestError(`Invalid file type ${file.type}`));
 		}
 
-		const template = (await file.text().then((t) => JSON.parse(t))) as FormSpecification;
+		const template = (await file.text().then((t) => JSON.parse(t))) as FormSpecificationNode;
 
 		const metadata = NodeFactory.createMetadata(
 			template.uuid,
@@ -36,7 +36,7 @@ export class FormSpecificationService {
 		return this.nodeService.createFile(file, metadata);
 	}
 
-	async get(uuid: string): Promise<Either<NodeNotFoundError, FormSpecification>> {
+	async get(uuid: string): Promise<Either<NodeNotFoundError, FormSpecificationNode>> {
 		const nodePromise = this.nodeService.get(uuid);
 		const FormSpecificationPromise = this.nodeService.export(uuid);
 
@@ -62,7 +62,7 @@ export class FormSpecificationService {
 		return right(FormSpecification);
 	}
 
-	async list(): Promise<FormSpecification[]> {
+	async list(): Promise<FormSpecificationNode[]> {
 		const nodesOrErrs = await this.nodeService.list(Node.FORMS_SPECIFICATIONS_FOLDER_UUID);
 		if (nodesOrErrs.isLeft()) {
 			console.error(nodesOrErrs.value);
@@ -74,7 +74,7 @@ export class FormSpecificationService {
 		const FormSpecificationsOrErrs = await Promise.all(FormSpecificationsPromises);
 		const errs = FormSpecificationsOrErrs.filter((a) => a.isLeft());
 		const FormSpecifications = FormSpecificationsOrErrs.filter((a) => a.isRight()).map((a) =>
-			a.value! as FormSpecification
+			a.value! as FormSpecificationNode
 		);
 
 		if (errs.length > 0) {

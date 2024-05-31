@@ -14,7 +14,7 @@ import {
      Reducers,
      SmartFolderNodeEvaluation,
 } from "../domain/nodes/smart_folder_evaluation.ts";
-import { Aggregation, SmartFolderNode } from "../domain/nodes/smart_folder_node.ts";
+import { Aggregation  } from "../domain/nodes/smart_folder_node.ts";
 import { SmartFolderNodeNotFoundError } from "../domain/nodes/smart_folder_node_not_found_error.ts";
 import { AntboxError, BadRequestError } from "../shared/antbox_error.ts";
 import { Either, left, right } from "../shared/either.ts";
@@ -553,12 +553,4 @@ export class NodeService {
           return mimetypeMap[mimetype] ?? mimetype;
      }
 
-     #exportSmartfolder(node: SmartFolderNode): File {
-          const { title, filters, aggregations } = node;
-          const jsonText = JSON.stringify({ title, filters, aggregations }, null, 2);
-
-          return new File([jsonText], node.title.concat(".json"), {
-               type: "application/json",
-          });
-     }
 }

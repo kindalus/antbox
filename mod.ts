@@ -9,7 +9,7 @@ import { AntboxService } from "./src/application/antbox_service.ts";
 
 import defaultJwk from "./demo.jwk.json" with { type: "json" };
 import { TesseractOcrEngine } from "./src/adapters/tesseract/tesseract_ocr_engine.ts";
-import { OcrEngine } from "./src/application/OcrEngine.ts";
+import { OcrEngine } from "./src/application/ocr_engine.ts";
 
 const SYMMETRIC_KEY = "ui2tPcQZvN+IxXsEW6KQOOFROS6zXB1pZdotBR3Ot8o=";
 const ROOT_PASSWD = "demo";
@@ -121,7 +121,7 @@ export async function providerFrom<T>(
 async function loadModule<T>(
 	modulePath: string,
 ): Promise<(...p: string[]) => Promise<Either<AntboxError, T>>> {
-	const path = modulePath.startsWith("/") ? modulePath : `./src/adapters/${modulePath}`;
+	const path = modulePath.startsWith("/") || modulePath.startsWith("https://") ? modulePath : `./src/adapters/${modulePath}`;
 
 	try {
 		const m = await import(path);

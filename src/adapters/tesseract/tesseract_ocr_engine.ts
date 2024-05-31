@@ -23,7 +23,7 @@ export class TesseractOcrEngine implements OcrEngine {
 		const off = `${path}.tiff`;
 
 		const args = [
-			"-sDEVICE=tiff24nc",
+			"-sDEVICE=tiffgray",
 			"-o",
 			off,
 			"-r100",

@@ -1,5 +1,6 @@
 import { withNodeFilters } from "../../domain/nodes/filters_spec.ts";
 import { Node } from "../../domain/nodes/node.ts";
+import { NodeFactory } from "../../domain/nodes/node_factory.ts";
 import { NodeFilter } from "../../domain/nodes/node_filter.ts";
 import { NodeNotFoundError } from "../../domain/nodes/node_not_found_error.ts";
 import { NodeFilterResult, NodeRepository } from "../../domain/nodes/node_repository.ts";
@@ -51,11 +52,13 @@ export class InMemoryNodeRepository implements NodeRepository {
 	}
 
 	getById(uuid: string): Promise<Either<NodeNotFoundError, Node>> {
-		const node = this.records.find((n) => n.uuid === uuid);
+		const metadata = this.records.find((n) => n.uuid === uuid);
 
-		if (!node) {
+		if (!metadata) {
 			return Promise.resolve(left(new NodeNotFoundError(uuid)));
 		}
+
+		const node = NodeFactory.compose(metadata);
 
 		return Promise.resolve(right(node));
 	}

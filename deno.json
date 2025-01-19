@@ -1,4 +1,9 @@
 {
+
+  "imports": {
+    "@std/http": "jsr:@std/http"
+  },
+
   "fmt": {
     "useTabs": true,
     "indentWidth": 4,

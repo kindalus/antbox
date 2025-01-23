@@ -1,7 +1,7 @@
 {
-
   "imports": {
-    "@std/http": "jsr:@std/http"
+    "@std/http": "jsr:@std/http",
+    "@h3": "npm:h3"
   },
 
   "fmt": {

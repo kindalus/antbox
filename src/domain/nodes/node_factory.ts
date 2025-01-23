@@ -1,100 +1,66 @@
+import { Either } from "../../shared/either.ts";
+import { ValidationError } from "../../shared/validation_error.ts";
 import { ActionNode } from "../actions/action_node.ts";
+import { ApiKeyNode } from "../api_keys/api_key_node.ts";
 import { AspectNode } from "../aspects/aspect_node.ts";
+import { GroupNode } from "../auth/group_node.ts";
 import { FormSpecificationNode } from "../forms_specifications/form_specification.ts";
-import { ApiKeyNode } from "./api_key_node.ts";
+import { ExtNode } from "./ext_node.ts";
+import { FileNode } from "./file_node.ts";
 import { FolderNode } from "./folder_node.ts";
-import { GroupNode } from "./group_node.ts";
-import { Node } from "./node.ts";
+import { MetaNode } from "./meta_node.ts";
+import { NodeLike } from "./node_like.ts";
+import { NodeMetadata } from "./node_metadata.ts";
+import { Nodes } from "./nodes.ts";
 import { SmartFolderNode } from "./smart_folder_node.ts";
-import { UserNode } from "./user_node.ts";
 
-function templateFromMimetype<T extends Node>(
-	mimetype?: string,
-): T {
-	let node: Node;
-	switch (mimetype) {
-		case Node.ACTION_MIMETYPE:
-			node = new ActionNode();
-			break;
-		case Node.API_KEY_MIMETYPE:
-			node = new ApiKeyNode();
-			break;
-		case Node.ASPECT_MIMETYPE:
-			node = new AspectNode();
-			break;
-		case Node.FOLDER_MIMETYPE:
-			node = new FolderNode();
-			break;
-		case Node.FORM_SPECIFICATION_MIMETYPE:
-			node = new FormSpecificationNode();
-			break;
-		case Node.GROUP_MIMETYPE:
-			node = new GroupNode();
-			break;
-		case Node.META_NODE_MIMETYPE:
-			node = new Node();
-			break;
-		case Node.SMART_FOLDER_MIMETYPE:
-			node = new SmartFolderNode();
-			break;
-		case Node.USER_MIMETYPE:
-			node = new UserNode();
-			break;
-		default:
-			node = new Node();
-			break;
-	}
+export class NodeFactory {
+	static from<T extends NodeLike>(
+		metadata: Partial<NodeMetadata>,
+	): Either<ValidationError, T> {
+		let createFn: (
+			metadata: Partial<NodeMetadata>,
+		) => Either<ValidationError, NodeLike>;
 
-	return node as T;
-}
+		switch (metadata.mimetype) {
+			case Nodes.ACTION_MIMETYPE:
+				createFn = ActionNode.create;
+				break;
 
-function compose(...p: Partial<Node>[]): Node {
-	const mimetype = p.find((n) => n.mimetype)?.mimetype;
+			case Nodes.API_KEY_MIMETYPE:
+				createFn = ApiKeyNode.create;
+				break;
 
-	const template = templateFromMimetype(mimetype);
+			case Nodes.ASPECT_MIMETYPE:
+				createFn = AspectNode.create;
+				break;
 
-	return Object.assign(template, ...p);
-}
+			case Nodes.EXT_MIMETYPE:
+				createFn = ExtNode.create;
+				break;
 
-function createMetadata(
-	uuid: string,
-	fid: string,
-	mimetype: string,
-	size: number,
-	metadata: Partial<Node>,
-): Node {
-	return compose(
-		extractMetadata({ ...metadata, mimetype }),
-		{
-			mimetype: mimetype === "text/javascript" ? "application/javascript" : mimetype,
-		},
-		{ uuid, fid, size },
-	);
-}
+			case Nodes.FOLDER_MIMETYPE:
+				createFn = FolderNode.create;
+				break;
 
-function extractMetadata<T extends Node>(
-	metadata: Partial<Node | FolderNode>,
-): Partial<T> {
-	const template = templateFromMimetype(metadata.mimetype ?? Node.META_NODE_MIMETYPE);
-	const final: Record<string, unknown> = {};
+			case Nodes.GROUP_MIMETYPE:
+				createFn = GroupNode.create;
+				break;
 
-	for (const key in template) {
-		if (key in metadata) {
-			final[key] = (metadata as Record<string, unknown>)[key];
+			case Nodes.META_NODE_MIMETYPE:
+				createFn = MetaNode.create;
+				break;
+
+			case Nodes.SMART_FOLDER_MIMETYPE:
+				createFn = SmartFolderNode.create;
+				break;
+			case Nodes.FORM_SPECIFICATION_MIMETYPE:
+				createFn = FormSpecificationNode.create;
+				break;
+			default:
+				createFn = FileNode.create;
 		}
+
+		return createFn(metadata) as Either<ValidationError, T>;
 	}
-
-	return {
-		...final,
-		aspects: final.aspects ?? [],
-		properties: final.properties ?? {},
-		owner: final.owner ?? UserNode.ROOT_USER_EMAIL,
-	} as Partial<T>;
 }
-
-export const NodeFactory = {
-	templateFromMimetype,
-	compose,
-	extractMetadata,
-	createMetadata,
-};

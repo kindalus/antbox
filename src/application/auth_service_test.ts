@@ -12,8 +12,8 @@ import { DefaultUuidGenerator } from "../adapters/strategies/default_uuid_genera
 import { GroupCreatedEvent } from "../domain/auth/group_created_event.ts";
 import { InvalidFullnameFormatError } from "../domain/auth/invalid_fullname_format_error.ts";
 import { InvalidGroupNameFormatError } from "../domain/auth/invalid_group_name_format_error.ts";
-import { UserNode } from "../domain/nodes/user_node.ts";
 import { UserCreatedEvent } from "../domain/auth/user_created_event.ts";
+import { UserNode } from "../domain/auth/user_node.ts";
 import { UserNotFoundError } from "../domain/auth/user_not_found_error.ts";
 import { AntboxError } from "../shared/antbox_error.ts";
 import { ValidationError } from "../shared/validation_error.ts";

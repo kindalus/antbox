@@ -1,7 +1,6 @@
 import { AntboxError, UnknownError } from "../../shared/antbox_error.ts";
 import { Either, left, right } from "../../shared/either.ts";
-import { Node } from "../nodes/node.ts";
-import { NodeFactory } from "../nodes/node_factory.ts";
+import { ValidationError } from "../../shared/validation_error.ts";
 import { NodeFilter } from "../nodes/node_filter.ts";
 import { ActionNode } from "./action_node.ts";
 import { RunContext } from "./run_context.ts";
@@ -52,17 +51,26 @@ export async function fileToAction(file: File): Promise<Either<AntboxError, Acti
 		const mod = await import(url);
 
 		return right(mod.default as Action);
-	} catch (err) {
-		return left(new UnknownError(err.message));
+	} catch (err: unknown) {
+		if (err instanceof Error) {
+			return left(new UnknownError(err.message));
+		}
+
+		return left(new UnknownError(JSON.stringify(err, null, 3)));
 	}
 }
 
-export function actionToNode(action: Action): ActionNode {
-	return NodeFactory.createMetadata(
-		action.uuid,
-		action.uuid,
-		Node.ACTION_MIMETYPE,
-		0,
-		action,
-	) as ActionNode;
+export function actionToNode(action: Action): Either<ValidationError, ActionNode> {
+	return ActionNode.create({
+		uuid: action.uuid,
+		title: action.title,
+		description: action.description,
+		runOnCreates: action.runOnCreates,
+		runOnUpdates: action.runOnUpdates,
+		runManually: action.runManually,
+		runAs: action.runAs,
+		params: action.params,
+		filters: action.filters,
+		groupsAllowed: action.groupsAllowed,
+	});
 }

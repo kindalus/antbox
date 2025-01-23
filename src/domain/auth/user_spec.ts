@@ -2,10 +2,10 @@ import { left, right } from "../../shared/either.ts";
 import { RegexSpec } from "../../shared/regex_spec.ts";
 import { andSpecification, specFn, ValidationResult } from "../../shared/specification.ts";
 import { ValidationError } from "../../shared/validation_error.ts";
-import { UserNode } from "../nodes/user_node.ts";
 import { InvalidEmailFormatError } from "./invalid_email_format_error.ts";
 import { InvalidFullnameFormatError } from "./invalid_fullname_format_error.ts";
 import { UserGroupRequiredError } from "./user_group_required_error.ts";
+import { UserNode } from "./user_node.ts";
 
 export const UserSpec = andSpecification<UserNode>(
 	specFn(fullnameSpec),

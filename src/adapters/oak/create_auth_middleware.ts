@@ -1,10 +1,9 @@
 import { Context, getQuery, jose, JWK, KeyLike } from "../../../deps.ts";
 import { ApiKeyService } from "../../application/api_key_service.ts";
-import { AuthService } from "../../application/auth_service.ts";
+import { AuthService } from "../../application/AuthService.ts";
 import { Anonymous } from "../../application/builtin_users/anonymous.ts";
 import { Root } from "../../application/builtin_users/root.ts";
-import { UserNode } from "../../domain/nodes/user_node.ts";
-import { UserNodeBuilder } from "../../domain/nodes/user_node_builder.ts";
+import { UserNode } from "../../domain/auth/user_node.ts";
 
 import { Either, left, right } from "../../shared/either.ts";
 import { getTenant } from "./get_tenant.ts";
@@ -102,12 +101,15 @@ async function authenticateApiKey(
 		return;
 	}
 
-	ctx.state.user = new UserNodeBuilder()
-		.withUuid(Anonymous.uuid).withTitle(Anonymous.title)
-		.withEmail(Anonymous.email)
-		.withGroup(Anonymous.group)
-		.withGroups([apiKeyOrErr.value.group])
-		.build().value as UserNode;
+	const userOrErr = UserNode.create({
+		uuid: Anonymous.uuid,
+		title: Anonymous.title,
+		email: Anonymous.email,
+		group: Anonymous.group,
+		groups: [apiKeyOrErr.value.group],
+	});
+
+	ctx.state.user = userOrErr.value;
 }
 
 async function authenticateToken(

@@ -1,30 +1,36 @@
+import { Either, right } from "../../shared/either.ts";
+import { ValidationError } from "../../shared/validation_error.ts";
 import { PropertyType } from "../aspects/aspect.ts";
 import { Node } from "../nodes/node.ts";
+import { NodeMetadata } from "../nodes/node_metadata.ts";
+import { Nodes } from "../nodes/nodes.ts";
 
 export class FormSpecificationNode extends Node {
-	builtIn: boolean;
+	static create(
+		metadata: Partial<NodeMetadata> = {},
+	): Either<ValidationError, FormSpecificationNode> {
+		const node = new FormSpecificationNode(metadata);
+
+		return right(node);
+	}
+
 	targetAspect: string;
-	formProperties: FormPropertySpecification[];
+	properties: FormPropertySpecification[];
 	height: number;
-    width: number;
-     
+	width: number;
 
-    constructor() {
+	private constructor(metadata: Partial<NodeMetadata> = {}) {
+		super({
+			...metadata,
+			mimetype: Nodes.FORM_SPECIFICATION_MIMETYPE,
+		});
 
-         super();
+		this.targetAspect = metadata.targetAspect || "";
+		this.properties = (metadata.properties as FormPropertySpecification[]) || [];
 
-         this.mimetype = Node.FORM_SPECIFICATION_MIMETYPE;
-
-         this.targetAspect = "";
-         this.formProperties = [];
-
-         this.builtIn = false;
-         
-         this.height = 0;
-         this.width = 0;
-
-    }
-
+		this.height = metadata.height || 0;
+		this.width = metadata.width || 0;
+	}
 }
 
 export interface Viewport {
@@ -36,9 +42,8 @@ export interface Viewport {
 }
 
 export interface FormPropertySpecification {
-	name: string
+	name: string;
 	type: PropertyType;
 	viewport: Viewport;
-    formats?: string[];
+	formats?: string[];
 }
-

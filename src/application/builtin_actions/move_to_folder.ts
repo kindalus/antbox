@@ -6,50 +6,52 @@ import { Either } from "../../shared/either.ts";
 import { NodeService } from "../node_service.ts";
 
 export default {
-	uuid: "move_to_folder",
-	title: "Mover para pasta",
-	description: "Move os nós para uma pasta",
-	builtIn: true,
-	multiple: true,
-	filters: [],
-	params: ["to"],
-	runManually: true,
-	runOnCreates: false,
-	runOnUpdates: false,
+  uuid: "move_to_folder",
+  title: "Mover para pasta",
+  description: "Move os nós para uma pasta",
+  builtIn: true,
+  multiple: true,
+  filters: [],
+  params: ["to"],
+  runManually: true,
+  runOnCreates: false,
+  runOnUpdates: false,
 
-	async run(
-		ctx: RunContext,
-		uuids: string[],
-		params: Record<string, string>,
-	): Promise<void | Error> {
-		const parent = params["to"];
+  groupsAllowed: [],
 
-		if (!parent) {
-			return new Error("Error parameter not given");
-		}
+  async run(
+    ctx: RunContext,
+    uuids: string[],
+    params: Record<string, string>,
+  ): Promise<void | Error> {
+    const parent = params["to"];
 
-		const toUpdateTask = updateTaskPredicate(ctx.nodeService, parent);
+    if (!parent) {
+      return new Error("Error parameter not given");
+    }
 
-		const taskPromises = uuids.map(toUpdateTask);
+    const toUpdateTask = updateTaskPredicate(ctx.nodeService, parent);
 
-		const results = await Promise.all(taskPromises);
+    const taskPromises = uuids.map(toUpdateTask);
 
-		const errors = results.filter(errorResultsOnly);
+    const results = await Promise.all(taskPromises);
 
-		if (errors.length > 0) {
-			return errors[0].value as AntboxError;
-		}
+    const errors = results.filter(errorResultsOnly);
 
-		return;
-	},
+    if (errors.length > 0) {
+      return errors[0].value as AntboxError;
+    }
+
+    return;
+  },
 } as Action;
 
 function updateTaskPredicate(nodeService: NodeService, parent: string) {
-	return (uuid: string) => nodeService.update(uuid, { parent });
+  return (uuid: string) => nodeService.update(uuid, { parent });
 }
 
 function errorResultsOnly(
-	voidOrErr: Either<NodeNotFoundError, unknown>,
+  voidOrErr: Either<NodeNotFoundError, unknown>,
 ): boolean {
-	return voidOrErr.isLeft();
+  return voidOrErr.isLeft();
 }

@@ -9,13 +9,13 @@ import {
 	WithId,
 } from "../../../deps.ts";
 
-import { FolderNode } from "../../domain/nodes/folder_node.ts";
 import { Node } from "../../domain/nodes/node.ts";
 import { NodeFactory } from "../../domain/nodes/node_factory.ts";
 import { FilterOperator, NodeFilter } from "../../domain/nodes/node_filter.ts";
+import { NodeLike } from "../../domain/nodes/node_like.ts";
+import { NodeMetadata } from "../../domain/nodes/node_metadata.ts";
 import { NodeNotFoundError } from "../../domain/nodes/node_not_found_error.ts";
 import { NodeFilterResult, NodeRepository } from "../../domain/nodes/node_repository.ts";
-import { SmartFolderNode } from "../../domain/nodes/smart_folder_node.ts";
 import { AntboxError, UnknownError } from "../../shared/antbox_error.ts";
 import { Either, left, right } from "../../shared/either.ts";
 
@@ -61,7 +61,7 @@ export class MongodbNodeRepository implements NodeRepository {
 			>;
 	}
 
-	async getById(uuid: string): Promise<Either<NodeNotFoundError, Node>> {
+	async getById(uuid: string): Promise<Either<NodeNotFoundError, NodeLike>> {
 		try {
 			const doc = await this.#collection.findOne(toObjectId(uuid));
 
@@ -69,10 +69,11 @@ export class MongodbNodeRepository implements NodeRepository {
 				return left(new NodeNotFoundError(uuid));
 			}
 
-			const node = toNodeDomain(doc);
+			const node = NodeFactory.from(doc as unknown as NodeMetadata).value as NodeLike;
 			return right(node);
 		} catch (err) {
-			return left(new MongodbError(err.message));
+			// deno-lint-ignore no-explicit-any
+			return left(new MongodbError((err as any).message));
 		}
 	}
 
@@ -86,7 +87,8 @@ export class MongodbNodeRepository implements NodeRepository {
 		try {
 			await this.#collection.deleteOne(toObjectId(uuid));
 		} catch (err) {
-			return left(new MongodbError(err.message));
+			// deno-lint-ignore no-explicit-any
+			return left(new MongodbError((err as any).message));
 		}
 
 		return right(undefined);
@@ -109,7 +111,9 @@ export class MongodbNodeRepository implements NodeRepository {
 
 		const docs = await findCursor.toArray();
 
-		const nodes = docs.map(toNodeDomain);
+		const nodes = docs.map((d) =>
+			NodeFactory.from(d as unknown as NodeMetadata).value as NodeLike
+		);
 
 		return {
 			nodes,
@@ -119,7 +123,7 @@ export class MongodbNodeRepository implements NodeRepository {
 		};
 	}
 
-	async getByFid(fid: string): Promise<Either<NodeNotFoundError, Node>> {
+	async getByFid(fid: string): Promise<Either<NodeNotFoundError, NodeLike>> {
 		const result = await this.filter([["fid", "==", fid]], 1, 1);
 
 		if (result.nodes.length === 0) {
@@ -141,7 +145,8 @@ export class MongodbNodeRepository implements NodeRepository {
 				$set: { ...node },
 			});
 		} catch (err) {
-			return left(new MongodbError(err.message));
+			// deno-lint-ignore no-explicit-any
+			return left(new MongodbError((err as any).message));
 		}
 
 		return right(undefined);
@@ -165,41 +170,6 @@ export class MongodbError extends AntboxError {
 
 export function toObjectId(uuid: string): WithId<Document> {
 	return { _id: new ObjectId(checksum(uuid)) };
-}
-
-function toNodeDomain(doc: WithId<Document>): Node {
-	const { _id, ...node } = doc;
-
-	const nodeFields: Partial<Node> = {
-		uuid: node.uuid,
-		fid: node.fid,
-		title: node.title,
-		description: node.description,
-		mimetype: node.mimetype,
-		size: node.size,
-		createdTime: node.createdTime,
-		modifiedTime: node.modifiedTime,
-		properties: node.properties,
-		aspects: node.aspects,
-		parent: node.parent,
-		owner: node.owner,
-	};
-
-	const smartfolderFields: Partial<SmartFolderNode> = {};
-	if (node.mimetype === Node.SMART_FOLDER_MIMETYPE) {
-		smartfolderFields.filters = node.filters;
-		smartfolderFields.aggregations = node.aggregations;
-	}
-
-	const folderFields: Partial<FolderNode> = {};
-	if (node.mimetype === Node.FOLDER_MIMETYPE) {
-		folderFields.group = node.group;
-		folderFields.permissions = node.permissions;
-		folderFields.onCreate = node.onCreate;
-		folderFields.onUpdate = node.onUpdate;
-	}
-
-	return NodeFactory.compose(nodeFields, smartfolderFields, folderFields);
 }
 
 function buildMongoQuery(filters: NodeFilter[]): Filter<Document> {

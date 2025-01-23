@@ -1,157 +1,87 @@
-import { ActionNode } from "../actions/action_node.ts";
-import { AspectNode } from "../aspects/aspect_node.ts";
-import { ApiKeyNode } from "./api_key_node.ts";
-import { FolderNode } from "./folder_node.ts";
-import { GroupNode } from "./group_node.ts";
-import { SmartFolderNode } from "./smart_folder_node.ts";
-import { UserNode } from "./user_node.ts";
-
-export type Properties = Record<string, unknown>;
+import { NodeMetadata } from "./node_metadata.ts";
+import { NodeProperties } from "./node_properties.ts";
+import { Nodes } from "./nodes.ts";
 
 export class Node {
-	static FOLDER_MIMETYPE = "application/vnd.antbox.folder";
-	static META_NODE_MIMETYPE = "application/vnd.antbox.metanode";
-	static SMART_FOLDER_MIMETYPE = "application/vnd.antbox.smartfolder";
-	static ASPECT_MIMETYPE = "application/vnd.antbox.aspect";
-	static ACTION_MIMETYPE = "application/vnd.antbox.action";
-	static EXT_MIMETYPE = "application/vnd.antbox.extension";
-	static USER_MIMETYPE = "application/vnd.antbox.user";
-	static GROUP_MIMETYPE = "application/vnd.antbox.group";
-	static FORM_SPECIFICATION_MIMETYPE = "application/vnd.antbox.formspecification";
-	static API_KEY_MIMETYPE = "application/vnd.antbox.apikey";
-
-	static ROOT_FOLDER_UUID = "--root--";
-	static USERS_FOLDER_UUID = "--users--";
-	static GROUPS_FOLDER_UUID = "--groups--";
-	static ASPECTS_FOLDER_UUID = "--aspects--";
-	static ACTIONS_FOLDER_UUID = "--actions--";
-	static EXT_FOLDER_UUID = "--ext--";
-	static SYSTEM_FOLDER_UUID = "--system--";
-	static FORMS_SPECIFICATIONS_FOLDER_UUID = "--forms-specifications--";
-	static API_KEYS_FOLDER_UUID = "--api-keys--";
-
-	static SYSTEM_MIMETYPES = [
-		Node.ASPECT_MIMETYPE,
-		Node.ACTION_MIMETYPE,
-		Node.EXT_MIMETYPE,
-		Node.USER_MIMETYPE,
-		Node.GROUP_MIMETYPE,
-		Node.FORM_SPECIFICATION_MIMETYPE,
-		Node.API_KEY_MIMETYPE,
-	];
-
-	private static FID_PREFIX = "--fid--";
-
-	static fidToUuid(fid: string): string {
-		return `${Node.FID_PREFIX}${fid}`;
-	}
-
-	static isFid(uuid: string): boolean {
-		return uuid?.startsWith(Node.FID_PREFIX);
-	}
-
-	static uuidToFid(fid: string): string {
-		return fid?.startsWith(Node.FID_PREFIX) ? fid.substring(Node.FID_PREFIX.length) : fid;
-	}
-
-	static isRootFolder(uuid: string): boolean {
-		return uuid === Node.ROOT_FOLDER_UUID;
-	}
-
-	static isSystemRootFolder(uuid: string): boolean {
-		return uuid === Node.SYSTEM_FOLDER_UUID;
-	}
-
-	static isFolder(metadata: Partial<Node>): boolean {
-		return metadata?.mimetype === Node.FOLDER_MIMETYPE;
-	}
-
-	static isUser(metadata: Partial<Node>): boolean {
-		return metadata?.mimetype === Node.USER_MIMETYPE;
-	}
-
-	static isApikey(metadata: Partial<Node>): boolean {
-		return metadata?.mimetype === Node.API_KEY_MIMETYPE;
-	}
-
-	static isSmartFolder(metadata: Partial<Node>): boolean {
-		return metadata?.mimetype === Node.SMART_FOLDER_MIMETYPE;
-	}
-
-	static isAspect(metadata: Partial<Node>): boolean {
-		return metadata?.mimetype === Node.ASPECT_MIMETYPE;
-	}
-
-	uuid = "";
-	fid = "";
-	title = "";
+	readonly uuid: string;
+	fid: string;
+	title: string;
 	description?: string;
-	mimetype = "";
-	size = 0;
-	aspects?: string[];
-	parent = Node.ROOT_FOLDER_UUID;
-	createdTime = "";
-	modifiedTime = "";
-	owner = "";
-	properties: Properties = {};
-	fulltext = "";
+	mimetype: string;
+	parent = Nodes.ROOT_FOLDER_UUID;
+	readonly createdTime: string;
+	modifiedTime: string;
+	owner: string;
+	fulltext: string;
+	static USER_MIMETYPE: string | undefined;
 
-	constructor() {
-		this.createdTime = this.modifiedTime = new Date().toISOString();
+	constructor(metadata: Partial<NodeMetadata> = {}) {
+		this.mimetype = metadata?.mimetype ?? "";
+		this.uuid = metadata?.uuid ?? "";
+		this.fid = metadata?.fid ?? "";
+		this.title = metadata?.title ?? "";
+		this.description = metadata?.description;
+		this.parent = metadata?.parent ?? Nodes.ROOT_FOLDER_UUID;
+		this.createdTime = metadata?.createdTime ?? new Date().toISOString();
+		this.modifiedTime = metadata?.modifiedTime ?? new Date().toISOString();
+		this.owner = metadata?.owner ?? "";
+		this.fulltext = metadata?.fulltext ?? "";
 	}
 
 	isJson(): boolean {
 		return this.mimetype === "application/json";
 	}
 
-	isApikey(): this is ApiKeyNode {
-		return this.mimetype === Node.API_KEY_MIMETYPE;
+	isApikey(): boolean {
+		return this.mimetype === Nodes.API_KEY_MIMETYPE;
 	}
 
-	isFolder(): this is FolderNode {
-		return this.mimetype === Node.FOLDER_MIMETYPE;
+	isFolder(): boolean {
+		return this.mimetype === Nodes.FOLDER_MIMETYPE;
 	}
 
 	isMetaNode(): boolean {
-		return this.mimetype === Node.META_NODE_MIMETYPE;
+		return this.mimetype === Nodes.META_NODE_MIMETYPE;
 	}
 
-	isSmartFolder(): this is SmartFolderNode {
-		return this.mimetype === Node.SMART_FOLDER_MIMETYPE;
+	isSmartFolder(): boolean {
+		return this.mimetype === Nodes.SMART_FOLDER_MIMETYPE;
 	}
 
-	isRootFolder(): this is FolderNode {
-		return this.uuid === Node.ROOT_FOLDER_UUID;
+	isRootFolder(): boolean {
+		return this.uuid === Nodes.ROOT_FOLDER_UUID;
 	}
 
-	isSystemRootFolder(): this is FolderNode {
-		return this.uuid === Node.SYSTEM_FOLDER_UUID;
+	isSystemRootFolder(): boolean {
+		return this.uuid === Nodes.SYSTEM_FOLDER_UUID;
 	}
 
-	isAspect(): this is AspectNode {
-		return this.mimetype === Node.ASPECT_MIMETYPE;
+	isAspect(): boolean {
+		return this.mimetype === Nodes.ASPECT_MIMETYPE;
 	}
 
-	isGroup(): this is GroupNode {
-		return this.mimetype === Node.GROUP_MIMETYPE;
+	isGroup(): boolean {
+		return this.mimetype === Nodes.GROUP_MIMETYPE;
 	}
 
-	isUser(): this is UserNode {
-		return this.mimetype === Node.USER_MIMETYPE;
+	isUser(): boolean {
+		return this.mimetype === Nodes.USER_MIMETYPE;
 	}
 
-	isAction(): this is ActionNode {
-		return this.mimetype === Node.ACTION_MIMETYPE;
+	isAction(): boolean {
+		return this.mimetype === Nodes.ACTION_MIMETYPE;
 	}
 
 	isExt(): boolean {
-		return this.mimetype === Node.EXT_MIMETYPE;
+		return this.mimetype === Nodes.EXT_MIMETYPE;
 	}
 
-	static isJavascript(file: File) {
-		return (
-			file.type === "application/javascript" || file.type === "text/javascript"
-		);
+	isFormSpecification(): boolean {
+		return this.mimetype === Nodes.FORM_SPECIFICATION_MIMETYPE;
+	}
+
+	isFile(): boolean {
+		return false;
 	}
 }
 
@@ -163,3 +93,21 @@ export type Permissions = {
 	anonymous: Permission[];
 	advanced?: Record<string, Permission[]>;
 };
+
+// deno-lint-ignore no-explicit-any
+export type Constructor<T = {}> = new (...args: any[]) => T;
+
+export function WithAspectMixin<TBase extends Constructor>(Base: TBase) {
+	return class extends Base {
+		aspects: string[] = [];
+		properties: NodeProperties = {};
+
+		// deno-lint-ignore no-explicit-any
+		constructor(...args: any[]) {
+			super(...args);
+
+			this.aspects = args[0]?.aspects ?? [];
+			this.properties = args[0]?.properties ?? {};
+		}
+	};
+}

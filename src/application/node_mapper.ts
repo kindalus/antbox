@@ -1,22 +1,23 @@
 import { Group } from "../domain/auth/group.ts";
-import { FormSpecification } from "../domain/forms_specifications/form_specification.ts";
-import { GroupNode } from "../domain/nodes/group_node.ts";
-import { UserNode } from "../domain/nodes/user_node.ts";
+import { GroupNode } from "../domain/auth/group_node.ts";
+import { Users } from "../domain/auth/users.ts";
+import { FormSpecificationNode } from "../domain/forms_specifications/form_specification.ts";
 
-export function fileToFormSpecification(file: File): Promise<FormSpecification> {
+export function fileToFormSpecification(file: File): Promise<FormSpecificationNode> {
 	return file
 		.text()
 		.then((text) => JSON.parse(text))
-		.then((raw) => ({
-			uuid: raw.uuid ?? file.name.split(".")[0],
-			title: raw.title ?? file.name.split(".")[0],
-			description: raw.description ?? "",
-			builtIn: false,
-			viewport: raw.viewport ?? { x: 0, y: 0, width: 595, height: 842 },
-			sourceImageUrl: raw.sourceImageUrl,
-			targetAspect: raw.targetAspect,
-			properties: raw.properties ?? [],
-		}));
+		.then((raw) =>
+			FormSpecificationNode.create({
+				uuid: raw.uuid ?? file.name.split(".")[0],
+				title: raw.title ?? file.name.split(".")[0],
+				description: raw.description ?? "",
+				width: raw.width ?? 595,
+				height: raw.height ?? 842,
+				targetAspect: raw.targetAspect,
+				properties: raw.properties ?? [],
+			}).value as FormSpecificationNode
+		);
 }
 
 export function groupToNode(group: Group): GroupNode {
@@ -27,7 +28,7 @@ export function groupToNode(group: Group): GroupNode {
 	});
 
 	if (group.builtIn) {
-		node.owner = UserNode.ROOT_USER_EMAIL;
+		node.owner = Users.ROOT_USER_EMAIL;
 	}
 
 	return node;
@@ -39,6 +40,6 @@ export function nodeToGroup(node: GroupNode): Group {
 		fid: node.uuid,
 		title: node.title,
 		description: node.description,
-		builtIn: node.owner === UserNode.ROOT_USER_EMAIL,
+		builtIn: node.owner === Users.ROOT_USER_EMAIL,
 	});
 }

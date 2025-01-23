@@ -1,7 +1,7 @@
 export type NodeFilter = [
   field: string,
   operator: FilterOperator,
-  value: unknown
+  value: unknown,
 ];
 
 export type FilterOperator =

@@ -1,16 +1,32 @@
+import { Either, left, right } from "../../shared/either.ts";
+import { ValidationError } from "../../shared/validation_error.ts";
 import { Node } from "../nodes/node.ts";
 import { NodeFilter } from "../nodes/node_filter.ts";
+import { NodeMetadata } from "../nodes/node_metadata.ts";
+import { Nodes } from "../nodes/nodes.ts";
 import { AspectProperty } from "./aspect.ts";
+import { AspectSpec } from "./aspect_spec.ts";
 
 export class AspectNode extends Node {
-	filters: NodeFilter[];
-	aspectProperties: AspectProperty[];
+	static create(metadata: Partial<NodeMetadata>): Either<ValidationError, AspectNode> {
+		const node = new AspectNode(metadata);
 
-	constructor() {
-		super();
-		this.filters = [];
-		this.aspectProperties = [];
-		this.mimetype = Node.ASPECT_MIMETYPE;
-		this.parent = Node.ASPECTS_FOLDER_UUID;
+		const trueOrErr = AspectSpec.isSatisfiedBy(node);
+
+		if (trueOrErr.isLeft()) {
+			return left(trueOrErr.value);
+		}
+
+		return right(node);
+	}
+
+	filters: NodeFilter[];
+	properties: AspectProperty[];
+
+	private constructor(metadata: Partial<NodeMetadata> = {}) {
+		super({ ...metadata, mimetype: Nodes.ASPECT_MIMETYPE, parent: Nodes.ASPECTS_FOLDER_UUID });
+
+		this.filters = metadata.filters ?? [];
+		this.properties = (metadata.properties as AspectProperty[]) ?? [];
 	}
 }

@@ -3,20 +3,22 @@ import {
   actionToNode,
   fileToAction,
 } from "../domain/actions/action.ts";
-import { ActionNode } from "../domain/actions/ActionNode.ts";
+import { ActionNode } from "../domain/actions/action_node.ts";
 import { RunContext } from "../domain/actions/run_context.ts";
 import { AuthContextProvider } from "../domain/auth/auth_provider.ts";
+import { UserNode } from "../domain/auth/user_node.ts";
 import { UserNotFoundError } from "../domain/auth/user_not_found_error.ts";
 import {
   filtersSpecFrom,
   withNodeFilters,
 } from "../domain/nodes/filters_spec.ts";
+import { Folders } from "../domain/nodes/folders.ts";
 import { Node } from "../domain/nodes/node.ts";
 import { NodeCreatedEvent } from "../domain/nodes/node_created_event.ts";
-import { NodeFactory } from "../domain/nodes/node_factory.ts";
 import { NodeFilter } from "../domain/nodes/node_filter.ts";
 import { NodeNotFoundError } from "../domain/nodes/node_not_found_error.ts";
 import { NodeUpdatedEvent } from "../domain/nodes/node_updated_event.ts";
+import { Nodes } from "../domain/nodes/nodes.ts";
 import {
   AntboxError,
   BadRequestError,
@@ -67,7 +69,7 @@ export class ActionService {
     const found = builtinActions.find((a) => a.uuid === uuid);
 
     if (found) {
-      return right(actionToNode(found));
+      return right(actionToNode(found).right);
     }
 
     const nodeOrErr = await this.nodeService.get(uuid);
@@ -76,7 +78,7 @@ export class ActionService {
       return left(nodeOrErr.value);
     }
 
-    if (!nodeOrErr.value.isAction()) {
+    if (!Nodes.isAction(nodeOrErr.value)) {
       return left(new NodeNotFoundError(uuid));
     }
 
@@ -86,8 +88,8 @@ export class ActionService {
   async list(): Promise<Either<AntboxError, ActionNode[]>> {
     const nodesOrErrs = await this.nodeService.find(
       [
-        ["mimetype", "==", Node.ACTION_MIMETYPE],
-        ["parent", "==", Node.ACTIONS_FOLDER_UUID],
+        ["mimetype", "==", Nodes.ACTION_MIMETYPE],
+        ["parent", "==", Folders.ACTIONS_FOLDER_UUID],
       ],
       Number.MAX_SAFE_INTEGER,
     );
@@ -98,7 +100,7 @@ export class ActionService {
 
     const nodes = [
       ...(nodesOrErrs.value.nodes as ActionNode[]),
-      ...builtinActions.map(actionToNode),
+      ...builtinActions.map((a) => actionToNode(a).right),
     ].sort((a, b) => a.title.localeCompare(b.title));
 
     return right(nodes);
@@ -115,21 +117,18 @@ export class ActionService {
 
     const nodeOrErr = await this.nodeService.get(action.uuid);
     if (nodeOrErr.isLeft()) {
-      const metadata = NodeFactory.createMetadata(
-        action.uuid,
-        action.uuid,
-        Node.ACTION_MIMETYPE,
-        file.size,
-        action,
-      );
+      ActionNode.create({
+        ...action,
+        uuid: action.uuid,
+        fid: action.uuid,
+        title: action.title,
+        description: action.description,
+      });
 
-      return this.nodeService.createFile(file, metadata);
+      return this.nodeService.createFile(file, nodeOrErr.right);
     }
 
-    const metadata = NodeFactory.extractMetadata({
-      ...action,
-      mimetype: Node.ACTION_MIMETYPE,
-    });
+    const actionNode = actionToNode(action).right;
 
     const decoratedFile = new File([file], nodeOrErr.value.title, {
       type: nodeOrErr.value.mimetype,
@@ -143,7 +142,7 @@ export class ActionService {
       return left<AntboxError, Node>(voidOrErr.value);
     }
 
-    voidOrErr = await this.nodeService.update(action.uuid, metadata);
+    voidOrErr = await this.nodeService.update(action.uuid, actionNode);
     if (voidOrErr.isLeft()) {
       return left<AntboxError, Node>(voidOrErr.value);
     }
@@ -222,7 +221,7 @@ export class ActionService {
       return left(nodeOrErr.value);
     }
 
-    if (!nodeOrErr.value.isAction()) {
+    if (!Nodes.isAction(nodeOrErr.value)) {
       return left(new NodeNotFoundError(uuid));
     }
 
@@ -334,13 +333,13 @@ export class ActionService {
   }
 
   #buildRunContext(aCtx: AuthContextProvider, runAs?: string): RunContext {
-    const principal = new UserNodeBuilder()
-      .withUuid(aCtx.principal.uuid)
-      .withEmail(aCtx.principal.email)
-      .withTitle(aCtx.principal.title)
-      .withGroup(runAs ?? aCtx.principal.group)
-      .withGroups(aCtx.principal.groups)
-      .build().value as UserNode;
+    const principal = UserNode.create({
+      uuid: aCtx.principal.uuid,
+      email: aCtx.principal.email,
+      title: aCtx.principal.title,
+      group: runAs ?? aCtx.principal.group,
+      groups: aCtx.principal.groups,
+    }).right;
 
     const authContext: AuthContextProvider = {
       principal,
@@ -358,7 +357,7 @@ export class ActionService {
     runOnCriteria: NodeFilter,
   ): Promise<Action[]> {
     const filters: NodeFilter[] = [
-      ["mimetype", "==", Node.ACTION_MIMETYPE],
+      ["mimetype", "==", Nodes.ACTION_MIMETYPE],
       runOnCriteria,
     ];
     const actionsOrErr = await this.nodeService.find(
@@ -388,7 +387,7 @@ export class ActionService {
   }
 
   async runOnCreateScritps(evt: NodeCreatedEvent) {
-    if (Node.isRootFolder(evt.payload.parent!)) {
+    if (evt.payload.parent === Folders.ROOT_FOLDER_UUID) {
       return;
     }
 
@@ -398,7 +397,7 @@ export class ActionService {
     }
 
     const parentOrErr = await this.nodeService.get(evt.payload.parent!);
-    if (parentOrErr.isLeft() || !parentOrErr.value.isFolder()) {
+    if (parentOrErr.isLeft() || !Nodes.isFolder(parentOrErr.value)) {
       return;
     }
 
@@ -411,13 +410,13 @@ export class ActionService {
 
   runOnUpdatedScritps(evt: NodeUpdatedEvent) {
     return this.nodeService.get(evt.payload.uuid).then(async (node) => {
-      if (node.isLeft() || Node.isRootFolder(node.value.parent)) {
+      if (node.isLeft() || node.value.parent === Folders.ROOT_FOLDER_UUID) {
         return;
       }
 
       const parent = await this.nodeService.get(node.value.parent);
 
-      if (parent.isLeft() || !parent.value.isFolder()) {
+      if (parent.isLeft() || !Nodes.isFolder(parent.value)) {
         return;
       }
 
@@ -468,7 +467,7 @@ export class ActionService {
     const resultOrErr = await this.nodeService.find(
       [
         ["email", "==", userEmail],
-        ["mimetype", "==", Node.USER_MIMETYPE],
+        ["mimetype", "==", Nodes.USER_MIMETYPE],
       ],
       1,
       1,
@@ -483,13 +482,13 @@ export class ActionService {
     }
 
     const node = resultOrErr.value.nodes[0] as UserNode;
-    const principal = new UserNodeBuilder()
-      .withUuid(node.uuid)
-      .withEmail(node.email)
-      .withTitle(node.title)
-      .withGroup(node.group)
-      .withGroups(node.groups)
-      .build().value as UserNode;
+    const principal = UserNode.create({
+      uuid: node.uuid,
+      email: node.email,
+      title: node.title,
+      group: node.group,
+      groups: node.groups,
+    }).right;
 
     return right({
       principal,

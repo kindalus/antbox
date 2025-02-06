@@ -1,9 +1,8 @@
+import { ApiKeyNode } from "../domain/api_keys/api_key_node.ts";
 import { ApiKeyNodeFoundError } from "../domain/api_keys/api_key_node_found_error.ts";
 import GroupNotFoundError from "../domain/auth/group_not_found_error.ts";
-import { UserNotFoundError } from "../domain/auth/user_not_found_error.ts";
-import { ApiKeyNode } from "../domain/nodes/api_key_node.ts";
-import { GroupNode } from "../domain/nodes/group_node.ts";
-import { Node } from "../domain/nodes/node.ts";
+import { Folders } from "../domain/nodes/folders.ts";
+import { Nodes } from "../domain/nodes/nodes.ts";
 import { UuidGenerator } from "../domain/providers/uuid_generator.ts";
 import { AntboxError } from "../shared/antbox_error.ts";
 import { Either, left, right } from "../shared/either.ts";
@@ -32,27 +31,18 @@ export class ApiKeyService {
 			return left(groupsOrErr.value);
 		}
 
-		const groupNode = groupsOrErr.isRight()
-			? (groupsOrErr.value as GroupNode)
-			: groupToNode(builtinGroup!);
-
-		if (!groupNode.isGroup()) {
+		if (builtinGroup && !Nodes.isGroup(groupToNode(builtinGroup))) {
 			return left(new GroupNotFoundError(group));
 		}
 
-		const apiKey = new ApiKeyNode(group, this.#uuidGenerator.generate(10), description);
-
-		const metadata = {
-			title: apiKey.title,
-			secret: apiKey.secret,
-			mimetype: apiKey.mimetype,
-			parent: apiKey.parent,
-			description: apiKey.description,
+		const apiKey = ApiKeyNode.create({
 			group,
+			secret: this.#uuidGenerator.generate(10),
+			description,
 			owner,
-		};
+		});
 
-		const nodeOrErr = await this.#nodeService.create(metadata);
+		const nodeOrErr = await this.#nodeService.create(apiKey.right);
 		return nodeOrErr as Either<AntboxError, ApiKeyNode>;
 	}
 
@@ -63,22 +53,17 @@ export class ApiKeyService {
 			return left(nodeOrErr.value);
 		}
 
-		if (!nodeOrErr.value.isApikey) {
+		if (!Nodes.isApikey(nodeOrErr.value)) {
 			return left(new ApiKeyNodeFoundError(uuid));
 		}
 
-		const node = nodeOrErr.value;
-		if (!node.isApikey()) {
-			return left(new UserNotFoundError(uuid));
-		}
-
-		return right(node.cloneWithSecret());
+		return right(nodeOrErr.value.cloneWithSecret());
 	}
 
 	async getBySecret(secret: string): Promise<Either<AntboxError, ApiKeyNode>> {
 		const nodeOrErr = await this.#nodeService.find([
 			["secret", "==", secret],
-			["mimetype", "==", Node.API_KEY_MIMETYPE],
+			["mimetype", "==", Nodes.API_KEY_MIMETYPE],
 		], 1);
 
 		if (nodeOrErr.isLeft()) {
@@ -94,10 +79,10 @@ export class ApiKeyService {
 
 	async list(): Promise<ApiKeyNode[]> {
 		const nodesOrErrs = await this.#nodeService.find(
-			[["mimetype", "==", Node.API_KEY_MIMETYPE], [
+			[["mimetype", "==", Nodes.API_KEY_MIMETYPE], [
 				"parent",
 				"==",
-				Node.API_KEYS_FOLDER_UUID,
+				Folders.API_KEYS_FOLDER_UUID,
 			]],
 			Number.MAX_SAFE_INTEGER,
 		);

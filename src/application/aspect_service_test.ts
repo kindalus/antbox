@@ -11,39 +11,36 @@ import { NodeService } from "./node_service.ts";
 import { NodeServiceContext } from "./node_service_context.ts";
 
 Deno.test("createAspect", async (t) => {
-	await t.step("Node uuid and title should be the same as aspect", async () => {
-		const ctx: NodeServiceContext = {
-			fidGenerator: new DefaultFidGenerator(),
-			uuidGenerator: new DefaultUuidGenerator(),
-			repository: new InMemoryNodeRepository(),
-			storage: new InMemoryStorageProvider(),
-		};
+  await t.step("Node uuid and title should be the same as aspect", async () => {
+    const ctx: NodeServiceContext = {
+      fidGenerator: new DefaultFidGenerator(),
+      uuidGenerator: new DefaultUuidGenerator(),
+      repository: new InMemoryNodeRepository(),
+      storage: new InMemoryStorageProvider(),
+    };
 
-		const nodeService = new NodeService(ctx);
-		const service = new AspectService(nodeService);
+    const nodeService = new NodeService(ctx);
+    const service = new AspectService(nodeService);
 
-		const aspect: Aspect = {
-			uuid: "advogado",
-			title: "Advogado",
-			builtIn: false,
-			filters: [],
-			aspectProperties: [],
-		};
+    const aspect: Aspect = {
+      uuid: "advogado",
+      title: "Advogado",
+      builtIn: false,
+      filters: [],
+      properties: [],
+    };
 
-		const file = new File([JSON.stringify(aspect)], "advogado.json", {
-			type: "application/json",
-		});
+    const nodeOrErr = await service.createOrReplace({
+      ...aspect,
+      uuid: "jwWs91nx",
+      title: ctx.uuidGenerator.generate(),
+      parent: "--aspects--",
+    });
 
-		const nodeOrErr = await service.createOrReplace(file, {
-			uuid: "jwWs91nx",
-			title: ctx.uuidGenerator.generate(),
-			parent: "--aspects--",
-		});
+    const node = nodeOrErr.value as Node;
 
-		const node = nodeOrErr.value as Node;
-
-		assert(nodeOrErr.isRight(), (nodeOrErr.value as AntboxError).errorCode);
-		assertEquals(node.uuid, aspect.uuid);
-		assertEquals(node.title, aspect.title);
-	});
+    assert(nodeOrErr.isRight(), (nodeOrErr.value as AntboxError).errorCode);
+    assertEquals(node.uuid, aspect.uuid);
+    assertEquals(node.title, aspect.title);
+  });
 });

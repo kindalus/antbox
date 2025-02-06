@@ -29,7 +29,7 @@ export class FormSpecificationService {
 			{
 				title: template.title,
 				description: template.description,
-				parent: Node.FORMS_SPECIFICATIONS_FOLDER_UUID,
+				parent: Folders.FORMS_SPECIFICATIONS_FOLDER_UUID,
 			},
 		);
 
@@ -53,7 +53,7 @@ export class FormSpecificationService {
 			return left(FormSpecificationOrErr.value);
 		}
 
-		if (nodeOrErr.value.parent !== Node.FORMS_SPECIFICATIONS_FOLDER_UUID) {
+		if (nodeOrErr.value.parent !== Folders.FORMS_SPECIFICATIONS_FOLDER_UUID) {
 			return left(new NodeNotFoundError(uuid));
 		}
 
@@ -63,7 +63,7 @@ export class FormSpecificationService {
 	}
 
 	async list(): Promise<FormSpecificationNode[]> {
-		const nodesOrErrs = await this.nodeService.list(Node.FORMS_SPECIFICATIONS_FOLDER_UUID);
+		const Folders.rErrs = await this.nodeService.list(Folders.FORMS_SPECIFICATIONS_FOLDER_UUID);
 		if (nodesOrErrs.isLeft()) {
 			console.error(nodesOrErrs.value);
 			return [];

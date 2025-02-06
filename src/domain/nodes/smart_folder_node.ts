@@ -23,10 +23,6 @@ export class SmartFolderNode extends Node {
 		this.filters = metadata.filters ?? [];
 	}
 
-	override isSmartFolder(): this is SmartFolderNode {
-		return true;
-	}
-
 	hasAggregations(): boolean {
 		return this.aggregations.length > 0;
 	}

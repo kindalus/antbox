@@ -14,8 +14,4 @@ export class MetaNode extends WithAspectMixin(Node) {
 	constructor(metadata: Partial<NodeMetadata> = {}) {
 		super({ ...metadata, mimetype: Nodes.META_NODE_MIMETYPE });
 	}
-
-	override isMetaNode(): this is MetaNode {
-		return true;
-	}
 }

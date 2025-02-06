@@ -2,17 +2,15 @@ import { FormSpecificationNode } from "../../domain/forms_specifications/form_sp
 import { Node } from "../../domain/nodes/node.ts";
 import { NodeFactory } from "../../domain/nodes/node_factory.ts";
 
-export const VendusInvoiceFormSpecification = NodeFactory.compose({
-	mimetype: Node.FORM_SPECIFICATION_MIMETYPE,
+export const VendusInvoiceFormSpecification = FormSpecificationNode.create({
 	uuid: "spec-factura-vendus",
 	fid: "spec-factura-vendus",
-}, {
-	builtIn: true,
+	//builtIn: true,
 	targetAspect: "factura-vendus",
 	width: 2480,
 	height: 3508,
 
-	formProperties: [{
+	properties: [{
 		name: "number",
 		type: "string",
 		viewport: {
@@ -34,7 +32,7 @@ export const VendusInvoiceFormSpecification = NodeFactory.compose({
 		name: "due-date",
 		type: "date",
 		viewport: {
-			x:630,
+			x: 630,
 			y: 1055,
 			width: 190,
 			height: 50,
@@ -59,4 +57,15 @@ export const VendusInvoiceFormSpecification = NodeFactory.compose({
 		},
 		formats: ["/\.//g", "/,/./"],
 	}],
+});
+
+NodeFactory.compose({
+	mimetype: Node.FORM_SPECIFICATION_MIMETYPE,
+	uuid: "spec-factura-vendus",
+	fid: "spec-factura-vendus",
+}, {
+	builtIn: true,
+	targetAspect: "factura-vendus",
+	width: 2480,
+	height: 3508,
 } as FormSpecificationNode);

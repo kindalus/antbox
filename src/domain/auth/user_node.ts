@@ -3,6 +3,7 @@ import { Node } from "../nodes/node.ts";
 import { NodeMetadata } from "../nodes/node_metadata.ts";
 import { Nodes } from "../nodes/nodes.ts";
 import { Either, right } from "../../shared/either.ts";
+import { Folders } from "../nodes/folders.ts";
 
 export class UserNode extends Node {
 	static create(metadata: Partial<NodeMetadata> = {}): Either<ValidationError, UserNode> {
@@ -16,13 +17,9 @@ export class UserNode extends Node {
 	groups: string[];
 
 	private constructor(metadata: Partial<NodeMetadata> = {}) {
-		super({ ...metadata, mimetype: Node.USER_MIMETYPE, parent: Nodes.USERS_FOLDER_UUID });
+		super({ ...metadata, mimetype: Node.USER_MIMETYPE, parent: Folders.USERS_FOLDER_UUID });
 		this.group = metadata?.group ?? "";
 		this.groups = metadata?.groups ?? [];
 		this.email = metadata?.email ?? "";
-	}
-
-	override isUser(): this is UserNode {
-		return true;
 	}
 }

@@ -5,6 +5,7 @@ import { FileNode } from "../domain/nodes/file_node.ts";
 import { FolderNode } from "../domain/nodes/folder_node.ts";
 import { FolderNotFoundError } from "../domain/nodes/folder_not_found_error.ts";
 import { Folders } from "../domain/nodes/folders.ts";
+import { MetaNode } from "../domain/nodes/meta_node.ts";
 import { Node } from "../domain/nodes/node.ts";
 import { NodeFactory } from "../domain/nodes/node_factory.ts";
 import { NodeFilter } from "../domain/nodes/node_filter.ts";
@@ -12,7 +13,6 @@ import { NodeLike } from "../domain/nodes/node_like.ts";
 import { NodeMetadata } from "../domain/nodes/node_metadata.ts";
 import { NodeNotFoundError } from "../domain/nodes/node_not_found_error.ts";
 import { NodeFilterResult } from "../domain/nodes/node_repository.ts";
-import { NodeSpec } from "../domain/nodes/node_spec.ts";
 import { Nodes } from "../domain/nodes/nodes.ts";
 import {
 	AggregationResult,
@@ -21,8 +21,10 @@ import {
 } from "../domain/nodes/smart_folder_evaluation.ts";
 import { Aggregation, SmartFolderNode } from "../domain/nodes/smart_folder_node.ts";
 import { SmartFolderNodeNotFoundError } from "../domain/nodes/smart_folder_node_not_found_error.ts";
-import { AntboxError, BadRequestError } from "../shared/antbox_error.ts";
+import { AntboxError, BadRequestError, ForbiddenError } from "../shared/antbox_error.ts";
 import { Either, left, right } from "../shared/either.ts";
+import { isPrincipalAllowedTo } from "./is_principal_allowed_to.ts";
+import { AuthenticationContext } from "./authentication_context.ts";
 import { NodeDeleter } from "./node_deleter.ts";
 import { NodeServiceContext } from "./node_service_context.ts";
 
@@ -99,7 +101,7 @@ export class NodeService {
 			return right(true);
 		}
 
-		const parentUuid = metadata.parent ?? Nodes.ROOT_FOLDER_UUID;
+		const parentUuid = metadata.parent ?? Folders.ROOT_FOLDER_UUID;
 		const parentOrErr = await this.get(parentUuid);
 		if (parentOrErr.isLeft()) {
 			return left(new FolderNotFoundError(parentUuid));
@@ -110,7 +112,7 @@ export class NodeService {
 
 	async create(
 		metadata: Partial<NodeMetadata>,
-	): Promise<Either<AntboxError, Node>> {
+	): Promise<Either<AntboxError, NodeLike>> {
 		const validOrErr = await this.#verifyParent(metadata);
 		if (validOrErr.isLeft()) {
 			return left(validOrErr.value);
@@ -156,7 +158,7 @@ export class NodeService {
 			return left(nodeOrErr.value);
 		}
 
-		if (nodeOrErr.value.isFolder()) {
+		if (Nodes.isFolder(nodeOrErr.value)) {
 			return left(new BadRequestError("Cannot copy folder"));
 		}
 
@@ -260,7 +262,7 @@ export class NodeService {
 			return left(nodeOrErr.value);
 		}
 
-		if (nodeOrErr.value.isSmartFolder()) {
+		if (Nodes.isSmartFolder(nodeOrErr.value)) {
 			const metadataText = await file.text();
 			const metadata = JSON.parse(metadataText);
 			return this.update(uuid, metadata);
@@ -296,13 +298,19 @@ export class NodeService {
 		return NodeDeleter.for(nodeOrError.value, this.context).delete();
 	}
 
-	async get(uuid: string): Promise<Either<NodeNotFoundError, NodeLike>> {
-		if (uuid === Nodes.ROOT_FOLDER_UUID) {
-			return right(Folders.ROOT_FOLDER);
-		}
+	async get(
+		ctx: AuthenticationContext,
+		uuid: string,
+	): Promise<Either<NodeNotFoundError, NodeLike>> {
+		if (uuid === Folders.ROOT_FOLDER_UUID || uuid === Folders.SYSTEM_FOLDER_UUID) {
+			const folder = uuid === Folders.ROOT_FOLDER_UUID
+				? Folders.ROOT_FOLDER
+				: Folders.SYSTEM_FOLDER;
 
-		if (uuid === Nodes.SYSTEM_FOLDER_UUID) {
-			return right(Folders.SYSTEM_FOLDER);
+			if (await isPrincipalAllowedTo(this, ctx, folder, "Read")) {
+				return right(folder);
+			}
+			return left(new ForbiddenError());
 		}
 
 		const nodeOrErr = await this.getFromRepository(uuid);
@@ -310,7 +318,11 @@ export class NodeService {
 			return left(nodeOrErr.value);
 		}
 
-		return right(nodeOrErr.value);
+		if (await isPrincipalAllowedTo(this, ctx, nodeOrErr.value, "Read")) {
+			return right(nodeOrErr.value);
+		}
+
+		return left(new ForbiddenError());
 	}
 
 	private getFromRepository(
@@ -323,15 +335,28 @@ export class NodeService {
 	}
 
 	async list(
-		parent = Nodes.ROOT_FOLDER_UUID,
-	): Promise<Either<FolderNotFoundError, Node[]>> {
-		if (FolderNodes.isSystemRootFolder(parent)) {
-			return right(this.#listSystemRootFolder());
+		ctx: AuthenticationContext,
+		parent = Folders.ROOT_FOLDER_UUID,
+	): Promise<Either<FolderNotFoundError | ForbiddenError, Node[]>> {
+		if (parent === Folders.SYSTEM_FOLDER_UUID) {
+			return left(new FolderNotFoundError(parent));
 		}
 
-		const parentOrErr = await this.get(parent);
+		const parentOrErr = await this.get(ctx, parent);
 		if (parentOrErr.isLeft()) {
+			return left(parentOrErr.value);
+		}
+
+		if (!Nodes.isFolder(parentOrErr.value)) {
 			return left(new FolderNotFoundError(parent));
+		}
+
+		if ((await isPrincipalAllowedTo(this, ctx, parentOrErr.value, "Read")).isLeft()) {
+			return left(new ForbiddenError());
+		}
+
+		if (Folders.isSystemRootFolder(parentOrErr.value)) {
+			return right(this.#listSystemRootFolder());
 		}
 
 		const nodes = await this.context.repository
@@ -342,15 +367,19 @@ export class NodeService {
 			)
 			.then((result) => result.nodes);
 
-		if (parent === Nodes.ROOT_FOLDER_UUID) {
-			return right([FolderNodes.SYSTEM_FOLDER, ...nodes]);
+		if (parent === Folders.ROOT_FOLDER_UUID) {
+			return right([Folders.SYSTEM_FOLDER, ...nodes]);
 		}
 
-		return right(nodes);
+		return right(
+			nodes.filter(async (n) =>
+				!Nodes.isFolder(n) || (await isPrincipalAllowedTo(this, ctx, n, "Read")).isRight()
+			),
+		);
 	}
 
 	#listSystemRootFolder(): FolderNode[] {
-		return FolderNodes.SYSTEM_FOLDERS;
+		return Folders.SYSTEM_FOLDERS;
 	}
 
 	async find(
@@ -388,7 +417,7 @@ export class NodeService {
 		);
 
 		const r = {
-			nodes: v.nodes.map((n) => (n.isApikey() ? n.cloneWithSecret() : n)),
+			nodes: v.nodes.map((n) => (Nodes.isApikey(n) ? n.cloneWithSecret() : n)),
 			pageToken: v.pageToken,
 			pageCount: v.pageCount,
 			pageSize: v.pageSize,
@@ -441,7 +470,7 @@ export class NodeService {
 			return left(nodeOrErr.value);
 		}
 
-		if (nodeOrErr.value.isApikey()) {
+		if (Nodes.isApikey(nodeOrErr.value)) {
 			return left(new BadRequestError("Cannot update apikey"));
 		}
 
@@ -455,7 +484,9 @@ export class NodeService {
 		return this.context.repository.update(newNode);
 	}
 
-	async #getNodeAspects(node: NodeLike): Promise<AspectNode[]> {
+	async #getNodeAspects(
+		node: FileNode | FolderNode | MetaNode,
+	): Promise<AspectNode[]> {
 		if (!node.aspects || node.aspects.length === 0) {
 			return [];
 		}
@@ -503,7 +534,7 @@ export class NodeService {
 			return left(new SmartFolderNodeNotFoundError(uuid));
 		}
 
-		if (!nodeOrErr.value.isSmartFolder()) {
+		if (!Nodes.isSmartFolder(nodeOrErr.value)) {
 			return left(new SmartFolderNodeNotFoundError(uuid));
 		}
 

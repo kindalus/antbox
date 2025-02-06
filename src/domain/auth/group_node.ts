@@ -1,5 +1,6 @@
 import { Either, right } from "../../shared/either.ts";
 import { ValidationError } from "../../shared/validation_error.ts";
+import { Folders } from "../nodes/folders.ts";
 import { Node } from "../nodes/node.ts";
 import { NodeMetadata } from "../nodes/node_metadata.ts";
 import { Nodes } from "../nodes/nodes.ts";
@@ -15,11 +16,7 @@ export class GroupNode extends Node {
 		super({
 			...metadata,
 			mimetype: Nodes.GROUP_MIMETYPE,
-			parent: Nodes.GROUPS_FOLDER_UUID,
+			parent: Folders.GROUPS_FOLDER_UUID,
 		});
-	}
-
-	override isGroup(): this is GroupNode {
-		return true;
 	}
 }

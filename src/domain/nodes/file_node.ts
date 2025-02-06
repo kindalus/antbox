@@ -33,8 +33,4 @@ export class FileNode extends FileNodeMixin(WithAspectMixin(Node)) {
 				: metadata.mimetype,
 		});
 	}
-
-	override isFile(): this is FileNode {
-		return true;
-	}
 }

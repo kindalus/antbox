@@ -1,6 +1,6 @@
+import { Folders } from "./folders.ts";
 import { NodeMetadata } from "./node_metadata.ts";
 import { NodeProperties } from "./node_properties.ts";
-import { Nodes } from "./nodes.ts";
 
 export class Node {
 	readonly uuid: string;
@@ -8,7 +8,7 @@ export class Node {
 	title: string;
 	description?: string;
 	mimetype: string;
-	parent = Nodes.ROOT_FOLDER_UUID;
+	parent = Folders.ROOT_FOLDER_UUID;
 	readonly createdTime: string;
 	modifiedTime: string;
 	owner: string;
@@ -21,7 +21,7 @@ export class Node {
 		this.fid = metadata?.fid ?? "";
 		this.title = metadata?.title ?? "";
 		this.description = metadata?.description;
-		this.parent = metadata?.parent ?? Nodes.ROOT_FOLDER_UUID;
+		this.parent = metadata?.parent ?? Folders.ROOT_FOLDER_UUID;
 		this.createdTime = metadata?.createdTime ?? new Date().toISOString();
 		this.modifiedTime = metadata?.modifiedTime ?? new Date().toISOString();
 		this.owner = metadata?.owner ?? "";
@@ -30,58 +30,6 @@ export class Node {
 
 	isJson(): boolean {
 		return this.mimetype === "application/json";
-	}
-
-	isApikey(): boolean {
-		return this.mimetype === Nodes.API_KEY_MIMETYPE;
-	}
-
-	isFolder(): boolean {
-		return this.mimetype === Nodes.FOLDER_MIMETYPE;
-	}
-
-	isMetaNode(): boolean {
-		return this.mimetype === Nodes.META_NODE_MIMETYPE;
-	}
-
-	isSmartFolder(): boolean {
-		return this.mimetype === Nodes.SMART_FOLDER_MIMETYPE;
-	}
-
-	isRootFolder(): boolean {
-		return this.uuid === Nodes.ROOT_FOLDER_UUID;
-	}
-
-	isSystemRootFolder(): boolean {
-		return this.uuid === Nodes.SYSTEM_FOLDER_UUID;
-	}
-
-	isAspect(): boolean {
-		return this.mimetype === Nodes.ASPECT_MIMETYPE;
-	}
-
-	isGroup(): boolean {
-		return this.mimetype === Nodes.GROUP_MIMETYPE;
-	}
-
-	isUser(): boolean {
-		return this.mimetype === Nodes.USER_MIMETYPE;
-	}
-
-	isAction(): boolean {
-		return this.mimetype === Nodes.ACTION_MIMETYPE;
-	}
-
-	isExt(): boolean {
-		return this.mimetype === Nodes.EXT_MIMETYPE;
-	}
-
-	isFormSpecification(): boolean {
-		return this.mimetype === Nodes.FORM_SPECIFICATION_MIMETYPE;
-	}
-
-	isFile(): boolean {
-		return false;
 	}
 }
 

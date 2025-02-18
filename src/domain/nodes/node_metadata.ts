@@ -12,11 +12,13 @@ export interface NodeMetadata {
 	description: string;
 	mimetype: string;
 	size: number;
-	aspects?: string[];
 	parent: string;
 	createdTime: string;
 	modifiedTime: string;
 	owner: string;
+	aspects: string[];
+	tags: string[];
+	related: string[];
 	properties: NodeProperties | AspectProperty[] | FormPropertySpecification[];
 	fulltext: string;
 

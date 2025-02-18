@@ -43,12 +43,14 @@ export type Permissions = {
 };
 
 // deno-lint-ignore no-explicit-any
-export type Constructor<T = {}> = new (...args: any[]) => T;
+export type Constructor<T = any> = new (...args: any[]) => T;
 
 export function WithAspectMixin<TBase extends Constructor>(Base: TBase) {
 	return class extends Base {
 		aspects: string[] = [];
 		properties: NodeProperties = {};
+		tags: string[] = [];
+		related: string[] = [];
 
 		// deno-lint-ignore no-explicit-any
 		constructor(...args: any[]) {
@@ -56,6 +58,8 @@ export function WithAspectMixin<TBase extends Constructor>(Base: TBase) {
 
 			this.aspects = args[0]?.aspects ?? [];
 			this.properties = args[0]?.properties ?? {};
+			this.tags = args[0]?.tags ?? [];
+			this.related = args[0]?.related ?? [];
 		}
 	};
 }

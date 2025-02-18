@@ -44,12 +44,13 @@ export class NodeService {
 	constructor(private readonly context: NodeServiceContext) {}
 
 	async createFile(
+		ctx: AuthenticationContext,
 		file: File,
 		metadata: Partial<NodeMetadata>,
 	): Promise<Either<AntboxError, Node>> {
 		metadata.title = metadata.title ?? file.name;
 
-		const validOrErr = await this.#verifyParent(metadata);
+		const validOrErr = await this.#verifyParent(ctx, metadata);
 		if (validOrErr.isLeft()) {
 			return left(validOrErr.value);
 		}
@@ -71,7 +72,7 @@ export class NodeService {
 		}
 
 		const node = nodeOrErr.value;
-		node.fulltext = await this.#calculateFulltext(node);
+		node.fulltext = await this.#calculateFulltext(ctx, node);
 
 		let voidOrErr = await this.context.storage.write(node.uuid, file, {
 			title: node.title,
@@ -91,6 +92,7 @@ export class NodeService {
 	}
 
 	async #verifyParent(
+		ctx: AuthenticationContext,
 		metadata: Partial<NodeMetadata>,
 	): Promise<Either<AntboxError, true>> {
 		if (!metadata.parent) {
@@ -102,7 +104,7 @@ export class NodeService {
 		}
 
 		const parentUuid = metadata.parent ?? Folders.ROOT_FOLDER_UUID;
-		const parentOrErr = await this.get(parentUuid);
+		const parentOrErr = await this.get(ctx, parentUuid);
 		if (parentOrErr.isLeft()) {
 			return left(new FolderNotFoundError(parentUuid));
 		}
@@ -110,10 +112,11 @@ export class NodeService {
 		return right(true);
 	}
 
-	async create(
+	async create<T extends NodeLike>(
+		ctx: AuthenticationContext,
 		metadata: Partial<NodeMetadata>,
-	): Promise<Either<AntboxError, NodeLike>> {
-		const validOrErr = await this.#verifyParent(metadata);
+	): Promise<Either<AntboxError, T>> {
+		const validOrErr = await this.#verifyParent(ctx, metadata);
 		if (validOrErr.isLeft()) {
 			return left(validOrErr.value);
 		}
@@ -132,28 +135,35 @@ export class NodeService {
 		}
 
 		const node = nodeOrErr.value;
-		node.fulltext = await this.#calculateFulltext(node);
+		node.fulltext = await this.#calculateFulltext(ctx, node);
 		const addOrErr = await this.context.repository.add(node);
 
 		if (addOrErr.isLeft()) {
 			return left(addOrErr.value);
 		}
 
-		return right(node);
+		return right(node as T);
 	}
 
-	async duplicate(uuid: string): Promise<Either<NodeNotFoundError, Node>> {
-		const node = await this.get(uuid);
+	async duplicate(
+		ctx: AuthenticationContext,
+		uuid: string,
+	): Promise<Either<NodeNotFoundError, Node>> {
+		const node = await this.get(ctx, uuid);
 
 		if (node.isLeft()) {
 			return left(node.value);
 		}
 
-		return this.copy(uuid, node.value.parent);
+		return this.copy(ctx, uuid, node.value.parent);
 	}
 
-	async copy(uuid: string, parent: string): Promise<Either<AntboxError, Node>> {
-		const nodeOrErr = await this.get(uuid);
+	async copy(
+		ctx: AuthenticationContext,
+		uuid: string,
+		parent: string,
+	): Promise<Either<AntboxError, Node>> {
+		const nodeOrErr = await this.get(ctx, uuid);
 		if (nodeOrErr.isLeft()) {
 			return left(nodeOrErr.value);
 		}
@@ -200,7 +210,7 @@ export class NodeService {
 			return left(writeOrErr.value);
 		}
 
-		newNode.fulltext = await this.#calculateFulltext(newNode);
+		newNode.fulltext = await this.#calculateFulltext(ctx, newNode);
 
 		const addOrErr = await this.context.repository.add(newNode);
 		if (addOrErr.isLeft()) {
@@ -227,11 +237,11 @@ export class NodeService {
 			.trim();
 	}
 
-	async #calculateFulltext(node: NodeLike): Promise<string> {
+	async #calculateFulltext(ctx: AuthenticationContext, node: NodeLike): Promise<string> {
 		const fulltext = [node.title, node.description ?? ""];
 
 		if (Nodes.hasAspects(node)) {
-			const aspects = await this.#getNodeAspects(node);
+			const aspects = await this.#getNodeAspects(ctx, node);
 
 			const propertiesFulltext: string[] = aspects
 				.map((a) => this.#aspectToProperties(a))
@@ -253,10 +263,11 @@ export class NodeService {
 	}
 
 	async updateFile(
+		ctx: AuthenticationContext,
 		uuid: string,
 		file: File,
 	): Promise<Either<NodeNotFoundError, void>> {
-		const nodeOrErr = await this.get(uuid);
+		const nodeOrErr = await this.get(ctx, uuid);
 
 		if (nodeOrErr.isLeft()) {
 			return left(nodeOrErr.value);
@@ -265,7 +276,7 @@ export class NodeService {
 		if (Nodes.isSmartFolder(nodeOrErr.value)) {
 			const metadataText = await file.text();
 			const metadata = JSON.parse(metadataText);
-			return this.update(uuid, metadata);
+			return this.update(ctx, uuid, metadata);
 		}
 
 		if (!Nodes.isFileLike(nodeOrErr.value)) {
@@ -282,14 +293,17 @@ export class NodeService {
 			mimetype: nodeOrErr.value.mimetype,
 		});
 
-		nodeOrErr.value.fulltext = await this.#calculateFulltext(nodeOrErr.value);
+		nodeOrErr.value.fulltext = await this.#calculateFulltext(ctx, nodeOrErr.value);
 		await this.context.repository.update(nodeOrErr.value);
 
 		return right(undefined);
 	}
 
-	async delete(uuid: string): Promise<Either<NodeNotFoundError, void>> {
-		const nodeOrError = await this.get(uuid);
+	async delete(
+		ctx: AuthenticationContext,
+		uuid: string,
+	): Promise<Either<NodeNotFoundError, void>> {
+		const nodeOrError = await this.get(ctx, uuid);
 
 		if (nodeOrError.isLeft()) {
 			return left(nodeOrError.value);
@@ -307,7 +321,7 @@ export class NodeService {
 				? Folders.ROOT_FOLDER
 				: Folders.SYSTEM_FOLDER;
 
-			if (await isPrincipalAllowedTo(this, ctx, folder, "Read")) {
+			if (await isPrincipalAllowedTo(ctx, this, folder, "Read")) {
 				return right(folder);
 			}
 			return left(new ForbiddenError());
@@ -318,7 +332,7 @@ export class NodeService {
 			return left(nodeOrErr.value);
 		}
 
-		if (await isPrincipalAllowedTo(this, ctx, nodeOrErr.value, "Read")) {
+		if (await isPrincipalAllowedTo(ctx, this, nodeOrErr.value, "Read")) {
 			return right(nodeOrErr.value);
 		}
 
@@ -351,7 +365,7 @@ export class NodeService {
 			return left(new FolderNotFoundError(parent));
 		}
 
-		if ((await isPrincipalAllowedTo(this, ctx, parentOrErr.value, "Read")).isLeft()) {
+		if (!(await isPrincipalAllowedTo(ctx, this, parentOrErr.value, "Read"))) {
 			return left(new ForbiddenError());
 		}
 
@@ -373,7 +387,7 @@ export class NodeService {
 
 		return right(
 			nodes.filter(async (n) =>
-				!Nodes.isFolder(n) || (await isPrincipalAllowedTo(this, ctx, n, "Read")).isRight()
+				!Nodes.isFolder(n) || (await isPrincipalAllowedTo(ctx, this, n, "Read"))
 			),
 		);
 	}
@@ -383,12 +397,13 @@ export class NodeService {
 	}
 
 	async find(
+		ctx: AuthenticationContext,
 		filters: NodeFilter[],
-		pageSize: number,
+		pageSize = 20,
 		pageToken = 1,
 	): Promise<Either<AntboxError, NodeFilterResult>> {
 		if (!filters.some((f) => f[0].startsWith("@"))) {
-			return this.#findAll(filters, pageSize, pageToken);
+			return this.#findAll(filters);
 		}
 
 		const atfiltersOrErr = await this.#processAtFilters(filters);
@@ -402,18 +417,29 @@ export class NodeService {
 			});
 		}
 
-		return this.#findAll(atfiltersOrErr.value, pageSize, pageToken);
+		const nodesOrErr = await this.#findAll(atfiltersOrErr.value);
+		if (nodesOrErr.isLeft()) {
+			return nodesOrErr;
+		}
+
+		const allowedNodes = nodesOrErr.value.nodes
+			.filter(async (n) => await isPrincipalAllowedTo(ctx, this, n, "Read"));
+
+		return right({
+			nodes: allowedNodes.slice((pageToken - 1) * pageSize, pageToken * pageSize),
+			pageSize,
+			pageToken,
+			pageCount: Math.ceil(allowedNodes.length / pageSize),
+		});
 	}
 
 	async #findAll(
 		filters: NodeFilter[],
-		pageSize: number,
-		pageToken: number,
 	): Promise<Either<AntboxError, NodeFilterResult>> {
 		const v = await this.context.repository.filter(
 			filters,
-			pageSize,
-			pageToken,
+			Number.MAX_SAFE_INTEGER,
+			1,
 		);
 
 		const r = {
@@ -460,11 +486,12 @@ export class NodeService {
 	}
 
 	async update(
+		ctx: AuthenticationContext,
 		uuid: string,
 		data: Partial<NodeMetadata>,
 		merge = false,
 	): Promise<Either<NodeNotFoundError, void>> {
-		const nodeOrErr = await this.get(uuid);
+		const nodeOrErr = await this.get(ctx, uuid);
 
 		if (nodeOrErr.isLeft()) {
 			return left(nodeOrErr.value);
@@ -480,18 +507,19 @@ export class NodeService {
 
 		newNode.modifiedTime = new Date().toISOString();
 
-		newNode.fulltext = await this.#calculateFulltext(newNode);
+		newNode.fulltext = await this.#calculateFulltext(ctx, newNode);
 		return this.context.repository.update(newNode);
 	}
 
 	async #getNodeAspects(
+		ctx: AuthenticationContext,
 		node: FileNode | FolderNode | MetaNode,
 	): Promise<AspectNode[]> {
 		if (!node.aspects || node.aspects.length === 0) {
 			return [];
 		}
 
-		const nodesOrErrs = await Promise.all(node.aspects.map((a) => this.get(a)));
+		const nodesOrErrs = await Promise.all(node.aspects.map((a) => this.get(ctx, a)));
 
 		return nodesOrErrs
 			.filter((nodeOrErr) => nodeOrErr.isRight())
@@ -521,6 +549,7 @@ export class NodeService {
 	}
 
 	async evaluate(
+		ctx: AuthenticationContext,
 		uuid: string,
 	): Promise<
 		Either<
@@ -528,7 +557,7 @@ export class NodeService {
 			SmartFolderNodeEvaluation
 		>
 	> {
-		const nodeOrErr = await this.context.repository.getById(uuid);
+		const nodeOrErr = await this.get(ctx, uuid);
 
 		if (nodeOrErr.isLeft()) {
 			return left(new SmartFolderNodeNotFoundError(uuid));
@@ -582,8 +611,11 @@ export class NodeService {
 		});
 	}
 
-	async export(uuid: string): Promise<Either<NodeNotFoundError, File>> {
-		const nodeOrErr = await this.get(uuid);
+	async export(
+		ctx: AuthenticationContext,
+		uuid: string,
+	): Promise<Either<NodeNotFoundError, File>> {
+		const nodeOrErr = await this.get(ctx, uuid);
 		if (nodeOrErr.isLeft()) {
 			return left(nodeOrErr.value);
 		}

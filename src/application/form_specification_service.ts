@@ -1,10 +1,13 @@
 import { FormSpecificationNode } from "../domain/forms_specifications/form_specification.ts";
+import { Folders } from "../domain/nodes/folders.ts";
 import { Node } from "../domain/nodes/node.ts";
 import { NodeFactory } from "../domain/nodes/node_factory.ts";
 import { NodeNotFoundError } from "../domain/nodes/node_not_found_error.ts";
+import { Nodes } from "../domain/nodes/nodes.ts";
 
 import { AntboxError, BadRequestError } from "../shared/antbox_error.ts";
 import { Either, left, right } from "../shared/either.ts";
+import { AuthenticationContext } from "./authentication_context.ts";
 import { fileToFormSpecification } from "./node_mapper.ts";
 import { NodeService } from "./node_service.ts";
 
@@ -15,30 +18,30 @@ export class FormSpecificationService {
 		file: File,
 		_metadata: Partial<Node>,
 	): Promise<Either<AntboxError, Node>> {
-		if (file.type !== Node.FORM_SPECIFICATION_MIMETYPE) {
+		if (file.type !== Nodes.FORM_SPECIFICATION_MIMETYPE) {
 			return left(new BadRequestError(`Invalid file type ${file.type}`));
 		}
 
 		const template = (await file.text().then((t) => JSON.parse(t))) as FormSpecificationNode;
 
-		const metadata = NodeFactory.createMetadata(
-			template.uuid,
-			template.uuid,
-			Node.FORM_SPECIFICATION_MIMETYPE,
-			file.size,
-			{
-				title: template.title,
-				description: template.description,
-				parent: Folders.FORMS_SPECIFICATIONS_FOLDER_UUID,
-			},
-		);
+		const noderOrErr = await FormSpecificationNode.create({
+			...template,
+			fid: template.uuid,
+			size: file.size,
+		});
+		if (noderOrErr.isLeft()) {
+			return left(noderOrErr.value);
+		}
 
 		return this.nodeService.createFile(file, metadata);
 	}
 
-	async get(uuid: string): Promise<Either<NodeNotFoundError, FormSpecificationNode>> {
-		const nodePromise = this.nodeService.get(uuid);
-		const FormSpecificationPromise = this.nodeService.export(uuid);
+	async get(
+		ctx: AuthenticationContext,
+		uuid: string,
+	): Promise<Either<NodeNotFoundError, FormSpecificationNode>> {
+		const nodePromise = this.nodeService.get(ctx, uuid);
+		const FormSpecificationPromise = this.nodeService.export(ctx, uuid);
 
 		const [nodeOrErr, FormSpecificationOrErr] = await Promise.all([
 			nodePromise,
@@ -62,18 +65,21 @@ export class FormSpecificationService {
 		return right(FormSpecification);
 	}
 
-	async list(): Promise<FormSpecificationNode[]> {
-		const Folders.rErrs = await this.nodeService.list(Folders.FORMS_SPECIFICATIONS_FOLDER_UUID);
+	async list(ctx: AuthenticationContext): Promise<FormSpecificationNode[]> {
+		const nodesOrErrs = await this.nodeService.list(
+			ctx,
+			Folders.FORMS_SPECIFICATIONS_FOLDER_UUID,
+		);
 		if (nodesOrErrs.isLeft()) {
 			console.error(nodesOrErrs.value);
 			return [];
 		}
 
-		const FormSpecificationsPromises = nodesOrErrs.value.map((n) => this.get(n.uuid));
+		const batch = nodesOrErrs.value.map((n) => this.get(n.uuid));
 
-		const FormSpecificationsOrErrs = await Promise.all(FormSpecificationsPromises);
-		const errs = FormSpecificationsOrErrs.filter((a) => a.isLeft());
-		const FormSpecifications = FormSpecificationsOrErrs.filter((a) => a.isRight()).map((a) =>
+		const formSpecificationsOrErrs = await Promise.all(batch);
+		const errs = formSpecificationsOrErrs.filter((a) => a.isLeft());
+		const FormSpecifications = formSpecificationsOrErrs.filter((a) => a.isRight()).map((a) =>
 			a.value! as FormSpecificationNode
 		);
 

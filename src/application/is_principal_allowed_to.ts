@@ -6,8 +6,8 @@ import { AuthenticationContext } from "./authentication_context.ts";
 import { NodeService } from "./node_service.ts";
 
 export async function isPrincipalAllowedTo(
-	service: NodeService,
 	ctx: AuthenticationContext,
+	service: NodeService,
 	node: NodeLike,
 	permission: Permission,
 ): Promise<boolean> {

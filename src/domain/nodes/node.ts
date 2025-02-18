@@ -120,42 +120,6 @@ export class Node {
 	get fulltext(): string {
 		return this.#fulltext;
 	}
-
-	#escapeFulltext(fulltext: string): string {
-		return fulltext
-			.toLocaleLowerCase()
-			.replace(/[áàâäãå]/g, "a")
-			.replace(/[ç]/g, "c")
-			.replace(/[éèêë]/g, "e")
-			.replace(/[íìîï]/g, "i")
-			.replace(/ñ/g, "n")
-			.replace(/[óòôöõ]/g, "o")
-			.replace(/[úùûü]/g, "u")
-			.replace(/[ýÿ]/g, "y")
-			.replace(/[\W\._]/g, " ")
-			.replace(/(^|\s)\w{1,2}\s/g, " ")
-			.replace(/\s+/g, " ")
-			.trim();
-	}
-
-	async #calculateFulltext(ctx: AuthenticationContext, node: NodeLike): Promise<string> {
-		const fulltext = [node.title, node.description ?? ""];
-
-		if (Nodes.hasAspects(node)) {
-			const aspects = await this.#getNodeAspects(ctx, node);
-
-			const propertiesFulltext: string[] = aspects
-				.map((a) => this.#aspectToProperties(a))
-				.flat()
-				.filter((p) => p.searchable)
-				.map((p) => p.name)
-				.map((p) => node.properties[p] as string);
-
-			fulltext.push(...propertiesFulltext);
-		}
-
-		return this.#escapeFulltext(fulltext.join(" "));
-	}
 }
 
 export type Permission = "Read" | "Write" | "Export";

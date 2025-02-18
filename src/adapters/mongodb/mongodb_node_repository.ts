@@ -4,13 +4,14 @@ import {
 	Document,
 	Filter,
 	MongoClient,
-	MurmurHash3,
 	ObjectId,
 	WithId,
-} from "../../../deps.ts";
+} from "npm:mongodb@6.13.0";
+
+import MurmurHash3 from "https://deno.land/x/murmurhash@v1.0.0/mod.ts";
 
 import { Node } from "../../domain/nodes/node.ts";
-import { NodeFactory } from "../../domain/nodes/node_factory.ts";
+
 import { FilterOperator, NodeFilter } from "../../domain/nodes/node_filter.ts";
 import { NodeLike } from "../../domain/nodes/node_like.ts";
 import { NodeMetadata } from "../../domain/nodes/node_metadata.ts";
@@ -18,6 +19,7 @@ import { NodeNotFoundError } from "../../domain/nodes/node_not_found_error.ts";
 import { NodeFilterResult, NodeRepository } from "../../domain/nodes/node_repository.ts";
 import { AntboxError, UnknownError } from "../../shared/antbox_error.ts";
 import { Either, left, right } from "../../shared/either.ts";
+import { NodeFactory } from "../../domain/node_factory.ts";
 
 export default function buildMongodbNodeRepository(
 	url: string,

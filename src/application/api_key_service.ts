@@ -92,7 +92,7 @@ export class ApiKeyService {
 
 		return nodesOrErrs.value.nodes
 			.map((n) => (n as ApiKeyNode).cloneWithSecret())
-			.sort((a, b) => a.title.localeCompare(b.title));
+			.sort((a, b) => a.#titlee.localeCompare(b#titlele));
 	}
 
 	async delete(ctx: AuthenticationContext, uuid: string): Promise<Either<AntboxError, void>> {

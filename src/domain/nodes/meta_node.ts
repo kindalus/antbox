@@ -1,6 +1,7 @@
 import { Either, right } from "../../shared/either.ts";
 import { ValidationError } from "../../shared/validation_error.ts";
-import { Node, WithAspectMixin } from "./node.ts";
+import { WithAspectMixin } from "./mixins.ts";
+import { Node } from "./node.ts";
 import { NodeMetadata } from "./node_metadata.ts";
 import { Nodes } from "./nodes.ts";
 

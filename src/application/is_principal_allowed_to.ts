@@ -40,11 +40,11 @@ function isOwner(ctx: AuthenticationContext, folder: FolderNode): boolean {
 }
 
 function isAnonymousAllowedTo(folder: FolderNode, permission: Permission): boolean {
-	return folder.permissions.anonymous.includes(permission);
+	return folder.#permissions.anonymous.includes(permission);
 }
 
 function isAuthenticatedAllowedTo(folder: FolderNode, permission: Permission): boolean {
-	return folder.permissions.authenticated.includes(permission);
+	return folder.#permissions.authenticated.includes(permission);
 }
 
 function isGroupAllowedTo(
@@ -52,15 +52,15 @@ function isGroupAllowedTo(
 	folder: FolderNode,
 	permission: Permission,
 ): boolean {
-	if (!ctx.principal.groups.includes(folder.group)) {
+	if (!ctx.principal.groups.includes(folder.#group)) {
 		return false;
 	}
 
-	if (folder.permissions.group.includes(permission)) {
+	if (folder.#permissions.group.includes(permission)) {
 		return true;
 	}
 
-	Object.entries(folder.permissions.advanced ?? [])
+	Object.entries(folder.#permissions.advanced ?? [])
 		.forEach(([group, permissions]) => {
 			if (permissions.includes(permission) && ctx.principal.groups.includes(group)) {
 				return true;

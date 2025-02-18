@@ -4,10 +4,11 @@ import { Either, left, right } from "../../shared/either.ts";
 import { Folders } from "../nodes/folders.ts";
 import { ValidationError } from "../../shared/validation_error.ts";
 import { AntboxError } from "../../shared/antbox_error.ts";
-import { InvalidEmailFormatError } from "./invalid_email_format_error.ts";
 import { InvalidFullnameFormatError } from "./invalid_fullname_format_error.ts";
 import { UserGroupRequiredError } from "./user_group_required_error.ts";
 import { InvalidPasswordFormatError } from "./invalid_password_format_error.ts";
+import { Nodes } from "../nodes/nodes.ts";
+import { EmailValue } from "../nodes/email_value.ts";
 
 export class UserNode extends Node {
 	static async shaSum(email: string, password: string): Promise<string> {
@@ -29,22 +30,32 @@ export class UserNode extends Node {
 		}
 	}
 
-	email: string;
+	email: EmailValue;
 	group: string;
 	groups: string[];
 	secret: string | undefined;
 
 	private constructor(metadata: Partial<NodeMetadata> = {}) {
-		super({ ...metadata, mimetype: Node.USER_MIMETYPE, parent: Folders.USERS_FOLDER_UUID });
+		super({ ...metadata, mimetype: Nodes.USER_MIMETYPE, parent: Folders.USERS_FOLDER_UUID });
 		this.group = metadata?.group ?? "";
 		this.groups = metadata?.groups ?? [];
-		this.email = metadata?.email ?? "";
+
+		this.email = undefined as unknown as EmailValue;
+		if (metadata.email) {
+			const emailOrErr = EmailValue.fromString(metadata.email);
+
+			if (emailOrErr.isLeft()) {
+				throw emailOrErr.value;
+			}
+
+			this.email = emailOrErr.value;
+		}
 
 		this.#validate();
 
 		if (metadata.secret) {
 			this.#validateSecretComplexity(metadata.secret);
-			UserNode.shaSum(this.email, metadata.secret).then((hash) => {
+			UserNode.shaSum(this.email.value, metadata.secret).then((hash) => {
 				this.secret = hash;
 			});
 		}
@@ -52,50 +63,28 @@ export class UserNode extends Node {
 
 	#validateSecretComplexity(secret: string): void {
 		if (secret.length < 8) {
-			throw new InvalidPasswordFormatError();
+			throw ValidationError.from(new InvalidPasswordFormatError());
 		}
 	}
 
-	changeGroup(group: string): Either<ValidationError, void> {
-		try {
-			this.group = group;
-			this.#validate();
-			return right(undefined);
-		} catch (err) {
-			return left(err as ValidationError);
-		}
-	}
+	override update(metadata: Partial<NodeMetadata>): Either<ValidationError, void> {
+		const superUpdateResult = super.update(metadata);
 
-	changeGroups(groups: string[]): Either<ValidationError, void> {
-		try {
-			this.groups = groups;
-			this.#validate();
-			return right(undefined);
-		} catch (err) {
-			return left(err as ValidationError);
+		if (superUpdateResult.isLeft()) {
+			return superUpdateResult;
 		}
-	}
 
-	changeTitle(title: string): Either<ValidationError, void> {
 		try {
-			this.title = title;
 			this.#validate();
-			return right(undefined);
 		} catch (err) {
 			return left(err as ValidationError);
 		}
+
+		return right(undefined);
 	}
 
 	#validate() {
-		const EMAIL_REGEX =
-			/^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
-
 		const errors: AntboxError[] = [];
-
-		if (!EMAIL_REGEX.test(this.email)) {
-			errors.push(new InvalidEmailFormatError(this.email));
-		}
-
 		if (!this.title || this.title.length < 3) {
 			errors.push(new InvalidFullnameFormatError(this.title));
 		}

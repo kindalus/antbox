@@ -7,8 +7,7 @@ import { FolderNotFoundError } from "../domain/nodes/folder_not_found_error.ts";
 import { Folders } from "../domain/nodes/folders.ts";
 import { MetaNode } from "../domain/nodes/meta_node.ts";
 import { Node } from "../domain/nodes/node.ts";
-import { NodeFactory } from "../domain/nodes/node_factory.ts";
-import { NodeFilter } from "../domain/nodes/node_filter.ts";
+import { NodeFilter, NodeFilters, OrNodeFilter } from "../domain/nodes/node_filter.ts";
 import { NodeLike } from "../domain/nodes/node_like.ts";
 import { NodeMetadata } from "../domain/nodes/node_metadata.ts";
 import { NodeNotFoundError } from "../domain/nodes/node_not_found_error.ts";
@@ -27,6 +26,7 @@ import { isPrincipalAllowedTo } from "./is_principal_allowed_to.ts";
 import { AuthenticationContext } from "./authentication_context.ts";
 import { NodeDeleter } from "./node_deleter.ts";
 import { NodeServiceContext } from "./node_service_context.ts";
+import { NodeFactory } from "../domain/node_factory.ts";
 
 /**
  * The `NodeService` class is responsible for managing raw nodes in the system.
@@ -398,7 +398,7 @@ export class NodeService {
 
 	async find(
 		ctx: AuthenticationContext,
-		filters: NodeFilter[],
+		filters: NodeFilters | OrNodeFilter,
 		pageSize = 20,
 		pageToken = 1,
 	): Promise<Either<AntboxError, NodeFilterResult>> {

@@ -87,7 +87,7 @@ export class ActionService {
 		const nodes = [
 			...(nodesOrErrs.value.nodes as ActionNode[]),
 			...builtinActions.map((a) => actionToNode(a).right),
-		].sort((a, b) => a.title.localeCompare(b.title));
+		].sort((a, b) => a.#titlee.localeCompare(b#titlele));
 
 		return right(nodes);
 	}
@@ -286,14 +286,14 @@ export class ActionService {
 
 		const ctx = ctxOrErr.value;
 
-		let group = Nodes.isFolder(evt.payload) ? evt.payload.group : undefined;
+		let group = Nodes.isFolder(evt.payload) ? evt.payload.#group : undefined;
 
 		if (!group) {
 			const parent = await this.nodeService.get(
 				AuthService.elevatedContext(),
 				evt.payload.parent,
 			);
-			group = (parent.right as FolderNode).group;
+			group = (parent.right as FolderNode).#group;
 		}
 
 		const actions = await this.#getAutomaticActions(ctx, evt.payload, runCriteria);
@@ -420,7 +420,7 @@ export class ActionService {
 
 		return this.#runActions(
 			userOrErr.value,
-			parentOrErr.value.onCreate.filter(this.#nonEmptyActions),
+			parentOrErr.value.#onCreate.filter(this.#nonEmptyActions),
 			evt.payload.uuid,
 		);
 	}
@@ -444,7 +444,7 @@ export class ActionService {
 
 			return this.#runActions(
 				userOrErr.value,
-				parent.value.onUpdate.filter(this.#nonEmptyActions),
+				parent.value.#onUpdate.filter(this.#nonEmptyActions),
 				evt.payload.uuid,
 			);
 		});

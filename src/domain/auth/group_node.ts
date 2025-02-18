@@ -25,16 +25,6 @@ export class GroupNode extends Node {
 		});
 	}
 
-	changeTitle(title: string): Either<ValidationError, void> {
-		try {
-			this.title = title;
-			this.#validate();
-			return right(undefined);
-		} catch (err) {
-			return left(err as ValidationError);
-		}
-	}
-
 	#validate() {
 		if (!this.title || this.title.length < 3) {
 			throw ValidationError.from(new InvalidFullnameFormatError(this.title));

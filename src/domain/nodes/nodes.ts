@@ -1,15 +1,15 @@
 import { ActionNode } from "../actions/action_node.ts";
 import { ApiKeyNode } from "../api_keys/api_key_node.ts";
+import { ArticleNode } from "../articles/article_node.ts";
 import { AspectNode } from "../aspects/aspect_node.ts";
 import { GroupNode } from "../auth/group_node.ts";
 import { UserNode } from "../auth/user_node.ts";
-import { ExtNode } from "./ext_node.ts";
+import { ExtNode } from "../exts/ext_node.ts";
 import { FileNode } from "./file_node.ts";
 import { FolderNode } from "./folder_node.ts";
 import { MetaNode } from "./meta_node.ts";
 import { NodeLike } from "./node_like.ts";
 import { SmartFolderNode } from "./smart_folder_node.ts";
-import { WebcontentNode } from "./webcontent_node.ts";
 
 export class Nodes {
 	static FID_PREFIX = "--fid--";
@@ -24,7 +24,7 @@ export class Nodes {
 	static GROUP_MIMETYPE = "application/vnd.antbox.group";
 	static FORM_SPECIFICATION_MIMETYPE = "application/vnd.antbox.formspecification";
 	static API_KEY_MIMETYPE = "application/vnd.antbox.apikey";
-	static WEB_CONTENT_MIMETYPE = "application/vnd.antbox.webcontent";
+	static ARTICLE_MIMETYPE = "application/vnd.antbox.article";
 
 	static fidToUuid(fid: string): string {
 		return `${Nodes.FID_PREFIX}${fid}`;
@@ -74,8 +74,8 @@ export class Nodes {
 		return node.mimetype === Nodes.GROUP_MIMETYPE;
 	}
 
-	static isWebContent(node: NodeLike): node is WebcontentNode {
-		return node.mimetype === Nodes.WEB_CONTENT_MIMETYPE;
+	static isWebContent(node: NodeLike): node is ArticleNode {
+		return node.mimetype === Nodes.ARTICLE_MIMETYPE;
 	}
 
 	static isJavascript(file: File) {

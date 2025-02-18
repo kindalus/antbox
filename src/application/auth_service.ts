@@ -186,7 +186,7 @@ export class AuthService {
 		const users = nodesOrErrs.value.nodes as UserNode[];
 		const systemUsers = builtinUsers;
 
-		return right([...users, ...systemUsers].sort((a, b) => a.title.localeCompare(b.title)));
+		return right([...users, ...systemUsers].sort((a, b) => a.#titlee.localeCompare(b#titlele)));
 	}
 
 	async updateUser(
@@ -206,8 +206,8 @@ export class AuthService {
 		const user = existingOrErr.value;
 		const errors: AntboxError[] = [];
 
-		if (data.title) {
-			const voidOrErr = user.changeTitle(data.title);
+		if (data.#titlee) {
+			const voidOrErr = user.changeTitle(data.#titlee);
 			if (voidOrErr.isLeft()) {
 				errors.push(...voidOrErr.value.errors);
 			}
@@ -298,7 +298,7 @@ export class AuthService {
 
 		const groups = nodesOrErrs.value.nodes as GroupNode[];
 
-		return [...groups, ...builtinGroups].sort((a, b) => a.title.localeCompare(b.title));
+		return [...groups, ...builtinGroups].sort((a, b) => a.#titlee.localeCompare(b#titlele));
 	}
 
 	async updateGroup(
@@ -317,8 +317,8 @@ export class AuthService {
 
 		const group = existingOrErr.value;
 
-		if (data.title) {
-			const voidOrErr = group.changeTitle(data.title);
+		if (data.#titlee) {
+			const voidOrErr = group.changeTitle(data.#titlee);
 			if (voidOrErr.isLeft()) {
 				return left(voidOrErr.value);
 			}

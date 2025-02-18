@@ -1,35 +1,124 @@
+import { AntboxError } from "../../shared/antbox_error.ts";
+import { Either, left, right } from "../../shared/either.ts";
+import { ValidationError } from "../../shared/validation_error.ts";
+import { EmailValue } from "./email_value.ts";
 import { Folders } from "./folders.ts";
+import { InvalidMimetypeError } from "./invalid_mimetype_error.ts";
 import { NodeMetadata } from "./node_metadata.ts";
-import { NodeProperties } from "./node_properties.ts";
+import { PropertyRequiredError } from "./property_required_error.ts";
 
 export class Node {
 	readonly uuid: string;
-	fid: string;
-	title: string;
-	description?: string;
-	mimetype: string;
-	parent = Folders.ROOT_FOLDER_UUID;
-	readonly createdTime: string;
-	modifiedTime: string;
-	owner: string;
-	fulltext: string;
-	static USER_MIMETYPE: string | undefined;
+	readonly #mimetype: string;
+	readonly #owner: EmailValue;
+	readonly #createdTime: string;
+
+	#fid: string;
+	#title: string;
+	#description?: string;
+	#parent = Folders.ROOT_FOLDER_UUID;
+	#modifiedTime: string;
+	#fulltext: string;
 
 	constructor(metadata: Partial<NodeMetadata> = {}) {
-		this.mimetype = metadata?.mimetype ?? "";
 		this.uuid = metadata?.uuid ?? "";
-		this.fid = metadata?.fid ?? "";
-		this.title = metadata?.title ?? "";
-		this.description = metadata?.description;
-		this.parent = metadata?.parent ?? Folders.ROOT_FOLDER_UUID;
-		this.createdTime = metadata?.createdTime ?? new Date().toISOString();
-		this.modifiedTime = metadata?.modifiedTime ?? new Date().toISOString();
-		this.owner = metadata?.owner ?? "";
-		this.fulltext = metadata?.fulltext ?? "";
+		this.#mimetype = metadata?.mimetype ?? "";
+		this.#fid = metadata?.fid ?? "";
+		this.#title = metadata?.title ?? "";
+		this.#description = metadata?.description;
+		this.#parent = metadata?.parent ?? Folders.ROOT_FOLDER_UUID;
+		this.#createdTime = metadata?.createdTime ?? new Date().toISOString();
+		this.#modifiedTime = metadata?.modifiedTime ?? new Date().toISOString();
+
+		this.#owner = undefined as unknown as EmailValue;
+		if (metadata.owner) {
+			const ownerOrErr = EmailValue.fromString(metadata.owner);
+
+			if (ownerOrErr.isLeft()) {
+				throw ownerOrErr.value;
+			}
+			this.#owner = ownerOrErr.value;
+		}
+
+		this.#fulltext = metadata?.fulltext ?? "";
+
+		this.#validate();
 	}
 
 	isJson(): boolean {
-		return this.mimetype === "application/json";
+		return this.#mimetype === "application/json";
+	}
+
+	#validate() {
+		const errors: AntboxError[] = [];
+
+		if (!this.#title || this.#title.length === 0) {
+			errors.push(new PropertyRequiredError("Node.title"));
+		}
+
+		if (!this.mimetype || !/^\w+\/[a-z0-9.-]+$/.test(this.mimetype)) {
+			errors.push(new InvalidMimetypeError(this.mimetype));
+		}
+
+		if (!this.parent || this.parent.length === 0) {
+			errors.push(new PropertyRequiredError("Node.parent"));
+		}
+
+		if (!this.#owner) {
+			errors.push(new PropertyRequiredError("Node.owner"));
+		}
+
+		if (errors.length > 0) {
+			throw ValidationError.from(...errors);
+		}
+	}
+
+	update(metadata: Partial<NodeMetadata>): Either<ValidationError, void> {
+		this.#title = metadata.title ?? this.#title;
+		this.#description = metadata.description ?? this.#description;
+		this.#parent = metadata.parent ?? this.#parent;
+		this.#modifiedTime = new Date().toISOString();
+		// TODO: automatically update the fulltext if the metadata has a fulltext
+
+		try {
+			this.#validate();
+		} catch (err) {
+			return left(err as ValidationError);
+		}
+
+		return right(undefined);
+	}
+
+	get title(): string {
+		return this.#title;
+	}
+
+	get description(): string | undefined {
+		return this.#description;
+	}
+
+	get mimetype(): string {
+		return this.#mimetype;
+	}
+
+	get parent(): string {
+		return this.#parent;
+	}
+
+	get createdTime(): string {
+		return this.#createdTime;
+	}
+
+	get modifiedTime(): string {
+		return this.#modifiedTime;
+	}
+
+	get owner(): string {
+		return this.#owner.value;
+	}
+
+	get fulltext(): string {
+		return this.#fulltext;
 	}
 }
 
@@ -41,25 +130,3 @@ export type Permissions = {
 	anonymous: Permission[];
 	advanced?: Record<string, Permission[]>;
 };
-
-// deno-lint-ignore no-explicit-any
-export type Constructor<T = any> = new (...args: any[]) => T;
-
-export function WithAspectMixin<TBase extends Constructor>(Base: TBase) {
-	return class extends Base {
-		aspects: string[] = [];
-		properties: NodeProperties = {};
-		tags: string[] = [];
-		related: string[] = [];
-
-		// deno-lint-ignore no-explicit-any
-		constructor(...args: any[]) {
-			super(...args);
-
-			this.aspects = args[0]?.aspects ?? [];
-			this.properties = args[0]?.properties ?? {};
-			this.tags = args[0]?.tags ?? [];
-			this.related = args[0]?.related ?? [];
-		}
-	};
-}

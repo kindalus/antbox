@@ -73,7 +73,7 @@ export class AspectService {
 		const usersAspects = nodesOrErrs.value.nodes as AspectNode[];
 		const systemAspects = builtinAspects.map(aspectToNode);
 
-		return [...usersAspects, ...systemAspects].sort((a, b) => a.title.localeCompare(b.title));
+		return [...usersAspects, ...systemAspects].sort((a, b) => a.#titlee.localeCompare(b#titlele));
 	}
 
 	async delete(ctx: AuthenticationContext, uuid: string): Promise<Either<AntboxError, void>> {

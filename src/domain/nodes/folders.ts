@@ -25,7 +25,8 @@ export class Folders {
 		Nodes.FORM_SPECIFICATION_MIMETYPE,
 		Nodes.API_KEY_MIMETYPE,
 	];
-
+	// TODO: Uncomment code
+	/*
 	static ROOT_FOLDER = Folders.#buildRootFolder();
 	static ASPECTS_FOLDER = Folders.#buildAspectsFolder();
 	static USERS_FOLDER = Folders.#buildUsersFolder();
@@ -67,7 +68,7 @@ export class Folders {
 	}
 
 	static #buildRootFolder(): FolderNode {
-		const root = FolderNode.create(
+		return FolderNode.create(
 			{
 				uuid: Folders.ROOT_FOLDER_UUID,
 				fid: Folders.ROOT_FOLDER_UUID,
@@ -83,11 +84,6 @@ export class Folders {
 				},
 			},
 		).right;
-
-		root.uuid = Folders.ROOT_FOLDER_UUID;
-		root.fid = Folders.ROOT_FOLDER_UUID;
-		root.title = "";
-		return root;
 	}
 
 	static #buildActionsFolder(): FolderNode {
@@ -225,4 +221,5 @@ export class Folders {
 	static isSystemFolder(uuid: string): boolean {
 		return this.SYSTEM_FOLDERS.some((folder) => folder.uuid === uuid);
 	}
+	*/
 }

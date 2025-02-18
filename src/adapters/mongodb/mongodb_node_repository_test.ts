@@ -24,9 +24,9 @@ Deno.test("MongodbNodeRepository", async (t) => {
 		const node: Node = {
 			uuid: "Mz5d93zJ",
 			title: "Conteúdos de teste",
-			fid: "conteudos_de_teste",
-			mimetype: "application/folder",
-			parent: "--root--",
+			#fid: "conteudos_de_teste",
+			#mimetype: "application/folder",
+			#parent: "--root--",
 		} as Node;
 
 		const result = await repo.add(node);
@@ -40,7 +40,6 @@ Deno.test("MongodbNodeRepository", async (t) => {
 	await client.close();
 	await repo.close();
 });
-
 
 async function setup() {
 	const client = await MongoClient.connect(url);

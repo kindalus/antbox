@@ -6,19 +6,15 @@ import { NodeFilter } from "../nodes/node_filter.ts";
 import { NodeMetadata } from "../nodes/node_metadata.ts";
 import { Nodes } from "../nodes/nodes.ts";
 import { AspectProperty } from "./aspect.ts";
-import { AspectSpec } from "./aspect_spec.ts";
 
 export class AspectNode extends Node {
 	static create(metadata: Partial<NodeMetadata>): Either<ValidationError, AspectNode> {
-		const node = new AspectNode(metadata);
-
-		const trueOrErr = AspectSpec.isSatisfiedBy(node);
-
-		if (trueOrErr.isLeft()) {
-			return left(trueOrErr.value);
+		try {
+			const node = new AspectNode(metadata);
+			return right(node);
+		} catch (e) {
+			return left(e as ValidationError);
 		}
-
-		return right(node);
 	}
 
 	filters: NodeFilter[];

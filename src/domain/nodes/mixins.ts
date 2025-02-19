@@ -31,13 +31,17 @@ export function WithAspectMixin<TBase extends Constructor>(Base: TBase) {
 
 export function FileNodeMixin<TBase extends Constructor>(Base: TBase) {
 	return class extends Base {
-		size: number;
+		#size: number;
 
 		// deno-lint-ignore no-explicit-any
 		constructor(...args: any[]) {
 			super(...args);
 
-			this.size = args[0]?.size ?? 0;
+			this.#size = args[0]?.size ?? 0;
+		}
+
+		get size(): number {
+			return this.#size;
 		}
 	};
 }
@@ -103,7 +107,6 @@ export function FolderNodeMixin<TBase extends Constructor>(Base: TBase) {
 		update(metadata: Partial<NodeMetadata>): Either<ValidationError, void> {
 			this.#onCreate = metadata.onCreate ?? this.#onCreate;
 			this.#onUpdate = metadata.onUpdate ?? this.#onUpdate;
-			this.#group = metadata.group ?? this.#group;
 			this.#childFilters = metadata.childFilters ?? this.#childFilters;
 			this.#permissions = metadata.permissions ?? this.#permissions;
 

@@ -1,8 +1,9 @@
-import { assertEquals, assertStrictEquals, assertThrows } from "@std/assert";
+import { assert, assertEquals, assertStrictEquals, assertThrows } from "@std/assert";
 import { Node } from "./node.ts";
 import { Folders } from "./folders.ts";
 import { assertInstanceOf } from "@std/assert/instance-of";
 import { ValidationError } from "../../shared/validation_error.ts";
+import { FidGenerator } from "../../shared/fid_generator.ts";
 
 Deno.test("Node constructor should initialize", () => {
 	const node = new Node({
@@ -16,6 +17,18 @@ Deno.test("Node constructor should initialize", () => {
 	assertEquals(node.mimetype, "application/json");
 	assertEquals(node.parent, Folders.ROOT_FOLDER_UUID);
 	assertEquals(node.owner, "user@domain.com");
+});
+
+Deno.test("Node constructor should generate fid with title if not provided", () => {
+	const node = new Node({
+		title: "Node with generated fid",
+		mimetype: "application/json",
+		parent: Folders.ROOT_FOLDER_UUID,
+		owner: "user@domain.com",
+	});
+
+	assert(node.fid?.length, "Fid is empty");
+	assertEquals(FidGenerator.generate(node.title), node.fid);
 });
 
 Deno.test("Node constructor should throw error if title is missing", () => {
@@ -62,7 +75,7 @@ Deno.test("Node constructor should throw error if owner is missing", () => {
 	);
 });
 
-Deno.test("Node update should modify the title and description", () => {
+Deno.test("Node update should modify the title, fid and description", () => {
 	const node = new Node({
 		title: "Initial Title",
 		description: "Initial Description",
@@ -72,10 +85,13 @@ Deno.test("Node update should modify the title and description", () => {
 
 	node.update({
 		title: "Updated Title",
+		fid: "new-fid",
 		description: "Updated Description",
 		owner: "user@domain.com",
 	});
+
 	assertEquals(node.title, "Updated Title");
+	assertEquals(node.fid, "new-fid");
 	assertEquals(node.description, "Updated Description");
 });
 

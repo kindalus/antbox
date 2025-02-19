@@ -1,4 +1,14 @@
 export class UuidGenerator {
+	static #instance: UuidGenerator;
+
+	static generate(): string {
+		if (!UuidGenerator.#instance) {
+			UuidGenerator.#instance = new UuidGenerator();
+		}
+
+		return UuidGenerator.#instance.generate();
+	}
+
 	private readonly charTable;
 
 	constructor() {

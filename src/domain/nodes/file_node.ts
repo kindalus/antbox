@@ -1,4 +1,4 @@
-import { Either, right } from "../../shared/either.ts";
+import { Either, left, right } from "../../shared/either.ts";
 import { ValidationError } from "../../shared/validation_error.ts";
 import { FileNodeMixin, WithAspectMixin } from "./mixins.ts";
 import { Node } from "./node.ts";
@@ -8,8 +8,11 @@ export class FileNode extends FileNodeMixin(WithAspectMixin(Node)) {
 	static create(
 		metadata: Partial<NodeMetadata>,
 	): Either<ValidationError, FileNode> {
-		const file = new FileNode(metadata);
-		return right(file);
+		try {
+			return right(new FileNode(metadata));
+		} catch (error) {
+			return left(error as ValidationError);
+		}
 	}
 
 	constructor(metadata: Partial<NodeMetadata> = {}) {

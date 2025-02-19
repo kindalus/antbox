@@ -388,7 +388,7 @@ export class ActionService {
 		const nodes = actionsOrErr.value.nodes as ActionNode[];
 
 		const actionsTasks = nodes
-			.filter((a) => filtersSpecFrom(a.filters).isSatisfiedBy(node))
+			.filter((a) => filtersSpecFrom(a.#filters).isSatisfiedBy(node))
 			.map((a) => this.nodeService.export(ctx, a.uuid));
 
 		const filesOrErrs = await Promise.all(actionsTasks);

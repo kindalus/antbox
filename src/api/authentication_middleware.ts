@@ -137,7 +137,7 @@ async function authenticateToken(
 		return storeAnonymous(req);
 	}
 
-	storePrincipal(req, userOrErr.value.email.value, userOrErr.value.groups);
+	storePrincipal(req, userOrErr.value.email, userOrErr.value.groups);
 }
 
 function verifyToken(

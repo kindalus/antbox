@@ -7,8 +7,8 @@ import { Folders } from "../nodes/folders.ts";
 import { Nodes } from "../nodes/nodes.ts";
 import { PropertyRequiredError } from "../nodes/property_required_error.ts";
 import { GroupNode } from "./group_node.ts";
-import { InvalidGroupParentError } from "./invalid_group_node_parent_error.ts";
 import { InvalidFullNameFormatError } from "./invalid_fullname_format_error.ts";
+import { InvalidGroupParentError } from "./invalid_group_node_parent_error.ts";
 
 Deno.test("GroupNode constructor should initialize", () => {
   const group = GroupNode.create({

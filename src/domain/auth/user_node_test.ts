@@ -44,7 +44,7 @@ Deno.test("UserNode constructor should throw error if secret has not the correct
   assertInstanceOf(userNode.value.errors[0], InvalidPasswordFormatError)
 })
 
-Deno.test("UserNode constructor should throw error if group is empty", () => {
+Deno.test("UserNode constructor should throw error if group is empty", async () => {
   const userNode = UserNode.create({
     owner: "root@antbox.io",
     email: "user@domain.com",
@@ -52,6 +52,8 @@ Deno.test("UserNode constructor should throw error if group is empty", () => {
     secret: "secret-password",
     group: ""
   })
+
+  await timeout(1)
 
   assertEquals(userNode.isLeft(), true)
   assertInstanceOf(userNode.value, ValidationError)

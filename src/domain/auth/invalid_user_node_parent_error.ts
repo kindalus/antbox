@@ -6,7 +6,7 @@ export class InvalidUserNodeParentError extends AntboxError {
   constructor(parent: string) {
     super(
       InvalidUserNodeParentError.ERROR_CODE,
-      `Invalid Fullname Format: ${parent}`
+      `Invalid UserNode Parent: ${parent}`
     );
   }
 }

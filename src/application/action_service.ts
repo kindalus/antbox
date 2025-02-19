@@ -420,7 +420,7 @@ export class ActionService {
 
 		return this.#runActions(
 			userOrErr.value,
-			parentOrErr.value.onCreate.filter(this.#nonEmptyActions),
+			parentOrErr.value.#onCreate.filter(this.#nonEmptyActions),
 			evt.payload.uuid,
 		);
 	}
@@ -444,7 +444,7 @@ export class ActionService {
 
 			return this.#runActions(
 				userOrErr.value,
-				parent.value.onUpdate.filter(this.#nonEmptyActions),
+				parent.value.#onUpdate.filter(this.#nonEmptyActions),
 				evt.payload.uuid,
 			);
 		});

@@ -62,10 +62,10 @@ export class ActionNode extends FileNodeMixin(Node) {
 	}
 
 	override update(metadata: Partial<NodeMetadata>): Either<ValidationError, void> {
-		const updateResult = super.update(metadata)
+		const superUpdateResult = super.update(metadata)
 
-		if(updateResult.isLeft()) {
-			return left(updateResult.value)
+		if(superUpdateResult.isLeft()) {
+			return superUpdateResult
 		}
 
 		if(this.parent !== Folders.ACTIONS_FOLDER_UUID) {

@@ -4,7 +4,7 @@ import { Folders } from "../nodes/folders.ts";
 import { Node } from "../nodes/node.ts";
 import { NodeMetadata } from "../nodes/node_metadata.ts";
 import { Nodes } from "../nodes/nodes.ts";
-import { InvalidFullnameFormatError } from "./invalid_fullname_format_error.ts";
+import { InvalidFullNameFormatError } from "./invalid_fullname_format_error.ts";
 
 export class GroupNode extends Node {
 	static create(metadata: Partial<NodeMetadata>): Either<ValidationError, GroupNode> {
@@ -27,7 +27,7 @@ export class GroupNode extends Node {
 
 	#validate() {
 		if (!this.title || this.title.length < 3) {
-			throw ValidationError.from(new InvalidFullnameFormatError(this.title));
+			throw ValidationError.from(new InvalidFullNameFormatError(this.title));
 		}
 	}
 }

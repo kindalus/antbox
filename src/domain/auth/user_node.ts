@@ -1,16 +1,22 @@
+import { AntboxError } from "../../shared/antbox_error.ts";
+import { Either, left, right } from "../../shared/either.ts";
+import { ValidationError } from "../../shared/validation_error.ts";
+import { EmailValue } from "../nodes/email_value.ts";
+import { Folders } from "../nodes/folders.ts";
 import { Node } from "../nodes/node.ts";
 import { NodeMetadata } from "../nodes/node_metadata.ts";
-import { Either, left, right } from "../../shared/either.ts";
-import { Folders } from "../nodes/folders.ts";
-import { ValidationError } from "../../shared/validation_error.ts";
-import { AntboxError } from "../../shared/antbox_error.ts";
-import { InvalidFullnameFormatError } from "./invalid_fullname_format_error.ts";
-import { UserGroupRequiredError } from "./user_group_required_error.ts";
-import { InvalidPasswordFormatError } from "./invalid_password_format_error.ts";
 import { Nodes } from "../nodes/nodes.ts";
-import { EmailValue } from "../nodes/email_value.ts";
+import { InvalidFullNameFormatError } from "./invalid_fullname_format_error.ts";
+import { InvalidPasswordFormatError } from "./invalid_password_format_error.ts";
+import { InvalidUserNodeParentError } from "./invalid_user_node_parent_error.ts";
+import { UserGroupRequiredError } from "./user_group_required_error.ts";
 
 export class UserNode extends Node {
+	#email: EmailValue;
+	#group: string;
+	#groups: string[];
+	#secret: string | undefined;
+
 	static async shaSum(email: string, password: string): Promise<string> {
 		const encoder = new TextEncoder();
 		const dataBuffer = encoder.encode(email.concat(password));
@@ -30,43 +36,26 @@ export class UserNode extends Node {
 		}
 	}
 
-	email: EmailValue;
-	group: string;
-	groups: string[];
-	secret: string | undefined;
-
 	private constructor(metadata: Partial<NodeMetadata> = {}) {
 		super({ ...metadata, mimetype: Nodes.USER_MIMETYPE, parent: Folders.USERS_FOLDER_UUID });
-		this.group = metadata?.group ?? "";
-		this.groups = metadata?.groups ?? [];
-
-		this.email = undefined as unknown as EmailValue;
+		this.#group = metadata?.group ?? "";
+		this.#groups = metadata?.groups ?? [];
+		this.#email = undefined as unknown as EmailValue;
+		
 		if (metadata.email) {
-			const emailOrErr = EmailValue.fromString(metadata.email);
-
-			if (emailOrErr.isLeft()) {
-				throw emailOrErr.value;
-			}
-
-			this.email = emailOrErr.value;
+			this.#email = this.#getValidEmailOrThrowError((metadata.email))
+		}
+		
+		if (metadata.secret) {
+			this.#validateSecretComplexity(metadata.secret);
+			UserNode.shaSum(this.#email.value, metadata.secret).then((hash) => {
+				this.#secret = hash;
+			});
 		}
 
 		this.#validate();
-
-		if (metadata.secret) {
-			this.#validateSecretComplexity(metadata.secret);
-			UserNode.shaSum(this.email.value, metadata.secret).then((hash) => {
-				this.secret = hash;
-			});
-		}
 	}
-
-	#validateSecretComplexity(secret: string): void {
-		if (secret.length < 8) {
-			throw ValidationError.from(new InvalidPasswordFormatError());
-		}
-	}
-
+	
 	override update(metadata: Partial<NodeMetadata>): Either<ValidationError, void> {
 		const superUpdateResult = super.update(metadata);
 
@@ -74,7 +63,21 @@ export class UserNode extends Node {
 			return superUpdateResult;
 		}
 
+		this.#group = metadata?.group ?? this.#group;
+		this.#groups = metadata?.groups ?? this.#groups;
+		
 		try {
+			if(metadata.secret) {
+				this.#validateSecretComplexity(metadata.secret)			
+				UserNode.shaSum(this.#email.value, metadata.secret).then((hash) => {
+					this.#secret = hash;
+				});
+			}
+
+			if(metadata.email) {
+				this.#email = this.#getValidEmailOrThrowError(metadata.email) ?? this.#email
+			}
+
 			this.#validate();
 		} catch (err) {
 			return left(err as ValidationError);
@@ -83,18 +86,54 @@ export class UserNode extends Node {
 		return right(undefined);
 	}
 
+	#getValidEmailOrThrowError(email: string): EmailValue {
+		const emailOrErr = EmailValue.fromString(email);
+
+		if (emailOrErr.isLeft()) {
+			throw emailOrErr.value;
+		}
+
+		return emailOrErr.value
+	}
+
+	#validateSecretComplexity(secret: string): void {
+		if (secret.length < 8) {
+			throw ValidationError.from(new InvalidPasswordFormatError());
+		}
+	}
+
 	#validate() {
 		const errors: AntboxError[] = [];
 		if (!this.title || this.title.length < 3) {
-			errors.push(new InvalidFullnameFormatError(this.title));
+			errors.push(new InvalidFullNameFormatError(this.title));
 		}
 
-		if (!this.group) {
+		if(!this.parent || this.parent !== Folders.USERS_FOLDER_UUID) {
+			errors.push(new InvalidUserNodeParentError(this.parent))
+		}
+
+		if (!this.#group || this.#group.length === 0) {
 			errors.push(new UserGroupRequiredError());
 		}
 
 		if (errors.length > 0) {
 			throw ValidationError.from(...errors);
 		}
+	}
+
+	get email(): string {
+		return this.#email.value
+	}
+
+	get group(): string {
+		return this.#group
+	}
+
+	get groups(): string[] {
+		return this.#groups
+	}
+
+	get secret(): string | undefined {
+		return this.#secret
 	}
 }

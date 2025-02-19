@@ -52,10 +52,10 @@ export class ApiKeyNode extends Node {
 	}
 
 	override update(metadata: Partial<NodeMetadata>): Either<ValidationError, void> {
-		const updateResult = super.update(metadata)
+		const superUpdateResult = super.update(metadata)
 
-		if(updateResult.isLeft()) {
-			return left(updateResult.value)
+		if(superUpdateResult.isLeft()) {
+			return superUpdateResult
 		}
 
 		this.#group = metadata.group ?? this.#group

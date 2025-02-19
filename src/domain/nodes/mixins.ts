@@ -5,6 +5,7 @@ import { NodeFilter } from "./node_filter.ts";
 import { NodeMetadata } from "./node_metadata.ts";
 import { NodeProperties } from "./node_properties.ts";
 import { Nodes } from "./nodes.ts";
+import { PropertyRequiredError } from "./property_required_error.ts";
 
 // deno-lint-ignore no-explicit-any
 export type Constructor<T = any> = new (...args: any[]) => T;
@@ -45,7 +46,7 @@ export function FolderNodeMixin<TBase extends Constructor>(Base: TBase) {
 	return class extends Base {
 		#onCreate: string[] = [];
 		#onUpdate: string[] = [];
-		#group: string = null as unknown as string;
+		#group = undefined as unknown as string;
 
 		#permissions: Permissions = {
 			group: ["Read", "Write", "Export"],
@@ -53,12 +54,11 @@ export function FolderNodeMixin<TBase extends Constructor>(Base: TBase) {
 			anonymous: [],
 			advanced: {},
 		};
-		#mimetype = Nodes.FOLDER_MIMETYPE;
 		#childFilters: NodeFilter[] = [];
 
 		// deno-lint-ignore no-explicit-any
 		constructor(...args: any[]) {
-			super(...args);
+			super({ ...args[0], mimetype: Nodes.FOLDER_MIMETYPE });
 
 			const metadata = args[0] as Partial<NodeMetadata>;
 
@@ -76,6 +76,28 @@ export function FolderNodeMixin<TBase extends Constructor>(Base: TBase) {
 				anonymous: [],
 				advanced: {},
 			};
+
+			this.#validate();
+		}
+
+		get group(): string {
+			return this.#group;
+		}
+
+		get permissions(): Permissions {
+			return this.#permissions;
+		}
+
+		get childFilters(): NodeFilter[] {
+			return this.#childFilters;
+		}
+
+		get onCreate(): string[] {
+			return this.#onCreate;
+		}
+
+		get onUpdate(): string[] {
+			return this.#onUpdate;
 		}
 
 		update(metadata: Partial<NodeMetadata>): Either<ValidationError, void> {
@@ -86,6 +108,12 @@ export function FolderNodeMixin<TBase extends Constructor>(Base: TBase) {
 			this.#permissions = metadata.permissions ?? this.#permissions;
 
 			return super.update(metadata);
+		}
+
+		#validate() {
+			if (!this.#group || this.#group.length === 0) {
+				throw ValidationError.from(new PropertyRequiredError("group"));
+			}
 		}
 	};
 }

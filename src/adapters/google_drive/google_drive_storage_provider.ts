@@ -1,17 +1,17 @@
 import { createReadStream } from "node:fs";
 import { auth, drive, drive_v3 } from "npm:@googleapis/drive@8.4.0";
 
-import { StorageProvider, WriteFileOpts } from "../../domain/providers/storage_provider.ts";
 import { Either, left, right } from "../../shared/either.ts";
 import { AntboxError, BadRequestError, UnknownError } from "../../shared/antbox_error.ts";
 import { NodeNotFoundError } from "../../domain/nodes/node_not_found_error.ts";
-import { Node } from "../../domain/nodes/node.ts";
 import { EventHandler } from "../../shared/event_handler.ts";
 import { Event } from "../../shared/event.ts";
 import { NodeDeletedEvent } from "../../domain/nodes/node_deleted_event.ts";
 import { NodeUpdatedEvent } from "../../domain/nodes/node_updated_event.ts";
 import { NodeCreatedEvent } from "../../domain/nodes/node_created_event.ts";
-import { FolderNode } from "../../domain/nodes/folder_node.ts";
+import { StorageProvider, WriteFileOpts } from "../../application/storage_provider.ts";
+import { Folders } from "../../domain/nodes/folders.ts";
+import { Nodes } from "../../domain/nodes/nodes.ts";
 
 class GoogleDriveStorageProvider implements StorageProvider {
 	readonly #drive: drive_v3.Drive;
@@ -110,7 +110,7 @@ class GoogleDriveStorageProvider implements StorageProvider {
 	}
 
 	async #handleNodeUpdated(evt: NodeUpdatedEvent) {
-		if (!evt.payload.#parent && !evt.payload.#title) {
+		if (!evt.payload.parent && !evt.payload.title) {
 			return;
 		}
 
@@ -122,8 +122,8 @@ class GoogleDriveStorageProvider implements StorageProvider {
 
 		const requestBody: Record<string, string | string[]> = {};
 
-		if (evt.payload.#parent) {
-			const newParentOrErr = await this.#getDriveMedata(evt.payload.#parent);
+		if (evt.payload.parent) {
+			const newParentOrErr = await this.#getDriveMedata(evt.payload.parent);
 			if (newParentOrErr.isLeft()) {
 				console.error(newParentOrErr.value.message);
 				return;
@@ -133,8 +133,8 @@ class GoogleDriveStorageProvider implements StorageProvider {
 			requestBody["addParents"] = newParentOrErr.value.id;
 		}
 
-		if (evt.payload.#title) {
-			requestBody["name"] = evt.payload.#title;
+		if (evt.payload.title) {
+			requestBody["name"] = evt.payload.title;
 		}
 
 		this.#drive.files
@@ -143,7 +143,7 @@ class GoogleDriveStorageProvider implements StorageProvider {
 	}
 
 	async #handleNodeDeleted(evt: NodeDeletedEvent) {
-		if (!Node.isFolder(evt.payload)) {
+		if (!Nodes.isFolder(evt.payload)) {
 			return;
 		}
 
@@ -159,7 +159,7 @@ class GoogleDriveStorageProvider implements StorageProvider {
 	}
 
 	async #handleNodeCreated(evt: NodeCreatedEvent) {
-		if (!Node.isFolder(evt.payload)) {
+		if (!Nodes.isFolder(evt.payload)) {
 			return;
 		}
 
@@ -249,7 +249,7 @@ class GoogleDriveStorageProvider implements StorageProvider {
 	}
 
 	async #createSystemFolderIfApplicable(uuid: string) {
-		if (!FolderNode.isSystemFolder(uuid)) {
+		if (!Folders.isSystemFolder(uuid)) {
 			return left(new BadRequestError("Invalid system folder uuid"));
 		}
 

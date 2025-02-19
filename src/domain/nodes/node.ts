@@ -89,6 +89,10 @@ export class Node {
 		return right(undefined);
 	}
 
+	get fid(): string {
+		return this.#fid;
+	}
+
 	get title(): string {
 		return this.#title;
 	}

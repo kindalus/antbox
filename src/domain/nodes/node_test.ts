@@ -146,3 +146,28 @@ Deno.test("Node update should modify the modifiedTime", async () => {
 	node.update({ title: "Updated Title" });
 	assertStrictEquals(node.modifiedTime !== initialModifiedTime, true);
 });
+
+Deno.test("Node.update should generate fid if empty", () => {
+	const node = new Node({
+		title: "Initial File",
+		parent: Folders.ROOT_FOLDER_UUID,
+		owner: "user@domain.com",
+		mimetype: "application/pdf",
+	});
+	const originalFid = node.fid;
+	const updateResult = node.update({ title: "New title", fid: "" });
+	assertStrictEquals(updateResult.isRight(), true);
+	assertStrictEquals(node.fid !== originalFid, true, "Fid should be different");
+	assertStrictEquals(node.fid !== "", true, "Fid should not be empty");
+});
+
+Deno.test("Node.update should not modify the mimetype", () => {
+	const node = new Node({
+		title: "Initial File",
+		mimetype: "text/plain",
+		owner: "user@domain.com",
+	});
+
+	node.update({ mimetype: "aplication/pdf" });
+	assertEquals(node.mimetype, "text/plain");
+});

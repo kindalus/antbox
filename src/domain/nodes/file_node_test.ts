@@ -1,4 +1,4 @@
-import { assertEquals, assertInstanceOf, assertStrictEquals } from "@std/assert";
+import { assert, assertEquals, assertInstanceOf, assertStrictEquals } from "@std/assert";
 import { FileNode } from "./file_node.ts";
 import { Folders } from "./folders.ts";
 import { ValidationError } from "../../shared/validation_error.ts";
@@ -39,6 +39,50 @@ Deno.test("FileNode.create should return error if mimetype is missing", () => {
 		parent: Folders.ROOT_FOLDER_UUID,
 		owner: "user@domain.com",
 	});
+	assertStrictEquals(result.isLeft(), true);
+	assertInstanceOf(result.value, ValidationError);
+});
+
+Deno.test("FileNode.update should modify the title, fid, description and parent ", async () => {
+	const createResult = FileNode.create({
+		title: "Initial File",
+		parent: Folders.ROOT_FOLDER_UUID,
+		owner: "user@domain.com",
+		mimetype: "application/pdf",
+	});
+
+	const fileNode = createResult.right;
+	const initialModifiedTime = fileNode.modifiedTime;
+
+	const timeout = (t: number) => new Promise((res) => setTimeout(() => res(undefined), t));
+	await timeout(5);
+
+	const updateResult = fileNode.update({
+		title: "Updated File",
+		fid: "new-fid",
+		description: "Updated Description",
+		parent: "new-parent",
+	});
+
+	assertStrictEquals(updateResult.isRight(), true);
+	assertEquals(fileNode.title, "Updated File");
+	assertEquals(fileNode.fid, "new-fid");
+	assertEquals(fileNode.description, "Updated Description");
+	assertEquals(fileNode.parent, "new-parent");
+	assertStrictEquals(fileNode.modifiedTime > initialModifiedTime, true);
+});
+
+Deno.test("FileNode.update should throw error if title is missing", () => {
+	const fileNodeOrErr = FileNode.create({
+		title: "Initial File",
+		mimetype: "application/javascript",
+		owner: "user@domain.com",
+	});
+
+	assert(fileNodeOrErr.isRight());
+
+	const result = fileNodeOrErr.right.update({ title: "" });
+
 	assertStrictEquals(result.isLeft(), true);
 	assertInstanceOf(result.value, ValidationError);
 });

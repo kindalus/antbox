@@ -86,6 +86,10 @@ export class Node {
 		this.#modifiedTime = new Date().toISOString();
 		this.#fulltext = metadata.fulltext ?? this.#fulltext;
 
+		if (!this.#fid?.length) {
+			this.#fid = FidGenerator.generate(this.#title);
+		}
+
 		try {
 			this.#validate();
 		} catch (err) {

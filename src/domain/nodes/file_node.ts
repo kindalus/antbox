@@ -15,7 +15,7 @@ export class FileNode extends FileNodeMixin(WithAspectMixin(Node)) {
 		}
 	}
 
-	constructor(metadata: Partial<NodeMetadata> = {}) {
+	private constructor(metadata: Partial<NodeMetadata> = {}) {
 		super({
 			...metadata,
 

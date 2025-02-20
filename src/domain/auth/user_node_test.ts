@@ -14,7 +14,7 @@ import { UserNode } from "./user_node.ts";
 const timeout = (ms: number) =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
-Deno.test("UserNode constructor should initialize", () => {
+Deno.test("UserNode.create should initialize", () => {
   const createResult = UserNode.create({
     owner: "root@antbox.io",
     email: "user@domain.com",
@@ -32,7 +32,7 @@ Deno.test("UserNode constructor should initialize", () => {
 });
 
 Deno.test(
-  "UserNode constructor should throw error if secret has not the correct format",
+  "UserNode.create should throw error if secret has not the correct format",
   () => {
     const createResult = UserNode.create({
       owner: "root@antbox.io",
@@ -49,7 +49,7 @@ Deno.test(
 );
 
 Deno.test(
-  "UserNode constructor should throw error if group is empty",
+  "UserNode.create should throw error if group is empty",
   async () => {
     const createResult = UserNode.create({
       owner: "root@antbox.io",
@@ -67,7 +67,7 @@ Deno.test(
   }
 );
 
-Deno.test("UserNode constructor should throw error if owner is missing", () => {
+Deno.test("UserNode.create should throw error if owner is missing", () => {
   const createResult = UserNode.create({
     owner: "",
     email: "user@domain.com",
@@ -82,7 +82,7 @@ Deno.test("UserNode constructor should throw error if owner is missing", () => {
 });
 
 Deno.test(
-  "UserNode constructor should throw error if title length less than 3 chars",
+  "UserNode.create should throw error if title length less than 3 chars",
   async () => {
     const createResult = UserNode.create({
       owner: "root@antbox.io",
@@ -101,7 +101,7 @@ Deno.test(
 );
 
 Deno.test(
-  "UserNode constructor should hash the secret with right shaSum ",
+  "UserNode.create should hash the secret with right shaSum ",
   async () => {
     const secret = "secret-password";
     const email = "user@domain.com";

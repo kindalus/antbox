@@ -6,7 +6,7 @@ import { Folders } from "../nodes/folders.ts";
 import { Nodes } from "../nodes/nodes.ts";
 import { ActionNode } from "./action_node.ts";
 
-Deno.test("ActionNode constructor should initialize", () => {
+Deno.test("ActionNode.create should initialize", () => {
   const createResult = ActionNode.create({
     title: "Action Test",
     owner: "user@domain.com",
@@ -22,7 +22,7 @@ Deno.test("ActionNode constructor should initialize", () => {
 });
 
 Deno.test(
-  "ActionNode constructor should throw error if title is missing",
+  "ActionNode.create should throw error if title is missing",
   () => {
     const action = ActionNode.create({
       title: "",
@@ -36,7 +36,7 @@ Deno.test(
 );
 
 Deno.test(
-  "ActionNode constructor should throw error if owner is missing",
+  "ActionNode.create should throw error if owner is missing",
   () => {
     const action = ActionNode.create({
       title: "Action Test",

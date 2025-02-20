@@ -9,7 +9,7 @@ import { PropertyRequiredError } from "../nodes/property_required_error.ts";
 import { GroupNode } from "./group_node.ts";
 import { InvalidFullNameFormatError } from "./invalid_fullname_format_error.ts";
 
-Deno.test("GroupNode constructor should initialize", () => {
+Deno.test("GroupNode.create should initialize", () => {
   const createResult = GroupNode.create({
     owner: "root@antbox.io",
     title: "Group Test",
@@ -24,7 +24,7 @@ Deno.test("GroupNode constructor should initialize", () => {
 });
 
 Deno.test(
-  "GroupNode constructor should throw error if owner is missing",
+  "GroupNode.create should throw error if owner is missing",
   () => {
     const createResult = GroupNode.create({
       title: "Group Test",
@@ -39,7 +39,7 @@ Deno.test(
 );
 
 Deno.test(
-  "GroupNode constructor should throw error if owner is invalid email format",
+  "GroupNode.create should throw error if owner is invalid email format",
   () => {
     const createResult = GroupNode.create({
       owner: "user@examplecom",
@@ -54,7 +54,7 @@ Deno.test(
 );
 
 Deno.test(
-  "GroupNode constructor should throw error if title is missing",
+  "GroupNode.create should throw error if title is missing",
   () => {
     const createResult = GroupNode.create({
       owner: "root@antbox.io",
@@ -69,7 +69,7 @@ Deno.test(
 );
 
 Deno.test(
-  "GroupNode constructor should throw error if title lenght is less than 3 chars",
+  "GroupNode.create should throw error if title lenght is less than 3 chars",
   () => {
     const createResult = GroupNode.create({
       title: "Gr",

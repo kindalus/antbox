@@ -1,5 +1,6 @@
 import { AntboxError } from "../../shared/antbox_error.ts";
 import { Either, left, right } from "../../shared/either.ts";
+import { FidGenerator } from "../../shared/fid_generator.ts";
 import { ValidationError } from "../../shared/validation_error.ts";
 import { EmailValue } from "./email_value.ts";
 import { Folders } from "./folders.ts";
@@ -43,6 +44,10 @@ export class Node {
 		this.#fulltext = metadata?.fulltext ?? "";
 
 		this.#validate();
+
+		if (!this.#fid?.length) {
+			this.#fid = FidGenerator.generate(this.#title);
+		}
 	}
 
 	isJson(): boolean {
@@ -75,10 +80,15 @@ export class Node {
 
 	update(metadata: Partial<NodeMetadata>): Either<ValidationError, void> {
 		this.#title = metadata.title ?? this.#title;
+		this.#fid = metadata.fid ?? this.#fid;
 		this.#description = metadata.description ?? this.#description;
 		this.#parent = metadata.parent ?? this.#parent;
 		this.#modifiedTime = new Date().toISOString();
 		this.#fulltext = metadata.fulltext ?? this.#fulltext;
+
+		if (!this.#fid?.length) {
+			this.#fid = FidGenerator.generate(this.#title);
+		}
 
 		try {
 			this.#validate();
@@ -132,5 +142,5 @@ export type Permissions = {
 	group: Permission[];
 	authenticated: Permission[];
 	anonymous: Permission[];
-	advanced?: Record<string, Permission[]>;
+	advanced: Record<string, Permission[]>;
 };

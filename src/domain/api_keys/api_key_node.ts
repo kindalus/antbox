@@ -6,7 +6,6 @@ import { Node } from "../nodes/node.ts";
 import { NodeMetadata } from "../nodes/node_metadata.ts";
 import { Nodes } from "../nodes/nodes.ts";
 import { PropertyRequiredError } from "../nodes/property_required_error.ts";
-import { InvalidApiKeyParentError } from "./invalid_api_key_parent_error.ts";
 
 export class ApiKeyNode extends Node {
 	#group: string = null as unknown as string;
@@ -52,7 +51,7 @@ export class ApiKeyNode extends Node {
 	}
 
 	override update(metadata: Partial<NodeMetadata>): Either<ValidationError, void> {
-		const superUpdateResult = super.update(metadata)
+		const superUpdateResult = super.update({...metadata, parent: Folders.API_KEYS_FOLDER_UUID})
 
 		if(superUpdateResult.isLeft()) {
 			return superUpdateResult
@@ -79,10 +78,6 @@ export class ApiKeyNode extends Node {
 
 		if(!this.#secret || this.#secret.length === 0) {
 			 errors.push(ValidationError.from(new PropertyRequiredError("Node.secret")))
-		}
-
-		if(this.parent !== Folders.API_KEYS_FOLDER_UUID) {
-			 errors.push(ValidationError.from(new InvalidApiKeyParentError(this.parent)))
 		}
 
 		if(errors.length > 0) {

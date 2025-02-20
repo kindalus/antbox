@@ -8,7 +8,6 @@ import { Nodes } from "../nodes/nodes.ts";
 import { PropertyRequiredError } from "../nodes/property_required_error.ts";
 import { InvalidFullNameFormatError } from "./invalid_fullname_format_error.ts";
 import { InvalidPasswordFormatError } from "./invalid_password_format_error.ts";
-import { InvalidUserNodeParentError } from "./invalid_user_node_parent_error.ts";
 import { UserGroupRequiredError } from "./user_group_required_error.ts";
 import { UserNode } from "./user_node.ts";
 
@@ -16,25 +15,26 @@ const timeout = (ms: number) =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
 Deno.test("UserNode constructor should initialize", () => {
-  const userNode = UserNode.create({
+  const createResult = UserNode.create({
     owner: "root@antbox.io",
     email: "user@domain.com",
     title: "Example User",
     secret: "secret-pass",
     group: "users",
   });
+  const user = createResult.right 
 
-  assertEquals(userNode.isRight(), true);
-  assertEquals(userNode.right.email, userNode.right.email);
-  assertEquals(userNode.right.title, "Example User");
-  assertEquals(userNode.right.mimetype, Nodes.USER_MIMETYPE);
-  assertEquals(userNode.right.parent, Folders.USERS_FOLDER_UUID);
+  assertEquals(createResult.isRight(), true);
+  assertEquals(user.email, user.email);
+  assertEquals(user.title, "Example User");
+  assertEquals(user.mimetype, Nodes.USER_MIMETYPE);
+  assertEquals(user.parent, Folders.USERS_FOLDER_UUID);
 });
 
 Deno.test(
   "UserNode constructor should throw error if secret has not the correct format",
   () => {
-    const userNode = UserNode.create({
+    const createResult = UserNode.create({
       owner: "root@antbox.io",
       email: "user@domain.com",
       title: "Example User",
@@ -42,16 +42,16 @@ Deno.test(
       group: "users",
     });
 
-    assertEquals(userNode.isLeft(), true);
-    assertInstanceOf(userNode.value, ValidationError);
-    assertInstanceOf(userNode.value.errors[0], InvalidPasswordFormatError);
+    assertEquals(createResult.isLeft(), true);
+    assertInstanceOf(createResult.value, ValidationError);
+    assertInstanceOf(createResult.value.errors[0], InvalidPasswordFormatError);
   }
 );
 
 Deno.test(
   "UserNode constructor should throw error if group is empty",
   async () => {
-    const userNode = UserNode.create({
+    const createResult = UserNode.create({
       owner: "root@antbox.io",
       email: "user@domain.com",
       title: "Example User",
@@ -59,16 +59,16 @@ Deno.test(
       group: "",
     });
 
-    await timeout(1);
+    await timeout(5);
 
-    assertEquals(userNode.isLeft(), true);
-    assertInstanceOf(userNode.value, ValidationError);
-    assertInstanceOf(userNode.value.errors[0], UserGroupRequiredError);
+    assertEquals(createResult.isLeft(), true);
+    assertInstanceOf(createResult.value, ValidationError);
+    assertInstanceOf(createResult.value.errors[0], UserGroupRequiredError);
   }
 );
 
 Deno.test("UserNode constructor should throw error if owner is missing", () => {
-  const userNode = UserNode.create({
+  const createResult = UserNode.create({
     owner: "",
     email: "user@domain.com",
     title: "Example User",
@@ -76,15 +76,15 @@ Deno.test("UserNode constructor should throw error if owner is missing", () => {
     group: "users",
   });
 
-  assertEquals(userNode.isLeft(), true);
-  assertInstanceOf(userNode.value, ValidationError);
-  assertInstanceOf(userNode.value.errors[0], PropertyRequiredError);
+  assertEquals(createResult.isLeft(), true);
+  assertInstanceOf(createResult.value, ValidationError);
+  assertInstanceOf(createResult.value.errors[0], PropertyRequiredError);
 });
 
 Deno.test(
   "UserNode constructor should throw error if title length less than 3 chars",
-  () => {
-    const userNode = UserNode.create({
+  async () => {
+    const createResult = UserNode.create({
       owner: "root@antbox.io",
       email: "user@domain.com",
       title: "Ex",
@@ -92,9 +92,11 @@ Deno.test(
       group: "users",
     });
 
-    assertEquals(userNode.isLeft(), true);
-    assertInstanceOf(userNode.value, ValidationError);
-    assertInstanceOf(userNode.value.errors[0], InvalidFullNameFormatError);
+    await timeout(5);
+
+    assertEquals(createResult.isLeft(), true);
+    assertInstanceOf(createResult.value, ValidationError);
+    assertInstanceOf(createResult.value.errors[0], InvalidFullNameFormatError);
   }
 );
 
@@ -103,7 +105,7 @@ Deno.test(
   async () => {
     const secret = "secret-password";
     const email = "user@domain.com";
-    const userNode = UserNode.create({
+    const createResult = UserNode.create({
       owner: "root@antbox.io",
       title: "Example User",
       group: "users",
@@ -113,17 +115,17 @@ Deno.test(
 
     const sha = await UserNode.shaSum(email, secret);
 
-    await timeout(2);
+    await timeout(5);
 
-    assertStrictEquals(userNode.isRight(), true);
-    assertEquals(userNode.right.secret, sha);
+    assertStrictEquals(createResult.isRight(), true);
+    assertEquals(createResult.right.secret, sha);
   }
 );
 
 Deno.test(
-  "UserNode update should throw error if new secret is invalid",
+  "UserNode.update should throw error if new secret is invalid",
   async () => {
-    const userNode = UserNode.create({
+    const createResult = UserNode.create({
       owner: "root@antbox.io",
       email: "user@domain.com",
       title: "Example user",
@@ -131,38 +133,38 @@ Deno.test(
       group: "users",
     });
 
-    const result = userNode.right.update({ secret: "ex" });
+    const updateResult = createResult.right.update({ secret: "ex" });
 
-    await timeout(1);
+    await timeout(5);
 
-    assertStrictEquals(result.isLeft(), true);
-    assertInstanceOf(result.value, ValidationError);
-    assertInstanceOf(result.value.errors[0], InvalidPasswordFormatError);
+    assertStrictEquals(updateResult.isLeft(), true);
+    assertInstanceOf(updateResult.value, ValidationError);
+    assertInstanceOf(updateResult.value.errors[0], InvalidPasswordFormatError);
   }
 );
 
 Deno.test(
-  "UserNode update should modify secret and create a new hash",
+  "UserNode.update should modify secret and create a new hash",
   async () => {
-    const userNode = UserNode.create({
+    const createResult = UserNode.create({
       owner: "root@antbox.io",
       email: "user@domain.com",
       title: "Example user",
       secret: "secret-password",
       group: "users",
     });
-
+    const user = createResult.right
     const sha = await UserNode.shaSum("user@domain.com", "example.com");
-    const result = userNode.right.update({ secret: "example.com" });
-    await timeout(1);
+    const updateResult = user.update({ secret: "example.com" });
+    await timeout(5);
 
-    assertStrictEquals(result.isRight(), true);
-    assertStrictEquals(userNode.right.secret, sha);
+    assertStrictEquals(updateResult.isRight(), true);
+    assertStrictEquals(user.secret, sha);
   }
 );
 
-Deno.test("UserNode update should throw error if new email is invalid", () => {
-  const userNode = UserNode.create({
+Deno.test("UserNode.update should throw error if new email is invalid", () => {
+  const createResult = UserNode.create({
     owner: "root@antbox.io",
     email: "user@domain.com",
     title: "Example user",
@@ -170,17 +172,17 @@ Deno.test("UserNode update should throw error if new email is invalid", () => {
     group: "users",
   });
 
-  const result = userNode.right.update({ email: "example.com" });
+  const updateResult = createResult.right.update({ email: "example.com" });
 
-  assertStrictEquals(result.isLeft(), true);
-  assertInstanceOf(result.value, ValidationError);
-  assertInstanceOf(result.value.errors[0], EmailFormatError);
+  assertStrictEquals(updateResult.isLeft(), true);
+  assertInstanceOf(updateResult.value, ValidationError);
+  assertInstanceOf(updateResult.value.errors[0], EmailFormatError);
 });
 
 Deno.test(
-  "UserNode update should modify group, groups, title, description",
-  () => {
-    const userNode = UserNode.create({
+  "UserNode.update should modify group, groups, title, description",
+ async () => {
+    const createResult = UserNode.create({
       owner: "root@antbox.io",
       email: "user@domain.com",
       title: "Example User",
@@ -188,8 +190,10 @@ Deno.test(
       group: "users",
       groups: ["bankers", "writers"],
     });
+    const user = createResult.right
 
-    const result = userNode.right.update({
+    await timeout(5)
+    const result = user.update({
       group: "admin",
       groups: [],
       title: "New Title",
@@ -197,15 +201,15 @@ Deno.test(
     });
 
     assertStrictEquals(result.isRight(), true);
-    assertStrictEquals(userNode.right.group, "admin");
-    assertStrictEquals(userNode.right.title, "New Title");
-    assertStrictEquals(userNode.right.description, "New Desc");
-    assertEquals(userNode.right.groups, []);
+    assertStrictEquals(user.group, "admin");
+    assertStrictEquals(user.title, "New Title");
+    assertStrictEquals(user.description, "New Desc");
+    assertEquals(user.groups, []);
   }
 );
 
-Deno.test("UserNode update should not modify parent ", () => {
-  const userNode = UserNode.create({
+Deno.test("UserNode.update should not modify parent ", async () => {
+  const createResult = UserNode.create({
     owner: "root@antbox.io",
     email: "user@domain.com",
     title: "Example User",
@@ -213,9 +217,26 @@ Deno.test("UserNode update should not modify parent ", () => {
     group: "users",
   });
 
-  const result = userNode.right.update({ parent: "--root--" });
+  await timeout(5)
+  const updateResult = createResult.right.update({ parent: "--root--" });
 
-  assertStrictEquals(result.isLeft(), true);
-  assertInstanceOf(result.value, ValidationError);
-  assertInstanceOf(result.value.errors[0], InvalidUserNodeParentError);
+  assertStrictEquals(updateResult.isRight(), true);
+  assertEquals(createResult.right.parent, Folders.USERS_FOLDER_UUID)
+});
+
+Deno.test("UserNode.update should not modify mimetype ", async () => {
+  const createResult = UserNode.create({
+    owner: "root@antbox.io",
+    email: "user@domain.com",
+    title: "Example User",
+    secret: "secret-password",
+    group: "users",
+  });
+  const user = createResult.right
+  
+  await timeout(5)
+  const updateResult = user.update({ mimetype: "image/jpg" });
+
+  assertStrictEquals(updateResult.isRight(), true);
+  assertStrictEquals(user.mimetype, Nodes.USER_MIMETYPE)
 });

@@ -5,20 +5,20 @@ import { ValidationError } from "../../shared/validation_error.ts";
 import { Folders } from "../nodes/folders.ts";
 import { Nodes } from "../nodes/nodes.ts";
 import { ActionNode } from "./action_node.ts";
-import { InvalidActionParentError } from "./invalid_action_parent_error.ts";
 
 Deno.test("ActionNode constructor should initialize", () => {
-  const action = ActionNode.create({
+  const createResult = ActionNode.create({
     title: "Action Test",
     owner: "user@domain.com",
     runOnCreates: true,
   });
+  const action = createResult.right
 
-  assertStrictEquals(action.isRight(), true);
-  assertEquals(action.right.mimetype, Nodes.ACTION_MIMETYPE);
-  assertEquals(action.right.parent, Folders.ACTIONS_FOLDER_UUID);
-  assertEquals(action.right.owner, "user@domain.com");
-  assertStrictEquals(action.right.runOnCreates, true);
+  assertStrictEquals(createResult.isRight(), true);
+  assertEquals(action.mimetype, Nodes.ACTION_MIMETYPE);
+  assertEquals(action.parent, Folders.ACTIONS_FOLDER_UUID);
+  assertEquals(action.owner, "user@domain.com");
+  assertStrictEquals(action.runOnCreates, true);
 });
 
 Deno.test(
@@ -64,13 +64,14 @@ Deno.test("ActionNode update should throw error if title is missing", () => {
 Deno.test(
   "ActionNode update should modify runOnCreates, runOnUpdates, runManually, runAs, description, params, filters, groupsAllowed",
   () => {
-    const action = ActionNode.create({
+    const createResult = ActionNode.create({
       title: "Action Test",
       owner: "user@domain.com",
       runOnCreates: true,
     });
+    const action = createResult.right
 
-    const result = action.right.update({
+    const result = action.update({
       runOnCreates: false,
       runOnUpdates: true,
       runManually: false,
@@ -82,26 +83,40 @@ Deno.test(
     });
 
     assertStrictEquals(result.isRight(), true);
-    assertStrictEquals(action.right.runOnCreates, false);
-    assertStrictEquals(action.right.runOnUpdates, true);
-    assertStrictEquals(action.right.runManually, false);
-    assertStrictEquals(action.right.runAs, "root");
-    assertStrictEquals(action.right.description, "Very good Action");
-    assertEquals(action.right.params, ["tenant"]);
-    assertEquals(action.right.filters, [["parent", "==", "--root--"]]);
-    assertEquals(action.right.groupsAllowed, ["users", "writers"]);
+    assertStrictEquals(action.runOnCreates, false);
+    assertStrictEquals(action.runOnUpdates, true);
+    assertStrictEquals(action.runManually, false);
+    assertStrictEquals(action.runAs, "root");
+    assertStrictEquals(action.description, "Very good Action");
+    assertEquals(action.params, ["tenant"]);
+    assertEquals(action.filters, [["parent", "==", "--root--"]]);
+    assertEquals(action.groupsAllowed, ["users", "writers"]);
   }
 );
 
 Deno.test("ActionNode update should not modify parent", () => {
-  const action = ActionNode.create({
+  const createResult = ActionNode.create({
     title: "Action Test",
     owner: "user@domain.com",
   });
+  const action = createResult.right
 
-  const result = action.right.update({ parent: Folders.ROOT_FOLDER_UUID });
+  const result = action.update({ parent: Folders.ROOT_FOLDER_UUID });
 
-  assertStrictEquals(result.isLeft(), true);
-  assertInstanceOf(result.value, ValidationError);
-  assertInstanceOf(result.value.errors[0], InvalidActionParentError);
+  assertStrictEquals(result.isRight(), true);
+  assertStrictEquals(action.parent, Folders.ACTIONS_FOLDER_UUID);
+  
+});
+
+Deno.test("ActionNode update should not modify mimetype", () => {
+  const createResult = ActionNode.create({
+    title: "Action Test",
+    owner: "user@domain.com",
+  });
+  const action = createResult.right
+
+  const result = action.update({ mimetype: "image/png" });
+
+  assertStrictEquals(result.isRight(), true);
+  assertStrictEquals(action.mimetype, Nodes.ACTION_MIMETYPE);
 });

@@ -6,7 +6,6 @@ import { Node } from "../nodes/node.ts";
 import { NodeFilter } from "../nodes/node_filter.ts";
 import { NodeMetadata } from "../nodes/node_metadata.ts";
 import { Nodes } from "../nodes/nodes.ts";
-import { InvalidActionParentError } from "./invalid_action_parent_error.ts";
 
 export class ActionNode extends FileNodeMixin(Node) {
 	#runOnCreates: boolean;
@@ -62,14 +61,10 @@ export class ActionNode extends FileNodeMixin(Node) {
 	}
 
 	override update(metadata: Partial<NodeMetadata>): Either<ValidationError, void> {
-		const superUpdateResult = super.update(metadata)
+		const superUpdateResult = super.update({...metadata, parent: Folders.ACTIONS_FOLDER_UUID })
 
 		if(superUpdateResult.isLeft()) {
 			return superUpdateResult
-		}
-
-		if(this.parent !== Folders.ACTIONS_FOLDER_UUID) {
-			return left(ValidationError.from(new InvalidActionParentError(this.parent)))
 		}
 
 		this.#runOnCreates = metadata.runOnCreates ?? this.#runOnCreates;		

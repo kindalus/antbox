@@ -8,7 +8,6 @@ import { NodeMetadata } from "../nodes/node_metadata.ts";
 import { Nodes } from "../nodes/nodes.ts";
 import { InvalidFullNameFormatError } from "./invalid_fullname_format_error.ts";
 import { InvalidPasswordFormatError } from "./invalid_password_format_error.ts";
-import { InvalidUserNodeParentError } from "./invalid_user_node_parent_error.ts";
 import { UserGroupRequiredError } from "./user_group_required_error.ts";
 
 export class UserNode extends Node {
@@ -57,7 +56,7 @@ export class UserNode extends Node {
 	}
 	
 	override update(metadata: Partial<NodeMetadata>): Either<ValidationError, void> {
-		const superUpdateResult = super.update(metadata);
+		const superUpdateResult = super.update({...metadata, parent: Folders.USERS_FOLDER_UUID});
 
 		if (superUpdateResult.isLeft()) {
 			return superUpdateResult;
@@ -107,11 +106,7 @@ export class UserNode extends Node {
 		if (!this.title || this.title.length < 3) {
 			errors.push(new InvalidFullNameFormatError(this.title));
 		}
-
-		if(!this.parent || this.parent !== Folders.USERS_FOLDER_UUID) {
-			errors.push(new InvalidUserNodeParentError(this.parent))
-		}
-
+		
 		if (!this.#group || this.#group.length === 0) {
 			errors.push(new UserGroupRequiredError());
 		}

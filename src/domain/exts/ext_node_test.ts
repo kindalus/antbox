@@ -58,3 +58,10 @@ Deno.test("ExtNode update should not modify parent", () => {
     assertInstanceOf(result.value, ValidationError)
     assertEquals(result.value.errors[0].message, "Invalid ExtNode Parent: --root--")
 })
+
+Deno.test("ExtNode update should not modify mimetype", () => {
+    const extNode = ExtNode.create({ title: "ExNode", owner: "user@gmail.com" })
+
+    extNode.right.update({ mimetype: "image/jpg" }) 
+    assertEquals(extNode.right.mimetype, Nodes.EXT_MIMETYPE)
+})

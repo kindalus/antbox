@@ -1,6 +1,6 @@
-import { Either, right } from "../../shared/either.ts";
+import { type Either, right } from "../../shared/either.ts";
 import { ValidationError } from "../../shared/validation_error.ts";
-import { NodeMetadata } from "../nodes/node_metadata.ts";
+import { type NodeMetadata } from "../nodes/node_metadata.ts";
 import { Node } from "../nodes/node.ts";
 import { Nodes } from "../nodes/nodes.ts";
 import { Folders } from "../nodes/folders.ts";

@@ -1,4 +1,4 @@
-import { test, expect } from "bun:test";
+import { expect, test } from "bun:test";
 import { ValidationError } from "../../shared/validation_error.ts";
 import { EmailFormatError } from "../nodes/email_format_error.ts";
 import { Folders } from "../nodes/folders.ts";
@@ -30,10 +30,10 @@ test("GroupNode.create should throw error if owner is missing", () => {
   expect(createResult.isLeft()).toBe(true);
   expect(createResult.value).toBeInstanceOf(ValidationError);
   expect((createResult.value as ValidationError).errors[0]).toBeInstanceOf(
-    PropertyRequiredError,
+    PropertyRequiredError
   );
   expect((createResult.value as ValidationError).errors[0].message).toBe(
-    "Node.owner is required",
+    "Node.owner is required"
   );
 });
 
@@ -47,7 +47,7 @@ test("GroupNode.create should throw error if owner is invalid email format", () 
   expect(createResult.isLeft()).toBe(true);
   expect(createResult.value).toBeInstanceOf(ValidationError);
   expect((createResult.value as ValidationError).errors[0]).toBeInstanceOf(
-    EmailFormatError,
+    EmailFormatError
   );
 });
 
@@ -60,10 +60,10 @@ test("GroupNode.create should throw error if title is missing", () => {
   expect(createResult.isLeft()).toBe(true);
   expect(createResult.value).toBeInstanceOf(ValidationError);
   expect((createResult.value as ValidationError).errors[0]).toBeInstanceOf(
-    PropertyRequiredError,
+    PropertyRequiredError
   );
   expect((createResult.value as ValidationError).errors[0].message).toBe(
-    "Node.title is required",
+    "Node.title is required"
   );
 });
 
@@ -77,7 +77,7 @@ test("GroupNode.create should throw error if title lenght is less than 3 chars",
   expect(createResult.isLeft()).toBe(true);
   expect(createResult.value).toBeInstanceOf(ValidationError);
   expect((createResult.value as ValidationError).errors[0]).toBeInstanceOf(
-    InvalidFullNameFormatError,
+    InvalidFullNameFormatError
   );
 });
 

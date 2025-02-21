@@ -1,8 +1,8 @@
-import { Either, left, right } from "../../shared/either.ts";
+import { type Either, left, right } from "../../shared/either.ts";
 import { ValidationError } from "../../shared/validation_error.ts";
 import { FolderNodeMixin, WithAspectMixin } from "./mixins.ts";
 import { Node } from "./node.ts";
-import { NodeMetadata } from "./node_metadata.ts";
+import { type NodeMetadata } from "./node_metadata.ts";
 
 export class FolderNode extends FolderNodeMixin(WithAspectMixin(Node)) {
 	static create(

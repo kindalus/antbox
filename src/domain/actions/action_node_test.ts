@@ -1,8 +1,8 @@
+import { expect, test } from "bun:test";
 import { ValidationError } from "../../shared/validation_error.ts";
 import { Folders } from "../nodes/folders.ts";
 import { Nodes } from "../nodes/nodes.ts";
 import { ActionNode } from "./action_node.ts";
-import { expect, test } from "bun:test";
 
 test("ActionNode.create should initialize", () => {
   const createResult = ActionNode.create({
@@ -87,9 +87,9 @@ test("ActionNode update should modify runOnCreates, runOnUpdates, runManually, r
   expect(action.runManually).toBeFalsy();
   expect(action.runAs).toBe("root");
   expect(action.description).toBe("Very good Action");
-  expect(action.params).toBe(["tenant"]);
-  expect(action.filters).toBe([["parent", "==", "--root--"]]);
-  expect(action.groupsAllowed).toBe(["users", "writers"]);
+  expect(action.params).toStrictEqual(["tenant"]);
+  expect(action.filters).toStrictEqual([["parent", "==", "--root--"]]);
+  expect(action.groupsAllowed).toStrictEqual(["users", "writers"]);
 });
 
 test("ActionNode update should not modify parent", () => {

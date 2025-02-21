@@ -1,11 +1,11 @@
 import { AntboxError } from "../../shared/antbox_error.ts";
-import { Either, left, right } from "../../shared/either.ts";
+import { type Either, left, right } from "../../shared/either.ts";
 import { FidGenerator } from "../../shared/fid_generator.ts";
 import { ValidationError } from "../../shared/validation_error.ts";
 import { EmailValue } from "./email_value.ts";
 import { Folders } from "./folders.ts";
 import { InvalidMimetypeError } from "./invalid_mimetype_error.ts";
-import { NodeMetadata } from "./node_metadata.ts";
+import { type NodeMetadata } from "./node_metadata.ts";
 import { PropertyRequiredError } from "./property_required_error.ts";
 
 export class Node {

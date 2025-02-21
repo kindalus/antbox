@@ -1,113 +1,83 @@
-import {
-	DeleteObjectCommand,
-	GetObjectCommand,
-	PutObjectCommand,
-	S3,
-} from "npm:@aws-sdk/client-s3";
+import { S3Client } from "bun";
 
-import { StorageProvider, WriteFileOpts } from "../../domain/providers/storage_provider.ts";
 import { AntboxError } from "../../shared/antbox_error.ts";
-import { Either, left, right } from "../../shared/either.ts";
-import { Event } from "../../shared/event.ts";
-import { EventHandler } from "../../shared/event_handler.ts";
 import { UnknownError } from "../../shared/antbox_error.ts";
+import { left, right, type Either } from "../../shared/either.ts";
+import type {
+  StorageProvider,
+  WriteFileOpts,
+} from "../../application/storage_provider.ts";
+import type { EventHandler } from "../../shared/event_handler.ts";
+import type { Event } from "../../shared/event.ts";
 
+export default function buildS3StorageProvider(
+  configPath: string,
+): Promise<Either<AntboxError, S3StorageProvider>> {
+  return import(configPath, { with: { type: "json" } })
+    .then((config) => config.default)
+    .then(
+      (config) => new S3StorageProvider(new S3Client(config), config.bucket),
+    )
+    .then((provider) => right<AntboxError, S3StorageProvider>(provider))
+    .catch((error) => left(new UnknownError(error.message)));
+}
 /**
  * S3StorageProvider is a StorageProvider implementation that uses S3 as the storage backend.
  * Reference API: https://docs.aws.amazon.com/AWSJavaScriptSDK/v3/latest/client/s3/
  */
 
 export class S3StorageProvider implements StorageProvider {
-	constructor(private readonly s3: S3, private readonly bucket: string) {
-	}
+  readonly #s3: S3Client;
+  readonly #bucket: string;
 
-	delete(uuid: string): Promise<Either<AntboxError, void>> {
-		const cmd = new DeleteObjectCommand({
-			Bucket: this.bucket,
-			Key: this.#getKey(uuid),
-		});
+  constructor(s3: S3Client, bucket: string) {
+    this.#s3 = s3;
+    this.#bucket = bucket;
+  }
 
-		return this.s3.send(cmd)
-			.then(() => right<AntboxError, void>(undefined))
-			.catch((error) => {
-				console.error(error);
-				return left<AntboxError, void>(new UnknownError(error.message));
-			});
-	}
+  delete(uuid: string): Promise<Either<AntboxError, void>> {
+    return this.#s3
+      .delete(this.#getPath(uuid))
+      .then(() => right<AntboxError, void>(undefined))
+      .catch((err) => left<AntboxError, void>(new UnknownError(err.message)));
+  }
 
-	async write(
-		uuid: string,
-		file: File,
-		opts?: WriteFileOpts | undefined,
-	): Promise<Either<AntboxError, void>> {
-		const buffer = await file.arrayBuffer();
-		const mimetype = opts?.mimetype ?? file.type;
+  async write(
+    uuid: string,
+    file: File,
+    opts?: WriteFileOpts | undefined,
+  ): Promise<Either<AntboxError, void>> {
+    const buffer = await file.arrayBuffer();
+    const type = opts?.mimetype ?? file.type;
 
-		const cmd = new PutObjectCommand({
-			Bucket: this.bucket,
-			Key: this.#getKey(uuid),
-			Body: new Uint8Array(buffer),
-			Metadata: {
-				parent: opts?.parent!,
-			},
-		});
+    return this.#s3
+      .write(this.#getPath(uuid), file, { type })
+      .then(() => right<AntboxError, void>(undefined))
+      .catch((err) => left<AntboxError, void>(new UnknownError(err.message)));
+  }
 
-		if (mimetype?.length > 0) {
-			cmd.input.ContentType = mimetype;
-			cmd.input.Metadata = {
-				...cmd.input.Metadata,
-				mimetype: mimetype,
-			};
-		}
+  read(uuid: string): Promise<Either<AntboxError, File>> {
+    const file = this.#s3.file(this.#getPath(uuid));
+    const name = file.name ?? "unknown";
+    const type = file.type ?? "application/octet-stream";
 
-		return this.s3.send(cmd)
-			.then(() => right<AntboxError, void>(undefined))
-			.catch((error) => {
-				console.error(error);
-				console.log(cmd);
-				return left(new UnknownError(error.message));
-			});
-	}
+    return file
+      .arrayBuffer()
+      .then((buf) => right<AntboxError, File>(new File([buf], name, { type })))
+      .catch((err) => left(new UnknownError(err.message)));
+  }
 
-	read(uuid: string): Promise<Either<AntboxError, File>> {
-		const cmd = new GetObjectCommand({
-			Bucket: this.bucket,
-			Key: this.#getKey(uuid),
-		});
+  #getPath(uuid: string): string {
+    const prefix = this.#getPrefix(uuid);
+    return `${prefix}/${uuid}`;
+  }
 
-		return this.s3.send(cmd).then(async ({ Body, ContentType, Metadata }) => {
-			const type = ContentType ?? "application/octet-stream";
-			const title = Metadata?.title ?? "unknown";
+  #getPrefix(uuid: string): string {
+    const prefix = uuid.slice(0, 2).toUpperCase();
+    return `nodes/${prefix[0]}/${prefix[1]}`;
+  }
 
-			const array = await Body?.transformToByteArray()!;
-			const file = new File([array], title, { type });
-
-			return right<AntboxError, File>(file);
-		}).catch((error) => {
-			console.error("Error???", error);
-			return left(new UnknownError(error.message));
-		});
-	}
-
-	#getKey(uuid: string): string {
-		const prefix = this.#getPrefix(uuid);
-		return `${prefix}/${uuid}`;
-	}
-
-	#getPrefix(uuid: string): string {
-		const prefix = uuid.slice(0, 2).toUpperCase();
-		return `nodes/${prefix[0]}/${prefix[1]}`;
-	}
-
-	startListeners(_bus: (eventId: string, handler: EventHandler<Event>) => void): void {}
-}
-
-export default function buildS3StorageProvider(
-	configPath: string,
-): Promise<Either<AntboxError, S3StorageProvider>> {
-	return import(configPath, { with: { type: "json" } })
-		.then((config) => config.default)
-		.then((config) => new S3StorageProvider(new S3(config), config.bucket))
-		.then((provider) => right<AntboxError, S3StorageProvider>(provider))
-		.catch((error) => left(new UnknownError(error.message)));
+  startListeners(
+    _bus: (eventId: string, handler: EventHandler<Event>) => void,
+  ): void {}
 }

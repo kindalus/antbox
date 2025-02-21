@@ -1,82 +1,135 @@
-import { assertEquals } from "@std/assert/equals";
-import { assertInstanceOf } from "@std/assert/instance-of";
 import { ValidationError } from "../../shared/validation_error.ts";
 import { Folders } from "../nodes/folders.ts";
 import { Nodes } from "../nodes/nodes.ts";
 import { ApiKeyNode } from "./api_key_node.ts";
+import { test, expect } from "bun:test";
 
-Deno.test("ApiKeyNode.create should initialize", () => {
-  const apiKey = ApiKeyNode.create({group: "admin", secret: "secret-pasword", description: "API Key super hard", title: "ApiKey test", owner: "user@domain.com"})
+test("ApiKeyNode.create should initialize", () => {
+  const apiKey = ApiKeyNode.create({
+    group: "admin",
+    secret: "secret-pasword",
+    description: "API Key super hard",
+    title: "ApiKey test",
+    owner: "user@domain.com",
+  });
 
-  assertEquals(apiKey.right.title, "secr******")
-  assertEquals(apiKey.right.group, "admin")
-  assertEquals(apiKey.right.description, "API Key super hard")
-  assertEquals(apiKey.right.mimetype, Nodes.API_KEY_MIMETYPE)
-  assertEquals(apiKey.right.parent, Folders.API_KEYS_FOLDER_UUID)
-})
+  expect(apiKey.right.title).toBe("secr******");
+  expect(apiKey.right.group).toBe("admin");
+  expect(apiKey.right.description).toBe("API Key super hard");
+  expect(apiKey.right.mimetype).toBe(Nodes.API_KEY_MIMETYPE);
+  expect(apiKey.right.parent).toBe(Folders.API_KEYS_FOLDER_UUID);
+});
 
-Deno.test("ApiKeyNode.create should throw error if owner is missing", () => {
-  const apiKey = ApiKeyNode.create({title: "Api key title", secret: "secret", group: "admin"})
+test("ApiKeyNode.create should throw error if owner is missing", () => {
+  const apiKey = ApiKeyNode.create({
+    title: "Api key title",
+    secret: "secret",
+    group: "admin",
+  });
 
-  assertEquals(apiKey.isLeft(), true)
-  assertEquals((apiKey.value as  ValidationError).message, "Node.owner is required")
-})
+  expect(apiKey.isLeft()).toBeTruthy();
+  expect((apiKey.value as ValidationError).message).toBe(
+    "Node.owner is required",
+  );
+});
 
-Deno.test("ApiKeyNode.create should throw error if secret is missing", () => {
-  const apiKey = ApiKeyNode.create({title: "Api key title", secret: "", group: "admin"})
+test("ApiKeyNode.create should throw error if secret is missing", () => {
+  const apiKey = ApiKeyNode.create({
+    title: "Api key title",
+    secret: "",
+    group: "admin",
+  });
 
-  assertEquals(apiKey.isLeft(), true)
-  assertEquals((apiKey.value as ValidationError).message, "Node.secret is required")
-})
+  expect(apiKey.isLeft()).toBeTruthy();
+  expect((apiKey.value as ValidationError).message).toBe(
+    "Node.secret is required",
+  );
+});
 
-Deno.test("ApiKeyNode.create should throw error if group is missing", () => {
-  const apiKey = ApiKeyNode.create({title: "Api key title", secret: "secret", group: ""})
+test("ApiKeyNode.create should throw error if group is missing", () => {
+  const apiKey = ApiKeyNode.create({
+    title: "Api key title",
+    secret: "secret",
+    group: "",
+  });
 
-  assertEquals(apiKey.isLeft(), true)
-  assertEquals((apiKey.value as ValidationError).message, "Node.group is required")
-})
+  expect(apiKey.isLeft()).toBeTruthy();
+  expect((apiKey.value as ValidationError).message).toBe(
+    "Node.group is required",
+  );
+});
 
-Deno.test("ApiKeyNode update should modify group", () => {
-  const apiKey = ApiKeyNode.create({title: "Api key title", owner: "user@domain.com", secret: "secret", group: "admin"})
+test("ApiKeyNode update should modify group", () => {
+  const apiKey = ApiKeyNode.create({
+    title: "Api key title",
+    owner: "user@domain.com",
+    secret: "secret",
+    group: "admin",
+  });
 
-  const result =  apiKey.right.update({group: "users"})
-  assertEquals(result.isRight(), true)
-  assertEquals(apiKey.right.group, "users")
-})
+  const result = apiKey.right.update({ group: "users" });
+  expect(result.isRight()).toBeTruthy();
+  expect(apiKey.right.group).toBe("users");
+});
 
-Deno.test("ApiKeyNode update should modify description", () => {
-  const apiKey = ApiKeyNode.create({title: "Api key title", owner: "user@domain.com", secret: "secret", group: "admin", description: "api key desc"})
+test("ApiKeyNode update should modify description", () => {
+  const apiKey = ApiKeyNode.create({
+    title: "Api key title",
+    owner: "user@domain.com",
+    secret: "secret",
+    group: "admin",
+    description: "api key desc",
+  });
 
-  const result =  apiKey.right.update({description: "api key"})
-  assertEquals(result.isRight(), true)
-  assertEquals(apiKey.right.description, "api key")
-})
+  const result = apiKey.right.update({ description: "api key" });
+  expect(result.isRight()).toBeTruthy();
+  expect(apiKey.right.description).toBe("api key");
+});
 
-Deno.test("ApiKeyNode update should throw error if secret is missing", () => {
-  const apiKey = ApiKeyNode.create({title: "Api key title", owner: "user@domain.com", secret: "secret", group: "admin"})
+test("ApiKeyNode update should throw error if secret is missing", () => {
+  const apiKey = ApiKeyNode.create({
+    title: "Api key title",
+    owner: "user@domain.com",
+    secret: "secret",
+    group: "admin",
+  });
 
-  const result =  apiKey.right.update({secret: ""})
-    
-  assertEquals(result.isLeft(), true)
-  assertInstanceOf(result.value, ValidationError)
-  assertEquals(result.value.errors[0].message, "Node.secret is required")
-})
+  const result = apiKey.right.update({ secret: "" });
 
-Deno.test("ApiKeyNode update should throw error if group is missing", () => {
-  const apiKey = ApiKeyNode.create({title: "Api key title", owner: "user@domain.com", secret: "secret", group: "admin"})
+  expect(result.isLeft()).toBeTruthy();
+  expect(result.value).toBeInstanceOf(ValidationError);
+  expect((result.value as ValidationError).errors[0].message).toBe(
+    "Node.secret is required",
+  );
+});
 
-  const result =  apiKey.right.update({group: ""})
-    
-  assertEquals(result.isLeft(), true)
-  assertInstanceOf(result.value, ValidationError)
-  assertEquals(result.value.errors[0].message, "Node.group is required")
-})
+test("ApiKeyNode update should throw error if group is missing", () => {
+  const apiKey = ApiKeyNode.create({
+    title: "Api key title",
+    owner: "user@domain.com",
+    secret: "secret",
+    group: "admin",
+  });
 
-Deno.test("ApiKeyNode update should not modify parent", () => {
-  const apiKey = ApiKeyNode.create({title: "Api key title", owner: "user@domain.com", secret: "secret", group: "admin"})
+  const result = apiKey.right.update({ group: "" });
 
-  const result =  apiKey.right.update({parent: "--root--"})
+  expect(result.isLeft()).toBeTruthy();
+  expect(result.value).toBeInstanceOf(ValidationError);
+  expect((result.value as ValidationError).errors[0].message).toBe(
+    "Node.group is required",
+  );
+});
 
-  assertEquals(result.isRight(), true)
-  assertEquals(apiKey.right.parent, Folders.API_KEYS_FOLDER_UUID)
-})
+test("ApiKeyNode update should not modify parent", () => {
+  const apiKey = ApiKeyNode.create({
+    title: "Api key title",
+    owner: "user@domain.com",
+    secret: "secret",
+    group: "admin",
+  });
+
+  const result = apiKey.right.update({ parent: "--root--" });
+
+  expect(result.isRight()).toBeTruthy();
+  expect(apiKey.right.parent).toBe(Folders.API_KEYS_FOLDER_UUID);
+});

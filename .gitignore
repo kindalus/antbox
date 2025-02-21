@@ -17,3 +17,5 @@ npm/
 .zed
 
 deno.lock
+node_modules
+bun.lock

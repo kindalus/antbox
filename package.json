@@ -1,0 +1,17 @@
+{
+  "name": "antbox",
+  "module": "main.ts",
+  "type": "module",
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5.7.3"
+  },
+  "dependencies": {
+    "scribe.js-ocr": "^0.7.3"
+  },
+  "trustedDependencies": [
+    "@scribe.js/tesseract.js"
+  ]
+}

@@ -1,8 +1,8 @@
 import { Nodes } from "./nodes.ts";
-import { NodeMetadata } from "./node_metadata.ts";
+import { type NodeMetadata } from "./node_metadata.ts";
 import { Node } from "./node.ts";
-import { NodeFilter } from "./node_filter.ts";
-import { Either, right } from "../../shared/either.ts";
+import { type NodeFilter } from "./node_filter.ts";
+import { type Either, right } from "../../shared/either.ts";
 import { ValidationError } from "../../shared/validation_error.ts";
 
 export class SmartFolderNode extends Node {

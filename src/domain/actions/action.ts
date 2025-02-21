@@ -1,9 +1,9 @@
 import { AntboxError, UnknownError } from "../../shared/antbox_error.ts";
-import { Either, left, right } from "../../shared/either.ts";
+import { type Either, left, right } from "../../shared/either.ts";
 import { ValidationError } from "../../shared/validation_error.ts";
-import { NodeFilter } from "../nodes/node_filter.ts";
+import { type NodeFilter } from "../nodes/node_filter.ts";
 import { ActionNode } from "./action_node.ts";
-import { RunContext } from "./run_context.ts";
+import { type RunContext } from "./run_context.ts";
 
 /**
  * Regras das actions:

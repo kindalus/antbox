@@ -1,9 +1,9 @@
-import { Either } from "../../shared/either.ts";
+import { type Either } from "../../shared/either.ts";
 import { ValidationError } from "../../shared/validation_error.ts";
-import { Permissions } from "./node.ts";
-import { NodeFilter } from "./node_filter.ts";
-import { NodeMetadata } from "./node_metadata.ts";
-import { NodeProperties } from "./node_properties.ts";
+import { type Permissions } from "./node.ts";
+import { type NodeFilter } from "./node_filter.ts";
+import { type NodeMetadata } from "./node_metadata.ts";
+import { type NodeProperties } from "./node_properties.ts";
 import { Nodes } from "./nodes.ts";
 import { PropertyRequiredError } from "./property_required_error.ts";
 

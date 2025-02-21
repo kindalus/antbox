@@ -1,8 +1,8 @@
+import { expect, test } from "bun:test";
+import { ValidationError } from "../../shared/validation_error.ts";
 import { FolderNode } from "./folder_node.ts";
 import { Folders } from "./folders.ts";
-import { ValidationError } from "../../shared/validation_error.ts";
 import { Nodes } from "./nodes.ts";
-import { test, expect } from "bun:test";
 
 test("FolderNode.create should initialize", () => {
   const result = FolderNode.create({

@@ -1,8 +1,8 @@
-import { Either, right } from "../../shared/either.ts";
+import { type Either, right } from "../../shared/either.ts";
 import { ValidationError } from "../../shared/validation_error.ts";
-import { PropertyType } from "../aspects/aspect.ts";
+import { type PropertyType } from "../aspects/aspect.ts";
 import { Node } from "../nodes/node.ts";
-import { NodeMetadata } from "../nodes/node_metadata.ts";
+import { type NodeMetadata } from "../nodes/node_metadata.ts";
 import { Nodes } from "../nodes/nodes.ts";
 
 export class FormSpecificationNode extends Node {

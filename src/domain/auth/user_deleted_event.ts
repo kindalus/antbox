@@ -1,4 +1,4 @@
-import { Event } from "../../shared/event.ts";
+import { type Event } from "../../shared/event.ts";
 
 export class UserDeletedEvent implements Event {
 	static EVENT_ID = "UserDeletedEvent";

@@ -1,10 +1,10 @@
 import { AntboxError } from "../../shared/antbox_error.ts";
-import { Either, left, right } from "../../shared/either.ts";
+import { type Either, left, right } from "../../shared/either.ts";
 import { ValidationError } from "../../shared/validation_error.ts";
 import { EmailValue } from "../nodes/email_value.ts";
 import { Folders } from "../nodes/folders.ts";
 import { Node } from "../nodes/node.ts";
-import { NodeMetadata } from "../nodes/node_metadata.ts";
+import { type NodeMetadata } from "../nodes/node_metadata.ts";
 import { Nodes } from "../nodes/nodes.ts";
 import { InvalidFullNameFormatError } from "./invalid_fullname_format_error.ts";
 import { InvalidPasswordFormatError } from "./invalid_password_format_error.ts";

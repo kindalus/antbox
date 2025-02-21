@@ -1,3 +1,4 @@
+import { expect, test } from "bun:test";
 import { ValidationError } from "../../shared/validation_error.ts";
 import { EmailFormatError } from "../nodes/email_format_error.ts";
 import { Folders } from "../nodes/folders.ts";
@@ -7,8 +8,6 @@ import { InvalidFullNameFormatError } from "./invalid_fullname_format_error.ts";
 import { InvalidPasswordFormatError } from "./invalid_password_format_error.ts";
 import { UserGroupRequiredError } from "./user_group_required_error.ts";
 import { UserNode } from "./user_node.ts";
-import { expect } from "bun:test";
-import { test } from "node:test";
 
 const timeout = (ms: number) =>
   new Promise((resolve) => setTimeout(resolve, ms));
@@ -42,7 +41,7 @@ test("UserNode.create should throw error if secret has not the correct format", 
   expect(createResult.isLeft()).toBe(true);
   expect(createResult.value).toBeInstanceOf(ValidationError);
   expect((createResult.value as ValidationError).errors[0]).toBeInstanceOf(
-    InvalidPasswordFormatError,
+    InvalidPasswordFormatError
   );
 });
 
@@ -60,7 +59,7 @@ test("UserNode.create should throw error if group is empty", async () => {
   expect(createResult.isLeft()).toBe(true);
   expect(createResult.value).toBeInstanceOf(ValidationError);
   expect((createResult.value as ValidationError).errors[0]).toBeInstanceOf(
-    UserGroupRequiredError,
+    UserGroupRequiredError
   );
 });
 
@@ -76,7 +75,7 @@ test("UserNode.create should throw error if owner is missing", () => {
   expect(createResult.isLeft()).toBe(true);
   expect(createResult.value).toBeInstanceOf(ValidationError);
   expect((createResult.value as ValidationError).errors[0]).toBeInstanceOf(
-    PropertyRequiredError,
+    PropertyRequiredError
   );
 });
 
@@ -94,7 +93,7 @@ test("UserNode.create should throw error if title length less than 3 chars", asy
   expect(createResult.isLeft()).toBe(true);
   expect(createResult.value).toBeInstanceOf(ValidationError);
   expect((createResult.value as ValidationError).errors[0]).toBeInstanceOf(
-    InvalidFullNameFormatError,
+    InvalidFullNameFormatError
   );
 });
 
@@ -133,7 +132,7 @@ test("UserNode.update should throw error if new secret is invalid", async () => 
   expect(updateResult.isLeft()).toBe(true);
   expect(updateResult.value).toBeInstanceOf(ValidationError);
   expect((updateResult.value as ValidationError).errors[0]).toBeInstanceOf(
-    InvalidPasswordFormatError,
+    InvalidPasswordFormatError
   );
 });
 
@@ -168,7 +167,7 @@ test("UserNode.update should throw error if new email is invalid", () => {
   expect(updateResult.isLeft()).toBe(true);
   expect(updateResult.value).toBeInstanceOf(ValidationError);
   expect((updateResult.value as ValidationError).errors[0]).toBeInstanceOf(
-    EmailFormatError,
+    EmailFormatError
   );
 });
 
@@ -195,7 +194,7 @@ test("UserNode.update should modify group, groups, title, description", async ()
   expect(user.group).toBe("admin");
   expect(user.title).toBe("New Title");
   expect(user.description).toBe("New Desc");
-  expect(user.groups).toBe([]);
+  expect(user.groups).toStrictEqual([]);
 });
 
 test("UserNode.update should not modify parent ", async () => {

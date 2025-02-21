@@ -1,5 +1,5 @@
 import { builtinAspects } from "../../application/builtin_aspects/mod.ts";
-import { NodeFilter } from "../nodes/node_filter.ts";
+import { type NodeFilter } from "../nodes/node_filter.ts";
 import { AspectNode } from "./aspect_node.ts";
 
 export interface Aspect {

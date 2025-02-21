@@ -1,8 +1,7 @@
 import { AntboxError } from "../../shared/antbox_error.ts";
-import { Either } from "../../shared/either.ts";
-
-import { NodeFilter } from "./node_filter.ts";
-import { NodeLike } from "./node_like.ts";
+import { type Either } from "../../shared/either.ts";
+import { type NodeFilter } from "./node_filter.ts";
+import { type NodeLike } from "./node_like.ts";
 import { NodeNotFoundError } from "./node_not_found_error.ts";
 
 export interface NodeFilterResult {

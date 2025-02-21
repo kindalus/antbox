@@ -1,4 +1,4 @@
-import { Either, left, right } from "../../shared/either.ts";
+import { type Either, left, right } from "../../shared/either.ts";
 import { ValidationError } from "../../shared/validation_error.ts";
 import { EmailFormatError } from "./email_format_error.ts";
 

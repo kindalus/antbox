@@ -1,9 +1,9 @@
-import { AspectProperty } from "../aspects/aspect.ts";
-import { FormPropertySpecification } from "../forms_specifications/form_specification.ts";
-import { Permissions } from "./node.ts";
-import { NodeFilter } from "./node_filter.ts";
-import { NodeProperties } from "./node_properties.ts";
-import { Aggregation } from "./smart_folder_node.ts";
+import { type AspectProperty } from "../aspects/aspect.ts";
+import { type FormPropertySpecification } from "../forms_specifications/form_specification.ts";
+import { type Permissions } from "./node.ts";
+import { type NodeFilter } from "./node_filter.ts";
+import { type NodeProperties } from "./node_properties.ts";
+import { type Aggregation } from "./smart_folder_node.ts";
 
 export interface NodeMetadata {
 	uuid: string;

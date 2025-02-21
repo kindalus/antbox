@@ -1,4 +1,4 @@
-import { Event } from "../../shared/event.ts";
+import { type Event } from "../../shared/event.ts";
 import { Node } from "./node.ts";
 
 export class NodeUpdatedEvent implements Event {

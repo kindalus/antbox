@@ -1,10 +1,10 @@
-import { Either, left, right } from "../../shared/either.ts";
+import { type Either, left, right } from "../../shared/either.ts";
 import { ValidationError } from "../../shared/validation_error.ts";
 import { Folders } from "../nodes/folders.ts";
 import { FileNodeMixin } from "../nodes/mixins.ts";
 import { Node } from "../nodes/node.ts";
-import { NodeFilter } from "../nodes/node_filter.ts";
-import { NodeMetadata } from "../nodes/node_metadata.ts";
+import { type NodeFilter } from "../nodes/node_filter.ts";
+import { type NodeMetadata } from "../nodes/node_metadata.ts";
 import { Nodes } from "../nodes/nodes.ts";
 
 export class ActionNode extends FileNodeMixin(Node) {

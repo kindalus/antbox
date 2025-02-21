@@ -1,11 +1,11 @@
-import { Group } from "../../domain/auth/group.ts";
-import { UserNode } from "../../domain/nodes/user_node.ts";
-import { UserNodeBuilder } from "../../domain/nodes/user_node_builder.ts";
+import { Groups } from "../../domain/auth/groups.ts";
+import { UserNode } from "../../domain/auth/user_node.ts";
+import { Users } from "../../domain/auth/users.ts";
 
-export const Anonymous: UserNode = new UserNodeBuilder()
-	.withUuid(UserNode.ANONYMOUS_USER_UUID)
-	.withEmail(UserNode.ANONYMOUS_USER_EMAIL)
-	.withTitle("anonymous")
-	.withGroup(Group.ANONYMOUS_GROUP_UUID)
-	.withGroups([Group.ANONYMOUS_GROUP_UUID])
-	.build().value as UserNode;
+export const Anonymous = UserNode.create({
+	uuid: Users.ANONYMOUS_USER_UUID,
+	email: Users.ANONYMOUS_USER_EMAIL,
+	title: "anonymous",
+	group: Groups.ANONYMOUS_GROUP_UUID,
+	groups: [Groups.ANONYMOUS_GROUP_UUID],
+}).right;

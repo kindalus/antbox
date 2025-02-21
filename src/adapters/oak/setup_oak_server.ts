@@ -10,29 +10,15 @@ import usersRouter from "./users_router.ts";
 import apiKeysRouter from "./api_keys_router.ts";
 
 import loginRouter from "./login_router.ts";
-import { Application, oakCors } from "../../../deps.ts";
-import { AntboxService } from "../../application/antbox_service.ts";
-import { createAuthMiddleware } from "./create_auth_middleware.ts";
+import { Application } from "../../../deps.ts";
+import { AntboxTenant } from "../../api/antbox_tenant.ts";
 
 export interface ServerOpts {
 	port?: number;
 }
 
-export interface AntboxTenant {
-	name: string;
-	service: AntboxService;
-	rootPasswd: string;
-	rawJwk: Record<string, string>;
-	symmetricKey: string;
-}
-
-export async function setupOakServer(tenants: AntboxTenant[]) {
+export function setupOakServer(tenants: AntboxTenant[]) {
 	const app = new Application();
-
-	app.use(oakCors());
-
-	const authMiddleware = await createAuthMiddleware(tenants);
-	app.use(authMiddleware);
 
 	const nodes = nodesRouter(tenants);
 	const upload = uploadRouter(tenants);

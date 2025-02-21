@@ -1,23 +1,20 @@
 import { Action, actionToNode, fileToAction } from "../domain/actions/action.ts";
 import { ActionNode } from "../domain/actions/action_node.ts";
 import { RunContext } from "../domain/actions/run_context.ts";
-import { AuthContextProvider } from "../domain/auth/auth_provider.ts";
-import { UserNotFoundError } from "../domain/auth/user_not_found_error.ts";
 import { filtersSpecFrom, withNodeFilters } from "../domain/nodes/filters_spec.ts";
+import { FolderNode } from "../domain/nodes/folder_node.ts";
+import { Folders } from "../domain/nodes/folders.ts";
 import { Node } from "../domain/nodes/node.ts";
 import { NodeCreatedEvent } from "../domain/nodes/node_created_event.ts";
-import { NodeFactory } from "../domain/nodes/node_factory.ts";
 import { NodeFilter } from "../domain/nodes/node_filter.ts";
 import { NodeNotFoundError } from "../domain/nodes/node_not_found_error.ts";
 import { NodeUpdatedEvent } from "../domain/nodes/node_updated_event.ts";
-import { UserNode } from "../domain/nodes/user_node.ts";
-import { UserNodeBuilder } from "../domain/nodes/user_node_builder.ts";
+import { Nodes } from "../domain/nodes/nodes.ts";
 import { AntboxError, BadRequestError, UnknownError } from "../shared/antbox_error.ts";
 import { Either, left, right } from "../shared/either.ts";
-import { AntboxService } from "./antbox_service.ts";
-import { antboxToNodeService } from "./antbox_to_node_service.ts";
+import { AuthService } from "./auth_service.ts";
+import { AuthenticationContext } from "./authentication_context.ts";
 import { builtinActions } from "./builtin_actions/mod.ts";
-import { Root } from "./builtin_users/root.ts";
 import { NodeService } from "./node_service.ts";
 
 type RecordKey = [string, string];
@@ -39,7 +36,10 @@ export class ActionService {
 
 	static #incRunnable(key: RecordKey) {
 		const runnable = this.#getRunnable(key);
-		this.#runnable.set(key, { count: runnable?.count ?? 0 + 1, timestamp: Date.now() });
+		this.#runnable.set(key, {
+			count: runnable?.count ?? 0 + 1,
+			timestamp: Date.now(),
+		});
 	}
 
 	static #deleteRunnable(key: RecordKey) {
@@ -48,33 +48,36 @@ export class ActionService {
 
 	constructor(
 		private readonly nodeService: NodeService,
-		private readonly antboxService: AntboxService,
+		private readonly authService: AuthService,
 	) {}
 
-	async get(uuid: string): Promise<Either<NodeNotFoundError, ActionNode>> {
+	async get(
+		ctx: AuthenticationContext,
+		uuid: string,
+	): Promise<Either<NodeNotFoundError, ActionNode>> {
 		const found = builtinActions.find((a) => a.uuid === uuid);
 
 		if (found) {
-			return right(actionToNode(found));
+			return right(actionToNode(found).right);
 		}
 
-		const nodeOrErr = await this.nodeService.get(uuid);
+		const nodeOrErr = await this.nodeService.get(ctx, uuid);
 
 		if (nodeOrErr.isLeft()) {
 			return left(nodeOrErr.value);
 		}
 
-		if (!nodeOrErr.value.isAction()) {
+		if (!Nodes.isAction(nodeOrErr.value)) {
 			return left(new NodeNotFoundError(uuid));
 		}
 
 		return right(nodeOrErr.value);
 	}
 
-	async list(): Promise<Either<AntboxError, ActionNode[]>> {
-		const nodesOrErrs = await this.nodeService.find([
-			["mimetype", "==", Node.ACTION_MIMETYPE],
-			["parent", "==", Node.ACTIONS_FOLDER_UUID],
+	async list(ctx: AuthenticationContext): Promise<Either<AntboxError, ActionNode[]>> {
+		const nodesOrErrs = await this.nodeService.find(ctx, [
+			["mimetype", "==", Nodes.ACTION_MIMETYPE],
+			["parent", "==", Folders.ACTIONS_FOLDER_UUID],
 		], Number.MAX_SAFE_INTEGER);
 
 		if (nodesOrErrs.isLeft()) {
@@ -82,14 +85,15 @@ export class ActionService {
 		}
 
 		const nodes = [
-			...nodesOrErrs.value.nodes as ActionNode[],
-			...builtinActions.map(actionToNode),
-		].sort((a, b) => a.title.localeCompare(b.title));
+			...(nodesOrErrs.value.nodes as ActionNode[]),
+			...builtinActions.map((a) => actionToNode(a).right),
+		].sort((a, b) => a.#titlee.localeCompare(b#titlele));
 
 		return right(nodes);
 	}
 
 	async createOrReplace(
+		ctx: AuthenticationContext,
 		file: File,
 	): Promise<Either<AntboxError, Node>> {
 		const actionOrErr = await fileToAction(file);
@@ -100,77 +104,72 @@ export class ActionService {
 
 		const action = actionOrErr.value;
 
-		const nodeOrErr = await this.nodeService.get(action.uuid);
+		const nodeOrErr = await this.nodeService.get(ctx, action.uuid);
 		if (nodeOrErr.isLeft()) {
-			const metadata = NodeFactory.createMetadata(
-				action.uuid,
-				action.uuid,
-				Node.ACTION_MIMETYPE,
-				file.size,
-				action,
-			);
+			ActionNode.create({
+				...action,
+				uuid: action.uuid,
+				fid: action.uuid,
+				title: action.title,
+				description: action.description,
+			});
 
-			return this.nodeService.createFile(file, metadata);
+			return this.nodeService.createFile(ctx, file, nodeOrErr.right);
 		}
 
-		const metadata = NodeFactory.extractMetadata({ ...action, mimetype: Node.ACTION_MIMETYPE });
+		const actionNode = actionToNode(action).right;
 
-		const decoratedFile = new File(
-			[file],
-			nodeOrErr.value.title,
-			{ type: nodeOrErr.value.mimetype },
-		);
+		const decoratedFile = new File([file], nodeOrErr.value.title, {
+			type: nodeOrErr.value.mimetype,
+		});
 
-		let voidOrErr = await this.nodeService.updateFile(action.uuid, decoratedFile);
+		let voidOrErr = await this.nodeService.updateFile(ctx, action.uuid, decoratedFile);
 		if (voidOrErr.isLeft()) {
 			return left<AntboxError, Node>(voidOrErr.value);
 		}
 
-		voidOrErr = await this.nodeService.update(action.uuid, metadata);
+		voidOrErr = await this.nodeService.update(ctx, action.uuid, actionNode);
 		if (voidOrErr.isLeft()) {
 			return left<AntboxError, Node>(voidOrErr.value);
 		}
 
-		return this.nodeService.get(action.uuid);
+		return this.nodeService.get(ctx, action.uuid);
 	}
 
-	async delete(uuid: string): Promise<Either<AntboxError, void>> {
-		const nodeOrErr = await this.get(uuid);
+	async delete(ctx: AuthenticationContext, uuid: string): Promise<Either<AntboxError, void>> {
+		const nodeOrErr = await this.get(ctx, uuid);
 
 		if (nodeOrErr.isLeft()) {
 			return left(nodeOrErr.value);
 		}
 
-		return this.nodeService.delete(uuid);
+		return this.nodeService.delete(ctx, uuid);
 	}
 
 	async run(
-		authContext: AuthContextProvider,
+		ctx: AuthenticationContext,
 		actionUuid: string,
 		nodesUuids: string[],
 		params?: Record<string, string>,
 	): Promise<Either<AntboxError, void>> {
-		if (await this.#ranTooManyTimes(actionUuid, nodesUuids)) {
+		if (this.#ranTooManyTimes(actionUuid, nodesUuids)) {
 			const message = `Action ran too many times: ${actionUuid}${nodesUuids.join(",")}`;
 			console.error(message);
 			return left(new BadRequestError(message));
 		}
 
-		const actionOrErr = await this.#getNodeAsAction(actionUuid);
+		const actionOrErr = await this.#getNodeAsAction(ctx, actionUuid);
 		if (actionOrErr.isLeft()) {
 			return left(actionOrErr.value);
 		}
 
 		const action = actionOrErr.value;
 
-		if (!action.runManually && authContext.mode === "Direct") {
+		if (!action.runManually && ctx.mode === "Direct") {
 			return left(new BadRequestError("Action cannot be run manually"));
 		}
 
-		const uuidsOrErr = await this.#getValidNodesForAction(
-			action,
-			nodesUuids,
-		);
+		const uuidsOrErr = await this.#getValidNodesForAction(ctx, action, nodesUuids);
 
 		if (uuidsOrErr.isLeft()) {
 			return left(uuidsOrErr.value);
@@ -181,11 +180,7 @@ export class ActionService {
 		}
 
 		const error = await action
-			.run(
-				this.#buildRunContext(authContext, action.runAs),
-				uuidsOrErr.value,
-				params,
-			)
+			.run(await this.#buildRunContext(ctx, action.runAs), uuidsOrErr.value, params)
 			.catch((e) => e);
 
 		if (error) {
@@ -197,22 +192,25 @@ export class ActionService {
 		return right(undefined);
 	}
 
-	async #getNodeAsAction(uuid: string): Promise<Either<AntboxError, Action>> {
+	async #getNodeAsAction(
+		ctx: AuthenticationContext,
+		uuid: string,
+	): Promise<Either<AntboxError, Action>> {
 		if (builtinActions.some((a) => a.uuid === uuid)) {
 			return right(builtinActions.find((a) => a.uuid === uuid)!);
 		}
 
-		const nodeOrErr = await this.nodeService.get(uuid);
+		const nodeOrErr = await this.nodeService.get(ctx, uuid);
 
 		if (nodeOrErr.isLeft()) {
 			return left(nodeOrErr.value);
 		}
 
-		if (!nodeOrErr.value.isAction()) {
+		if (!Nodes.isAction(nodeOrErr.value)) {
 			return left(new NodeNotFoundError(uuid));
 		}
 
-		const fileOrErr = await this.nodeService.export(uuid);
+		const fileOrErr = await this.nodeService.export(ctx, uuid);
 		if (fileOrErr.isLeft()) {
 			return left(fileOrErr.value);
 		}
@@ -220,21 +218,21 @@ export class ActionService {
 		return fileToAction(fileOrErr.value);
 	}
 
-	async export(uuid: string): Promise<Either<AntboxError, File>> {
+	async export(ctx: AuthenticationContext, uuid: string): Promise<Either<AntboxError, File>> {
 		const builtIn = builtinActions.find((a) => a.uuid === uuid);
 		if (builtIn) {
 			const file = new File([builtIn.toString()], builtIn.title, {
-				"type": "application/javascript",
+				type: "application/javascript",
 			});
 			return right(file);
 		}
 
-		const nodeOrErr = await this.get(uuid);
+		const nodeOrErr = await this.get(ctx, uuid);
 		if (nodeOrErr.isLeft()) {
 			return left(nodeOrErr.value);
 		}
 
-		return this.nodeService.export(uuid);
+		return this.nodeService.export(ctx, uuid);
 	}
 
 	#ranTooManyTimes(uuid: string, uuids: string[]): boolean {
@@ -255,6 +253,7 @@ export class ActionService {
 	}
 
 	async #getValidNodesForAction(
+		ctx: AuthenticationContext,
 		action: Action,
 		uuids: string[],
 	): Promise<Either<AntboxError, string[]>> {
@@ -263,7 +262,7 @@ export class ActionService {
 		}
 
 		const nodesOrErr = await Promise.all(
-			uuids.map((uuid) => this.nodeService.get(uuid)),
+			uuids.map((uuid) => this.nodeService.get(ctx, uuid)),
 		);
 
 		if (nodesOrErr.some((n) => n.isLeft())) {
@@ -280,21 +279,32 @@ export class ActionService {
 	async runAutomaticActionsForCreates(evt: NodeCreatedEvent) {
 		const runCriteria: NodeFilter = ["runOnCreates", "==", true];
 
-		const userOrErr = await this.#getAuthCtxByEmail(evt.userEmail);
-		if (userOrErr.isLeft()) {
+		const ctxOrErr = await this.#getAuthCtxByEmail(evt.userEmail);
+		if (ctxOrErr.isLeft()) {
 			return;
 		}
 
-		const actions = await this.#getAutomaticActions(evt.payload, runCriteria);
+		const ctx = ctxOrErr.value;
 
+		let group = Nodes.isFolder(evt.payload) ? evt.payload.#group : undefined;
+
+		if (!group) {
+			const parent = await this.nodeService.get(
+				AuthService.elevatedContext(),
+				evt.payload.parent,
+			);
+			group = (parent.right as FolderNode).#group;
+		}
+
+		const actions = await this.#getAutomaticActions(ctx, evt.payload, runCriteria);
 		return this.#runActions(
-			userOrErr.value,
+			ctxOrErr.value,
 			actions.map((a) => a.uuid),
 			evt.payload.uuid,
 		);
 	}
 
-	async runAutomaticActionsForUpdates(evt: NodeUpdatedEvent) {
+	async runAutomaticActionsForUpdates(ctx: AuthenticationContext, evt: NodeUpdatedEvent) {
 		const runCriteria: NodeFilter = ["runOnUpdates", "==", true];
 
 		const userOrErr = await this.#getAuthCtxByEmail(evt.userEmail);
@@ -302,12 +312,12 @@ export class ActionService {
 			return;
 		}
 
-		const node = await this.nodeService.get(evt.payload.uuid);
+		const node = await this.nodeService.get(ctx, evt.payload.uuid);
 		if (node.isLeft()) {
 			return;
 		}
 
-		const actions = await this.#getAutomaticActions(node.value, runCriteria);
+		const actions = await this.#getAutomaticActions(ctx, node.value, runCriteria);
 		if (actions.length === 0) {
 			return;
 		}
@@ -319,31 +329,58 @@ export class ActionService {
 		);
 	}
 
-	#buildRunContext(aCtx: AuthContextProvider, runAs?: string): RunContext {
-		const principal = new UserNodeBuilder().withUuid(aCtx.principal.uuid)
-			.withEmail(aCtx.principal.email)
-			.withTitle(aCtx.principal.title)
-			.withGroup(runAs ?? aCtx.principal.group)
-			.withGroups(aCtx.principal.groups)
-			.build().value as UserNode;
+	async #getAuthCtxByEmail(email: string): Promise<Either<AntboxError, AuthenticationContext>> {
+		const userOrErr = await this.authService.getUserByEmail(
+			AuthService.elevatedContext(),
+			email,
+		);
+		if (userOrErr.isLeft()) {
+			return left(userOrErr.value);
+		}
 
-		const authContext: AuthContextProvider = {
-			principal,
-			mode: aCtx.mode,
+		return right({
+			mode: "Action",
+			tenant: "default",
+			principal: {
+				email: userOrErr.value.email,
+				groups: [userOrErr.value.group, ...userOrErr.value.groups],
+			},
+		});
+	}
+	async #buildRunContext(ctx: AuthenticationContext, runAs?: string): Promise<RunContext> {
+		const defaultCtx: RunContext = {
+			authenticationContext: ctx,
+			nodeService: this.nodeService,
 		};
 
+		if (!runAs) {
+			return defaultCtx;
+		}
+
+		const authContextOrErr = await this.#getAuthCtxByEmail(runAs);
+		if (authContextOrErr.isLeft()) {
+			return defaultCtx;
+		}
+
 		return {
-			authContext,
-			nodeService: antboxToNodeService(authContext, this.antboxService),
+			authenticationContext: {
+				...ctx,
+				...authContextOrErr.value,
+			},
+			nodeService: this.nodeService,
 		};
 	}
 
 	async #getAutomaticActions(
+		ctx: AuthenticationContext,
 		node: Node,
 		runOnCriteria: NodeFilter,
 	): Promise<Action[]> {
-		const filters: NodeFilter[] = [["mimetype", "==", Node.ACTION_MIMETYPE], runOnCriteria];
-		const actionsOrErr = await this.nodeService.find(filters, Number.MAX_SAFE_INTEGER);
+		const filters: NodeFilter[] = [
+			["mimetype", "==", Nodes.ACTION_MIMETYPE],
+			runOnCriteria,
+		];
+		const actionsOrErr = await this.nodeService.find(ctx, filters, Number.MAX_SAFE_INTEGER);
 		if (actionsOrErr.isLeft()) {
 			return [];
 		}
@@ -352,11 +389,12 @@ export class ActionService {
 
 		const actionsTasks = nodes
 			.filter((a) => filtersSpecFrom(a.filters).isSatisfiedBy(node))
-			.map((a) => this.nodeService.export(a.uuid));
+			.map((a) => this.nodeService.export(ctx, a.uuid));
 
 		const filesOrErrs = await Promise.all(actionsTasks);
 
-		const actions = filesOrErrs.filter((v) => v.isRight())
+		const actions = filesOrErrs
+			.filter((v) => v.isRight())
 			.map((v) => v.value as File)
 			.map(async (v) => await fileToAction(v));
 
@@ -365,8 +403,8 @@ export class ActionService {
 		);
 	}
 
-	async runOnCreateScritps(evt: NodeCreatedEvent) {
-		if (Node.isRootFolder(evt.payload.parent!)) {
+	async runOnCreateScritps(ctx: AuthenticationContext, evt: NodeCreatedEvent) {
+		if (evt.payload.parent === Folders.ROOT_FOLDER_UUID) {
 			return;
 		}
 
@@ -375,27 +413,27 @@ export class ActionService {
 			return;
 		}
 
-		const parentOrErr = await this.nodeService.get(evt.payload.parent!);
-		if (parentOrErr.isLeft() || !parentOrErr.value.isFolder()) {
+		const parentOrErr = await this.nodeService.get(ctx, evt.payload.parent!);
+		if (parentOrErr.isLeft() || !Nodes.isFolder(parentOrErr.value)) {
 			return;
 		}
 
 		return this.#runActions(
 			userOrErr.value,
-			parentOrErr.value.onCreate.filter(this.#nonEmptyActions),
+			parentOrErr.value.#onCreate.filter(this.#nonEmptyActions),
 			evt.payload.uuid,
 		);
 	}
 
-	runOnUpdatedScritps(evt: NodeUpdatedEvent) {
-		return this.nodeService.get(evt.payload.uuid).then(async (node) => {
-			if (node.isLeft() || Node.isRootFolder(node.value.parent)) {
+	runOnUpdatedScritps(ctx: AuthenticationContext, evt: NodeUpdatedEvent) {
+		return this.nodeService.get(ctx, evt.payload.uuid).then(async (node) => {
+			if (node.isLeft() || node.value.parent === Folders.ROOT_FOLDER_UUID) {
 				return;
 			}
 
-			const parent = await this.nodeService.get(node.value.parent);
+			const parent = await this.nodeService.get(ctx, node.value.parent);
 
-			if (parent.isLeft() || !parent.value.isFolder()) {
+			if (parent.isLeft() || !Nodes.isFolder(parent.value)) {
 				return;
 			}
 
@@ -406,7 +444,7 @@ export class ActionService {
 
 			return this.#runActions(
 				userOrErr.value,
-				parent.value.onUpdate.filter(this.#nonEmptyActions),
+				parent.value.#onUpdate.filter(this.#nonEmptyActions),
 				evt.payload.uuid,
 			);
 		});
@@ -417,7 +455,7 @@ export class ActionService {
 	}
 
 	#runActions(
-		authContext: AuthContextProvider,
+		authContext: AuthenticationContext,
 		actions: string[],
 		uuid: string,
 	) {
@@ -434,40 +472,5 @@ export class ActionService {
 				},
 			);
 		}
-	}
-
-	async #getAuthCtxByEmail(
-		userEmail: string,
-	): Promise<Either<UserNotFoundError, AuthContextProvider>> {
-		if (userEmail === Root.email) {
-			return right({ principal: Root, mode: "Action" });
-		}
-
-		const resultOrErr = await this.nodeService.find(
-			[["email", "==", userEmail], ["mimetype", "==", Node.USER_MIMETYPE]],
-			1,
-			1,
-		);
-
-		if (resultOrErr.isLeft()) {
-			return left(resultOrErr.value);
-		}
-
-		if (resultOrErr.value.nodes.length === 0) {
-			return left(new UserNotFoundError(userEmail));
-		}
-
-		const node = resultOrErr.value.nodes[0] as UserNode;
-		const principal = new UserNodeBuilder()
-			.withUuid(node.uuid)
-			.withEmail(node.email)
-			.withTitle(node.title).withGroup(node.group)
-			.withGroups(node.groups)
-			.build().value as UserNode;
-
-		return right({
-			principal,
-			mode: "Action",
-		});
 	}
 }

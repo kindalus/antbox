@@ -1,12 +1,12 @@
-import { join } from "../../../deps.ts";
-import { Node } from "../../domain/nodes/node.ts";
 import { NodeFilter } from "../../domain/nodes/node_filter.ts";
+import { NodeLike } from "../../domain/nodes/node_like.ts";
 import { NodeNotFoundError } from "../../domain/nodes/node_not_found_error.ts";
 import { NodeFilterResult, NodeRepository } from "../../domain/nodes/node_repository.ts";
 import { AntboxError } from "../../shared/antbox_error.ts";
 import { Either, right } from "../../shared/either.ts";
 import { fileExistsSync } from "../../shared/file_exists_sync.ts";
 import { InMemoryNodeRepository } from "../inmem/inmem_node_repository.ts";
+import { join } from "jsr:@std/path";
 
 export default function buildFlatFileStorageProvider(
 	baseDir: string,
@@ -42,7 +42,7 @@ class FlatFileNodeRepository implements NodeRepository {
 		this.#writeDb(this.#dbBackupFilePath);
 	}
 
-	#readDb(): Record<string, Node> {
+	#readDb(): Record<string, NodeLike> {
 		if (!fileExistsSync(this.#dbFilePath)) {
 			return {};
 		}
@@ -75,7 +75,7 @@ class FlatFileNodeRepository implements NodeRepository {
 		return o;
 	}
 
-	update(node: Node): Promise<Either<NodeNotFoundError, void>> {
+	update(node: NodeLike): Promise<Either<NodeNotFoundError, void>> {
 		const o = this.#base.update(node);
 
 		o.then(this.#saveDb);
@@ -83,7 +83,7 @@ class FlatFileNodeRepository implements NodeRepository {
 		return o;
 	}
 
-	add(node: Node): Promise<Either<AntboxError, void>> {
+	add(node: NodeLike): Promise<Either<AntboxError, void>> {
 		const o = this.#base.add(node);
 
 		o.then(this.#saveDb);
@@ -91,11 +91,11 @@ class FlatFileNodeRepository implements NodeRepository {
 		return o;
 	}
 
-	getByFid(fid: string): Promise<Either<NodeNotFoundError, Node>> {
+	getByFid(fid: string): Promise<Either<NodeNotFoundError, NodeLike>> {
 		return this.#base.getByFid(fid);
 	}
 
-	getById(uuid: string): Promise<Either<NodeNotFoundError, Node>> {
+	getById(uuid: string): Promise<Either<NodeNotFoundError, NodeLike>> {
 		return this.#base.getById(uuid);
 	}
 

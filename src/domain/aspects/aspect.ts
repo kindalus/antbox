@@ -1,6 +1,4 @@
 import { builtinAspects } from "../../application/builtin_aspects/mod.ts";
-import { Node } from "../nodes/node.ts";
-import { NodeFactory } from "../nodes/node_factory.ts";
 import { NodeFilter } from "../nodes/node_filter.ts";
 import { AspectNode } from "./aspect_node.ts";
 
@@ -10,7 +8,7 @@ export interface Aspect {
 	description?: string;
 	builtIn: boolean;
 	filters: NodeFilter[];
-	aspectProperties: AspectProperty[];
+	properties: AspectProperty[];
 }
 
 export interface AspectProperty {
@@ -69,23 +67,16 @@ export function nodeToAspect(aspect: AspectNode): Aspect {
 		description: aspect.description,
 		builtIn: builtinAspects.find((a) => a.uuid === aspect.uuid) !== undefined,
 		filters: aspect.filters,
-		aspectProperties: aspect.aspectProperties,
+		properties: aspect.properties,
 	};
 }
 
 export function aspectToNode(aspect: Aspect): AspectNode {
-	const metadata: Partial<AspectNode> = {
+	return AspectNode.create({
+		uuid: aspect.uuid,
 		title: aspect.title,
 		description: aspect.description,
 		filters: aspect.filters,
-		aspectProperties: aspect.aspectProperties,
-	};
-
-	return NodeFactory.createMetadata(
-		aspect.uuid,
-		aspect.uuid,
-		Node.ASPECT_MIMETYPE,
-		0,
-		metadata,
-	) as AspectNode;
+		properties: aspect.properties,
+	}).right;
 }

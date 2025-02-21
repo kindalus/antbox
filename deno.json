@@ -1,7 +1,8 @@
 {
-
   "imports": {
-    "@std/http": "jsr:@std/http"
+    "@std/http": "jsr:@std/http",
+    "@std/assert": "jsr:@std/assert",
+    "@h3": "npm:h3"
   },
 
   "fmt": {
@@ -19,6 +20,6 @@
   },
 
   "test": {
-    "include": ["*_test.ts"]
+    "include": ["src/**/*_test.ts"]
   }
 }

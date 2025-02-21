@@ -1,10 +1,10 @@
-import { join } from "../../../deps.ts";
-import { StorageProvider } from "../../domain/providers/storage_provider.ts";
+import { join } from "jsr:@std/path";
 import { AntboxError } from "../../shared/antbox_error.ts";
 import { Either, left, right } from "../../shared/either.ts";
 import { Event } from "../../shared/event.ts";
 import { EventHandler } from "../../shared/event_handler.ts";
 import { fileExistsSync } from "../../shared/file_exists_sync.ts";
+import { StorageProvider } from "../../application/storage_provider.ts";
 
 export default function buildFlatFileStorageProvider(
 	baseDir: string,

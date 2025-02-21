@@ -1,5 +1,5 @@
 export abstract class AntboxError extends Error {
-	constructor(readonly errorCode: string, readonly message: string) {
+	constructor(readonly errorCode: string, override readonly message: string) {
 		super(message);
 	}
 }

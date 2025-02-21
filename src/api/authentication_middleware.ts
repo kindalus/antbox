@@ -3,7 +3,9 @@ import { ApiKeyService } from "../application/api_key_service.ts";
 import { AuthService } from "../application/auth_service.ts";
 import { Principal } from "../application/authentication_context.ts";
 import { Group } from "../domain/auth/group.ts";
-import { UserNode } from "../domain/nodes/user_node.ts";
+import { Groups } from "../domain/auth/groups.ts";
+import { UserNode } from "../domain/auth/user_node.ts";
+import { Users } from "../domain/auth/users.ts";
 import { Either, left, right } from "../shared/either.ts";
 import { AntboxTenant } from "./antbox_tenant.ts";
 import { getQuery } from "./get_query.ts";
@@ -82,7 +84,7 @@ function getApiKey(req: Request) {
 }
 
 function storeAnonymous(req: Request) {
-	return storePrincipal(req, UserNode.ANONYMOUS_USER_EMAIL, []);
+	return storePrincipal(req, Users.ANONYMOUS_USER_EMAIL, []);
 }
 
 function storePrincipal(req: Request, email: string, groups: string[]) {
@@ -105,7 +107,7 @@ async function authenticateRoot(
 		return storeAnonymous(req);
 	}
 
-	storePrincipal(req, UserNode.ROOT_USER_EMAIL, [Group.ADMINS_GROUP_UUID]);
+	storePrincipal(req, Users.ROOT_USER_EMAIL, [Groups.ADMINS_GROUP_UUID]);
 }
 
 async function authenticateApiKey(
@@ -118,7 +120,7 @@ async function authenticateApiKey(
 		return storeAnonymous(req);
 	}
 
-	storePrincipal(req, UserNode.ROOT_USER_EMAIL, [apiKeyOrErr.value.group]);
+	storePrincipal(req, Users.ROOT_USER_EMAIL, [apiKeyOrErr.value.group]);
 }
 
 async function authenticateToken(

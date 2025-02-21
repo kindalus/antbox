@@ -1,17 +1,17 @@
 import { createReadStream } from "node:fs";
 import { auth, drive, drive_v3 } from "npm:@googleapis/drive@8.4.0";
 
-import { StorageProvider, WriteFileOpts } from "../../domain/providers/storage_provider.ts";
 import { Either, left, right } from "../../shared/either.ts";
 import { AntboxError, BadRequestError, UnknownError } from "../../shared/antbox_error.ts";
 import { NodeNotFoundError } from "../../domain/nodes/node_not_found_error.ts";
-import { Node } from "../../domain/nodes/node.ts";
 import { EventHandler } from "../../shared/event_handler.ts";
 import { Event } from "../../shared/event.ts";
 import { NodeDeletedEvent } from "../../domain/nodes/node_deleted_event.ts";
 import { NodeUpdatedEvent } from "../../domain/nodes/node_updated_event.ts";
 import { NodeCreatedEvent } from "../../domain/nodes/node_created_event.ts";
-import { FolderNode } from "../../domain/nodes/folder_node.ts";
+import { StorageProvider, WriteFileOpts } from "../../application/storage_provider.ts";
+import { Folders } from "../../domain/nodes/folders.ts";
+import { Nodes } from "../../domain/nodes/nodes.ts";
 
 class GoogleDriveStorageProvider implements StorageProvider {
 	readonly #drive: drive_v3.Drive;
@@ -31,14 +31,19 @@ class GoogleDriveStorageProvider implements StorageProvider {
 
 		const { id: fileId } = idOrErr.value;
 
-		return this.#drive.files.delete({ fileId })
+		return this.#drive.files
+			.delete({ fileId })
 			.then(right)
 			.catch((e: Error) => left(new UnknownError(e.message))) as Promise<
 				Either<AntboxError, void>
 			>;
 	}
 
-	async write(uuid: string, file: File, opts: WriteFileOpts): Promise<Either<AntboxError, void>> {
+	async write(
+		uuid: string,
+		file: File,
+		opts: WriteFileOpts,
+	): Promise<Either<AntboxError, void>> {
 		const tmp = Deno.makeTempFileSync();
 		await Deno.writeFile(tmp, file.stream());
 
@@ -57,7 +62,10 @@ class GoogleDriveStorageProvider implements StorageProvider {
 		};
 
 		const res = existingOrErr.isRight()
-			? await this.#drive.files.update({ fileId: existingOrErr.value.id, media })
+			? await this.#drive.files.update({
+				fileId: existingOrErr.value.id,
+				media,
+			})
 			: await this.#drive.files.create({ media, requestBody });
 
 		if (res.status !== 200) {
@@ -66,7 +74,7 @@ class GoogleDriveStorageProvider implements StorageProvider {
 
 		const id = res.data.id!;
 
-		if (existingOrErr.isLeft() && opts.parent !== Node.ROOT_FOLDER_UUID) {
+		if (existingOrErr.isLeft() && opts.parent !== Folders.ROOT_FOLDER_UUID) {
 			this.#updateParentFolderId(id, opts.parent);
 		}
 
@@ -92,11 +100,12 @@ class GoogleDriveStorageProvider implements StorageProvider {
 			}
 		}
 
-		this.#drive.files.update({
-			fileId,
-			removeParents: this.#rootFolderId,
-			addParents: parentOrErr.value.id,
-		})
+		this.#drive.files
+			.update({
+				fileId,
+				removeParents: this.#rootFolderId,
+				addParents: parentOrErr.value.id,
+			})
 			.catch((e) => console.error(e.message));
 	}
 
@@ -128,12 +137,13 @@ class GoogleDriveStorageProvider implements StorageProvider {
 			requestBody["name"] = evt.payload.title;
 		}
 
-		this.#drive.files.update({ fileId: fileOrErr.value.id, requestBody })
+		this.#drive.files
+			.update({ fileId: fileOrErr.value.id, requestBody })
 			.catch((e) => console.error(e.message));
 	}
 
 	async #handleNodeDeleted(evt: NodeDeletedEvent) {
-		if (!Node.isFolder(evt.payload)) {
+		if (!Nodes.isFolder(evt.payload)) {
 			return;
 		}
 
@@ -143,12 +153,13 @@ class GoogleDriveStorageProvider implements StorageProvider {
 			return;
 		}
 
-		this.#drive.files.delete({ fileId: idOrErr.value.id })
+		this.#drive.files
+			.delete({ fileId: idOrErr.value.id })
 			.catch((e) => console.error(e.message));
 	}
 
 	async #handleNodeCreated(evt: NodeCreatedEvent) {
-		if (!Node.isFolder(evt.payload)) {
+		if (!Nodes.isFolder(evt.payload)) {
 			return;
 		}
 
@@ -156,7 +167,7 @@ class GoogleDriveStorageProvider implements StorageProvider {
 
 		let parentId = this.#rootFolderId;
 
-		if (evt.payload.parent !== Node.ROOT_FOLDER_UUID) {
+		if (evt.payload.parent !== Folders.ROOT_FOLDER_UUID) {
 			const parentOrErr = await this.#getDriveMedata(evt.payload.parent);
 			if (parentOrErr.isLeft()) {
 				console.error(parentOrErr.value.message);
@@ -176,7 +187,8 @@ class GoogleDriveStorageProvider implements StorageProvider {
 			mimeType: "application/vnd.google-apps.folder",
 		};
 
-		return this.#drive.files.create({ requestBody })
+		return this.#drive.files
+			.create({ requestBody })
 			.catch((e) => console.error(e.message));
 	}
 
@@ -189,16 +201,20 @@ class GoogleDriveStorageProvider implements StorageProvider {
 
 		const { id: fileId, mimeType, name } = idOrErr.value;
 
-		return this.#drive.files
-			.get({ fileId, alt: "media" }, { responseType: "arraybuffer" })
-			// deno-lint-ignore no-explicit-any
-			.then((res: any) => right(new File([res.data], name, { type: mimeType })))
-			.catch((e: Error) => left(new UnknownError(e.message))) as Promise<
-				Either<AntboxError, File>
-			>;
+		return (
+			this.#drive.files
+				.get({ fileId, alt: "media" }, { responseType: "arraybuffer" })
+				// deno-lint-ignore no-explicit-any
+				.then((res: any) => right(new File([res.data], name, { type: mimeType })))
+				.catch((e: Error) => left(new UnknownError(e.message))) as Promise<
+					Either<AntboxError, File>
+				>
+		);
 	}
 
-	startListeners(subscribe: (eventId: string, handler: EventHandler<Event>) => void): void {
+	startListeners(
+		subscribe: (eventId: string, handler: EventHandler<Event>) => void,
+	): void {
 		subscribe(NodeDeletedEvent.EVENT_ID, {
 			handle: (evt: NodeDeletedEvent) => this.#handleNodeDeleted(evt),
 		});
@@ -233,11 +249,15 @@ class GoogleDriveStorageProvider implements StorageProvider {
 	}
 
 	async #createSystemFolderIfApplicable(uuid: string) {
-		if (!FolderNode.isSystemFolder(uuid)) {
+		if (!Folders.isSystemFolder(uuid)) {
 			return left(new BadRequestError("Invalid system folder uuid"));
 		}
 
-		const res = await this.#createGoogleDriveFolder(uuid, uuid, this.#rootFolderId);
+		const res = await this.#createGoogleDriveFolder(
+			uuid,
+			uuid,
+			this.#rootFolderId,
+		);
 
 		if (!res || res.status !== 200) {
 			return left(new UnknownError("Error creating system folder"));

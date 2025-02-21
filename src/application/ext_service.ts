@@ -1,8 +1,13 @@
+import { ExtNode } from "../domain/nodes/ext_node.ts";
+import { Folders } from "../domain/nodes/folders.ts";
 import { Node } from "../domain/nodes/node.ts";
-import { NodeFactory } from "../domain/nodes/node_factory.ts";
+import { NodeMetadata } from "../domain/nodes/node_metadata.ts";
 import { NodeNotFoundError } from "../domain/nodes/node_not_found_error.ts";
+import { Nodes } from "../domain/nodes/nodes.ts";
 import { AntboxError, BadRequestError } from "../shared/antbox_error.ts";
 import { Either, left, right } from "../shared/either.ts";
+import { AuthService } from "./auth_service.ts";
+import { AuthenticationContext } from "./authentication_context.ts";
 import { NodeService } from "./node_service.ts";
 
 export type ExtFn = (
@@ -14,36 +19,28 @@ export class ExtService {
 	constructor(private readonly nodeService: NodeService) {}
 
 	async createOrReplace(
+		ctx: AuthenticationContext,
 		file: File,
-		metadata: Partial<Node>,
+		metadata: Partial<NodeMetadata>,
 	): Promise<Either<AntboxError, Node>> {
-		if (metadata.mimetype !== Node.EXT_MIMETYPE) {
+		if (metadata.mimetype !== Nodes.EXT_MIMETYPE) {
 			return left(new BadRequestError(`Invalid mimetype: ${file.type}`));
 		}
 
 		const uuid = metadata.uuid ?? file.name?.split(".")[0].trim();
 		const fid = metadata.fid ?? uuid;
 
-		const m = NodeFactory.createMetadata(
-			uuid,
-			fid,
-			Node.EXT_MIMETYPE,
-			file.size,
-			{
-				title: metadata.title ?? uuid,
-				parent: Node.EXT_FOLDER_UUID,
-				description: metadata.description ?? "",
-				aspects: metadata.aspects ?? [],
-				properties: metadata.properties ?? {},
-			},
-		);
-
-		const nodeOrErr = await this.nodeService.get(uuid);
-		if (nodeOrErr.isLeft()) {
-			return this.nodeService.createFile(file, m);
+		const extOrErr = ExtNode.create({ ...metadata, uuid, fid });
+		if (extOrErr.isLeft()) {
+			return left(extOrErr.value);
 		}
 
-		const voidOrErr = await this.nodeService.updateFile(uuid, file);
+		const nodeOrErr = await this.nodeService.get(ctx, uuid);
+		if (nodeOrErr.isLeft()) {
+			return this.nodeService.createFile(ctx, file, extOrErr.value);
+		}
+
+		const voidOrErr = await this.nodeService.updateFile(ctx, uuid, file);
 
 		if (voidOrErr.isLeft()) {
 			return left(voidOrErr.value);
@@ -53,20 +50,24 @@ export class ExtService {
 	}
 
 	async get(uuid: string): Promise<Either<NodeNotFoundError, Node>> {
-		const nodeOrErr = await this.nodeService.get(uuid);
+		const nodeOrErr = await this.nodeService.get(AuthService.elevatedContext(), uuid);
 
 		if (nodeOrErr.isLeft()) {
 			return left(nodeOrErr.value);
 		}
 
-		if (!nodeOrErr.value.isExt()) {
+		if (!Nodes.isExt(nodeOrErr.value)) {
 			return left(new NodeNotFoundError(uuid));
 		}
 
 		return right(nodeOrErr.value);
 	}
 
-	async update(uuid: string, metadata: Partial<Node>): Promise<Either<NodeNotFoundError, void>> {
+	async update(
+		ctx: AuthenticationContext,
+		uuid: string,
+		metadata: Partial<Node>,
+	): Promise<Either<NodeNotFoundError, void>> {
 		const nodeOrErr = await this.get(uuid);
 
 		if (nodeOrErr.isLeft()) {
@@ -81,7 +82,7 @@ export class ExtService {
 			}
 		}
 
-		const voidOrErr = await this.nodeService.update(uuid, safe);
+		const voidOrErr = await this.nodeService.update(ctx, uuid, safe);
 
 		if (voidOrErr.isLeft()) {
 			return left(voidOrErr.value);
@@ -91,10 +92,10 @@ export class ExtService {
 	}
 
 	async list(): Promise<Either<AntboxError, Node[]>> {
-		const nodesOrErrs = await this.nodeService.find(
-			[["mimetype", "==", Node.EXT_MIMETYPE], ["parent", "==", Node.EXT_FOLDER_UUID]],
-			Number.MAX_SAFE_INTEGER,
-		);
+		const nodesOrErrs = await this.nodeService.find(AuthService.elevatedContext(), [
+			["mimetype", "==", Nodes.EXT_MIMETYPE],
+			["parent", "==", Folders.EXT_FOLDER_UUID],
+		], Number.MAX_SAFE_INTEGER);
 
 		if (nodesOrErrs.isLeft()) {
 			return left(nodesOrErrs.value);
@@ -103,14 +104,17 @@ export class ExtService {
 		return right(nodesOrErrs.value.nodes);
 	}
 
-	async delete(uuid: string): Promise<Either<NodeNotFoundError, void>> {
+	async delete(
+		ctx: AuthenticationContext,
+		uuid: string,
+	): Promise<Either<NodeNotFoundError, void>> {
 		const nodeOrErr = await this.get(uuid);
 
 		if (nodeOrErr.isLeft()) {
 			return left(nodeOrErr.value);
 		}
 
-		return this.nodeService.delete(uuid);
+		return this.nodeService.delete(ctx, uuid);
 	}
 
 	async export(uuid: string): Promise<Either<NodeNotFoundError, File>> {
@@ -120,13 +124,13 @@ export class ExtService {
 			return left(nodeOrErr.value);
 		}
 
-		return this.nodeService.export(uuid);
+		return this.nodeService.export(AuthService.elevatedContext(), uuid);
 	}
 
 	async #getAsModule(uuid: string): Promise<Either<NodeNotFoundError, ExtFn>> {
 		const [nodeError, fileOrError] = await Promise.all([
 			this.get(uuid),
-			this.nodeService.export(uuid),
+			this.nodeService.export(AuthService.elevatedContext(), uuid),
 		]);
 
 		if (fileOrError.isLeft()) {

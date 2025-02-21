@@ -1,9 +1,9 @@
-import { AntboxService } from "../application/antbox_service.ts";
+import { NodeService } from "../application/node_service.ts";
 
 export interface AntboxTenant {
 	name: string;
-	service: AntboxService;
 	rootPasswd: string;
 	rawJwk: Record<string, string>;
 	symmetricKey: string;
+	nodeService: NodeService;
 }

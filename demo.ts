@@ -1,11 +1,9 @@
-import { VERSION } from "./version.ts";
-
 import { printKeys, startServer } from "./mod.ts";
 import { Command, IParseResult, join } from "./deps.ts";
 
 const program = await new Command()
 	.name("demo")
-	.version(VERSION)
+	//.version(VERSION)
 	.description("Prova de conceito")
 	.arguments("[dir]")
 	.option("--port <port>", "porta do servidor [7180]")
@@ -28,7 +26,7 @@ function main(program: IParseResult) {
 
 	startServer({
 		port: program.options.port ? parseInt(program.options.port) : undefined,
-        ocrEngine: ["tesseract/tesseract_ocr_engine.ts", "tesseract"],
+		ocrEngine: ["tesseract/tesseract_ocr_engine.ts", "tesseract"],
 		tenants: [
 			{
 				name: "demo",

@@ -1,11 +1,11 @@
-import { Group } from "../../domain/auth/group.ts";
-import { UserNode } from "../../domain/nodes/user_node.ts";
-import { UserNodeBuilder } from "../../domain/nodes/user_node_builder.ts";
+import { Groups } from "../../domain/auth/groups.ts";
+import { UserNode } from "../../domain/auth/user_node.ts";
+import { Users } from "../../domain/auth/users.ts";
 
-export const Root: UserNode = new UserNodeBuilder()
-	.withUuid(UserNode.ROOT_USER_UUID)
-	.withEmail(UserNode.ROOT_USER_EMAIL)
-	.withTitle("root")
-	.withGroup(Group.ADMINS_GROUP_UUID)
-	.withGroups([Group.ADMINS_GROUP_UUID])
-	.build().value as UserNode;
+export const Root = UserNode.create({
+	uuid: Users.ROOT_USER_UUID,
+	email: Users.ROOT_USER_EMAIL,
+	title: "root",
+	group: Groups.ADMINS_GROUP_UUID,
+	groups: [Groups.ADMINS_GROUP_UUID],
+}).value as UserNode;

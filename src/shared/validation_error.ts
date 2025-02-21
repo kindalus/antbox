@@ -8,7 +8,7 @@ export class ValidationError extends AntboxError {
 		return new ValidationError(messages, errors);
 	}
 
-	private constructor(message: string, readonly errors: AntboxError[]) {
+	constructor(message: string, readonly errors: AntboxError[]) {
 		super(ValidationError.ERROR_CODE, message);
 	}
 

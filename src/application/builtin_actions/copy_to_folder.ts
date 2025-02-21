@@ -13,6 +13,8 @@ export default {
 	runOnCreates: false,
 	runOnUpdates: false,
 
+	groupsAllowed: [],
+
 	async run(
 		ctx: RunContext,
 		uuids: string[],
@@ -24,7 +26,9 @@ export default {
 			return Promise.reject(new Error("Error parameter not given"));
 		}
 
-		const batchCopy = uuids.map((u) => ctx.nodeService.copy(u, parent));
+		const batchCopy = uuids.map((u) =>
+			ctx.nodeService.copy(ctx.authenticationContext, u, parent)
+		);
 		const results = await Promise.all(batchCopy);
 
 		const errors = results.filter((r) => r.isLeft());

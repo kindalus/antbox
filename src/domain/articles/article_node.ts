@@ -1,16 +1,21 @@
-import { Either, right } from "../../shared/either.ts";
+import { Either, left, right } from "../../shared/either.ts";
 import { ValidationError } from "../../shared/validation_error.ts";
+import { FileNodeMixin, WithAspectMixin } from "../nodes/mixins.ts";
+import { Node } from "../nodes/node.ts";
 import { NodeMetadata } from "../nodes/node_metadata.ts";
 import { Nodes } from "../nodes/nodes.ts";
-import { Node } from "../nodes/node.ts";
-import { FileNodeMixin, WithAspectMixin } from "../nodes/mixins.ts";
 
 export class ArticleNode extends FileNodeMixin(WithAspectMixin(Node)) {
 	static create(
 		metadata: Partial<NodeMetadata>,
 	): Either<ValidationError, ArticleNode> {
-		const file = new ArticleNode(metadata);
-		return right(file);
+		
+		try {
+			const file = new ArticleNode(metadata);
+			return right(file);
+		}catch(e) {
+			return left(e as ValidationError)
+		}
 	}
 
 	constructor(metadata: Partial<NodeMetadata> = {}) {

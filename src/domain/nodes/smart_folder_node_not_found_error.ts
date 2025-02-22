@@ -1,4 +1,4 @@
-import { AntboxError } from "../../shared/antbox_error.ts";
+import { AntboxError } from "shared/antbox_error.ts";
 
 export class SmartFolderNodeNotFoundError extends AntboxError {
   static ERROR_CODE = "SmartFolderNodeNotFoundError";
@@ -6,7 +6,7 @@ export class SmartFolderNodeNotFoundError extends AntboxError {
   constructor(uuid: string) {
     super(
       SmartFolderNodeNotFoundError.ERROR_CODE,
-      `The smart folder with uuid "${uuid}" was not found`
+      `The smart folder with uuid "${uuid}" was not found`,
     );
   }
 }

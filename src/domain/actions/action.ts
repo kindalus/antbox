@@ -1,9 +1,9 @@
-import { AntboxError, UnknownError } from "../../shared/antbox_error.ts";
-import { Either, left, right } from "../../shared/either.ts";
-import { ValidationError } from "../../shared/validation_error.ts";
-import { NodeFilter } from "../nodes/node_filter.ts";
+import { AntboxError, UnknownError } from "shared/antbox_error.ts";
+import { type Either, left, right } from "shared/either.ts";
+import { ValidationError } from "shared/validation_error.ts";
+import { type NodeFilter } from "domain/nodes/node_filter.ts";
 import { ActionNode } from "./action_node.ts";
-import { RunContext } from "./run_context.ts";
+import { type RunContext } from "./run_context.ts";
 
 /**
  * Regras das actions:
@@ -25,52 +25,56 @@ import { RunContext } from "./run_context.ts";
  * - se não for especificado pelo runAs, corre com os privilégios do grupo
  */
 export interface Action {
-	uuid: string;
-	title: string;
-	description: string;
-	builtIn: boolean;
-	runOnCreates: boolean;
-	runOnUpdates: boolean;
-	runManually: boolean;
-	runAs?: string;
-	params: string[];
+  uuid: string;
+  title: string;
+  description: string;
+  builtIn: boolean;
+  runOnCreates: boolean;
+  runOnUpdates: boolean;
+  runManually: boolean;
+  runAs?: string;
+  params: string[];
 
-	filters: NodeFilter[];
-	groupsAllowed: string[];
+  filters: NodeFilter[];
+  groupsAllowed: string[];
 
-	run: (
-		ctx: RunContext,
-		uuids: string[],
-		params?: Record<string, string>,
-	) => Promise<void | Error>;
+  run: (
+    ctx: RunContext,
+    uuids: string[],
+    params?: Record<string, string>,
+  ) => Promise<void | Error>;
 }
 
-export async function fileToAction(file: File): Promise<Either<AntboxError, Action>> {
-	try {
-		const url = URL.createObjectURL(file);
-		const mod = await import(url);
+export async function fileToAction(
+  file: File,
+): Promise<Either<AntboxError, Action>> {
+  try {
+    const url = URL.createObjectURL(file);
+    const mod = await import(url);
 
-		return right(mod.default as Action);
-	} catch (err: unknown) {
-		if (err instanceof Error) {
-			return left(new UnknownError(err.message));
-		}
+    return right(mod.default as Action);
+  } catch (err: unknown) {
+    if (err instanceof Error) {
+      return left(new UnknownError(err.message));
+    }
 
-		return left(new UnknownError(JSON.stringify(err, null, 3)));
-	}
+    return left(new UnknownError(JSON.stringify(err, null, 3)));
+  }
 }
 
-export function actionToNode(action: Action): Either<ValidationError, ActionNode> {
-	return ActionNode.create({
-		uuid: action.uuid,
-		title: action.title,
-		description: action.description,
-		runOnCreates: action.runOnCreates,
-		runOnUpdates: action.runOnUpdates,
-		runManually: action.runManually,
-		runAs: action.runAs,
-		params: action.params,
-		filters: action.filters,
-		groupsAllowed: action.groupsAllowed,
-	});
+export function actionToNode(
+  action: Action,
+): Either<ValidationError, ActionNode> {
+  return ActionNode.create({
+    uuid: action.uuid,
+    title: action.title,
+    description: action.description,
+    runOnCreates: action.runOnCreates,
+    runOnUpdates: action.runOnUpdates,
+    runManually: action.runManually,
+    runAs: action.runAs,
+    params: action.params,
+    filters: action.filters,
+    groupsAllowed: action.groupsAllowed,
+  });
 }

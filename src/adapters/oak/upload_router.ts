@@ -1,7 +1,7 @@
-import { Context, FormDataReader, Router } from "../../../deps.ts";
-import { Node } from "../../domain/nodes/node.ts";
-import { Nodes } from "../../domain/nodes/nodes.ts";
-import { Either, left, right } from "../../shared/either.ts";
+import { Context, FormDataReader, Router } from "deps.ts";
+import { Node } from "domain/nodes/node.ts";
+import { Nodes } from "domain/nodes/nodes.ts";
+import { type Either, left, right } from "shared/either.ts";
 import { ContextWithParams } from "./context_with_params.ts";
 import { getRequestContext } from "./get_request_context.ts";
 import { getTenant } from "./get_tenant.ts";

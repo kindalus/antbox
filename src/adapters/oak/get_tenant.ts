@@ -1,4 +1,4 @@
-import { Context, getQuery } from "../../../deps.ts";
+import { Context, getQuery } from "deps.ts";
 import { AntboxTenant } from "./setup_oak_server.ts";
 
 export function getTenantByHeaders(ctx: Context, tenants: AntboxTenant[]) {

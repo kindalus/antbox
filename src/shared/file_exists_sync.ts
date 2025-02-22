@@ -1,11 +1,10 @@
+import { statSync } from "fs";
+
 export function fileExistsSync(filePath: string): boolean {
   try {
-    Deno.lstatSync(filePath);
+    statSync(filePath);
     return true;
   } catch (err) {
-    if (err instanceof Deno.errors.NotFound) {
-      return false;
-    }
-    throw err;
+    return false;
   }
 }

@@ -1,4 +1,4 @@
-import { AntboxError } from "../../shared/antbox_error.ts";
+import { AntboxError } from "shared/antbox_error.ts";
 
 export class InvalidGroupNameFormatError extends AntboxError {
   static ERROR_CODE = "InvalidGroupNameFormatError";
@@ -6,7 +6,7 @@ export class InvalidGroupNameFormatError extends AntboxError {
   constructor(name: string) {
     super(
       InvalidGroupNameFormatError.ERROR_CODE,
-      `Invalid Group Name Format: ${name}`
+      `Invalid Group Name Format: ${name}`,
     );
   }
 }

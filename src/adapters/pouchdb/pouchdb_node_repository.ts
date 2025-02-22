@@ -1,213 +1,239 @@
-import { PouchDB, PouchDbFind } from "../../../deps_not_arm8_portable.ts";
-import { Node } from "../../domain/nodes/node.ts";
-import { NodeFactory } from "../../domain/nodes/node_factory.ts";
-import { FilterOperator, NodeFilter } from "../../domain/nodes/node_filter.ts";
-import { NodeNotFoundError } from "../../domain/nodes/node_not_found_error.ts";
-import { NodeFilterResult, NodeRepository } from "../../domain/nodes/node_repository.ts";
-import { AntboxError } from "../../shared/antbox_error.ts";
-import { Either, left, right } from "../../shared/either.ts";
+import PouchDB from "pouchdb";
+import PouchDbFind from "pouchdb-find";
+
+import { mkdirSync, lstatSync, statSync } from "fs";
+
+import { NodeFactory } from "domain/node_factory";
+import type {
+  FilterOperator,
+  NodeFilters,
+  NodeFilter,
+  OrNodeFilter,
+} from "domain/nodes/node_filter";
+import { NodeNotFoundError } from "domain/nodes/node_not_found_error";
+import type {
+  NodeRepository,
+  NodeFilterResult,
+} from "domain/nodes/node_repository";
+import type { AntboxError } from "shared/antbox_error";
+import { type Either, right, left } from "shared/either";
+import type { NodeLike } from "domain/nodes/node_like";
+import type { NodeMetadata } from "domain/nodes/node_metadata";
+import { Nodes } from "domain/nodes/nodes";
 
 type Provider = "CouchDb" | "PouchDb";
 
-export default function buildPouchdbNodeRepository(
-	dbpath: string,
+export default async function buildPouchdbNodeRepository(
+  dbpath: string,
 ): Promise<Either<AntboxError, NodeRepository>> {
-	if (dbpath.startsWith("http")) {
-		return Promise.resolve(right(new PouchdbNodeRepository(new PouchDB(dbpath), "CouchDb")));
-	}
+  if (dbpath.startsWith("http")) {
+    return Promise.resolve(
+      right(new PouchdbNodeRepository(new PouchDB(dbpath), "CouchDb")),
+    );
+  }
 
-	const path = dbpath + "/nodes";
-	if (!directoryExists(path)) {
-		Deno.mkdirSync(path, { recursive: true });
-	}
+  const path = dbpath + "/nodes";
+  if (!directoryExists(path)) {
+    mkdirSync(path, { recursive: true });
+  }
 
-	const db = new PouchDB("nodes", {
-		adapter: "leveldb",
-		systemPath: dbpath,
-		prefix: dbpath + "/",
-	});
+  const db = new PouchDB<NodeMetadata>("nodes", {
+    adapter: "leveldb",
+    prefix: dbpath + "/",
+  });
 
-	return Promise.resolve(right(new PouchdbNodeRepository(db)));
+  return Promise.resolve(right(new PouchdbNodeRepository(db)));
 }
 
 function directoryExists(path: string): boolean {
-	try {
-		return Deno.statSync(path).isDirectory;
-	} catch (error) {
-		if (error instanceof Deno.errors.NotFound) {
-			return false;
-		}
-
-		throw error;
-	}
+  try {
+    return statSync(path).isDirectory();
+  } catch (error) {
+    return false;
+  }
 }
 
 class PouchdbNodeRepository implements NodeRepository {
-	readonly #provider: Provider;
+  readonly #provider: Provider;
 
-	constructor(private readonly db: PouchDB, provider: Provider = "PouchDb") {
-		this.#provider = provider;
-		PouchDB.plugin(PouchDbFind);
+  constructor(
+    private readonly db: PouchDB.Database<Partial<NodeMetadata>>,
+    provider: Provider = "PouchDb",
+  ) {
+    this.#provider = provider;
+    PouchDB.plugin(PouchDbFind);
 
-		this.db.createIndex({
-			index: { fields: ["title", "fid", "parent", "aspects"] },
-		}).catch(console.error);
-	}
+    this.db
+      .createIndex({
+        index: { fields: ["title", "fid", "parent", "aspects"] },
+      })
+      .catch(console.error);
+  }
 
-	async delete(uuid: string): Promise<Either<NodeNotFoundError, void>> {
-		const doc = await this.db.get(uuid);
+  async delete(uuid: string): Promise<Either<NodeNotFoundError, void>> {
+    const doc = await this.db.get(uuid);
 
-		if (!doc) {
-			return left(new NodeNotFoundError(uuid));
-		}
+    if (!doc) {
+      return left(new NodeNotFoundError(uuid));
+    }
 
-		this.db.remove(doc);
+    this.db.remove(doc);
 
-		return right(undefined);
-	}
+    return right(undefined);
+  }
 
-	update(node: Node): Promise<Either<NodeNotFoundError, void>> {
-		return this.readFromDb(node.uuid).then((doc) => {
-			if (doc.isLeft()) {
-				return left(doc.value);
-			}
+  async update(node: NodeLike): Promise<Either<NodeNotFoundError, void>> {
+    const doc = await this.readFromDb(node.uuid);
 
-			const updatedDoc = NodeFactory.compose(doc.value, node);
+    if (doc.isLeft()) {
+      return left(doc.value);
+    }
 
-			this.db.put(updatedDoc);
+    await this.db.put({
+      _id: doc.value._id,
+      _rev: doc.value._rev,
+      ...node.metadata,
+    } as any);
 
-			return right(undefined);
-		});
-	}
+    return right(undefined);
+  }
 
-	add(node: Node): Promise<Either<AntboxError, void>> {
-		return this.db
-			.put({ _id: node.uuid, ...node } as unknown as Node)
-			.then(() => right(undefined));
-	}
+  async add(node: NodeLike): Promise<Either<AntboxError, void>> {
+    await this.db.put({ _id: node.uuid, ...node } as unknown as Node);
+    return right(undefined);
+  }
 
-	getByFid(fid: string): Promise<Either<NodeNotFoundError, Node>> {
-		return this.db
-			.find({ selector: { fid } })
-			.then((r: MangoResult) => r.docs)
-			.then((docs: MangoDocument[]) => docs.map(docToNode))
-			.then((nodes: Node[]) => {
-				if (nodes.length === 0) {
-					return left(new NodeNotFoundError(Node.fidToUuid(fid)));
-				}
+  async getByFid(fid: string): Promise<Either<NodeNotFoundError, NodeLike>> {
+    const r = await this.db.find({ selector: { fid } });
+    const docs = r.docs;
 
-				return right(nodes[0]);
-			});
-	}
+    const nodes = docs.map(docToNode);
+    if (nodes.length === 0) {
+      return left(new NodeNotFoundError(Nodes.fidToUuid(fid)));
+    }
 
-	getById(uuid: string): Promise<Either<NodeNotFoundError, Node>> {
-		return this.readFromDb(uuid).then((doc) => {
-			if (doc.isLeft()) {
-				return left(doc.value);
-			}
+    return right(nodes[0]);
+  }
 
-			return right(docToNode(doc.value));
-		});
-	}
+  async getById(uuid: string): Promise<Either<NodeNotFoundError, NodeLike>> {
+    const doc = await this.readFromDb(uuid);
 
-	private async readFromDb(
-		_id: string,
-	): Promise<Either<NodeNotFoundError, PouchDB.Core.ExistingDocument<Node>>> {
-		try {
-			return right(await this.db.get(_id));
-		} catch (err) {
-			if (err.status === 404) {
-				return left(new NodeNotFoundError(_id));
-			}
+    if (doc.isLeft()) {
+      return left(doc.value);
+    }
 
-			throw err;
-		}
-	}
+    return right(docToNode(doc.value));
+  }
 
-	async filter(
-		filters: NodeFilter[],
-		pageSize: number,
-		pageToken: number,
-	): Promise<NodeFilterResult> {
-		const selectors = filters
-			.map((s) => filterToMango(this.#provider, s));
+  private async readFromDb(
+    _id: string,
+  ): Promise<
+    Either<
+      NodeNotFoundError,
+      PouchDB.Core.ExistingDocument<Partial<NodeMetadata>>
+    >
+  > {
+    try {
+      return right(await this.db.get(_id));
+    } catch (err) {
+      if ((err as Record<string, unknown>).status === 404) {
+        return left(new NodeNotFoundError(_id));
+      }
 
-		const selector = composeMangoQuery(selectors);
+      throw err;
+    }
+  }
 
-		try {
-			const result = await this.db.find({
-				selector,
-				limit: pageSize * pageToken,
-			});
+  async filter(
+    filters: NodeFilters | OrNodeFilter,
+    pageSize: number,
+    pageToken: number,
+  ): Promise<NodeFilterResult> {
+    const selectors = filters.map((s) =>
+      filterToMango(this.#provider, s as NodeFilter),
+    );
 
-			const nodes = result.docs.map(docToNode);
-			const pageCount = Math.ceil(nodes.length / pageSize);
+    const selector = composeMangoQuery(selectors);
 
-			return {
-				nodes: nodes.slice(pageSize * (pageToken - 1), pageSize * pageToken),
-				pageCount,
-				pageSize,
-				pageToken,
-			};
-		} catch (err) {
-			console.log(err);
-		}
+    try {
+      const result = await this.db.find({
+        selector,
+        limit: pageSize * pageToken,
+      });
 
-		return {
-			nodes: [],
-			pageCount: 0,
-			pageSize,
-			pageToken,
-		};
-	}
+      const nodes = result.docs.map(docToNode);
+      const pageCount = Math.ceil(nodes.length / pageSize);
+
+      return {
+        nodes: nodes.slice(pageSize * (pageToken - 1), pageSize * pageToken),
+        pageCount,
+        pageSize,
+        pageToken,
+      };
+    } catch (err) {
+      console.log(err);
+    }
+
+    return {
+      nodes: [],
+      pageCount: 0,
+      pageSize,
+      pageToken,
+    };
+  }
 }
 
 function composeMangoQuery(filters: MangoFilter[]): Record<string, unknown> {
-	if (filters.length === 0) {
-		return {};
-	}
+  if (filters.length === 0) {
+    return {};
+  }
 
-	if (filters.length === 1) {
-		return filters[0];
-	}
+  if (filters.length === 1) {
+    return filters[0];
+  }
 
-	return {
-		$and: filters,
-	};
+  return {
+    $and: filters,
+  };
 }
 
 function filterToMango(dbprovider: Provider, filter: NodeFilter): MangoFilter {
-	const [field, operator, value] = filter;
+  const [field, operator, value] = filter;
 
-	if (operator === "contains") {
-		return { [field]: { $all: [value] } };
-	}
+  if (operator === "contains") {
+    return { [field]: { $all: [value] } };
+  }
 
-	if (operator === "match" && typeof value === "string") {
-		return {
-			[field]: { $regex: dbprovider === "CouchDb" ? `(?i)${value}` : new RegExp(value, "i") },
-		};
-	}
+  if (operator === "match" && typeof value === "string") {
+    return {
+      [field]: {
+        $regex:
+          dbprovider === "CouchDb" ? `(?i)${value}` : new RegExp(value, "i"),
+      },
+    };
+  }
 
-	const o = operators[operator] as string;
-	return { [field]: { [o]: value } };
+  const o = operators[operator] as string;
+  return { [field]: { [o]: value } };
 }
 
-function docToNode(doc: MangoDocument): Node {
-	const { _id, _rev, ...node } = doc;
-	return NodeFactory.compose(node);
+function docToNode(
+  doc: PouchDB.Core.ExistingDocument<Partial<NodeMetadata>>,
+): NodeLike {
+  const { _id, _rev, ...node } = doc;
+  return NodeFactory.from(doc).right;
 }
 
 const operators: Partial<Record<FilterOperator, string>> = {
-	"==": "$eq",
-	"!=": "$ne",
-	">": "$gt",
-	">=": "$gte",
-	"<": "$lt",
-	"<=": "$lte",
-	in: "$in",
-	"not-in": "$nin",
-	"contains-all": "$all",
+  "==": "$eq",
+  "!=": "$ne",
+  ">": "$gt",
+  ">=": "$gte",
+  "<": "$lt",
+  "<=": "$lte",
+  in: "$in",
+  "not-in": "$nin",
+  "contains-all": "$all",
 };
 
 type MangoFilter = { [key: string]: { [key: string]: unknown } };
@@ -215,5 +241,5 @@ type MangoFilter = { [key: string]: { [key: string]: unknown } };
 type MangoDocument = Node & { _id: string; _rev: string };
 
 interface MangoResult {
-	docs: MangoDocument[];
+  docs: MangoDocument[];
 }

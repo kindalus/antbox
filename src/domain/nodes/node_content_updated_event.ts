@@ -1,4 +1,4 @@
-import { type Event } from "../../shared/event.ts";
+import { type Event } from "shared/event.ts";
 
 export class NodeContentUpdatedEvent implements Event {
   static EVENT_ID = "NodeContentUpdatedEvent";
@@ -7,7 +7,10 @@ export class NodeContentUpdatedEvent implements Event {
   readonly occurredOn: Date;
   readonly payload: { uuid: string };
 
-  constructor(readonly userEmail: string, uuid: string) {
+  constructor(
+    readonly userEmail: string,
+    uuid: string,
+  ) {
     this.eventId = NodeContentUpdatedEvent.EVENT_ID;
     this.occurredOn = new Date();
     this.payload = { uuid };

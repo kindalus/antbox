@@ -1,4 +1,4 @@
-import { UserNode } from "../../domain/auth/user_node.ts";
+import { UserNode } from "domain/auth/user_node.ts";
 import { Anonymous } from "./anonymous.ts";
 import { Root } from "./root.ts";
 

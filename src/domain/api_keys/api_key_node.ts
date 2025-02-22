@@ -1,99 +1,118 @@
-import { AntboxError } from "../../shared/antbox_error.ts";
-import { type Either, left, right } from "../../shared/either.ts";
-import { ValidationError } from "../../shared/validation_error.ts";
-import { Folders } from "../nodes/folders.ts";
-import { Node } from "../nodes/node.ts";
-import { type NodeMetadata } from "../nodes/node_metadata.ts";
-import { Nodes } from "../nodes/nodes.ts";
-import { PropertyRequiredError } from "../nodes/property_required_error.ts";
+import { Folders } from "domain/nodes/folders.ts";
+import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
+import { Nodes } from "domain/nodes/nodes.ts";
+import { PropertyRequiredError } from "domain/nodes/property_required_error.ts";
+import { AntboxError } from "shared/antbox_error.ts";
+import { type Either, left, right } from "shared/either.ts";
+import { ValidationError } from "shared/validation_error.ts";
+import { Node } from "domain/nodes/node.ts";
 
 export class ApiKeyNode extends Node {
-	#group: string = null as unknown as string;
-	#secret: string = null as unknown as string;
+  #group: string = null as unknown as string;
+  #secret: string = null as unknown as string;
 
-	static create(metadata: Partial<NodeMetadata>): Either<ValidationError, ApiKeyNode> {
-		try {
-			const node = new ApiKeyNode(metadata.group, metadata.secret, metadata.description, metadata.owner);
-			
-			return right(node);
-		}catch(e) {
-			return left(ValidationError.from(e as AntboxError))
-		}
-	}
+  static create(
+    metadata: Partial<NodeMetadata>,
+  ): Either<ValidationError, ApiKeyNode> {
+    try {
+      const node = new ApiKeyNode(
+        metadata.group,
+        metadata.secret,
+        metadata.description,
+        metadata.owner,
+      );
 
-	private constructor(group = "", secret = "", description = "", owner = "") {
-		const errors = []
-		
-		if(!secret || secret.length === 0 ) {
-			errors.push(new PropertyRequiredError("Node.secret"))
-		}
-		
-		if(!group || group.length === 0) {
-			errors.push(new PropertyRequiredError("Node.group"))
-		}
+      return right(node);
+    } catch (e) {
+      return left(ValidationError.from(e as AntboxError));
+    }
+  }
 
-		if(errors.length > 0) {
-			throw ValidationError.from(...errors)
-		}
+  private constructor(group = "", secret = "", description = "", owner = "") {
+    const errors = [];
 
-		super(
-			{
-				description,
-				mimetype: Nodes.API_KEY_MIMETYPE,
-				parent: Folders.API_KEYS_FOLDER_UUID,
-				title: secret.replace(/^(\w{4}).*$/g, "$1******"),
-				owner
-			},
-		);
+    if (!secret || secret.length === 0) {
+      errors.push(new PropertyRequiredError("Node.secret"));
+    }
 
-		this.#group = group;
-		this.#secret = secret;
-	}
+    if (!group || group.length === 0) {
+      errors.push(new PropertyRequiredError("Node.group"));
+    }
 
-	override update(metadata: Partial<NodeMetadata>): Either<ValidationError, void> {
-		const superUpdateResult = super.update({...metadata, parent: Folders.API_KEYS_FOLDER_UUID})
+    if (errors.length > 0) {
+      throw ValidationError.from(...errors);
+    }
 
-		if(superUpdateResult.isLeft()) {
-			return superUpdateResult
-		}
+    super({
+      description,
+      mimetype: Nodes.API_KEY_MIMETYPE,
+      parent: Folders.API_KEYS_FOLDER_UUID,
+      title: secret.replace(/^(\w{4}).*$/g, "$1******"),
+      owner,
+    });
 
-		this.#group = metadata.group ?? this.#group
-		this.#secret = metadata.secret ?? this.#secret
+    this.#group = group;
+    this.#secret = secret;
+  }
 
-		try {
-			this.#validate()
-		}catch(e) {
-			return left(e as ValidationError)
-		}
- 	
-		return right(undefined)
-	}
+  override update(
+    metadata: Partial<NodeMetadata>,
+  ): Either<ValidationError, void> {
+    const superUpdateResult = super.update({
+      ...metadata,
+      parent: Folders.API_KEYS_FOLDER_UUID,
+    });
 
-	#validate() {
-		const errors = []
+    if (superUpdateResult.isLeft()) {
+      return superUpdateResult;
+    }
 
-		if(!this.#group || this.#group.length === 0) {
-			 errors.push(ValidationError.from(new PropertyRequiredError("Node.group")))
-		}
+    this.#group = metadata.group ?? this.#group;
+    this.#secret = metadata.secret ?? this.#secret;
 
-		if(!this.#secret || this.#secret.length === 0) {
-			 errors.push(ValidationError.from(new PropertyRequiredError("Node.secret")))
-		}
+    try {
+      this.#validate();
+    } catch (e) {
+      return left(e as ValidationError);
+    }
 
-		if(errors.length > 0) {
-			throw ValidationError.from(...errors)
-		}
-	}
+    return right(undefined);
+  }
 
-	cloneWithSecret(): ApiKeyNode {
-		return new ApiKeyNode(this.#group, this.#secret, this.description, this.owner);
-	}
+  #validate() {
+    const errors = [];
 
-	get group(): string {
-		return this.#group
-	}
+    if (!this.#group || this.#group.length === 0) {
+      errors.push(
+        ValidationError.from(new PropertyRequiredError("Node.group")),
+      );
+    }
 
-	get secret(): string {
-		return this.#secret
-	}
+    if (!this.#secret || this.#secret.length === 0) {
+      errors.push(
+        ValidationError.from(new PropertyRequiredError("Node.secret")),
+      );
+    }
+
+    if (errors.length > 0) {
+      throw ValidationError.from(...errors);
+    }
+  }
+
+  cloneWithSecret(): ApiKeyNode {
+    return new ApiKeyNode(
+      this.#group,
+      this.#secret,
+      this.description,
+      this.owner,
+    );
+  }
+
+  get group(): string {
+    return this.#group;
+  }
+
+  get secret(): string {
+    return this.#secret;
+  }
 }

@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
-import { ValidationError } from "../../shared/validation_error.ts";
-import { Nodes } from "../nodes/nodes.ts";
-import { PropertyRequiredError } from "../nodes/property_required_error.ts";
+import { ValidationError } from "shared/validation_error.ts";
+import { Nodes } from "domain/nodes/nodes.ts";
+import { PropertyRequiredError } from "domain/nodes/property_required_error.ts";
 import { ArticleNode } from "./article_node.ts";
 
 test("ArticleNode.create should initialize", () => {
@@ -75,10 +75,10 @@ test("ArticleNode.update should throw error if title is missing", () => {
   expect(updateResult.isLeft()).toBe(true);
   expect(updateResult.value).toBeInstanceOf(ValidationError);
   expect((updateResult.value as ValidationError).errors[0]).toBeInstanceOf(
-    PropertyRequiredError
+    PropertyRequiredError,
   );
   expect((updateResult.value as ValidationError).errors[0].message).toBe(
-    "Node.title is required"
+    "Node.title is required",
   );
 });
 
@@ -94,9 +94,9 @@ test("ArticleNode.update should throw error if parent is missing", () => {
   expect(updateResult.isLeft()).toBe(true);
   expect(updateResult.value).toBeInstanceOf(ValidationError);
   expect((updateResult.value as ValidationError).errors[0]).toBeInstanceOf(
-    PropertyRequiredError
+    PropertyRequiredError,
   );
   expect((updateResult.value as ValidationError).errors[0].message).toBe(
-    "Node.parent is required"
+    "Node.parent is required",
   );
 });

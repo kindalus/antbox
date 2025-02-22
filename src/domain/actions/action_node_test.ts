@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
-import { ValidationError } from "../../shared/validation_error.ts";
-import { Folders } from "../nodes/folders.ts";
-import { Nodes } from "../nodes/nodes.ts";
+import { ValidationError } from "shared/validation_error.ts";
+import { Folders } from "domain/nodes/folders.ts";
+import { Nodes } from "domain/nodes/nodes.ts";
 import { ActionNode } from "./action_node.ts";
 
 test("ActionNode.create should initialize", () => {

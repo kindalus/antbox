@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { ValidationError } from "../../shared/validation_error.ts";
+import { ValidationError } from "shared/validation_error.ts";
 import { FileNode } from "./file_node.ts";
 import { Folders } from "./folders.ts";
 import { Nodes } from "./nodes.ts";

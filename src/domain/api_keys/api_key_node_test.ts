@@ -1,6 +1,6 @@
-import { ValidationError } from "../../shared/validation_error.ts";
-import { Folders } from "../nodes/folders.ts";
-import { Nodes } from "../nodes/nodes.ts";
+import { ValidationError } from "shared/validation_error.ts";
+import { Folders } from "domain/nodes/folders.ts";
+import { Nodes } from "domain/nodes/nodes.ts";
 import { ApiKeyNode } from "./api_key_node.ts";
 import { test, expect } from "bun:test";
 

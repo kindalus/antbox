@@ -1,14 +1,14 @@
 import { S3Client } from "bun";
 
-import { AntboxError } from "../../shared/antbox_error.ts";
-import { UnknownError } from "../../shared/antbox_error.ts";
-import { left, right, type Either } from "../../shared/either.ts";
+import { AntboxError } from "shared/antbox_error.ts";
+import { UnknownError } from "shared/antbox_error.ts";
+import { left, right, type Either } from "shared/either.ts";
 import type {
   StorageProvider,
   WriteFileOpts,
-} from "../../application/storage_provider.ts";
-import type { EventHandler } from "../../shared/event_handler.ts";
-import type { Event } from "../../shared/event.ts";
+} from "application/storage_provider.ts";
+import type { EventHandler } from "shared/event_handler.ts";
+import type { Event } from "shared/event.ts";
 
 export default function buildS3StorageProvider(
   configPath: string,

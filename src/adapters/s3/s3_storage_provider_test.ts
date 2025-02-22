@@ -1,17 +1,15 @@
-import { S3 } from "npm:@aws-sdk/client-s3";
+import { test, expect, describe } from "bun:test";
+import buildS3StorageProvider from "./s3_storage_provider.ts";
 
-import { assert } from "../../../dev_deps.ts";
-import { S3StorageProvider } from "./s3_storage_provider.ts";
+import { UuidGenerator } from "shared/uuid_generator.ts";
 
-import s3config from "./s3_storage_provider_key.transient.json" with { type: "json" };
-import { DefaultUuidGenerator } from "../strategies/default_uuid_generator.ts";
+describe("S3StorageProvider", async () => {
+  const path = "./s3_storage_provider_key.transient.json";
+  const storageOrErr = await buildS3StorageProvider(path);
+  const storage = storageOrErr.right;
 
-test("S3StorageProvidser", async (t) => {
-  const storage = new S3StorageProvider(new S3(s3config), s3config.bucket);
-
-  const parent = new DefaultUuidGenerator().generate();
-
-  const uuid_1 = new DefaultUuidGenerator().generate();
+  const parent = UuidGenerator.generate();
+  const uuid_1 = UuidGenerator.generate();
   const file_1_content =
     "<html><body><h1>Content exclusive for file 1</h1></body></html>";
   const file_1_type = "text/html";
@@ -19,10 +17,10 @@ test("S3StorageProvidser", async (t) => {
     type: file_1_type,
   });
 
-  const uuid_2 = new DefaultUuidGenerator().generate();
+  const uuid_2 = UuidGenerator.generate();
   const file_2 = new File(["content"], "filename2.json");
 
-  await t.step("write", async () => {
+  test("write", async () => {
     const voidOrErr_1 = await storage.write(uuid_1, file_1, {
       parent,
       title: file_1.name,
@@ -34,26 +32,26 @@ test("S3StorageProvidser", async (t) => {
       mimetype: file_2.type,
     });
 
-    assert(voidOrErr_1.isRight());
-    assert(voidOrErr_2.isRight());
+    expect(voidOrErr_1.isRight()).toBeTruthy();
+    expect(voidOrErr_2.isRight()).toBeTruthy();
   });
 
-  await t.step("read", async () => {
+  test("read", async () => {
     const fileOrErr_1 = await storage.read(uuid_1);
 
-    assert(fileOrErr_1.isRight());
-    assert(fileOrErr_1.value.name === file_1.name);
-    assert(fileOrErr_1.value.type === file_1.type);
+    expect(fileOrErr_1.isRight()).toBeTruthy();
+    expect(fileOrErr_1.right.name === file_1.name).toBeTruthy();
+    expect(fileOrErr_1.right.type === file_1.type).toBeTruthy();
 
-    const content = await fileOrErr_1.value.text();
-    assert(content === file_1_content);
+    const content = await fileOrErr_1.right.text();
+    expect(content === file_1_content).toBeTruthy();
   });
 
-  await t.step("delete", async () => {
+  test("delete", async () => {
     const voidOrErr_1 = await storage.delete(uuid_1);
     const voidOrErr_2 = await storage.delete(uuid_2);
 
-    assert(voidOrErr_1.isRight());
-    assert(voidOrErr_2.isRight());
+    expect(voidOrErr_1.isRight()).toBeTruthy();
+    expect(voidOrErr_2.isRight()).toBeTruthy();
   });
 });

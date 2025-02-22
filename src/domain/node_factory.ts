@@ -1,12 +1,11 @@
-import { type Either } from "../shared/either";
-import { ValidationError } from "../shared/validation_error";
+import { type Either } from "shared/either";
+import { ValidationError } from "shared/validation_error";
 import { ActionNode } from "./actions/action_node";
 import { ApiKeyNode } from "./api_keys/api_key_node";
 import { ArticleNode } from "./articles/article_node.ts";
 import { AspectNode } from "./aspects/aspect_node";
 import { GroupNode } from "./auth/group_node";
 import { ExtNode } from "./exts/ext_node.ts";
-import { FormSpecificationNode } from "./forms_specifications/form_specification";
 import { FileNode } from "./nodes/file_node";
 import { FolderNode } from "./nodes/folder_node";
 import { MetaNode } from "./nodes/meta_node";
@@ -54,10 +53,6 @@ export class NodeFactory {
 
       case Nodes.SMART_FOLDER_MIMETYPE:
         createFn = SmartFolderNode.create;
-        break;
-
-      case Nodes.FORM_SPECIFICATION_MIMETYPE:
-        createFn = FormSpecificationNode.create;
         break;
 
       case Nodes.ARTICLE_MIMETYPE:

@@ -1,45 +1,46 @@
-import { providerFrom } from "../mod.ts";
-import { Node } from "../src/domain/nodes/node.ts";
-import { NodeRepository } from "../src/domain/nodes/node_repository.ts";
-import { StorageProvider } from "../src/domain/providers/storage_provider.ts";
+import type { StorageProvider } from "application/storage_provider";
+import { Folders } from "domain/nodes/folders.ts";
+import type { NodeLike } from "domain/nodes/node_like";
+import type { NodeRepository } from "domain/nodes/node_repository";
+import { Nodes } from "domain/nodes/nodes";
+import { providerFrom } from "setup/parse_module_configuration";
 
 const NON_FILES = [
-	Node.API_KEY_MIMETYPE,
-	Node.ASPECT_MIMETYPE,
-	Node.FOLDER_MIMETYPE,
-	Node.FORM_SPECIFICATION_MIMETYPE,
-	Node.GROUP_MIMETYPE,
-	Node.META_NODE_MIMETYPE,
-	Node.SMART_FOLDER_MIMETYPE,
-	Node.USER_MIMETYPE,
+  Nodes.API_KEY_MIMETYPE,
+  Nodes.ASPECT_MIMETYPE,
+  Nodes.FOLDER_MIMETYPE,
+  Nodes.GROUP_MIMETYPE,
+  Nodes.META_NODE_MIMETYPE,
+  Nodes.SMART_FOLDER_MIMETYPE,
+  Nodes.USER_MIMETYPE,
 ];
 
 interface ServiceConfig {
-	readonly repository: [string, ...string[]];
-	readonly storage: [string, ...string[]];
+  readonly repository: [string, ...string[]];
+  readonly storage: [string, ...string[]];
 }
 
 interface MigrationConfig {
-	readonly src: ServiceConfig;
-	readonly dst: ServiceConfig;
+  readonly src: ServiceConfig;
+  readonly dst: ServiceConfig;
 }
 
 function assert<T>(
-	provider: T | undefined,
-	message: string,
+  provider: T | undefined,
+  message: string,
 ): asserts provider is T {
-	if (!provider) {
-		throw new Error(message);
-	}
+  if (!provider) {
+    throw new Error(message);
+  }
 }
 
 async function main() {
-	if (Deno.args.length === 0) {
-		console.error(
-			"Usage: deno run --allow-read --allow-write tools/data_migration.ts <path/to/config.json>",
-		);
+  if (process.argv.length === 0) {
+    console.error(
+      "Usage: deno run --allow-read --allow-write tools/data_migration.ts <path/to/config.json>",
+    );
 
-		console.log(`
+    console.log(`
         Config file should look like this:
         {
             "src": {
@@ -52,158 +53,151 @@ async function main() {
             }
         }`);
 
-		Deno.exit(1);
-	}
+    process.exit(1);
+  }
 
-	const path = Deno.args[0];
-	const { default: cfg }: { default: MigrationConfig } = await import(path, {
-		with: { type: "json" },
-	});
+  const path = process.argv0;
+  const { default: cfg }: { default: MigrationConfig } = await import(path, {
+    with: { type: "json" },
+  });
 
-	console.log("Migrating data using configuration:");
-	console.log(JSON.stringify(cfg, null, 2));
+  console.log("Migrating data using configuration:");
+  console.log(JSON.stringify(cfg, null, 2));
 
-	const srcRepo = await providerFrom<NodeRepository>(cfg.src.repository);
-	const dstRepo = await providerFrom<NodeRepository>(cfg.dst.repository);
+  const srcRepo = await providerFrom<NodeRepository>(cfg.src.repository);
+  const dstRepo = await providerFrom<NodeRepository>(cfg.dst.repository);
 
-	const srcStorage = await providerFrom<StorageProvider>(cfg.src.storage);
-	const dstStorage = await providerFrom<StorageProvider>(cfg.dst.storage);
+  const srcStorage = await providerFrom<StorageProvider>(cfg.src.storage);
+  const dstStorage = await providerFrom<StorageProvider>(cfg.dst.storage);
 
-	assert(srcRepo, "Invalid source repository configuration");
-	assert(dstRepo, "Invalid destination repository configuration");
-	assert(srcStorage, "Invalid source storage configuration");
-	assert(dstStorage, "Invalid destination storage configuration");
+  assert(srcRepo, "Invalid source repository configuration");
+  assert(dstRepo, "Invalid destination repository configuration");
+  assert(srcStorage, "Invalid source storage configuration");
+  assert(dstStorage, "Invalid destination storage configuration");
 
-	await migrateChildren(srcRepo, dstRepo, srcStorage, dstStorage);
-	await migrateChildren(
-		srcRepo,
-		dstRepo,
-		srcStorage,
-		dstStorage,
-		Folders.ACTIONS_FOLDER_UUID,
-	);
-	await migrateChildren(
-		srcRepo,
-		dstRepo,
-		srcStorage,
-		dstStorage,
-		Folders.API_KEYS_FOLDER_UUID,
-	);
-	await migrateChildren(
-		srcRepo,
-		dstRepo,
-		srcStorage,
-		dstStorage,
-		Folders.ASPECTS_FOLDER_UUID,
-	);
-	await migrateChildren(
-		srcRepo,
-		dstRepo,
-		srcStorage,
-		dstStorage,
-		Folders.EXT_FOLDER_UUID,
-	);
-	await migrateChildren(
-		srcRepo,
-		dstRepo,
-		srcStorage,
-		dstStorage,
-		Folders.FORMS_SPECIFICATIONS_FOLDER_UUID,
-	);
-	await migrateChildren(
-		srcRepo,
-		dstRepo,
-		srcStorage,
-		dstStorage,
-		Folders.GROUPS_FOLDER_UUID,
-	);
-	await migrateChildren(
-		srcRepo,
-		dstRepo,
-		srcStorage,
-		dstStorage,
-		Folders.USERS_FOLDER_UUID,
-	);
+  await migrateChildren(srcRepo, dstRepo, srcStorage, dstStorage);
+  await migrateChildren(
+    srcRepo,
+    dstRepo,
+    srcStorage,
+    dstStorage,
+    Folders.ACTIONS_FOLDER_UUID,
+  );
+  await migrateChildren(
+    srcRepo,
+    dstRepo,
+    srcStorage,
+    dstStorage,
+    Folders.API_KEYS_FOLDER_UUID,
+  );
+  await migrateChildren(
+    srcRepo,
+    dstRepo,
+    srcStorage,
+    dstStorage,
+    Folders.ASPECTS_FOLDER_UUID,
+  );
+  await migrateChildren(
+    srcRepo,
+    dstRepo,
+    srcStorage,
+    dstStorage,
+    Folders.EXT_FOLDER_UUID,
+  );
+  await migrateChildren(
+    srcRepo,
+    dstRepo,
+    srcStorage,
+    dstStorage,
+    Folders.GROUPS_FOLDER_UUID,
+  );
+  await migrateChildren(
+    srcRepo,
+    dstRepo,
+    srcStorage,
+    dstStorage,
+    Folders.USERS_FOLDER_UUID,
+  );
 }
 
 async function migrateChildren(
-	srcRepo: NodeRepository,
-	dstRepo: NodeRepository,
-	srcStorage: StorageProvider,
-	dstStorage: StorageProvider,
-	uuid = Folders.ROOT_FOLDER_UUID,
+  srcRepo: NodeRepository,
+  dstRepo: NodeRepository,
+  srcStorage: StorageProvider,
+  dstStorage: StorageProvider,
+  uuid = Folders.ROOT_FOLDER_UUID,
 ): Promise<void> {
-	const children = await srcRepo?.filter(
-		[["parent", "==", uuid]],
-		Number.MAX_SAFE_INTEGER,
-		1,
-	);
+  const children = await srcRepo?.filter(
+    [["parent", "==", uuid]],
+    Number.MAX_SAFE_INTEGER,
+    1,
+  );
 
-	console.log(`Migrating children of ${uuid}`);
-	console.log(`Number of children: ${children?.nodes.length}`);
+  console.log(`Migrating children of ${uuid}`);
+  console.log(`Number of children: ${children?.nodes.length}`);
 
-	for (const node of children?.nodes ?? []) {
-		const voidOrErr = await dstRepo.add(node);
-		if (voidOrErr.isLeft()) {
-			console.log(
-				`Failed to migrate node uuid: ${node.uuid} / metadata: ${node.title}`,
-			);
-			console.error(voidOrErr.value.message);
-			Deno.exit(1);
-		}
+  for (const node of children?.nodes ?? []) {
+    const voidOrErr = await dstRepo.add(node);
+    if (voidOrErr.isLeft()) {
+      console.log(
+        `Failed to migrate node uuid: ${node.uuid} / metadata: ${node.title}`,
+      );
+      console.error(voidOrErr.value.message);
+      process.exit(1);
+    }
 
-		console.log(`Migrated node metadata: ${node.title}`);
+    console.log(`Migrated node metadata: ${node.title}`);
 
-		if (node.isFolder()) {
-			await migrateChildren(
-				srcRepo,
-				dstRepo,
-				srcStorage,
-				dstStorage,
-				node.uuid,
-			);
-			continue;
-		}
+    if (Nodes.isFolder(node)) {
+      await migrateChildren(
+        srcRepo,
+        dstRepo,
+        srcStorage,
+        dstStorage,
+        node.uuid,
+      );
+      continue;
+    }
 
-		migrateNode(srcStorage, dstStorage, node);
-	}
+    migrateNode(srcStorage, dstStorage, node);
+  }
 }
 
 async function migrateNode(
-	srcStorage: StorageProvider,
-	dstStorage: StorageProvider,
-	node: Node,
+  srcStorage: StorageProvider,
+  dstStorage: StorageProvider,
+  node: NodeLike,
 ): Promise<void> {
-	if (NON_FILES.includes(node.#mimetype)) {
-		return;
-	}
+  if (NON_FILES.includes(node.mimetype)) {
+    return;
+  }
 
-	const fileOrErr = await srcStorage.read(node.uuid);
-	if (fileOrErr.isLeft()) {
-		console.error(fileOrErr.value.message);
-		console.log(
-			`Failed to read file node node uuid: ${node.uuid} / metadata: ${node.title}`,
-		);
-		Deno.exit(1);
-	}
+  const fileOrErr = await srcStorage.read(node.uuid);
+  if (fileOrErr.isLeft()) {
+    console.error(fileOrErr.value.message);
+    console.log(
+      `Failed to read file node node uuid: ${node.uuid} / metadata: ${node.title}`,
+    );
+    process.exit(1);
+  }
 
-	const voidOrErr = await dstStorage.write(node.uuid, fileOrErr.value, {
-		parent: node.#parent,
-		title: node.title,
-		mimetype: node.#mimetype,
-	});
+  const voidOrErr = await dstStorage.write(node.uuid, fileOrErr.value, {
+    parent: node.parent,
+    title: node.title,
+    mimetype: node.mimetype,
+  });
 
-	if (voidOrErr.isLeft()) {
-		console.error(voidOrErr.value.message);
-		console.log(
-			`Failed to write file node uuid: ${node.uuid} / metadata: ${node.title}`,
-		);
-		Deno.exit(1);
-	}
+  if (voidOrErr.isLeft()) {
+    console.error(voidOrErr.value.message);
+    console.log(
+      `Failed to write file node uuid: ${node.uuid} / metadata: ${node.title}`,
+    );
+    process.exit(1);
+  }
 
-	console.log(`Migrated file node ${node.title}`);
+  console.log(`Migrated file node ${node.title}`);
 }
 
 if (import.meta.main) {
-	await main();
+  await main();
 }

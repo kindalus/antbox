@@ -1,4 +1,4 @@
-import { AntboxError } from "../../shared/antbox_error.ts";
+import { AntboxError } from "shared/antbox_error.ts";
 import { type AggregationFormula } from "./smart_folder_node.ts";
 
 export class AggregationFormulaError extends AntboxError {

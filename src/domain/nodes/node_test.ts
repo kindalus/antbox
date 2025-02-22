@@ -1,8 +1,8 @@
 import { test, expect } from "bun:test";
 import { Node } from "./node.ts";
 import { Folders } from "./folders.ts";
-import { ValidationError } from "../../shared/validation_error.ts";
-import { FidGenerator } from "../../shared/fid_generator.ts";
+import { ValidationError } from "shared/validation_error.ts";
+import { FidGenerator } from "shared/fid_generator.ts";
 
 test("Node constructor should initialize", () => {
   const node = new Node({

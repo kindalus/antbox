@@ -1,5 +1,5 @@
-import { Action } from "../../domain/actions/action.ts";
-import { RunContext } from "../../domain/actions/run_context.ts";
+import { Action } from "domain/actions/action.ts";
+import { RunContext } from "domain/actions/run_context.ts";
 
 export default {
   uuid: "move_to_trash",
@@ -16,7 +16,7 @@ export default {
   async run(
     ctx: RunContext,
     uuids: string[],
-    _params?: Record<string, unknown>
+    _params?: Record<string, unknown>,
   ): Promise<void | Error> {
     await ctx.nodeService.update(
       uuids[0],
@@ -25,7 +25,7 @@ export default {
           "web-content:published": true,
         },
       },
-      true
+      true,
     );
   },
 } as Action;

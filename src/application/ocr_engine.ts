@@ -1,5 +1,5 @@
-import { AntboxError } from "../shared/antbox_error.ts";
-import { type Either } from "../shared/either.ts";
+import { AntboxError } from "shared/antbox_error.ts";
+import { type Either } from "shared/either.ts";
 
 export interface OcrEngine {
   recognize(

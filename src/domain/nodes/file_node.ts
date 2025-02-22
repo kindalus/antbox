@@ -1,27 +1,28 @@
-import { Either, left, right } from "../../shared/either.ts";
-import { ValidationError } from "../../shared/validation_error.ts";
+import { type Either, left, right } from "shared/either.ts";
+import { ValidationError } from "shared/validation_error.ts";
 import { FileNodeMixin, WithAspectMixin } from "./mixins.ts";
 import { Node } from "./node.ts";
-import { NodeMetadata } from "./node_metadata.ts";
+import type { NodeMetadata } from "./node_metadata.ts";
 
 export class FileNode extends FileNodeMixin(WithAspectMixin(Node)) {
-	static create(
-		metadata: Partial<NodeMetadata>,
-	): Either<ValidationError, FileNode> {
-		try {
-			return right(new FileNode(metadata));
-		} catch (error) {
-			return left(error as ValidationError);
-		}
-	}
+  static create(
+    metadata: Partial<NodeMetadata>,
+  ): Either<ValidationError, FileNode> {
+    try {
+      return right(new FileNode(metadata));
+    } catch (error) {
+      return left(error as ValidationError);
+    }
+  }
 
-	private constructor(metadata: Partial<NodeMetadata> = {}) {
-		super({
-			...metadata,
+  private constructor(metadata: Partial<NodeMetadata> = {}) {
+    super({
+      ...metadata,
 
-			mimetype: metadata.mimetype === "text/javascript"
-				? "application/javascript"
-				: metadata.mimetype,
-		});
-	}
+      mimetype:
+        metadata.mimetype === "text/javascript"
+          ? "application/javascript"
+          : metadata.mimetype,
+    });
+  }
 }

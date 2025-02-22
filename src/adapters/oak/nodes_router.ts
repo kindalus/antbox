@@ -1,44 +1,43 @@
-import { Router } from "../../../deps.ts";
-import { AntboxTenant } from "../../api/antbox_tenant.ts";
-
+import { Router } from "@oakserver/oak";
+import type { AntboxTenant } from "api/antbox_tenant.ts";
 import {
-	copyHandler,
-	createHandler,
-	deleteHandler,
-	duplicateHandler,
-	evaluateHandler,
-	exportHandler,
-	findHandler,
-	getHandler,
-	listHandler,
-	recognizeHandler,
-	updateHandler,
-} from "../../api/nodes_handlers.ts";
+  copyHandler,
+  createHandler,
+  deleteHandler,
+  duplicateHandler,
+  evaluateHandler,
+  exportHandler,
+  findHandler,
+  getHandler,
+  listHandler,
+  // recognizeHandler,
+  updateHandler,
+} from "api/nodes_handlers.ts";
 import { adapt } from "./adapt.ts";
 
 export default function (tenants: AntboxTenant[]): Router {
-	const nodesRouter = new Router({ prefix: "/nodes" });
+  const nodesRouter = new Router({ prefix: "/nodes" });
 
-	nodesRouter.get("/:uuid", adapt(getHandler(tenants)));
-	nodesRouter.get("/:uuid/-/export", adapt(exportHandler(tenants)));
-	nodesRouter.get("/:uuid/-/duplicate", adapt(duplicateHandler(tenants)));
-	nodesRouter.get("/:uuid/-/evaluate", adapt(evaluateHandler(tenants)));
+  nodesRouter.get("/:uuid", adapt(getHandler(tenants)));
+  nodesRouter.get("/:uuid/-/export", adapt(exportHandler(tenants)));
+  nodesRouter.get("/:uuid/-/duplicate", adapt(duplicateHandler(tenants)));
+  nodesRouter.get("/:uuid/-/evaluate", adapt(evaluateHandler(tenants)));
 
-	nodesRouter.get("/", adapt(listHandler(tenants)));
+  nodesRouter.get("/", adapt(listHandler(tenants)));
 
-	nodesRouter.post("/", adapt(createHandler(tenants)));
-	nodesRouter.post("/:uuid/-/copy", adapt(copyHandler(tenants)));
+  nodesRouter.post("/", adapt(createHandler(tenants)));
+  nodesRouter.post("/:uuid/-/copy", adapt(copyHandler(tenants)));
 
-	nodesRouter.post("/-/query", adapt(findHandler(tenants)));
-	nodesRouter.post("/-/find", adapt(findHandler(tenants)));
+  nodesRouter.post("/-/query", adapt(findHandler(tenants)));
+  nodesRouter.post("/-/find", adapt(findHandler(tenants)));
 
-	nodesRouter.patch("/:uuid", adapt(updateHandler(tenants)));
+  nodesRouter.patch("/:uuid", adapt(updateHandler(tenants)));
 
-	nodesRouter.delete("/:uuid", adapt(deleteHandler(tenants)));
+  nodesRouter.delete("/:uuid", adapt(deleteHandler(tenants)));
 
-	nodesRouter.get("/:uuid/-/ocr", adapt(recognizeHandler(tenants)));
+  // nodesRouter.get("/:uuid/-/ocr", adapt(recognizeHandler(tenants)));
 
-	return nodesRouter;
+  return nodesRouter;
 }
 /*
   const listHandler = async (ctx: Context) => {

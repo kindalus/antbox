@@ -1,42 +1,62 @@
 // deno-lint-ignore-file no-explicit-any
 
-import { Node } from "./node.ts";
-import type { NodeFilter } from "./node_filter.ts";
+import {
+  isOrNodeFilter,
+  type NodeFilter,
+  type AndNodeFilters,
+  type OrNodeFilters,
+} from "./node_filter.ts";
 import type { FilterOperator } from "./node_filter.ts";
+import type { NodeLike } from "./node_like.ts";
 
-export interface FilersSpecification {
-  isSatisfiedBy(node: Node): boolean;
+export interface FiltersSpecification {
+  isSatisfiedBy(node: NodeLike): boolean;
 }
 
-export function specificationFrom(
-  filters: NodeFilter[] = [],
-): FilersSpecification {
+export function withNodeFilters(
+  filters: AndNodeFilters | OrNodeFilters,
+): (n: NodeLike) => boolean {
+  if (isOrNodeFilter(filters)) {
+    return processOrNodeFilters(filters);
+  }
+
+  return processNodeFilters(filters);
+}
+
+function processNodeFilters(filters: AndNodeFilters): (n: NodeLike) => boolean {
+  if (filters.length === 0) {
+    return (n: NodeLike) => true;
+  }
+
   const predicates = filters.map(nodeFilterToPredicate);
-  return { isSatisfiedBy: (node) => predicates.every((p) => p(node)) };
+  return (n: NodeLike) => predicates.every((p) => p(n));
 }
 
-export function withNodeFilters(filters: NodeFilter[]): (n: Node) => boolean {
-  const spec = specificationFrom(filters);
-  return (n: Node) => spec.isSatisfiedBy(n);
+function processOrNodeFilters(
+  filters: OrNodeFilters,
+): (n: NodeLike) => boolean {
+  const predicates = filters.map((f) => withNodeFilters(f));
+  return (n: NodeLike) => predicates.some((p) => p(n));
 }
 
-function nodeFilterToPredicate(filter: NodeFilter): (n: Node) => boolean {
+function nodeFilterToPredicate(filter: NodeFilter): (n: NodeLike) => boolean {
   const [field, operator, target] = filter;
   const satisfiesFn = filterFns[operator];
 
   return (node) => {
     const fieldValue = getFieldValue(node, field);
+
     return satisfiesFn(fieldValue, target);
   };
 }
 
-function getFieldValue(node: Node, fieldPath: string): unknown {
+function getFieldValue(node: NodeLike, fieldPath: string): unknown {
   const fields = fieldPath.split(".");
 
-  let acc: Record<string, unknown> = { ...node };
+  let acc: Record<string, unknown> | NodeLike = node;
 
   for (const field of fields) {
-    acc = acc?.[field] as Record<string, unknown>;
+    acc = (acc as Record<string, unknown>)?.[field] as Record<string, unknown>;
   }
 
   return acc;

@@ -1,5 +1,4 @@
-import { Context } from "deps.ts";
-import { HttpHandler } from "api/handler.ts";
+import { type HttpHandler } from "api/handler.ts";
 
 export function adapt(handler: HttpHandler): (ctx: Context) => Promise<void> {
   return async (ctx: Context) => {

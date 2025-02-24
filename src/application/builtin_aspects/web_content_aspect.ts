@@ -1,4 +1,4 @@
-import { Aspect } from "domain/aspects/aspect.ts";
+import { type Aspect } from "domain/aspects/aspect.ts";
 
 export const WebContentAspect = {
   uuid: "web-content",

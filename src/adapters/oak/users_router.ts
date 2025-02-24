@@ -1,4 +1,3 @@
-import { Context, Router, Status } from "deps.ts";
 import { AntboxError } from "shared/antbox_error.ts";
 import { type Either } from "shared/either.ts";
 import { ContextWithParams } from "./context_with_params.ts";
@@ -6,7 +5,7 @@ import { getRequestContext } from "./get_request_context.ts";
 import { getTenant } from "./get_tenant.ts";
 import { processError } from "./process_error.ts";
 import { sendOK } from "./send_response.ts";
-import { AntboxTenant } from "./setup_oak_server.ts";
+import { type AntboxTenant } from "./setup_oak_server.ts";
 
 export default function (tenants: AntboxTenant[]) {
   const meHandler = (ctx: Context) => {

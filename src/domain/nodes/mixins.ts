@@ -1,7 +1,11 @@
 import { type Either } from "shared/either.ts";
 import { ValidationError } from "shared/validation_error.ts";
 import { type Permissions } from "./node.ts";
-import { type NodeFilter } from "./node_filter.ts";
+import {
+  type AndNodeFilters,
+  type NodeFilter,
+  type OrNodeFilters,
+} from "./node_filter.ts";
 import { type NodeMetadata } from "./node_metadata.ts";
 import { type NodeProperties } from "./node_properties.ts";
 import { Nodes } from "./nodes.ts";
@@ -12,52 +16,69 @@ export type Constructor<T = any> = new (...args: any[]) => T;
 
 export function WithAspectMixin<TBase extends Constructor>(Base: TBase) {
   return class extends Base {
-    _aspects: string[] = [];
-    _properties: NodeProperties = {};
-    _tags: string[] = [];
-    _related: string[] = [];
+    #aspects: string[] = [];
+    #properties: NodeProperties = {};
+    #tags: string[] = [];
+    #related: string[] = [];
 
     // deno-lint-ignore no-explicit-any
     constructor(...args: any[]) {
       super(...args);
 
-      this._aspects = args[0]?.aspects ?? [];
-      this._properties = args[0]?.properties ?? {};
-      this._tags = args[0]?.tags ?? [];
-      this._related = args[0]?.related ?? [];
+      this.#aspects = args[0]?.aspects ?? [];
+      this.#properties = args[0]?.properties ?? {};
+      this.#tags = args[0]?.tags ?? [];
+      this.#related = args[0]?.related ?? [];
     }
 
     get aspects(): string[] {
-      return this._aspects;
+      return this.#aspects;
     }
 
     get properties(): NodeProperties {
-      return this._properties;
+      return this.#properties;
     }
 
     get tags(): string[] {
-      return this._tags;
+      return this.#tags;
     }
 
     get related(): string[] {
-      return this._related;
+      return this.#related;
+    }
+
+    get metadata(): Partial<NodeMetadata> {
+      return {
+        ...super.metadata,
+        aspects: this.#aspects,
+        properties: this.#properties,
+        tags: this.#tags,
+        related: this.#related,
+      };
     }
   };
 }
 
 export function FileNodeMixin<TBase extends Constructor>(Base: TBase) {
   return class extends Base {
-    _size: number;
+    #size: number;
 
     // deno-lint-ignore no-explicit-any
     constructor(...args: any[]) {
       super(...args);
 
-      this._size = args[0]?.size ?? 0;
+      this.#size = args[0]?.size ?? 0;
     }
 
     get size(): number {
-      return this._size;
+      return this.#size;
+    }
+
+    get metadata(): Partial<NodeMetadata> {
+      return {
+        ...super.metadata,
+        size: this.#size,
+      };
     }
   };
 }
@@ -74,7 +95,7 @@ export function FolderNodeMixin<TBase extends Constructor>(Base: TBase) {
       anonymous: [],
       advanced: {},
     };
-    #childFilters: NodeFilter[] = [];
+    #filters: AndNodeFilters | OrNodeFilters = [];
 
     // deno-lint-ignore no-explicit-any
     constructor(...args: any[]) {
@@ -89,7 +110,7 @@ export function FolderNodeMixin<TBase extends Constructor>(Base: TBase) {
         this.#group = metadata.group;
       }
 
-      this.#childFilters = metadata.childFilters ?? [];
+      this.#filters = metadata.filters ?? [];
       this.#permissions = metadata.permissions ?? {
         group: ["Read", "Write", "Export"],
         authenticated: ["Read", "Export"],
@@ -108,8 +129,8 @@ export function FolderNodeMixin<TBase extends Constructor>(Base: TBase) {
       return this.#permissions;
     }
 
-    get childFilters(): NodeFilter[] {
-      return this.#childFilters;
+    get filters(): AndNodeFilters | OrNodeFilters {
+      return this.#filters;
     }
 
     get onCreate(): string[] {
@@ -123,7 +144,7 @@ export function FolderNodeMixin<TBase extends Constructor>(Base: TBase) {
     update(metadata: Partial<NodeMetadata>): Either<ValidationError, void> {
       this.#onCreate = metadata.onCreate ?? this.#onCreate;
       this.#onUpdate = metadata.onUpdate ?? this.#onUpdate;
-      this.#childFilters = metadata.childFilters ?? this.#childFilters;
+      this.#filters = metadata.filters ?? this.#filters;
       this.#permissions = metadata.permissions ?? this.#permissions;
 
       return super.update(metadata);
@@ -133,6 +154,17 @@ export function FolderNodeMixin<TBase extends Constructor>(Base: TBase) {
       if (!this.#group || this.#group.length === 0) {
         throw ValidationError.from(new PropertyRequiredError("group"));
       }
+    }
+
+    get metadata(): Partial<NodeMetadata> {
+      return {
+        ...super.metadata,
+        onCreate: this.#onCreate,
+        onUpdate: this.#onUpdate,
+        group: this.#group,
+        filters: this.#filters,
+        permissions: this.#permissions,
+      };
     }
   };
 }

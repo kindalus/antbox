@@ -1,4 +1,3 @@
-import { Context, FormDataReader, Router } from "deps.ts";
 import { Node } from "domain/nodes/node.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import { type Either, left, right } from "shared/either.ts";
@@ -8,7 +7,7 @@ import { getTenant } from "./get_tenant.ts";
 import { processEither } from "./process_either.ts";
 import { processError } from "./process_error.ts";
 import { sendBadRequest, sendOK } from "./send_response.ts";
-import { AntboxTenant } from "./setup_oak_server.ts";
+import { type AntboxTenant } from "./setup_oak_server.ts";
 
 export default function (tenants: AntboxTenant[]) {
   const createNodeFileHandler = async (ctx: Context) => {

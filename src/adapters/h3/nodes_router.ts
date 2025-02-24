@@ -1,6 +1,6 @@
-import { createRouter, Router } from "@h3";
-import { AntboxTenant } from "api/antbox_tenant.ts";
-import { listHandler } from "api/listHandler.ts";
+import { createRouter, type Router } from "h3";
+import { type AntboxTenant } from "api/antbox_tenant.ts";
+
 import { adapt } from "./adapt.ts";
 
 export default function (tenants: AntboxTenant[]): Router {

@@ -4,10 +4,14 @@ import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import { AntboxError } from "shared/antbox_error.ts";
 import { type Either, right } from "shared/either.ts";
-import { NodeServiceContext } from "./node_service_context.ts";
+import type { NodeServiceContext } from "./node_service_context";
+import type { NodeLike } from "domain/nodes/node_like";
 
 export abstract class NodeDeleter<T extends Node> {
-  static for(node: Node, context: NodeServiceContext): NodeDeleter<Node> {
+  static for(
+    node: NodeLike,
+    context: NodeServiceContext,
+  ): NodeDeleter<NodeLike> {
     if (Nodes.isFolder(node)) {
       return new FolderNodeDeleter(node as FolderNode, context);
     }
@@ -20,10 +24,10 @@ export abstract class NodeDeleter<T extends Node> {
       Nodes.isUser(node) ||
       Nodes.isGroup(node)
     ) {
-      return new NonFileNodeDeleter(node as Node, context);
+      return new NonFileNodeDeleter(node, context);
     }
 
-    return new FileNodeDeleter(node as Node, context);
+    return new FileNodeDeleter(node, context);
   }
 
   protected readonly node: T;
@@ -45,19 +49,17 @@ export abstract class NodeDeleter<T extends Node> {
   }
 }
 
-export class FileNodeDeleter extends NodeDeleter<Node> {
-  constructor(node: Node, context: NodeServiceContext) {
+export class FileNodeDeleter extends NodeDeleter<NodeLike> {
+  constructor(node: NodeLike, context: NodeServiceContext) {
     super(node, context);
   }
 
-  delete(): Promise<Either<NodeNotFoundError, void>> {
-    return this.deleteFromStorage().then((deletelOrErr) => {
-      if (deletelOrErr.isLeft()) {
-        return deletelOrErr;
-      }
-
-      return this.deleteFromRepository();
-    });
+  async delete(): Promise<Either<NodeNotFoundError, void>> {
+    const deletelOrErr = await this.deleteFromStorage();
+    if (deletelOrErr.isLeft()) {
+      return deletelOrErr;
+    }
+    return this.deleteFromRepository();
   }
 }
 
@@ -95,11 +97,11 @@ export class FolderNodeDeleter extends NodeDeleter<FolderNode> {
   }
 }
 
-export class NonFileNodeDeleter extends NodeDeleter<Node> {
+export class NonFileNodeDeleter extends NodeDeleter<NodeLike> {
   delete(): Promise<Either<NodeNotFoundError, void>> {
     return this.deleteFromRepository();
   }
-  constructor(node: Node, context: NodeServiceContext) {
+  constructor(node: NodeLike, context: NodeServiceContext) {
     super(node, context);
   }
 }

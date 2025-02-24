@@ -1,4 +1,5 @@
-import type { NodeFilters, OrNodeFilter } from "domain/nodes/node_filter";
+import type { DuplicatedNodeError } from "domain/nodes/duplicated_node_error";
+import type { AndNodeFilters, OrNodeFilters } from "domain/nodes/node_filter";
 import { withNodeFilters } from "domain/nodes/node_filters";
 import type { NodeLike } from "domain/nodes/node_like";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error";
@@ -7,7 +8,14 @@ import type {
   NodeFilterResult,
 } from "domain/nodes/node_repository";
 import { Nodes } from "domain/nodes/nodes";
+import type { AntboxError } from "shared/antbox_error";
 import { type Either, right, left } from "shared/either";
+
+export default function buildInmemNodeRepository(): Promise<
+  Either<AntboxError, NodeRepository>
+> {
+  return Promise.resolve(right(new InMemoryNodeRepository()));
+}
 
 export class InMemoryNodeRepository implements NodeRepository {
   readonly #data: Record<string, NodeLike>;
@@ -21,6 +29,10 @@ export class InMemoryNodeRepository implements NodeRepository {
   }
 
   delete(uuid: string): Promise<Either<NodeNotFoundError, void>> {
+    if (!this.#data[uuid]) {
+      return Promise.resolve(left(new NodeNotFoundError(uuid)));
+    }
+
     delete this.#data[uuid];
 
     return Promise.resolve(right(undefined));
@@ -34,7 +46,7 @@ export class InMemoryNodeRepository implements NodeRepository {
     return this.records.length;
   }
 
-  add(node: NodeLike): Promise<Either<NodeNotFoundError, void>> {
+  add(node: NodeLike): Promise<Either<DuplicatedNodeError, void>> {
     this.#data[node.uuid] = node;
     return Promise.resolve(right(undefined));
   }
@@ -65,17 +77,15 @@ export class InMemoryNodeRepository implements NodeRepository {
   }
 
   filter(
-    filters: NodeFilters | OrNodeFilter,
-    pageSize: number,
-    pageToken: number,
+    filters: AndNodeFilters | OrNodeFilters,
+    pageSize = 20,
+    pageToken = 1,
   ): Promise<NodeFilterResult> {
     const firstIndex = (pageToken - 1) * pageSize;
     const lastIndex = firstIndex + pageSize;
-
     const filtered = this.records.filter(
-      withNodeFilters(filters as NodeFilters),
+      withNodeFilters(filters as AndNodeFilters),
     );
-
     const nodes = filtered.slice(firstIndex, lastIndex);
 
     const pageCount = Math.ceil(filtered.length / pageSize);

@@ -1,11 +1,10 @@
-import { Context, OakRequest, Router } from "deps.ts";
 import { ContextWithParams } from "./context_with_params.ts";
 import { getRequestContext } from "./get_request_context.ts";
 import { getTenant } from "./get_tenant.ts";
 import { processEither } from "./process_either.ts";
 import { processError } from "./process_error.ts";
 import { sendInternalServerError } from "./send_response.ts";
-import { AntboxTenant } from "./setup_oak_server.ts";
+import { type AntboxTenant } from "./setup_oak_server.ts";
 
 export default function (tenants: AntboxTenant[]) {
   const extRouter = new Router({ prefix: "/ext" });

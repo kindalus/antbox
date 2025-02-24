@@ -1,8 +1,9 @@
-import { Context, jose, Router } from "deps.ts";
 import { Root } from "application/builtin_users/root.ts";
 import { getTenant } from "./get_tenant.ts";
 import { sendBadRequest, sendOK, sendUnauthorized } from "./send_response.ts";
-import { AntboxTenant } from "./setup_oak_server.ts";
+import { Context, Router } from "@oakserver/oak";
+import type { AntboxTenant } from "api/antbox_tenant.ts";
+import jose from "jose";
 
 export default function (tenants: AntboxTenant[]) {
   const rootHandler = async (ctx: Context) => {
@@ -17,7 +18,7 @@ export default function (tenants: AntboxTenant[]) {
       return sendBadRequest(ctx);
     }
 
-    const passwd = await ctx.request.body().value;
+    const passwd = await ctx.request.body.json();
 
     if (passwd !== digestedRootPasswd) {
       return sendUnauthorized(ctx);

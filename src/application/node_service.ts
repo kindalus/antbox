@@ -1,4 +1,4 @@
-import { AspectProperty } from "domain/aspects/aspect.ts";
+import { type AspectProperty } from "domain/aspects/aspect.ts";
 import { AspectNode } from "domain/aspects/aspect_node.ts";
 import { AggregationFormulaError } from "domain/nodes/aggregation_formula_error.ts";
 import { FileNode } from "domain/nodes/file_node.ts";
@@ -9,8 +9,8 @@ import { MetaNode } from "domain/nodes/meta_node.ts";
 import { Node } from "domain/nodes/node.ts";
 import {
   NodeFilter,
-  NodeFilters,
-  OrNodeFilter,
+  AndNodeFilters,
+  OrNodeFilters,
 } from "domain/nodes/node_filter.ts";
 import { NodeLike } from "domain/nodes/node_like.ts";
 import { NodeMetadata } from "domain/nodes/node_metadata.ts";
@@ -423,7 +423,7 @@ export class NodeService {
 
   async find(
     ctx: AuthenticationContext,
-    filters: NodeFilters | OrNodeFilter,
+    filters: AndNodeFilters | OrNodeFilters,
     pageSize = 20,
     pageToken = 1,
   ): Promise<Either<AntboxError, NodeFilterResult>> {

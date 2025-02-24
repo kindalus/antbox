@@ -13,32 +13,11 @@ export class SmartFolderNode extends Node {
     return right(node);
   }
 
-  aggregations: Aggregation[];
   filters: NodeFilter[];
 
   constructor(metadata: Partial<NodeMetadata> = {}) {
     super({ ...metadata, mimetype: Nodes.SMART_FOLDER_MIMETYPE });
 
-    this.aggregations = metadata.aggregations ?? [];
     this.filters = metadata.filters ?? [];
   }
-
-  hasAggregations(): boolean {
-    return this.aggregations.length > 0;
-  }
 }
-
-export interface Aggregation {
-  title: string;
-  fieldName: string;
-  formula: AggregationFormula;
-}
-
-export type AggregationFormula =
-  | "sum"
-  | "count"
-  | "avg"
-  | "med"
-  | "max"
-  | "min"
-  | "string";

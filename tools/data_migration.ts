@@ -1,9 +1,9 @@
+import { providerFrom } from "adapters/parse_module_configuration";
 import type { StorageProvider } from "application/storage_provider";
 import { Folders } from "domain/nodes/folders.ts";
 import type { NodeLike } from "domain/nodes/node_like";
 import type { NodeRepository } from "domain/nodes/node_repository";
 import { Nodes } from "domain/nodes/nodes";
-import { providerFrom } from "setup/parse_module_configuration";
 
 const NON_FILES = [
   Nodes.API_KEY_MIMETYPE,

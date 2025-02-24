@@ -1,5 +1,4 @@
-import { Context, getQuery } from "deps.ts";
-import { AntboxTenant } from "./setup_oak_server.ts";
+import { type AntboxTenant } from "./setup_oak_server.ts";
 
 export function getTenantByHeaders(ctx: Context, tenants: AntboxTenant[]) {
   const tenant = ctx.request.headers.get("x-tenant") ?? tenants[0].name;

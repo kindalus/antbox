@@ -1,5 +1,3 @@
-import { Context, ResponseBody, Status } from "deps.ts";
-
 export function sendOK(ctx: Context, body?: ResponseBody) {
   sendResponse(ctx, Status.OK, body);
 }

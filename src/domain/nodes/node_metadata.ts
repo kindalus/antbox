@@ -1,6 +1,10 @@
 import { type AspectProperty } from "domain/aspects/aspect.ts";
 import { type Permissions } from "./node.ts";
-import { type NodeFilter } from "./node_filter.ts";
+import {
+  type NodeFilter,
+  type AndNodeFilters,
+  type OrNodeFilters,
+} from "./node_filter.ts";
 import { type NodeProperties } from "./node_properties.ts";
 import { type Aggregation } from "./smart_folder_node.ts";
 
@@ -21,7 +25,7 @@ export interface NodeMetadata {
   properties: NodeProperties | AspectProperty[];
   fulltext: string;
 
-  filters: NodeFilter[];
+  filters: AndNodeFilters | OrNodeFilters;
   aggregations: Aggregation[];
 
   group: string;
@@ -31,7 +35,6 @@ export interface NodeMetadata {
 
   onCreate: string[];
   onUpdate: string[];
-  childFilters: NodeFilter[];
   permissions: Permissions;
 
   runManually: boolean;
@@ -41,8 +44,4 @@ export interface NodeMetadata {
 
   runOnCreates: boolean;
   runOnUpdates: boolean;
-
-  targetAspect: string;
-  height: number;
-  width: number;
 }

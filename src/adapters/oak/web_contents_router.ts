@@ -1,11 +1,9 @@
-import { Router } from "deps.ts";
-
 import { ContextWithParams } from "./context_with_params.ts";
 import { getRequestContext } from "./get_request_context.ts";
 import { getTenant } from "./get_tenant.ts";
 import { processError } from "./process_error.ts";
 import { sendOK } from "./send_response.ts";
-import { AntboxTenant } from "./setup_oak_server.ts";
+import { type AntboxTenant } from "./setup_oak_server.ts";
 
 export default function (tenants: AntboxTenant[]) {
   const handleGet = async (ctx: ContextWithParams) => {

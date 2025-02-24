@@ -4,15 +4,12 @@ import type { AntboxTenant } from "api/antbox_tenant.ts";
 import type {
   ServerConfiguration,
   TenantConfiguration,
-  ModuleConfiguration,
 } from "api/http_server_configuration.ts";
 import { NodeService } from "application/node_service.ts";
 import type { StorageProvider } from "application/storage_provider.ts";
 import type { NodeRepository } from "domain/nodes/node_repository.ts";
-import type { AntboxError } from "shared/antbox_error.ts";
-import type { Either } from "shared/either.ts";
-import { providerFrom } from "./parse_module_configuration.ts";
 import { JWK, ROOT_PASSWD, SYMMETRIC_KEY } from "./server_defaults.ts";
+import { providerFrom } from "adapters/parse_module_configuration.ts";
 
 export async function setupTenants(
   o: ServerConfiguration,

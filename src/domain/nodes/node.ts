@@ -138,6 +138,7 @@ export class Node {
   get metadata(): Partial<NodeMetadata> {
     return {
       uuid: this.uuid,
+      fid: this.fid,
       title: this.title,
       description: this.description,
       mimetype: this.mimetype,

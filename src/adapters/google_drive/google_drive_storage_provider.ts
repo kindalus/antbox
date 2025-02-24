@@ -1,5 +1,5 @@
-import { createReadStream } from "node:fs";
-import { auth, drive, drive_v3 } from "npm:@googleapis/drive@8.4.0";
+import { createReadStream } from "fs";
+import { auth, drive, drive_v3 } from "@googleapis/drive";
 
 import { type Either, left, right } from "shared/either.ts";
 import {
@@ -13,12 +13,13 @@ import { type Event } from "shared/event.ts";
 import { NodeDeletedEvent } from "domain/nodes/node_deleted_event.ts";
 import { NodeUpdatedEvent } from "domain/nodes/node_updated_event.ts";
 import { NodeCreatedEvent } from "domain/nodes/node_created_event.ts";
-import {
+import type {
   StorageProvider,
   WriteFileOpts,
 } from "application/storage_provider.ts";
 import { Folders } from "domain/nodes/folders.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
+import { makeTempFileSync, writeFile } from "shared/os_helpers";
 
 class GoogleDriveStorageProvider implements StorageProvider {
   readonly #drive: drive_v3.Drive;
@@ -51,8 +52,8 @@ class GoogleDriveStorageProvider implements StorageProvider {
     file: File,
     opts: WriteFileOpts,
   ): Promise<Either<AntboxError, void>> {
-    const tmp = Deno.makeTempFileSync();
-    await Deno.writeFile(tmp, file.stream());
+    const tmp = makeTempFileSync();
+    await writeFile(tmp, file);
 
     const existingOrErr = await this.#getDriveMedata(uuid);
 

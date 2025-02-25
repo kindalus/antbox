@@ -1,28 +1,33 @@
 import {
+  type Document,
+  type Filter,
+  type WithId,
   Collection,
   Db,
-  Document,
-  Filter,
   MongoClient,
   ObjectId,
-  WithId,
-} from "npm:mongodb@6.13.0";
+} from "mongodb";
 
-import MurmurHash3 from "https://deno.land/x/murmurhash@v1.0.0/mod.ts";
-
-import { Node } from "domain/nodes/node.ts";
-
-import { FilterOperator, NodeFilter } from "domain/nodes/node_filter.ts";
-import { NodeLike } from "domain/nodes/node_like.ts";
-import { NodeMetadata } from "domain/nodes/node_metadata.ts";
-import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
-import {
-  NodeFilterResult,
+import { type NodeLike } from "domain/nodes/node_like";
+import { NodeFactory } from "domain/node_factory";
+import type {
+  AndNodeFilters,
+  FilterOperator,
+  OrNodeFilters,
+} from "domain/nodes/node_filter";
+import type { NodeMetadata } from "domain/nodes/node_metadata";
+import { NodeNotFoundError } from "domain/nodes/node_not_found_error";
+import type {
   NodeRepository,
-} from "domain/nodes/node_repository.ts";
-import { AntboxError, UnknownError } from "shared/antbox_error.ts";
-import { type Either, left, right } from "shared/either.ts";
-import { NodeFactory } from "domain/node_factory.ts";
+  NodeFilterResult,
+} from "domain/nodes/node_repository";
+import { AntboxError, UnknownError } from "shared/antbox_error";
+import { type Either, right, left } from "shared/either";
+import { isOrNodeFilter, type NodeFilter } from "domain/nodes/node_filter";
+import type { AspectProperty } from "domain/aspects/aspect";
+import type { NodeProperties } from "domain/nodes/node_properties";
+
+type NodeDbModel = Partial<NodeMetadata> & { _id: ObjectId };
 
 export default function buildMongodbNodeRepository(
   url: string,
@@ -38,25 +43,24 @@ export default function buildMongodbNodeRepository(
 }
 
 export class MongodbNodeRepository implements NodeRepository {
-  static readonly #COLLECTION_NAME = "nodes";
+  static readonly COLLECTION_NAME = "nodes";
 
-  readonly #db: Db;
-  readonly #collection: Collection;
+  readonly #db: string;
   readonly #client: MongoClient;
 
   constructor(client: MongoClient, dbname: string) {
     this.#client = client;
-    this.#db = client.db(dbname);
-    this.#collection = this.#db.collection(
-      MongodbNodeRepository.#COLLECTION_NAME,
-    );
+    this.#db = dbname;
   }
 
-  add(node: Node): Promise<Either<AntboxError, void>> {
-    const doc = {
-      ...toObjectId(node.uuid),
-      ...node,
-    };
+  get #collection() {
+    return this.#client
+      .db(this.#db)
+      .collection(MongodbNodeRepository.COLLECTION_NAME);
+  }
+
+  add(node: NodeLike): Promise<Either<AntboxError, void>> {
+    const doc = this.#fromNodeLike(node);
 
     return this.#collection
       .insertOne(doc)
@@ -68,15 +72,13 @@ export class MongodbNodeRepository implements NodeRepository {
 
   async getById(uuid: string): Promise<Either<NodeNotFoundError, NodeLike>> {
     try {
-      const doc = await this.#collection.findOne(toObjectId(uuid));
+      const doc = await this.#collection.findOne({ _id: toObjectId(uuid) });
 
       if (!doc) {
         return left(new NodeNotFoundError(uuid));
       }
 
-      const node = NodeFactory.from(doc as unknown as NodeMetadata)
-        .value as NodeLike;
-      return right(node);
+      return right(this.#toNodeLike(doc));
     } catch (err) {
       // deno-lint-ignore no-explicit-any
       return left(new MongodbError((err as any).message));
@@ -91,7 +93,7 @@ export class MongodbNodeRepository implements NodeRepository {
     }
 
     try {
-      await this.#collection.deleteOne(toObjectId(uuid));
+      await this.#collection.deleteOne({ _id: toObjectId(uuid) });
     } catch (err) {
       // deno-lint-ignore no-explicit-any
       return left(new MongodbError((err as any).message));
@@ -101,19 +103,16 @@ export class MongodbNodeRepository implements NodeRepository {
   }
 
   async filter(
-    filters: NodeFilter[],
+    filters: AndNodeFilters | OrNodeFilters,
     pageSize: number,
     pageToken: number,
   ): Promise<NodeFilterResult> {
     const query = buildMongoQuery(filters);
 
-    const [count, findCursor] = await Promise.all([
-      this.#collection.countDocuments(query),
-      this.#collection.find(query, {
-        limit: pageSize,
-        skip: pageSize * (pageToken - 1),
-      }),
-    ]);
+    const findCursor = await this.#collection.find(query, {
+      limit: pageSize,
+      skip: pageSize * (pageToken - 1),
+    });
 
     const docs = await findCursor.toArray();
 
@@ -138,7 +137,7 @@ export class MongodbNodeRepository implements NodeRepository {
     return right(result.nodes[0]);
   }
 
-  async update(node: Node): Promise<Either<NodeNotFoundError, void>> {
+  async update(node: NodeLike): Promise<Either<NodeNotFoundError, void>> {
     const doc = await this.getById(node.uuid);
 
     if (doc.isLeft()) {
@@ -146,9 +145,11 @@ export class MongodbNodeRepository implements NodeRepository {
     }
 
     try {
-      await this.#collection.updateOne(toObjectId(node.uuid), {
-        $set: { ...node },
-      });
+      const { _id, ...doc } = this.#fromNodeLike(node);
+      await this.#collection.updateOne(
+        { _id: toObjectId(node.uuid) },
+        { $set: doc },
+      );
     } catch (err) {
       // deno-lint-ignore no-explicit-any
       return left(new MongodbError((err as any).message));
@@ -164,6 +165,17 @@ export class MongodbNodeRepository implements NodeRepository {
   async close(): Promise<void> {
     await this.#client.close();
   }
+
+  #fromNodeLike(node: NodeLike): NodeDbModel {
+    return {
+      _id: toObjectId(node.uuid),
+      ...node.metadata,
+    };
+  }
+
+  #toNodeLike(doc: NodeDbModel): NodeLike {
+    return NodeFactory.from(doc).right;
+  }
 }
 
 export class MongodbError extends AntboxError {
@@ -173,21 +185,31 @@ export class MongodbError extends AntboxError {
   }
 }
 
-export function toObjectId(uuid: string): WithId<Document> {
-  return { _id: new ObjectId(checksum(uuid)) };
+export function toObjectId(uuid: string): ObjectId {
+  let hex = 0;
+  for (const i of uuid) {
+    hex = (hex << 8) | i.charCodeAt(0);
+  }
+
+  return ObjectId.createFromTime(hex);
 }
 
-function buildMongoQuery(filters: NodeFilter[]): Filter<Document> {
+function buildMongoQuery(
+  filters: AndNodeFilters | OrNodeFilters,
+): Filter<Document> {
   if (filters.length === 0) {
     return {};
   }
 
-  const mongoFilters = filters.map(toMongoFilter);
-  if (mongoFilters.length === 1) {
-    return mongoFilters[0];
-  }
+  const ofs = isOrNodeFilter(filters) ? filters : [filters];
 
-  return { $and: mongoFilters };
+  const ffs = ofs.map((ifs) => {
+    const mfs = ifs.map(toMongoFilter);
+
+    return mfs.length > 1 ? { $and: mfs } : mfs[0];
+  });
+
+  return ffs.length > 1 ? { $or: ffs } : ffs[0];
 }
 
 function toMongoFilter(filter: NodeFilter): Filter<Document> {
@@ -218,11 +240,3 @@ const operatorMap: Record<FilterOperator, (f: NodeFilter) => Filter<Document>> =
       return { $or: condition };
     },
   };
-
-function checksum(input: string): string {
-  // Calculate the 32-bit MurmurHash3 value of the input string
-  const algo = new MurmurHash3(input);
-
-  // Convert the hash value to a hexadecimal string and pad it with leading zeroes
-  return algo.result().toString(16).padStart(24, "0");
-}

@@ -598,7 +598,7 @@ export class NodeService {
     const node: SmartFolderNode = nodeOrErr.value;
 
     const evaluation = await this.context.repository
-      .filter(node.filters, Number.MAX_SAFE_INTEGER, 1)
+      .filter(node.#filters, Number.MAX_SAFE_INTEGER, 1)
       .then((filtered) => ({ records: filtered.nodes }));
 
     if (node.hasAggregations()) {

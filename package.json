@@ -21,6 +21,7 @@
     "commander": "^13.1.0",
     "h3": "^1.15.1",
     "jose": "^5.10.0",
+    "mongodb": "^6.13.1",
     "pouchdb": "^9.0.0",
     "pouchdb-find": "^9.0.0",
     "scribe.js-ocr": "^0.7.3"

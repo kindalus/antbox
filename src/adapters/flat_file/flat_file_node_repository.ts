@@ -22,20 +22,24 @@ export default async function buildFlatFileStorageProvider(
   const dbFilePath = join(baseDir, "nodes_repo.json");
   const dbBackupFilePath = join(baseDir, "nodes_repo.json.backup");
 
-  if (!fileExistsSync(baseDir)) {
-    mkdirSync(baseDir, { recursive: true });
+  try {
+    if (!fileExistsSync(baseDir)) {
+      mkdirSync(baseDir, { recursive: true });
+    }
+
+    let metadata = [];
+    if (fileExistsSync(dbFilePath)) {
+      const file = Bun.file(dbFilePath);
+      metadata = await file.json();
+      copyFile(dbFilePath, dbBackupFilePath);
+    }
+
+    return Promise.resolve(
+      right(new FlatFileNodeRepository(dbFilePath, metadata)),
+    );
+  } catch (err) {
+    return Promise.resolve(left(new UnknownError(err as string)));
   }
-
-  if (fileExistsSync(dbFilePath)) {
-    await copyFile(dbFilePath, dbBackupFilePath);
-  }
-
-  const file = Bun.file(dbFilePath);
-  const metadata: NodeMetadata[] = await file.json();
-
-  return Promise.resolve(
-    right(new FlatFileNodeRepository(dbFilePath, metadata)),
-  );
 }
 
 class FlatFileNodeRepository implements NodeRepository {

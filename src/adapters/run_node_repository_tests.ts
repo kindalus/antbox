@@ -28,9 +28,10 @@ if (!process.env.NODE_ENV && process.argv.length < 3) {
 if (!process.env.NODE_ENV) {
   await Bun.spawn({
     cmd: [
-      process.argv0,
+      "/home/kindalus/.bun/bin/bun",
+      //process.argv0,
       "test",
-      "--inspect-wait",
+      // "--inspect-wait",
       "./src/adapters/run_node_repository_tests.ts",
     ],
     env: { TEST_PARAMS: process.argv.slice(2).join(";") },
@@ -57,7 +58,6 @@ beforeAll(async () => {
 
   await cleanDb();
   await populateDb();
-  await new Promise((resolve) => setTimeout(resolve, 50));
 });
 
 describe("filter", () => {
@@ -157,7 +157,10 @@ describe("update", () => {
     }).right;
 
     result = await repo.update(updated);
-    expect(result.isRight()).toBeTruthy();
+    expect(
+      result.isRight(),
+      JSON.stringify(result.value, null, 2),
+    ).toBeTruthy();
 
     const retrieved = (await repo.getById(uuid)).right;
     expect(retrieved.title).toBe("Updated");
@@ -231,12 +234,12 @@ async function populateDb() {
       title: "Aspect 1",
       owner,
       group,
-    })
+    }),
   );
 
   await Promise.allSettled(nodes.map((n) => repo.add(n.right)));
 }
 
 afterAll(async () => {
-  await cleanDb();
+  // await cleanDb();
 });

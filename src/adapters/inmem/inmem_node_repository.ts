@@ -42,6 +42,13 @@ export class InMemoryNodeRepository implements NodeRepository {
     return Object.values(this.#data) as NodeLike[];
   }
 
+  set records(records: NodeLike[]) {
+    Object.keys(this.#data).forEach((k) => delete this.#data[k]);
+    records.forEach((r) => {
+      this.#data[r.uuid] = r;
+    });
+  }
+
   get count(): number {
     return this.records.length;
   }
@@ -88,8 +95,6 @@ export class InMemoryNodeRepository implements NodeRepository {
     );
     const nodes = filtered.slice(firstIndex, lastIndex);
 
-    const pageCount = Math.ceil(filtered.length / pageSize);
-
-    return Promise.resolve({ nodes, pageCount, pageSize, pageToken });
+    return Promise.resolve({ nodes, pageSize, pageToken });
   }
 }

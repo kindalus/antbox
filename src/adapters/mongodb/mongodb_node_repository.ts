@@ -125,7 +125,6 @@ export class MongodbNodeRepository implements NodeRepository {
       nodes,
       pageSize,
       pageToken,
-      pageCount: Math.ceil(count / pageSize),
     };
   }
 

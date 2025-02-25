@@ -438,7 +438,6 @@ export class NodeService {
         nodes: [],
         pageSize,
         pageToken,
-        pageCount: 0,
       });
     }
 
@@ -458,7 +457,6 @@ export class NodeService {
       ),
       pageSize,
       pageToken,
-      pageCount: Math.ceil(allowedNodes.length / pageSize),
     });
   }
 
@@ -474,7 +472,6 @@ export class NodeService {
     const r = {
       nodes: v.nodes.map((n) => (Nodes.isApikey(n) ? n.cloneWithSecret() : n)),
       pageToken: v.pageToken,
-      pageCount: v.pageCount,
       pageSize: v.pageSize,
     };
 

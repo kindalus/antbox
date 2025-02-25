@@ -1,99 +1,122 @@
 import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository";
 import type { NodeLike } from "domain/nodes/node_like";
-import type { NodeFilter } from "domain/nodes/node_filter";
-import type { NodeNotFoundError } from "domain/nodes/node_not_found_error";
+import type { AndNodeFilters, OrNodeFilters } from "domain/nodes/node_filter";
+import { NodeNotFoundError } from "domain/nodes/node_not_found_error";
 import type {
   NodeRepository,
   NodeFilterResult,
 } from "domain/nodes/node_repository";
-import type { AntboxError } from "shared/antbox_error";
-import { type Either, right } from "shared/either";
+import { AntboxError, UnknownError } from "shared/antbox_error";
+import { type Either, left, right } from "shared/either";
 import { fileExistsSync } from "shared/file_exists_sync";
 
 import { join } from "path";
 import { mkdirSync, writeFileSync } from "fs";
+import type { NodeMetadata } from "domain/nodes/node_metadata";
+import { NodeFactory } from "domain/node_factory";
+import { copyFile } from "shared/os_helpers";
 
-export default function buildFlatFileStorageProvider(
+export default async function buildFlatFileStorageProvider(
   baseDir: string,
 ): Promise<Either<AntboxError, NodeRepository>> {
-  return Promise.resolve(right(new FlatFileNodeRepository(baseDir)));
+  const dbFilePath = join(baseDir, "nodes_repo.json");
+  const dbBackupFilePath = join(baseDir, "nodes_repo.json.backup");
+
+  if (!fileExistsSync(baseDir)) {
+    mkdirSync(baseDir, { recursive: true });
+  }
+
+  if (fileExistsSync(dbFilePath)) {
+    await copyFile(dbFilePath, dbBackupFilePath);
+  }
+
+  const file = Bun.file(dbFilePath);
+  const metadata: NodeMetadata[] = await file.json();
+
+  return Promise.resolve(
+    right(new FlatFileNodeRepository(dbFilePath, metadata)),
+  );
 }
 
 class FlatFileNodeRepository implements NodeRepository {
   private static readonly CHARSET = "utf-8";
 
   readonly #dbFilePath: string;
-  readonly #dbFolderPath: string;
-  readonly #dbBackupFilePath: string;
   readonly #encoder: TextEncoder;
-  readonly #decoder: TextDecoder;
 
   #base: InMemoryNodeRepository;
 
-  constructor(path: string) {
-    this.#dbFolderPath = path;
-    this.#dbFilePath = join(path, "nodes_repo.json");
-    this.#dbBackupFilePath = join(path, "nodes_repo.json.backup");
-
+  constructor(dbPath: string, data: NodeMetadata[] = []) {
+    this.#dbFilePath = dbPath;
     this.#encoder = new TextEncoder();
-    this.#decoder = new TextDecoder(FlatFileNodeRepository.CHARSET);
 
-    if (!fileExistsSync(this.#dbFolderPath)) {
-      mkdirSync(this.#dbFolderPath, { recursive: true });
-    }
-
-    this.#base = new InMemoryNodeRepository();
-    this.#readDb().then((data) => {
-      this.#base = new InMemoryNodeRepository(data);
-    });
-
-    this.#writeDb(this.#dbBackupFilePath);
+    this.#base = new InMemoryNodeRepository(
+      data.reduce(
+        (acc, m) => {
+          acc[m.uuid] = NodeFactory.from(m).right;
+          return acc;
+        },
+        {} as Record<string, NodeLike>,
+      ),
+    );
   }
 
-  #readDb(): Promise<Record<string, NodeLike>> {
-    if (!fileExistsSync(this.#dbFilePath)) {
-      return Promise.resolve({});
-    }
-
-    const file = Bun.file(this.#dbFilePath);
-    return file.json();
+  #dataAsArray(): Partial<NodeMetadata>[] {
+    return Object.values(this.#base.data).map((m) => m.metadata);
   }
 
-  get #saveDb(): <E, T>(v: Either<E, T>) => void {
-    return <E, T>(v: Either<E, T>) => {
-      if (v.isRight()) {
-        this.#writeDb();
-      }
-    };
-  }
-
-  #writeDb(path?: string) {
-    const rawData = this.#encoder.encode(JSON.stringify(this.#base.data));
+  #saveDb(path?: string) {
+    const rows = this.#dataAsArray();
+    const rawData = this.#encoder.encode(JSON.stringify(rows));
     writeFileSync(path || this.#dbFilePath, rawData);
   }
 
   delete(uuid: string): Promise<Either<NodeNotFoundError, void>> {
-    const o = this.#base.delete(uuid);
+    return this.#base
+      .delete(uuid)
+      .then((result) => {
+        if (result.isRight()) {
+          this.#saveDb();
+        }
 
-    o.then(this.#saveDb);
-
-    return o;
+        return result;
+      })
+      .catch((err) => {
+        console.error(err);
+        return left(new NodeNotFoundError(uuid));
+      });
   }
 
   update(node: NodeLike): Promise<Either<NodeNotFoundError, void>> {
-    const o = this.#base.update(node);
+    return this.#base
+      .update(node)
+      .then((result) => {
+        if (result.isRight()) {
+          this.#saveDb();
+        }
 
-    o.then(this.#saveDb);
-
-    return o;
+        return result;
+      })
+      .catch((err) => {
+        console.error(err);
+        return left(new NodeNotFoundError(node.uuid));
+      });
   }
 
   add(node: NodeLike): Promise<Either<AntboxError, void>> {
-    const o = this.#base.add(node);
+    return this.#base
+      .add(node)
+      .then((result) => {
+        if (result.isRight()) {
+          this.#saveDb();
+        }
 
-    o.then(this.#saveDb);
-
-    return o;
+        return result;
+      })
+      .catch((err) => {
+        console.error(err);
+        return left(new UnknownError(err));
+      });
   }
 
   getByFid(fid: string): Promise<Either<NodeNotFoundError, NodeLike>> {
@@ -105,9 +128,9 @@ class FlatFileNodeRepository implements NodeRepository {
   }
 
   filter(
-    filters: NodeFilter[],
-    pageSize: number,
-    pageToken: number,
+    filters: AndNodeFilters | OrNodeFilters,
+    pageSize = 20,
+    pageToken = 1,
   ): Promise<NodeFilterResult> {
     return this.#base.filter(filters, pageSize, pageToken);
   }

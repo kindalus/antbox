@@ -41,7 +41,7 @@ export class NullNodeRepository implements NodeRepository {
     return Promise.resolve({
       nodes: [],
       pageToken,
-      pageCount: 0,
+
       pageSize,
     });
   }

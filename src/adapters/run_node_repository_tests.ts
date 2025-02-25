@@ -8,6 +8,7 @@ import { AspectNode } from "domain/aspects/aspect_node";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error";
 import type { Either } from "shared/either";
 import { Nodes } from "domain/nodes/nodes";
+import { appendCorsPreflightHeaders } from "h3";
 
 /*
  * Run unit tests for the NodeRepository implementation.
@@ -26,7 +27,12 @@ if (!process.env.NODE_ENV && process.argv.length < 3) {
 
 if (!process.env.NODE_ENV) {
   await Bun.spawn({
-    cmd: [process.argv0, "test", "./src/adapters/run_node_repository_tests.ts"],
+    cmd: [
+      process.argv0,
+      "test",
+      "--inspect-wait",
+      "./src/adapters/run_node_repository_tests.ts",
+    ],
     env: { TEST_PARAMS: process.argv.slice(2).join(";") },
   }).exited;
 
@@ -51,6 +57,7 @@ beforeAll(async () => {
 
   await cleanDb();
   await populateDb();
+  await new Promise((resolve) => setTimeout(resolve, 50));
 });
 
 describe("filter", () => {
@@ -67,17 +74,20 @@ describe("filter", () => {
     expect(nodes.nodes[0]).toBeInstanceOf(FolderNode);
   });
 
-  //   test("get images or with name 'Folder 1'", async () => {
-  //     const nodes = await repo.filter([
-  //       [["mimetype", "==", "image/jpeg"]],
-  //       [["title", "==", "Folder 1"]],
-  //     ]);
-  //     expect(nodes.nodes).toBeArrayOfSize(2);
-  //   });
+  test("get images or with name 'Folder 1'", async () => {
+    const nodes = await repo.filter([
+      [["mimetype", "==", "image/jpeg"]],
+      [["title", "==", "Folder 1"]],
+    ]);
+    expect(nodes.nodes.length).toBe(2);
+  });
 
   test("get all nodes, second page", async () => {
-    const nodes = await repo.filter([], 4, 2);
-    expect(nodes.nodes.length).toBe(1);
+    let result = await repo.filter([]);
+    expect(result.nodes.length).toBe(5);
+
+    result = await repo.filter([], 4, 2);
+    expect(result.nodes.length).toBe(1);
   });
 });
 
@@ -221,8 +231,12 @@ async function populateDb() {
       title: "Aspect 1",
       owner,
       group,
-    }),
+    })
   );
 
   await Promise.allSettled(nodes.map((n) => repo.add(n.right)));
 }
+
+afterAll(async () => {
+  await cleanDb();
+});

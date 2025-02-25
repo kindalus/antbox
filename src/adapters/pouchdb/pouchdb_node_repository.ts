@@ -4,11 +4,12 @@ import PouchDbFind from "pouchdb-find";
 import { mkdirSync, statSync } from "fs";
 
 import { NodeFactory } from "domain/node_factory";
-import type {
-  FilterOperator,
-  AndNodeFilters,
-  NodeFilter,
-  OrNodeFilters,
+import {
+  type FilterOperator,
+  type AndNodeFilters,
+  type NodeFilter,
+  type OrNodeFilters,
+  isOrNodeFilter as areOrNodeFilter,
 } from "domain/nodes/node_filter";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error";
 import type {
@@ -243,11 +244,16 @@ class PouchdbNodeRepository implements NodeRepository {
       return this.#findAll(limit, skip);
     }
 
-    const selectors = filters.map((s) =>
-      filterToMango(this.#provider, s as NodeFilter),
-    );
+    const f = areOrNodeFilter(filters) ? filters : [filters];
+    const selectors = f.map((ifs) => {
+      const mfs = ifs.map((s) => filterToMango(this.#provider, s));
 
-    const selector = composeMangoQuery(selectors);
+      return composeMangoQuery(mfs);
+    });
+
+    const selector = areOrNodeFilter(filters)
+      ? { $or: selectors }
+      : selectors[0];
 
     try {
       const result = await this.db.find({

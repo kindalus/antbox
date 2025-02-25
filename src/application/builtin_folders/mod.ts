@@ -58,6 +58,7 @@ function buildAspectsFolder(): FolderNode {
     group: ["Read"],
     authenticated: [],
     anonymous: [],
+    advanced: {},
   };
 
   return FolderNode.create(metadata).right;
@@ -113,29 +114,29 @@ function createSystemFolderMetadata(
   title: string,
   parent: string,
 ): Partial<NodeMetadata> {
-  const childFilters: NodeFilter[] = [];
+  const filters: NodeFilter[] = [];
 
   switch (uuid) {
     case Folders.ROOT_FOLDER_UUID:
-      childFilters.push(["mimetype", "==", Nodes.FOLDER_MIMETYPE]);
+      filters.push(["mimetype", "==", Nodes.FOLDER_MIMETYPE]);
       break;
     case Folders.ASPECTS_FOLDER_UUID:
-      childFilters.push(["mimetype", "==", Nodes.ASPECT_MIMETYPE]);
+      filters.push(["mimetype", "==", Nodes.ASPECT_MIMETYPE]);
       break;
     case Folders.USERS_FOLDER_UUID:
-      childFilters.push(["mimetype", "==", Nodes.USER_MIMETYPE]);
+      filters.push(["mimetype", "==", Nodes.USER_MIMETYPE]);
       break;
     case Folders.GROUPS_FOLDER_UUID:
-      childFilters.push(["mimetype", "==", Nodes.GROUP_MIMETYPE]);
+      filters.push(["mimetype", "==", Nodes.GROUP_MIMETYPE]);
       break;
     case Folders.ACTIONS_FOLDER_UUID:
-      childFilters.push(["mimetype", "==", Nodes.ACTION_MIMETYPE]);
+      filters.push(["mimetype", "==", Nodes.ACTION_MIMETYPE]);
       break;
     case Folders.EXT_FOLDER_UUID:
-      childFilters.push(["mimetype", "==", Nodes.EXT_MIMETYPE]);
+      filters.push(["mimetype", "==", Nodes.EXT_MIMETYPE]);
       break;
     case Folders.API_KEYS_FOLDER_UUID:
-      childFilters.push(["mimetype", "==", Nodes.API_KEY_MIMETYPE]);
+      filters.push(["mimetype", "==", Nodes.API_KEY_MIMETYPE]);
       break;
   }
 
@@ -152,7 +153,7 @@ function createSystemFolderMetadata(
       anonymous: [],
       advanced: {},
     },
-    childFilters,
+    filters,
   };
 }
 
@@ -163,6 +164,7 @@ const SYSTEM_FOLDER = buildSystemFolder();
 const ACTIONS_FOLDER = buildActionsFolder();
 const EXT_FOLDER = buildExtFolder();
 const API_KEYS_FOLDER = buildApiKeysFolder();
+const ROOT_FOLDER = buildRootFolder();
 
 const SYSTEM_FOLDERS = [
   ASPECTS_FOLDER,
@@ -170,7 +172,6 @@ const SYSTEM_FOLDERS = [
   GROUPS_FOLDER,
   ACTIONS_FOLDER,
   EXT_FOLDER,
-  FORMS_SPECIFICICATIONS_FOLDER,
   API_KEYS_FOLDER,
 ];
 
@@ -179,9 +180,9 @@ export {
   API_KEYS_FOLDER,
   ASPECTS_FOLDER,
   EXT_FOLDER,
-  FORMS_SPECIFICICATIONS_FOLDER,
   GROUPS_FOLDER,
   SYSTEM_FOLDER,
   SYSTEM_FOLDERS,
   USERS_FOLDER,
+  ROOT_FOLDER,
 };

@@ -43,14 +43,14 @@ function isAnonymousAllowedTo(
   folder: FolderNode,
   permission: Permission,
 ): boolean {
-  return folder.anonymous.includes(permission);
+  return folder.permissions.anonymous.includes(permission);
 }
 
 function isAuthenticatedAllowedTo(
   folder: FolderNode,
   permission: Permission,
 ): boolean {
-  return folder.authenticated.includes(permission);
+  return folder.permissions.authenticated.includes(permission);
 }
 
 function isGroupAllowedTo(

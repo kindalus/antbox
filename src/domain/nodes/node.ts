@@ -61,7 +61,7 @@ export class Node {
       errors.push(new PropertyRequiredError("Node.title"));
     }
 
-    if (!this.mimetype || !/^\w+\/[a-z0-9.-]+$/.test(this.mimetype)) {
+    if (!this.mimetype || !/^\w+\/[a-z0-9.-]+(;\w+=.+)?$/.test(this.mimetype)) {
       errors.push(new InvalidMimetypeError(this.mimetype));
     }
 

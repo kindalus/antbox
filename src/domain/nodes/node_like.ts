@@ -22,3 +22,5 @@ export type NodeLike =
   | MetaNode
   | SmartFolderNode
   | UserNode;
+
+export type FileLikeNode = ActionNode | ArticleNode | FileNode | ExtNode;

@@ -7,25 +7,22 @@ import { FolderNotFoundError } from "domain/nodes/folder_not_found_error.ts";
 import { Folders } from "domain/nodes/folders.ts";
 import { MetaNode } from "domain/nodes/meta_node.ts";
 import { Node } from "domain/nodes/node.ts";
-import {
+import type {
   NodeFilter,
   AndNodeFilters,
   OrNodeFilters,
 } from "domain/nodes/node_filter.ts";
-import { NodeLike } from "domain/nodes/node_like.ts";
-import { NodeMetadata } from "domain/nodes/node_metadata.ts";
+import type { FileLikeNode, NodeLike } from "domain/nodes/node_like.ts";
+import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
-import { NodeFilterResult } from "domain/nodes/node_repository.ts";
+import type { NodeFilterResult } from "domain/nodes/node_repository.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import {
-  AggregationResult,
+  type AggregationResult,
   Reducers,
-  SmartFolderNodeEvaluation,
+  type SmartFolderNodeEvaluation,
 } from "domain/nodes/smart_folder_evaluation.ts";
-import {
-  Aggregation,
-  SmartFolderNode,
-} from "domain/nodes/smart_folder_node.ts";
+import { SmartFolderNode } from "domain/nodes/smart_folder_node.ts";
 import { SmartFolderNodeNotFoundError } from "domain/nodes/smart_folder_node_not_found_error.ts";
 import {
   AntboxError,
@@ -36,8 +33,14 @@ import { type Either, left, right } from "shared/either.ts";
 import { isPrincipalAllowedTo } from "./is_principal_allowed_to.ts";
 import { type AuthenticationContext } from "./authentication_context.ts";
 import { NodeDeleter } from "./node_deleter.ts";
-import { NodeServiceContext } from "./node_service_context.ts";
+import type { NodeServiceContext } from "./node_service_context.ts";
 import { NodeFactory } from "domain/node_factory.ts";
+import type { ExtNode } from "domain/exts/ext_node.ts";
+import type { ArticleNode } from "domain/articles/article_node.ts";
+import type { ActionNode } from "domain/actions/action_node.ts";
+import { UuidGenerator } from "shared/uuid_generator.ts";
+import { FidGenerator } from "shared/fid_generator.ts";
+import { ROOT_FOLDER, SYSTEM_FOLDER } from "./builtin_folders/mod.ts";
 
 /**
  * The `NodeService` class is responsible for managing raw nodes in the system.
@@ -58,7 +61,7 @@ export class NodeService {
     ctx: AuthenticationContext,
     file: File,
     metadata: Partial<NodeMetadata>,
-  ): Promise<Either<AntboxError, Node>> {
+  ): Promise<Either<AntboxError, FileLikeNode>> {
     metadata.title = metadata.title ?? file.name;
 
     const validOrErr = await this.#verifyParent(ctx, metadata);
@@ -66,10 +69,8 @@ export class NodeService {
       return left(validOrErr.value);
     }
 
-    const uuid = metadata.uuid ?? this.context.uuidGenerator.generate();
-    const fid =
-      metadata.fid ??
-      this.context.fidGenerator.generate(metadata.title ?? uuid);
+    const uuid = metadata.uuid ?? UuidGenerator.generate();
+    const fid = metadata.fid ?? FidGenerator.generate(metadata.title ?? uuid);
 
     const nodeOrErr = NodeFactory.from({
       ...metadata,
@@ -77,6 +78,8 @@ export class NodeService {
       fid,
       mimetype: metadata.mimetype ?? file.type,
       size: file.size,
+      owner: ctx.principal.email,
+      group: ctx.principal.groups[0],
     });
 
     if (nodeOrErr.isLeft()) {
@@ -84,7 +87,7 @@ export class NodeService {
     }
 
     const node = nodeOrErr.value;
-    node.fulltext = await this.#calculateFulltext(ctx, node);
+    //node.fulltext = await this.#calculateFulltext(ctx, node);
 
     let voidOrErr = await this.context.storage.write(node.uuid, file, {
       title: node.title,
@@ -340,9 +343,7 @@ export class NodeService {
       uuid === Folders.SYSTEM_FOLDER_UUID
     ) {
       const folder =
-        uuid === Folders.ROOT_FOLDER_UUID
-          ? Folders.ROOT_FOLDER
-          : Folders.SYSTEM_FOLDER;
+        uuid === Folders.ROOT_FOLDER_UUID ? ROOT_FOLDER : SYSTEM_FOLDER;
 
       if (await isPrincipalAllowedTo(ctx, this, folder, "Read")) {
         return right(folder);
@@ -598,45 +599,10 @@ export class NodeService {
     const node: SmartFolderNode = nodeOrErr.value;
 
     const evaluation = await this.context.repository
-      .filter(node.#filters, Number.MAX_SAFE_INTEGER, 1)
+      .filter(node.filters, Number.MAX_SAFE_INTEGER, 1)
       .then((filtered) => ({ records: filtered.nodes }));
 
-    if (node.hasAggregations()) {
-      return this.appendAggregations(evaluation, node.aggregations!);
-    }
-
     return right(evaluation);
-  }
-
-  private appendAggregations(
-    evaluation: SmartFolderNodeEvaluation,
-    aggregations: Aggregation[],
-  ): Either<AggregationFormulaError, SmartFolderNodeEvaluation> {
-    const aggregationsMap = aggregations.map((aggregation) => {
-      const formula = Reducers[aggregation.formula as string];
-
-      if (!formula) {
-        left(new AggregationFormulaError(aggregation.formula));
-      }
-
-      return right({
-        title: aggregation.title,
-        value: formula(evaluation.records as Node[], aggregation.fieldName),
-      });
-    });
-
-    const err = aggregationsMap.find((aggregation) => aggregation.isLeft());
-
-    if (err) {
-      return left(err.value as AggregationFormulaError);
-    }
-
-    return right({
-      ...evaluation,
-      aggregations: aggregationsMap.map(
-        (aggregation) => aggregation.value as AggregationResult,
-      ),
-    });
   }
 
   async export(

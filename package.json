@@ -29,5 +29,10 @@
   "trustedDependencies": [
     "@scribe.js/tesseract.js",
     "leveldown"
-  ]
+  ],
+  "prettier": {
+    "singleQuote": false,
+    "trailingComma": "all",
+    "printWidth": 100
+  }
 }

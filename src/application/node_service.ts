@@ -7,40 +7,26 @@ import { FolderNotFoundError } from "domain/nodes/folder_not_found_error.ts";
 import { Folders } from "domain/nodes/folders.ts";
 import { MetaNode } from "domain/nodes/meta_node.ts";
 import { Node } from "domain/nodes/node.ts";
-import type {
-  NodeFilter,
-  AndNodeFilters,
-  OrNodeFilters,
-} from "domain/nodes/node_filter.ts";
+import type { NodeFilter, AndNodeFilters, OrNodeFilters } from "domain/nodes/node_filter.ts";
 import type { FileLikeNode, NodeLike } from "domain/nodes/node_like.ts";
 import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import type { NodeFilterResult } from "domain/nodes/node_repository.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
-import {
-  type AggregationResult,
-  Reducers,
-  type SmartFolderNodeEvaluation,
-} from "domain/nodes/smart_folder_evaluation.ts";
+import { type SmartFolderNodeEvaluation } from "domain/nodes/smart_folder_evaluation.ts";
 import { SmartFolderNode } from "domain/nodes/smart_folder_node.ts";
 import { SmartFolderNodeNotFoundError } from "domain/nodes/smart_folder_node_not_found_error.ts";
-import {
-  AntboxError,
-  BadRequestError,
-  ForbiddenError,
-} from "shared/antbox_error.ts";
+import { AntboxError, BadRequestError, ForbiddenError, UnknownError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
 import { isPrincipalAllowedTo } from "./is_principal_allowed_to.ts";
 import { type AuthenticationContext } from "./authentication_context.ts";
 import { NodeDeleter } from "./node_deleter.ts";
 import type { NodeServiceContext } from "./node_service_context.ts";
 import { NodeFactory } from "domain/node_factory.ts";
-import type { ExtNode } from "domain/exts/ext_node.ts";
-import type { ArticleNode } from "domain/articles/article_node.ts";
-import type { ActionNode } from "domain/actions/action_node.ts";
 import { UuidGenerator } from "shared/uuid_generator.ts";
 import { FidGenerator } from "shared/fid_generator.ts";
-import { ROOT_FOLDER, SYSTEM_FOLDER } from "./builtin_folders/mod.ts";
+import { builtinFolders, ROOT_FOLDER, SYSTEM_FOLDER } from "./builtin_folders/index.ts";
+import { areFiltersSatisfiedBy } from "domain/nodes/node_filters.ts";
 
 /**
  * The `NodeService` class is responsible for managing raw nodes in the system.
@@ -62,32 +48,23 @@ export class NodeService {
     file: File,
     metadata: Partial<NodeMetadata>,
   ): Promise<Either<AntboxError, FileLikeNode>> {
-    metadata.title = metadata.title ?? file.name;
+    const useFileType =
+      !metadata.mimetype ||
+      ![Nodes.EXT_MIMETYPE, Nodes.ACTION_MIMETYPE].includes(metadata.mimetype);
 
-    const validOrErr = await this.#verifyParent(ctx, metadata);
-    if (validOrErr.isLeft()) {
-      return left(validOrErr.value);
-    }
-
-    const uuid = metadata.uuid ?? UuidGenerator.generate();
-    const fid = metadata.fid ?? FidGenerator.generate(metadata.title ?? uuid);
-
-    const nodeOrErr = NodeFactory.from({
+    const nodeOrErr = await this.create(ctx, {
       ...metadata,
-      uuid,
-      fid,
-      mimetype: metadata.mimetype ?? file.type,
+      title: metadata.title ?? file.name,
+      fid: metadata.fid ?? FidGenerator.generate(metadata.title ?? file.name),
+      mimetype: useFileType ? file.type : metadata.mimetype,
       size: file.size,
-      owner: ctx.principal.email,
-      group: ctx.principal.groups[0],
     });
 
     if (nodeOrErr.isLeft()) {
       return left(nodeOrErr.value);
     }
 
-    const node = nodeOrErr.value;
-    //node.fulltext = await this.#calculateFulltext(ctx, node);
+    const node = nodeOrErr.value as FileLikeNode;
 
     let voidOrErr = await this.context.storage.write(node.uuid, file, {
       title: node.title,
@@ -106,59 +83,51 @@ export class NodeService {
     return right(node);
   }
 
-  async #verifyParent(
+  async create(
     ctx: AuthenticationContext,
     metadata: Partial<NodeMetadata>,
-  ): Promise<Either<AntboxError, true>> {
-    if (!metadata.parent) {
-      return left(new BadRequestError("parent is required"));
-    }
+  ): Promise<Either<AntboxError, NodeLike>> {
+    const uuid = metadata.uuid ?? UuidGenerator.generate();
+    const nodeOrErr = NodeFactory.from({
+      ...metadata,
 
-    if (Folders.isSystemFolder(metadata.parent)) {
-      return right(true);
-    }
+      uuid,
+      fid: metadata.fid ?? FidGenerator.generate(metadata.title!),
+      owner: ctx.principal.email,
+      group: ctx.principal.groups[0],
+    });
 
-    const parentUuid = metadata.parent ?? Folders.ROOT_FOLDER_UUID;
-    const parentOrErr = await this.get(ctx, parentUuid);
-    if (parentOrErr.isLeft()) {
-      return left(new FolderNotFoundError(parentUuid));
-    }
-
-    return right(true);
-  }
-
-  async create<T extends NodeLike>(
-    ctx: AuthenticationContext,
-    metadata: Partial<NodeMetadata>,
-  ): Promise<Either<AntboxError, T>> {
-    const validOrErr = await this.#verifyParent(ctx, metadata);
-    if (validOrErr.isLeft()) {
-      return left(validOrErr.value);
-    }
-
-    if (!metadata.mimetype) {
-      return left(new BadRequestError("mimetype is required"));
-    }
-
-    const uuid = metadata.uuid ?? this.context.uuidGenerator.generate();
-    const fid =
-      metadata.fid ??
-      this.context.fidGenerator.generate(metadata.title ?? uuid);
-
-    const nodeOrErr = NodeFactory.from({ ...metadata, uuid, fid });
     if (nodeOrErr.isLeft()) {
       return left(nodeOrErr.value);
     }
 
-    const node = nodeOrErr.value;
-    node.fulltext = await this.#calculateFulltext(ctx, node);
-    const addOrErr = await this.context.repository.add(node);
-
-    if (addOrErr.isLeft()) {
-      return left(addOrErr.value);
+    const parentOrErr = await this.#getBuiltinFolderOrFromRepository(nodeOrErr.value.parent);
+    if (parentOrErr.isLeft()) {
+      return left(parentOrErr.value);
     }
 
-    return right(node as T);
+    const isAllowed = await isPrincipalAllowedTo(ctx, parentOrErr.value, "Write");
+    if (!isAllowed) {
+      return left(new ForbiddenError());
+    }
+
+    const filtersSatisfied = areFiltersSatisfiedBy(parentOrErr.value.filters, nodeOrErr.value);
+    if (!filtersSatisfied) {
+      return left(new BadRequestError("Node does not satisfy parent filters"));
+    }
+
+    if (Nodes.isFolder(nodeOrErr.value) && !metadata.permissions) {
+      nodeOrErr.value.update({ permissions: parentOrErr.value.permissions });
+    }
+
+    nodeOrErr.value.update({ fulltext: await this.#calculateFulltext(ctx, nodeOrErr.value) });
+
+    const voidOrErr = await this.context.repository.add(nodeOrErr.value);
+    if (voidOrErr.isLeft()) {
+      return left(voidOrErr.value);
+    }
+
+    return right(nodeOrErr.value);
   }
 
   async duplicate(
@@ -195,9 +164,9 @@ export class NodeService {
       return left(fileOrErr.value);
     }
 
-    const newUuid = this.context.uuidGenerator.generate();
+    const newUuid = UuidGenerator.generate();
     const title = `cópia de ${node.title}`;
-    const fid = this.context.fidGenerator.generate(title);
+    const fid = FidGenerator.generate(title);
 
     const metadata: Partial<NodeMetadata> = {
       uuid: newUuid,
@@ -213,15 +182,11 @@ export class NodeService {
 
     const newNode = NodeFactory.from(metadata).right;
 
-    const writeOrErr = await this.context.storage.write(
-      newNode.uuid,
-      fileOrErr.value,
-      {
-        title: newNode.title,
-        parent: newNode.parent,
-        mimetype: newNode.mimetype,
-      },
-    );
+    const writeOrErr = await this.context.storage.write(newNode.uuid, fileOrErr.value, {
+      title: newNode.title,
+      parent: newNode.parent,
+      mimetype: newNode.mimetype,
+    });
     if (writeOrErr.isLeft()) {
       return left(writeOrErr.value);
     }
@@ -253,10 +218,7 @@ export class NodeService {
       .trim();
   }
 
-  async #calculateFulltext(
-    ctx: AuthenticationContext,
-    node: NodeLike,
-  ): Promise<string> {
+  async #calculateFulltext(ctx: AuthenticationContext, node: NodeLike): Promise<string> {
     const fulltext = [node.title, node.description ?? ""];
 
     if (Nodes.hasAspects(node)) {
@@ -312,19 +274,13 @@ export class NodeService {
       mimetype: nodeOrErr.value.mimetype,
     });
 
-    nodeOrErr.value.fulltext = await this.#calculateFulltext(
-      ctx,
-      nodeOrErr.value,
-    );
+    nodeOrErr.value.fulltext = await this.#calculateFulltext(ctx, nodeOrErr.value);
     await this.context.repository.update(nodeOrErr.value);
 
     return right(undefined);
   }
 
-  async delete(
-    ctx: AuthenticationContext,
-    uuid: string,
-  ): Promise<Either<NodeNotFoundError, void>> {
+  async delete(ctx: AuthenticationContext, uuid: string): Promise<Either<NodeNotFoundError, void>> {
     const nodeOrError = await this.get(ctx, uuid);
 
     if (nodeOrError.isLeft()) {
@@ -338,37 +294,77 @@ export class NodeService {
     ctx: AuthenticationContext,
     uuid: string,
   ): Promise<Either<NodeNotFoundError, NodeLike>> {
-    if (
-      uuid === Folders.ROOT_FOLDER_UUID ||
-      uuid === Folders.SYSTEM_FOLDER_UUID
-    ) {
-      const folder =
-        uuid === Folders.ROOT_FOLDER_UUID ? ROOT_FOLDER : SYSTEM_FOLDER;
-
-      if (await isPrincipalAllowedTo(ctx, this, folder, "Read")) {
-        return right(folder);
-      }
-      return left(new ForbiddenError());
-    }
-
-    const nodeOrErr = await this.getFromRepository(uuid);
+    const nodeOrErr = await this.#getBuiltinNodeOrFromRepository(uuid);
     if (nodeOrErr.isLeft()) {
       return left(nodeOrErr.value);
     }
 
-    if (await isPrincipalAllowedTo(ctx, this, nodeOrErr.value, "Read")) {
-      return right(nodeOrErr.value);
+    if (Nodes.isFolder(nodeOrErr.value)) {
+      return (await isPrincipalAllowedTo(ctx, nodeOrErr.value, "Read"))
+        ? right(nodeOrErr.value)
+        : left(new ForbiddenError());
     }
 
-    return left(new ForbiddenError());
+    const parentOrErr = await this.#getBuiltinFolderOrFromRepository(nodeOrErr.value.parent);
+    if (parentOrErr.isLeft()) {
+      return left(
+        new UnknownError(
+          `Parent folder uuid='${nodeOrErr.value.parent}' not found for node uuid='${uuid}' `,
+        ),
+      );
+    }
+
+    return (await isPrincipalAllowedTo(ctx, parentOrErr.value, "Read"))
+      ? right(nodeOrErr.value)
+      : left(new ForbiddenError());
   }
 
-  private getFromRepository(
+  async #getBuiltinNodeOrFromRepository(
     uuid: string,
   ): Promise<Either<NodeNotFoundError, NodeLike>> {
-    if (Nodes.isFid(uuid)) {
-      return this.context.repository.getByFid(Nodes.uuidToFid(uuid));
+    const key = Nodes.isFid(uuid) ? Nodes.uuidToFid(uuid) : uuid;
+    const predicate = Nodes.isFid(uuid)
+      ? (f: NodeLike) => f.fid === key
+      : (f: NodeLike) => f.uuid === key;
+    const builtinNode = builtinFolders.find(predicate);
+
+    if (builtinNode) {
+      return right(builtinNode);
     }
+
+    return this.#getFromRepository(uuid);
+  }
+
+  async #getBuiltinFolderOrFromRepository(
+    uuid: string,
+  ): Promise<Either<NodeNotFoundError, FolderNode>> {
+    const key = Nodes.isFid(uuid) ? Nodes.uuidToFid(uuid) : uuid;
+    const predicate = Nodes.isFid(uuid)
+      ? (f: NodeLike) => f.fid === key
+      : (f: NodeLike) => f.uuid === key;
+    const builtinFolder = builtinFolders.find(predicate);
+
+    if (builtinFolder) {
+      return right(builtinFolder);
+    }
+
+    const nodeOrErr = await this.#getFromRepository(uuid);
+    if (nodeOrErr.isLeft()) {
+      return left(nodeOrErr.value);
+    }
+
+    if (!Nodes.isFolder(nodeOrErr.value)) {
+      return left(new FolderNotFoundError(uuid));
+    }
+
+    return right(nodeOrErr.value);
+  }
+
+  async #getFromRepository(uuid: string): Promise<Either<NodeNotFoundError, NodeLike>> {
+    if (Nodes.isFid(uuid)) {
+      return await this.context.repository.getByFid(Nodes.uuidToFid(uuid));
+    }
+
     return this.context.repository.getById(uuid);
   }
 
@@ -398,11 +394,7 @@ export class NodeService {
     }
 
     const nodes = await this.context.repository
-      .filter(
-        [["parent", "==", parentOrErr.value.uuid]],
-        Number.MAX_SAFE_INTEGER,
-        1,
-      )
+      .filter([["parent", "==", parentOrErr.value.uuid]], Number.MAX_SAFE_INTEGER, 1)
       .then((result) => result.nodes);
 
     if (parent === Folders.ROOT_FOLDER_UUID) {
@@ -411,9 +403,7 @@ export class NodeService {
 
     return right(
       nodes.filter(
-        async (n) =>
-          !Nodes.isFolder(n) ||
-          (await isPrincipalAllowedTo(ctx, this, n, "Read")),
+        async (n) => !Nodes.isFolder(n) || (await isPrincipalAllowedTo(ctx, this, n, "Read")),
       ),
     );
   }
@@ -452,23 +442,14 @@ export class NodeService {
     );
 
     return right({
-      nodes: allowedNodes.slice(
-        (pageToken - 1) * pageSize,
-        pageToken * pageSize,
-      ),
+      nodes: allowedNodes.slice((pageToken - 1) * pageSize, pageToken * pageSize),
       pageSize,
       pageToken,
     });
   }
 
-  async #findAll(
-    filters: NodeFilter[],
-  ): Promise<Either<AntboxError, NodeFilterResult>> {
-    const v = await this.context.repository.filter(
-      filters,
-      Number.MAX_SAFE_INTEGER,
-      1,
-    );
+  async #findAll(filters: NodeFilter[]): Promise<Either<AntboxError, NodeFilterResult>> {
+    const v = await this.context.repository.filter(filters, Number.MAX_SAFE_INTEGER, 1);
 
     const r = {
       nodes: v.nodes.map((n) => (Nodes.isApikey(n) ? n.cloneWithSecret() : n)),
@@ -479,9 +460,7 @@ export class NodeService {
     return right(r);
   }
 
-  async #processAtFilters(
-    f: NodeFilter[],
-  ): Promise<Either<false, NodeFilter[]>> {
+  async #processAtFilters(f: NodeFilter[]): Promise<Either<false, NodeFilter[]>> {
     const [at, filters] = f.reduce(
       (acc, cur) => {
         if (cur[0].startsWith("@")) {
@@ -497,11 +476,7 @@ export class NodeService {
 
     at.push(["mimetype", "==", Nodes.FOLDER_MIMETYPE]);
 
-    const result = await this.context.repository.filter(
-      at,
-      Number.MAX_SAFE_INTEGER,
-      1,
-    );
+    const result = await this.context.repository.filter(at, Number.MAX_SAFE_INTEGER, 1);
 
     if (result.nodes.length === 0) {
       return left(false);
@@ -546,9 +521,7 @@ export class NodeService {
       return [];
     }
 
-    const nodesOrErrs = await Promise.all(
-      node.aspects.map((a) => this.get(ctx, a)),
-    );
+    const nodesOrErrs = await Promise.all(node.aspects.map((a) => this.get(ctx, a)));
 
     return nodesOrErrs
       .filter((nodeOrErr) => nodeOrErr.isRight())
@@ -581,10 +554,7 @@ export class NodeService {
     ctx: AuthenticationContext,
     uuid: string,
   ): Promise<
-    Either<
-      SmartFolderNodeNotFoundError | AggregationFormulaError,
-      SmartFolderNodeEvaluation
-    >
+    Either<SmartFolderNodeNotFoundError | AggregationFormulaError, SmartFolderNodeEvaluation>
   > {
     const nodeOrErr = await this.get(ctx, uuid);
 
@@ -605,24 +575,29 @@ export class NodeService {
     return right(evaluation);
   }
 
-  async export(
-    ctx: AuthenticationContext,
-    uuid: string,
-  ): Promise<Either<NodeNotFoundError, File>> {
-    const nodeOrErr = await this.get(ctx, uuid);
+  async export(ctx: AuthenticationContext, uuid: string): Promise<Either<NodeNotFoundError, File>> {
+    const nodeOrErr = await this.#getFromRepository(uuid);
     if (nodeOrErr.isLeft()) {
       return left(nodeOrErr.value);
     }
 
-    const node = nodeOrErr.value;
+    const parentOrErr = await this.#getBuiltinFolderOrFromRepository(nodeOrErr.value.parent);
+    if (parentOrErr.isLeft()) {
+      return left(new UnknownError(`Parent folder not found for node uuid='${uuid}'`));
+    }
+
+    const isAllowed = await isPrincipalAllowedTo(ctx, parentOrErr.value, "Export");
+    if (!isAllowed) {
+      return left(new ForbiddenError());
+    }
 
     const fileOrErr = await this.context.storage.read(uuid);
     if (fileOrErr.isLeft()) {
       return left(fileOrErr.value);
     }
 
-    const type = this.#mapAntboxMimetypes(node.mimetype);
-    const file = new File([fileOrErr.value], node.title, { type });
+    const type = this.#mapAntboxMimetypes(nodeOrErr.value.mimetype);
+    const file = new File([fileOrErr.value], nodeOrErr.value.title, { type });
 
     return right(file);
   }

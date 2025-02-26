@@ -8,7 +8,6 @@ import { AspectNode } from "domain/aspects/aspect_node";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error";
 import type { Either } from "shared/either";
 import { Nodes } from "domain/nodes/nodes";
-import { appendCorsPreflightHeaders } from "h3";
 
 /*
  * Run unit tests for the NodeRepository implementation.

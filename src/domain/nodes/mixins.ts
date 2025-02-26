@@ -1,15 +1,13 @@
 import { type Either } from "shared/either.ts";
 import { ValidationError } from "shared/validation_error.ts";
 import { type Permissions } from "./node.ts";
-import {
-  type AndNodeFilters,
-  type NodeFilter,
-  type OrNodeFilters,
-} from "./node_filter.ts";
+import { type AndNodeFilters, type NodeFilter, type OrNodeFilters } from "./node_filter.ts";
 import { type NodeMetadata } from "./node_metadata.ts";
 import { type NodeProperties } from "./node_properties.ts";
 import { Nodes } from "./nodes.ts";
 import { PropertyRequiredError } from "./property_required_error.ts";
+import type { AntboxError } from "shared/antbox_error.ts";
+import { PropertyValueFormatError } from "./property_value_format_error.ts";
 
 // deno-lint-ignore no-explicit-any
 export type Constructor<T = any> = new (...args: any[]) => T;
@@ -151,8 +149,64 @@ export function FolderNodeMixin<TBase extends Constructor>(Base: TBase) {
     }
 
     #validate() {
+      const errors: AntboxError[] = [];
+
       if (!this.#group || this.#group.length === 0) {
-        throw ValidationError.from(new PropertyRequiredError("group"));
+        errors.push(new PropertyRequiredError("group"));
+      }
+
+      if (!this.#permissions) {
+        errors.push(new PropertyRequiredError("permissions"));
+      }
+
+      if (!this.#filters) {
+        errors.push(new PropertyRequiredError("filters"));
+      }
+
+      if (!this.#permissions.group) {
+        errors.push(new PropertyRequiredError("permissions.group"));
+      }
+
+      if (!this.#permissions.authenticated) {
+        errors.push(new PropertyRequiredError("permissions.authenticated"));
+      }
+
+      if (!this.#permissions.anonymous) {
+        errors.push(new PropertyRequiredError("permissions.anonymous"));
+      }
+
+      if (!this.#permissions.advanced) {
+        errors.push(new PropertyRequiredError("permissions.advanced"));
+      }
+
+      if (!Array.isArray(this.#permissions.group)) {
+        errors.push(
+          new PropertyValueFormatError("permissions.group", "Permissions", this.#permissions.group),
+        );
+      }
+
+      if (!Array.isArray(this.#permissions.authenticated)) {
+        errors.push(
+          new PropertyValueFormatError(
+            "permissions.authenticated",
+            "Permissions",
+            this.#permissions.authenticated,
+          ),
+        );
+      }
+
+      if (!Array.isArray(this.#permissions.anonymous)) {
+        errors.push(
+          new PropertyValueFormatError(
+            "permissions.anonymous",
+            "Permissions",
+            this.#permissions.anonymous,
+          ),
+        );
+      }
+
+      if (errors.length > 0) {
+        throw ValidationError.from(...errors);
       }
     }
 

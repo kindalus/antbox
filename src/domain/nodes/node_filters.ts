@@ -13,9 +13,11 @@ export interface FiltersSpecification {
   isSatisfiedBy(node: NodeLike): boolean;
 }
 
-export function withNodeFilters(
-  filters: AndNodeFilters | OrNodeFilters,
-): (n: NodeLike) => boolean {
+export function areFiltersSatisfiedBy(f: AndNodeFilters | OrNodeFilters, n: NodeLike): boolean {
+  return withNodeFilters(f)(n);
+}
+
+export function withNodeFilters(filters: AndNodeFilters | OrNodeFilters): (n: NodeLike) => boolean {
   if (isOrNodeFilter(filters)) {
     return processOrNodeFilters(filters);
   }
@@ -32,9 +34,7 @@ function processNodeFilters(filters: AndNodeFilters): (n: NodeLike) => boolean {
   return (n: NodeLike) => predicates.every((p) => p(n));
 }
 
-function processOrNodeFilters(
-  filters: OrNodeFilters,
-): (n: NodeLike) => boolean {
+function processOrNodeFilters(filters: OrNodeFilters): (n: NodeLike) => boolean {
   const predicates = filters.map((f) => withNodeFilters(f));
   return (n: NodeLike) => predicates.some((p) => p(n));
 }

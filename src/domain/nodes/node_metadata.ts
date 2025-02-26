@@ -1,12 +1,7 @@
 import { type AspectProperty } from "domain/aspects/aspect.ts";
 import { type Permissions } from "./node.ts";
-import {
-  type NodeFilter,
-  type AndNodeFilters,
-  type OrNodeFilters,
-} from "./node_filter.ts";
+import { type AndNodeFilters, type OrNodeFilters } from "./node_filter.ts";
 import { type NodeProperties } from "./node_properties.ts";
-import { type Aggregation } from "./smart_folder_node.ts";
 
 export interface NodeMetadata {
   uuid: string;
@@ -26,7 +21,6 @@ export interface NodeMetadata {
   fulltext: string;
 
   filters: AndNodeFilters | OrNodeFilters;
-  aggregations: Aggregation[];
 
   group: string;
   groups: string[];

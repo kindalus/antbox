@@ -1,4 +1,4 @@
-import { join } from "path";
+import path, { join } from "path";
 import { AntboxError, UnknownError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
 import { type Event } from "shared/event.ts";
@@ -29,8 +29,8 @@ class FlatFileStorageProvider implements StorageProvider {
 
   async read(uuid: string): Promise<Either<AntboxError, File>> {
     try {
-      const path = this.#buildFilePath(uuid);
-      const b = await Bun.file(path).bytes();
+      const filePath = this.#buildFilePath(uuid);
+      const b = await Bun.file(filePath).bytes();
       const a = new File([b], uuid);
       return right(a);
     } catch (e) {
@@ -65,7 +65,7 @@ class FlatFileStorageProvider implements StorageProvider {
     return file
       .arrayBuffer()
       .then((buffer) => new Uint8Array(buffer))
-      .then((buffer) => writeFileSync(filePath, buffer, {}))
+      .then((buffer) => writeFileSync(filePath.concat(this.#getFileExtension(file)), buffer, {}))
       .then(right)
       .catch((e) => left(error(uuid, e.message))) as Promise<
       Either<AntboxError, void>
@@ -87,7 +87,20 @@ class FlatFileStorageProvider implements StorageProvider {
   }
 
   #buildFilePath(uuid: string) {
-    return join(this.#buildFileFolderPath(uuid), uuid);
+
+    const folderPath = this.#buildFileFolderPath(uuid)
+
+    const files = readdirSync(folderPath)
+
+    join(this.#buildFileFolderPath(uuid), uuid)
+  }
+
+  #getFileExtension(file: File) {
+    return (file.name.split(".")[file.name.split(".").length - 1])
+  }
+  
+  #getExtensionFromPath(path: string) {
+    return (path.split(".")[path.split(".").length - 1])
   }
 }
 

@@ -9,7 +9,7 @@ import { mkdirSync, readdirSync, writeFileSync } from "fs";
 import { NodeFileNotFoundError } from "domain/nodes/node_file_not_found_error";
 
 export default function buildFlatFileStorageProvider(
-  baseDir: string,
+  baseDir: string
 ): Promise<Either<AntboxError, StorageProvider>> {
   return Promise.resolve(right(new FlatFileStorageProvider(baseDir)));
 }
@@ -23,7 +23,7 @@ class FlatFileStorageProvider implements StorageProvider {
    */
   constructor(baseDir: string) {
     this.#path = baseDir;
-    this.mimetype = ""
+    this.mimetype = "";
 
     if (!fileExistsSync(this.#path)) {
       mkdirSync(this.#path, { recursive: true });
@@ -36,7 +36,7 @@ class FlatFileStorageProvider implements StorageProvider {
 
       const b = await Bun.file(filePath).bytes();
 
-      const a = new File([b], uuid, {type: this.mimetype});
+      const a = new File([b], uuid, { type: this.mimetype });
 
       return right(a);
     } catch (e) {
@@ -59,7 +59,7 @@ class FlatFileStorageProvider implements StorageProvider {
   write(
     uuid: string,
     file: File,
-    _opt: never,
+    _opt: never
   ): Promise<Either<AntboxError, void>> {
     const folderPath = this.#buildFileFolderPath(uuid);
     const filePath = this.#buildFilePath(uuid);
@@ -68,7 +68,7 @@ class FlatFileStorageProvider implements StorageProvider {
       mkdirSync(folderPath, { recursive: true });
     }
 
-    this.mimetype = file.type
+    this.mimetype = file.type;
 
     return file
       .arrayBuffer()
@@ -86,7 +86,7 @@ class FlatFileStorageProvider implements StorageProvider {
   }
 
   startListeners(
-    _bus: (eventId: string, handler: EventHandler<Event>) => void,
+    _bus: (eventId: string, handler: EventHandler<Event>) => void
   ): void {}
 
   #buildFileFolderPath(uuid: string) {
@@ -95,7 +95,7 @@ class FlatFileStorageProvider implements StorageProvider {
   }
 
   #buildFilePath(uuid: string) {
-    return join(this.#buildFileFolderPath(uuid), uuid)
+    return join(this.#buildFileFolderPath(uuid), uuid);
   }
 }
 

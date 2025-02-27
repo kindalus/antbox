@@ -8,7 +8,6 @@ import { AspectNode } from "domain/aspects/aspect_node";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error";
 import type { Either } from "shared/either";
 import { Nodes } from "domain/nodes/nodes";
-import { appendCorsPreflightHeaders } from "h3";
 
 /*
  * Run unit tests for the NodeRepository implementation.
@@ -159,7 +158,7 @@ describe("update", () => {
     result = await repo.update(updated);
     expect(
       result.isRight(),
-      JSON.stringify(result.value, null, 2),
+      JSON.stringify(result.value, null, 2)
     ).toBeTruthy();
 
     const retrieved = (await repo.getById(uuid)).right;
@@ -234,7 +233,7 @@ async function populateDb() {
       title: "Aspect 1",
       owner,
       group,
-    }),
+    })
   );
 
   await Promise.allSettled(nodes.map((n) => repo.add(n.right)));

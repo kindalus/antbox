@@ -6,7 +6,7 @@ import { type EventHandler } from "shared/event_handler.ts";
 import { fileExistsSync } from "shared/file_exists_sync.ts";
 import { type StorageProvider } from "application/storage_provider.ts";
 import { mkdirSync, readdirSync, writeFileSync } from "fs";
-import type { NodeFileNotFoundError } from "domain/nodes/node_file_not_found_error";
+import { NodeFileNotFoundError } from "domain/nodes/node_file_not_found_error";
 
 export default function buildFlatFileStorageProvider(
   baseDir: string,
@@ -41,7 +41,7 @@ class FlatFileStorageProvider implements StorageProvider {
       return right(a);
     } catch (e) {
       const err = error(uuid, (e as Record<string, string>).message);
-      return left(err);
+      return left(new NodeFileNotFoundError(err as unknown as string));
     }
   }
 
@@ -52,7 +52,7 @@ class FlatFileStorageProvider implements StorageProvider {
       return right(await Bun.file(path).delete());
     } catch (e) {
       const err = error(uuid, (e as Record<string, string>).message);
-      return left(err as unknown as NodeFileNotFoundError);
+      return left(new NodeFileNotFoundError(err as unknown as string));
     }
   }
 

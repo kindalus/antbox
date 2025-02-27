@@ -20,12 +20,11 @@ import { AntboxError, BadRequestError, ForbiddenError, UnknownError } from "shar
 import { type Either, left, right } from "shared/either.ts";
 import { isPrincipalAllowedTo } from "./is_principal_allowed_to.ts";
 import { type AuthenticationContext } from "./authentication_context.ts";
-import { NodeDeleter } from "./node_deleter.ts";
 import type { NodeServiceContext } from "./node_service_context.ts";
 import { NodeFactory } from "domain/node_factory.ts";
 import { UuidGenerator } from "shared/uuid_generator.ts";
 import { FidGenerator } from "shared/fid_generator.ts";
-import { builtinFolders, ROOT_FOLDER, SYSTEM_FOLDER } from "./builtin_folders/index.ts";
+import { builtinFolders } from "./builtin_folders/index.ts";
 import { areFiltersSatisfiedBy } from "domain/nodes/node_filters.ts";
 
 /**
@@ -280,13 +279,44 @@ export class NodeService {
   }
 
   async delete(ctx: AuthenticationContext, uuid: string): Promise<Either<NodeNotFoundError, void>> {
-    const nodeOrError = await this.get(ctx, uuid);
-
-    if (nodeOrError.isLeft()) {
-      return left(nodeOrError.value);
+    const nodeOrErr = await this.#getFromRepository(uuid);
+    if (nodeOrErr.isLeft()) {
+      return left(nodeOrErr.value);
     }
 
-    return NodeDeleter.for(nodeOrError.value, this.context).delete();
+    const parentOrErr = await this.#getBuiltinFolderOrFromRepository(nodeOrErr.value.parent);
+    if (parentOrErr.isLeft()) {
+      return left(new UnknownError(`Parent folder not found for node uuid='${uuid}'`));
+    }
+
+    const isAllowed = await isPrincipalAllowedTo(ctx, parentOrErr.value, "Write");
+    if (!isAllowed) {
+      return left(new ForbiddenError());
+    }
+
+    if (!Nodes.isFolder(nodeOrErr.value) && !Nodes.isFileLike(nodeOrErr.value)) {
+      return this.context.repository.delete(uuid);
+    }
+
+    if (Nodes.isFileLike(nodeOrErr.value)) {
+      const voidOrErr = await this.context.storage.delete(uuid);
+      if (voidOrErr.isLeft()) {
+        return left(voidOrErr.value);
+      }
+
+      return this.context.repository.delete(uuid);
+    }
+
+    const children = await this.context.repository.filter([["parent", "==", uuid]]);
+    const batch = children.nodes.map((n) => this.delete(ctx, n.uuid));
+    const batchResult = await Promise.allSettled(batch);
+
+    const rejected = batchResult.filter((r) => r.status === "rejected");
+    if (rejected.length > 0) {
+      return left(new UnknownError(`Error deleting children: ${rejected.map((r) => r.reason)}`));
+    }
+
+    return this.context.repository.delete(uuid);
   }
 
   async get(

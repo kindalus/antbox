@@ -49,7 +49,6 @@ describe("write", () => {
         expect(writeResult.isRight()).toBeTruthy();
 
         const readResult = await storage.read(uuid);
-        console.error(readResult.value)
         expect(readResult.isRight()).toBeTruthy()
 
         if(readResult.isRight()) {

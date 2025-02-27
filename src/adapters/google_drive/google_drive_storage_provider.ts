@@ -1,6 +1,4 @@
 import { auth, drive, drive_v3 } from "@googleapis/drive";
-import { createReadStream } from "fs";
-
 import type {
   StorageProvider,
   WriteFileOpts,
@@ -13,6 +11,7 @@ import { NodeFileNotFoundError } from "domain/nodes/node_file_not_found_error";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import { NodeUpdatedEvent } from "domain/nodes/node_updated_event.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
+import { createReadStream } from "fs";
 import {
   AntboxError,
   BadRequestError,
@@ -124,11 +123,11 @@ class GoogleDriveStorageProvider implements StorageProvider {
       return left(new UnknownError(res.statusText));
     }
 
-    // const id = res.data.id!;
+    const id = res.data.id!;
 
-    // if (metadataOrError.isLeft() && opts.parent !== Folders.ROOT_FOLDER_UUID) {
-    //   await this.#updateParentFolderId(id, opts.parent);
-    // }
+    if (metadataOrError.isLeft() && opts.parent !== Folders.ROOT_FOLDER_UUID) {
+      await this.#updateParentFolderId(id, opts.parent);
+    }
 
     return right(undefined);
   }

@@ -1,10 +1,9 @@
 import { beforeAll, describe, expect, test } from "bun:test";
 import process from "node:process";
-import { type StorageProvider } from "../application/storage_provider.ts";
-import { providerFrom } from "./parse_module_configuration.ts";
-import { UuidGenerator } from "../shared/uuid_generator.ts";
-import { NodeFileNotFoundError } from "../domain/nodes/node_file_not_found_error.ts";
 import { AntboxError } from "shared/antbox_error.ts";
+import { type StorageProvider } from "../application/storage_provider.ts";
+import { UuidGenerator } from "../shared/uuid_generator.ts";
+import { providerFrom } from "./parse_module_configuration.ts";
 
 if (!process.env.NODE_ENV && process.argv.length < 3) {
   console.error("This script must be run with command line arguments.");
@@ -14,11 +13,9 @@ if (!process.env.NODE_ENV && process.argv.length < 3) {
 if (!process.env.NODE_ENV) {
   await Bun.spawn({
     cmd: [
-      "/home/mvarela/.bun/bin/bun",
-      //   process.argv0,
+      process.argv0,
       "test",
       // "--inspect-wait",
-      "--timeout 10000",
       "./src/adapters/run_storage_provider_tests.ts",
     ],
     env: { TEST_PARAMS: process.argv.slice(2).join(";") },
@@ -65,7 +62,7 @@ describe("write", () => {
       expect(readFile.size).toBe(file.size);
       expect(readFile.type).toBe(file.type);
     }
-  });
+  }, 15000);
 });
 
 describe("delete", () => {
@@ -85,13 +82,17 @@ describe("delete", () => {
     });
     expect(writeResult.isRight()).toBeTruthy();
 
+    const readForWrite = await storage.read(uuid);
+    expect(readForWrite.isRight()).toBeTruthy();
+    expect(readForWrite.value).toBeInstanceOf(File);
+
     const deleteResult = await storage.delete(uuid);
     expect(deleteResult.isRight()).toBeTruthy();
 
-    const readResult = await storage.read(uuid);
-    expect(readResult.isLeft()).toBeTruthy();
-    expect(readResult.value).toBeInstanceOf(AntboxError);
-  });
+    const readForDelete = await storage.read(uuid);
+    expect(readForDelete.isLeft()).toBeTruthy();
+    expect(readForDelete.value).toBeInstanceOf(AntboxError);
+  }, 15000);
 
   test("should not delete", async () => {
     const deleteResult = await storage.delete("unkwown");

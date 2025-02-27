@@ -1,14 +1,16 @@
-declare namespace Deno {
-  export function makeTempFileSync(): string;
-  export function writeFile(path: string, data: ReadableStream): Promise<void>;
-}
-
 export function makeTempFileSync(): string {
-  return Deno.makeTempFileSync();
+  const tempDir = Bun.env.TMPDIR || Bun.env.TEMP || "/tmp";
+  const randomName = `temp-${Math.random().toString(36).substring(2)}`;
+  const tempFilePath = `${tempDir}/${randomName}`;
+
+  Bun.write(tempFilePath, "");
+
+  return tempFilePath;
 }
 
 export async function writeFile(path: string, file: File): Promise<void> {
-  await Deno.writeFile(path, file.stream());
+  const arrayBuffer = await file.arrayBuffer();
+  await Bun.write(path, arrayBuffer);
 }
 
 // export async function readFileSync(path: string) {

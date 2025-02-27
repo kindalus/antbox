@@ -1,12 +1,12 @@
-import path, { join } from "path";
-import { AntboxError, UnknownError } from "shared/antbox_error.ts";
+import { type StorageProvider } from "application/storage_provider.ts";
+import { NodeFileNotFoundError } from "domain/nodes/node_file_not_found_error";
+import { mkdirSync, readdirSync, writeFileSync } from "fs";
+import { join } from "path";
+import { AntboxError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
 import { type Event } from "shared/event.ts";
 import { type EventHandler } from "shared/event_handler.ts";
 import { fileExistsSync } from "shared/file_exists_sync.ts";
-import { type StorageProvider } from "application/storage_provider.ts";
-import { mkdirSync, readdirSync, writeFileSync } from "fs";
-import { NodeFileNotFoundError } from "domain/nodes/node_file_not_found_error";
 
 export default function buildFlatFileStorageProvider(
   baseDir: string

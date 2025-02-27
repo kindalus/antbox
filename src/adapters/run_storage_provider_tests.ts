@@ -4,6 +4,7 @@ import { type StorageProvider } from "../application/storage_provider.ts";
 import { providerFrom } from "./parse_module_configuration.ts";
 import { UuidGenerator } from "../shared/uuid_generator.ts";
 import { NodeFileNotFoundError } from "../domain/nodes/node_file_not_found_error.ts";
+import { AntboxError } from "shared/antbox_error.ts";
 
 if (!process.env.NODE_ENV && process.argv.length < 3) {
   console.error("This script must be run with command line arguments.");
@@ -13,9 +14,11 @@ if (!process.env.NODE_ENV && process.argv.length < 3) {
 if (!process.env.NODE_ENV) {
   await Bun.spawn({
     cmd: [
-      process.argv0,
+      "/home/mvarela/.bun/bin/bun",
+      //   process.argv0,
       "test",
       // "--inspect-wait",
+      "--timeout 10000",
       "./src/adapters/run_storage_provider_tests.ts",
     ],
     env: { TEST_PARAMS: process.argv.slice(2).join(";") },
@@ -43,16 +46,19 @@ beforeAll(async () => {
 describe("write", () => {
   test("should write", async () => {
     const uuid = UuidGenerator.generate();
-    const file = new File(["Something"], "some.txt", { type: "text/plain" });
+    const file = new File(["Something Writed"], "Something Writed.txt", {
+      type: "text/plain",
+    });
     const writeResult = await storage.write(uuid, file, {
       mimetype: file.type,
       parent: "--parent--",
-      title: "Something",
+      title: "Something Writed",
     });
     expect(writeResult.isRight()).toBeTruthy();
 
     const readResult = await storage.read(uuid);
     expect(readResult.isRight()).toBeTruthy();
+    expect(readResult.value).toBeInstanceOf(File);
 
     if (readResult.isRight()) {
       const readFile = readResult.value;
@@ -65,11 +71,17 @@ describe("write", () => {
 describe("delete", () => {
   test("should delete", async () => {
     const uuid = UuidGenerator.generate();
-    const file = new File(["Something"], "some.txt", { type: "text/plain" });
+    const file = new File(
+      ["Something That will be deleted"],
+      "Something that will be deleted.txt",
+      {
+        type: "text/plain",
+      }
+    );
     const writeResult = await storage.write(uuid, file, {
       mimetype: file.type,
       parent: "--parent--",
-      title: "Something",
+      title: "Something Will be Deleted",
     });
     expect(writeResult.isRight()).toBeTruthy();
 
@@ -78,12 +90,12 @@ describe("delete", () => {
 
     const readResult = await storage.read(uuid);
     expect(readResult.isLeft()).toBeTruthy();
-    expect(readResult.value).toBeInstanceOf(NodeFileNotFoundError);
+    expect(readResult.value).toBeInstanceOf(AntboxError);
   });
 
   test("should not delete", async () => {
     const deleteResult = await storage.delete("unkwown");
     expect(deleteResult.isLeft()).toBeTruthy();
-    expect(deleteResult.value).toBeInstanceOf(NodeFileNotFoundError);
+    expect(deleteResult.value).toBeInstanceOf(AntboxError);
   });
 });

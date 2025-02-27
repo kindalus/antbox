@@ -86,12 +86,12 @@ export class InMemoryNodeRepository implements NodeRepository {
   filter(
     filters: AndNodeFilters | OrNodeFilters,
     pageSize = 20,
-    pageToken = 1,
+    pageToken = 1
   ): Promise<NodeFilterResult> {
     const firstIndex = (pageToken - 1) * pageSize;
     const lastIndex = firstIndex + pageSize;
     const filtered = this.records.filter(
-      withNodeFilters(filters as AndNodeFilters),
+      withNodeFilters(filters as AndNodeFilters)
     );
     const nodes = filtered.slice(firstIndex, lastIndex);
 

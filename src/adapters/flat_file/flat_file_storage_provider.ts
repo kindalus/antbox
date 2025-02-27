@@ -1,26 +1,29 @@
+import { type StorageProvider } from "application/storage_provider.ts";
+import { NodeFileNotFoundError } from "domain/nodes/node_file_not_found_error";
+import { mkdirSync, readdirSync, writeFileSync } from "fs";
 import { join } from "path";
-import { AntboxError, UnknownError } from "shared/antbox_error.ts";
+import { AntboxError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
 import { type Event } from "shared/event.ts";
 import { type EventHandler } from "shared/event_handler.ts";
 import { fileExistsSync } from "shared/file_exists_sync.ts";
-import { type StorageProvider } from "application/storage_provider.ts";
-import { mkdirSync, readdirSync, writeFileSync } from "fs";
 
 export default function buildFlatFileStorageProvider(
-  baseDir: string,
+  baseDir: string
 ): Promise<Either<AntboxError, StorageProvider>> {
   return Promise.resolve(right(new FlatFileStorageProvider(baseDir)));
 }
 
 class FlatFileStorageProvider implements StorageProvider {
   readonly #path: string;
+  mimetype: string;
 
   /**
    * @param baseDir Raíz do repositorio de ficheiros
    */
   constructor(baseDir: string) {
     this.#path = baseDir;
+    this.mimetype = "";
 
     if (!fileExistsSync(this.#path)) {
       mkdirSync(this.#path, { recursive: true });
@@ -29,13 +32,16 @@ class FlatFileStorageProvider implements StorageProvider {
 
   async read(uuid: string): Promise<Either<AntboxError, File>> {
     try {
-      const path = this.#buildFilePath(uuid);
-      const b = await Bun.file(path).bytes();
-      const a = new File([b], uuid);
+      const filePath = this.#buildFilePath(uuid);
+
+      const b = await Bun.file(filePath).bytes();
+
+      const a = new File([b], uuid, { type: this.mimetype });
+
       return right(a);
     } catch (e) {
       const err = error(uuid, (e as Record<string, string>).message);
-      return left(err);
+      return left(new NodeFileNotFoundError(err as unknown as string));
     }
   }
 
@@ -46,14 +52,14 @@ class FlatFileStorageProvider implements StorageProvider {
       return right(await Bun.file(path).delete());
     } catch (e) {
       const err = error(uuid, (e as Record<string, string>).message);
-      return left(err);
+      return left(new NodeFileNotFoundError(err as unknown as string));
     }
   }
 
   write(
     uuid: string,
     file: File,
-    _opt: never,
+    _opt: never
   ): Promise<Either<AntboxError, void>> {
     const folderPath = this.#buildFileFolderPath(uuid);
     const filePath = this.#buildFilePath(uuid);
@@ -61,6 +67,8 @@ class FlatFileStorageProvider implements StorageProvider {
     if (!fileExistsSync(folderPath)) {
       mkdirSync(folderPath, { recursive: true });
     }
+
+    this.mimetype = file.type;
 
     return file
       .arrayBuffer()
@@ -78,7 +86,7 @@ class FlatFileStorageProvider implements StorageProvider {
   }
 
   startListeners(
-    _bus: (eventId: string, handler: EventHandler<Event>) => void,
+    _bus: (eventId: string, handler: EventHandler<Event>) => void
   ): void {}
 
   #buildFileFolderPath(uuid: string) {

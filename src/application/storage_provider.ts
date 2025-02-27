@@ -1,7 +1,8 @@
-import { AntboxError } from "shared/antbox_error.ts";
+import type { DuplicatedNodeError } from "domain/nodes/duplicated_node_error";
+import type { NodeNotFoundError } from "domain/nodes/node_not_found_error";
 import { type Either } from "shared/either.ts";
-import { type EventHandler } from "shared/event_handler.ts";
 import { type Event } from "shared/event.ts";
+import { type EventHandler } from "shared/event_handler.ts";
 
 export interface WriteFileOpts {
   title: string;
@@ -10,14 +11,14 @@ export interface WriteFileOpts {
 }
 
 export interface StorageProvider {
-  delete(uuid: string): Promise<Either<AntboxError, void>>;
+  delete(uuid: string): Promise<Either<NodeNotFoundError, void>>;
   write(
     uuid: string,
     file: File,
-    opts?: WriteFileOpts,
-  ): Promise<Either<AntboxError, void>>;
-  read(uuid: string): Promise<Either<AntboxError, File>>;
+    opts?: WriteFileOpts
+  ): Promise<Either<DuplicatedNodeError, void>>;
+  read(uuid: string): Promise<Either<NodeNotFoundError, File>>;
   startListeners(
-    bus: (eventId: string, handler: EventHandler<Event>) => void,
+    bus: (eventId: string, handler: EventHandler<Event>) => void
   ): void;
 }

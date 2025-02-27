@@ -6,7 +6,8 @@
     "start-demo": "bun run src/demo.ts",
     "test": "bun test --watch ./src",
     "lint": "tsc --noEmit --watch",
-    "test-node-repository": "bun run ./src/adapters/run_node_repository_tests.ts"
+    "test-node-repository": "bun run ./src/adapters/run_node_repository_tests.ts",
+    "test-storage-provider": "bun run ./src/adapters/run_storage_provider_tests.ts"
   },
   "devDependencies": {
     "@types/bun": "latest",

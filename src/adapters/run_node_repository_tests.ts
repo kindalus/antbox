@@ -158,7 +158,7 @@ describe("update", () => {
     result = await repo.update(updated);
     expect(
       result.isRight(),
-      JSON.stringify(result.value, null, 2),
+      JSON.stringify(result.value, null, 2)
     ).toBeTruthy();
 
     const retrieved = (await repo.getById(uuid)).right;
@@ -233,7 +233,7 @@ async function populateDb() {
       title: "Aspect 1",
       owner,
       group,
-    }),
+    })
   );
 
   await Promise.allSettled(nodes.map((n) => repo.add(n.right)));

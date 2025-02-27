@@ -17,7 +17,6 @@ if (!process.env.NODE_ENV) {
       process.argv0,
       "test",
       // "--inspect-wait",
-      "--timeout 10000",
       "./src/adapters/run_storage_provider_tests.ts",
     ],
     env: { TEST_PARAMS: process.argv.slice(2).join(";") },
@@ -84,13 +83,17 @@ describe("delete", () => {
     });
     expect(writeResult.isRight()).toBeTruthy();
 
+    const readForWrite = await storage.read(uuid);
+    expect(readForWrite.isRight()).toBeTruthy();
+    expect(readForWrite.value).toBeInstanceOf(File);
+
     const deleteResult = await storage.delete(uuid);
     expect(deleteResult.isRight()).toBeTruthy();
 
-    const readResult = await storage.read(uuid);
-    expect(readResult.isLeft()).toBeTruthy();
-    expect(readResult.value).toBeInstanceOf(AntboxError);
-  });
+    const readForDelete = await storage.read(uuid);
+    expect(readForDelete.isLeft()).toBeTruthy();
+    expect(readForDelete.value).toBeInstanceOf(AntboxError);
+  }, 15000);
 
   test("should not delete", async () => {
     const deleteResult = await storage.delete("unkwown");

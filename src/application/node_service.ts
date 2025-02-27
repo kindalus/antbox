@@ -520,10 +520,8 @@ export class NodeService {
     ctx: AuthenticationContext,
     uuid: string,
     data: Partial<NodeMetadata>,
-    merge = false,
   ): Promise<Either<NodeNotFoundError, void>> {
     const nodeOrErr = await this.get(ctx, uuid);
-
     if (nodeOrErr.isLeft()) {
       return left(nodeOrErr.value);
     }
@@ -532,14 +530,27 @@ export class NodeService {
       return left(new BadRequestError("Cannot update apikey"));
     }
 
-    const newNode = merge
-      ? this.#merge(nodeOrErr.value, data)
-      : Object.assign(nodeOrErr.value, data);
+    const voidOrErr = nodeOrErr.value.update(data);
+    if (voidOrErr.isLeft()) {
+      return left(voidOrErr.value);
+    }
 
-    newNode.modifiedTime = new Date().toISOString();
+    nodeOrErr.value.update({ fulltext: await this.#calculateFulltext(ctx, nodeOrErr.value) });
 
-    newNode.fulltext = await this.#calculateFulltext(ctx, newNode);
-    return this.context.repository.update(newNode);
+    const parentOrErr = Nodes.isFolder(nodeOrErr.value)
+      ? right<AntboxError, FolderNode>(nodeOrErr.value)
+      : await this.#getBuiltinFolderOrFromRepository(nodeOrErr.value.parent);
+
+    if (parentOrErr.isLeft()) {
+      return left(new UnknownError(`Parent folder not found for node uuid='${uuid}'`));
+    }
+
+    const allowed = await isPrincipalAllowedTo(ctx, parentOrErr.value, "Write");
+    if (!allowed) {
+      return left(new ForbiddenError());
+    }
+
+    return this.context.repository.update(nodeOrErr.value);
   }
 
   async #getNodeAspects(

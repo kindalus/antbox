@@ -134,13 +134,34 @@ export class NodeService {
     ctx: AuthenticationContext,
     uuid: string,
   ): Promise<Either<NodeNotFoundError, Node>> {
-    const node = await this.get(ctx, uuid);
+    const nodeOrErr = await this.get(ctx, uuid);
 
-    if (node.isLeft()) {
-      return left(node.value);
+    if (nodeOrErr.isLeft()) {
+      return left(nodeOrErr.value);
     }
 
-    return this.copy(ctx, uuid, node.value.parent);
+    if (Nodes.isFolder(nodeOrErr.value)) {
+      return left(new BadRequestError("Cannot duplicate folder"));
+    }
+
+    const metadata = {
+      ...nodeOrErr.value.metadata,
+      uuid: UuidGenerator.generate(),
+      title: `${nodeOrErr.value.title} 2`,
+    };
+
+    delete metadata.fid;
+
+    if (!Nodes.isFileLike(nodeOrErr.value)) {
+      return this.create(ctx, metadata);
+    }
+
+    const fileOrErr = await this.context.storage.read(uuid);
+    if (fileOrErr.isLeft()) {
+      return left(fileOrErr.value);
+    }
+
+    return this.createFile(ctx, fileOrErr.value, metadata);
   }
 
   async copy(
@@ -157,69 +178,33 @@ export class NodeService {
       return left(new BadRequestError("Cannot copy folder"));
     }
 
-    const node = nodeOrErr.value;
+    const metadata = {
+      ...nodeOrErr.value.metadata,
+      uuid: UuidGenerator.generate(),
+      title: `${nodeOrErr.value.title} 2`,
+      parent,
+    };
+
+    delete metadata.fid;
+
+    if (!Nodes.isFileLike(nodeOrErr.value)) {
+      return this.create(ctx, metadata);
+    }
 
     const fileOrErr = await this.context.storage.read(uuid);
     if (fileOrErr.isLeft()) {
       return left(fileOrErr.value);
     }
 
-    const newUuid = UuidGenerator.generate();
-    const title = `cópia de ${node.title}`;
-    const fid = FidGenerator.generate(title);
-
-    const metadata: Partial<NodeMetadata> = {
-      uuid: newUuid,
-      fid,
-      mimetype: node.mimetype,
-      title,
-      parent: parent ?? node.parent,
-    };
-
-    if (Nodes.isFile(node)) {
-      metadata.size = node.size;
-    }
-
-    const newNode = NodeFactory.from(metadata).right;
-
-    const writeOrErr = await this.context.storage.write(newNode.uuid, fileOrErr.value, {
-      title: newNode.title,
-      parent: newNode.parent,
-      mimetype: newNode.mimetype,
-    });
-    if (writeOrErr.isLeft()) {
-      return left(writeOrErr.value);
-    }
-
-    newNode.fulltext = await this.#calculateFulltext(ctx, newNode);
-
-    const addOrErr = await this.context.repository.add(newNode);
-    if (addOrErr.isLeft()) {
-      return left(addOrErr.value);
-    }
-
-    return right(newNode);
-  }
-
-  #escapeFulltext(fulltext: string): string {
-    return fulltext
-      .toLocaleLowerCase()
-      .replace(/[áàâäãå]/g, "a")
-      .replace(/[ç]/g, "c")
-      .replace(/[éèêë]/g, "e")
-      .replace(/[íìîï]/g, "i")
-      .replace(/ñ/g, "n")
-      .replace(/[óòôöõ]/g, "o")
-      .replace(/[úùûü]/g, "u")
-      .replace(/[ýÿ]/g, "y")
-      .replace(/[\W\._]/g, " ")
-      .replace(/(^|\s)\w{1,2}\s/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
+    return this.createFile(ctx, fileOrErr.value, metadata);
   }
 
   async #calculateFulltext(ctx: AuthenticationContext, node: NodeLike): Promise<string> {
     const fulltext = [node.title, node.description ?? ""];
+
+    if ((Nodes.isFileLike(node) || Nodes.isFolder(node)) && node.tags?.length) {
+      fulltext.push(...node.tags);
+    }
 
     if (Nodes.hasAspects(node)) {
       const aspects = await this.#getNodeAspects(ctx, node);
@@ -234,7 +219,21 @@ export class NodeService {
       fulltext.push(...propertiesFulltext);
     }
 
-    return this.#escapeFulltext(fulltext.join(" "));
+    return fulltext
+      .join(" ")
+      .toLocaleLowerCase()
+      .replace(/[áàâäãå]/g, "a")
+      .replace(/[ç]/g, "c")
+      .replace(/[éèêë]/g, "e")
+      .replace(/[íìîï]/g, "i")
+      .replace(/ñ/g, "n")
+      .replace(/[óòôöõ]/g, "o")
+      .replace(/[úùûü]/g, "u")
+      .replace(/[ýÿ]/g, "y")
+      .replace(/[\W\._]/g, " ")
+      .replace(/(^|\s)\w{1,2}\s/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
   }
 
   #aspectToProperties(aspect: AspectNode): AspectProperty[] {

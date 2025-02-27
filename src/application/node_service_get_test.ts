@@ -8,13 +8,12 @@ import type { AuthenticationContext } from "./authentication_context";
 import { Groups } from "domain/auth/groups";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error";
 import { Users } from "domain/auth/users";
-import { ForbiddenError } from "shared/antbox_error";
+import { BadRequestError, ForbiddenError } from "shared/antbox_error";
 import { FolderNode } from "domain/nodes/folder_node";
 import { Folders } from "domain/nodes/folders";
 import { Nodes } from "domain/nodes/nodes";
-import { MetaNode } from "domain/nodes/meta_node";
-import { NodeTypeError } from "domain/nodes/node_type_error";
 import { NodeFileNotFoundError } from "domain/nodes/node_file_not_found_error";
+import { AuthPlus } from "@googleapis/drive";
 
 describe("NodeService.get", () => {
   test("should return node information from repository", async () => {
@@ -38,15 +37,19 @@ describe("NodeService.get", () => {
     expect(nodeOrErr.right).toEqual(node);
   });
 
-  test("should return if uuid is in fid format", async() =>{
+  test("should return if uuid is in fid format", async () => {
     const service = nodeService();
-    await service.create(authCtx, {title: "Folder 1", fid: "fid-1", mimetype: Nodes.FOLDER_MIMETYPE});
+    await service.create(authCtx, {
+      title: "Folder 1",
+      fid: "fid-1",
+      mimetype: Nodes.FOLDER_MIMETYPE,
+    });
 
     const nodeOrErr = await service.get(authCtx, "--fid--fid-1");
     expect(nodeOrErr.isRight(), errToMsg(nodeOrErr.value)).toBeTruthy();
     expect(nodeOrErr.right.title).toEqual("Folder 1");
     expect(nodeOrErr.right.mimetype).toEqual(Nodes.FOLDER_MIMETYPE);
-  })
+  });
 
   test("should return error if node is not found", async () => {
     const repository = new InMemoryNodeRepository();
@@ -166,14 +169,14 @@ describe("NodeService.export", () => {
       title: "Folder",
       mimetype: Nodes.FOLDER_MIMETYPE,
     });
-    (
-      await service.create(authCtx, {
-        uuid: "nuuid",
-        title: "Meta",
-        parent: "puuid",
-        mimetype: Nodes.META_NODE_MIMETYPE,
-      }),
-    ).right;
+
+    await service.create(authCtx, {
+      uuid: "nuuid",
+      title: "Meta",
+      parent: "puuid",
+      mimetype: Nodes.META_NODE_MIMETYPE,
+    });
+
     const fileOrErr = await service.export(authCtx, "nuuid");
 
     expect(fileOrErr.isRight()).toBeFalsy();

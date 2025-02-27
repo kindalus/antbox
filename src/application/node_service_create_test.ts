@@ -231,6 +231,130 @@ describe("NodeService.createFile", () => {
   });
 });
 
+describe("NodeService.duplicate", () => {
+  test("should create the same node in the same directory with diferent uuid, fid and a title with '2' as suffix", async () => {
+    const service = nodeService();
+    const parent = await service.create(authCtx, {
+      title: "Folder",
+      mimetype: Nodes.FOLDER_MIMETYPE,
+    });
+    const node = await service.create(authCtx, {
+      title: "Meta File",
+      mimetype: Nodes.META_NODE_MIMETYPE,
+      parent: parent.right.uuid,
+    });
+
+    const duplicate = await service.duplicate(authCtx, node.right.uuid);
+
+    expect(duplicate.isRight(), errToMsg(duplicate.value)).toBeTruthy();
+    expect(duplicate.right.title).toBe("Meta File 2");
+    expect(duplicate.right.uuid).not.toBe(node.right.uuid);
+    expect(duplicate.right.fid).not.toBe(node.right.fid);
+    expect(duplicate.right.parent).toBe(node.right.parent);
+    expect(duplicate.right.mimetype).toBe(node.right.mimetype);
+  });
+
+  test("should create a copy of the file if node is a file like node", async () => {
+    const service = nodeService();
+    const parent = await service.create(authCtx, {
+      title: "Folder",
+      mimetype: Nodes.FOLDER_MIMETYPE,
+    });
+    const node = await service.createFile(authCtx, dummyFile, {
+      parent: parent.right.uuid,
+    });
+
+    const duplicateOrErr = await service.duplicate(authCtx, node.right.uuid);
+    const duplicatedFileOrErr = await service.export(authCtx, duplicateOrErr.right.uuid);
+
+    expect(duplicatedFileOrErr.isRight(), errToMsg(duplicatedFileOrErr.value)).toBeTruthy();
+    expect(duplicatedFileOrErr.right.size).toBe(dummyFile.size);
+  });
+
+  test("should return a error if node to duplicate is a folder node", async () => {
+    const service = nodeService();
+    const parent = await service.create(authCtx, {
+      title: "Folder",
+      mimetype: Nodes.FOLDER_MIMETYPE,
+    });
+    const folder = await service.create(authCtx, {
+      title: "Folder to Duplicate",
+      mimetype: Nodes.FOLDER_MIMETYPE,
+      parent: parent.right.uuid,
+    });
+
+    const duplicateOrErr = await service.duplicate(authCtx, folder.right.uuid);
+
+    expect(duplicateOrErr.isRight()).toBeFalsy();
+    expect(duplicateOrErr.value).toBeInstanceOf(BadRequestError);
+  });
+});
+
+describe("NodeService.copy", () => {
+  test("should copy a node to a new parent folder", async () => {
+    const service = nodeService();
+    const parent1 = await service.create(authCtx, {
+      title: "Parent Folder 1",
+      mimetype: Nodes.FOLDER_MIMETYPE,
+    });
+    const parent2 = await service.create(authCtx, {
+      title: "Parent Folder 2",
+      mimetype: Nodes.FOLDER_MIMETYPE,
+    });
+    const node = await service.create(authCtx, {
+      title: "Meta File",
+      mimetype: Nodes.META_NODE_MIMETYPE,
+      parent: parent1.right.uuid,
+    });
+
+    const copyOrErr = await service.copy(authCtx, node.right.uuid, parent2.right.uuid);
+
+    expect(copyOrErr.isRight(), errToMsg(copyOrErr.value)).toBeTruthy();
+    expect(copyOrErr.right.title).toBe("Meta File 2");
+    expect(copyOrErr.right.uuid).not.toBe(node.right.uuid);
+    expect(copyOrErr.right.parent).toBe(parent2.right.uuid);
+    expect(copyOrErr.right.mimetype).toBe(node.right.mimetype);
+  });
+
+  test("should return error if node to copy is a folder", async () => {
+    const service = nodeService();
+    const parent = await service.create(authCtx, {
+      title: "Parent Folder",
+      mimetype: Nodes.FOLDER_MIMETYPE,
+    });
+    const folder = await service.create(authCtx, {
+      title: "Folder to Copy",
+      mimetype: Nodes.FOLDER_MIMETYPE,
+      parent: parent.right.uuid,
+    });
+
+    const copyOrErr = await service.copy(authCtx, folder.right.uuid, parent.right.uuid);
+
+    expect(copyOrErr.isRight()).toBeFalsy();
+    expect(copyOrErr.value).toBeInstanceOf(BadRequestError);
+  });
+
+  test("should create a copy of the file if node is a file like node", async () => {
+    const service = nodeService();
+    const parent1 = await service.create(authCtx, {
+      title: "Parent Folder 1",
+      mimetype: Nodes.FOLDER_MIMETYPE,
+    });
+    const parent2 = await service.create(authCtx, {
+      title: "Parent Folder 2",
+      mimetype: Nodes.FOLDER_MIMETYPE,
+    });
+    const node = await service.createFile(authCtx, dummyFile, {
+      parent: parent1.right.uuid,
+    });
+
+    const copyOrErr = await service.copy(authCtx, node.right.uuid, parent2.right.uuid);
+    const copiedFileOrErr = await service.export(authCtx, copyOrErr.right.uuid);
+
+    expect(copiedFileOrErr.isRight(), errToMsg(copiedFileOrErr.value)).toBeTruthy();
+    expect(copiedFileOrErr.right.size).toBe(dummyFile.size);
+  });
+});
 const authCtx: AuthenticationContext = {
   mode: "Direct",
   tenant: "",

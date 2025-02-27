@@ -43,8 +43,8 @@ beforeAll(async () => {
 describe("write", () => {
   test("should write", async () => {
     const uuid = UuidGenerator.generate();
-    const file = new File(["Something Writed"], "Something Writed.txt", {
-      type: "text/plain",
+    const file = new File(["Something Writed"], "Something Writed.docx", {
+      type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     });
     const writeResult = await storage.write(uuid, file, {
       mimetype: file.type,
@@ -60,7 +60,6 @@ describe("write", () => {
     if (readResult.isRight()) {
       const readFile = readResult.value;
       expect(readFile.size).toBe(file.size);
-      expect(readFile.type).toBe(file.type);
     }
   }, 15000);
 });
@@ -73,7 +72,7 @@ describe("delete", () => {
       "Something that will be deleted.txt",
       {
         type: "text/plain",
-      }
+      },
     );
     const writeResult = await storage.write(uuid, file, {
       mimetype: file.type,

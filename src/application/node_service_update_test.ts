@@ -4,7 +4,7 @@ import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository";
 import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider";
 import { Groups } from "domain/auth/groups";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error";
-import { ForbiddenError } from "shared/antbox_error";
+import { BadRequestError, ForbiddenError } from "shared/antbox_error";
 import type { AuthenticationContext } from "./authentication_context";
 import type { NodeServiceContext } from "./node_service_context";
 import { Nodes } from "domain/nodes/nodes";
@@ -156,6 +156,56 @@ describe("NodeService.updateFile", () => {
 
     expect(updateOrErr.isLeft()).toBeTruthy();
     expect(updateOrErr.value).toBeInstanceOf(NodeNotFoundError);
+  });
+
+  test("should return error if user doesn't have 'Write' permission on parent", async () => {
+    const service = nodeService();
+    const parent = await service.create(authCtx, {
+      title: "Parent Folder",
+      mimetype: "application/vnd.antbox.folder",
+      permissions: {
+        anonymous: [],
+        group: ["Read"],
+        authenticated: ["Read"],
+        advanced: {},
+      },
+    });
+
+    const originalFile = new File(["content"], "file.txt", { type: "text/plain" });
+    const nodeOrErr = await service.createFile(authCtx, originalFile, {
+      parent: parent.right.uuid,
+    });
+
+    const ctx: AuthenticationContext = {
+      mode: "Direct",
+      tenant: "",
+      principal: { email: "otheruser@domain.com", groups: ["group-x"] },
+    };
+
+    const file = new File(["content"], "file.txt", { type: "text/plain" });
+    const updateOrErr = await service.updateFile(ctx, nodeOrErr.right.uuid, file);
+
+    expect(updateOrErr.isLeft()).toBeTruthy();
+    expect(updateOrErr.value).toBeInstanceOf(ForbiddenError);
+  });
+
+  test("should return an error files have different mimetypes", async () => {
+    const service = nodeService();
+    const parent = await service.create(authCtx, {
+      title: "Parent Folder",
+      mimetype: Nodes.FOLDER_MIMETYPE,
+    });
+
+    const file = new File(["content"], "file.txt", { type: "text/plain" });
+    const nodeOrErr = await service.createFile(authCtx, file, {
+      parent: parent.right.uuid,
+    });
+
+    const updatedFile = new File(["content"], "file.txt", { type: "application/json" });
+    const updateOrErr = await service.updateFile(authCtx, nodeOrErr.right.uuid, updatedFile);
+
+    expect(updateOrErr.isLeft()).toBeTruthy();
+    expect(updateOrErr.value).toBeInstanceOf(BadRequestError);
   });
 });
 

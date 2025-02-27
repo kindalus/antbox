@@ -14,6 +14,7 @@ function buildRootFolder(): FolderNode {
     parent: Folders.ROOT_FOLDER_UUID,
     owner: Users.ROOT_USER_EMAIL,
     group: Groups.ADMINS_GROUP_UUID,
+    filters: [["mimetype", "==", Nodes.FOLDER_MIMETYPE]],
     permissions: {
       group: ["Read"],
       authenticated: [],
@@ -21,7 +22,6 @@ function buildRootFolder(): FolderNode {
       advanced: {},
     },
   }).right;
-  return null as unknown as FolderNode;
 }
 
 function buildActionsFolder(): FolderNode {
@@ -186,3 +186,14 @@ export {
   USERS_FOLDER,
   ROOT_FOLDER,
 };
+
+export const builtinFolders: FolderNode[] = [
+  ACTIONS_FOLDER,
+  API_KEYS_FOLDER,
+  ASPECTS_FOLDER,
+  EXT_FOLDER,
+  GROUPS_FOLDER,
+  SYSTEM_FOLDER,
+  USERS_FOLDER,
+  ROOT_FOLDER,
+];

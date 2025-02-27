@@ -9,26 +9,28 @@ import { ForbiddenError } from "shared/antbox_error";
 import type { NodeServiceContext } from "./node_service_context";
 import { Folders } from "domain/nodes/folders";
 import { FileNode } from "domain/nodes/file_node";
+import { Nodes } from "domain/nodes/nodes";
 
 describe("NodeService.delete", () => {
   test("should delete a node and its metadata", async () => {
     const node = FileNode.create({
       title: "Node to delete",
-      mimetype: "application/json",
+      mimetype: Nodes.SMART_FOLDER_MIMETYPE,
       owner: "tester@domain.com",
       parent: Folders.ROOT_FOLDER_UUID,
     }).right;
 
     const repository = new InMemoryNodeRepository();
-    const service = nodeService({ repository });
-
     await repository.add(node);
 
+    const service = nodeService({ repository });
+
     const deleteOrErr = await service.delete(authCtx, node.uuid);
+
     expect(deleteOrErr.isRight(), errToMsg(deleteOrErr.value)).toBeTruthy();
 
     const getNodeOrErr = await service.get(authCtx, node.uuid);
-    expect(getNodeOrErr.isLeft()).toBeTruthy();
+    expect(getNodeOrErr.isLeft(), errToMsg(getNodeOrErr.value)).toBeTruthy();
     expect(getNodeOrErr.value).toBeInstanceOf(NodeNotFoundError);
   });
 
@@ -48,12 +50,12 @@ describe("NodeService.delete", () => {
 
     const folder = await service.create(authCtx, {
       title: "Folder to delete",
-      mimetype: "application/vnd.antbox.folder",
+      mimetype: Nodes.FOLDER_MIMETYPE,
     });
 
     const child = await service.create(authCtx, {
       title: "Child",
-      mimetype: "application/json",
+      mimetype: Nodes.META_NODE_MIMETYPE,
       parent: folder.right.uuid,
     });
 

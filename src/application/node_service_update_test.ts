@@ -8,6 +8,7 @@ import { ForbiddenError } from "shared/antbox_error";
 import type { AuthenticationContext } from "./authentication_context";
 import type { NodeServiceContext } from "./node_service_context";
 import { Nodes } from "domain/nodes/nodes";
+import type { FileNode } from "domain/nodes/file_node";
 
 describe("NodeService.update", () => {
   test("should update the node metadata", async () => {
@@ -99,6 +100,62 @@ describe("NodeService.update", () => {
       expect(updatedNodeOrErr.right.title).toBe("Updated Title");
       expect(updatedNodeOrErr.right.mimetype).toBe(Nodes.META_NODE_MIMETYPE);
     });
+  });
+});
+
+describe("NodeService.updateFile", () => {
+  test("should update file content and metadata", async () => {
+    const service = nodeService();
+    const parent = await service.create(authCtx, {
+      title: "Parent Folder",
+      mimetype: Nodes.FOLDER_MIMETYPE,
+    });
+
+    const file = new File(["initial content"], "file.txt", { type: "text/plain" });
+    const nodeOrErr = await service.createFile(authCtx, file, {
+      parent: parent.right.uuid,
+    });
+
+    const updatedFile = new File(["updated contentxxx"], "file.txt", { type: "text/plain" });
+    const updateOrErr = await service.updateFile(authCtx, nodeOrErr.right.uuid, updatedFile);
+    expect(updateOrErr.isRight(), errToMsg(updateOrErr.value)).toBeTruthy();
+
+    const updatedNodeOrErr = await service.get(authCtx, nodeOrErr.right.uuid);
+    const updatedFileOrErr = await service.export(authCtx, nodeOrErr.right.uuid);
+
+    expect(updatedNodeOrErr.isRight(), errToMsg(updatedNodeOrErr.value)).toBeTruthy();
+    expect(updatedFileOrErr.isRight(), errToMsg(updatedFileOrErr.value)).toBeTruthy();
+    expect((updatedNodeOrErr.right as FileNode).size).toBe(updatedFile.size);
+    expect(updatedFileOrErr.right.size).toBe(updatedFile.size);
+  });
+
+  test("should return error if node is not found", async () => {
+    const service = nodeService();
+    const file = new File(["content"], "file.txt", { type: "text/plain" });
+    const updateOrErr = await service.updateFile(authCtx, "not-found", file);
+
+    expect(updateOrErr.isLeft()).toBeTruthy();
+    expect(updateOrErr.value).toBeInstanceOf(NodeNotFoundError);
+  });
+
+  test("should return error if node is not a file", async () => {
+    const service = nodeService();
+    const parent = await service.create(authCtx, {
+      title: "Parent Folder",
+      mimetype: Nodes.FOLDER_MIMETYPE,
+    });
+
+    const nodeOrErr = await service.create(authCtx, {
+      title: "Meta Node",
+      mimetype: Nodes.META_NODE_MIMETYPE,
+      parent: parent.right.uuid,
+    });
+
+    const file = new File(["content"], "file.txt", { type: "text/plain" });
+    const updateOrErr = await service.updateFile(authCtx, nodeOrErr.right.uuid, file);
+
+    expect(updateOrErr.isLeft()).toBeTruthy();
+    expect(updateOrErr.value).toBeInstanceOf(NodeNotFoundError);
   });
 });
 

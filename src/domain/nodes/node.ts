@@ -7,6 +7,7 @@ import { Folders } from "./folders.ts";
 import { InvalidMimetypeError } from "./invalid_mimetype_error.ts";
 import { type NodeMetadata } from "./node_metadata.ts";
 import { PropertyRequiredError } from "./property_required_error.ts";
+import { UuidGenerator } from "shared/uuid_generator.ts";
 
 export class Node {
   readonly uuid: string;
@@ -22,7 +23,7 @@ export class Node {
   #fulltext: string;
 
   constructor(metadata: Partial<NodeMetadata> = {}) {
-    this.uuid = metadata?.uuid ?? "";
+    this.uuid = metadata?.uuid ?? UuidGenerator.generate();
     this.#mimetype = metadata?.mimetype ?? "";
     this.#fid = metadata?.fid ?? "";
     this.#title = metadata?.title ?? "";
@@ -56,6 +57,10 @@ export class Node {
 
   #validate() {
     const errors: AntboxError[] = [];
+
+    if (!this.uuid || this.uuid.length === 0) {
+      errors.push(new PropertyRequiredError("Node.uuid"));
+    }
 
     if (!this.#title || this.#title.length === 0) {
       errors.push(new PropertyRequiredError("Node.title"));

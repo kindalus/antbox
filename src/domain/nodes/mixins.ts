@@ -68,7 +68,7 @@ export function FileNodeMixin<TBase extends Constructor>(Base: TBase) {
       this.#size = args[0]?.size ?? 0;
     }
 
-    get size(): number {
+    get size(): Number {
       return this.#size;
     }
 

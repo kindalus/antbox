@@ -42,44 +42,39 @@ import { areFiltersSatisfiedBy } from "domain/nodes/node_filters.ts";
 export class NodeService {
   constructor(private readonly context: NodeServiceContext) {}
 
-  async createFile(
+  async copy(
     ctx: AuthenticationContext,
-    file: File,
-    metadata: Partial<NodeMetadata>,
-  ): Promise<Either<AntboxError, FileLikeNode>> {
-    const useFileType =
-      !metadata.mimetype ||
-      ![Nodes.EXT_MIMETYPE, Nodes.ACTION_MIMETYPE].includes(metadata.mimetype);
-
-    const nodeOrErr = await this.create(ctx, {
-      ...metadata,
-      title: metadata.title ?? file.name,
-      fid: metadata.fid ?? FidGenerator.generate(metadata.title ?? file.name),
-      mimetype: useFileType ? file.type : metadata.mimetype,
-      size: file.size,
-    });
-
+    uuid: string,
+    parent: string,
+  ): Promise<Either<AntboxError, Node>> {
+    const nodeOrErr = await this.get(ctx, uuid);
     if (nodeOrErr.isLeft()) {
       return left(nodeOrErr.value);
     }
 
-    const node = nodeOrErr.value as FileLikeNode;
-
-    let voidOrErr = await this.context.storage.write(node.uuid, file, {
-      title: node.title,
-      parent: node.parent,
-      mimetype: node.mimetype,
-    });
-    if (voidOrErr.isLeft()) {
-      return left(voidOrErr.value);
+    if (Nodes.isFolder(nodeOrErr.value)) {
+      return left(new BadRequestError("Cannot copy folder"));
     }
 
-    voidOrErr = await this.context.repository.add(node);
-    if (voidOrErr.isLeft()) {
-      return left(voidOrErr.value);
+    const metadata = {
+      ...nodeOrErr.value.metadata,
+      uuid: UuidGenerator.generate(),
+      title: `${nodeOrErr.value.title} 2`,
+      parent,
+    };
+
+    delete metadata.fid;
+
+    if (!Nodes.isFileLike(nodeOrErr.value)) {
+      return this.create(ctx, metadata);
     }
 
-    return right(node);
+    const fileOrErr = await this.context.storage.read(uuid);
+    if (fileOrErr.isLeft()) {
+      return left(fileOrErr.value);
+    }
+
+    return this.createFile(ctx, fileOrErr.value, metadata);
   }
 
   async create(
@@ -129,6 +124,85 @@ export class NodeService {
     return right(nodeOrErr.value);
   }
 
+  async createFile(
+    ctx: AuthenticationContext,
+    file: File,
+    metadata: Partial<NodeMetadata>,
+  ): Promise<Either<AntboxError, FileLikeNode>> {
+    const useFileType =
+      !metadata.mimetype ||
+      ![Nodes.EXT_MIMETYPE, Nodes.ACTION_MIMETYPE].includes(metadata.mimetype);
+
+    const nodeOrErr = await this.create(ctx, {
+      ...metadata,
+      title: metadata.title ?? file.name,
+      fid: metadata.fid ?? FidGenerator.generate(metadata.title ?? file.name),
+      mimetype: useFileType ? file.type : metadata.mimetype,
+      size: file.size,
+    });
+
+    if (nodeOrErr.isLeft()) {
+      return left(nodeOrErr.value);
+    }
+
+    const node = nodeOrErr.value as FileLikeNode;
+
+    let voidOrErr = await this.context.storage.write(node.uuid, file, {
+      title: node.title,
+      parent: node.parent,
+      mimetype: node.mimetype,
+    });
+    if (voidOrErr.isLeft()) {
+      return left(voidOrErr.value);
+    }
+
+    voidOrErr = await this.context.repository.add(node);
+    if (voidOrErr.isLeft()) {
+      return left(voidOrErr.value);
+    }
+
+    return right(node);
+  }
+
+  async delete(ctx: AuthenticationContext, uuid: string): Promise<Either<NodeNotFoundError, void>> {
+    const nodeOrErr = await this.#getFromRepository(uuid);
+    if (nodeOrErr.isLeft()) {
+      return left(nodeOrErr.value);
+    }
+
+    const parentOrErr = await this.#getBuiltinFolderOrFromRepository(nodeOrErr.value.parent);
+    if (parentOrErr.isLeft()) {
+      return left(new UnknownError(`Parent folder not found for node uuid='${uuid}'`));
+    }
+
+    const isAllowed = await isPrincipalAllowedTo(ctx, parentOrErr.value, "Write");
+    if (!isAllowed) {
+      return left(new ForbiddenError());
+    }
+
+    if (Nodes.isFileLike(nodeOrErr.value)) {
+      const voidOrErr = await this.context.storage.delete(uuid);
+      if (voidOrErr.isLeft()) {
+        return left(voidOrErr.value);
+      }
+    }
+
+    if (!Nodes.isFolder(nodeOrErr.value)) {
+      return this.context.repository.delete(uuid);
+    }
+
+    const children = await this.context.repository.filter([["parent", "==", uuid]]);
+    const batch = children.nodes.map((n) => this.delete(ctx, n.uuid));
+    const batchResult = await Promise.allSettled(batch);
+
+    const rejected = batchResult.filter((r) => r.status === "rejected");
+    if (rejected.length > 0) {
+      return left(new UnknownError(`Error deleting children: ${rejected.map((r) => r.reason)}`));
+    }
+
+    return this.context.repository.delete(uuid);
+  }
+
   async duplicate(
     ctx: AuthenticationContext,
     uuid: string,
@@ -163,122 +237,7 @@ export class NodeService {
     return this.createFile(ctx, fileOrErr.value, metadata);
   }
 
-  async copy(
-    ctx: AuthenticationContext,
-    uuid: string,
-    parent: string,
-  ): Promise<Either<AntboxError, Node>> {
-    const nodeOrErr = await this.get(ctx, uuid);
-    if (nodeOrErr.isLeft()) {
-      return left(nodeOrErr.value);
-    }
-
-    if (Nodes.isFolder(nodeOrErr.value)) {
-      return left(new BadRequestError("Cannot copy folder"));
-    }
-
-    const metadata = {
-      ...nodeOrErr.value.metadata,
-      uuid: UuidGenerator.generate(),
-      title: `${nodeOrErr.value.title} 2`,
-      parent,
-    };
-
-    delete metadata.fid;
-
-    if (!Nodes.isFileLike(nodeOrErr.value)) {
-      return this.create(ctx, metadata);
-    }
-
-    const fileOrErr = await this.context.storage.read(uuid);
-    if (fileOrErr.isLeft()) {
-      return left(fileOrErr.value);
-    }
-
-    return this.createFile(ctx, fileOrErr.value, metadata);
-  }
-
-  async #calculateFulltext(ctx: AuthenticationContext, node: NodeLike): Promise<string> {
-    const fulltext = [node.title, node.description ?? ""];
-
-    if ((Nodes.isFileLike(node) || Nodes.isFolder(node)) && node.tags?.length) {
-      fulltext.push(...node.tags);
-    }
-
-    if (Nodes.hasAspects(node)) {
-      const aspects = await this.#getNodeAspects(ctx, node);
-
-      const propertiesFulltext: string[] = aspects
-        .map((a) => this.#aspectToProperties(a))
-        .flat()
-        .filter((p) => p.searchable)
-        .map((p) => p.name)
-        .map((p) => node.properties[p] as string);
-
-      fulltext.push(...propertiesFulltext);
-    }
-
-    return fulltext
-      .join(" ")
-      .toLocaleLowerCase()
-      .replace(/[áàâäãå]/g, "a")
-      .replace(/[ç]/g, "c")
-      .replace(/[éèêë]/g, "e")
-      .replace(/[íìîï]/g, "i")
-      .replace(/ñ/g, "n")
-      .replace(/[óòôöõ]/g, "o")
-      .replace(/[úùûü]/g, "u")
-      .replace(/[ýÿ]/g, "y")
-      .replace(/[\W\._]/g, " ")
-      .replace(/(^|\s)\w{1,2}\s/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
-  }
-
-  #aspectToProperties(aspect: AspectNode): AspectProperty[] {
-    return aspect.properties.map((p) => {
-      return { ...p, name: `${aspect.uuid}:${p.name}` };
-    });
-  }
-
-  async updateFile(
-    ctx: AuthenticationContext,
-    uuid: string,
-    file: File,
-  ): Promise<Either<NodeNotFoundError, void>> {
-    const nodeOrErr = await this.get(ctx, uuid);
-
-    if (nodeOrErr.isLeft()) {
-      return left(nodeOrErr.value);
-    }
-
-    if (Nodes.isSmartFolder(nodeOrErr.value)) {
-      const metadataText = await file.text();
-      const metadata = JSON.parse(metadataText);
-      return this.update(ctx, uuid, metadata);
-    }
-
-    if (!Nodes.isFileLike(nodeOrErr.value)) {
-      return left(new NodeNotFoundError(uuid));
-    }
-
-    nodeOrErr.value.modifiedTime = new Date().toISOString();
-    nodeOrErr.value.size = file.size;
-    nodeOrErr.value.mimetype = file.type;
-
-    await this.context.storage.write(uuid, file, {
-      title: nodeOrErr.value.title,
-      parent: nodeOrErr.value.parent,
-      mimetype: nodeOrErr.value.mimetype,
-    });
-
-    nodeOrErr.value.fulltext = await this.#calculateFulltext(ctx, nodeOrErr.value);
-    await this.context.repository.update(nodeOrErr.value);
-
-    return right(undefined);
-  }
-
-  async delete(ctx: AuthenticationContext, uuid: string): Promise<Either<NodeNotFoundError, void>> {
+  async export(ctx: AuthenticationContext, uuid: string): Promise<Either<NodeNotFoundError, File>> {
     const nodeOrErr = await this.#getFromRepository(uuid);
     if (nodeOrErr.isLeft()) {
       return left(nodeOrErr.value);
@@ -289,34 +248,81 @@ export class NodeService {
       return left(new UnknownError(`Parent folder not found for node uuid='${uuid}'`));
     }
 
-    const isAllowed = await isPrincipalAllowedTo(ctx, parentOrErr.value, "Write");
+    const isAllowed = await isPrincipalAllowedTo(ctx, parentOrErr.value, "Export");
     if (!isAllowed) {
       return left(new ForbiddenError());
     }
 
-    if (!Nodes.isFolder(nodeOrErr.value) && !Nodes.isFileLike(nodeOrErr.value)) {
-      return this.context.repository.delete(uuid);
+    const fileOrErr = await this.context.storage.read(uuid);
+    if (fileOrErr.isLeft()) {
+      return left(fileOrErr.value);
     }
 
-    if (Nodes.isFileLike(nodeOrErr.value)) {
-      const voidOrErr = await this.context.storage.delete(uuid);
-      if (voidOrErr.isLeft()) {
-        return left(voidOrErr.value);
-      }
+    const type = this.#mapAntboxMimetypes(nodeOrErr.value.mimetype);
+    const file = new File([fileOrErr.value], nodeOrErr.value.title, { type });
 
-      return this.context.repository.delete(uuid);
+    return right(file);
+  }
+
+  async evaluate(
+    ctx: AuthenticationContext,
+    uuid: string,
+  ): Promise<
+    Either<SmartFolderNodeNotFoundError | AggregationFormulaError, SmartFolderNodeEvaluation>
+  > {
+    const nodeOrErr = await this.get(ctx, uuid);
+
+    if (nodeOrErr.isLeft()) {
+      return left(new SmartFolderNodeNotFoundError(uuid));
     }
 
-    const children = await this.context.repository.filter([["parent", "==", uuid]]);
-    const batch = children.nodes.map((n) => this.delete(ctx, n.uuid));
-    const batchResult = await Promise.allSettled(batch);
-
-    const rejected = batchResult.filter((r) => r.status === "rejected");
-    if (rejected.length > 0) {
-      return left(new UnknownError(`Error deleting children: ${rejected.map((r) => r.reason)}`));
+    if (!Nodes.isSmartFolder(nodeOrErr.value)) {
+      return left(new SmartFolderNodeNotFoundError(uuid));
     }
 
-    return this.context.repository.delete(uuid);
+    const node: SmartFolderNode = nodeOrErr.value;
+
+    const evaluation = await this.context.repository
+      .filter(node.filters, Number.MAX_SAFE_INTEGER, 1)
+      .then((filtered) => ({ records: filtered.nodes }));
+
+    return right(evaluation);
+  }
+
+  async find(
+    ctx: AuthenticationContext,
+    filters: AndNodeFilters | OrNodeFilters,
+    pageSize = 20,
+    pageToken = 1,
+  ): Promise<Either<AntboxError, NodeFilterResult>> {
+    if (!filters.some((f) => f[0].startsWith("@"))) {
+      return this.#findAll(filters);
+    }
+
+    const atfiltersOrErr = await this.#processAtFilters(filters);
+
+    if (atfiltersOrErr.isLeft()) {
+      return right({
+        nodes: [],
+        pageSize,
+        pageToken,
+      });
+    }
+
+    const nodesOrErr = await this.#findAll(atfiltersOrErr.value);
+    if (nodesOrErr.isLeft()) {
+      return nodesOrErr;
+    }
+
+    const allowedNodes = nodesOrErr.value.nodes.filter(
+      async (n) => await isPrincipalAllowedTo(ctx, this, n, "Read"),
+    );
+
+    return right({
+      nodes: allowedNodes.slice((pageToken - 1) * pageSize, pageToken * pageSize),
+      pageSize,
+      pageToken,
+    });
   }
 
   async get(
@@ -346,55 +352,6 @@ export class NodeService {
     return (await isPrincipalAllowedTo(ctx, parentOrErr.value, "Read"))
       ? right(nodeOrErr.value)
       : left(new ForbiddenError());
-  }
-
-  async #getBuiltinNodeOrFromRepository(
-    uuid: string,
-  ): Promise<Either<NodeNotFoundError, NodeLike>> {
-    const key = Nodes.isFid(uuid) ? Nodes.uuidToFid(uuid) : uuid;
-    const predicate = Nodes.isFid(uuid)
-      ? (f: NodeLike) => f.fid === key
-      : (f: NodeLike) => f.uuid === key;
-    const builtinNode = builtinFolders.find(predicate);
-
-    if (builtinNode) {
-      return right(builtinNode);
-    }
-
-    return this.#getFromRepository(uuid);
-  }
-
-  async #getBuiltinFolderOrFromRepository(
-    uuid: string,
-  ): Promise<Either<NodeNotFoundError, FolderNode>> {
-    const key = Nodes.isFid(uuid) ? Nodes.uuidToFid(uuid) : uuid;
-    const predicate = Nodes.isFid(uuid)
-      ? (f: NodeLike) => f.fid === key
-      : (f: NodeLike) => f.uuid === key;
-    const builtinFolder = builtinFolders.find(predicate);
-
-    if (builtinFolder) {
-      return right(builtinFolder);
-    }
-
-    const nodeOrErr = await this.#getFromRepository(uuid);
-    if (nodeOrErr.isLeft()) {
-      return left(nodeOrErr.value);
-    }
-
-    if (!Nodes.isFolder(nodeOrErr.value)) {
-      return left(new FolderNotFoundError(uuid));
-    }
-
-    return right(nodeOrErr.value);
-  }
-
-  async #getFromRepository(uuid: string): Promise<Either<NodeNotFoundError, NodeLike>> {
-    if (Nodes.isFid(uuid)) {
-      return await this.context.repository.getByFid(Nodes.uuidToFid(uuid));
-    }
-
-    return this.context.repository.getById(uuid);
   }
 
   async list(
@@ -437,44 +394,112 @@ export class NodeService {
     );
   }
 
-  #listSystemRootFolder(): FolderNode[] {
-    return Folders.SYSTEM_FOLDERS;
+  async update(
+    ctx: AuthenticationContext,
+    uuid: string,
+    data: Partial<NodeMetadata>,
+  ): Promise<Either<NodeNotFoundError, void>> {
+    let nodeOrErr = await this.get(ctx, uuid);
+    if (nodeOrErr.isLeft()) {
+      return left(nodeOrErr.value);
+    }
+
+    if (Nodes.isApikey(nodeOrErr.value)) {
+      return left(new BadRequestError("Cannot update apikey"));
+    }
+
+    if (Nodes.isFileLike(nodeOrErr.value)) {
+      nodeOrErr = NodeFactory.from({ ...nodeOrErr.value.metadata, size: data.size });
+      if (nodeOrErr.isLeft()) {
+        return left(nodeOrErr.value);
+      }
+    }
+
+    const voidOrErr = nodeOrErr.value.update(data);
+    if (voidOrErr.isLeft()) {
+      return left(voidOrErr.value);
+    }
+
+    nodeOrErr.value.update({ fulltext: await this.#calculateFulltext(ctx, nodeOrErr.value) });
+
+    const parentOrErr = Nodes.isFolder(nodeOrErr.value)
+      ? right<AntboxError, FolderNode>(nodeOrErr.value)
+      : await this.#getBuiltinFolderOrFromRepository(nodeOrErr.value.parent);
+
+    if (parentOrErr.isLeft()) {
+      return left(new UnknownError(`Parent folder not found for node uuid='${uuid}'`));
+    }
+
+    const allowed = await isPrincipalAllowedTo(ctx, parentOrErr.value, "Write");
+    if (!allowed) {
+      return left(new ForbiddenError());
+    }
+
+    return this.context.repository.update(nodeOrErr.value);
   }
 
-  async find(
+  async updateFile(
     ctx: AuthenticationContext,
-    filters: AndNodeFilters | OrNodeFilters,
-    pageSize = 20,
-    pageToken = 1,
-  ): Promise<Either<AntboxError, NodeFilterResult>> {
-    if (!filters.some((f) => f[0].startsWith("@"))) {
-      return this.#findAll(filters);
+    uuid: string,
+    file: File,
+  ): Promise<Either<NodeNotFoundError, void>> {
+    const nodeOrErr = await this.get(ctx, uuid);
+    if (nodeOrErr.isLeft()) {
+      return left(nodeOrErr.value);
     }
 
-    const atfiltersOrErr = await this.#processAtFilters(filters);
-
-    if (atfiltersOrErr.isLeft()) {
-      return right({
-        nodes: [],
-        pageSize,
-        pageToken,
-      });
+    if (!Nodes.isFileLike(nodeOrErr.value)) {
+      return left(new NodeNotFoundError(uuid));
     }
 
-    const nodesOrErr = await this.#findAll(atfiltersOrErr.value);
-    if (nodesOrErr.isLeft()) {
-      return nodesOrErr;
+    if (nodeOrErr.value.mimetype !== file.type) {
+      return left(new BadRequestError("Mimetype mismatch"));
     }
 
-    const allowedNodes = nodesOrErr.value.nodes.filter(
-      async (n) => await isPrincipalAllowedTo(ctx, this, n, "Read"),
-    );
-
-    return right({
-      nodes: allowedNodes.slice((pageToken - 1) * pageSize, pageToken * pageSize),
-      pageSize,
-      pageToken,
+    await this.context.storage.write(uuid, file, {
+      title: nodeOrErr.value.title,
+      parent: nodeOrErr.value.parent,
+      mimetype: nodeOrErr.value.mimetype,
     });
+
+    return this.update(ctx, uuid, { size: file.size });
+  }
+
+  async #calculateFulltext(ctx: AuthenticationContext, node: NodeLike): Promise<string> {
+    const fulltext = [node.title, node.description ?? ""];
+
+    if ((Nodes.isFileLike(node) || Nodes.isFolder(node)) && node.tags?.length) {
+      fulltext.push(...node.tags);
+    }
+
+    if (Nodes.hasAspects(node)) {
+      const aspects = await this.#getNodeAspects(ctx, node);
+
+      const propertiesFulltext: string[] = aspects
+        .map((a) => this.#aspectToProperties(a))
+        .flat()
+        .filter((p) => p.searchable)
+        .map((p) => p.name)
+        .map((p) => node.properties[p] as string);
+
+      fulltext.push(...propertiesFulltext);
+    }
+
+    return fulltext
+      .join(" ")
+      .toLocaleLowerCase()
+      .replace(/[áàâäãå]/g, "a")
+      .replace(/[ç]/g, "c")
+      .replace(/[éèêë]/g, "e")
+      .replace(/[íìîï]/g, "i")
+      .replace(/ñ/g, "n")
+      .replace(/[óòôöõ]/g, "o")
+      .replace(/[úùûü]/g, "u")
+      .replace(/[ýÿ]/g, "y")
+      .replace(/[\W\._]/g, " ")
+      .replace(/(^|\s)\w{1,2}\s/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
   }
 
   async #findAll(filters: NodeFilter[]): Promise<Either<AntboxError, NodeFilterResult>> {
@@ -487,6 +512,74 @@ export class NodeService {
     };
 
     return right(r);
+  }
+
+  async #getBuiltinFolderOrFromRepository(
+    uuid: string,
+  ): Promise<Either<NodeNotFoundError, FolderNode>> {
+    const key = Nodes.isFid(uuid) ? Nodes.uuidToFid(uuid) : uuid;
+    const predicate = Nodes.isFid(uuid)
+      ? (f: NodeLike) => f.fid === key
+      : (f: NodeLike) => f.uuid === key;
+    const builtinFolder = builtinFolders.find(predicate);
+
+    if (builtinFolder) {
+      return right(builtinFolder);
+    }
+
+    const nodeOrErr = await this.#getFromRepository(uuid);
+    if (nodeOrErr.isLeft()) {
+      return left(nodeOrErr.value);
+    }
+
+    if (!Nodes.isFolder(nodeOrErr.value)) {
+      return left(new FolderNotFoundError(uuid));
+    }
+
+    return right(nodeOrErr.value);
+  }
+
+  async #getBuiltinNodeOrFromRepository(
+    uuid: string,
+  ): Promise<Either<NodeNotFoundError, NodeLike>> {
+    const key = Nodes.isFid(uuid) ? Nodes.uuidToFid(uuid) : uuid;
+    const predicate = Nodes.isFid(uuid)
+      ? (f: NodeLike) => f.fid === key
+      : (f: NodeLike) => f.uuid === key;
+    const builtinNode = builtinFolders.find(predicate);
+
+    if (builtinNode) {
+      return right(builtinNode);
+    }
+
+    return this.#getFromRepository(uuid);
+  }
+
+  async #getFromRepository(uuid: string): Promise<Either<NodeNotFoundError, NodeLike>> {
+    if (Nodes.isFid(uuid)) {
+      return await this.context.repository.getByFid(Nodes.uuidToFid(uuid));
+    }
+
+    return this.context.repository.getById(uuid);
+  }
+
+  async #getNodeAspects(
+    ctx: AuthenticationContext,
+    node: FileNode | FolderNode | MetaNode,
+  ): Promise<AspectNode[]> {
+    if (!node.aspects || node.aspects.length === 0) {
+      return [];
+    }
+
+    const nodesOrErrs = await Promise.all(node.aspects.map((a) => this.get(ctx, a)));
+
+    return nodesOrErrs
+      .filter((nodeOrErr) => nodeOrErr.isRight())
+      .map((nodeOrErr) => nodeOrErr.value as AspectNode);
+  }
+
+  #listSystemRootFolder(): FolderNode[] {
+    return Folders.SYSTEM_FOLDERS;
   }
 
   async #processAtFilters(f: NodeFilter[]): Promise<Either<false, NodeFilter[]>> {
@@ -516,130 +609,10 @@ export class NodeService {
     return right(filters);
   }
 
-  async update(
-    ctx: AuthenticationContext,
-    uuid: string,
-    data: Partial<NodeMetadata>,
-  ): Promise<Either<NodeNotFoundError, void>> {
-    const nodeOrErr = await this.get(ctx, uuid);
-    if (nodeOrErr.isLeft()) {
-      return left(nodeOrErr.value);
-    }
-
-    if (Nodes.isApikey(nodeOrErr.value)) {
-      return left(new BadRequestError("Cannot update apikey"));
-    }
-
-    const voidOrErr = nodeOrErr.value.update(data);
-    if (voidOrErr.isLeft()) {
-      return left(voidOrErr.value);
-    }
-
-    nodeOrErr.value.update({ fulltext: await this.#calculateFulltext(ctx, nodeOrErr.value) });
-
-    const parentOrErr = Nodes.isFolder(nodeOrErr.value)
-      ? right<AntboxError, FolderNode>(nodeOrErr.value)
-      : await this.#getBuiltinFolderOrFromRepository(nodeOrErr.value.parent);
-
-    if (parentOrErr.isLeft()) {
-      return left(new UnknownError(`Parent folder not found for node uuid='${uuid}'`));
-    }
-
-    const allowed = await isPrincipalAllowedTo(ctx, parentOrErr.value, "Write");
-    if (!allowed) {
-      return left(new ForbiddenError());
-    }
-
-    return this.context.repository.update(nodeOrErr.value);
-  }
-
-  async #getNodeAspects(
-    ctx: AuthenticationContext,
-    node: FileNode | FolderNode | MetaNode,
-  ): Promise<AspectNode[]> {
-    if (!node.aspects || node.aspects.length === 0) {
-      return [];
-    }
-
-    const nodesOrErrs = await Promise.all(node.aspects.map((a) => this.get(ctx, a)));
-
-    return nodesOrErrs
-      .filter((nodeOrErr) => nodeOrErr.isRight())
-      .map((nodeOrErr) => nodeOrErr.value as AspectNode);
-  }
-
-  #merge<T>(dst: T, src: Partial<T>): T {
-    const proto = Object.getPrototypeOf(dst);
-    const result = Object.assign(Object.create(proto), dst);
-
-    for (const key in src) {
-      if (!src[key] && src[key] !== 0 && src[key] !== false) {
-        delete result[key];
-        continue;
-      }
-
-      if (typeof src[key] === "object") {
-        // deno-lint-ignore no-explicit-any
-        result[key] = this.#merge(result[key] ?? {}, src[key] as any);
-        continue;
-      }
-
-      result[key] = src[key];
-    }
-
-    return result;
-  }
-
-  async evaluate(
-    ctx: AuthenticationContext,
-    uuid: string,
-  ): Promise<
-    Either<SmartFolderNodeNotFoundError | AggregationFormulaError, SmartFolderNodeEvaluation>
-  > {
-    const nodeOrErr = await this.get(ctx, uuid);
-
-    if (nodeOrErr.isLeft()) {
-      return left(new SmartFolderNodeNotFoundError(uuid));
-    }
-
-    if (!Nodes.isSmartFolder(nodeOrErr.value)) {
-      return left(new SmartFolderNodeNotFoundError(uuid));
-    }
-
-    const node: SmartFolderNode = nodeOrErr.value;
-
-    const evaluation = await this.context.repository
-      .filter(node.filters, Number.MAX_SAFE_INTEGER, 1)
-      .then((filtered) => ({ records: filtered.nodes }));
-
-    return right(evaluation);
-  }
-
-  async export(ctx: AuthenticationContext, uuid: string): Promise<Either<NodeNotFoundError, File>> {
-    const nodeOrErr = await this.#getFromRepository(uuid);
-    if (nodeOrErr.isLeft()) {
-      return left(nodeOrErr.value);
-    }
-
-    const parentOrErr = await this.#getBuiltinFolderOrFromRepository(nodeOrErr.value.parent);
-    if (parentOrErr.isLeft()) {
-      return left(new UnknownError(`Parent folder not found for node uuid='${uuid}'`));
-    }
-
-    const isAllowed = await isPrincipalAllowedTo(ctx, parentOrErr.value, "Export");
-    if (!isAllowed) {
-      return left(new ForbiddenError());
-    }
-
-    const fileOrErr = await this.context.storage.read(uuid);
-    if (fileOrErr.isLeft()) {
-      return left(fileOrErr.value);
-    }
-
-    const type = this.#mapAntboxMimetypes(nodeOrErr.value.mimetype);
-    const file = new File([fileOrErr.value], nodeOrErr.value.title, { type });
-
-    return right(file);
+  #aspectToProperties(aspect: AspectNode): AspectProperty[] {
+    return aspect.properties.map((p) => {
+      return { ...p, name: `${aspect.uuid}:${p.name}` };
+    });
   }
 
   #mapAntboxMimetypes(mimetype: string): string {

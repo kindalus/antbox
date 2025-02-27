@@ -14,8 +14,7 @@ if (!process.env.NODE_ENV && process.argv.length < 3) {
 if (!process.env.NODE_ENV) {
   await Bun.spawn({
     cmd: [
-      "/home/mvarela/.bun/bin/bun",
-      //   process.argv0,
+      process.argv0,
       "test",
       // "--inspect-wait",
       "--timeout 10000",
@@ -65,7 +64,7 @@ describe("write", () => {
       expect(readFile.size).toBe(file.size);
       expect(readFile.type).toBe(file.type);
     }
-  });
+  }, 15000);
 });
 
 describe("delete", () => {

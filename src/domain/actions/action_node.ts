@@ -5,7 +5,7 @@ import { Nodes } from "domain/nodes/nodes";
 import { type Either, left, right } from "shared/either.ts";
 import { ValidationError } from "shared/validation_error.ts";
 import { Node } from "domain/nodes/node";
-import type { NodeFilter } from "domain/nodes/node_filter";
+import type { NodeFilter, NodeFilters } from "domain/nodes/node_filter";
 
 export class ActionNode extends FileNodeMixin(Node) {
   #runOnCreates: boolean;
@@ -13,7 +13,7 @@ export class ActionNode extends FileNodeMixin(Node) {
   #runManually: boolean;
   #runAs?: string;
   #params: string[];
-  #filters: NodeFilter[];
+  #filters: NodeFilters;
   #groupsAllowed: string[];
 
   private constructor(metadata: Partial<NodeMetadata> = {}) {
@@ -52,7 +52,7 @@ export class ActionNode extends FileNodeMixin(Node) {
     return this.#params;
   }
 
-  get filters(): NodeFilter[] {
+  get filters(): NodeFilters {
     return this.#filters;
   }
 
@@ -60,9 +60,7 @@ export class ActionNode extends FileNodeMixin(Node) {
     return this.#groupsAllowed;
   }
 
-  override update(
-    metadata: Partial<NodeMetadata>,
-  ): Either<ValidationError, void> {
+  override update(metadata: Partial<NodeMetadata>): Either<ValidationError, void> {
     const superUpdateResult = super.update({
       ...metadata,
       parent: Folders.ACTIONS_FOLDER_UUID,
@@ -83,9 +81,7 @@ export class ActionNode extends FileNodeMixin(Node) {
     return right(undefined);
   }
 
-  static create(
-    metadata: Partial<NodeMetadata>,
-  ): Either<ValidationError, ActionNode> {
+  static create(metadata: Partial<NodeMetadata>): Either<ValidationError, ActionNode> {
     try {
       const node = new ActionNode(metadata);
       return right(node);

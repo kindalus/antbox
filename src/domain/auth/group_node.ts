@@ -7,9 +7,7 @@ import { Nodes } from "domain/nodes/nodes.ts";
 import { InvalidFullNameFormatError } from "./invalid_fullname_format_error.ts";
 
 export class GroupNode extends Node {
-  static create(
-    metadata: Partial<NodeMetadata>,
-  ): Either<ValidationError, GroupNode> {
+  static create(metadata: Partial<NodeMetadata>): Either<ValidationError, GroupNode> {
     try {
       const group = new GroupNode(metadata);
 
@@ -29,9 +27,7 @@ export class GroupNode extends Node {
     this.#validate();
   }
 
-  override update(
-    metadata: Partial<NodeMetadata>,
-  ): Either<ValidationError, void> {
+  override update(metadata: Partial<NodeMetadata>): Either<ValidationError, void> {
     const superUpdateResult = super.update({
       ...metadata,
       parent: Folders.GROUPS_FOLDER_UUID,

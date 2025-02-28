@@ -1,5 +1,5 @@
 import { builtinAspects } from "application/builtin_aspects/mod.ts";
-import { type NodeFilter } from "domain/nodes/node_filter.ts";
+import { type NodeFilter, type NodeFilters } from "domain/nodes/node_filter.ts";
 import { AspectNode } from "./aspect_node.ts";
 
 export interface Aspect {
@@ -7,7 +7,7 @@ export interface Aspect {
   title: string;
   description?: string;
   builtIn: boolean;
-  filters: NodeFilter[];
+  filters: NodeFilters;
   properties: AspectProperty[];
 }
 
@@ -45,6 +45,8 @@ export interface AspectProperty {
 
   default?: unknown;
 }
+
+export type AspectProperties = AspectProperty[];
 
 export type PropertyType =
   | "boolean"

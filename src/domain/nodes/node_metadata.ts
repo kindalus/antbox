@@ -1,6 +1,6 @@
-import { type AspectProperty } from "domain/aspects/aspect.ts";
+import { type AspectProperties } from "domain/aspects/aspect.ts";
 import { type Permissions } from "./node.ts";
-import { type AndNodeFilters, type OrNodeFilters } from "./node_filter.ts";
+import { type NodeFilters } from "./node_filter.ts";
 import { type NodeProperties } from "./node_properties.ts";
 
 export interface NodeMetadata {
@@ -17,10 +17,10 @@ export interface NodeMetadata {
   aspects: string[];
   tags: string[];
   related: string[];
-  properties: NodeProperties | AspectProperty[];
+  properties: NodeProperties | AspectProperties;
   fulltext: string;
 
-  filters: AndNodeFilters | OrNodeFilters;
+  filters: NodeFilters;
 
   group: string;
   groups: string[];

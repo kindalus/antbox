@@ -1,11 +1,8 @@
 import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository";
 import type { NodeLike } from "domain/nodes/node_like";
-import type { AndNodeFilters, OrNodeFilters } from "domain/nodes/node_filter";
+import type { NodeFilters } from "domain/nodes/node_filter";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error";
-import type {
-  NodeRepository,
-  NodeFilterResult,
-} from "domain/nodes/node_repository";
+import type { NodeRepository, NodeFilterResult } from "domain/nodes/node_repository";
 import { AntboxError, UnknownError } from "shared/antbox_error";
 import { type Either, left, right } from "shared/either";
 import { fileExistsSync } from "shared/file_exists_sync";
@@ -34,17 +31,13 @@ export default async function buildFlatFileStorageProvider(
       copyFile(dbFilePath, dbBackupFilePath);
     }
 
-    return Promise.resolve(
-      right(new FlatFileNodeRepository(dbFilePath, metadata)),
-    );
+    return Promise.resolve(right(new FlatFileNodeRepository(dbFilePath, metadata)));
   } catch (err) {
     return Promise.resolve(left(new UnknownError(err as string)));
   }
 }
 
 class FlatFileNodeRepository implements NodeRepository {
-  private static readonly CHARSET = "utf-8";
-
   readonly #dbFilePath: string;
   readonly #encoder: TextEncoder;
 
@@ -131,11 +124,7 @@ class FlatFileNodeRepository implements NodeRepository {
     return this.#base.getById(uuid);
   }
 
-  filter(
-    filters: AndNodeFilters | OrNodeFilters,
-    pageSize = 20,
-    pageToken = 1,
-  ): Promise<NodeFilterResult> {
+  filter(filters: NodeFilters, pageSize = 20, pageToken = 1): Promise<NodeFilterResult> {
     return this.#base.filter(filters, pageSize, pageToken);
   }
 }

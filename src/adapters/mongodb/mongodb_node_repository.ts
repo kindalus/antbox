@@ -1,31 +1,14 @@
-import {
-  type Document,
-  type Filter,
-  type WithId,
-  Collection,
-  Db,
-  MongoClient,
-  ObjectId,
-} from "mongodb";
+import { type Document, type Filter, MongoClient, ObjectId } from "mongodb";
 
 import { type NodeLike } from "domain/nodes/node_like";
 import { NodeFactory } from "domain/node_factory";
-import type {
-  AndNodeFilters,
-  FilterOperator,
-  OrNodeFilters,
-} from "domain/nodes/node_filter";
+import type { FilterOperator, NodeFilters } from "domain/nodes/node_filter";
 import type { NodeMetadata } from "domain/nodes/node_metadata";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error";
-import type {
-  NodeRepository,
-  NodeFilterResult,
-} from "domain/nodes/node_repository";
+import type { NodeRepository, NodeFilterResult } from "domain/nodes/node_repository";
 import { AntboxError, UnknownError } from "shared/antbox_error";
 import { type Either, right, left } from "shared/either";
-import { isOrNodeFilter, type NodeFilter } from "domain/nodes/node_filter";
-import type { AspectProperty } from "domain/aspects/aspect";
-import type { NodeProperties } from "domain/nodes/node_properties";
+import { isAnyNodeFilter, type NodeFilter } from "domain/nodes/node_filter";
 
 type NodeDbModel = Partial<NodeMetadata> & { _id: ObjectId };
 
@@ -54,9 +37,7 @@ export class MongodbNodeRepository implements NodeRepository {
   }
 
   get #collection() {
-    return this.#client
-      .db(this.#db)
-      .collection(MongodbNodeRepository.COLLECTION_NAME);
+    return this.#client.db(this.#db).collection(MongodbNodeRepository.COLLECTION_NAME);
   }
 
   add(node: NodeLike): Promise<Either<AntboxError, void>> {
@@ -65,9 +46,7 @@ export class MongodbNodeRepository implements NodeRepository {
     return this.#collection
       .insertOne(doc)
       .then(() => right(undefined))
-      .catch((err) => new MongodbError(err.message)) as Promise<
-      Either<AntboxError, void>
-    >;
+      .catch((err) => new MongodbError(err.message)) as Promise<Either<AntboxError, void>>;
   }
 
   async getById(uuid: string): Promise<Either<NodeNotFoundError, NodeLike>> {
@@ -103,7 +82,7 @@ export class MongodbNodeRepository implements NodeRepository {
   }
 
   async filter(
-    filters: AndNodeFilters | OrNodeFilters,
+    filters: NodeFilters,
     pageSize: number,
     pageToken: number,
   ): Promise<NodeFilterResult> {
@@ -116,9 +95,7 @@ export class MongodbNodeRepository implements NodeRepository {
 
     const docs = await findCursor.toArray();
 
-    const nodes = docs.map(
-      (d) => NodeFactory.from(d as unknown as NodeMetadata).value as NodeLike,
-    );
+    const nodes = docs.map((d) => NodeFactory.from(d as unknown as NodeMetadata).value as NodeLike);
 
     return {
       nodes,
@@ -146,10 +123,7 @@ export class MongodbNodeRepository implements NodeRepository {
 
     try {
       const { _id, ...doc } = this.#fromNodeLike(node);
-      await this.#collection.updateOne(
-        { _id: toObjectId(node.uuid) },
-        { $set: doc },
-      );
+      await this.#collection.updateOne({ _id: toObjectId(node.uuid) }, { $set: doc });
     } catch (err) {
       // deno-lint-ignore no-explicit-any
       return left(new MongodbError((err as any).message));
@@ -194,14 +168,12 @@ export function toObjectId(uuid: string): ObjectId {
   return ObjectId.createFromTime(hex);
 }
 
-function buildMongoQuery(
-  filters: AndNodeFilters | OrNodeFilters,
-): Filter<Document> {
+function buildMongoQuery(filters: NodeFilters): Filter<Document> {
   if (filters.length === 0) {
     return {};
   }
 
-  const ofs = isOrNodeFilter(filters) ? filters : [filters];
+  const ofs = isAnyNodeFilter(filters) ? filters : [filters];
 
   const ffs = ofs.map((ifs) => {
     const mfs = ifs.map(toMongoFilter);
@@ -218,25 +190,24 @@ function toMongoFilter(filter: NodeFilter): Filter<Document> {
   return filterOperator([field, operator, value]);
 }
 
-const operatorMap: Record<FilterOperator, (f: NodeFilter) => Filter<Document>> =
-  {
-    "==": ([f, _o, v]) => ({ [f]: v }),
-    "!=": ([f, _o, v]) => ({ [f]: { $ne: v } }),
-    ">": ([f, _o, v]) => ({ [f]: { $gt: v } }),
-    ">=": ([f, _o, v]) => ({ [f]: { $gte: v } }),
-    "<": ([f, _o, v]) => ({ [f]: { $lt: v } }),
-    "<=": ([f, _o, v]) => ({ [f]: { $lte: v } }),
-    in: ([f, _o, v]) => ({ [f]: { $in: v } }),
-    "not-in": ([f, _o, v]) => ({ [f]: { $nin: v } }),
-    contains: ([f, _o, v]) => ({ [f]: { $all: [v] } }),
-    "not-contains": ([f, _o, v]) => ({ [f]: { $not: { $all: [v] } } }),
-    "contains-all": ([f, _o, v]) => ({ [f]: { $all: v } }),
-    "contains-none": ([f, _o, v]) => ({ [f]: { $not: { $all: v } } }),
-    match: ([f, _o, v]) => ({ [f]: { $regex: v } }),
-    "contains-any": ([f, _o, v]) => {
-      const values = v as string[];
-      const condition = values.map((v) => ({ [f]: v }));
+const operatorMap: Record<FilterOperator, (f: NodeFilter) => Filter<Document>> = {
+  "==": ([f, _o, v]) => ({ [f]: v }),
+  "!=": ([f, _o, v]) => ({ [f]: { $ne: v } }),
+  ">": ([f, _o, v]) => ({ [f]: { $gt: v } }),
+  ">=": ([f, _o, v]) => ({ [f]: { $gte: v } }),
+  "<": ([f, _o, v]) => ({ [f]: { $lt: v } }),
+  "<=": ([f, _o, v]) => ({ [f]: { $lte: v } }),
+  in: ([f, _o, v]) => ({ [f]: { $in: v } }),
+  "not-in": ([f, _o, v]) => ({ [f]: { $nin: v } }),
+  contains: ([f, _o, v]) => ({ [f]: { $all: [v] } }),
+  "not-contains": ([f, _o, v]) => ({ [f]: { $not: { $all: [v] } } }),
+  "contains-all": ([f, _o, v]) => ({ [f]: { $all: v } }),
+  "contains-none": ([f, _o, v]) => ({ [f]: { $not: { $all: v } } }),
+  match: ([f, _o, v]) => ({ [f]: { $regex: v } }),
+  "contains-any": ([f, _o, v]) => {
+    const values = v as string[];
+    const condition = values.map((v) => ({ [f]: v }));
 
-      return { $or: condition };
-    },
-  };
+    return { $or: condition };
+  },
+};

@@ -1,7 +1,7 @@
 import { type Either } from "shared/either.ts";
 import { ValidationError } from "shared/validation_error.ts";
 import { type Permissions } from "./node.ts";
-import { type AndNodeFilters, type NodeFilter, type OrNodeFilters } from "./node_filter.ts";
+import { type NodeFilters } from "./node_filter.ts";
 import { type NodeMetadata } from "./node_metadata.ts";
 import { type NodeProperties } from "./node_properties.ts";
 import { Nodes } from "./nodes.ts";
@@ -93,7 +93,7 @@ export function FolderNodeMixin<TBase extends Constructor>(Base: TBase) {
       anonymous: [],
       advanced: {},
     };
-    #filters: AndNodeFilters | OrNodeFilters = [];
+    #filters: NodeFilters = [];
 
     // deno-lint-ignore no-explicit-any
     constructor(...args: any[]) {
@@ -127,7 +127,7 @@ export function FolderNodeMixin<TBase extends Constructor>(Base: TBase) {
       return this.#permissions;
     }
 
-    get filters(): AndNodeFilters | OrNodeFilters {
+    get filters(): NodeFilters {
       return this.#filters;
     }
 

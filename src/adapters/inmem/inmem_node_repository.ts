@@ -1,19 +1,14 @@
 import type { DuplicatedNodeError } from "domain/nodes/duplicated_node_error";
-import type { AndNodeFilters, OrNodeFilters } from "domain/nodes/node_filter";
+import type { AllNodeFilters, AnyNodeFilters, NodeFilters } from "domain/nodes/node_filter";
 import { withNodeFilters } from "domain/nodes/node_filters";
 import type { NodeLike } from "domain/nodes/node_like";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error";
-import type {
-  NodeRepository,
-  NodeFilterResult,
-} from "domain/nodes/node_repository";
+import type { NodeRepository, NodeFilterResult } from "domain/nodes/node_repository";
 import { Nodes } from "domain/nodes/nodes";
 import type { AntboxError } from "shared/antbox_error";
 import { type Either, right, left } from "shared/either";
 
-export default function buildInmemNodeRepository(): Promise<
-  Either<AntboxError, NodeRepository>
-> {
+export default function buildInmemNodeRepository(): Promise<Either<AntboxError, NodeRepository>> {
   return Promise.resolve(right(new InMemoryNodeRepository()));
 }
 
@@ -83,16 +78,10 @@ export class InMemoryNodeRepository implements NodeRepository {
     return Promise.resolve(right(metadata));
   }
 
-  filter(
-    filters: AndNodeFilters | OrNodeFilters,
-    pageSize = 20,
-    pageToken = 1
-  ): Promise<NodeFilterResult> {
+  filter(filters: NodeFilters, pageSize = 20, pageToken = 1): Promise<NodeFilterResult> {
     const firstIndex = (pageToken - 1) * pageSize;
     const lastIndex = firstIndex + pageSize;
-    const filtered = this.records.filter(
-      withNodeFilters(filters as AndNodeFilters)
-    );
+    const filtered = this.records.filter(withNodeFilters(filters as AllNodeFilters));
     const nodes = filtered.slice(firstIndex, lastIndex);
 
     return Promise.resolve({ nodes, pageSize, pageToken });

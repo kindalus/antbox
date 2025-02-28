@@ -1,9 +1,10 @@
-import { Action } from "domain/actions/action.ts";
-import { RunContext } from "domain/actions/run_context.ts";
+import type { AuthenticationContext } from "application/authentication_context";
+import type { NodeService } from "application/node_service";
+import type { Action } from "domain/actions/action";
+import type { RunContext } from "domain/actions/run_context";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import { AntboxError } from "shared/antbox_error.ts";
 import { type Either } from "shared/either.ts";
-import { NodeService } from "node_service.ts";
 
 export default {
   uuid: "move_to_folder",
@@ -30,7 +31,7 @@ export default {
       return new Error("Error parameter not given");
     }
 
-    const toUpdateTask = updateTaskPredicate(ctx.nodeService, parent);
+    const toUpdateTask = updateTaskPredicate(ctx.authenticationContext, ctx.nodeService, parent);
 
     const taskPromises = uuids.map(toUpdateTask);
 
@@ -46,12 +47,10 @@ export default {
   },
 } as Action;
 
-function updateTaskPredicate(nodeService: NodeService, parent: string) {
-  return (uuid: string) => nodeService.update(uuid, { parent });
+function updateTaskPredicate(ctx: AuthenticationContext, nodeService: NodeService, parent: string) {
+  return (uuid: string) => nodeService.update(ctx, uuid, { parent });
 }
 
-function errorResultsOnly(
-  voidOrErr: Either<NodeNotFoundError, unknown>,
-): boolean {
+function errorResultsOnly(voidOrErr: Either<NodeNotFoundError, unknown>): boolean {
   return voidOrErr.isLeft();
 }

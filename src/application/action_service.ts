@@ -1,4 +1,4 @@
-import { Action, actionToNode, fileToAction } from "domain/actions/action.ts";
+import { type Action, actionToNode, fileToAction } from "domain/actions/action.ts";
 import { ActionNode } from "domain/actions/action_node.ts";
 import { FolderNode } from "domain/nodes/folder_node.ts";
 import { Folders } from "domain/nodes/folders.ts";
@@ -8,16 +8,13 @@ import { withNodeFilters } from "domain/nodes/node_filters.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import { NodeUpdatedEvent } from "domain/nodes/node_updated_event.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
-import {
-  AntboxError,
-  BadRequestError,
-  UnknownError,
-} from "shared/antbox_error.ts";
+import { AntboxError, BadRequestError, UnknownError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
 import { AuthService } from "./auth_service.ts";
 import { type AuthenticationContext } from "./authentication_context.ts";
-import { builtinActions } from "./builtin_actions/mod.ts";
 import { NodeService } from "./node_service.ts";
+import type { RunContext } from "domain/actions/run_context.ts";
+import { builtinActions } from "./builtin_actions/index.ts";
 
 type RecordKey = [string, string];
 interface RunnableRecord {
@@ -76,9 +73,7 @@ export class ActionService {
     return right(nodeOrErr.value);
   }
 
-  async list(
-    ctx: AuthenticationContext,
-  ): Promise<Either<AntboxError, ActionNode[]>> {
+  async list(ctx: AuthenticationContext): Promise<Either<AntboxError, ActionNode[]>> {
     const nodesOrErrs = await this.nodeService.find(
       ctx,
       [
@@ -131,11 +126,7 @@ export class ActionService {
       type: nodeOrErr.value.mimetype,
     });
 
-    let voidOrErr = await this.nodeService.updateFile(
-      ctx,
-      action.uuid,
-      decoratedFile,
-    );
+    let voidOrErr = await this.nodeService.updateFile(ctx, action.uuid, decoratedFile);
     if (voidOrErr.isLeft()) {
       return left<AntboxError, Node>(voidOrErr.value);
     }
@@ -148,10 +139,7 @@ export class ActionService {
     return this.nodeService.get(ctx, action.uuid);
   }
 
-  async delete(
-    ctx: AuthenticationContext,
-    uuid: string,
-  ): Promise<Either<AntboxError, void>> {
+  async delete(ctx: AuthenticationContext, uuid: string): Promise<Either<AntboxError, void>> {
     const nodeOrErr = await this.get(ctx, uuid);
 
     if (nodeOrErr.isLeft()) {
@@ -184,11 +172,7 @@ export class ActionService {
       return left(new BadRequestError("Action cannot be run manually"));
     }
 
-    const uuidsOrErr = await this.#getValidNodesForAction(
-      ctx,
-      action,
-      nodesUuids,
-    );
+    const uuidsOrErr = await this.#getValidNodesForAction(ctx, action, nodesUuids);
 
     if (uuidsOrErr.isLeft()) {
       return left(uuidsOrErr.value);
@@ -199,11 +183,7 @@ export class ActionService {
     }
 
     const error = await action
-      .run(
-        await this.#buildRunContext(ctx, action.runAs),
-        uuidsOrErr.value,
-        params,
-      )
+      .run(await this.#buildRunContext(ctx, action.runAs), uuidsOrErr.value, params)
       .catch((e) => e);
 
     if (error) {
@@ -241,10 +221,7 @@ export class ActionService {
     return fileToAction(fileOrErr.value);
   }
 
-  async export(
-    ctx: AuthenticationContext,
-    uuid: string,
-  ): Promise<Either<AntboxError, File>> {
+  async export(ctx: AuthenticationContext, uuid: string): Promise<Either<AntboxError, File>> {
     const builtIn = builtinActions.find((a) => a.uuid === uuid);
     if (builtIn) {
       const file = new File([builtIn.toString()], builtIn.title, {
@@ -287,17 +264,13 @@ export class ActionService {
       return right(uuids);
     }
 
-    const nodesOrErr = await Promise.all(
-      uuids.map((uuid) => this.nodeService.get(ctx, uuid)),
-    );
+    const nodesOrErr = await Promise.all(uuids.map((uuid) => this.nodeService.get(ctx, uuid)));
 
     if (nodesOrErr.some((n) => n.isLeft())) {
       return nodesOrErr.find((n) => n.isLeft()) as Either<AntboxError, never>;
     }
 
-    const nodes = nodesOrErr
-      .map((n) => n.value as Node)
-      .filter(withNodeFilters(action.filters));
+    const nodes = nodesOrErr.map((n) => n.value as Node).filter(withNodeFilters(action.filters));
 
     return right(nodes.map((n) => n.uuid));
   }
@@ -315,18 +288,11 @@ export class ActionService {
     let group = Nodes.isFolder(evt.payload) ? evt.payload.group : undefined;
 
     if (!group) {
-      const parent = await this.nodeService.get(
-        AuthService.elevatedContext(),
-        evt.payload.parent,
-      );
+      const parent = await this.nodeService.get(AuthService.elevatedContext(), evt.payload.parent);
       group = (parent.right as FolderNode).group;
     }
 
-    const actions = await this.#getAutomaticActions(
-      ctx,
-      evt.payload,
-      runCriteria,
-    );
+    const actions = await this.#getAutomaticActions(ctx, evt.payload, runCriteria);
     return this.#runActions(
       ctxOrErr.value,
       actions.map((a) => a.uuid),
@@ -334,10 +300,7 @@ export class ActionService {
     );
   }
 
-  async runAutomaticActionsForUpdates(
-    ctx: AuthenticationContext,
-    evt: NodeUpdatedEvent,
-  ) {
+  async runAutomaticActionsForUpdates(ctx: AuthenticationContext, evt: NodeUpdatedEvent) {
     const runCriteria: NodeFilter = ["runOnUpdates", "==", true];
 
     const userOrErr = await this.#getAuthCtxByEmail(evt.userEmail);
@@ -350,11 +313,7 @@ export class ActionService {
       return;
     }
 
-    const actions = await this.#getAutomaticActions(
-      ctx,
-      node.value,
-      runCriteria,
-    );
+    const actions = await this.#getAutomaticActions(ctx, node.value, runCriteria);
     if (actions.length === 0) {
       return;
     }
@@ -366,13 +325,8 @@ export class ActionService {
     );
   }
 
-  async #getAuthCtxByEmail(
-    email: string,
-  ): Promise<Either<AntboxError, AuthenticationContext>> {
-    const userOrErr = await this.authService.getUserByEmail(
-      AuthService.elevatedContext(),
-      email,
-    );
+  async #getAuthCtxByEmail(email: string): Promise<Either<AntboxError, AuthenticationContext>> {
+    const userOrErr = await this.authService.getUserByEmail(AuthService.elevatedContext(), email);
     if (userOrErr.isLeft()) {
       return left(userOrErr.value);
     }
@@ -386,10 +340,7 @@ export class ActionService {
       },
     });
   }
-  async #buildRunContext(
-    ctx: AuthenticationContext,
-    runAs?: string,
-  ): Promise<RunContext> {
+  async #buildRunContext(ctx: AuthenticationContext, runAs?: string): Promise<RunContext> {
     const defaultCtx: RunContext = {
       authenticationContext: ctx,
       nodeService: this.nodeService,
@@ -418,15 +369,8 @@ export class ActionService {
     node: Node,
     runOnCriteria: NodeFilter,
   ): Promise<Action[]> {
-    const filters: NodeFilter[] = [
-      ["mimetype", "==", Nodes.ACTION_MIMETYPE],
-      runOnCriteria,
-    ];
-    const actionsOrErr = await this.nodeService.find(
-      ctx,
-      filters,
-      Number.MAX_SAFE_INTEGER,
-    );
+    const filters: NodeFilter[] = [["mimetype", "==", Nodes.ACTION_MIMETYPE], runOnCriteria];
+    const actionsOrErr = await this.nodeService.find(ctx, filters, Number.MAX_SAFE_INTEGER);
     if (actionsOrErr.isLeft()) {
       return [];
     }
@@ -500,23 +444,17 @@ export class ActionService {
     return uuid?.length > 0;
   }
 
-  #runActions(
-    authContext: AuthenticationContext,
-    actions: string[],
-    uuid: string,
-  ) {
+  #runActions(authContext: AuthenticationContext, actions: string[], uuid: string) {
     for (const action of actions) {
       const [actionUuid, params] = action.split(" ");
       const j = `{${params ?? ""}}`;
       const g = j.replaceAll(/(\w+)=(\w+)/g, '"$1": "$2"');
 
-      this.run(authContext, actionUuid, [uuid], JSON.parse(g)).then(
-        (voidOrErr) => {
-          if (voidOrErr.isLeft()) {
-            console.error(voidOrErr.value.message);
-          }
-        },
-      );
+      this.run(authContext, actionUuid, [uuid], JSON.parse(g)).then((voidOrErr) => {
+        if (voidOrErr.isLeft()) {
+          console.error(voidOrErr.value.message);
+        }
+      });
     }
   }
 }

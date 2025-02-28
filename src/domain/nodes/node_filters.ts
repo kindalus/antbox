@@ -1,31 +1,31 @@
 // deno-lint-ignore-file no-explicit-any
 
 import {
-  isOrNodeFilter,
+  isAnyNodeFilter,
   type NodeFilter,
-  type AndNodeFilters,
-  type OrNodeFilters,
+  type AllNodeFilters,
+  type AnyNodeFilters,
 } from "./node_filter.ts";
-import type { FilterOperator } from "./node_filter.ts";
+import type { FilterOperator, NodeFilters } from "./node_filter.ts";
 import type { NodeLike } from "./node_like.ts";
 
 export interface FiltersSpecification {
   isSatisfiedBy(node: NodeLike): boolean;
 }
 
-export function areFiltersSatisfiedBy(f: AndNodeFilters | OrNodeFilters, n: NodeLike): boolean {
+export function areFiltersSatisfiedBy(f: NodeFilters, n: NodeLike): boolean {
   return withNodeFilters(f)(n);
 }
 
-export function withNodeFilters(filters: AndNodeFilters | OrNodeFilters): (n: NodeLike) => boolean {
-  if (isOrNodeFilter(filters)) {
+export function withNodeFilters(filters: NodeFilters): (n: NodeLike) => boolean {
+  if (isAnyNodeFilter(filters)) {
     return processOrNodeFilters(filters);
   }
 
   return processNodeFilters(filters);
 }
 
-function processNodeFilters(filters: AndNodeFilters): (n: NodeLike) => boolean {
+function processNodeFilters(filters: AllNodeFilters): (n: NodeLike) => boolean {
   if (filters.length === 0) {
     return (n: NodeLike) => true;
   }
@@ -34,7 +34,7 @@ function processNodeFilters(filters: AndNodeFilters): (n: NodeLike) => boolean {
   return (n: NodeLike) => predicates.every((p) => p(n));
 }
 
-function processOrNodeFilters(filters: OrNodeFilters): (n: NodeLike) => boolean {
+function processOrNodeFilters(filters: AnyNodeFilters): (n: NodeLike) => boolean {
   const predicates = filters.map((f) => withNodeFilters(f));
   return (n: NodeLike) => predicates.some((p) => p(n));
 }

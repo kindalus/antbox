@@ -1,19 +1,15 @@
-import { ExtNode } from "domain/nodes/ext_node.ts";
-import { Folders } from "domain/nodes/folders.ts";
-import { Node } from "domain/nodes/node.ts";
-import { NodeMetadata } from "domain/nodes/node_metadata.ts";
-import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
-import { Nodes } from "domain/nodes/nodes.ts";
-import { AntboxError, BadRequestError } from "shared/antbox_error.ts";
-import { type Either, left, right } from "shared/either.ts";
-import { AuthService } from "./auth_service.ts";
-import { type AuthenticationContext } from "./authentication_context.ts";
-import { NodeService } from "./node_service.ts";
+import { ExtNode } from "domain/exts/ext_node";
+import { Folders } from "domain/nodes/folders";
+import type { NodeMetadata } from "domain/nodes/node_metadata";
+import { NodeNotFoundError } from "domain/nodes/node_not_found_error";
+import { Nodes } from "domain/nodes/nodes";
+import { AntboxError, BadRequestError } from "shared/antbox_error";
+import { type Either, left, right } from "shared/either";
+import { AuthService } from "./auth_service";
+import type { AuthenticationContext } from "./authentication_context";
+import type { NodeService } from "./node_service";
 
-export type ExtFn = (
-  request: Request,
-  service: NodeService,
-) => Promise<Response>;
+export type ExtFn = (request: Request, service: NodeService) => Promise<Response>;
 
 export class ExtService {
   constructor(private readonly nodeService: NodeService) {}
@@ -50,10 +46,7 @@ export class ExtService {
   }
 
   async get(uuid: string): Promise<Either<NodeNotFoundError, Node>> {
-    const nodeOrErr = await this.nodeService.get(
-      AuthService.elevatedContext(),
-      uuid,
-    );
+    const nodeOrErr = await this.nodeService.get(AuthService.elevatedContext(), uuid);
 
     if (nodeOrErr.isLeft()) {
       return left(nodeOrErr.value);
@@ -111,10 +104,7 @@ export class ExtService {
     return right(nodesOrErrs.value.nodes);
   }
 
-  async delete(
-    ctx: AuthenticationContext,
-    uuid: string,
-  ): Promise<Either<NodeNotFoundError, void>> {
+  async delete(ctx: AuthenticationContext, uuid: string): Promise<Either<NodeNotFoundError, void>> {
     const nodeOrErr = await this.get(uuid);
 
     if (nodeOrErr.isLeft()) {
@@ -155,10 +145,7 @@ export class ExtService {
     return right(module.default);
   }
 
-  async run(
-    uuid: string,
-    request: Request,
-  ): Promise<Either<NodeNotFoundError | Error, Response>> {
+  async run(uuid: string, request: Request): Promise<Either<NodeNotFoundError | Error, Response>> {
     const extOrErr = await this.#getAsModule(uuid);
 
     if (extOrErr.isLeft()) {

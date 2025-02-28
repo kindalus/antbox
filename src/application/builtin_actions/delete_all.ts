@@ -1,7 +1,7 @@
-import { Action } from "domain/actions/action.ts";
-import { RunContext } from "domain/actions/run_context.ts";
-import { Node } from "domain/nodes/node.ts";
+import type { Action } from "domain/actions/action";
+import type { RunContext } from "domain/actions/run_context";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
+import { Nodes } from "domain/nodes/nodes";
 import { AntboxError } from "shared/antbox_error.ts";
 import { type Either } from "shared/either.ts";
 
@@ -11,7 +11,7 @@ export default {
   description: "Elimina todos os nós selecionados",
   builtIn: true,
   multiple: false,
-  filters: [["mimetype", "not-in", Node.SYSTEM_MIMETYPES]],
+  filters: [["mimetype", "not-in", Nodes.SYSTEM_MIMETYPES]],
   groupsAllowed: [],
   params: [],
   runManually: true,
@@ -23,7 +23,7 @@ export default {
     uuids: string[],
     _params?: Record<string, unknown>,
   ): Promise<void | Error> {
-    const tasks = uuids.map((uuid) => ctx.nodeService.delete(uuid));
+    const tasks = uuids.map((uuid) => ctx.nodeService.delete(ctx.authenticationContext, uuid));
 
     const results = await Promise.all(tasks);
 

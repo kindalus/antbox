@@ -1,19 +1,13 @@
 import { Nodes } from "./nodes.ts";
 import { type NodeMetadata } from "./node_metadata.ts";
 import { Node } from "./node.ts";
-import {
-  type AndNodeFilters,
-  type NodeFilter,
-  type OrNodeFilters,
-} from "./node_filter.ts";
+import { type NodeFilters } from "./node_filter.ts";
 import { type Either, left, right } from "shared/either.ts";
 import { ValidationError } from "shared/validation_error.ts";
 import { PropertyRequiredError } from "./property_required_error.ts";
 
 export class SmartFolderNode extends Node {
-  static create(
-    metadata: Partial<SmartFolderNode> = {},
-  ): Either<ValidationError, SmartFolderNode> {
+  static create(metadata: Partial<SmartFolderNode> = {}): Either<ValidationError, SmartFolderNode> {
     try {
       return right(new SmartFolderNode(metadata));
     } catch (err) {
@@ -21,7 +15,7 @@ export class SmartFolderNode extends Node {
     }
   }
 
-  #filters: AndNodeFilters | OrNodeFilters;
+  #filters: NodeFilters;
 
   constructor(metadata: Partial<NodeMetadata> = {}) {
     super({ ...metadata, mimetype: Nodes.SMART_FOLDER_MIMETYPE });
@@ -31,7 +25,7 @@ export class SmartFolderNode extends Node {
     this.#validate();
   }
 
-  get filters(): AndNodeFilters | OrNodeFilters {
+  get filters(): NodeFilters {
     return this.#filters;
   }
 

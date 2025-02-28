@@ -1,5 +1,4 @@
 import { FolderNode } from "./folder_node.ts";
-import { Nodes } from "./nodes.ts";
 
 export class Folders {
   static ROOT_FOLDER_UUID = "--root--";
@@ -10,15 +9,6 @@ export class Folders {
   static EXT_FOLDER_UUID = "--ext--";
   static SYSTEM_FOLDER_UUID = "--system--";
   static API_KEYS_FOLDER_UUID = "--api-keys--";
-
-  static SYSTEM_MIMETYPES = [
-    Nodes.ASPECT_MIMETYPE,
-    Nodes.ACTION_MIMETYPE,
-    Nodes.EXT_MIMETYPE,
-    Nodes.USER_MIMETYPE,
-    Nodes.GROUP_MIMETYPE,
-    Nodes.API_KEY_MIMETYPE,
-  ];
 
   static SYSTEM_FOLDERS_UUID = [
     Folders.USERS_FOLDER_UUID,
@@ -53,4 +43,6 @@ export class Folders {
   static isSystemFolder(uuid: string): boolean {
     return Folders.SYSTEM_FOLDERS_UUID.some((folder) => folder === uuid);
   }
+
+  private constructor() {}
 }

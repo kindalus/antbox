@@ -25,6 +25,15 @@ export class Nodes {
   static API_KEY_MIMETYPE = "application/vnd.antbox.apikey";
   static ARTICLE_MIMETYPE = "application/vnd.antbox.article";
 
+  static SYSTEM_MIMETYPES = [
+    Nodes.ASPECT_MIMETYPE,
+    Nodes.ACTION_MIMETYPE,
+    Nodes.EXT_MIMETYPE,
+    Nodes.USER_MIMETYPE,
+    Nodes.GROUP_MIMETYPE,
+    Nodes.API_KEY_MIMETYPE,
+  ];
+
   static fidToUuid(fid: string): string {
     return `${Nodes.FID_PREFIX}${fid}`;
   }
@@ -34,9 +43,7 @@ export class Nodes {
   }
 
   static uuidToFid(fid: string): string {
-    return fid?.startsWith(Nodes.FID_PREFIX)
-      ? fid.substring(Nodes.FID_PREFIX.length)
-      : fid;
+    return fid?.startsWith(Nodes.FID_PREFIX) ? fid.substring(Nodes.FID_PREFIX.length) : fid;
   }
 
   static isFolder(node: NodeLike): node is FolderNode {
@@ -80,9 +87,7 @@ export class Nodes {
   }
 
   static isJavascript(file: File) {
-    return (
-      file.type === "application/javascript" || file.type === "text/javascript"
-    );
+    return file.type === "application/javascript" || file.type === "text/javascript";
   }
 
   static isFile(node: NodeLike): node is FileNode {

@@ -6,16 +6,14 @@ import { mkdirSync, statSync } from "fs";
 import { NodeFactory } from "domain/node_factory";
 import {
   type FilterOperator,
-  type AndNodeFilters,
+  type AllNodeFilters,
   type NodeFilter,
-  type OrNodeFilters,
-  isOrNodeFilter as areOrNodeFilter,
+  type AnyNodeFilters,
+  isAnyNodeFilter as areOrNodeFilter,
+  type NodeFilters,
 } from "domain/nodes/node_filter";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error";
-import type {
-  NodeRepository,
-  NodeFilterResult,
-} from "domain/nodes/node_repository";
+import type { NodeRepository, NodeFilterResult } from "domain/nodes/node_repository";
 import { UnknownError, type AntboxError } from "shared/antbox_error";
 import { type Either, right, left } from "shared/either";
 import type { NodeLike } from "domain/nodes/node_like";
@@ -36,9 +34,7 @@ export default async function buildPouchdbNodeRepository(
   }
 
   if (dbpath.startsWith("http")) {
-    return Promise.resolve(
-      right(new PouchdbNodeRepository(new PouchDB(dbpath), "CouchDb")),
-    );
+    return Promise.resolve(right(new PouchdbNodeRepository(new PouchDB(dbpath), "CouchDb")));
   }
 
   const path = dbpath + "/nodes";
@@ -86,7 +82,7 @@ interface NodeDbModel {
   properties?: NodeProperties | AspectProperty[];
   fulltext: string;
 
-  xfilters: AndNodeFilters | OrNodeFilters;
+  xfilters: NodeFilters;
 
   group: string;
   groups?: string[];
@@ -169,9 +165,7 @@ class PouchdbNodeRepository implements NodeRepository {
     const node = NodeFactory.from(metadata);
 
     if (node.isLeft()) {
-      throw new Error(
-        `Node could not be created:\n ${JSON.stringify(metadata, null, 3)}`,
-      );
+      throw new Error(`Node could not be created:\n ${JSON.stringify(metadata, null, 3)}`);
     }
 
     return node.right;
@@ -215,9 +209,7 @@ class PouchdbNodeRepository implements NodeRepository {
 
   async #readFromDb(
     _id: string,
-  ): Promise<
-    Either<NodeNotFoundError, PouchDB.Core.ExistingDocument<NodeDbModel>>
-  > {
+  ): Promise<Either<NodeNotFoundError, PouchDB.Core.ExistingDocument<NodeDbModel>>> {
     return this.db
       .get(_id)
       .then(right)
@@ -227,16 +219,10 @@ class PouchdbNodeRepository implements NodeRepository {
         }
 
         throw err;
-      }) as Promise<
-      Either<NodeNotFoundError, PouchDB.Core.ExistingDocument<NodeDbModel>>
-    >;
+      }) as Promise<Either<NodeNotFoundError, PouchDB.Core.ExistingDocument<NodeDbModel>>>;
   }
 
-  async filter(
-    filters: AndNodeFilters | OrNodeFilters,
-    pageSize = 20,
-    pageToken = 1,
-  ): Promise<NodeFilterResult> {
+  async filter(filters: NodeFilters, pageSize = 20, pageToken = 1): Promise<NodeFilterResult> {
     const limit = pageSize;
     const skip = pageSize * (pageToken - 1);
 
@@ -251,9 +237,7 @@ class PouchdbNodeRepository implements NodeRepository {
       return composeMangoQuery(mfs);
     });
 
-    const selector = areOrNodeFilter(filters)
-      ? { $or: selectors }
-      : selectors[0];
+    const selector = areOrNodeFilter(filters) ? { $or: selectors } : selectors[0];
 
     try {
       const result = await this.db.find({
@@ -318,8 +302,7 @@ function filterToMango(dbprovider: Provider, filter: NodeFilter): MangoFilter {
   if (operator === "match" && typeof value === "string") {
     return {
       [field]: {
-        $regex:
-          dbprovider === "CouchDb" ? `(?i)${value}` : new RegExp(value, "i"),
+        $regex: dbprovider === "CouchDb" ? `(?i)${value}` : new RegExp(value, "i"),
       },
     };
   }

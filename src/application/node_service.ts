@@ -1,13 +1,12 @@
 import { type AspectProperty } from "domain/aspects/aspect.ts";
 import { AspectNode } from "domain/aspects/aspect_node.ts";
-import { AggregationFormulaError } from "domain/nodes/aggregation_formula_error.ts";
 import { FileNode } from "domain/nodes/file_node.ts";
 import { FolderNode } from "domain/nodes/folder_node.ts";
 import { FolderNotFoundError } from "domain/nodes/folder_not_found_error.ts";
 import { Folders } from "domain/nodes/folders.ts";
 import { MetaNode } from "domain/nodes/meta_node.ts";
 import { Node } from "domain/nodes/node.ts";
-import type { NodeFilter, AndNodeFilters, OrNodeFilters } from "domain/nodes/node_filter.ts";
+import type { NodeFilters } from "domain/nodes/node_filter.ts";
 import type { FileLikeNode, NodeLike } from "domain/nodes/node_like.ts";
 import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
@@ -24,7 +23,7 @@ import type { NodeServiceContext } from "./node_service_context.ts";
 import { NodeFactory } from "domain/node_factory.ts";
 import { UuidGenerator } from "shared/uuid_generator.ts";
 import { FidGenerator } from "shared/fid_generator.ts";
-import { builtinFolders } from "./builtin_folders/index.ts";
+import { builtinFolders, SYSTEM_FOLDER, SYSTEM_FOLDERS } from "./builtin_folders/index.ts";
 import { areFiltersSatisfiedBy } from "domain/nodes/node_filters.ts";
 
 /**
@@ -100,7 +99,7 @@ export class NodeService {
       return left(parentOrErr.value);
     }
 
-    const isAllowed = await isPrincipalAllowedTo(ctx, parentOrErr.value, "Write");
+    const isAllowed = isPrincipalAllowedTo(ctx, parentOrErr.value, "Write");
     if (!isAllowed) {
       return left(new ForbiddenError());
     }
@@ -175,7 +174,7 @@ export class NodeService {
       return left(new UnknownError(`Parent folder not found for node uuid='${uuid}'`));
     }
 
-    const isAllowed = await isPrincipalAllowedTo(ctx, parentOrErr.value, "Write");
+    const isAllowed = isPrincipalAllowedTo(ctx, parentOrErr.value, "Write");
     if (!isAllowed) {
       return left(new ForbiddenError());
     }
@@ -248,7 +247,7 @@ export class NodeService {
       return left(new UnknownError(`Parent folder not found for node uuid='${uuid}'`));
     }
 
-    const isAllowed = await isPrincipalAllowedTo(ctx, parentOrErr.value, "Export");
+    const isAllowed = isPrincipalAllowedTo(ctx, parentOrErr.value, "Export");
     if (!isAllowed) {
       return left(new ForbiddenError());
     }
@@ -267,9 +266,7 @@ export class NodeService {
   async evaluate(
     ctx: AuthenticationContext,
     uuid: string,
-  ): Promise<
-    Either<SmartFolderNodeNotFoundError | AggregationFormulaError, SmartFolderNodeEvaluation>
-  > {
+  ): Promise<Either<SmartFolderNodeNotFoundError, SmartFolderNodeEvaluation>> {
     const nodeOrErr = await this.get(ctx, uuid);
 
     if (nodeOrErr.isLeft()) {
@@ -291,7 +288,7 @@ export class NodeService {
 
   async find(
     ctx: AuthenticationContext,
-    filters: AndNodeFilters | OrNodeFilters,
+    filters: NodeFilters,
     pageSize = 20,
     pageToken = 1,
   ): Promise<Either<AntboxError, NodeFilterResult>> {
@@ -314,8 +311,8 @@ export class NodeService {
       return nodesOrErr;
     }
 
-    const allowedNodes = nodesOrErr.value.nodes.filter(
-      async (n) => await isPrincipalAllowedTo(ctx, this, n, "Read"),
+    const allowedNodes = nodesOrErr.value.nodes.filter(async (n) =>
+      isPrincipalAllowedTo(ctx, this, n, "Read"),
     );
 
     return right({
@@ -335,7 +332,7 @@ export class NodeService {
     }
 
     if (Nodes.isFolder(nodeOrErr.value)) {
-      return (await isPrincipalAllowedTo(ctx, nodeOrErr.value, "Read"))
+      return isPrincipalAllowedTo(ctx, nodeOrErr.value, "Read")
         ? right(nodeOrErr.value)
         : left(new ForbiddenError());
     }
@@ -349,7 +346,7 @@ export class NodeService {
       );
     }
 
-    return (await isPrincipalAllowedTo(ctx, parentOrErr.value, "Read"))
+    return isPrincipalAllowedTo(ctx, parentOrErr.value, "Read")
       ? right(nodeOrErr.value)
       : left(new ForbiddenError());
   }
@@ -357,21 +354,18 @@ export class NodeService {
   async list(
     ctx: AuthenticationContext,
     parent = Folders.ROOT_FOLDER_UUID,
-  ): Promise<Either<FolderNotFoundError | ForbiddenError, Node[]>> {
+  ): Promise<Either<FolderNotFoundError | ForbiddenError, NodeLike[]>> {
     if (parent === Folders.SYSTEM_FOLDER_UUID) {
-      return left(new FolderNotFoundError(parent));
+      return right(SYSTEM_FOLDERS);
     }
 
-    const parentOrErr = await this.get(ctx, parent);
+    const parentOrErr = await this.#getBuiltinFolderOrFromRepository(parent);
     if (parentOrErr.isLeft()) {
       return left(parentOrErr.value);
     }
 
-    if (!Nodes.isFolder(parentOrErr.value)) {
-      return left(new FolderNotFoundError(parent));
-    }
-
-    if (!(await isPrincipalAllowedTo(ctx, this, parentOrErr.value, "Read"))) {
+    const isAllowed = isPrincipalAllowedTo(ctx, parentOrErr.value, "Read");
+    if (!isAllowed) {
       return left(new ForbiddenError());
     }
 
@@ -379,18 +373,29 @@ export class NodeService {
       return right(this.#listSystemRootFolder());
     }
 
-    const nodes = await this.context.repository
-      .filter([["parent", "==", parentOrErr.value.uuid]], Number.MAX_SAFE_INTEGER, 1)
-      .then((result) => result.nodes);
+    const nodesOrErr = await this.find(
+      ctx,
+      [["parent", "==", parentOrErr.value.uuid]],
+      Number.MAX_SAFE_INTEGER,
+      1,
+    );
+
+    if (nodesOrErr.isLeft()) {
+      return left(nodesOrErr.value);
+    }
+
+    const nodes = nodesOrErr.value.nodes;
 
     if (parent === Folders.ROOT_FOLDER_UUID) {
-      return right([Folders.SYSTEM_FOLDER, ...nodes]);
+      nodes.push(SYSTEM_FOLDER);
     }
 
     return right(
-      nodes.filter(
-        async (n) => !Nodes.isFolder(n) || (await isPrincipalAllowedTo(ctx, this, n, "Read")),
-      ),
+      nodes.filter((n) => {
+        if (!Nodes.isFolder(n)) return true;
+
+        return isPrincipalAllowedTo(ctx, n, "Read");
+      }),
     );
   }
 
@@ -430,7 +435,7 @@ export class NodeService {
       return left(new UnknownError(`Parent folder not found for node uuid='${uuid}'`));
     }
 
-    const allowed = await isPrincipalAllowedTo(ctx, parentOrErr.value, "Write");
+    const allowed = isPrincipalAllowedTo(ctx, parentOrErr.value, "Write");
     if (!allowed) {
       return left(new ForbiddenError());
     }
@@ -502,7 +507,7 @@ export class NodeService {
       .trim();
   }
 
-  async #findAll(filters: NodeFilter[]): Promise<Either<AntboxError, NodeFilterResult>> {
+  async #findAll(filters: NodeFilters): Promise<Either<AntboxError, NodeFilterResult>> {
     const v = await this.context.repository.filter(filters, Number.MAX_SAFE_INTEGER, 1);
 
     const r = {
@@ -578,11 +583,7 @@ export class NodeService {
       .map((nodeOrErr) => nodeOrErr.value as AspectNode);
   }
 
-  #listSystemRootFolder(): FolderNode[] {
-    return Folders.SYSTEM_FOLDERS;
-  }
-
-  async #processAtFilters(f: NodeFilter[]): Promise<Either<false, NodeFilter[]>> {
+  async #processAtFilters(f: NodeFilters): Promise<Either<false, NodeFilters>> {
     const [at, filters] = f.reduce(
       (acc, cur) => {
         if (cur[0].startsWith("@")) {
@@ -593,7 +594,7 @@ export class NodeService {
         acc[1].push(cur);
         return acc;
       },
-      [[], []] as [NodeFilter[], NodeFilter[]],
+      [[], []] as [NodeFilters, NodeFilters],
     );
 
     at.push(["mimetype", "==", Nodes.FOLDER_MIMETYPE]);
@@ -613,6 +614,10 @@ export class NodeService {
     return aspect.properties.map((p) => {
       return { ...p, name: `${aspect.uuid}:${p.name}` };
     });
+  }
+
+  #listSystemRootFolder(): FolderNode[] {
+    return SYSTEM_FOLDERS;
   }
 
   #mapAntboxMimetypes(mimetype: string): string {

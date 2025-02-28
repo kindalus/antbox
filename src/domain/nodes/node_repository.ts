@@ -1,5 +1,5 @@
 import { type Either } from "shared/either.ts";
-import { type NodeFilter, type OrNodeFilters } from "./node_filter.ts";
+import { type NodeFilter, type AnyNodeFilters } from "./node_filter.ts";
 import { type NodeLike } from "./node_like.ts";
 import { NodeNotFoundError } from "./node_not_found_error.ts";
 import type { DuplicatedNodeError } from "./duplicated_node_error.ts";
@@ -17,7 +17,7 @@ export interface NodeRepository {
   getByFid(fid: string): Promise<Either<NodeNotFoundError, NodeLike>>;
   getById(uuid: string): Promise<Either<NodeNotFoundError, NodeLike>>;
   filter(
-    filters: NodeFilter[] | OrNodeFilters,
+    filters: NodeFilter[] | AnyNodeFilters,
     pageSize?: number,
     pageToken?: number,
   ): Promise<NodeFilterResult>;

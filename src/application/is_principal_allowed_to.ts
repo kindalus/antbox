@@ -4,11 +4,11 @@ import type { AuthenticationContext } from "./authentication_context";
 import { Groups } from "domain/auth/groups";
 import { Users } from "domain/auth/users";
 
-export async function isPrincipalAllowedTo(
+export function isPrincipalAllowedTo(
   ctx: AuthenticationContext,
   folder: FolderNode,
   permission: Permission,
-): Promise<boolean> {
+): boolean {
   if (
     ctx.principal.email === Users.ROOT_USER_EMAIL ||
     ctx.principal.groups.includes(Groups.ADMINS_GROUP_UUID)
@@ -16,9 +16,16 @@ export async function isPrincipalAllowedTo(
     return true;
   }
 
+  if (isAnonymousAllowedTo(folder, permission)) {
+    return true;
+  }
+
+  if (Users.ANONYMOUS_USER_EMAIL === ctx.principal.email) {
+    return false;
+  }
+
   if (
     isOwner(ctx, folder) ||
-    isAnonymousAllowedTo(folder, permission) ||
     isAuthenticatedAllowedTo(folder, permission) ||
     isGroupAllowedTo(ctx, folder, permission)
   ) {

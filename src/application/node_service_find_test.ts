@@ -11,6 +11,7 @@ import type { NodeServiceContext } from "./node_service_context";
 import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository";
 import type { AspectProperties } from "domain/aspects/aspect";
 import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider";
+import { SmartFolderNodeNotFoundError } from "domain/nodes/smart_folder_node_not_found_error";
 
 const nodeService = (opts: Partial<NodeServiceContext> = {}) => {
   const service = new NodeService({
@@ -101,6 +102,26 @@ describe("NodeService.list", () => {
     const listOrErr = await service.list(anonymousCtx, "vetify-logotipo-uuid");
     expect(listOrErr.isRight(), errToMsg(listOrErr.value)).toBeTruthy();
     expect(listOrErr.right.length).toBe(1);
+  });
+});
+
+describe("NodeService.evaluate", () => {
+  test("should return filtered nodes", async () => {
+    const evaluationOrErr = await service.evaluate(authCtx, "posicao-financeira-2024-uuid");
+
+    expect(evaluationOrErr.isRight(), errToMsg(evaluationOrErr.value)).toBeTruthy();
+    expect(evaluationOrErr.right.length).toBe(2);
+    expect(evaluationOrErr.right.map((n) => n.title)).toEqual([
+      "Posição Financeira - 2024-09-29.pdf",
+      "Posição Financeira - 2024-12-08.pdf",
+    ]);
+  });
+
+  test("should return error if node is not a smartfolder node", async () => {
+    const evaluationOrErr = await service.evaluate(authCtx, "data-warehouse-uuid");
+
+    expect(evaluationOrErr.isLeft()).toBeTruthy();
+    expect(evaluationOrErr.value).toBeInstanceOf(SmartFolderNodeNotFoundError);
   });
 });
 
@@ -566,11 +587,12 @@ all 'Posição Financeira' files from 2024.
 
   // Create smart folder
   await service.create(authCtx, {
+    uuid: "posicao-financeira-2024-uuid",
     title: "Posição Financeira 2024",
     mimetype: Nodes.SMART_FOLDER_MIMETYPE,
     filters: [
       ["aspects", "contains", posicaoAspect.right.uuid],
-      ["properties.posicaofinanceira:date", ">=", "2024-01-01"],
+      ["properties.posicao-financeira:date", ">=", "2024-01-01"],
       ["properties.posicao-financeira:date", "<", "2025-01-01"],
     ],
   });

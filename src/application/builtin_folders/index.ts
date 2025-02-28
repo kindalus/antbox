@@ -14,7 +14,7 @@ function buildRootFolder(): FolderNode {
     parent: Folders.ROOT_FOLDER_UUID,
     owner: Users.ROOT_USER_EMAIL,
     group: Groups.ADMINS_GROUP_UUID,
-    filters: [["mimetype", "==", Nodes.FOLDER_MIMETYPE]],
+    filters: [["mimetype", "in", [Nodes.FOLDER_MIMETYPE, Nodes.SMART_FOLDER_MIMETYPE]]],
     permissions: {
       group: ["Read"],
       authenticated: [],

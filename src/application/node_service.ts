@@ -12,7 +12,6 @@ import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import type { NodeFilterResult } from "domain/nodes/node_repository.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
-import { type SmartFolderNodeEvaluation } from "domain/nodes/smart_folder_evaluation.ts";
 import { SmartFolderNode } from "domain/nodes/smart_folder_node.ts";
 import { SmartFolderNodeNotFoundError } from "domain/nodes/smart_folder_node_not_found_error.ts";
 import { AntboxError, BadRequestError, ForbiddenError, UnknownError } from "shared/antbox_error.ts";
@@ -25,6 +24,10 @@ import { UuidGenerator } from "shared/uuid_generator.ts";
 import { FidGenerator } from "shared/fid_generator.ts";
 import { builtinFolders, SYSTEM_FOLDER, SYSTEM_FOLDERS } from "./builtin_folders/index.ts";
 import { areFiltersSatisfiedBy } from "domain/nodes/node_filters.ts";
+import type { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository.ts";
+
+// TODO: Implement aspect validations
+// TODO: Implements throwing events
 
 /**
  * The `NodeService` class is responsible for managing raw nodes in the system.
@@ -266,10 +269,14 @@ export class NodeService {
   async evaluate(
     ctx: AuthenticationContext,
     uuid: string,
-  ): Promise<Either<SmartFolderNodeNotFoundError, SmartFolderNodeEvaluation>> {
+  ): Promise<Either<SmartFolderNodeNotFoundError, NodeLike[]>> {
     const nodeOrErr = await this.get(ctx, uuid);
-
     if (nodeOrErr.isLeft()) {
+      console.error(
+        (this.context.repository as unknown as InMemoryNodeRepository).records.map(
+          (n) => n.metadata,
+        ),
+      );
       return left(new SmartFolderNodeNotFoundError(uuid));
     }
 
@@ -279,11 +286,14 @@ export class NodeService {
 
     const node: SmartFolderNode = nodeOrErr.value;
 
-    const evaluation = await this.context.repository
-      .filter(node.filters, Number.MAX_SAFE_INTEGER, 1)
-      .then((filtered) => ({ records: filtered.nodes }));
+    const evaluationOrErr = await this.find(ctx, node.filters, Number.MAX_SAFE_INTEGER);
+    if (evaluationOrErr.isLeft()) {
+      return left(
+        new UnknownError(`Error evaluating smart folder uuid='${uuid}:: ${evaluationOrErr.value}`),
+      );
+    }
 
-    return right(evaluation);
+    return right(evaluationOrErr.value.nodes);
   }
 
   async find(

@@ -4,7 +4,7 @@ import { FolderNode } from "domain/nodes/folder_node.ts";
 import { Folders } from "domain/nodes/folders.ts";
 import { Node } from "domain/nodes/node.ts";
 import { NodeCreatedEvent } from "domain/nodes/node_created_event.ts";
-import { withNodeFilters } from "domain/nodes/node_filters.ts";
+import { buildNodeSpecification } from "domain/nodes/node_filters.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import { NodeUpdatedEvent } from "domain/nodes/node_updated_event.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
@@ -270,7 +270,9 @@ export class ActionService {
       return nodesOrErr.find((n) => n.isLeft()) as Either<AntboxError, never>;
     }
 
-    const nodes = nodesOrErr.map((n) => n.value as Node).filter(withNodeFilters(action.filters));
+    const nodes = nodesOrErr
+      .map((n) => n.value as Node)
+      .filter(buildNodeSpecification(action.filters));
 
     return right(nodes.map((n) => n.uuid));
   }

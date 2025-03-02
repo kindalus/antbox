@@ -1,7 +1,6 @@
 import { describe, test, expect, beforeAll } from "bun:test";
 import { Users } from "domain/auth/users";
 import { Groups } from "domain/auth/groups";
-import { FolderNotFoundError } from "domain/nodes/folder_not_found_error";
 import { Folders } from "domain/nodes/folders";
 import { Nodes } from "domain/nodes/nodes";
 import { ForbiddenError } from "shared/antbox_error";
@@ -12,6 +11,7 @@ import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository";
 import type { AspectProperties } from "domain/aspects/aspect";
 import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider";
 import { SmartFolderNodeNotFoundError } from "domain/nodes/smart_folder_node_not_found_error";
+import type { NodeFilters1D, NodeFilters2D } from "domain/nodes/node_filter";
 
 const nodeService = (opts: Partial<NodeServiceContext> = {}) => {
   const service = new NodeService({
@@ -40,10 +40,66 @@ const anonymousCtx: AuthenticationContext = {
   },
 };
 
+const financeCtx: AuthenticationContext = {
+  mode: "Direct",
+  tenant: "",
+  principal: {
+    email: "finance@domain.com",
+    groups: ["finance"],
+  },
+};
+
 const service = nodeService();
 
 beforeAll(async () => {
   await loadData(service);
+});
+
+describe("NodeService.find", () => {
+  test("should find all jpg files", async () => {
+    const filters: NodeFilters1D = [["mimetype", "==", "image/jpeg"]];
+    const result = await service.find(authCtx, filters);
+
+    expect(result.isRight(), errToMsg(result.value)).toBeTruthy();
+    expect(result.right.nodes.length).toBe(2);
+    expect(result.right.nodes.map((n) => n.title)).toEqual([
+      "Background Zoom-1.jpg",
+      "Background Zoom-2.jpg",
+    ]);
+  });
+
+  test("should find nodes with OPE aspect", async () => {
+    const filters: NodeFilters1D = [["aspects", "contains", "ope"]];
+    const result = await service.find(authCtx, filters);
+
+    expect(result.isRight(), errToMsg(result.value)).toBeTruthy();
+    expect(result.right.nodes.length).toBe(5);
+    expect(result.right.nodes.every((n: any) => n.aspects?.includes("ope"))).toBeTrue();
+  });
+
+  test("should find posicao-financeira aspect OR contabilidade folder nodes", async () => {
+    const filters: NodeFilters2D = [
+      [["aspects", "contains", "posicao-financeira"]],
+      [["parent", "==", "contabilidade-uuid"]],
+    ];
+
+    const result = await service.find(authCtx, filters);
+
+    expect(result.isRight(), errToMsg(result.value)).toBeTruthy();
+    expect(result.right.nodes.length).toBe(8);
+    expect(
+      result.right.nodes.some((n: any) => n.aspects?.includes("posicao-financeira")),
+    ).toBeTrue();
+    expect(result.right.nodes.some((n) => n.parent === "contabilidade-uuid")).toBeTrue();
+  });
+
+  test("should not return files without read permission", async () => {
+    const filters: NodeFilters1D = [["parent", "==", Folders.ROOT_FOLDER_UUID]];
+    const result = await service.find(financeCtx, filters);
+
+    expect(result.isRight(), errToMsg(result.value)).toBeTruthy();
+    expect(result.right.nodes.length).toBe(6);
+  });
 });
 
 describe("NodeService.list", () => {
@@ -138,7 +194,7 @@ async function loadData(service: NodeService): Promise<void> {
 The folder 'Contabilidade' is secret and only the 'accounting' group has 'Read' access to it.
 Folder 'Marca' is public and everyone has 'Read' access to it, but only the 'admin' group
 has 'Write' access.
-Folder 'Posição Financeira' is only accessible by the 'finance' group.
+Folder 'Posições Financeiras' is only accessible by the 'finance' group.
 There's an Aspect named 'OPE' that is contained in all OPE files. It contais date, amount and
 company fields.
 There's an Aspect named 'Posição Financeira' that is contained in all Posição Financeira files.
@@ -146,7 +202,7 @@ It contais date and amount fields.
 In the ROOT Folders theres one aditional SmartFolder names 'Posição Financeira 2024' that contains
 all 'Posição Financeira' files from 2024.
 
-├── Contabilidade
+├── Contabilidade [accounting][RWE,,]
 │   ├── Balancete Vetify - Nov-2023.pdf
 │   └── RELATÓRIO E CONTAS VETIFY,LDA 2022 (1).pdf
 ├── Data Warehouse
@@ -187,7 +243,7 @@ all 'Posição Financeira' files from 2024.
 │           └── Logo
 │               ├── vetify_logo_cor.png
 │               └── vetify_logo_negativo.png
-└── Posição Financeira
+└── Posição Financeira [finance][RWE,,]
     ├── Posição Financeira - 2023-03-21.pdf
     ├── Posição Financeira - 2023-12-28.pdf
     ├── Posição Financeira - 2024-09-29.pdf
@@ -210,7 +266,7 @@ all 'Posição Financeira' files from 2024.
   });
 
   // Create Posição Financeira aspect
-  const posicaoAspect = await service.create(authCtx, {
+  await service.create(authCtx, {
     uuid: "posicao-financeira",
     title: "Posição Financeira",
     mimetype: Nodes.ASPECT_MIMETYPE,
@@ -220,7 +276,7 @@ all 'Posição Financeira' files from 2024.
     ] as AspectProperties,
   });
 
-  const contabilidadeFolder = await service.create(authCtx, {
+  await service.create(authCtx, {
     uuid: "contabilidade-uuid",
     title: "Contabilidade",
     mimetype: Nodes.FOLDER_MIMETYPE,
@@ -236,16 +292,16 @@ all 'Posição Financeira' files from 2024.
   await service.create(authCtx, {
     title: "Balancete Vetify - Nov-2023.pdf",
     mimetype: "application/pdf",
-    parent: contabilidadeFolder.right.uuid,
+    parent: "contabilidade-uuid",
   });
 
   await service.create(authCtx, {
     title: "RELATÓRIO E CONTAS VETIFY,LDA 2022 (1).pdf",
     mimetype: "application/pdf",
-    parent: contabilidadeFolder.right.uuid,
+    parent: "contabilidade-uuid",
   });
 
-  const dataWarehouseFolder = await service.create(authCtx, {
+  await service.create(authCtx, {
     uuid: "data-warehouse-uuid",
     title: "Data Warehouse",
     mimetype: Nodes.FOLDER_MIMETYPE,
@@ -254,34 +310,34 @@ all 'Posição Financeira' files from 2024.
   await service.create(authCtx, {
     title: "vetify_sales_dw-20240329.sql",
     mimetype: "text/sql",
-    parent: dataWarehouseFolder.right.uuid,
+    parent: "data-warehouse-uuid",
   });
 
   await service.create(authCtx, {
     title: "vetify_sales_dw-20240507.sql",
     mimetype: "text/sql",
-    parent: dataWarehouseFolder.right.uuid,
+    parent: "data-warehouse-uuid",
   });
 
   await service.create(authCtx, {
     title: "vetify_sales_dw-202409013.sql",
     mimetype: "text/sql",
-    parent: dataWarehouseFolder.right.uuid,
+    parent: "data-warehouse-uuid",
   });
 
   await service.create(authCtx, {
     title: "vetify_sales_dw-20241222.sql",
     mimetype: "text/sql",
-    parent: dataWarehouseFolder.right.uuid,
+    parent: "data-warehouse-uuid",
   });
 
   await service.create(authCtx, {
     title: "vetify_sales_dw-20250106.sql",
     mimetype: "text/sql",
-    parent: dataWarehouseFolder.right.uuid,
+    parent: "data-warehouse-uuid",
   });
 
-  const importacaoFolder = await service.create(authCtx, {
+  await service.create(authCtx, {
     uuid: "importacao-uuid",
     title: "Importação",
     mimetype: Nodes.FOLDER_MIMETYPE,
@@ -290,37 +346,37 @@ all 'Posição Financeira' files from 2024.
   await service.create(authCtx, {
     title: "Alvará Comercial.pdf",
     mimetype: "application/pdf",
-    parent: importacaoFolder.right.uuid,
+    parent: "importacao-uuid",
   });
 
   await service.create(authCtx, {
     title: "CCT-2024-10-09.pdf",
     mimetype: "application/pdf",
-    parent: importacaoFolder.right.uuid,
+    parent: "importacao-uuid",
   });
 
   await service.create(authCtx, {
     title: "CRC.pdf",
     mimetype: "application/pdf",
-    parent: importacaoFolder.right.uuid,
+    parent: "importacao-uuid",
   });
 
   await service.create(authCtx, {
     title: "Certidao138740CN2024.pdf",
     mimetype: "application/pdf",
-    parent: importacaoFolder.right.uuid,
+    parent: "importacao-uuid",
   });
 
   await service.create(authCtx, {
     title: "Licença Higio - 2024.pdf",
     mimetype: "application/pdf",
-    parent: importacaoFolder.right.uuid,
+    parent: "importacao-uuid",
   });
 
   await service.create(authCtx, {
     title: "NIF.pdf",
     mimetype: "application/pdf",
-    parent: importacaoFolder.right.uuid,
+    parent: "importacao-uuid",
   });
 
   const opeFolder = await service.create(authCtx, {
@@ -392,19 +448,19 @@ all 'Posição Financeira' files from 2024.
   await service.create(authCtx, {
     title: "Pauta Aduaneira - 2019.pdf",
     mimetype: "application/pdf",
-    parent: importacaoFolder.right.uuid,
+    parent: "importacao-uuid",
   });
 
   await service.create(authCtx, {
     title: "Pauta Aduaneira.pdf",
     mimetype: "application/pdf",
-    parent: importacaoFolder.right.uuid,
+    parent: "importacao-uuid",
   });
 
   await service.create(authCtx, {
     title: "REI.pdf",
     mimetype: "application/pdf",
-    parent: importacaoFolder.right.uuid,
+    parent: "importacao-uuid",
   });
 
   const marcaFolder = await service.create(authCtx, {
@@ -506,7 +562,7 @@ all 'Posição Financeira' files from 2024.
     parent: "logo-uuid",
   });
 
-  const posicaoFolder = await service.create(authCtx, {
+  await service.create(authCtx, {
     uuid: "posicao-financeira-uuid",
     title: "Posições Financeiras",
     mimetype: Nodes.FOLDER_MIMETYPE,
@@ -522,7 +578,7 @@ all 'Posição Financeira' files from 2024.
   await service.create(authCtx, {
     title: "Posição Financeira - 2023-03-21.pdf",
     mimetype: "application/pdf",
-    parent: posicaoFolder.right.uuid,
+    parent: "posicao-financeira-uuid",
     aspects: ["posicao-financeira"],
     properties: {
       "posicao-financeira:date": "2023-03-21",
@@ -533,7 +589,7 @@ all 'Posição Financeira' files from 2024.
   await service.create(authCtx, {
     title: "Posição Financeira - 2023-12-28.pdf",
     mimetype: "application/pdf",
-    parent: posicaoFolder.right.uuid,
+    parent: "posicao-financeira-uuid",
     aspects: ["posicao-financeira"],
     properties: {
       "posicao-financeira:date": "2023-12-28",
@@ -544,7 +600,7 @@ all 'Posição Financeira' files from 2024.
   await service.create(authCtx, {
     title: "Posição Financeira - 2024-09-29.pdf",
     mimetype: "application/pdf",
-    parent: posicaoFolder.right.uuid,
+    parent: "posicao-financeira-uuid",
     aspects: ["posicao-financeira"],
     properties: {
       "posicao-financeira:date": "2024-09-29",
@@ -555,7 +611,7 @@ all 'Posição Financeira' files from 2024.
   await service.create(authCtx, {
     title: "Posição Financeira - 2024-12-08.pdf",
     mimetype: "application/pdf",
-    parent: posicaoFolder.right.uuid,
+    parent: "posicao-financeira-uuid",
     aspects: ["posicao-financeira"],
     properties: {
       "posicao-financeira:date": "2024-12-08",
@@ -566,7 +622,7 @@ all 'Posição Financeira' files from 2024.
   await service.create(authCtx, {
     title: "Posição Financeira - 2025-01-05.pdf",
     mimetype: "application/pdf",
-    parent: posicaoFolder.right.uuid,
+    parent: "posicao-financeira-uuid",
     aspects: ["posicao-financeira"],
     properties: {
       "posicao-financeira:date": "2025-01-05",
@@ -577,7 +633,7 @@ all 'Posição Financeira' files from 2024.
   await service.create(authCtx, {
     title: "Posição Financeira - 2025-02-01.pdf",
     mimetype: "application/pdf",
-    parent: posicaoFolder.right.uuid,
+    parent: "posicao-financeira-uuid",
     aspects: ["posicao-financeira"],
     properties: {
       "posicao-financeira:date": "2025-02-01",
@@ -591,7 +647,7 @@ all 'Posição Financeira' files from 2024.
     title: "Posição Financeira 2024",
     mimetype: Nodes.SMART_FOLDER_MIMETYPE,
     filters: [
-      ["aspects", "contains", posicaoAspect.right.uuid],
+      ["aspects", "contains", "posicao-financeira"],
       ["properties.posicao-financeira:date", ">=", "2024-01-01"],
       ["properties.posicao-financeira:date", "<", "2025-01-01"],
     ],

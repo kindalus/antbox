@@ -5,8 +5,14 @@ import { FolderNode } from "domain/nodes/folder_node.ts";
 import { FolderNotFoundError } from "domain/nodes/folder_not_found_error.ts";
 import { Folders } from "domain/nodes/folders.ts";
 import { MetaNode } from "domain/nodes/meta_node.ts";
-import { Node } from "domain/nodes/node.ts";
-import type { NodeFilters } from "domain/nodes/node_filter.ts";
+import { Node, type Permission } from "domain/nodes/node.ts";
+import {
+  isAnyNodeFilter,
+  type NodeFilters1D,
+  type NodeFilters,
+  type NodeFilters2D,
+  type NodeFilter,
+} from "domain/nodes/node_filter.ts";
 import type { FileLikeNode, NodeLike } from "domain/nodes/node_like.ts";
 import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
@@ -23,8 +29,11 @@ import { NodeFactory } from "domain/node_factory.ts";
 import { UuidGenerator } from "shared/uuid_generator.ts";
 import { FidGenerator } from "shared/fid_generator.ts";
 import { builtinFolders, SYSTEM_FOLDER, SYSTEM_FOLDERS } from "./builtin_folders/index.ts";
-import { areFiltersSatisfiedBy } from "domain/nodes/node_filters.ts";
+import { areFiltersSatisfiedBy, buildNodeSpecification } from "domain/nodes/node_filters.ts";
 import type { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository.ts";
+import { Users } from "domain/auth/users.ts";
+import { Groups } from "domain/auth/groups.ts";
+import { sys } from "typescript";
 
 // TODO: Implement aspect validations
 // TODO: Implements throwing events
@@ -90,7 +99,7 @@ export class NodeService {
       uuid,
       fid: metadata.fid ?? FidGenerator.generate(metadata.title!),
       owner: ctx.principal.email,
-      group: ctx.principal.groups[0],
+      group: metadata.group ?? ctx.principal.groups[0],
     });
 
     if (nodeOrErr.isLeft()) {
@@ -302,34 +311,17 @@ export class NodeService {
     pageSize = 20,
     pageToken = 1,
   ): Promise<Either<AntboxError, NodeFilterResult>> {
-    if (!filters.some((f) => f[0].startsWith("@"))) {
-      return this.#findAll(filters);
-    }
+    const f = isAnyNodeFilter(filters) ? filters : [filters];
 
-    const atfiltersOrErr = await this.#processAtFilters(filters);
+    const stage1 = f.reduce(this.#toFiltersWithPermissionsResolved(ctx, "Read"), []);
 
-    if (atfiltersOrErr.isLeft()) {
-      return right({
-        nodes: [],
-        pageSize,
-        pageToken,
-      });
-    }
+    const batch = stage1.map((f) => this.#toFiltersWithAtResolved(f));
+    const stage2 = await Promise.allSettled(batch);
+    const stage3 = stage2.filter((r) => r.status === "fulfilled").map((r) => r.value);
+    const processedFilters = stage3.filter((f) => f.length);
 
-    const nodesOrErr = await this.#findAll(atfiltersOrErr.value);
-    if (nodesOrErr.isLeft()) {
-      return nodesOrErr;
-    }
-
-    const allowedNodes = nodesOrErr.value.nodes.filter(async (n) =>
-      isPrincipalAllowedTo(ctx, this, n, "Read"),
-    );
-
-    return right({
-      nodes: allowedNodes.slice((pageToken - 1) * pageSize, pageToken * pageSize),
-      pageSize,
-      pageToken,
-    });
+    const r = await this.context.repository.filter(processedFilters, pageSize, pageToken);
+    return right(r);
   }
 
   async get(
@@ -517,18 +509,6 @@ export class NodeService {
       .trim();
   }
 
-  async #findAll(filters: NodeFilters): Promise<Either<AntboxError, NodeFilterResult>> {
-    const v = await this.context.repository.filter(filters, Number.MAX_SAFE_INTEGER, 1);
-
-    const r = {
-      nodes: v.nodes.map((n) => (Nodes.isApikey(n) ? n.cloneWithSecret() : n)),
-      pageToken: v.pageToken,
-      pageSize: v.pageSize,
-    };
-
-    return right(r);
-  }
-
   async #getBuiltinFolderOrFromRepository(
     uuid: string,
   ): Promise<Either<NodeNotFoundError, FolderNode>> {
@@ -593,7 +573,11 @@ export class NodeService {
       .map((nodeOrErr) => nodeOrErr.value as AspectNode);
   }
 
-  async #processAtFilters(f: NodeFilters): Promise<Either<false, NodeFilters>> {
+  async #toFiltersWithAtResolved(f: NodeFilters1D): Promise<NodeFilters1D> {
+    if (!f.some((f) => f[0].startsWith("@"))) {
+      return f;
+    }
+
     const [at, filters] = f.reduce(
       (acc, cur) => {
         if (cur[0].startsWith("@")) {
@@ -604,20 +588,82 @@ export class NodeService {
         acc[1].push(cur);
         return acc;
       },
-      [[], []] as [NodeFilters, NodeFilters],
+      [[], []] as [NodeFilters1D, NodeFilters1D],
     );
 
     at.push(["mimetype", "==", Nodes.FOLDER_MIMETYPE]);
 
-    const result = await this.context.repository.filter(at, Number.MAX_SAFE_INTEGER, 1);
-
-    if (result.nodes.length === 0) {
-      return left(false);
+    const parentFilter = filters.find((f) => f[0] === "parent");
+    if (parentFilter) {
+      at.push(["uuid", parentFilter[1], parentFilter[2]]);
     }
 
-    filters.push(["parent", "in", result.nodes.map((n) => n.uuid)]);
+    // Since system folders are not stored in the repository, we need to handle them separately
+    const satisfiedByFilders = buildNodeSpecification(at);
+    const sysFolders = builtinFolders.filter(satisfiedByFilders);
 
-    return right(filters);
+    const result = await this.context.repository.filter(at, Number.MAX_SAFE_INTEGER, 1);
+    const parentList = [...result.nodes.map((n) => n.uuid), ...sysFolders.map((n) => n.uuid)];
+
+    if (parentList.length === 0) {
+      return [];
+    }
+
+    const cleanFilters = filters.filter((f) => f[0] !== "parent");
+    return [...cleanFilters, ["parent", "in", parentList]];
+  }
+
+  #toFiltersWithPermissionsResolved(
+    ctx: AuthenticationContext,
+    permission: Permission,
+  ): (acc: NodeFilters2D, cur: NodeFilters1D) => NodeFilters2D {
+    if (ctx.principal.groups.includes(Groups.ADMINS_GROUP_UUID)) {
+      return (acc: NodeFilters2D, cur: NodeFilters1D) => {
+        acc.push(cur);
+        return acc;
+      };
+    }
+
+    const permissionFilters: NodeFilters2D = [];
+    this.#addAnonymousPermissionFilters(permissionFilters, permission);
+
+    if (ctx.principal.email !== Users.ANONYMOUS_USER_EMAIL) {
+      this.#addAuthenticatedPermissionFilters(ctx, permissionFilters, permission);
+    }
+
+    return (acc: NodeFilters2D, cur: NodeFilters1D) => {
+      for (const j of permissionFilters) {
+        acc.push([...cur, ...j]);
+      }
+
+      return acc;
+    };
+  }
+
+  #addAnonymousPermissionFilters(f: NodeFilters2D, p: Permission) {
+    this.#addPermissionFilters(f, [["permissions.anonymous", "contains", p]]);
+  }
+
+  #addAuthenticatedPermissionFilters(ctx: AuthenticationContext, f: NodeFilters2D, p: Permission) {
+    this.#addPermissionFilters(f, [["permissions.authenticated", "contains", p]]);
+    this.#addPermissionFilters(f, [["owner", "==", ctx.principal.email]]);
+    this.#addPermissionFilters(f, [
+      ["group", "==", ctx.principal.groups[0]],
+      ["permissions.group", "contains", p],
+    ]);
+
+    ctx.principal.groups.forEach((g) => {
+      this.#addPermissionFilters(f, [[`permissions.advanced.${g}`, "contains", p]]);
+    });
+  }
+
+  #addPermissionFilters(f: NodeFilters2D, filters: NodeFilter[]) {
+    f.push([...filters, ["mimetype", "==", Nodes.FOLDER_MIMETYPE]]);
+
+    f.push([
+      ...filters.map(([field, operator, value]): NodeFilter => [`@${field}`, operator, value]),
+      ["mimetype", "!=", Nodes.FOLDER_MIMETYPE],
+    ]);
   }
 
   #aspectToProperties(aspect: AspectNode): AspectProperty[] {

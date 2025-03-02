@@ -6,9 +6,9 @@ import { mkdirSync, statSync } from "fs";
 import { NodeFactory } from "domain/node_factory";
 import {
   type FilterOperator,
-  type AllNodeFilters,
+  type NodeFilters1D,
   type NodeFilter,
-  type AnyNodeFilters,
+  type NodeFilters2D,
   isAnyNodeFilter as areOrNodeFilter,
   type NodeFilters,
 } from "domain/nodes/node_filter";

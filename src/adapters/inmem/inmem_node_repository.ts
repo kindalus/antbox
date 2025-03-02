@@ -1,6 +1,6 @@
 import type { DuplicatedNodeError } from "domain/nodes/duplicated_node_error";
-import type { AllNodeFilters, AnyNodeFilters, NodeFilters } from "domain/nodes/node_filter";
-import { withNodeFilters } from "domain/nodes/node_filters";
+import type { NodeFilters1D, NodeFilters2D, NodeFilters } from "domain/nodes/node_filter";
+import { buildNodeSpecification } from "domain/nodes/node_filters";
 import type { NodeLike } from "domain/nodes/node_like";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error";
 import type { NodeRepository, NodeFilterResult } from "domain/nodes/node_repository";
@@ -81,7 +81,7 @@ export class InMemoryNodeRepository implements NodeRepository {
   filter(filters: NodeFilters, pageSize = 20, pageToken = 1): Promise<NodeFilterResult> {
     const firstIndex = (pageToken - 1) * pageSize;
     const lastIndex = firstIndex + pageSize;
-    const filtered = this.records.filter(withNodeFilters(filters as AllNodeFilters));
+    const filtered = this.records.filter(buildNodeSpecification(filters as NodeFilters1D));
     const nodes = filtered.slice(firstIndex, lastIndex);
 
     return Promise.resolve({ nodes, pageSize, pageToken });

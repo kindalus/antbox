@@ -1,8 +1,8 @@
 export type NodeFilter = [field: string, operator: FilterOperator, value: unknown];
 
-export type AllNodeFilters = NodeFilter[];
-export type AnyNodeFilters = AllNodeFilters[];
-export type NodeFilters = AllNodeFilters | AnyNodeFilters;
+export type NodeFilters1D = NodeFilter[];
+export type NodeFilters2D = NodeFilters1D[];
+export type NodeFilters = NodeFilters1D | NodeFilters2D;
 
 export type FilterOperator =
   | "=="
@@ -20,7 +20,7 @@ export type FilterOperator =
   | "not-contains"
   | "contains-none";
 
-export function isAnyNodeFilter(filters: NodeFilters): filters is AnyNodeFilters {
+export function isAnyNodeFilter(filters: NodeFilters): filters is NodeFilters2D {
   if (filters.length === 0) {
     return false;
   }

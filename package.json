@@ -5,7 +5,7 @@
   "scripts": {
     "start-demo": "bun run src/demo.ts",
     "test": "bun test --watch ./src",
-    "lint": "tsc --noEmit --watch",
+    "lint": "tsc --noEmit --pretty --watch",
     "test-node-repository": "bun run ./src/adapters/run_node_repository_tests.ts",
     "test-storage-provider": "bun run ./src/adapters/run_storage_provider_tests.ts"
   },

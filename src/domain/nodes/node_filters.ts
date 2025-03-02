@@ -3,8 +3,8 @@
 import {
   isAnyNodeFilter,
   type NodeFilter,
-  type AllNodeFilters,
-  type AnyNodeFilters,
+  type NodeFilters1D,
+  type NodeFilters2D,
 } from "./node_filter.ts";
 import type { FilterOperator, NodeFilters } from "./node_filter.ts";
 import type { NodeLike } from "./node_like.ts";
@@ -14,10 +14,10 @@ export interface FiltersSpecification {
 }
 
 export function areFiltersSatisfiedBy(f: NodeFilters, n: NodeLike): boolean {
-  return withNodeFilters(f)(n);
+  return buildNodeSpecification(f)(n);
 }
 
-export function withNodeFilters(filters: NodeFilters): (n: NodeLike) => boolean {
+export function buildNodeSpecification(filters: NodeFilters): (n: NodeLike) => boolean {
   if (isAnyNodeFilter(filters)) {
     return processOrNodeFilters(filters);
   }
@@ -25,7 +25,7 @@ export function withNodeFilters(filters: NodeFilters): (n: NodeLike) => boolean 
   return processNodeFilters(filters);
 }
 
-function processNodeFilters(filters: AllNodeFilters): (n: NodeLike) => boolean {
+function processNodeFilters(filters: NodeFilters1D): (n: NodeLike) => boolean {
   if (filters.length === 0) {
     return (n: NodeLike) => true;
   }
@@ -34,8 +34,8 @@ function processNodeFilters(filters: AllNodeFilters): (n: NodeLike) => boolean {
   return (n: NodeLike) => predicates.every((p) => p(n));
 }
 
-function processOrNodeFilters(filters: AnyNodeFilters): (n: NodeLike) => boolean {
-  const predicates = filters.map((f) => withNodeFilters(f));
+function processOrNodeFilters(filters: NodeFilters2D): (n: NodeLike) => boolean {
+  const predicates = filters.map((f) => buildNodeSpecification(f));
   return (n: NodeLike) => predicates.some((p) => p(n));
 }
 

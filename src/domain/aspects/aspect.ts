@@ -1,6 +1,10 @@
 import { builtinAspects } from "application/builtin_aspects/mod.ts";
 import { type NodeFilter, type NodeFilters } from "domain/nodes/node_filter.ts";
 import { AspectNode } from "./aspect_node.ts";
+import type { NodeLike } from "domain/nodes/node_like.ts";
+import { type Either, left, right } from "shared/either.ts";
+import { ValidationError } from "shared/validation_error.ts";
+import type { AntboxError } from "shared/antbox_error.ts";
 
 export interface Aspect {
   uuid: string;
@@ -81,4 +85,38 @@ export function aspectToNode(aspect: Aspect): AspectNode {
     filters: aspect.filters,
     properties: aspect.properties,
   }).right;
+}
+
+function buildAspectPropertyValidator(
+  aspect: AspectNode,
+  property: AspectProperty,
+): (n: NodeLike) => Either<ValidationError, boolean> {
+  return (n: NodeLike) => {
+    return right(true);
+  };
+}
+
+export function buildAspectValidator(
+  aspect: AspectNode,
+): (n: NodeLike) => Either<ValidationError, boolean> {
+  const validators = aspect.properties.map((property) =>
+    buildAspectPropertyValidator(aspect, property),
+  );
+
+  return (n: NodeLike) => {
+    const errors: AntboxError[] = [];
+
+    for (const validate of validators) {
+      const result = validate(n);
+      if (result.isLeft()) {
+        errors.push(...result.value.errors);
+      }
+    }
+
+    if (errors.length) {
+      return left(ValidationError.from(...errors));
+    }
+
+    return right(true);
+  };
 }

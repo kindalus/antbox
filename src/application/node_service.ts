@@ -1,4 +1,4 @@
-import { type AspectProperty } from "domain/aspects/aspect.ts";
+import { buildAspectValidator, type AspectProperty } from "domain/aspects/aspect.ts";
 import { AspectNode } from "domain/aspects/aspect_node.ts";
 import { FileNode } from "domain/nodes/file_node.ts";
 import { FolderNode } from "domain/nodes/folder_node.ts";
@@ -33,9 +33,9 @@ import { areFiltersSatisfiedBy, buildNodeSpecification } from "domain/nodes/node
 import type { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository.ts";
 import { Users } from "domain/auth/users.ts";
 import { Groups } from "domain/auth/groups.ts";
-import { sys } from "typescript";
+import type { NodeProperties } from "domain/nodes/node_properties.ts";
+import { ValidationError } from "shared/validation_error.ts";
 
-// TODO: Implement aspect validations
 // TODO: Implements throwing events
 
 /**
@@ -123,6 +123,19 @@ export class NodeService {
 
     if (Nodes.isFolder(nodeOrErr.value) && !metadata.permissions) {
       nodeOrErr.value.update({ permissions: parentOrErr.value.permissions });
+    }
+
+    if (
+      Nodes.isFile(nodeOrErr.value) ||
+      Nodes.isFolder(nodeOrErr.value) ||
+      Nodes.isMetaNode(nodeOrErr.value)
+    ) {
+      const aspects = await this.#getNodeAspects(ctx, nodeOrErr.value);
+      const errs = await this.#validateNodeAspectsThenUpdate(nodeOrErr.value, aspects);
+
+      if (errs.isLeft()) {
+        return left(errs.value);
+      }
     }
 
     nodeOrErr.value.update({ fulltext: await this.#calculateFulltext(ctx, nodeOrErr.value) });
@@ -357,10 +370,6 @@ export class NodeService {
     ctx: AuthenticationContext,
     parent = Folders.ROOT_FOLDER_UUID,
   ): Promise<Either<FolderNotFoundError | ForbiddenError, NodeLike[]>> {
-    if (parent === Folders.SYSTEM_FOLDER_UUID) {
-      return right(SYSTEM_FOLDERS);
-    }
-
     const parentOrErr = await this.#getBuiltinFolderOrFromRepository(parent);
     if (parentOrErr.isLeft()) {
       return left(parentOrErr.value);
@@ -392,13 +401,7 @@ export class NodeService {
       nodes.push(SYSTEM_FOLDER);
     }
 
-    return right(
-      nodes.filter((n) => {
-        if (!Nodes.isFolder(n)) return true;
-
-        return isPrincipalAllowedTo(ctx, n, "Read");
-      }),
-    );
+    return right(nodes);
   }
 
   async update(
@@ -409,6 +412,19 @@ export class NodeService {
     let nodeOrErr = await this.get(ctx, uuid);
     if (nodeOrErr.isLeft()) {
       return left(nodeOrErr.value);
+    }
+
+    const parentOrErr = Nodes.isFolder(nodeOrErr.value)
+      ? right<AntboxError, FolderNode>(nodeOrErr.value)
+      : await this.#getBuiltinFolderOrFromRepository(nodeOrErr.value.parent);
+
+    if (parentOrErr.isLeft()) {
+      return left(new UnknownError(`Parent folder not found for node uuid='${uuid}'`));
+    }
+
+    const allowed = isPrincipalAllowedTo(ctx, parentOrErr.value, "Write");
+    if (!allowed) {
+      return left(new ForbiddenError());
     }
 
     if (Nodes.isApikey(nodeOrErr.value)) {
@@ -427,20 +443,20 @@ export class NodeService {
       return left(voidOrErr.value);
     }
 
+    if (
+      Nodes.isFile(nodeOrErr.value) ||
+      Nodes.isFolder(nodeOrErr.value) ||
+      Nodes.isMetaNode(nodeOrErr.value)
+    ) {
+      const aspects = await this.#getNodeAspects(ctx, nodeOrErr.value);
+      const errs = await this.#validateNodeAspectsThenUpdate(nodeOrErr.value, aspects);
+
+      if (errs.isLeft()) {
+        return left(errs.value);
+      }
+    }
+
     nodeOrErr.value.update({ fulltext: await this.#calculateFulltext(ctx, nodeOrErr.value) });
-
-    const parentOrErr = Nodes.isFolder(nodeOrErr.value)
-      ? right<AntboxError, FolderNode>(nodeOrErr.value)
-      : await this.#getBuiltinFolderOrFromRepository(nodeOrErr.value.parent);
-
-    if (parentOrErr.isLeft()) {
-      return left(new UnknownError(`Parent folder not found for node uuid='${uuid}'`));
-    }
-
-    const allowed = isPrincipalAllowedTo(ctx, parentOrErr.value, "Write");
-    if (!allowed) {
-      return left(new ForbiddenError());
-    }
 
     return this.context.repository.update(nodeOrErr.value);
   }
@@ -512,12 +528,14 @@ export class NodeService {
   async #getBuiltinFolderOrFromRepository(
     uuid: string,
   ): Promise<Either<NodeNotFoundError, FolderNode>> {
-    const key = Nodes.isFid(uuid) ? Nodes.uuidToFid(uuid) : uuid;
-    const predicate = Nodes.isFid(uuid)
-      ? (f: NodeLike) => f.fid === key
-      : (f: NodeLike) => f.uuid === key;
-    const builtinFolder = builtinFolders.find(predicate);
+    const filters: NodeFilters1D = [];
+    if (Nodes.isFid(uuid)) {
+      filters.push(["fid", "==", Nodes.uuidToFid(uuid)]);
+    } else {
+      filters.push(["uuid", "==", uuid]);
+    }
 
+    const builtinFolder = builtinFolders.find((n) => areFiltersSatisfiedBy(filters, n));
     if (builtinFolder) {
       return right(builtinFolder);
     }
@@ -613,31 +631,47 @@ export class NodeService {
     return [...cleanFilters, ["parent", "in", parentList]];
   }
 
-  #toFiltersWithPermissionsResolved(
-    ctx: AuthenticationContext,
-    permission: Permission,
-  ): (acc: NodeFilters2D, cur: NodeFilters1D) => NodeFilters2D {
-    if (ctx.principal.groups.includes(Groups.ADMINS_GROUP_UUID)) {
-      return (acc: NodeFilters2D, cur: NodeFilters1D) => {
-        acc.push(cur);
-        return acc;
-      };
+  async #validateNodeAspectsThenUpdate(
+    node: FileNode | FolderNode | MetaNode,
+    aspects: AspectNode[],
+  ): Promise<Either<ValidationError, void>> {
+    if (!aspects.length) {
+      node.update({ aspects: [], properties: {} });
+      return right(undefined);
     }
 
-    const permissionFilters: NodeFilters2D = [];
-    this.#addAnonymousPermissionFilters(permissionFilters, permission);
+    const curProps = node.metadata.properties as NodeProperties;
+    const validators = aspects.map((a) => buildAspectValidator(a));
 
-    if (ctx.principal.email !== Users.ANONYMOUS_USER_EMAIL) {
-      this.#addAuthenticatedPermissionFilters(ctx, permissionFilters, permission);
+    for (const a of aspects) {
+      a.properties.forEach((p) => this.#addAspectPropertyToNode(node, a, p, curProps));
     }
 
-    return (acc: NodeFilters2D, cur: NodeFilters1D) => {
-      for (const j of permissionFilters) {
-        acc.push([...cur, ...j]);
-      }
+    const errors = validators
+      .map((v) => v(node))
+      .filter((v) => v.isLeft())
+      .map((v) => v.value.errors)
+      .flat();
 
-      return acc;
-    };
+    if (errors.length) {
+      return left(ValidationError.from(...errors));
+    }
+
+    return right(undefined);
+  }
+
+  #addAspectPropertyToNode(
+    node: NodeLike,
+    aspect: AspectNode,
+    property: AspectProperty,
+    curProperties: NodeProperties,
+  ) {
+    const name = `${aspect.uuid}:${property.name}`;
+    const value = curProperties[name] ?? property.default ?? undefined;
+
+    if (value || value === false) {
+      node.update({ properties: { ...curProperties, [name]: value } });
+    }
   }
 
   #addAnonymousPermissionFilters(f: NodeFilters2D, p: Permission) {
@@ -685,5 +719,32 @@ export class NodeService {
     };
 
     return mimetypeMap[mimetype] ?? mimetype;
+  }
+
+  #toFiltersWithPermissionsResolved(
+    ctx: AuthenticationContext,
+    permission: Permission,
+  ): (acc: NodeFilters2D, cur: NodeFilters1D) => NodeFilters2D {
+    if (ctx.principal.groups.includes(Groups.ADMINS_GROUP_UUID)) {
+      return (acc: NodeFilters2D, cur: NodeFilters1D) => {
+        acc.push(cur);
+        return acc;
+      };
+    }
+
+    const permissionFilters: NodeFilters2D = [];
+    this.#addAnonymousPermissionFilters(permissionFilters, permission);
+
+    if (ctx.principal.email !== Users.ANONYMOUS_USER_EMAIL) {
+      this.#addAuthenticatedPermissionFilters(ctx, permissionFilters, permission);
+    }
+
+    return (acc: NodeFilters2D, cur: NodeFilters1D) => {
+      for (const j of permissionFilters) {
+        acc.push([...cur, ...j]);
+      }
+
+      return acc;
+    };
   }
 }

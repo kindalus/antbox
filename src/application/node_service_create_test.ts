@@ -4,13 +4,18 @@ import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider";
 import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository";
 import type { AuthenticationContext } from "./authentication_context";
 import { FolderNode } from "domain/nodes/folder_node";
-import type { FileLikeNode } from "domain/nodes/node_like";
+import type { FileLikeNode } from "domain/node_like.ts";
 import { Folders } from "domain/nodes/folders";
 import { BadRequestError } from "shared/antbox_error";
 import { ADMINS_GROUP } from "./builtin_groups";
 import { Nodes } from "domain/nodes/nodes";
 import { Groups } from "domain/auth/groups";
 import type { Permissions } from "domain/nodes/node";
+
+import { ValidationError } from "shared/validation_error";
+import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus";
+import type { NodeServiceContext } from "./node_service_context";
+import type { AspectProperties } from "domain/aspects/aspect_node";
 
 describe("NodeService.create", () => {
   test("should create a node and persist the metadata", async () => {
@@ -37,26 +42,40 @@ describe("NodeService.create", () => {
     expect(nodeOrErr.right.mimetype).toBe(Nodes.META_NODE_MIMETYPE);
   });
 
-  test("use context principal email and first group as folder owner and group", async () => {
+  test("should return an error when properties are inconsistent with aspect specifications", async () => {
     const service = nodeService();
-    const ctx = {
-      mode: "Direct",
-      tenant: "",
-      principal: {
-        email: "otheremail@domain.com",
-        groups: ["some-group", Groups.ADMINS_GROUP_UUID],
-      },
-    } as AuthenticationContext;
 
-    const nodeOrErr = await service.create(ctx, {
-      title: "Some Folder",
+    const props: AspectProperties = [{ name: "amount", title: "Amount", type: "number" }];
+
+    // Create aspect with string property type
+    (
+      await service.create(authCtx, {
+        uuid: "invoice",
+        title: "Invoice",
+        mimetype: Nodes.ASPECT_MIMETYPE,
+        properties: props,
+      })
+    ).right;
+
+    // Try to create node with invalid property value type
+    const nodeOrErr = await service.create(authCtx, {
+      title: "Invalid Node",
       mimetype: Nodes.FOLDER_MIMETYPE,
+      aspects: ["invoice"],
+      properties: {
+        "invoice:amount": "Invalid value",
+      },
     });
 
-    expect(nodeOrErr.isRight(), errToMsg(nodeOrErr.value)).toBeTruthy();
-    expect(nodeOrErr.right.owner).toBe(ctx.principal.email);
-    expect((nodeOrErr.right as FolderNode).group).toBe(ctx.principal.groups[0]);
+    expect(nodeOrErr.isLeft()).toBeTruthy();
+    expect(nodeOrErr.value).toBeInstanceOf(ValidationError);
   });
+
+  test("should ignore properties that are not defined in any node aspect", async () => {
+    const service = nodeService();
+  });
+
+  test("should return an error if a provided aspect does not exist", async () => {});
 
   test("should use give permissions", async () => {
     const permissions: Permissions = {
@@ -139,10 +158,7 @@ describe("NodeService.create", () => {
 describe("NodeService.createFile", () => {
   test("should create a file and persist the metadata", async () => {
     const repository = new InMemoryNodeRepository();
-    const nodeService = new NodeService({
-      storage: new InMemoryStorageProvider(),
-      repository,
-    });
+    const service = nodeService({ repository });
 
     repository.add(
       FolderNode.create({
@@ -156,13 +172,13 @@ describe("NodeService.createFile", () => {
     const file = new File(["<html><body>Ola</body></html>"], "index.html", {
       type: "text/html",
     });
-    const nodeOrErr = await nodeService.createFile(authCtx, file, {
+    const nodeOrErr = await service.createFile(authCtx, file, {
       parent: "--parent--",
     });
 
     expect(nodeOrErr.isRight(), errToMsg(nodeOrErr.value)).toBeTruthy();
 
-    const node = await nodeService
+    const node = await service
       .get(authCtx, nodeOrErr.right.uuid)
       .then((r) => r.right as FileLikeNode);
 
@@ -188,7 +204,7 @@ describe("NodeService.createFile", () => {
 
   test("should store the file", async () => {
     const storage = new InMemoryStorageProvider();
-    const service = new NodeService({ storage, repository: new InMemoryNodeRepository() });
+    const service = nodeService({ storage });
 
     const parent = await service.create(authCtx, {
       title: "Folder",
@@ -366,10 +382,11 @@ const authCtx: AuthenticationContext = {
 
 const errToMsg = (err: any) => (err.message ? err.message : JSON.stringify(err));
 
-const nodeService = () =>
+const nodeService = (opts: Partial<NodeServiceContext> = {}) =>
   new NodeService({
-    storage: new InMemoryStorageProvider(),
-    repository: new InMemoryNodeRepository(),
+    storage: opts.storage ?? new InMemoryStorageProvider(),
+    repository: opts.repository ?? new InMemoryNodeRepository(),
+    bus: opts.bus ?? new InMemoryEventBus(),
   });
 
 const dummyFile = new File(["Ola"], "ola.txt", { type: "text/plain" });

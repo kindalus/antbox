@@ -1,6 +1,6 @@
 import { FileNode } from "domain/nodes/file_node";
 import type { NodeFilters } from "domain/nodes/node_filter";
-import type { NodeLike } from "domain/nodes/node_like";
+import type { NodeLike } from "domain/node_like.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import type { NodeRepository, NodeFilterResult } from "domain/nodes/node_repository";
 import { AntboxError } from "shared/antbox_error.ts";

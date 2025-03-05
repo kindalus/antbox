@@ -15,9 +15,7 @@ export interface Specification<T> {
 }
 
 export class CompositeSpecification<T> implements Specification<T> {
-  constructor(
-    readonly isSatisfiedBy: (c: T) => ValidationResult = (_v) => right(true),
-  ) {}
+  constructor(readonly isSatisfiedBy: (c: T) => ValidationResult = (_v) => right(true)) {}
 
   and(s: Specification<T>, ...specs: Specification<T>[]): Specification<T> {
     return andSpecification<T>(this, s, ...specs);
@@ -50,10 +48,7 @@ export function andSpecification<T>(
       .map((spec) => spec.isSatisfiedBy(candidate))
       .filter((r) => r.isLeft())
       .map((r) => r.value)
-      .reduce(
-        (acc, err) => [...acc, ...(err as ValidationError).errors],
-        [] as AntboxError[],
-      );
+      .reduce((acc, err) => [...acc, ...(err as ValidationError).errors], [] as AntboxError[]);
 
     if (errors.length > 0) {
       return left(ValidationError.from(...errors));
@@ -63,18 +58,13 @@ export function andSpecification<T>(
   });
 }
 
-export function orSpecification<T>(
-  ...specs: Specification<T>[]
-): CompositeSpecification<T> {
+export function orSpecification<T>(...specs: Specification<T>[]): CompositeSpecification<T> {
   return new CompositeSpecification((candidate: T) => {
     const errors = specs
       .map((spec) => spec.isSatisfiedBy(candidate))
       .filter((r) => r.isLeft())
       .map((r) => r.value)
-      .reduce(
-        (acc, err) => [...acc, ...(err as ValidationError).errors],
-        [] as AntboxError[],
-      );
+      .reduce((acc, err) => [...acc, ...(err as ValidationError).errors], [] as AntboxError[]);
 
     if (errors.length === specs.length) {
       return left(ValidationError.from(...errors));
@@ -84,9 +74,7 @@ export function orSpecification<T>(
   });
 }
 
-export function notSpecification<T>(
-  spec: Specification<T>,
-): CompositeSpecification<T> {
+export function notSpecification<T>(spec: Specification<T>): CompositeSpecification<T> {
   return new CompositeSpecification((candidate: T) => {
     const result = spec.isSatisfiedBy(candidate);
     if (result.isLeft()) {
@@ -135,9 +123,7 @@ export function orNotSpecification<T>(
   });
 }
 
-export function specFn<T>(
-  fn: (candidate: T) => ValidationResult,
-): Specification<T> {
+export function specificationFn<T>(fn: (candidate: T) => ValidationResult): Specification<T> {
   return new CompositeSpecification<T>(fn);
 }
 

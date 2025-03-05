@@ -3,14 +3,13 @@ import { ValidationError } from "shared/validation_error.ts";
 import { EmailFormatError } from "domain/nodes/email_format_error.ts";
 import { Folders } from "domain/nodes/folders.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
-import { PropertyRequiredError } from "domain/nodes/property_required_error.ts";
+import { PropertyRequiredError } from "domain/nodes/property_errors.ts";
 import { InvalidFullNameFormatError } from "./invalid_fullname_format_error.ts";
 import { InvalidPasswordFormatError } from "./invalid_password_format_error.ts";
 import { UserGroupRequiredError } from "./user_group_required_error.ts";
 import { UserNode } from "./user_node.ts";
 
-const timeout = (ms: number) =>
-  new Promise((resolve) => setTimeout(resolve, ms));
+const timeout = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 test("UserNode.create should initialize", () => {
   const createResult = UserNode.create({
@@ -58,9 +57,7 @@ test("UserNode.create should throw error if group is empty", async () => {
 
   expect(createResult.isLeft()).toBe(true);
   expect(createResult.value).toBeInstanceOf(ValidationError);
-  expect((createResult.value as ValidationError).errors[0]).toBeInstanceOf(
-    UserGroupRequiredError,
-  );
+  expect((createResult.value as ValidationError).errors[0]).toBeInstanceOf(UserGroupRequiredError);
 });
 
 test("UserNode.create should throw error if owner is missing", () => {
@@ -74,9 +71,7 @@ test("UserNode.create should throw error if owner is missing", () => {
 
   expect(createResult.isLeft()).toBe(true);
   expect(createResult.value).toBeInstanceOf(ValidationError);
-  expect((createResult.value as ValidationError).errors[0]).toBeInstanceOf(
-    PropertyRequiredError,
-  );
+  expect((createResult.value as ValidationError).errors[0]).toBeInstanceOf(PropertyRequiredError);
 });
 
 test("UserNode.create should throw error if title length less than 3 chars", async () => {
@@ -166,9 +161,7 @@ test("UserNode.update should throw error if new email is invalid", () => {
 
   expect(updateResult.isLeft()).toBe(true);
   expect(updateResult.value).toBeInstanceOf(ValidationError);
-  expect((updateResult.value as ValidationError).errors[0]).toBeInstanceOf(
-    EmailFormatError,
-  );
+  expect((updateResult.value as ValidationError).errors[0]).toBeInstanceOf(EmailFormatError);
 });
 
 test("UserNode.update should modify group, groups, title, description", async () => {

@@ -5,10 +5,10 @@ import { AspectNode } from "domain/aspects/aspect_node.ts";
 import { GroupNode } from "domain/auth/group_node.ts";
 import { UserNode } from "domain/auth/user_node.ts";
 import { ExtNode } from "domain/exts/ext_node.ts";
-import { FileNode } from "./file_node.ts";
-import { FolderNode } from "./folder_node.ts";
-import { MetaNode } from "./meta_node.ts";
-import { SmartFolderNode } from "./smart_folder_node.ts";
+import type { FileNode } from "./nodes/file_node";
+import type { FolderNode } from "./nodes/folder_node";
+import type { MetaNode } from "./nodes/meta_node";
+import type { SmartFolderNode } from "./nodes/smart_folder_node";
 
 export type NodeLike =
   | ActionNode
@@ -22,5 +22,7 @@ export type NodeLike =
   | MetaNode
   | SmartFolderNode
   | UserNode;
+
+export type AspectableNode = ArticleNode | FileNode | FolderNode | MetaNode;
 
 export type FileLikeNode = ActionNode | ArticleNode | FileNode | ExtNode;

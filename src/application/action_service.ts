@@ -4,7 +4,7 @@ import { FolderNode } from "domain/nodes/folder_node.ts";
 import { Folders } from "domain/nodes/folders.ts";
 import { Node } from "domain/nodes/node.ts";
 import { NodeCreatedEvent } from "domain/nodes/node_created_event.ts";
-import { buildNodeSpecification } from "domain/nodes/node_filters.ts";
+import { NodesFilters } from "domain/nodes_filters.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import { NodeUpdatedEvent } from "domain/nodes/node_updated_event.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
@@ -271,8 +271,8 @@ export class ActionService {
     }
 
     const nodes = nodesOrErr
-      .map((n) => n.value as Node)
-      .filter(buildNodeSpecification(action.filters));
+      .map((n) => n.right)
+      .filter((n) => NodesFilters.satisfiedBy(action.filters, n).isRight());
 
     return right(nodes.map((n) => n.uuid));
   }

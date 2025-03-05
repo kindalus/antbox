@@ -1,5 +1,5 @@
 import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository";
-import type { NodeLike } from "domain/nodes/node_like";
+import type { NodeLike } from "domain/node_like.ts";
 import type { NodeFilters } from "domain/nodes/node_filter";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error";
 import type { NodeRepository, NodeFilterResult } from "domain/nodes/node_repository";

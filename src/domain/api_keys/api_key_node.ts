@@ -1,7 +1,7 @@
 import { Folders } from "domain/nodes/folders.ts";
 import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
-import { PropertyRequiredError } from "domain/nodes/property_required_error.ts";
+import { PropertyRequiredError } from "domain/nodes/property_errors.ts";
 import { AntboxError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
 import { ValidationError } from "shared/validation_error.ts";
@@ -11,9 +11,7 @@ export class ApiKeyNode extends Node {
   #group: string = null as unknown as string;
   #secret: string = null as unknown as string;
 
-  static create(
-    metadata: Partial<NodeMetadata>,
-  ): Either<ValidationError, ApiKeyNode> {
+  static create(metadata: Partial<NodeMetadata>): Either<ValidationError, ApiKeyNode> {
     try {
       const node = new ApiKeyNode(
         metadata.group,
@@ -55,9 +53,7 @@ export class ApiKeyNode extends Node {
     this.#secret = secret;
   }
 
-  override update(
-    metadata: Partial<NodeMetadata>,
-  ): Either<ValidationError, void> {
+  override update(metadata: Partial<NodeMetadata>): Either<ValidationError, void> {
     const superUpdateResult = super.update({
       ...metadata,
       parent: Folders.API_KEYS_FOLDER_UUID,
@@ -83,15 +79,11 @@ export class ApiKeyNode extends Node {
     const errors = [];
 
     if (!this.#group || this.#group.length === 0) {
-      errors.push(
-        ValidationError.from(new PropertyRequiredError("Node.group")),
-      );
+      errors.push(ValidationError.from(new PropertyRequiredError("Node.group")));
     }
 
     if (!this.#secret || this.#secret.length === 0) {
-      errors.push(
-        ValidationError.from(new PropertyRequiredError("Node.secret")),
-      );
+      errors.push(ValidationError.from(new PropertyRequiredError("Node.secret")));
     }
 
     if (errors.length > 0) {
@@ -100,12 +92,7 @@ export class ApiKeyNode extends Node {
   }
 
   cloneWithSecret(): ApiKeyNode {
-    return new ApiKeyNode(
-      this.#group,
-      this.#secret,
-      this.description,
-      this.owner,
-    );
+    return new ApiKeyNode(this.#group, this.#secret, this.description, this.owner);
   }
 
   get group(): string {

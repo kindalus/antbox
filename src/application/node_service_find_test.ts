@@ -8,15 +8,17 @@ import type { AuthenticationContext } from "./authentication_context";
 import { NodeService } from "./node_service";
 import type { NodeServiceContext } from "./node_service_context";
 import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository";
-import type { AspectProperties } from "domain/aspects/aspect";
 import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider";
 import { SmartFolderNodeNotFoundError } from "domain/nodes/smart_folder_node_not_found_error";
 import type { NodeFilters1D, NodeFilters2D } from "domain/nodes/node_filter";
+import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus";
+import type { AspectProperties } from "domain/aspects/aspect_node";
 
 const nodeService = (opts: Partial<NodeServiceContext> = {}) => {
   const service = new NodeService({
     repository: opts.repository ?? new InMemoryNodeRepository(),
     storage: opts.storage ?? new InMemoryStorageProvider(),
+    bus: opts.bus ?? new InMemoryEventBus(),
   });
 
   return service;
@@ -406,6 +408,8 @@ all 'Posição Financeira' files from 2024.
       "ope:date": "2022-12-06",
       "ope:amount": 2300,
       "ope:company": "WEPHARM",
+      "ope:xpto": "xpto",
+      "other:xxx": "xxx",
     },
   });
 
@@ -575,16 +579,18 @@ all 'Posição Financeira' files from 2024.
     },
   });
 
-  await service.create(authCtx, {
-    title: "Posição Financeira - 2023-03-21.pdf",
-    mimetype: "application/pdf",
-    parent: "posicao-financeira-uuid",
-    aspects: ["posicao-financeira"],
-    properties: {
-      "posicao-financeira:date": "2023-03-21",
-      "posicao-financeira:amount": 1000,
-    },
-  });
+  (
+    await service.create(authCtx, {
+      title: "Posição Financeira - 2023-03-21.pdf",
+      mimetype: "application/pdf",
+      parent: "posicao-financeira-uuid",
+      aspects: ["posicao-financeira"],
+      properties: {
+        "posicao-financeira:date": "2023-03-21",
+        "posicao-financeira:amount": 1000,
+      },
+    })
+  ).right;
 
   await service.create(authCtx, {
     title: "Posição Financeira - 2023-12-28.pdf",

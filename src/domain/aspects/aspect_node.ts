@@ -5,7 +5,6 @@ import { Node } from "domain/nodes/node.ts";
 
 import { type NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
-import { type AspectProperty } from "./aspect.ts";
 import type { NodeFilters } from "domain/nodes/node_filter.ts";
 
 export class AspectNode extends Node {
@@ -32,3 +31,36 @@ export class AspectNode extends Node {
     this.properties = (metadata.properties as AspectProperty[]) ?? [];
   }
 }
+
+export interface AspectProperty {
+  /**
+   * regex /[a-zA-Z_][_a-zA-Z0-9_]{2,}/;
+   */
+  name: string;
+  title: string;
+  type: PropertyType;
+
+  readonly?: boolean;
+  validationRegex?: string;
+  validationList?: string[];
+  validationFilters?: NodeFilters;
+  required?: boolean;
+  searchable?: boolean;
+  default?: unknown;
+}
+
+export type AspectProperties = AspectProperty[];
+
+export type PropertyType =
+  | "boolean"
+  | "date"
+  | "dateTime"
+  | "json"
+  | "number"
+  | "number[]"
+  | "richText"
+  | "string"
+  | "string[]"
+  | "text"
+  | "uuid"
+  | "uuid[]";

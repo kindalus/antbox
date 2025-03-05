@@ -1,6 +1,6 @@
 import { type Document, type Filter, MongoClient, ObjectId } from "mongodb";
 
-import { type NodeLike } from "domain/nodes/node_like";
+import { type NodeLike } from "domain/node_like.ts";
 import { NodeFactory } from "domain/node_factory";
 import type { FilterOperator, NodeFilters } from "domain/nodes/node_filter";
 import type { NodeMetadata } from "domain/nodes/node_metadata";
@@ -8,7 +8,7 @@ import { NodeNotFoundError } from "domain/nodes/node_not_found_error";
 import type { NodeRepository, NodeFilterResult } from "domain/nodes/node_repository";
 import { AntboxError, UnknownError } from "shared/antbox_error";
 import { type Either, right, left } from "shared/either";
-import { isAnyNodeFilter, type NodeFilter } from "domain/nodes/node_filter";
+import { isNodeFilters2D, type NodeFilter } from "domain/nodes/node_filter";
 
 type NodeDbModel = Partial<NodeMetadata> & { _id: ObjectId };
 
@@ -173,7 +173,7 @@ function buildMongoQuery(filters: NodeFilters): Filter<Document> {
     return {};
   }
 
-  const ofs = isAnyNodeFilter(filters) ? filters : [filters];
+  const ofs = isNodeFilters2D(filters) ? filters : [filters];
 
   const ffs = ofs.map((ifs) => {
     const mfs = ifs.map(toMongoFilter);

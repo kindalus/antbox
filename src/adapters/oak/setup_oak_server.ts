@@ -1,5 +1,4 @@
 import aspectsRouter from "./aspects_router.ts";
-
 import nodesRouter from "./nodes_router.ts";
 import uploadRouter from "./upload_router.ts";
 import actionsRouter from "./actions_router.ts";
@@ -23,9 +22,9 @@ export function setupOakServer(tenants: AntboxTenant[]): startHttpServer {
   // const webContent = webContentsRouter(tenants);
   // const ext = extRouter(tenants);
   // const aspects = aspectsRouter(tenants);
-  // const login = loginRouter(tenants);
-  // const groups = groupsRouter(tenants);
-  // const users = usersRouter(tenants);
+  const login = loginRouter(tenants);
+  const groups = groupsRouter(tenants);
+  const users = usersRouter(tenants);
   // const apikeys = apiKeysRouter(tenants);
 
   app.use(nodes.routes());
@@ -34,7 +33,7 @@ export function setupOakServer(tenants: AntboxTenant[]): startHttpServer {
   // app.use(actions.routes());
   // app.use(upload.routes());
   // app.use(ext.routes());
-  // app.use(login.routes());
+  app.use(login.routes());
   // app.use(groups.routes());
   // app.use(users.routes());
   // app.use(apikeys.routes());
@@ -46,8 +45,8 @@ export function setupOakServer(tenants: AntboxTenant[]): startHttpServer {
   // app.use(upload.allowedMethods());
   // app.use(ext.allowedMethods());
   // app.use(login.allowedMethods());
-  // app.use(groups.allowedMethods());
-  // app.use(users.allowedMethods());
+  app.use(groups.allowedMethods());
+  app.use(users.allowedMethods());
   // app.use(apikeys.allowedMethods());
 
   return (options: HttpServerOpts = { port: 7180 }) => {

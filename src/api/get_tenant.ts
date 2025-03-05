@@ -1,3 +1,4 @@
+import type { AuthenticationContext } from "application/authentication_context.ts";
 import { type AntboxTenant } from "./antbox_tenant.ts";
 import { getQuery } from "./get_query.ts";
 
@@ -19,9 +20,13 @@ export function getTenantBySearchParams(req: Request, tenants: AntboxTenant[]) {
 
 export function getTenant(req: Request, tenants: AntboxTenant[]) {
   const tenant =
-    getTenantBySearchParams(req, tenants) ??
-    getTenantByHeaders(req, tenants) ??
-    tenants[0];
+    getTenantBySearchParams(req, tenants) ?? getTenantByHeaders(req, tenants) ?? tenants[0];
+
+  return tenant;
+}
+
+export function getTenantByAuthContext(ctx: AuthenticationContext, tenants: AntboxTenant[]) {
+  const tenant = tenants.find((t) => t.name === ctx.tenant) ?? tenants[0];
 
   return tenant;
 }

@@ -1,46 +1,42 @@
+import { Router, type Context } from "@oakserver/oak";
+import type { AntboxTenant } from "api/antbox_tenant.ts";
+import { processError } from "api/process_error.ts";
+import { Folders } from "domain/nodes/folders.ts";
 import { AntboxError } from "shared/antbox_error.ts";
 import { type Either } from "shared/either.ts";
-
 import { ContextWithParams } from "./context_with_params.ts";
-import { getRequestContext } from "./get_request_context.ts";
 import { getTenant } from "./get_tenant.ts";
-import { processError } from "./process_error.ts";
 import { sendBadRequest, sendOK } from "./send_response.ts";
-import { type AntboxTenant } from "./setup_oak_server.ts";
 
 export default function (tenants: AntboxTenant[]) {
   const getHandler = (ctx: ContextWithParams) => {
-    const service = getTenant(ctx, tenants).service;
+    const service = getTenant(ctx, tenants).nodeService;
     return service
-      .getAspect(getRequestContext(ctx), ctx.params.uuid)
+      .get(ctx, ctx.params.uuid)
       .then((result) => processEither(ctx, result))
-      .catch((err) => processError(err, ctx));
+      .catch((err) => processError(err));
   };
 
   const listHandler = (ctx: Context) => {
-    const service = getTenant(ctx, tenants).service;
+    const service = getTenant(ctx, tenants).nodeService;
     return service
-      .listAspects(getRequestContext(ctx))
+      .list(ctx, Folders.ASPECTS_FOLDER_UUID)
       .then((result) => processEither(ctx, result))
-      .catch((err) => processError(err, ctx));
+      .catch((err) => processError(err));
   };
 
-  const exportHandler = (ctx: ContextWithParams) => {
-    const service = getTenant(ctx, tenants).service;
-    const requestContext = getRequestContext(ctx);
+  const exportHandler = async (ctx: ContextWithParams) => {
+    const service = getTenant(ctx, tenants).nodeService;
     const uuid = ctx.params.uuid;
 
-    return Promise.all([
-      service.getAspect(requestContext, uuid),
-      service.exportAspect(requestContext, uuid),
-    ])
+    return Promise.all([service.get(ctx, uuid), service.get(ctx, uuid)])
       .then(([node, blob]) => {
         if (node.isLeft()) {
-          return processError(node.value, ctx);
+          return processError(node.value);
         }
 
         if (blob.isLeft()) {
-          return processError(blob.value, ctx);
+          return processError(blob.value);
         }
 
         ctx.response.headers.set("Content-Type", "application/json");
@@ -53,12 +49,12 @@ export default function (tenants: AntboxTenant[]) {
         ctx.response.type = "blob";
         ctx.response.body = blob.value;
       })
-      .catch((err) => processError(err, ctx));
+      .catch((err) => processError(err));
   };
 
   const createOrReplaceAspect = async (ctx: Context) => {
-    const service = getTenant(ctx, tenants).service;
-    const authCtx = getRequestContext(ctx);
+    const service = getTenant(ctx, tenants).nodeService;
+    const authCtx = ctx;
 
     const metadata = await ctx.request.body().value;
     if (!metadata) {
@@ -66,17 +62,17 @@ export default function (tenants: AntboxTenant[]) {
     }
 
     return service
-      .createOrReplaceAspect(authCtx, metadata)
+      .create(authCtx, metadata)
       .then((result) => processEither(ctx, result))
-      .catch((err) => processError(err, ctx));
+      .catch((err) => processError(err));
   };
 
-  const deleteHandler = (ctx: ContextWithParams) => {
-    const service = getTenant(ctx, tenants).service;
+  const deleteHandler = async (ctx: ContextWithParams) => {
+    const service = getTenant(ctx, tenants).nodeService;
     return service
-      .deleteAspect(getRequestContext(ctx), ctx.params.uuid)
+      .delete(ctx, ctx.params.uuid)
       .then((result) => processEither(ctx, result))
-      .catch((err) => processError(err, ctx));
+      .catch((err) => processError(err));
   };
 
   const aspectsRouter = new Router({ prefix: "/aspects" });
@@ -90,12 +86,9 @@ export default function (tenants: AntboxTenant[]) {
   return aspectsRouter;
 }
 
-function processEither<L extends AntboxError, R>(
-  ctx: Context,
-  result: Either<L, R>,
-) {
+function processEither<L extends AntboxError, R>(ctx: Context, result: Either<L, R>) {
   if (result.isLeft()) {
-    return processError(result.value, ctx);
+    return processError(result.value);
   }
 
   return sendOK(ctx, result.value as Record<string, unknown>);

@@ -1,9 +1,9 @@
-import { Root } from "application/builtin_users/root.ts";
-import { getTenant } from "./get_tenant.ts";
-import { sendBadRequest, sendOK, sendUnauthorized } from "./send_response.ts";
 import { Context, Router } from "@oakserver/oak";
 import type { AntboxTenant } from "api/antbox_tenant.ts";
-import jose from "jose";
+import { ROOT_USER } from "application/builtin_users/index.ts";
+import * as jose from "jose";
+import { getTenant } from "./get_tenant.ts";
+import { sendBadRequest, sendOK, sendUnauthorized } from "./send_response.ts";
 
 export default function (tenants: AntboxTenant[]) {
   const rootHandler = async (ctx: Context) => {
@@ -26,7 +26,7 @@ export default function (tenants: AntboxTenant[]) {
 
     const secret = new TextEncoder().encode(symmetricKey);
 
-    const jwt = await new jose.SignJWT({ email: Root.email })
+    const jwt = await new jose.SignJWT({ email: ROOT_USER.email })
       .setProtectedHeader({ alg: "HS256" })
       .setIssuedAt()
       .setIssuer("urn:antbox")

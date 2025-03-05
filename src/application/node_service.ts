@@ -1,5 +1,9 @@
+import type { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository.ts";
 import { buildAspectValidator, type AspectProperty } from "domain/aspects/aspect.ts";
 import { AspectNode } from "domain/aspects/aspect_node.ts";
+import { Groups } from "domain/auth/groups.ts";
+import { Users } from "domain/auth/users.ts";
+import { NodeFactory } from "domain/node_factory.ts";
 import { FileNode } from "domain/nodes/file_node.ts";
 import { FolderNode } from "domain/nodes/folder_node.ts";
 import { FolderNotFoundError } from "domain/nodes/folder_not_found_error.ts";
@@ -8,33 +12,29 @@ import { MetaNode } from "domain/nodes/meta_node.ts";
 import { Node, type Permission } from "domain/nodes/node.ts";
 import {
   isAnyNodeFilter,
-  type NodeFilters1D,
-  type NodeFilters,
-  type NodeFilters2D,
   type NodeFilter,
+  type NodeFilters,
+  type NodeFilters1D,
+  type NodeFilters2D,
 } from "domain/nodes/node_filter.ts";
+import { areFiltersSatisfiedBy, buildNodeSpecification } from "domain/nodes/node_filters.ts";
 import type { FileLikeNode, NodeLike } from "domain/nodes/node_like.ts";
 import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
+import type { NodeProperties } from "domain/nodes/node_properties.ts";
 import type { NodeFilterResult } from "domain/nodes/node_repository.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import { SmartFolderNode } from "domain/nodes/smart_folder_node.ts";
 import { SmartFolderNodeNotFoundError } from "domain/nodes/smart_folder_node_not_found_error.ts";
 import { AntboxError, BadRequestError, ForbiddenError, UnknownError } from "shared/antbox_error.ts";
-import { type Either, left, right } from "shared/either.ts";
-import { isPrincipalAllowedTo } from "./is_principal_allowed_to.ts";
-import { type AuthenticationContext } from "./authentication_context.ts";
-import type { NodeServiceContext } from "./node_service_context.ts";
-import { NodeFactory } from "domain/node_factory.ts";
-import { UuidGenerator } from "shared/uuid_generator.ts";
+import { left, right, type Either } from "shared/either.ts";
 import { FidGenerator } from "shared/fid_generator.ts";
-import { builtinFolders, SYSTEM_FOLDER, SYSTEM_FOLDERS } from "./builtin_folders/index.ts";
-import { areFiltersSatisfiedBy, buildNodeSpecification } from "domain/nodes/node_filters.ts";
-import type { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository.ts";
-import { Users } from "domain/auth/users.ts";
-import { Groups } from "domain/auth/groups.ts";
-import type { NodeProperties } from "domain/nodes/node_properties.ts";
+import { UuidGenerator } from "shared/uuid_generator.ts";
 import { ValidationError } from "shared/validation_error.ts";
+import { type AuthenticationContext } from "./authentication_context.ts";
+import { builtinFolders, SYSTEM_FOLDER, SYSTEM_FOLDERS } from "./builtin_folders/index.ts";
+import { isPrincipalAllowedTo } from "./is_principal_allowed_to.ts";
+import type { NodeServiceContext } from "./node_service_context.ts";
 
 // TODO: Implements throwing events
 

@@ -1,16 +1,15 @@
 import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository";
-import type { NodeLike } from "domain/nodes/node_like";
+import { NodeFactory } from "domain/node_factory";
 import type { NodeFilters } from "domain/nodes/node_filter";
+import type { NodeLike } from "domain/nodes/node_like";
+import type { NodeMetadata } from "domain/nodes/node_metadata";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error";
-import type { NodeRepository, NodeFilterResult } from "domain/nodes/node_repository";
+import type { NodeFilterResult, NodeRepository } from "domain/nodes/node_repository";
+import { mkdirSync, writeFileSync } from "fs";
+import { join } from "path";
 import { AntboxError, UnknownError } from "shared/antbox_error";
 import { type Either, left, right } from "shared/either";
 import { fileExistsSync } from "shared/file_exists_sync";
-
-import { join } from "path";
-import { mkdirSync, writeFileSync } from "fs";
-import type { NodeMetadata } from "domain/nodes/node_metadata";
-import { NodeFactory } from "domain/node_factory";
 import { copyFile } from "shared/os_helpers";
 
 export default async function buildFlatFileStorageProvider(
@@ -48,13 +47,10 @@ class FlatFileNodeRepository implements NodeRepository {
     this.#encoder = new TextEncoder();
 
     this.#base = new InMemoryNodeRepository(
-      data.reduce(
-        (acc, m) => {
-          acc[m.uuid] = NodeFactory.from(m).right;
-          return acc;
-        },
-        {} as Record<string, NodeLike>,
-      ),
+      data.reduce((acc, m) => {
+        acc[m.uuid] = NodeFactory.from(m).right;
+        return acc;
+      }, {} as Record<string, NodeLike>),
     );
   }
 

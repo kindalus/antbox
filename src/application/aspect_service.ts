@@ -9,7 +9,6 @@ import { type Either, left, right } from "shared/either.ts";
 import { AuthService } from "./auth_service.ts";
 import type { AuthenticationContext } from "./authentication_context.ts";
 import { builtinAspects } from "./builtin_aspects/mod.ts";
-
 import { NodeService } from "./node_service.ts";
 
 export class AspectService {
@@ -33,18 +32,12 @@ export class AspectService {
       return AspectNode.create(metadata);
     }
 
-    const voidOrErr = await this.nodeService.update(
-      ctx,
-      metadata.uuid,
-      metadata,
-    );
+    const voidOrErr = await this.nodeService.update(ctx, metadata.uuid, metadata);
     if (voidOrErr.isLeft()) {
       return left(voidOrErr.value);
     }
 
-    return this.nodeService.get(ctx, metadata.uuid) as Promise<
-      Either<AntboxError, AspectNode>
-    >;
+    return this.nodeService.get(ctx, metadata.uuid) as Promise<Either<AntboxError, AspectNode>>;
   }
 
   async get(uuid: string): Promise<Either<NodeNotFoundError, AspectNode>> {
@@ -53,10 +46,7 @@ export class AspectService {
       return right(aspectToNode(builtin));
     }
 
-    const nodeOrErr = await this.nodeService.get(
-      AuthService.elevatedContext(),
-      uuid,
-    );
+    const nodeOrErr = await this.nodeService.get(AuthService.elevatedContext(), uuid);
 
     if (nodeOrErr.isLeft()) {
       return left(nodeOrErr.value);
@@ -86,15 +76,10 @@ export class AspectService {
     const usersAspects = nodesOrErrs.value.nodes as AspectNode[];
     const systemAspects = builtinAspects.map(aspectToNode);
 
-    return [...usersAspects, ...systemAspects].sort((a, b) =>
-      a.title.localeCompare(b.title),
-    );
+    return [...usersAspects, ...systemAspects].sort((a, b) => a.title.localeCompare(b.title));
   }
 
-  async delete(
-    ctx: AuthenticationContext,
-    uuid: string,
-  ): Promise<Either<AntboxError, void>> {
+  async delete(ctx: AuthenticationContext, uuid: string): Promise<Either<AntboxError, void>> {
     const nodeOrErr = await this.nodeService.get(ctx, uuid);
 
     if (nodeOrErr.isLeft()) {
@@ -108,9 +93,7 @@ export class AspectService {
     return this.nodeService.delete(ctx, uuid);
   }
 
-  async export(
-    node: string | AspectNode,
-  ): Promise<Either<NodeNotFoundError, File>> {
+  async export(node: string | AspectNode): Promise<Either<NodeNotFoundError, File>> {
     let aspect = typeof node !== "string" ? nodeToAspect(node) : undefined;
 
     if (typeof node === "string") {
@@ -122,11 +105,9 @@ export class AspectService {
       aspect = nodeToAspect(nodeOrErr.value);
     }
 
-    const file = new File(
-      [JSON.stringify(aspect, null, 2)],
-      `${aspect?.uuid}.json`,
-      { type: "application/json" },
-    );
+    const file = new File([JSON.stringify(aspect, null, 2)], `${aspect?.uuid}.json`, {
+      type: "application/json",
+    });
 
     return right(file);
   }

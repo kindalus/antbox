@@ -1,3 +1,4 @@
+import type { Context } from "@oakserver/oak";
 import { type HttpHandler } from "api/handler.ts";
 
 export function adapt(handler: HttpHandler): (ctx: Context) => Promise<void> {

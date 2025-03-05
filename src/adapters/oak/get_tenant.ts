@@ -1,4 +1,6 @@
-import { type AntboxTenant } from "./setup_oak_server.ts";
+import type { Context } from "@oakserver/oak";
+import type { AntboxTenant } from "api/antbox_tenant";
+import { getQuery } from "api/get_query.ts";
 
 export function getTenantByHeaders(ctx: Context, tenants: AntboxTenant[]) {
   const tenant = ctx.request.headers.get("x-tenant") ?? tenants[0].name;
@@ -19,9 +21,7 @@ export function getTenantBySearchParams(ctx: Context, tenants: AntboxTenant[]) {
 
 export function getTenant(ctx: Context, tenants: AntboxTenant[]) {
   const tenant =
-    getTenantBySearchParams(ctx, tenants) ??
-    getTenantByHeaders(ctx, tenants) ??
-    tenants[0];
+    getTenantBySearchParams(ctx, tenants) ?? getTenantByHeaders(ctx, tenants) ?? tenants[0];
 
   return tenant;
 }

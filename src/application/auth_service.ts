@@ -13,7 +13,7 @@ import { ValidationError } from "shared/validation_error.ts";
 import type { AuthenticationContext } from "./authentication_context.ts";
 import { InvalidCredentialsError } from "./invalid_credentials_error.ts";
 import { NodeService } from "./node_service.ts";
-import { builtinGroups } from "./builtin_groups/index.ts";
+import { ADMINS_GROUP, builtinGroups } from "./builtin_groups/index.ts";
 import { ANONYMOUS_USER, builtinUsers, ROOT_USER } from "./builtin_users/index.ts";
 
 export class AuthService {
@@ -226,12 +226,6 @@ export class AuthService {
     return this.nodeService.delete(ctx, uuid);
   }
 
-  // async changePassword(ctx: AuthenticationContext, uuid: string, password: string): Promise<Either<AntboxError, void>> {
-
-  // }
-  //
-
-  // Groups
   createGroup(
     ctx: AuthenticationContext,
     groupNode: Partial<GroupNode>,
@@ -250,7 +244,7 @@ export class AuthService {
     uuid: string,
   ): Promise<Either<AntboxError, GroupNode>> {
     if (uuid === Groups.ADMINS_GROUP_UUID) {
-      return right(Admins);
+      return right(ADMINS_GROUP);
     }
 
     const nodeOrErr = await this.nodeService.get(ctx, uuid);

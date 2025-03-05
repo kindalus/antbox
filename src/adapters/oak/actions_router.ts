@@ -9,23 +9,23 @@ import { sendBadRequest, sendOK } from "./send_response";
 
 export default function (tenants: AntboxTenant[]) {
   const getHandler = (ctx: ContextWithParams) => {
-    const service = getTenant(ctx, tenants).service;
+    const service = getTenant(ctx, tenants).actionService;
     return service
-      .getAction(getRequestContext(ctx), ctx.params.uuid)
+      .get(ctx, ctx.params.uuid)
       .then((result) => processEither(ctx, result))
-      .catch((err) => processError(err, ctx));
+      .catch((err) => processError(err));
   };
 
   const listHandler = (ctx: Context) => {
-    const service = getTenant(ctx, tenants).service;
+    const service = getTenant(ctx, tenants).actionService;
     return service
-      .listActions(getRequestContext(ctx))
+      .list(ctx)
       .then((result) => processEither(ctx, result))
-      .catch((err) => processError(err, ctx));
+      .catch((err) => processError(err));
   };
 
   const runHandler = (ctx: ContextWithParams) => {
-    const service = getTenant(ctx, tenants).service;
+    const service = getTenant(ctx, tenants).actionService;
     const query = getQuery(ctx);
     if (!query.uuids) {
       return sendBadRequest(ctx, "Missing uuids query parameter");
@@ -34,33 +34,30 @@ export default function (tenants: AntboxTenant[]) {
     const uuids = query.uuids.split(",");
 
     return service
-      .runAction(getRequestContext(ctx), ctx.params.uuid, uuids, query)
+      .run(ctx, ctx.params.uuid, uuids, query)
       .then((result) => {
         if (result.isLeft()) {
-          return processError(result.value, ctx);
+          return processError(result.value);
         }
 
         sendOK(ctx);
       })
-      .catch((err) => processError(err, ctx));
+      .catch((err) => processError(err));
   };
 
-  const exportHandler = (ctx: ContextWithParams) => {
-    const service = getTenant(ctx, tenants).service;
-    const requestContext = getRequestContext(ctx);
+  const exportHandler = async (ctx: ContextWithParams) => {
+    const service = getTenant(ctx, tenants).actionService;
+    const requestContext = ctx;
     const uuid = ctx.params.uuid;
 
-    return Promise.all([
-      service.getAction(requestContext, uuid),
-      service.exportAction(requestContext, uuid),
-    ])
+    return Promise.all([service.get(requestContext, uuid), service.export(requestContext, uuid)])
       .then(([node, blob]) => {
         if (node.isLeft()) {
-          return processError(node.value, ctx);
+          return processError(node.value);
         }
 
         if (blob.isLeft()) {
-          return processError(blob.value, ctx);
+          return processError(blob.value);
         }
 
         ctx.response.headers.set("Content-Type", "application/javascript");
@@ -73,15 +70,15 @@ export default function (tenants: AntboxTenant[]) {
         ctx.response.type = "blob";
         ctx.response.body = blob.value;
       })
-      .catch((err) => processError(err, ctx));
+      .catch((err) => processError(err));
   };
 
-  const deleteHandler = (ctx: ContextWithParams) => {
-    const service = getTenant(ctx, tenants).service;
+  const deleteHandler = async (ctx: ContextWithParams) => {
+    const service = getTenant(ctx, tenants).actionService;
     return service
-      .deleteAction(getRequestContext(ctx), ctx.params.uuid)
+      .delete(ctx, ctx.params.uuid)
       .then((result) => processEither(ctx, result))
-      .catch((err) => processError(err, ctx));
+      .catch((err) => processError(err));
   };
 
   const actionsRouter = new Router({ prefix: "/actions" });
@@ -96,12 +93,9 @@ export default function (tenants: AntboxTenant[]) {
   return actionsRouter;
 }
 
-function processEither<L extends AntboxError, R>(
-  ctx: Context,
-  result: Either<L, R>,
-) {
+function processEither<L extends AntboxError, R>(ctx: Context, result: Either<L, R>) {
   if (result.isLeft()) {
-    return processError(result.value, ctx);
+    return processError(result.value);
   }
 
   return sendOK(ctx, result.value as Record<string, unknown>);

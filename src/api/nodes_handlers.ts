@@ -20,6 +20,7 @@ export function listHandler(tenants: AntboxTenant[]): HttpHandler {
       .catch(processError);
   });
 }
+
 export function getHandler(tenants: AntboxTenant[]): HttpHandler {
   return defaultMiddlewareChain(tenants, (req: Request): Promise<Response> => {
     const service = getTenant(req, tenants).nodeService;
@@ -32,37 +33,29 @@ export function getHandler(tenants: AntboxTenant[]): HttpHandler {
 }
 
 export function createHandler(tenants: AntboxTenant[]): HttpHandler {
-  return defaultMiddlewareChain(
-    tenants,
-    async (req: Request): Promise<Response> => {
-      const service = getTenant(req, tenants).nodeService;
-      const metadata = await req.json();
-      if (!metadata?.mimetype) {
-        return Promise.resolve(
-          new Response("{ mimetype } not given", { status: 400 }),
-        );
-      }
+  return defaultMiddlewareChain(tenants, async (req: Request): Promise<Response> => {
+    const service = getTenant(req, tenants).nodeService;
+    const metadata = await req.json();
+    if (!metadata?.mimetype) {
+      return Promise.resolve(new Response("{ mimetype } not given", { status: 400 }));
+    }
 
-      return service
-        .create(getAuthenticationContext(req), metadata)
-        .then(processServiceResult)
-        .catch(processError);
-    },
-  );
+    return service
+      .create(getAuthenticationContext(req), metadata)
+      .then(processServiceResult)
+      .catch(processError);
+  });
 }
 
 export function updateHandler(tenants: AntboxTenant[]): HttpHandler {
-  return defaultMiddlewareChain(
-    tenants,
-    async (req: Request): Promise<Response> => {
-      const service = getTenant(req, tenants).nodeService;
-      const body = await req.json();
-      return service
-        .update(getAuthenticationContext(req), body.uuid, body)
-        .then(processServiceResult)
-        .catch(processError);
-    },
-  );
+  return defaultMiddlewareChain(tenants, async (req: Request): Promise<Response> => {
+    const service = getTenant(req, tenants).nodeService;
+    const body = await req.json();
+    return service
+      .update(getAuthenticationContext(req), body.uuid, body)
+      .then(processServiceResult)
+      .catch(processError);
+  });
 }
 
 export function deleteHandler(tenants: AntboxTenant[]): HttpHandler {
@@ -77,17 +70,14 @@ export function deleteHandler(tenants: AntboxTenant[]): HttpHandler {
 }
 
 export function copyHandler(tenants: AntboxTenant[]): HttpHandler {
-  return defaultMiddlewareChain(
-    tenants,
-    async (req: Request): Promise<Response> => {
-      const service = getTenant(req, tenants).nodeService;
-      const body = await req.json();
-      return service
-        .copy(getAuthenticationContext(req), body.uuid, body.to)
-        .then(processServiceResult)
-        .catch(processError);
-    },
-  );
+  return defaultMiddlewareChain(tenants, async (req: Request): Promise<Response> => {
+    const service = getTenant(req, tenants).nodeService;
+    const body = await req.json();
+    return service
+      .copy(getAuthenticationContext(req), body.uuid, body.to)
+      .then(processServiceResult)
+      .catch(processError);
+  });
 }
 
 export function duplicateHandler(tenants: AntboxTenant[]): HttpHandler {
@@ -102,22 +92,14 @@ export function duplicateHandler(tenants: AntboxTenant[]): HttpHandler {
 }
 
 export function findHandler(tenants: AntboxTenant[]): HttpHandler {
-  return defaultMiddlewareChain(
-    tenants,
-    async (req: Request): Promise<Response> => {
-      const service = getTenant(req, tenants).nodeService;
-      const body = await req.json();
-      return service
-        .find(
-          getAuthenticationContext(req),
-          body.filters,
-          body.pageSize,
-          body.pageToken,
-        )
-        .then(processServiceResult)
-        .catch(processError);
-    },
-  );
+  return defaultMiddlewareChain(tenants, async (req: Request): Promise<Response> => {
+    const service = getTenant(req, tenants).nodeService;
+    const body = await req.json();
+    return service
+      .find(getAuthenticationContext(req), body.filters, body.pageSize, body.pageToken)
+      .then(processServiceResult)
+      .catch(processError);
+  });
 }
 
 export function evaluateHandler(tenants: AntboxTenant[]): HttpHandler {
@@ -130,6 +112,7 @@ export function evaluateHandler(tenants: AntboxTenant[]): HttpHandler {
       .catch(processError);
   });
 }
+
 // TODO: Implement recognizeHandler
 // export function recognizeHandler(tenants: AntboxTenant[]): HttpHandler {
 // 	return defaultMiddlewareChain(tenants, (req: Request): Promise<Response> => {

@@ -1,4 +1,4 @@
-import { UserExistsError } from "domain/auth/user_exists_error.ts";
+import { UserExistsError } from "domain/users_groups/user_exists_error.ts";
 import { FolderNotFoundError } from "domain/nodes/folder_not_found_error.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import {

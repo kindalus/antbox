@@ -6,6 +6,8 @@ import { type NodeProperties } from "./node_properties.ts";
 export interface NodeMetadata {
   uuid: string;
   fid: string;
+  username: string
+  name: string
   title: string;
   description: string;
   mimetype: string;

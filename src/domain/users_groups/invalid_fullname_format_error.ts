@@ -3,10 +3,10 @@ import { AntboxError } from "shared/antbox_error.ts";
 export class InvalidFullNameFormatError extends AntboxError {
   static ERROR_CODE = "InvalidFullnameFormatError";
 
-  constructor(email: string) {
+  constructor(fullName: string) {
     super(
       InvalidFullNameFormatError.ERROR_CODE,
-      `Invalid Fullname Format: ${email}`,
+      `Invalid Fullname Format: ${ fullName }`,
     );
   }
 }

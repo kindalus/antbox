@@ -2,7 +2,7 @@ import { describe, test, expect } from "bun:test";
 import { NodeService } from "./node_service";
 import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository";
 import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider";
-import { Groups } from "domain/auth/groups";
+import { Groups } from "domain/users_groups/groups";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error";
 import { BadRequestError, ForbiddenError } from "shared/antbox_error";
 import type { AuthenticationContext } from "./authentication_context";

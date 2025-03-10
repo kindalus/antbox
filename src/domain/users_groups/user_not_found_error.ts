@@ -6,7 +6,7 @@ export class UserNotFoundError extends AntboxError {
   constructor(email: string) {
     super(
       UserNotFoundError.ERROR_CODE,
-      `User not found for the email: ${email}`,
+      `User not found for the uuid: ${email}`,
     );
   }
 }

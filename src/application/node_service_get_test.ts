@@ -61,7 +61,7 @@ describe("NodeService.get", () => {
     expect(nodeOrErr.value).toBeInstanceOf(NodeNotFoundError);
   });
 
-  test("should return a error if user doen't have 'Read' permission on parent", async () => {
+  test("should return an error if user doesn't have 'Read' permission on parent", async () => {
     const parent = FolderNode.create({
       uuid: "parent",
       title: "title",

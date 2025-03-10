@@ -1,33 +1,37 @@
 import { UserNode } from "domain/users_groups/user_node.ts";
 import { AntboxError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
-import type { AuthenticationContext } from "./authentication_context.ts";
-import type { NodeLike } from "domain/node_like.ts";
-import type { StorageProvider } from "./storage_provider.ts";
-import type { NodeRepository } from "domain/nodes/node_repository.ts";
-import type { EventBus } from "shared/event_bus.ts";
 import type { UsersGroupsContext } from "./users_groups_service_context.ts";
 import { UserExistsError } from "domain/users_groups/user_exists_error.ts";
 import { ValidationError } from "shared/validation_error.ts";
 import GroupNotFoundError from "domain/users_groups/group_not_found_error.ts";
-import { Nodes } from "domain/nodes/nodes.ts";
 import { GroupNode } from "domain/users_groups/group_node.ts";
+import type { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
+import { Nodes } from "domain/nodes/nodes.ts";
+import { UserNotFoundError } from "domain/users_groups/user_not_found_error.ts";
+import type { NodeFilters1D } from "domain/nodes/node_filter.ts";
+import { UsernameAlreadyExists } from "domain/users_groups/user_username_already_exists.ts";
 
 export class UsersGroupsService {
 
   constructor(private readonly context: UsersGroupsContext) {}
 
   async createUser(metadata: Partial<UserNode>): Promise<Either<AntboxError, UserNode>> {
-    const existingOrErr = await this.getUser(metadata.uuid!);
+    const existingOrErr = await this.getUserByEmail(metadata.email!);
     if(existingOrErr.isRight()) {
       return left(ValidationError.from(new UserExistsError(metadata.uuid!)));
     }
 
+    if(!(await this.#hasUsername(metadata.username!))) {
+      return left(ValidationError.from(new UsernameAlreadyExists(metadata.username!)));
+    }
+
     const groups = new Set(metadata.groups ?? []);
-    
+
     const userOrErr = UserNode.create({
       ...metadata,
-      groups: Array.from(groups),
+      group: Array.from(groups)[0],
+      groups: Array.from(groups).slice(1),
     });
     
     if(userOrErr.isLeft()) {
@@ -49,7 +53,7 @@ export class UsersGroupsService {
       }
     }
 
-    const voidOrErr = await this.context.repository.add(userOrErr.value)
+    const voidOrErr = await this.context.repository.add(userOrErr.value);
     if(voidOrErr.isLeft()) {
       return left(voidOrErr.value);
     }
@@ -58,14 +62,39 @@ export class UsersGroupsService {
   }
 
   async getUser(uuid: string): Promise<Either<AntboxError, UserNode>> {
-    const userOrErr = await this.context.repository.getById(uuid)
+
+    // if(uuid === Users.ROOT_USER_UUID) {
+    //   return right(ROOT_USER);
+    // }
+
+    const userOrErr = await this.#getUserFromRepository(uuid);
     if(userOrErr.isLeft()) {
-      return left(userOrErr.value);
+      return left(new UserNotFoundError(uuid));
     }
 
     return right(userOrErr.value);
   }
 
+  async getUserByEmail(email: string):  Promise<Either<AntboxError, UserNode>> {
+    const filters: NodeFilters1D = [
+      ["email", "==", email],
+      ["mimetype", "==", Nodes.USER_MIMETYPE],
+    ];
+  
+    const userOrErr = await this.context.repository.filter(filters);
+
+    if(userOrErr.nodes.length === 0) {
+      return left(new UserNotFoundError(email));
+    }
+
+    return right(userOrErr.nodes[0]);
+  }
+
+  async #hasUsername(username: string): Promise<boolean> {
+    const filters: NodeFilters1D = [["username", "==", username]];
+    const usersOrErr = await this.context.repository.filter(filters);
+    return usersOrErr.nodes.length == 0;
+  }
 
   async createGroup(groupNode: Partial<GroupNode>): Promise<Either<AntboxError, GroupNode>> {
     const groupOrErr = GroupNode.create(groupNode);
@@ -82,13 +111,29 @@ export class UsersGroupsService {
   }
 
   async getGroup(uuid: string): Promise<Either<AntboxError, GroupNode>> {
-    const groupOrErr = await this.context.repository.getById(uuid);
+    const groupOrErr = await this.#getGroupFromRepository(uuid);
 
     if(groupOrErr.isLeft()) {
       return left(new GroupNotFoundError(uuid));
     }
 
-    return right(groupOrErr.value);
+    return right(groupOrErr.value as GroupNode);
+  }
+
+  async #getUserFromRepository(uuid: string): Promise<Either<NodeNotFoundError, UserNode>> {
+    if(Nodes.isFid(uuid)) {
+      return this.context.repository.getByFid(Nodes.uuidToFid(uuid));
+    }
+
+    return this.context.repository.getById(uuid);
+  }
+
+  async #getGroupFromRepository(uuid: string): Promise<Either<NodeNotFoundError, GroupNode>> {
+    if(Nodes.isFid(uuid)) {
+      return this.context.repository.getByFid(Nodes.uuidToFid(uuid));
+    }
+
+    return this.context.repository.getById(uuid);
   }
 
   // static elevatedContext(tenant?: string): AuthenticationContext {
@@ -136,7 +181,7 @@ export class UsersGroupsService {
   //     }
   //   }
 
-  //   return this.nodeService.create(ctx, metadata);
+  //   return this.nodeService.create(ctx, metadata); 
   // }
 
   // async getUser(ctx: AuthenticationContext, uuid: string): Promise<Either<AntboxError, UserNode>> {

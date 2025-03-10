@@ -14,7 +14,6 @@ import { InvalidUsernameFormatError } from "./invalid_username_format_error.ts";
 
 export class UserNode extends Node {
   #username: UsernameValue
-  #name: string
   #email: EmailValue;
   #group: string;
   #groups: string[];
@@ -48,9 +47,8 @@ export class UserNode extends Node {
       parent: Folders.USERS_FOLDER_UUID,
     });
     this.#username = undefined as unknown as UsernameValue;
-    this.#name = metadata?.name ?? "";
-    this.#group = metadata?.group ?? "";
     this.#groups = metadata?.groups ?? [];
+    this.#group = metadata?.group ?? this.groups[0];
     this.#email = undefined as unknown as EmailValue;
 
     if(metadata.username) {
@@ -85,7 +83,6 @@ export class UserNode extends Node {
 
     this.#group = metadata?.group ?? this.#group;
     this.#groups = metadata?.groups ?? this.#groups;
-    this.#name = metadata?.name ?? this.#name;
 
     try {
       if (metadata.secret) {
@@ -136,11 +133,12 @@ export class UserNode extends Node {
 
   #validate() {
     const errors: AntboxError[] = [];
+
     if (!this.title || this.title.length < 3) {
       errors.push(new InvalidFullNameFormatError(this.title));
     }
 
-    if (!this.#group || this.#group.length === 0) {
+    if (!this.#group || this.#group.length === 0) { 
       errors.push(new UserGroupRequiredError());
     }
 
@@ -151,10 +149,6 @@ export class UserNode extends Node {
 
   get username(): string {
     return this.#username.value;
-  }
-
-  get name(): string {
-    return this.#name;
   }
 
   get email(): string {

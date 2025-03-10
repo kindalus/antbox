@@ -14,6 +14,7 @@ export const ROOT_USER = UserNode.create({
   uuid: Users.ROOT_USER_UUID,
   email: Users.ROOT_USER_EMAIL,
   title: "root",
+  owner: Users.ROOT_USER_EMAIL,
   group: Groups.ADMINS_GROUP_UUID,
   groups: [Groups.ADMINS_GROUP_UUID],
 }).value as UserNode;

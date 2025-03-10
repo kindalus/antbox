@@ -15,7 +15,6 @@ const timeout = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms)
 test("UserNode.create should initialize", () => {
   const createResult = UserNode.create({
     username: "jamestarget",
-    name: "James Target",
     owner: "root@antbox.io",
     email: "user@domain.com",
     title: "Example User",
@@ -26,7 +25,6 @@ test("UserNode.create should initialize", () => {
 
   expect(createResult.isRight()).toBe(true);
   expect(user.username).toBe(user.username);
-  expect(user.name).toBe(user.name);
   expect(user.email).toBe(user.email);
   expect(user.title).toBe("Example User");
   expect(user.mimetype).toBe(Nodes.USER_MIMETYPE);
@@ -35,7 +33,6 @@ test("UserNode.create should initialize", () => {
 
 test("UserNode.create should throw error if secret has not the correct format", () => {
   const createResult = UserNode.create({
-    name: "James Target",
     username: "jamestarget",
     owner: "root@antbox.io",
     email: "user@domain.com",
@@ -53,7 +50,6 @@ test("UserNode.create should throw error if secret has not the correct format", 
 
 test("UserNode.create should throw error if group is missing", async () => {
   const createResult = UserNode.create({
-    name: "James Target",
     username: "jamestarget",
     owner: "root@antbox.io",
     email: "user@domain.com",
@@ -71,7 +67,6 @@ test("UserNode.create should throw error if group is missing", async () => {
 
 test("UserNode.create should throw error if owner is missing", async () => {
   const createResult = UserNode.create({
-    name: "James Target",
     username: "jamestarget",
     owner: "",
     email: "user@domain.com",
@@ -89,7 +84,6 @@ test("UserNode.create should throw error if owner is missing", async () => {
 
 test("UserNode.create should throw error if title length less than 3 chars", async () => {
   const createResult = UserNode.create({
-    name: "James Target",
     username: "jamestarget",
     owner: "root@antbox.io",
     email: "user@domain.com",
@@ -109,7 +103,6 @@ test("UserNode.create should throw error if title length less than 3 chars", asy
 
 test("UserNode.create should throw error if username is in invalid format", async () => {
   const createResult = UserNode.create({
-    name: "James Target",
     username: "James Target",
     owner: "root@antbox.io",
     email: "user@domain.com",
@@ -129,7 +122,6 @@ test("UserNode.create should hash the secret with right shaSum ", async () => {
   const secret = "secret-password";
   const email = "user@domain.com";
   const createResult = UserNode.create({
-    name: "James Target",
     username: "jamestarget",
     owner: "root@antbox.io",
     title: "Example User",
@@ -148,7 +140,6 @@ test("UserNode.create should hash the secret with right shaSum ", async () => {
 
 test("UserNode.update should throw error if new secret is invalid", async () => {
   const createResult = UserNode.create({
-    name: "James Target",
     username: "jamestarget",
     owner: "root@antbox.io",
     email: "user@domain.com",
@@ -170,7 +161,6 @@ test("UserNode.update should throw error if new secret is invalid", async () => 
 
 test("UserNode.update should modify secret and create a new hash", async () => {
   const createResult = UserNode.create({
-    name: "James Target",
     username: "jamestarget",
     owner: "root@antbox.io",
     email: "user@domain.com",
@@ -189,7 +179,6 @@ test("UserNode.update should modify secret and create a new hash", async () => {
 
 test("UserNode.update should throw error if new email is invalid", () => {
   const createResult = UserNode.create({
-    name: "James Target",
     username: "jamestarget",
     owner: "root@antbox.io",
     email: "user@domain.com",
@@ -205,9 +194,8 @@ test("UserNode.update should throw error if new email is invalid", () => {
   expect((updateResult.value as ValidationError).errors[0]).toBeInstanceOf(EmailFormatError);
 });
 
-test("UserNode.update should modify group, groups, title, description and name", async () => {
+test("UserNode.update should modify group, groups, title and description", async () => {
   const createResult = UserNode.create({
-    name: "James Target",
     username: "jamestarget",
     owner: "root@antbox.io",
     email: "user@domain.com",
@@ -220,7 +208,6 @@ test("UserNode.update should modify group, groups, title, description and name",
 
   await timeout(5);
   const result = user.update({
-    name: "New Name",
     group: "admin",
     groups: [],
     title: "New Title",
@@ -228,7 +215,6 @@ test("UserNode.update should modify group, groups, title, description and name",
   });
 
   expect(result.isRight()).toBe(true);
-  expect(user.name).toBe("New Name");
   expect(user.group).toBe("admin");
   expect(user.title).toBe("New Title");
   expect(user.description).toBe("New Desc");
@@ -237,7 +223,6 @@ test("UserNode.update should modify group, groups, title, description and name",
 
 test("UserNode.update should not modify parent", async () => {
   const createResult = UserNode.create({
-    name: "James Target",
     username: "jamestarget",
     owner: "root@antbox.io",
     email: "user@domain.com",
@@ -255,7 +240,6 @@ test("UserNode.update should not modify parent", async () => {
 
 test("UserNode.update should not modify mimetype", async () => {
   const createResult = UserNode.create({
-    name: "James Target",
     username: "jamestarget",
     owner: "root@antbox.io",
     email: "user@domain.com",
@@ -274,7 +258,6 @@ test("UserNode.update should not modify mimetype", async () => {
 
 test("UserNode.update should not modify username", async () => {
   const createResult = UserNode.create({
-    name: "James Target",
     username: "jamestarget",
     owner: "root@antbox.io",
     email: "user@domain.com",

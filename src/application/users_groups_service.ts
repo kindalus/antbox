@@ -1,23 +1,27 @@
 import { UserNode } from "domain/users_groups/user_node.ts";
-import { AntboxError } from "shared/antbox_error.ts";
+import { AntboxError, ForbiddenError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
 import type { UsersGroupsContext } from "./users_groups_service_context.ts";
 import { UserExistsError } from "domain/users_groups/user_exists_error.ts";
 import { ValidationError } from "shared/validation_error.ts";
 import GroupNotFoundError from "domain/users_groups/group_not_found_error.ts";
 import { GroupNode } from "domain/users_groups/group_node.ts";
-import type { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
+import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import { UserNotFoundError } from "domain/users_groups/user_not_found_error.ts";
-import type { NodeFilters1D } from "domain/nodes/node_filter.ts";
 import { UsernameAlreadyExists } from "domain/users_groups/user_username_already_exists.ts";
+import { Users } from "domain/users_groups/users.ts";
+import { ANONYMOUS_USER, ROOT_USER } from "./builtin_users/index.ts";
+import type { AuthenticationContext } from "./authentication_context.ts";
+import { Groups } from "domain/users_groups/groups.ts";
+import { InvalidCredentialsError } from "./invalid_credentials_error.ts";
 
 export class UsersGroupsService {
 
   constructor(private readonly context: UsersGroupsContext) {}
 
-  async createUser(metadata: Partial<UserNode>): Promise<Either<AntboxError, UserNode>> {
-    const existingOrErr = await this.getUserByEmail(metadata.email!);
+  async createUser(ctx: AuthenticationContext, metadata: Partial<UserNode>): Promise<Either<AntboxError, UserNode>> {
+    const existingOrErr = await this.getUserByEmail(ctx, metadata.email!);
     if(existingOrErr.isRight()) {
       return left(ValidationError.from(new UserExistsError(metadata.uuid!)));
     }
@@ -61,33 +65,84 @@ export class UsersGroupsService {
     return right(userOrErr.value);
   }
 
-  async getUser(uuid: string): Promise<Either<AntboxError, UserNode>> {
+  async getUser(ctx: AuthenticationContext, uuid: string): Promise<Either<AntboxError, UserNode>> {
+    if(uuid === Users.ROOT_USER_UUID) {
+      return  await this.#hasAdminGroup(ctx) ? right(ROOT_USER) : left(new ForbiddenError());
+    }
 
-    // if(uuid === Users.ROOT_USER_UUID) {
-    //   return right(ROOT_USER);
-    // }
+    if(uuid === Users.ANONYMOUS_USER_UUID) {
+      return right(ANONYMOUS_USER);
+    }
 
     const userOrErr = await this.#getUserFromRepository(uuid);
     if(userOrErr.isLeft()) {
       return left(new UserNotFoundError(uuid));
     }
 
-    return right(userOrErr.value);
+    const user = userOrErr.value;
+
+    if(!Nodes.isUser(user)) {
+      return left(new UserNotFoundError(uuid));
+    }
+
+    if(user.email == ctx.principal.email) {
+      return right(user);
+    }
+
+    return ctx.principal.groups.includes(Groups.ADMINS_GROUP_UUID) 
+      ? right(user) 
+      : left(new ForbiddenError());
   }
 
-  async getUserByEmail(email: string):  Promise<Either<AntboxError, UserNode>> {
-    const filters: NodeFilters1D = [
+  async getUserByEmail(ctx: AuthenticationContext, email: string):  Promise<Either<AntboxError, UserNode>> {
+    if (email === Users.ROOT_USER_EMAIL) {
+      return ctx.principal.groups.includes(Groups.ADMINS_GROUP_UUID)
+        ? right(ROOT_USER)
+        : left(new ForbiddenError());
+    }
+
+    if (email === Users.ANONYMOUS_USER_EMAIL) {
+      return right(ANONYMOUS_USER);
+    }
+  
+    const result = await this.context.repository.filter([
       ["email", "==", email],
       ["mimetype", "==", Nodes.USER_MIMETYPE],
-    ];
-  
-    const userOrErr = await this.context.repository.filter(filters);
+    ]);
 
-    if(userOrErr.nodes.length === 0) {
+    if(result.nodes.length === 0) {
       return left(new UserNotFoundError(email));
     }
 
-    return right(userOrErr.nodes[0]);
+    const node = result.nodes[0];
+
+    if (node.email === ctx.principal.email) {
+      return right(node);
+    }
+    
+    return ctx.principal.groups.includes(Groups.ADMINS_GROUP_UUID)
+      ? right(node)
+      : left(new ForbiddenError());
+  }
+
+  async getUserByCredentials(email: string, password: string): Promise<Either<AntboxError, UserNode>>{
+    const hash = await UserNode.shaSum(email, password);
+
+    const result = await this.context.repository.filter([
+      ["secret", "==", hash],
+    ]);
+
+    if(result.nodes.length === 0) {
+      return left(new InvalidCredentialsError());
+    }
+
+    const node = result.nodes[0];
+
+    return right(node);
+  }
+
+  async #hasAdminGroup(ctx: AuthenticationContext): Promise<boolean> {
+    return ctx.principal.groups.includes(Groups.ADMINS_GROUP_UUID);
   }
 
   async #hasUsername(username: string): Promise<boolean> {

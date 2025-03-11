@@ -92,11 +92,6 @@ export class UserNode extends Node {
         });
       }
 
-      if (metadata.email) {
-        this.#email =
-          this.#getValidEmailOrThrowError(metadata.email) ?? this.#email;
-      }
-
       this.#validate();
     } catch (err) {
       return left(err as ValidationError);

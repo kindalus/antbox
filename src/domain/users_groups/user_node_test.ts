@@ -177,23 +177,6 @@ test("UserNode.update should modify secret and create a new hash", async () => {
   expect(user.secret).toBe(sha);
 });
 
-test("UserNode.update should throw error if new email is invalid", () => {
-  const createResult = UserNode.create({
-    username: "jamestarget",
-    owner: "root@antbox.io",
-    email: "user@domain.com",
-    title: "Example user",
-    secret: "secret-password",
-    group: "users",
-  });
-
-  const updateResult = createResult.right.update({ email: "example.com" });
-
-  expect(updateResult.isLeft()).toBe(true);
-  expect(updateResult.value).toBeInstanceOf(ValidationError);
-  expect((updateResult.value as ValidationError).errors[0]).toBeInstanceOf(EmailFormatError);
-});
-
 test("UserNode.update should modify group, groups, title and description", async () => {
   const createResult = UserNode.create({
     username: "jamestarget",
@@ -272,4 +255,22 @@ test("UserNode.update should not modify username", async () => {
 
   expect(updateResult.isRight()).toBe(true);
   expect(user.username).toBe("jamestarget");
-})
+});
+
+test("UserNode.update should not modify email", async () => {
+  const createResult = UserNode.create({
+    username: "jamestarget",
+    owner: "root@antbox.io",
+    email: "user@domain.com",
+    title: "Example User",
+    secret: "secret-password",
+    group: "users",
+  });
+  const user = createResult.right;
+
+  await timeout(5);
+  const updateResult = user.update({ email: "johndoe@gmail.com" });
+
+  expect(updateResult.isRight()).toBe(true);
+  expect(user.email).toBe("user@domain.com");
+});

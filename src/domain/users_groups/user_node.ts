@@ -9,11 +9,9 @@ import { Nodes } from "domain/nodes/nodes.ts";
 import { InvalidFullNameFormatError } from "./invalid_fullname_format_error.ts";
 import { InvalidPasswordFormatError } from "./invalid_password_format_error.ts";
 import { UserGroupRequiredError } from "./user_group_required_error.ts";
-import { UsernameValue } from "./username_value.ts";
 import { InvalidUsernameFormatError } from "./invalid_username_format_error.ts";
 
 export class UserNode extends Node {
-  #username: UsernameValue
   #email: EmailValue;
   #group: string;
   #groups: string[];
@@ -46,14 +44,9 @@ export class UserNode extends Node {
       mimetype: Nodes.USER_MIMETYPE,
       parent: Folders.USERS_FOLDER_UUID,
     });
-    this.#username = undefined as unknown as UsernameValue;
     this.#groups = metadata?.groups ?? [];
     this.#group = metadata?.group ?? this.groups[0];
     this.#email = undefined as unknown as EmailValue;
-
-    if(metadata.username) {
-      this.#username = this.#getUsernameOrThrowError(metadata.username);
-    }
 
     if (metadata.email) {
       this.#email = this.#getValidEmailOrThrowError(metadata.email);
@@ -100,16 +93,6 @@ export class UserNode extends Node {
     return right(undefined);
   }
 
-  #getUsernameOrThrowError(username: string): UsernameValue {
-    const usernameOrErr = UsernameValue.fromString(username);
-
-    if(usernameOrErr.isLeft()) {
-      throw ValidationError.from(new InvalidUsernameFormatError(username));
-    }
-
-    return usernameOrErr.value;
-  }
-
   #getValidEmailOrThrowError(email: string): EmailValue {
     const emailOrErr = EmailValue.fromString(email);
 
@@ -140,10 +123,6 @@ export class UserNode extends Node {
     if (errors.length > 0) {
       throw ValidationError.from(...errors);
     }
-  }
-
-  get username(): string {
-    return this.#username.value;
   }
 
   get email(): string {

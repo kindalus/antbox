@@ -75,31 +75,29 @@ describe("NodeService.update", () => {
   });
 
   test("should not update mimetype", async () => {
-    test("should not update mimetype", async () => {
-      const service = nodeService();
-      const parentOrErr = await service.create(authCtx, {
-        title: "Parent Folder",
-        mimetype: Nodes.FOLDER_MIMETYPE,
-      });
-
-      const nodeOrErr = await service.create(authCtx, {
-        title: "Node with Mimetype",
-        mimetype: Nodes.META_NODE_MIMETYPE,
-        parent: parentOrErr.right.uuid,
-      });
-
-      const updateResult = await service.update(authCtx, nodeOrErr.right.uuid, {
-        title: "Updated Title",
-        mimetype: "application/json",
-      });
-
-      expect(updateResult.isRight(), errToMsg(updateResult.value)).toBeTruthy();
-
-      const updatedNodeOrErr = await service.get(authCtx, nodeOrErr.right.uuid);
-      expect(updatedNodeOrErr.isRight(), errToMsg(updatedNodeOrErr.value)).toBeTruthy();
-      expect(updatedNodeOrErr.right.title).toBe("Updated Title");
-      expect(updatedNodeOrErr.right.mimetype).toBe(Nodes.META_NODE_MIMETYPE);
+    const service = nodeService();
+    const parentOrErr = await service.create(authCtx, {
+      title: "Parent Folder",
+      mimetype: Nodes.FOLDER_MIMETYPE,
     });
+
+    const nodeOrErr = await service.create(authCtx, {
+      title: "Node with Mimetype",
+      mimetype: Nodes.META_NODE_MIMETYPE,
+      parent: parentOrErr.right.uuid,
+    });
+
+    const updateResult = await service.update(authCtx, nodeOrErr.right.uuid, {
+      title: "Updated Title",
+      mimetype: "application/json",
+    });
+
+    expect(updateResult.isRight(), errToMsg(updateResult.value)).toBeTruthy();
+
+    const updatedNodeOrErr = await service.get(authCtx, nodeOrErr.right.uuid);
+    expect(updatedNodeOrErr.isRight(), errToMsg(updatedNodeOrErr.value)).toBeTruthy();
+    expect(updatedNodeOrErr.right.title).toBe("Updated Title");
+    expect(updatedNodeOrErr.right.mimetype).toBe(Nodes.META_NODE_MIMETYPE);
   });
 });
 

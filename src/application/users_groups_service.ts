@@ -1,5 +1,5 @@
 import { UserNode } from "domain/users_groups/user_node.ts";
-import { AntboxError, ForbiddenError } from "shared/antbox_error.ts";
+import { AntboxError, BadRequestError, ForbiddenError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
 import type { UsersGroupsContext } from "./users_groups_service_context.ts";
 import { UserExistsError } from "domain/users_groups/user_exists_error.ts";
@@ -9,12 +9,13 @@ import { GroupNode } from "domain/users_groups/group_node.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import { UserNotFoundError } from "domain/users_groups/user_not_found_error.ts";
-import { UsernameAlreadyExists } from "domain/users_groups/user_username_already_exists.ts";
 import { Users } from "domain/users_groups/users.ts";
 import { ANONYMOUS_USER, ROOT_USER } from "./builtin_users/index.ts";
 import type { AuthenticationContext } from "./authentication_context.ts";
 import { Groups } from "domain/users_groups/groups.ts";
 import { InvalidCredentialsError } from "./invalid_credentials_error.ts";
+import type { NodeFilters1D } from "domain/nodes/node_filter.ts";
+import { ADMINS_GROUP, builtinGroups } from "./builtin_groups/index.ts";
 
 export class UsersGroupsService {
 
@@ -24,10 +25,6 @@ export class UsersGroupsService {
     const existingOrErr = await this.getUserByEmail(ctx, metadata.email!);
     if(existingOrErr.isRight()) {
       return left(ValidationError.from(new UserExistsError(metadata.uuid!)));
-    }
-
-    if(!(await this.#hasUsername(metadata.username!))) {
-      return left(ValidationError.from(new UsernameAlreadyExists(metadata.username!)));
     }
 
     const groups = new Set(metadata.groups ?? []);
@@ -45,9 +42,9 @@ export class UsersGroupsService {
     const user = userOrErr.value;
 
     if(groups.size > 0) {
-      const batch = user.groups.map((group) => this.getGroup(group));
+      const batch = metadata.groups?.map((group) => this.getGroup(group));
 
-      const groupsOrErr = await Promise.all(batch);
+      const groupsOrErr = await Promise.all(batch!);
 
       const groupsErr = groupsOrErr.filter((groupOrErr) => groupOrErr.isLeft());
 
@@ -145,12 +142,6 @@ export class UsersGroupsService {
     return ctx.principal.groups.includes(Groups.ADMINS_GROUP_UUID);
   }
 
-  async #hasUsername(username: string): Promise<boolean> {
-    const filters: NodeFilters1D = [["username", "==", username]];
-    const usersOrErr = await this.context.repository.filter(filters);
-    return usersOrErr.nodes.length == 0;
-  }
-
   async createGroup(groupNode: Partial<GroupNode>): Promise<Either<AntboxError, GroupNode>> {
     const groupOrErr = GroupNode.create(groupNode);
     if(groupOrErr.isLeft()) {
@@ -166,13 +157,23 @@ export class UsersGroupsService {
   }
 
   async getGroup(uuid: string): Promise<Either<AntboxError, GroupNode>> {
+    if (uuid === Groups.ADMINS_GROUP_UUID) {
+      return right(ADMINS_GROUP);
+    }
+
     const groupOrErr = await this.#getGroupFromRepository(uuid);
 
     if(groupOrErr.isLeft()) {
+      return left(groupOrErr.value);
+    }
+
+    const group = groupOrErr.value;
+
+    if(!Nodes.isGroup(group)) {
       return left(new GroupNotFoundError(uuid));
     }
 
-    return right(groupOrErr.value as GroupNode);
+    return right(group);
   }
 
   async #getUserFromRepository(uuid: string): Promise<Either<NodeNotFoundError, UserNode>> {
@@ -189,6 +190,59 @@ export class UsersGroupsService {
     }
 
     return this.context.repository.getById(uuid);
+  }
+
+  async updateUser(
+    ctx: AuthenticationContext, 
+    uuid: string, 
+    data: Partial<UserNode>): Promise<Either<AntboxError, void>> {
+      if (uuid === Users.ROOT_USER_UUID || uuid === Users.ANONYMOUS_USER_UUID) {
+        return left(new BadRequestError("Cannot update built-in user"));
+      }
+
+      const existingOrErr = await this.getUser(ctx, uuid);
+      if(existingOrErr.isLeft()) {
+        return left(existingOrErr.value);
+      }
+      
+      const user = existingOrErr.value;
+
+      const result = user.update(data);
+      if(result.isLeft()) {
+        return left(result.value);
+      }
+
+      const voidOrErr = await this.context.repository.update(user);
+      if(voidOrErr.isLeft()) {
+        return left(voidOrErr.value);
+      }
+
+      return right(voidOrErr.value);
+  }
+
+  async updateGroup(uuid: string, data: Partial<GroupNode>): Promise<Either<AntboxError, void>> {
+    if (builtinGroups.find((group) => group.uuid === uuid)) {
+      return left(new BadRequestError("Cannot update built-in group"));
+    }
+
+    const existingOrErr = await this.getGroup(uuid);
+    if(existingOrErr.isLeft()) {
+      return left(existingOrErr.value);
+    }
+
+    const group = existingOrErr.value;
+
+    const voidOrErr = group.update(data);
+    if(voidOrErr.isLeft()) {
+      return left(voidOrErr.value);
+    }
+
+    const result = await this.context.repository.update(group);
+    if(result.isLeft()) {
+      return left(result.value);
+    }
+
+    return right(result.value);
   }
 
   // static elevatedContext(tenant?: string): AuthenticationContext {

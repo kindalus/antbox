@@ -13,7 +13,6 @@ import { Folders } from "domain/nodes/folders"
 import { GroupNode } from "domain/users_groups/group_node"
 import type { AuthenticationContext } from "./authentication_context"
 import { Groups } from "domain/users_groups/groups"
-import { NodeNotFoundError } from "domain/nodes/node_not_found_error"
 import { UserNode } from "domain/users_groups/user_node"
 
 describe("UsersGroupsService.createUser", () => {

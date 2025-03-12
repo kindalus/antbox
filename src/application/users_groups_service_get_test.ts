@@ -12,6 +12,8 @@ import { Users } from "domain/users_groups/users";
 import { GroupNode } from "domain/users_groups/group_node";
 import type { AuthenticationContext } from "./authentication_context";
 import { InvalidCredentialsError } from "./invalid_credentials_error";
+import { NodeNotFoundError } from "domain/nodes/node_not_found_error";
+import { UserNode } from "domain/users_groups/user_node";
 
 
 describe("UsersGroupsService.getUser", () => {
@@ -32,7 +34,6 @@ describe("UsersGroupsService.getUser", () => {
             owner: "root@gmail.com",
             uuid: "day-uuid",
             email: "dayne@gmail.com",
-            username: "dayne",
             groups: ["--admins--","--users--"],
         });
 
@@ -41,7 +42,6 @@ describe("UsersGroupsService.getUser", () => {
         expect(userOrErr.value, errToMsg(userOrErr.value)).toBeTruthy();
         expect(userOrErr.right.owner).toBe("root@gmail.com");
         expect(userOrErr.right.group).toBe("--admins--");
-        expect(userOrErr.right.username).toBe("dayne");
     });
 
     test("should return user if uuid is in fid format", async () => {
@@ -61,16 +61,14 @@ describe("UsersGroupsService.getUser", () => {
             owner: "root@gmail.com",
             fid: "the-id",
             email: "jasmin@gmail.com",
-            username: "jasmin",
             groups: ["--admins--","--users--"],
         });
-
     
         const userOrErr = await service.getUser(authCtx, "--fid--the-id");
 
         expect(userOrErr.value, errToMsg(userOrErr.value)).toBeTruthy();
         expect(userOrErr.right.owner).toBe("root@gmail.com");
-        expect(userOrErr.right.username).toBe("jasmin");
+        expect(userOrErr.right.title).toBe("The title");
     });
 
     test("should return builtin user root", async () => {
@@ -112,15 +110,14 @@ describe("UsersGroupsService.getUser", () => {
             owner: "root@gmail.com",
             uuid: "jaden-id",
             email: "jaden@gmail.com",
-            username: "jaden",
             groups: ["--admins--","--users--"],
         });
     
         const userOrErr = await service.getUser(authCtx, "jaden-id");
 
         expect(userOrErr.value, errToMsg(userOrErr.value)).toBeTruthy();
+        expect(userOrErr.right.uuid).toBe("jaden-id")
         expect(userOrErr.right.owner).toBe("root@gmail.com");
-        expect(userOrErr.right.username).toBe("jaden");
     });
 
     test("should return user if autenticated user has admin", async () => {
@@ -140,7 +137,6 @@ describe("UsersGroupsService.getUser", () => {
             owner: "root@gmail.com",
             uuid: "kony-id",
             email: "jumb@gmail.com",
-            username: "kony",
             groups: ["--admins--","--users--"],
         });
 
@@ -148,7 +144,7 @@ describe("UsersGroupsService.getUser", () => {
 
         expect(userOrErr.value, errToMsg(userOrErr.value)).toBeTruthy();
         expect(userOrErr.right.owner).toBe("root@gmail.com");
-        expect(userOrErr.right.username).toBe("kony");
+        expect(userOrErr.right.uuid).toBe("kony-id");
     });
 
     test("should return error if not found user", async () => {
@@ -160,7 +156,7 @@ describe("UsersGroupsService.getUser", () => {
         expect(userOrErr.value).toBeInstanceOf(UserNotFoundError);
     });
 
-    test("should return error if found is not user", async () => {
+    test("should return error if node is not user", async () => {
         const service = usersGroupsService();
 
         const userOrErr = await service.getUser(authCtx, "--users--");
@@ -188,7 +184,6 @@ describe("UsersGroupsService.getUserByEmail", () => {
             owner: "root@gmail.com",
             uuid: "dd-uuid",
             email: "july@gmail.com",
-            username: "july",
             groups: ["--admins--","--users--"],
         });
 
@@ -197,7 +192,6 @@ describe("UsersGroupsService.getUserByEmail", () => {
         expect(userOrErr.value, errToMsg(userOrErr.value)).toBeTruthy();
         expect(userOrErr.right.owner).toBe("root@gmail.com");
         expect(userOrErr.right.group).toBe("--admins--");
-        expect(userOrErr.right.username).toBe("july");
     });
 
     test("should return authenticated user", async () => {
@@ -217,7 +211,6 @@ describe("UsersGroupsService.getUserByEmail", () => {
             owner: "root@gmail.com",
             uuid: "kend-uuid",
             email: "kend@gmail.com",
-            username: "kend",
             groups: ["--admins--","--users--"],
         });
 
@@ -226,7 +219,6 @@ describe("UsersGroupsService.getUserByEmail", () => {
         expect(userOrErr.value, errToMsg(userOrErr.value)).toBeTruthy();
         expect(userOrErr.right.owner).toBe("root@gmail.com");
         expect(userOrErr.right.group).toBe("--admins--");
-        expect(userOrErr.right.username).toBe("kend");
     });
 
     test("should return builtin user root", async () => {
@@ -286,7 +278,6 @@ describe("UsersGroupsService.getUserByEmail", () => {
             owner: "root@gmail.com",
             uuid: "steven-id",
             email: "steven@gmail.com",
-            username: "steven",
             groups: ["--admins--","--users--"],
         });
 
@@ -294,7 +285,6 @@ describe("UsersGroupsService.getUserByEmail", () => {
 
         expect(userOrErr.value, errToMsg(userOrErr.value)).toBeTruthy();
         expect(userOrErr.right.owner).toBe("root@gmail.com");
-        expect(userOrErr.right.username).toBe("steven");
     });
 
     test("should return error if user is not found", async () => {
@@ -317,7 +307,6 @@ describe("UsersGroupsService.getByCredentials", () => {
             uuid: "darling-uuid",
             email: "darling@gmail.com",
             secret: "darling1234",
-            username: "darling",
             groups: ["--admins--","--users--"],
         });
 
@@ -326,7 +315,6 @@ describe("UsersGroupsService.getByCredentials", () => {
         expect(userOrErr.value, errToMsg(userOrErr.value)).toBeTruthy();
         expect(userOrErr.right.owner).toBe("root@gmail.com");
         expect(userOrErr.right.group).toBe("--admins--");
-        expect(userOrErr.right.username).toBe("darling");
     });
 
     test("should return error if not found user", async () => {
@@ -356,6 +344,17 @@ describe("UsersGroupsService.getGroup", () => {
         expect(groupOrErr.right.mimetype).toBe(Nodes.GROUP_MIMETYPE);
     });
 
+    test("should return builtin admins group", async () => {
+        const service =  usersGroupsService();
+
+        const groupOrErr =  await service.getGroup(Groups.ADMINS_GROUP_UUID);
+
+        expect(groupOrErr.isRight(), errToMsg(groupOrErr.value)).toBeTruthy();
+        expect(groupOrErr.right.uuid).toBe(Groups.ADMINS_GROUP_UUID);
+        expect(groupOrErr.right.title).toBe("Admins");
+        expect(groupOrErr.right.description).toBe("Admins");
+    });
+
     test("should return group if uuid is in fid format", async () => {
         const service = usersGroupsService();
 
@@ -378,9 +377,26 @@ describe("UsersGroupsService.getGroup", () => {
         const groupOrErr = await service.getGroup("--any group uuid--");
         
         expect(groupOrErr.isLeft(), errToMsg(groupOrErr.value)).toBeTruthy();
+        expect((groupOrErr.value)).toBeInstanceOf(NodeNotFoundError);
+    });
+
+    test("should return error if node is not group", async () => {
+        const service = usersGroupsService();
+
+        const groupOrErr = await service.getGroup("doily-uuid");
+        
+        expect(groupOrErr.isLeft(), errToMsg(groupOrErr.value)).toBeTruthy();
         expect((groupOrErr.value)).toBeInstanceOf(GroupNotFoundError);
     });
 });
+
+const userNode: UserNode = UserNode.create({
+    title: "The title",
+    owner: "root@gmail.com",
+    uuid: "doily-uuid",
+    email: "doily@gmail.com",
+    group: "--admins--"
+}).right;
 
 const firstGoupNode: GroupNode = GroupNode.create({
     uuid: "--admins--",
@@ -398,6 +414,7 @@ const secondGoupNode: GroupNode = GroupNode.create({
 const repository = new InMemoryNodeRepository();
 repository.add(firstGoupNode);
 repository.add(secondGoupNode);
+repository.add(userNode);
 
 const authCtx: AuthenticationContext = {
     mode: "Direct",

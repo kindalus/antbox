@@ -155,7 +155,7 @@ repository.add(firstGoupNode);
 repository.add(secondGoupNode);
 repository.add(thirdGoupNode);
 
-const usersGroupsService = (opts: Partial<UsersGroupsContext> = { repository: repository }) =>
+const usersGroupsService = (opts: Partial<UsersGroupsContext> = { repository }) =>
   new UsersGroupsService({
     storage: opts.storage ?? new InMemoryStorageProvider(),
     repository: opts.repository ?? new InMemoryNodeRepository(),

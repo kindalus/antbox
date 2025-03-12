@@ -425,7 +425,7 @@ const authCtx: AuthenticationContext = {
     },
 };
 
-const usersGroupsService = (opts: Partial<UsersGroupsContext> = {repository: repository}) =>
+const usersGroupsService = (opts: Partial<UsersGroupsContext> = { repository}) =>
   new UsersGroupsService({
     storage: opts.storage ?? new InMemoryStorageProvider(),
     repository: opts.repository ?? new InMemoryNodeRepository(),

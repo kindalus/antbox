@@ -118,7 +118,7 @@ const goupNode: GroupNode = GroupNode.create({
 const repository = new InMemoryNodeRepository();
 repository.add(goupNode);
 
-const usersGroupsService = (opts: Partial<UsersGroupsContext> = { repository: repository }) => new UsersGroupsService({
+const usersGroupsService = (opts: Partial<UsersGroupsContext> = { repository }) => new UsersGroupsService({
     storage: opts.storage ?? new InMemoryStorageProvider(),
     repository: opts.repository ?? new InMemoryNodeRepository(),
     bus: opts.bus ?? new InMemoryEventBus(),

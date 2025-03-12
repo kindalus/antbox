@@ -10,12 +10,13 @@ import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import { UserNotFoundError } from "domain/users_groups/user_not_found_error.ts";
 import { Users } from "domain/users_groups/users.ts";
-import { ANONYMOUS_USER, ROOT_USER } from "./builtin_users/index.ts";
+import { ANONYMOUS_USER, builtinUsers, ROOT_USER } from "./builtin_users/index.ts";
 import type { AuthenticationContext } from "./authentication_context.ts";
 import { Groups } from "domain/users_groups/groups.ts";
 import { InvalidCredentialsError } from "./invalid_credentials_error.ts";
 import type { NodeFilters1D } from "domain/nodes/node_filter.ts";
 import { ADMINS_GROUP, builtinGroups } from "./builtin_groups/index.ts";
+import { Folders } from "domain/nodes/folders.ts";
 
 export class UsersGroupsService {
 
@@ -39,8 +40,6 @@ export class UsersGroupsService {
       return left(userOrErr.value);
     }
 
-    const user = userOrErr.value;
-
     if(groups.size > 0) {
       const batch = metadata.groups?.map((group) => this.getGroup(group));
 
@@ -54,12 +53,14 @@ export class UsersGroupsService {
       }
     }
 
-    const voidOrErr = await this.context.repository.add(userOrErr.value);
+    const user = userOrErr.value;
+
+    const voidOrErr = await this.context.repository.add(user);
     if(voidOrErr.isLeft()) {
       return left(voidOrErr.value);
     }
 
-    return right(userOrErr.value);
+    return right(user);
   }
 
   async getUser(ctx: AuthenticationContext, uuid: string): Promise<Either<AntboxError, UserNode>> {
@@ -133,9 +134,7 @@ export class UsersGroupsService {
       return left(new InvalidCredentialsError());
     }
 
-    const node = result.nodes[0];
-
-    return right(node);
+    return right(result.nodes[0]);
   }
 
   async updateUser(
@@ -182,6 +181,18 @@ export class UsersGroupsService {
     }
 
     return right(voidOrErr.value);
+  }
+
+  async listUsers(): Promise<Either<ForbiddenError, UserNode[]>> {
+    const usersOrErr = await this.context.repository.filter([
+      ["mimetype", "==", Nodes.USER_MIMETYPE],
+      ["parent", "==", Folders.USERS_FOLDER_UUID]
+    ], Number.MAX_SAFE_INTEGER);
+
+    const users = usersOrErr.nodes as UserNode[];
+    const sytemUsers = builtinUsers;
+
+    return right([...users, ...sytemUsers].sort((a, b) => a.title.localeCompare(b.title)));
   }
 
   async #hasAdminGroup(ctx: AuthenticationContext): Promise<boolean> {
@@ -281,6 +292,21 @@ export class UsersGroupsService {
     }
 
     return this.context.repository.getById(uuid);
+  }
+
+  async listGroups(): Promise<GroupNode[]> {
+    const groupsOrErr = await this.context.repository.filter(
+      [
+        ["mimetype", "==", Nodes.GROUP_MIMETYPE],
+        ["parent", "==", Folders.GROUPS_FOLDER_UUID]
+      ],
+      Number.MAX_SAFE_INTEGER
+    );
+
+    const groups = groupsOrErr.nodes as GroupNode[];
+    const systemGroups = builtinGroups;
+
+    return [...groups, ...systemGroups].sort((a, b) => a.title.localeCompare(b.title));
   }
 
   // static elevatedContext(tenant?: string): AuthenticationContext {

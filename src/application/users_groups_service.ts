@@ -138,9 +138,65 @@ export class UsersGroupsService {
     return right(node);
   }
 
+  async updateUser(
+    ctx: AuthenticationContext, 
+    uuid: string, 
+    data: Partial<UserNode>): Promise<Either<AntboxError, void>> {
+      if (uuid === Users.ROOT_USER_UUID || uuid === Users.ANONYMOUS_USER_UUID) {
+        return left(new BadRequestError("Cannot update built-in user"));
+      }
+
+      const existingOrErr = await this.getUser(ctx, uuid);
+      if(existingOrErr.isLeft()) {
+        return left(existingOrErr.value);
+      }
+      
+      const user = existingOrErr.value;
+
+      const result = user.update(data);
+      if(result.isLeft()) {
+        return left(result.value);
+      }
+
+      const voidOrErr = await this.context.repository.update(user);
+      if(voidOrErr.isLeft()) {
+        return left(voidOrErr.value);
+      }
+
+      return right(voidOrErr.value);
+  }
+
+  async deleteUser(ctx: AuthenticationContext, uuid: string): Promise<Either<AntboxError, void>> {
+    if (uuid === Users.ROOT_USER_UUID || uuid === Users.ANONYMOUS_USER_UUID) {
+      return left(new BadRequestError("Cannot delete built-in user"));
+    }
+
+    const existingOrErr =  await  this.getUser(ctx, uuid);
+    if(existingOrErr.isLeft()) {
+      return left(existingOrErr.value);
+    }
+
+    const voidOrErr = await this.context.repository.delete(uuid);
+    if(voidOrErr.isLeft()) {
+      return left(voidOrErr.value);
+    }
+
+    return right(voidOrErr.value);
+  }
+
   async #hasAdminGroup(ctx: AuthenticationContext): Promise<boolean> {
     return ctx.principal.groups.includes(Groups.ADMINS_GROUP_UUID);
   }
+
+  async #getUserFromRepository(uuid: string): Promise<Either<NodeNotFoundError, UserNode>> {
+    if(Nodes.isFid(uuid)) {
+      return this.context.repository.getByFid(Nodes.uuidToFid(uuid));
+    }
+
+    return this.context.repository.getById(uuid);
+  }
+
+
 
   async createGroup(groupNode: Partial<GroupNode>): Promise<Either<AntboxError, GroupNode>> {
     const groupOrErr = GroupNode.create(groupNode);
@@ -176,50 +232,6 @@ export class UsersGroupsService {
     return right(group);
   }
 
-  async #getUserFromRepository(uuid: string): Promise<Either<NodeNotFoundError, UserNode>> {
-    if(Nodes.isFid(uuid)) {
-      return this.context.repository.getByFid(Nodes.uuidToFid(uuid));
-    }
-
-    return this.context.repository.getById(uuid);
-  }
-
-  async #getGroupFromRepository(uuid: string): Promise<Either<NodeNotFoundError, GroupNode>> {
-    if(Nodes.isFid(uuid)) {
-      return this.context.repository.getByFid(Nodes.uuidToFid(uuid));
-    }
-
-    return this.context.repository.getById(uuid);
-  }
-
-  async updateUser(
-    ctx: AuthenticationContext, 
-    uuid: string, 
-    data: Partial<UserNode>): Promise<Either<AntboxError, void>> {
-      if (uuid === Users.ROOT_USER_UUID || uuid === Users.ANONYMOUS_USER_UUID) {
-        return left(new BadRequestError("Cannot update built-in user"));
-      }
-
-      const existingOrErr = await this.getUser(ctx, uuid);
-      if(existingOrErr.isLeft()) {
-        return left(existingOrErr.value);
-      }
-      
-      const user = existingOrErr.value;
-
-      const result = user.update(data);
-      if(result.isLeft()) {
-        return left(result.value);
-      }
-
-      const voidOrErr = await this.context.repository.update(user);
-      if(voidOrErr.isLeft()) {
-        return left(voidOrErr.value);
-      }
-
-      return right(voidOrErr.value);
-  }
-
   async updateGroup(uuid: string, data: Partial<GroupNode>): Promise<Either<AntboxError, void>> {
     if (builtinGroups.find((group) => group.uuid === uuid)) {
       return left(new BadRequestError("Cannot update built-in group"));
@@ -243,6 +255,32 @@ export class UsersGroupsService {
     }
 
     return right(result.value);
+  }
+
+  async deleteGroup(uuid: string): Promise<Either<AntboxError, void>> {
+    if (uuid === Groups.ADMINS_GROUP_UUID) {
+      return left(new BadRequestError("Cannot delete admins group"));
+    }
+
+    const existingOrErr = await this.getGroup(uuid);
+    if(existingOrErr.isLeft()) {
+      return left(existingOrErr.value);
+    }
+
+    const voidOrErr = await this.context.repository.delete(uuid);
+    if(voidOrErr.isLeft()) {
+      return left(voidOrErr.value);
+    }
+
+    return right(voidOrErr.value);
+  }
+
+  async #getGroupFromRepository(uuid: string): Promise<Either<NodeNotFoundError, GroupNode>> {
+    if(Nodes.isFid(uuid)) {
+      return this.context.repository.getByFid(Nodes.uuidToFid(uuid));
+    }
+
+    return this.context.repository.getById(uuid);
   }
 
   // static elevatedContext(tenant?: string): AuthenticationContext {

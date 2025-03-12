@@ -1,4 +1,4 @@
-import { describe, test, expect } from "bun:test"
+import { describe, test, expect } from "bun:test";
 import type { UsersGroupsContext } from "./users_groups_service_context";
 import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus";
 import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository";
@@ -91,19 +91,19 @@ describe("UsersGroupsService.updatedGroup", () => {
     test("should update the group", async () => {
         const service = usersGroupsService();
 
-        const createGroupOrErr = await service.createGroup({
+        const createdGroupOrErr = await service.createGroup({
             uuid: "--title--",
             title: "The title",
             owner: Users.ROOT_USER_EMAIL,
         });
 
-        const voidOrErr = await service.updateGroup(createGroupOrErr.right.uuid, {
+        const voidOrErr = await service.updateGroup(createdGroupOrErr.right.uuid, {
             title: "Updated title"
         });
 
         expect(voidOrErr.isRight()).toBeTruthy();
 
-        const updatedGroupOrErr = await service.getGroup(createGroupOrErr.right.uuid);
+        const updatedGroupOrErr = await service.getGroup(createdGroupOrErr.right.uuid);
         expect(updatedGroupOrErr.isRight(), errToMsg(updatedGroupOrErr.value)).toBeTruthy();
         expect(updatedGroupOrErr.right.title).toBe("Updated title");
     });

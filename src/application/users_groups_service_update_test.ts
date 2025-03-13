@@ -87,7 +87,42 @@ describe("UsersGroupsService.updateUser", () => {
     });
 });
 
-describe("UsersGroupsService.updatedGroup", () => {
+describe("UsersGroupsService.changePassword", () => {
+    test("should change user password", async () => {
+        const service = usersGroupsService();
+
+        const createdUserOrErr = await service.createUser(authCtx, {
+            title: "The title",
+            owner: "root@gmail.com",
+            uuid: "care-uuid",
+            email: "care@gmail.com",
+            secret: "care-secret",
+            groups: ["--users--"]
+        });
+        const sha =  await UserNode.shaSum("care@gmail.com", "the-new-password");
+
+        const voidOrErr = await service.changePassword(authCtx, createdUserOrErr.right.uuid, "the-new-password");
+        await timeout(5)
+
+        expect(voidOrErr.isRight(), errToMsg(voidOrErr.value)).toBeTruthy();
+        
+        const updatedUserOrErr = await service.getUser(authCtx, createdUserOrErr.right.uuid);
+        expect(updatedUserOrErr.isRight(), errToMsg(updatedUserOrErr.value)).toBeTruthy();
+        expect(updatedUserOrErr.right.uuid).toBe(createdUserOrErr.right.uuid);
+        expect(updatedUserOrErr.right.secret).toBe(sha);
+    });
+
+    test("should return error if user not found", async () => {
+        const service = usersGroupsService();
+
+        const voidOrErr = await service.changePassword(authCtx, "any-user-uuid", "the-new-password");
+
+        expect(voidOrErr.isLeft(), errToMsg(voidOrErr.value)).toBeTruthy();
+        expect(voidOrErr.value).toBeInstanceOf(UserNotFoundError);
+    });
+});
+
+describe("UsersGroupsService.updateGroup", () => {
     test("should update the group", async () => {
         const service = usersGroupsService();
 
@@ -111,6 +146,14 @@ describe("UsersGroupsService.updatedGroup", () => {
     test("should return error if group not found", async () => {
         const service = usersGroupsService();
 
+        await service.createUser(authCtx, {
+            title: "The title",
+            owner: "root@gmail.com",
+            uuid: "doily-uuid",
+            email: "doily@gmail.com",
+            groups: ["--users--"]
+        });
+
         const voidOrErr = await service.updateGroup("doily-uuid", { title: "The title" });
 
         expect(voidOrErr.isLeft()).toBeTruthy();
@@ -127,6 +170,7 @@ describe("UsersGroupsService.updatedGroup", () => {
     });
 });
 
+
 const authCtx: AuthenticationContext = {
     mode: "Direct",
     tenant: "default",
@@ -142,17 +186,8 @@ const goupNode: GroupNode = GroupNode.create({
     owner: Users.ROOT_USER_EMAIL,
 }).right;
 
-const userNode: UserNode = UserNode.create({
-    title: "The title",
-    owner: "root@gmail.com",
-    uuid: "doily-uuid",
-    email: "doily@gmail.com",
-    group: "--users--"
-}).right;
-
 const repository = new InMemoryNodeRepository();
 repository.add(goupNode);
-repository.add(userNode);
 
 const usersGroupsService = (opts: Partial<UsersGroupsContext> = {repository: repository}) =>
   new UsersGroupsService({
@@ -160,5 +195,7 @@ const usersGroupsService = (opts: Partial<UsersGroupsContext> = {repository: rep
     repository: opts.repository ?? new InMemoryNodeRepository(),
     bus: opts.bus ?? new InMemoryEventBus(),
 });
+
+const timeout = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const errToMsg = (err: any) => (err?.message ? err.message : JSON.stringify(err))

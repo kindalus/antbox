@@ -82,7 +82,7 @@ export class Nodes {
     return node.mimetype === Nodes.GROUP_MIMETYPE;
   }
 
-  static isWebContent(node: NodeLike): node is ArticleNode {
+  static isArticle(node: NodeLike): node is ArticleNode {
     return node.mimetype === Nodes.ARTICLE_MIMETYPE;
   }
 

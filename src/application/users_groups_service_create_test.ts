@@ -16,7 +16,7 @@ import { Groups } from "domain/users_groups/groups"
 import { UserNode } from "domain/users_groups/user_node"
 
 describe("UsersGroupsService.createUser", () => {
-  test("should create user and persist the metadata", async () => {
+  test("should create the user", async () => {
     const service = usersGroupsService();
 
     await service.createUser(authCtx, {

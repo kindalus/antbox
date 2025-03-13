@@ -120,7 +120,7 @@ describe("UsersGroupsService.getUser", () => {
         expect(userOrErr.right.owner).toBe("root@gmail.com");
     });
 
-    test("should return user if autenticated user has admin", async () => {
+    test("should return user if autenticated user is an admin", async () => {
         const service = usersGroupsService();
 
         const authCtx: AuthenticationContext = {
@@ -261,7 +261,7 @@ describe("UsersGroupsService.getUserByEmail", () => {
         expect(userOrErr.right.group).toBe(Groups.ANONYMOUS_GROUP_UUID);
     });
 
-    test("should return user if autenticated user has admin", async () => {
+    test("should return user if autenticated user is an admin", async () => {
         const service = usersGroupsService();
 
         const authCtx: AuthenticationContext = {
@@ -297,7 +297,7 @@ describe("UsersGroupsService.getUserByEmail", () => {
     });
 });
 
-describe("UsersGroupsService.getByCredentials", () => {
+describe("UsersGroupsService.getUserByCredentials", () => {
     test("should return user from repository", async () => {
         const service = usersGroupsService();
 

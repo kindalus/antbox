@@ -4,9 +4,6 @@ import { UsersGroupsService } from "./users_groups_service";
 import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus";
 import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository";
 import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider";
-import { UserNode } from "domain/users_groups/user_node";
-import { GroupNode } from "domain/users_groups/group_node";
-import { Users } from "domain/users_groups/users";
 
 describe("UsersGroupsService.listUsers", () => {
     test("should list the users", async () => {

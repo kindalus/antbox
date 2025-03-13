@@ -4,7 +4,6 @@ import type { UsersGroupsContext } from "./users_groups_service_context";
 import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider";
 import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository";
 import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus";
-import { servicesVersion } from "typescript";
 import type { AuthenticationContext } from "./authentication_context";
 import { Groups } from "domain/users_groups/groups";
 import { UserNotFoundError } from "domain/users_groups/user_not_found_error";

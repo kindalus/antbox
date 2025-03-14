@@ -1,5 +1,5 @@
 import { type AuthenticationContext } from "application/authentication_context.ts";
-import { Users } from "domain/auth/users.ts";
+import { Users } from "domain/users_groups/users";
 
 export function getAuthenticationContext(req: Request): AuthenticationContext {
   const principalHeader = req.headers.get("X-Principal");

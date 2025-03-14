@@ -1,11 +1,11 @@
 import { ApiKeyService } from "application/api_key_service.ts";
-import { AuthService } from "application/auth_service.ts";
+import { UsersGroupsService } from "application/users_groups_service.ts";
 import type {
   AuthenticationContext,
   Principal,
 } from "application/authentication_context.ts";
-import { Groups } from "domain/auth/groups.ts";
-import { Users } from "domain/auth/users.ts";
+import { Groups } from "domain/users_groups/groups.ts";
+import { Users } from "domain/users_groups/users.ts";
 import { type Either, right, left } from "shared/either.ts";
 import type { AntboxTenant } from "./antbox_tenant.ts";
 import { getQuery } from "./get_query.ts";
@@ -20,7 +20,7 @@ export function authenticationMiddleware(
   return (next: HttpHandler) => {
     const jwks = new Map<string, KeyLike | Uint8Array>();
     const secrets = new Map<string, Uint8Array>();
-    const authServices = new Map<string, AuthService>();
+    const authServices = new Map<string, UsersGroupsService>();
     const apiKeysServices = new Map<string, ApiKeyService>();
 
     tenants.forEach(async (tenant) => {
@@ -126,7 +126,7 @@ async function authenticateApiKey(
 
 async function authenticateToken(
   jwk: KeyLike | Uint8Array,
-  authService: AuthService,
+  authService: UsersGroupsService,
   req: Request,
   token: string,
 ) {

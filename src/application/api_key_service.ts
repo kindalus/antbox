@@ -5,7 +5,7 @@ import { Nodes } from "domain/nodes/nodes.ts";
 import { UuidGenerator } from "shared/uuid_generator.ts";
 import { AntboxError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
-import { AuthService } from "./auth_service.ts";
+import { UsersGroupsService } from "./users_groups_service.ts";
 import { type AuthenticationContext } from "./authentication_context.ts";
 import { builtinGroups } from "./builtin_groups/mod.ts";
 import { NodeService } from "./node_service.ts";
@@ -45,7 +45,7 @@ export class ApiKeyService {
 
   async get(uuid: string): Promise<Either<AntboxError, ApiKeyNode>> {
     const nodeOrErr = await this.#nodeService.get(
-      AuthService.elevatedContext(),
+      UsersGroupsService.elevatedContext(),
       uuid,
     );
 
@@ -62,7 +62,7 @@ export class ApiKeyService {
 
   async getBySecret(secret: string): Promise<Either<AntboxError, ApiKeyNode>> {
     const nodeOrErr = await this.#nodeService.find(
-      AuthService.elevatedContext(),
+      UsersGroupsService.elevatedContext(),
       [
         ["secret", "==", secret],
         ["mimetype", "==", Nodes.API_KEY_MIMETYPE],

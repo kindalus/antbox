@@ -1,8 +1,8 @@
 import type { FolderNode } from "domain/nodes/folder_node";
 import type { Permission } from "domain/nodes/node";
 import type { AuthenticationContext } from "./authentication_context";
-import { Groups } from "domain/auth/groups";
-import { Users } from "domain/auth/users";
+import { Groups } from "domain/users_groups/groups";
+import { Users } from "domain/users_groups/users";
 
 export function isPrincipalAllowedTo(
   ctx: AuthenticationContext,

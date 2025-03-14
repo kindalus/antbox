@@ -6,7 +6,7 @@ import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import { AntboxError, BadRequestError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
-import { AuthService } from "./auth_service.ts";
+import { UsersGroupsService } from "./users_groups_service.ts";
 import type { AuthenticationContext } from "./authentication_context.ts";
 import { builtinAspects } from "./builtin_aspects/mod.ts";
 
@@ -54,7 +54,7 @@ export class AspectService {
     }
 
     const nodeOrErr = await this.nodeService.get(
-      AuthService.elevatedContext(),
+      UsersGroupsService.elevatedContext(),
       uuid,
     );
 
@@ -71,7 +71,7 @@ export class AspectService {
 
   async list(): Promise<AspectNode[]> {
     const nodesOrErrs = await this.nodeService.find(
-      AuthService.elevatedContext(),
+      UsersGroupsService.elevatedContext(),
       [
         ["mimetype", "==", Nodes.ASPECT_MIMETYPE],
         ["parent", "==", Folders.ASPECTS_FOLDER_UUID],

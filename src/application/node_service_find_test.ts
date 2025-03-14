@@ -1,6 +1,6 @@
 import { describe, test, expect, beforeAll } from "bun:test";
-import { Users } from "domain/auth/users";
-import { Groups } from "domain/auth/groups";
+import { Users } from "domain/users_groups/users";
+import { Groups } from "domain/users_groups/groups";
 import { Folders } from "domain/nodes/folders";
 import { Nodes } from "domain/nodes/nodes";
 import { ForbiddenError } from "shared/antbox_error";

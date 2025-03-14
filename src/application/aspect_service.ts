@@ -1,5 +1,3 @@
-import { aspectToNode, nodeToAspect } from "domain/aspects/aspect.ts";
-import { AspectNode } from "domain/aspects/aspect_node.ts";
 import { AspectNotFoundError } from "domain/aspects/aspect_not_found_error.ts";
 import { Folders } from "domain/nodes/folders.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
@@ -11,14 +9,16 @@ import type { AuthenticationContext } from "./authentication_context.ts";
 import { builtinAspects } from "./builtin_aspects/mod.ts";
 
 import { NodeService } from "./node_service.ts";
+import { type AspectDTO, nodeToAspect } from "./aspect_dto.ts";
+import { AspectNode } from "domain/aspects/aspect_node.ts";
 
 export class AspectService {
   constructor(private readonly nodeService: NodeService) {}
 
   async createOrReplace(
     ctx: AuthenticationContext,
-    metadata: Partial<AspectNode>,
-  ): Promise<Either<AntboxError, AspectNode>> {
+    metadata: AspectDTO,
+  ): Promise<Either<AntboxError, AspectDTO>> {
     if (!metadata.uuid) {
       return left(new BadRequestError("Aspect UUID is required"));
     }
@@ -33,30 +33,24 @@ export class AspectService {
       return AspectNode.create(metadata);
     }
 
-    const voidOrErr = await this.nodeService.update(
-      ctx,
-      metadata.uuid,
-      metadata,
-    );
+    const voidOrErr = await this.nodeService.update(ctx, metadata.uuid, metadata);
     if (voidOrErr.isLeft()) {
       return left(voidOrErr.value);
     }
 
-    return this.nodeService.get(ctx, metadata.uuid) as Promise<
-      Either<AntboxError, AspectNode>
-    >;
+    return this.get(ctx, metadata.uuid);
   }
 
-  async get(uuid: string): Promise<Either<NodeNotFoundError, AspectNode>> {
+  async get(
+    ctx: AuthenticationContext,
+    uuid: string,
+  ): Promise<Either<NodeNotFoundError, AspectDTO>> {
     const builtin = builtinAspects.find((aspect) => aspect.uuid === uuid);
     if (builtin) {
-      return right(aspectToNode(builtin));
+      return right(builtin);
     }
 
-    const nodeOrErr = await this.nodeService.get(
-      AuthService.elevatedContext(),
-      uuid,
-    );
+    const nodeOrErr = await this.nodeService.get(AuthService.elevatedContext(), uuid);
 
     if (nodeOrErr.isLeft()) {
       return left(nodeOrErr.value);
@@ -66,10 +60,10 @@ export class AspectService {
       return left(new AspectNotFoundError(uuid));
     }
 
-    return right(nodeOrErr.value);
+    return right(nodeToAspect(nodeOrErr.value));
   }
 
-  async list(): Promise<AspectNode[]> {
+  async list(): Promise<AspectDTO[]> {
     const nodesOrErrs = await this.nodeService.find(
       AuthService.elevatedContext(),
       [
@@ -83,18 +77,11 @@ export class AspectService {
       return [];
     }
 
-    const usersAspects = nodesOrErrs.value.nodes as AspectNode[];
-    const systemAspects = builtinAspects.map(aspectToNode);
-
-    return [...usersAspects, ...systemAspects].sort((a, b) =>
-      a.title.localeCompare(b.title),
-    );
+    const usersAspects = nodesOrErrs.value.nodes.map(nodeToAspect);
+    return [...usersAspects, ...builtinAspects].sort((a, b) => a.title.localeCompare(b.title));
   }
 
-  async delete(
-    ctx: AuthenticationContext,
-    uuid: string,
-  ): Promise<Either<AntboxError, void>> {
+  async delete(ctx: AuthenticationContext, uuid: string): Promise<Either<AntboxError, void>> {
     const nodeOrErr = await this.nodeService.get(ctx, uuid);
 
     if (nodeOrErr.isLeft()) {
@@ -109,24 +96,23 @@ export class AspectService {
   }
 
   async export(
+    ctx: AuthenticationContext,
     node: string | AspectNode,
   ): Promise<Either<NodeNotFoundError, File>> {
     let aspect = typeof node !== "string" ? nodeToAspect(node) : undefined;
 
     if (typeof node === "string") {
-      const nodeOrErr = await this.get(node);
-      if (nodeOrErr.isLeft()) {
-        return left(nodeOrErr.value);
+      const aspectOrErr = await this.get(ctx, node);
+      if (aspectOrErr.isLeft()) {
+        return left(aspectOrErr.value);
       }
 
-      aspect = nodeToAspect(nodeOrErr.value);
+      aspect = aspectOrErr.value;
     }
 
-    const file = new File(
-      [JSON.stringify(aspect, null, 2)],
-      `${aspect?.uuid}.json`,
-      { type: "application/json" },
-    );
+    const file = new File([JSON.stringify(aspect, null, 2)], `${aspect?.uuid}.json`, {
+      type: "application/json",
+    });
 
     return right(file);
   }

@@ -101,4 +101,16 @@ export class Nodes {
   static isFileLike(node: NodeLike): node is FileNode | ExtNode | ActionNode {
     return Nodes.isFile(node) || Nodes.isExt(node) || Nodes.isAction(node);
   }
+
+  static isTxt(file: File) {
+    return file.type.startsWith("text/plain");
+  }
+
+  static isHtml(file: File) {
+    return file.type.startsWith("text/html");
+  }
+
+  static isMarkdown(file: File) {
+    return file.type.startsWith("text/markdown");
+  }
 }

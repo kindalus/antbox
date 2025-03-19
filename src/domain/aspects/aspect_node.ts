@@ -30,6 +30,18 @@ export class AspectNode extends Node {
     this.filters = metadata.filters ?? [];
     this.properties = (metadata.properties as AspectProperty[]) ?? [];
   }
+
+  update(metadata: Partial<NodeMetadata>): Either<ValidationError, void> {
+    if (metadata.filters) {
+      this.filters = metadata.filters;
+    }
+
+    if (metadata.properties) {
+      this.properties = metadata.properties;
+    }
+
+    return super.update(metadata);
+  }
 }
 
 export interface AspectProperty {

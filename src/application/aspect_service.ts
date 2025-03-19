@@ -23,21 +23,49 @@ export class AspectService {
     }
 
     const nodeOrErr = await this.nodeService.get(ctx, metadata.uuid);
-
     if (nodeOrErr.isRight() && !Nodes.isAspect(nodeOrErr.value)) {
       return left(new BadRequestError("Node exists and is not an aspect"));
     }
 
     if (nodeOrErr.isLeft()) {
-      return AspectNode.create(metadata);
+      return this.#create(ctx, metadata);
     }
 
-    const voidOrErr = await this.nodeService.update(ctx, metadata.uuid, metadata);
-    if (voidOrErr.isLeft()) {
-      return left(voidOrErr.value);
+    return this.#update(ctx, metadata.uuid, metadata);
+  }
+
+  async #create(
+    ctx: AuthenticationContext,
+    metadata: AspectDTO,
+  ): Promise<Either<AntboxError, AspectDTO>> {
+    const nodeOrErr = await this.nodeService.create(ctx, {
+      ...metadata,
+      mimetype: Nodes.ASPECT_MIMETYPE,
+    });
+
+    if (nodeOrErr.isLeft()) {
+      return left(nodeOrErr.value);
     }
 
-    return this.get(ctx, metadata.uuid);
+    return right(nodeToAspect(nodeOrErr.value as AspectNode));
+  }
+
+  async #update(
+    ctx: AuthenticationContext,
+    uuid: string,
+    metadata: AspectDTO,
+  ): Promise<Either<AntboxError, AspectDTO>> {
+    const nodeOrErr = await this.nodeService.update(ctx, uuid, metadata);
+    if (nodeOrErr.isLeft()) {
+      return left(nodeOrErr.value);
+    }
+
+    const aspectOrErr = await this.get(ctx, uuid);
+    if (aspectOrErr.isLeft()) {
+      return left(aspectOrErr.value);
+    }
+
+    return right(aspectOrErr.value);
   }
 
   async get(
@@ -50,6 +78,10 @@ export class AspectService {
     }
 
     const nodeOrErr = await this.nodeService.get(ctx, uuid);
+
+    if (nodeOrErr.isLeft() && nodeOrErr.value instanceof NodeNotFoundError) {
+      return left(new AspectNotFoundError(uuid));
+    }
 
     if (nodeOrErr.isLeft()) {
       return left(nodeOrErr.value);
@@ -81,14 +113,10 @@ export class AspectService {
   }
 
   async delete(ctx: AuthenticationContext, uuid: string): Promise<Either<AntboxError, void>> {
-    const nodeOrErr = await this.nodeService.get(ctx, uuid);
+    const nodeOrErr = await this.get(ctx, uuid);
 
     if (nodeOrErr.isLeft()) {
       return left(nodeOrErr.value);
-    }
-
-    if (!Nodes.isAspect(nodeOrErr.value)) {
-      return left(new AspectNotFoundError(uuid));
     }
 
     return this.nodeService.delete(ctx, uuid);

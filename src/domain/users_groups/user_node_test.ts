@@ -8,6 +8,7 @@ import { InvalidFullNameFormatError } from "./invalid_fullname_format_error.ts";
 import { InvalidPasswordFormatError } from "./invalid_password_format_error.ts";
 import { UserGroupRequiredError } from "./user_group_required_error.ts";
 import { UserNode } from "./user_node.ts";
+import { InvalidUsernameFormatError } from "./invalid_username_format_error.ts";
 
 const timeout = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -44,7 +45,7 @@ test("UserNode.create should throw error if secret has not the correct format", 
   );
 });
 
-test("UserNode.create should throw error if group is empty", async () => {
+test("UserNode.create should throw error if group is missing", async () => {
   const createResult = UserNode.create({
     owner: "root@antbox.io",
     email: "user@domain.com",
@@ -60,7 +61,7 @@ test("UserNode.create should throw error if group is empty", async () => {
   expect((createResult.value as ValidationError).errors[0]).toBeInstanceOf(UserGroupRequiredError);
 });
 
-test("UserNode.create should throw error if owner is missing", () => {
+test("UserNode.create should throw error if owner is missing", async () => {
   const createResult = UserNode.create({
     owner: "",
     email: "user@domain.com",
@@ -68,6 +69,8 @@ test("UserNode.create should throw error if owner is missing", () => {
     secret: "secret-password",
     group: "users",
   });
+
+  await timeout(5);
 
   expect(createResult.isLeft()).toBe(true);
   expect(createResult.value).toBeInstanceOf(ValidationError);
@@ -148,23 +151,7 @@ test("UserNode.update should modify secret and create a new hash", async () => {
   expect(user.secret).toBe(sha);
 });
 
-test("UserNode.update should throw error if new email is invalid", () => {
-  const createResult = UserNode.create({
-    owner: "root@antbox.io",
-    email: "user@domain.com",
-    title: "Example user",
-    secret: "secret-password",
-    group: "users",
-  });
-
-  const updateResult = createResult.right.update({ email: "example.com" });
-
-  expect(updateResult.isLeft()).toBe(true);
-  expect(updateResult.value).toBeInstanceOf(ValidationError);
-  expect((updateResult.value as ValidationError).errors[0]).toBeInstanceOf(EmailFormatError);
-});
-
-test("UserNode.update should modify group, groups, title, description", async () => {
+test("UserNode.update should modify group, groups, title and description", async () => {
   const createResult = UserNode.create({
     owner: "root@antbox.io",
     email: "user@domain.com",
@@ -190,7 +177,7 @@ test("UserNode.update should modify group, groups, title, description", async ()
   expect(user.groups).toStrictEqual([]);
 });
 
-test("UserNode.update should not modify parent ", async () => {
+test("UserNode.update should not modify parent", async () => {
   const createResult = UserNode.create({
     owner: "root@antbox.io",
     email: "user@domain.com",
@@ -206,7 +193,7 @@ test("UserNode.update should not modify parent ", async () => {
   expect(createResult.right.parent).toBe(Folders.USERS_FOLDER_UUID);
 });
 
-test("UserNode.update should not modify mimetype ", async () => {
+test("UserNode.update should not modify mimetype", async () => {
   const createResult = UserNode.create({
     owner: "root@antbox.io",
     email: "user@domain.com",
@@ -221,4 +208,21 @@ test("UserNode.update should not modify mimetype ", async () => {
 
   expect(updateResult.isRight()).toBe(true);
   expect(user.mimetype).toBe(Nodes.USER_MIMETYPE);
+});
+
+test("UserNode.update should not modify email", async () => {
+  const createResult = UserNode.create({
+    owner: "root@antbox.io",
+    email: "user@domain.com",
+    title: "Example User",
+    secret: "secret-password",
+    group: "users",
+  });
+  const user = createResult.right;
+
+  await timeout(5);
+  const updateResult = user.update({ email: "johndoe@gmail.com" });
+
+  expect(updateResult.isRight()).toBe(true);
+  expect(user.email).toBe("user@domain.com");
 });

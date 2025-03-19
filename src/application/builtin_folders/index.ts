@@ -1,5 +1,5 @@
-import { Groups } from "domain/auth/groups.ts";
-import { Users } from "domain/auth/users.ts";
+import { Groups } from "domain/users_groups/groups";
+import { Users } from "domain/users_groups/users";
 import { FolderNode } from "domain/nodes/folder_node.ts";
 import { Folders } from "domain/nodes/folders.ts";
 import type { NodeFilter } from "domain/nodes/node_filter.ts";

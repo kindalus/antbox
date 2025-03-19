@@ -9,9 +9,7 @@ import { Folders } from "domain/nodes/folders";
 import { BadRequestError } from "shared/antbox_error";
 import { ADMINS_GROUP } from "./builtin_groups";
 import { Nodes } from "domain/nodes/nodes";
-import { Groups } from "domain/auth/groups";
 import type { Permissions } from "domain/nodes/node";
-
 import { ValidationError } from "shared/validation_error";
 import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus";
 import type { NodeServiceContext } from "./node_service_context";
@@ -371,6 +369,7 @@ describe("NodeService.copy", () => {
     expect(copiedFileOrErr.right.size).toBe(dummyFile.size);
   });
 });
+
 const authCtx: AuthenticationContext = {
   mode: "Direct",
   tenant: "",

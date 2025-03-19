@@ -5,9 +5,9 @@ import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider";
 import { FileNode } from "domain/nodes/file_node";
 import { NodeService } from "./node_service";
 import type { AuthenticationContext } from "./authentication_context";
-import { Groups } from "domain/auth/groups";
+import { Groups } from "domain/users_groups/groups";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error";
-import { Users } from "domain/auth/users";
+import { Users } from "domain/users_groups/users";
 import { BadRequestError, ForbiddenError } from "shared/antbox_error";
 import { FolderNode } from "domain/nodes/folder_node";
 import { Folders } from "domain/nodes/folders";
@@ -61,7 +61,7 @@ describe("NodeService.get", () => {
     expect(nodeOrErr.value).toBeInstanceOf(NodeNotFoundError);
   });
 
-  test("should return a error if user doen't have 'Read' permission on parent", async () => {
+  test("should return an error if user doesn't have 'Read' permission on parent", async () => {
     const parent = FolderNode.create({
       uuid: "parent",
       title: "title",

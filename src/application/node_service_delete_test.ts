@@ -4,7 +4,7 @@ import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository";
 import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error";
 import type { AuthenticationContext } from "./authentication_context";
-import { Groups } from "domain/auth/groups";
+import { Groups } from "domain/users_groups/groups";
 import { ForbiddenError } from "shared/antbox_error";
 import type { NodeServiceContext } from "./node_service_context";
 import { Folders } from "domain/nodes/folders";

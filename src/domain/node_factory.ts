@@ -4,7 +4,7 @@ import { ActionNode } from "./actions/action_node";
 import { ApiKeyNode } from "./api_keys/api_key_node";
 import { ArticleNode } from "./articles/article_node.ts";
 import { AspectNode } from "./aspects/aspect_node";
-import { GroupNode } from "./auth/group_node";
+import { GroupNode } from "./users_groups/group_node.ts";
 import { ExtNode } from "./exts/ext_node.ts";
 import { FileNode } from "./nodes/file_node";
 import { FolderNode } from "./nodes/folder_node";

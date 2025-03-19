@@ -4,7 +4,6 @@ import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import { AntboxError, BadRequestError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
-import { AuthService } from "./auth_service.ts";
 import type { AuthenticationContext } from "./authentication_context.ts";
 import { builtinAspects } from "./builtin_aspects/mod.ts";
 
@@ -50,7 +49,7 @@ export class AspectService {
       return right(builtin);
     }
 
-    const nodeOrErr = await this.nodeService.get(AuthService.elevatedContext(), uuid);
+    const nodeOrErr = await this.nodeService.get(ctx, uuid);
 
     if (nodeOrErr.isLeft()) {
       return left(nodeOrErr.value);
@@ -63,9 +62,9 @@ export class AspectService {
     return right(nodeToAspect(nodeOrErr.value));
   }
 
-  async list(): Promise<AspectDTO[]> {
+  async list(ctx: AuthenticationContext): Promise<AspectDTO[]> {
     const nodesOrErrs = await this.nodeService.find(
-      AuthService.elevatedContext(),
+      ctx,
       [
         ["mimetype", "==", Nodes.ASPECT_MIMETYPE],
         ["parent", "==", Folders.ASPECTS_FOLDER_UUID],

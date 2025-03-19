@@ -22,11 +22,7 @@ export class AspectService {
       return left(new BadRequestError("Aspect UUID is required"));
     }
 
-    const nodeOrErr = await this.nodeService.get(ctx, metadata.uuid);
-    if (nodeOrErr.isRight() && !Nodes.isAspect(nodeOrErr.value)) {
-      return left(new BadRequestError("Node exists and is not an aspect"));
-    }
-
+    const nodeOrErr = await this.get(ctx, metadata.uuid);
     if (nodeOrErr.isLeft()) {
       return this.#create(ctx, metadata);
     }
@@ -122,24 +118,19 @@ export class AspectService {
     return this.nodeService.delete(ctx, uuid);
   }
 
-  async export(
-    ctx: AuthenticationContext,
-    node: string | AspectNode,
-  ): Promise<Either<NodeNotFoundError, File>> {
-    let aspect = typeof node !== "string" ? nodeToAspect(node) : undefined;
-
-    if (typeof node === "string") {
-      const aspectOrErr = await this.get(ctx, node);
-      if (aspectOrErr.isLeft()) {
-        return left(aspectOrErr.value);
-      }
-
-      aspect = aspectOrErr.value;
+  async export(ctx: AuthenticationContext, uuid: string): Promise<Either<NodeNotFoundError, File>> {
+    const aspectOrErr = await this.get(ctx, uuid);
+    if (aspectOrErr.isLeft()) {
+      return left(aspectOrErr.value);
     }
 
-    const file = new File([JSON.stringify(aspect, null, 2)], `${aspect?.uuid}.json`, {
-      type: "application/json",
-    });
+    const file = new File(
+      [JSON.stringify(aspectOrErr.value, null, 2)],
+      `${aspectOrErr.value?.uuid}.json`,
+      {
+        type: "application/json",
+      },
+    );
 
     return right(file);
   }

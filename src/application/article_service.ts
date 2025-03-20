@@ -1,160 +1,229 @@
-import { ArticleNode } from "domain/articles/article_node.ts";
-import type { ArticleServiceContext } from "./article_service_context.ts";
+import { BadRequestError, UnknownError, type AntboxError } from "shared/antbox_error.ts";
 import { left, right, type Either } from "shared/either.ts";
-import { ForbiddenError, type AntboxError } from "shared/antbox_error.ts";
-import { ArticleExistsError } from "domain/articles/article_exists_error.ts";
-import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
+import type { AuthenticationContext } from "./authentication_context.ts";
+import type { NodeService } from "./node_service.ts";
+import { ArticleNode } from "domain/articles/article_node.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
+import type { ArticleServiceContext } from "./article_service_context.ts";
+import { parse } from "marked";
 import { ArticleNotFound } from "domain/articles/article_not_found_error.ts";
-import { InvalidArticleMimetypeError } from "domain/articles/invalid_article_mimetype_error.ts";
+export interface ArticleDTO {
+  uuid: string;
+  title: string;
+  description?: string;
+  size?: number;
+  parent: string;
+  content?: string;
+}
 
+export function nodeToArticle(
+  article: ArticleNode, 
+  content?: string,
+): ArticleDTO {
+  return {
+    uuid: article.uuid,
+    title: article.title,
+    description: article.description,
+    size: article.size as number,
+    parent: article.parent,
+    content: content,
+  }
+}
+
+export function articleToNode(article: ArticleDTO): ArticleNode {
+  return ArticleNode.create({
+    uuid: article.uuid,
+    title: article.title,
+    description: article.description,
+    size: article.size,
+    parent: article.parent,
+  }).right;
+}
 export class ArticleService {
 
-  constructor(private readonly context: ArticleServiceContext) {}
+  constructor(
+    private readonly context: ArticleServiceContext,
+    private readonly nodeService: NodeService
+  ) {}
 
-  async create(file: File, metadata: Partial<ArticleNode>): Promise<Either<AntboxError, ArticleNode>> {
-    if (!(Nodes.isHtml(file) || Nodes.isMarkdown(file) || Nodes.isTxt(file))) {
-      return left(new InvalidArticleMimetypeError(file.type));
+  async createOrReplace(
+    ctx: AuthenticationContext, 
+    file: File,
+    metadata: ArticleDTO
+  ): Promise<Either<AntboxError, ArticleDTO>> {
+    if(file.type !== Nodes.ARTICLE_MIMETYPE) {
+      return left(new BadRequestError(`Invalid file mimetype: : ${file.type}`))
     }
 
-    const existingOrErr = await this.get(metadata.uuid!);
-    if(existingOrErr.isRight()) {
-      return left(new ArticleExistsError(metadata.uuid!));
+    if (!metadata.uuid) {
+      return left(new BadRequestError("Article UUID is required"));
+    }
+
+    const articleOrErr = await this.get(ctx, metadata.uuid);
+    if(articleOrErr.isLeft()) {
+      return await this.#create(ctx, file, metadata);
+    }
+
+    return await this.#update(ctx, file, metadata);
+  }
+
+  async get(
+    ctx: AuthenticationContext,
+    uuid: string
+  ): Promise<Either<AntboxError, ArticleDTO>> {
+    const nodeOrErr = await this.nodeService.get(ctx, uuid);
+    if(nodeOrErr.isLeft()) {
+      return left(nodeOrErr.value);
+    }
+
+    const node = nodeOrErr.value as ArticleNode;
+
+    const contentTextOrErr = await this.#getArticleContentText(ctx, uuid);
+    if(contentTextOrErr.isLeft()) {
+      return left(contentTextOrErr.value);
+    }
+
+    const contentText = contentTextOrErr.value;
+
+    if(Nodes.isMarkdown(node)) {
+      const htmlOrErr = await this.#markdownToHtml(contentText);
+      if(htmlOrErr.isLeft()) {
+        return left(htmlOrErr.value);
+      }
+
+      return right(nodeToArticle(node, htmlOrErr.value));
+    }
+
+    if(Nodes.isHtml(node)) {
+      return right(nodeToArticle(node, contentText));
+    }
+
+    if(Nodes.isTextPlain(node)) {
+      const htmlOrErr = this.#textPlainToHtml(contentText);
+      if(htmlOrErr.isLeft()) {
+        return left(htmlOrErr.value);
+      }
+
+      return right(nodeToArticle(node, htmlOrErr.value));
+    }
+
+    if(!Nodes.isArticle(node)) {
+      return left(new ArticleNotFound(uuid));
+    }
+
+    return right(nodeToArticle(node, contentText));
+  }
+
+  async #create(
+    ctx: AuthenticationContext, 
+    file: File, 
+    metadata: ArticleDTO,
+  ): Promise<Either<AntboxError, ArticleDTO>> {
+    const nodeOrErr = await this.nodeService.createFile(ctx, file, metadata);
+
+    if(nodeOrErr.isLeft()) {
+      return left(nodeOrErr.value);
+    }
+
+    return right(nodeToArticle(nodeOrErr.value as ArticleNode));
+  }
+
+  async #markdownToHtml(value: string): Promise<Either<UnknownError, string>> {
+    try {
+      const html = await parse(value);
+      return right(html);
+    } catch(error) {
+      return left(new UnknownError("Error in parsing markdown to html"));
+    }
+  }
+
+  #textPlainToHtml(value: string): Either<UnknownError, string> {
+    try {
+      const paragraphs = value
+        .split(/\r?\n\s*/)
+        .filter(p => p.length > 0);
+
+      const htmlParagraphs = paragraphs
+        .map((p) => `<p>${this.#escapeHtml(p)}</p>`)
+        .join("");
+
+      return right(htmlParagraphs);
+    }catch(error) {
+      return left(new UnknownError("Error in parsing text plain to html"));
+    }
+  }
+
+  #escapeHtml(text: string): string {
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
+  async #getArticleContentText(ctx: AuthenticationContext, uuid: string): Promise<Either<AntboxError, string>> {
+    const fileOrErr = await this.nodeService.export(ctx, uuid);
+    if(fileOrErr.isLeft()) {
+      return left(fileOrErr.value);
+    }
+
+    const contentText = await fileOrErr.value.text();
+
+    return right(contentText);
+  }
+
+  async #update(
+    ctx: AuthenticationContext, 
+    file: File, 
+    meatadata: ArticleDTO,
+  ): Promise<Either<AntboxError, ArticleDTO>> {
+    const nodeOrErr = await this.get(ctx, meatadata.uuid);
+    if(nodeOrErr.isLeft()) {
+      return left(nodeOrErr.value);
     }
 
     const createOrErr = ArticleNode.create({
-      uuid: metadata.uuid,
-      fid: metadata.fid,
-      title: metadata.title,
-      parent: metadata.parent,
-      owner: metadata.owner,
-      description: metadata.description,
+      ...meatadata,
+      owner: ctx.principal.email,
       size: file.size,
     });
+
     if(createOrErr.isLeft()) {
       return left(createOrErr.value);
     }
 
     const article = createOrErr.value;
 
-    const f = new File([file], file.name, { type: file.type });
-
-    const articleOrErr = await this.context.repository.add(article);
-    if(articleOrErr.isLeft()) {
-      return left(articleOrErr.value);  
-    };
-
-    const writeOrErr = await this.context.storage.write(article.uuid, f, 
-      { 
-        mimetype: f.type, 
-        parent:  article.parent,
-        title: article.title,
-      },
-    );
-    if(writeOrErr.isLeft()) {
-      return left(writeOrErr.value);
-    }
-
-    return right(article);
+    return await this.#updateFile(ctx, file, article);
   }
 
-  async get(uuid: string): Promise<Either<NodeNotFoundError, string>> {
-    const existingOrErr = await this.#getFromRepository(uuid);
-    if(existingOrErr.isLeft()) {
-      return left(existingOrErr.value);
+  async #updateFile(
+    ctx: AuthenticationContext, 
+    file: File, 
+    metadata: ArticleNode,
+  ): Promise<Either<AntboxError, ArticleDTO>> {
+    const updateFileOrErr = await this.context.storage.write(metadata.uuid, file, {
+      title: metadata.title,
+      mimetype: metadata.mimetype,
+      parent: metadata.parent,
+    })
+
+    if(updateFileOrErr.isLeft()) {
+      return left(updateFileOrErr.value);
     }
 
-    const node = existingOrErr.value;
-    
-    if(!Nodes.isArticle(node)) {
-      return left(new ArticleNotFound(uuid));
+    const voidOrErr = await this.context.repository.add(metadata);
+    if(voidOrErr.isLeft()) {
+      return left(voidOrErr.value);
     }
 
-    const fileOrErr = await this.#getFromStorage(node.uuid);
-    if(fileOrErr.isLeft()) {
-      return left(new ArticleNotFound(uuid));
+    const nodeOrErr = await this.get(ctx ,metadata.uuid);
+    if(nodeOrErr.isLeft()) {
+      return left(nodeOrErr.value);
     }
 
-    const file =  fileOrErr.value;
-
-    if(Nodes.isTxt(file)) {   
-      return right(await this.#textToParagraphs(file));
-    }
-
-    if (Nodes.isMarkdown(file)) {
-      return right(await this.#markdownToParagraphs(file));
-    }
-
-    return right(await this.#htmlToParagraphs(file));
-  }
-
-  async #textToParagraphs(file: File): Promise<string> {
-    const content = await file.text();
-
-    const paragraphs = content
-      .split("\n")
-      .map((line) => line.trim())
-      .filter((line) => line !== "")
-      .map((line) => `<p>${line}</p>`)
-      .join("");
-  
-    return paragraphs;
-  }
-
-  async #htmlToParagraphs(file: File): Promise<string>{
-    const content =  await file.text();
-
-    let textOnly = content
-      .replace(/<\/?[a-z][\s\S]*?>|<!DOCTYPE[^>]*>|<!--[\s\S]*?-->/gi, "")
-      .trim();
-
-    const paragraphs = textOnly
-      .split("\n")
-      .map((line) => line.trim())
-      .filter(line => line !== "")
-      .map(line => `<p>${line}</p>`)
-      .join("");
-
-    return paragraphs
-  }
-
-  async #markdownToParagraphs(file: File): Promise<string> {
-    const content = await file.text();
-
-    let textOnly = content
-      .replace(/^#+\s*/gm, "")
-      .replace(/^\*\s*/gm, "")
-      .replace(/^- /gm, "")         
-      .replace(/^\d+\.\s*/gm, "")   
-      .replace(/\*\*(.*?)\*\*/g, "$1")
-      .replace(/\*(.*?)\*/g, "$1") 
-      .replace(/```[\s\S]*?```/g, "")
-      .trim();
-
-    const paragraphs = textOnly
-      .split(/\n+/)
-      .map(line => line.trim())
-      .filter(line => line !== "")
-      .map(line => `<p>${line}</p>`)
-      .join("");
-
-    return paragraphs;
-  }
-
-  async #getFromRepository(uuid: string): Promise<Either<AntboxError, ArticleNode>> {
-    if (Nodes.isFid(uuid)) {
-      return await this.context.repository.getByFid(Nodes.uuidToFid(uuid));
-    }
-
-    return this.context.repository.getById(uuid);
-  }
-
-  async #getFromStorage(uuid: string): Promise<Either<AntboxError, File>> {
-    if (Nodes.isFid(uuid)) {
-      return await this.context.storage.read(Nodes.uuidToFid(uuid));
-    }
-
-    return this.context.storage.read(uuid);
+    return right(nodeOrErr.value);
   }
 
 

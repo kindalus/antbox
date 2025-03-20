@@ -102,15 +102,15 @@ export class Nodes {
     return Nodes.isFile(node) || Nodes.isExt(node) || Nodes.isAction(node);
   }
 
-  static isTxt(file: File) {
-    return file.type.startsWith("text/plain");
+  static isTextPlain(node: NodeLike) {
+    return node.mimetype === "text/plain";
   }
 
-  static isHtml(file: File) {
-    return file.type.startsWith("text/html");
+  static isHtml(node: NodeLike) {
+    return node.mimetype.startsWith("text/html");
   }
 
-  static isMarkdown(file: File) {
-    return file.type.startsWith("text/markdown");
+  static isMarkdown(node: NodeLike) {
+    return node.mimetype === "text/markdown";
   }
 }

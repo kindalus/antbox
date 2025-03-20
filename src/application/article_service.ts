@@ -119,6 +119,23 @@ export class ArticleService {
     return this.nodeService.delete(ctx, uuid);
   }
 
+  async export(ctx: AuthenticationContext, uuid: string): Promise<Either<AntboxError, File>> {
+    const articleOrErr = await this.get(ctx, uuid);
+    if (articleOrErr.isLeft()) {
+      return left(articleOrErr.value);
+    }
+
+    const file = new File(
+      [JSON.stringify(articleOrErr.value, null, 2)],
+      `${articleOrErr.value?.uuid}.json`,
+      {
+        type: "application/json",
+      },
+    );
+
+    return right(file);
+  }
+
   async list(ctx: AuthenticationContext): Promise<ArticleDTO[]> {
     const nodesOrErrs = await this.nodeService.find(
       ctx,
@@ -134,7 +151,7 @@ export class ArticleService {
     }
 
     const articles = nodesOrErrs.value.nodes.map((n) => nodeToArticle(n));
-    return articles
+    return articles;
   }
 
   async #create(

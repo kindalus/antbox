@@ -171,7 +171,7 @@ describe("ArticleService", () => {
         expect(articleOrErr.value).toBeInstanceOf(ArticleNotFound);
     });
 
-    test("delete should delete an article", async () => {
+    test("delete should remove an article", async () => {
         const service = createService();
 
         await service.createOrReplace(adminAuthContext, file, articleDummy);
@@ -213,6 +213,22 @@ describe("ArticleService", () => {
 
         const artticles = await service.list(adminAuthContext);
         expect(artticles.length).toBe(2);
+    });
+
+    test("export should create a JSON file for article", async () => {
+        const service = createService();
+
+        await service.createOrReplace(adminAuthContext, file, articleDummy);
+
+        const fileOrErr = await service.export(adminAuthContext, articleDummy.uuid);
+
+        expect(fileOrErr.isRight(), errMsg(fileOrErr.value)).toBeTruthy();
+        expect(fileOrErr.right.type).toBe("application/json;charset=utf-8");
+        expect(fileOrErr.right.name).toBe(`${articleDummy.uuid}.json`);
+
+        const content = JSON.parse(await fileOrErr.right.text());
+        expect(content.uuid).toBe(articleDummy.uuid);
+        expect(content.title).toBe(articleDummy.title);
     });
 });
 

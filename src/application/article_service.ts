@@ -64,7 +64,7 @@ export class ArticleService {
       return await this.#create(ctx, file, metadata);
     }
 
-    return await this.#update(ctx, file, metadata);
+    return this.#update(ctx, file, metadata);
   }
 
   async get(
@@ -86,12 +86,8 @@ export class ArticleService {
     const contentText = contentTextOrErr.value;
 
     if(Nodes.isMarkdown(node)) {
-      const htmlOrErr = await this.#markdownToHtml(contentText);
-      if(htmlOrErr.isLeft()) {
-        return left(htmlOrErr.value);
-      }
-
-      return right(nodeToArticle(node, htmlOrErr.value));
+      const html = await this.#markdownToHtml(contentText);
+      return right(nodeToArticle(node, html));
     }
 
     if(Nodes.isHtml(node)) {
@@ -99,12 +95,8 @@ export class ArticleService {
     }
 
     if(Nodes.isTextPlain(node)) {
-      const htmlOrErr = this.#textPlainToHtml(contentText);
-      if(htmlOrErr.isLeft()) {
-        return left(htmlOrErr.value);
-      }
-
-      return right(nodeToArticle(node, htmlOrErr.value));
+      const html = this.#textPlainToHtml(contentText);
+      return right(nodeToArticle(node, html));
     }
 
     if(!Nodes.isArticle(node)) {
@@ -118,12 +110,31 @@ export class ArticleService {
     ctx: AuthenticationContext, 
     uuid: string
   ): Promise<Either<AntboxError, void>> {
-    const nodeOrErr = await this.nodeService.delete(ctx, uuid);
+    const nodeOrErr = await this.get(ctx, uuid);
+
     if(nodeOrErr.isLeft()) {
       return left(nodeOrErr.value);
     }
 
-    return right(nodeOrErr.value);
+    return this.nodeService.delete(ctx, uuid);
+  }
+
+  async list(ctx: AuthenticationContext): Promise<ArticleDTO[]> {
+    const nodesOrErrs = await this.nodeService.find(
+      ctx,
+      [
+        ["mimetype", "==", Nodes.ARTICLE_MIMETYPE],
+      ],
+      Number.MAX_SAFE_INTEGER,
+    );
+
+    if (nodesOrErrs.isLeft()) {
+      console.error(nodesOrErrs.value);
+      return [];
+    }
+
+    const articles = nodesOrErrs.value.nodes.map((n) => nodeToArticle(n));
+    return articles
   }
 
   async #create(
@@ -140,16 +151,17 @@ export class ArticleService {
     return right(nodeToArticle(nodeOrErr.value as ArticleNode));
   }
 
-  async #markdownToHtml(value: string): Promise<Either<UnknownError, string>> {
+  async #markdownToHtml(value: string): Promise<string> {
     try {
       const html = await parse(value);
-      return right(html);
+      return html;
     } catch(error) {
-      return left(new UnknownError("Error in parsing markdown to html"));
+      console.error(`Error in parsing markdown to html: ${JSON.stringify(error)}`);
+      return "";
     }
   }
 
-  #textPlainToHtml(value: string): Either<UnknownError, string> {
+  #textPlainToHtml(value: string):  string {
     try {
       const paragraphs = value
         .split(/\r?\n\s*/)
@@ -159,9 +171,10 @@ export class ArticleService {
         .map((p) => `<p>${this.#escapeHtml(p)}</p>`)
         .join("");
 
-      return right(htmlParagraphs);
+      return htmlParagraphs;
     }catch(error) {
-      return left(new UnknownError("Error in parsing text plain to html"));
+      console.error(new UnknownError(`Error in parsing text plain to html: ${JSON.stringify(error)}`));
+      return "";
     }
   }
 

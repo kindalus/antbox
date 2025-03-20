@@ -189,6 +189,31 @@ describe("ArticleService", () => {
         expect(deleteOrErr.isLeft(), errMsg(deleteOrErr.value)).toBeTruthy();
         expect(deleteOrErr.value).toBeInstanceOf(NodeNotFoundError);
     });
+
+    test("list should list all articles", async () => {
+        const service = createService();
+
+        const file = new File(["<p>Content</p>"], "javascript", {
+            type: Nodes.ARTICLE_MIMETYPE,
+        });
+    
+        await service.createOrReplace(adminAuthContext, file, {
+            uuid: "--uuid--",
+            title: "javascript",
+            description: "The description",
+            parent: "--parent--"
+        });
+
+        await service.createOrReplace(adminAuthContext, file, {
+            uuid: "--new uuid--",
+            title: "python",
+            description: "The description",
+            parent: "--parent--"
+        });
+
+        const artticles = await service.list(adminAuthContext);
+        expect(artticles.length).toBe(2);
+    });
 });
 
 const adminAuthContext: AuthenticationContext = {

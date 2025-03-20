@@ -114,6 +114,18 @@ export class ArticleService {
     return right(nodeToArticle(node, contentText));
   }
 
+  async delete(
+    ctx: AuthenticationContext, 
+    uuid: string
+  ): Promise<Either<AntboxError, void>> {
+    const nodeOrErr = await this.nodeService.delete(ctx, uuid);
+    if(nodeOrErr.isLeft()) {
+      return left(nodeOrErr.value);
+    }
+
+    return right(nodeOrErr.value);
+  }
+
   async #create(
     ctx: AuthenticationContext, 
     file: File, 

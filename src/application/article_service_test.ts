@@ -12,6 +12,7 @@ import { BadRequestError } from "shared/antbox_error";
 import { FileNode } from "domain/nodes/file_node";
 import { parse } from "marked";
 import { ArticleNotFound } from "domain/articles/article_not_found_error";
+import { NodeNotFoundError } from "domain/nodes/node_not_found_error";
 
 describe("ArticleService", () => {
     test("createOrReplace should create a article", async () => {
@@ -37,13 +38,6 @@ describe("ArticleService", () => {
     
     test("createOrReplace should replace existing article", async () => {
         const service = createService();
-
-        const articleDummy: ArticleDTO = {
-            uuid: "--the--uuid--",
-            title: "javascript",
-            description: "The description",
-            parent: "--parent--"
-        }
 
         const file = new File(["<p>Content</p>"], "javascript", {
             type: Nodes.ARTICLE_MIMETYPE,
@@ -177,7 +171,24 @@ describe("ArticleService", () => {
         expect(articleOrErr.value).toBeInstanceOf(ArticleNotFound);
     });
 
-    
+    test("delete should delete an article", async () => {
+        const service = createService();
+
+        await service.createOrReplace(adminAuthContext, file, articleDummy);
+        
+        const deleteOrErr = await service.delete(adminAuthContext, articleDummy.uuid);
+        expect(deleteOrErr.isRight(), errMsg(deleteOrErr.value)).toBeTruthy();
+    });
+
+    test("delete should return error if node not found", async () => {
+        const service = createService();
+
+        await service.createOrReplace(adminAuthContext, file, articleDummy);
+        
+        const deleteOrErr = await service.delete(adminAuthContext, "--any uuid--");
+        expect(deleteOrErr.isLeft(), errMsg(deleteOrErr.value)).toBeTruthy();
+        expect(deleteOrErr.value).toBeInstanceOf(NodeNotFoundError);
+    });
 });
 
 const adminAuthContext: AuthenticationContext = {
@@ -188,6 +199,13 @@ const adminAuthContext: AuthenticationContext = {
       groups: [Groups.ADMINS_GROUP_UUID],
     },
 };
+
+const articleDummy: ArticleDTO = {
+    uuid: "--the--uuid--",
+    title: "javascript",
+    description: "The description",
+    parent: "--parent--"
+}
 
 function createService() {
     const parentNode: FolderNode = FolderNode.create({
@@ -271,12 +289,7 @@ function createService() {
         group: "The group",
     }).right;
 
-    const jsonFile = new File([`The Title
-
-    A list of file
-
-    An good way to make this!
-    `], "textplain", {
+    const jsonFile = new File([`Content`], "textplain", {
         type: "application/json",
     });
 

@@ -98,8 +98,8 @@ export class Nodes {
     return Nodes.isMetaNode(node) || Nodes.isFile(node) || Nodes.isFolder(node);
   }
 
-  static isFileLike(node: NodeLike): node is FileNode | ExtNode | ActionNode {
-    return Nodes.isFile(node) || Nodes.isExt(node) || Nodes.isAction(node);
+  static isFileLike(node: NodeLike): node is FileNode | ExtNode | ActionNode | ArticleNode{
+    return Nodes.isFile(node) || Nodes.isExt(node) || Nodes.isAction(node) ||  Nodes.isArticle(node);
   }
 
   static isTextPlain(node: NodeLike) {
@@ -107,7 +107,7 @@ export class Nodes {
   }
 
   static isHtml(node: NodeLike) {
-    return node.mimetype.startsWith("text/html");
+    return node.mimetype === "text/html";
   }
 
   static isMarkdown(node: NodeLike) {

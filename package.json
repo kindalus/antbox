@@ -19,9 +19,13 @@
   "dependencies": {
     "@googleapis/drive": "^8.14.0",
     "@oakserver/oak": "^14.1.0",
+    "@types/jsdom": "^21.1.7",
+    "@types/showdown": "^2.0.6",
     "commander": "^13.1.0",
     "h3": "^1.15.1",
     "jose": "^5.10.0",
+    "jsdom": "^26.0.0",
+    "marked": "^15.0.7",
     "mongodb": "^6.13.1",
     "pouchdb": "^9.0.0",
     "pouchdb-find": "^9.0.0",

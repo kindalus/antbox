@@ -82,7 +82,7 @@ export class Nodes {
     return node.mimetype === Nodes.GROUP_MIMETYPE;
   }
 
-  static isWebContent(node: NodeLike): node is ArticleNode {
+  static isArticle(node: NodeLike): node is ArticleNode {
     return node.mimetype === Nodes.ARTICLE_MIMETYPE;
   }
 
@@ -98,7 +98,19 @@ export class Nodes {
     return Nodes.isMetaNode(node) || Nodes.isFile(node) || Nodes.isFolder(node);
   }
 
-  static isFileLike(node: NodeLike): node is FileNode | ExtNode | ActionNode {
-    return Nodes.isFile(node) || Nodes.isExt(node) || Nodes.isAction(node);
+  static isFileLike(node: NodeLike): node is FileNode | ExtNode | ActionNode | ArticleNode{
+    return Nodes.isFile(node) || Nodes.isExt(node) || Nodes.isAction(node) ||  Nodes.isArticle(node);
+  }
+
+  static isTextPlain(node: NodeLike) {
+    return node.mimetype === "text/plain";
+  }
+
+  static isHtml(node: NodeLike) {
+    return node.mimetype === "text/html";
+  }
+
+  static isMarkdown(node: NodeLike) {
+    return node.mimetype === "text/markdown";
   }
 }

@@ -31,7 +31,7 @@ export class UsersGroupsService {
 
     const userOrErr = UserNode.create({
       ...metadata,
-      group: Array.from(groups)[0],
+      group: metadata.group ?? Array.from(groups)[0],
       groups: Array.from(groups).slice(1),
     });
     

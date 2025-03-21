@@ -16,22 +16,28 @@ import { Groups } from "domain/users_groups/groups.ts";
 import { InvalidCredentialsError } from "./invalid_credentials_error.ts";
 import { ADMINS_GROUP, builtinGroups } from "./builtin_groups/index.ts";
 import { Folders } from "domain/nodes/folders.ts";
+import { nodeToGroup, nodeToUser, type GroupDTO, type UserDTO } from "./users_groups_dto.ts";
 
 export class UsersGroupsService {
 
   constructor(private readonly context: UsersGroupsContext) {}
 
-  async createUser(ctx: AuthenticationContext, metadata: Partial<UserNode>): Promise<Either<AntboxError, UserNode>> {
-    const existingOrErr = await this.getUserByEmail(ctx, metadata.email!);
+  async createUser(
+    ctx: AuthenticationContext, 
+    metadata: UserDTO,
+  ): Promise<Either<AntboxError, UserDTO>> {
+    const existingOrErr = await this.getUser(ctx, metadata.email);
     if(existingOrErr.isRight()) {
-      return left(ValidationError.from(new UserExistsError(metadata.uuid!)));
+      return left(ValidationError.from(new UserExistsError(metadata.email)));
     }
 
     const groups = new Set(metadata.groups ?? []);
 
     const userOrErr = UserNode.create({
-      ...metadata,
-      group: metadata.group ?? Array.from(groups)[0],
+      title: metadata.name,
+      email: metadata.email,
+      owner: ctx.principal.email,
+      group: Array.from(groups)[0],
       groups: Array.from(groups).slice(1),
     });
     
@@ -59,41 +65,15 @@ export class UsersGroupsService {
       return left(voidOrErr.value);
     }
 
-    return right(user);
+    return right(nodeToUser(user));
   }
 
-  async getUser(ctx: AuthenticationContext, uuid: string): Promise<Either<AntboxError, UserNode>> {
-    if(uuid === Users.ROOT_USER_UUID) {
-      return  await this.#hasAdminGroup(ctx) ? right(ROOT_USER) : left(new ForbiddenError());
-    }
-
-    if(uuid === Users.ANONYMOUS_USER_UUID) {
-      return right(ANONYMOUS_USER);
-    }
-
-    const userOrErr = await this.#getUserFromRepository(uuid);
-    if(userOrErr.isLeft()) {
-      return left(new UserNotFoundError(uuid));
-    }
-
-    const user = userOrErr.value;
-
-    if(!Nodes.isUser(user)) {
-      return left(new UserNotFoundError(uuid));
-    }
-
-    if(user.email == ctx.principal.email) {
-      return right(user);
-    }
-
-    return ctx.principal.groups.includes(Groups.ADMINS_GROUP_UUID) 
-      ? right(user) 
-      : left(new ForbiddenError());
-  }
-
-  async getUserByEmail(ctx: AuthenticationContext, email: string):  Promise<Either<AntboxError, UserNode>> {
+  async getUser(
+    ctx: AuthenticationContext, 
+    email: string,
+  ):  Promise<Either<AntboxError, UserNode>> {
     if (email === Users.ROOT_USER_EMAIL) {
-      return ctx.principal.groups.includes(Groups.ADMINS_GROUP_UUID)
+      return await this.#hasAdminGroup(ctx) 
         ? right(ROOT_USER)
         : left(new ForbiddenError());
     }
@@ -117,7 +97,7 @@ export class UsersGroupsService {
       return right(node);
     }
     
-    return ctx.principal.groups.includes(Groups.ADMINS_GROUP_UUID)
+    return await this.#hasAdminGroup(ctx) 
       ? right(node)
       : left(new ForbiddenError());
   }
@@ -138,13 +118,13 @@ export class UsersGroupsService {
 
   async updateUser(
     ctx: AuthenticationContext, 
-    uuid: string, 
+    email: string, 
     data: Partial<UserNode>): Promise<Either<AntboxError, void>> {
-      if (uuid === Users.ROOT_USER_UUID || uuid === Users.ANONYMOUS_USER_UUID) {
+      if (email === Users.ROOT_USER_EMAIL || email === Users.ANONYMOUS_USER_EMAIL) {
         return left(new BadRequestError("Cannot update built-in user"));
       }
 
-      const existingOrErr = await this.getUser(ctx, uuid);
+      const existingOrErr = await this.getUser(ctx, email);
       if(existingOrErr.isLeft()) {
         return left(existingOrErr.value);
       }
@@ -198,14 +178,6 @@ export class UsersGroupsService {
     return ctx.principal.groups.includes(Groups.ADMINS_GROUP_UUID);
   }
 
-  async #getUserFromRepository(uuid: string): Promise<Either<NodeNotFoundError, UserNode>> {
-    if(Nodes.isFid(uuid)) {
-      return this.context.repository.getByFid(Nodes.uuidToFid(uuid));
-    }
-
-    return this.context.repository.getById(uuid);
-  }
-
   async changePassword(ctx: AuthenticationContext, uuid: string, password: string): Promise<Either<AntboxError, void>> {
     const existingOrErr = await this.getUser(ctx, uuid);
     if(existingOrErr.isLeft()) {
@@ -227,8 +199,14 @@ export class UsersGroupsService {
     return right(voidOrErr.value);
   }
 
-  async createGroup(groupNode: Partial<GroupNode>): Promise<Either<AntboxError, GroupNode>> {
-    const groupOrErr = GroupNode.create(groupNode);
+  async createGroup(
+    ctx: AuthenticationContext, 
+    metadata: GroupDTO): Promise<Either<AntboxError, GroupDTO>> {
+    const groupOrErr = GroupNode.create({ 
+      ...metadata, 
+      owner: ctx.principal.email 
+    });
+
     if(groupOrErr.isLeft()) {
       return left(groupOrErr.value);
     }
@@ -240,7 +218,7 @@ export class UsersGroupsService {
       return left(voidOrErr.value);
     }
 
-    return right(group);
+    return right(nodeToGroup(group));
   }
 
   async getGroup(uuid: string): Promise<Either<AntboxError, GroupNode>> {

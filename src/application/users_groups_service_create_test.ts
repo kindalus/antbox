@@ -20,32 +20,28 @@ describe("UsersGroupsService.createUser", () => {
     const service = usersGroupsService();
 
     await service.createUser(authCtx, {
-      title: "The title",
-      owner: "root@gmail.com",
-      uuid: "--the uuid--",
+      name: "The title",
       email: "joane@gmail.com",
       groups: ["--admins--","--users--"],
     });
 
-    const userOrErr = await service.getUser(authCtx, "--the uuid--");
+    const userOrErr = await service.getUser(authCtx, "joane@gmail.com");
 
     expect(userOrErr.isRight(), errToMsg(userOrErr.value)).toBeTruthy();
     expect(userOrErr.right.title).toBe("The title");
-    expect(userOrErr.right.owner).toBe("root@gmail.com");
+    expect(userOrErr.right.owner).toBe(authCtx.principal.email);
   });
 
   test("should remove duplicated groups", async () => {
     const service = usersGroupsService();
 
     await service.createUser(authCtx, {
-      title: "The title",
-      owner: "root@gmail.com",
-      uuid: "--parent--",
+      name: "The title",
       email: "duck@gmail.com",
       groups: ["--admins--", "--admins--","--users--", "--ultimate--"],
     });
 
-    const userOrErr = await service.getUser(authCtx, "--parent--");
+    const userOrErr = await service.getUser(authCtx, "duck@gmail.com");
 
     expect(userOrErr.isRight(), errToMsg(userOrErr.value)).toBeTruthy();
     expect(userOrErr.right.group).toBe("--admins--");
@@ -56,17 +52,13 @@ describe("UsersGroupsService.createUser", () => {
     const service = usersGroupsService();
 
     await service.createUser(authCtx, {
-      title: "The title",
-      owner: "root@gmail.com",
-      uuid: "--parent--",
+      name: "The title",
       email: "tyrion@gmail.com",
       groups: ["--admins--","--users--"],
     });
 
     const userOrErr = await service.createUser(authCtx, {
-      title: "The title",
-      owner: "root@gmail.com",
-      uuid: "--parent--",
+      name: "The title",
       email: "tyrion@gmail.com",
       groups: ["--admins--","--users--"],
     });
@@ -80,9 +72,7 @@ describe("UsersGroupsService.createUser", () => {
     const service = usersGroupsService();
 
     const userOrErr = await service.createUser(authCtx, {
-      title: "The title",
-      owner: "root@gmail.com",
-      uuid: "--rose--",
+      name: "The title",
       email: "kyle@gmail.com",
       groups: ["--the user--"]
     });
@@ -97,12 +87,10 @@ describe("UsersGroupsService.createGroup",  () => {
   test("should create group and persist metadata", async () => {
     const service = usersGroupsService();
 
-    await service.createGroup(
+    await service.createGroup(authCtx,
       {
         title: "The Title",
-        owner: "user@gmail.com",
         uuid: "--group-uuid--",
-        mimetype: Nodes.GROUP_MIMETYPE,
       }
     );
 

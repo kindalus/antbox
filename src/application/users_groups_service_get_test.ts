@@ -187,7 +187,7 @@ describe("UsersGroupsService.getUserByEmail", () => {
             groups: ["--admins--","--users--"],
         });
 
-        const userOrErr = await service.getUserByEmail(authCtx, "july@gmail.com");
+        const userOrErr = await service.getUser(authCtx, "july@gmail.com");
 
         expect(userOrErr.value, errToMsg(userOrErr.value)).toBeTruthy();
         expect(userOrErr.right.owner).toBe("root@gmail.com");
@@ -214,7 +214,7 @@ describe("UsersGroupsService.getUserByEmail", () => {
             groups: ["--admins--","--users--"],
         });
 
-        const userOrErr = await service.getUserByEmail(authCtx, "kend@gmail.com");
+        const userOrErr = await service.getUser(authCtx, "kend@gmail.com");
 
         expect(userOrErr.value, errToMsg(userOrErr.value)).toBeTruthy();
         expect(userOrErr.right.owner).toBe("root@gmail.com");
@@ -233,7 +233,7 @@ describe("UsersGroupsService.getUserByEmail", () => {
             },
         };
 
-        const userOrErr = await service.getUserByEmail(authCtx, Users.ROOT_USER_EMAIL);
+        const userOrErr = await service.getUser(authCtx, Users.ROOT_USER_EMAIL);
 
         expect(userOrErr.value, errToMsg(userOrErr.value)).toBeTruthy();
         expect(userOrErr.right.uuid).toBe(Users.ROOT_USER_UUID);
@@ -253,7 +253,7 @@ describe("UsersGroupsService.getUserByEmail", () => {
             },
         };
 
-        const userOrErr = await service.getUserByEmail(authCtx, Users.ANONYMOUS_USER_EMAIL);
+        const userOrErr = await service.getUser(authCtx, Users.ANONYMOUS_USER_EMAIL);
 
         expect(userOrErr.value, errToMsg(userOrErr.value)).toBeTruthy();
         expect(userOrErr.right.uuid).toBe(Users.ANONYMOUS_USER_UUID);
@@ -281,7 +281,7 @@ describe("UsersGroupsService.getUserByEmail", () => {
             groups: ["--admins--","--users--"],
         });
 
-        const userOrErr = await service.getUserByEmail(authCtx, "steven@gmail.com");
+        const userOrErr = await service.getUser(authCtx, "steven@gmail.com");
 
         expect(userOrErr.value, errToMsg(userOrErr.value)).toBeTruthy();
         expect(userOrErr.right.owner).toBe("root@gmail.com");
@@ -290,7 +290,7 @@ describe("UsersGroupsService.getUserByEmail", () => {
     test("should return error if user is not found", async () => {
         const service = usersGroupsService();
 
-        const userOrErr = await service.getUserByEmail(authCtx, "juddy@gmail.com");
+        const userOrErr = await service.getUser(authCtx, "juddy@gmail.com");
         
         expect(userOrErr.isLeft()).toBeTruthy();
         expect(userOrErr.value).toBeInstanceOf(UserNotFoundError);

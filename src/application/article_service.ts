@@ -8,43 +8,8 @@ import type { ArticleServiceContext } from "./article_service_context.ts";
 import { parse } from "marked";
 import { ArticleNotFound } from "domain/articles/article_not_found_error.ts";
 import { JSDOM } from 'jsdom';
+import { articleToNode, nodeToArticle, type ArticleDTO } from "./article_dto.ts";
 
-export interface ArticleDTO {
-  uuid: string;
-  title: string;
-  description?: string;
-  size?: number;
-  parent: string;
-  content?: string;
-}
-
-export function nodeToArticle(
-  article: ArticleNode, 
-  content?: string,
-): ArticleDTO {
-  return {
-    uuid: article.uuid,
-    title: article.title,
-    description: article.description,
-    size: article.size as number,
-    parent: article.parent,
-    content: content,
-  }
-}
-
-export function articleToNode(
-  ctx: AuthenticationContext, 
-  article: ArticleDTO,
-): ArticleNode {
-  return ArticleNode.create({
-    uuid: article.uuid,
-    title: article.title,
-    description: article.description,
-    size: article.size,
-    parent: article.parent,
-    owner: ctx.principal.email,
-  }).right;
-}
 export class ArticleService {
 
   constructor(

@@ -3,7 +3,7 @@ import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository";
 import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider";
 import { test, expect, describe } from "bun:test";
 import { NodeService } from "./node_service";
-import { ArticleService, type ArticleDTO } from "./article_service";
+import { ArticleService } from "./article_service";
 import { Groups } from "domain/auth/groups";
 import type { AuthenticationContext } from "./authentication_context";
 import { Nodes } from "domain/nodes/nodes";
@@ -13,6 +13,7 @@ import { FileNode } from "domain/nodes/file_node";
 import { parse } from "marked";
 import { ArticleNotFound } from "domain/articles/article_not_found_error";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error";
+import type { ArticleDTO } from "./article_dto";
 
 describe("ArticleService", () => {
     test("createOrReplace should create a article", async () => {

@@ -1,22 +1,21 @@
-import { UserNode } from "domain/users_groups/user_node.ts";
-import { AntboxError, BadRequestError, ForbiddenError } from "shared/antbox_error.ts";
-import { type Either, left, right } from "shared/either.ts";
-import type { UsersGroupsContext } from "./users_groups_service_context.ts";
-import { UserExistsError } from "domain/users_groups/user_exists_error.ts";
-import { ValidationError } from "shared/validation_error.ts";
-import GroupNotFoundError from "domain/users_groups/group_not_found_error.ts";
-import { GroupNode } from "domain/users_groups/group_node.ts";
-import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
+import { Folders } from "domain/nodes/folders.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
+import { GroupNode } from "domain/users_groups/group_node.ts";
+import GroupNotFoundError from "domain/users_groups/group_not_found_error.ts";
+import { Groups } from "domain/users_groups/groups.ts";
+import { UserExistsError } from "domain/users_groups/user_exists_error.ts";
+import { UserNode } from "domain/users_groups/user_node.ts";
 import { UserNotFoundError } from "domain/users_groups/user_not_found_error.ts";
 import { Users } from "domain/users_groups/users.ts";
-import { ANONYMOUS_USER, builtinUsers, ROOT_USER } from "./builtin_users/index.ts";
+import { AntboxError, BadRequestError, ForbiddenError } from "shared/antbox_error.ts";
+import { left, right, type Either } from "shared/either.ts";
+import { ValidationError } from "shared/validation_error.ts";
 import type { AuthenticationContext } from "./authentication_context.ts";
-import { Groups } from "domain/users_groups/groups.ts";
-import { InvalidCredentialsError } from "./invalid_credentials_error.ts";
 import { ADMINS_GROUP, builtinGroups } from "./builtin_groups/index.ts";
-import { Folders } from "domain/nodes/folders.ts";
+import { ANONYMOUS_USER, builtinUsers, ROOT_USER } from "./builtin_users/index.ts";
+import { InvalidCredentialsError } from "./invalid_credentials_error.ts";
 import { nodeToGroup, nodeToUser, type GroupDTO, type UserDTO } from "./users_groups_dto.ts";
+import type { UsersGroupsContext } from "./users_groups_service_context.ts";
 
 export class UsersGroupsService {
 
@@ -34,8 +33,8 @@ export class UsersGroupsService {
     const groups = new Set(metadata.groups ?? []);
 
     const userOrErr = UserNode.create({
+      ...metadata,
       title: metadata.name,
-      email: metadata.email,
       owner: ctx.principal.email,
       group: Array.from(groups)[0],
       groups: Array.from(groups).slice(1),
@@ -102,7 +101,7 @@ export class UsersGroupsService {
       : left(new ForbiddenError());
   }
 
-  async getUserByCredentials(email: string, password: string): Promise<Either<AntboxError, UserNode>>{
+  async getUserByCredentials(email: string, password: string): Promise<Either<AntboxError, UserDTO>>{
     const hash = await UserNode.shaSum(email, password);
 
     const result = await this.context.repository.filter([
@@ -113,7 +112,7 @@ export class UsersGroupsService {
       return left(new InvalidCredentialsError());
     }
 
-    return right(result.nodes[0]);
+    return right(nodeToUser(result.nodes[0]));
   }
 
   async updateUser(
@@ -226,7 +225,7 @@ export class UsersGroupsService {
       return right(ADMINS_GROUP);
     }
 
-    const groupOrErr = await this.#getGroupFromRepository(uuid);
+    const groupOrErr = await this.context.repository.getById(uuid);
 
     if(groupOrErr.isLeft()) {
       return left(groupOrErr.value);
@@ -282,14 +281,6 @@ export class UsersGroupsService {
     }
 
     return right(voidOrErr.value);
-  }
-
-  async #getGroupFromRepository(uuid: string): Promise<Either<NodeNotFoundError, GroupNode>> {
-    if(Nodes.isFid(uuid)) {
-      return this.context.repository.getByFid(Nodes.uuidToFid(uuid));
-    }
-
-    return this.context.repository.getById(uuid);
   }
 
   async listGroups(): Promise<GroupNode[]> {

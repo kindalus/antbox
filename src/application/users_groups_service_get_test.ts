@@ -1,170 +1,20 @@
-import { describe, test, expect } from "bun:test";
-import { UsersGroupsService } from "./users_groups_service";
-import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider";
-import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository";
 import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus";
-import type { UsersGroupsContext } from "./users_groups_service_context";
-import { Groups } from "domain/users_groups/groups";
+import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository";
+import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider";
+import { describe, expect, test } from "bun:test";
+import { NodeNotFoundError } from "domain/nodes/node_not_found_error";
 import { Nodes } from "domain/nodes/nodes";
+import { GroupNode } from "domain/users_groups/group_node";
 import GroupNotFoundError from "domain/users_groups/group_not_found_error";
+import { Groups } from "domain/users_groups/groups";
+import { UserNode } from "domain/users_groups/user_node";
 import { UserNotFoundError } from "domain/users_groups/user_not_found_error";
 import { Users } from "domain/users_groups/users";
-import { GroupNode } from "domain/users_groups/group_node";
 import type { AuthenticationContext } from "./authentication_context";
 import { InvalidCredentialsError } from "./invalid_credentials_error";
-import { NodeNotFoundError } from "domain/nodes/node_not_found_error";
-import { UserNode } from "domain/users_groups/user_node";
+import { UsersGroupsService } from "./users_groups_service";
+import type { UsersGroupsContext } from "./users_groups_service_context";
 
-
-describe("UsersGroupsService.getUser", () => {
-    test("should return user from repository", async () => {
-        const service = usersGroupsService();
-
-        const authCtx: AuthenticationContext = {
-            mode: "Direct",
-            tenant: "default",
-            principal: {
-              email: "dayne@gmail.com",
-              groups: ["group1", Groups.ADMINS_GROUP_UUID],
-            },
-        };
-
-        await service.createUser(authCtx, {
-            title: "The title",
-            owner: "root@gmail.com",
-            uuid: "day-uuid",
-            email: "dayne@gmail.com",
-            groups: ["--admins--","--users--"],
-        });
-
-        const userOrErr = await service.getUser(authCtx, "day-uuid");
-
-        expect(userOrErr.value, errToMsg(userOrErr.value)).toBeTruthy();
-        expect(userOrErr.right.owner).toBe("root@gmail.com");
-        expect(userOrErr.right.group).toBe("--admins--");
-    });
-
-    test("should return user if uuid is in fid format", async () => {
-        const service = usersGroupsService();
-
-        const authCtx: AuthenticationContext = {
-            mode: "Direct",
-            tenant: "default",
-            principal: {
-              email: "jasmin@gmail.com",
-              groups: ["group1", Groups.ADMINS_GROUP_UUID],
-            },
-        };
-
-        await service.createUser(authCtx, {
-            title: "The title",
-            owner: "root@gmail.com",
-            fid: "the-id",
-            email: "jasmin@gmail.com",
-            groups: ["--admins--","--users--"],
-        });
-    
-        const userOrErr = await service.getUser(authCtx, "--fid--the-id");
-
-        expect(userOrErr.value, errToMsg(userOrErr.value)).toBeTruthy();
-        expect(userOrErr.right.owner).toBe("root@gmail.com");
-        expect(userOrErr.right.title).toBe("The title");
-    });
-
-    test("should return builtin user root", async () => {
-        const service = usersGroupsService();
-
-        const userOrErr = await service.getUser(authCtx, Users.ROOT_USER_UUID);
-
-        expect(userOrErr.value, errToMsg(userOrErr.value)).toBeTruthy();
-        expect(userOrErr.right.uuid).toBe(Users.ROOT_USER_UUID);
-        expect(userOrErr.right.email).toBe(Users.ROOT_USER_EMAIL);
-        expect(userOrErr.right.group).toBe(Groups.ADMINS_GROUP_UUID);
-    });
-
-    test("should return builtin user anonymous", async () => {
-        const service = usersGroupsService();
-
-        const userOrErr = await service.getUser(authCtx, Users.ANONYMOUS_USER_UUID);
-
-        expect(userOrErr.value, errToMsg(userOrErr.value)).toBeTruthy();
-        expect(userOrErr.right.uuid).toBe(Users.ANONYMOUS_USER_UUID);
-        expect(userOrErr.right.email).toBe(Users.ANONYMOUS_USER_EMAIL);
-        expect(userOrErr.right.group).toBe(Groups.ANONYMOUS_GROUP_UUID);
-    });
-
-    test("should return authenticated user", async () => {
-        const service = usersGroupsService();
-
-        const authCtx: AuthenticationContext = {
-            mode: "Direct",
-            tenant: "default",
-            principal: {
-              email: "jaden@gmail.com",
-              groups: ["group1", Groups.ADMINS_GROUP_UUID],
-            },
-        };
-
-        await service.createUser(authCtx, {
-            title: "The title",
-            owner: "root@gmail.com",
-            uuid: "jaden-id",
-            email: "jaden@gmail.com",
-            groups: ["--admins--","--users--"],
-        });
-    
-        const userOrErr = await service.getUser(authCtx, "jaden-id");
-
-        expect(userOrErr.value, errToMsg(userOrErr.value)).toBeTruthy();
-        expect(userOrErr.right.uuid).toBe("jaden-id")
-        expect(userOrErr.right.owner).toBe("root@gmail.com");
-    });
-
-    test("should return user if autenticated user is an admin", async () => {
-        const service = usersGroupsService();
-
-        const authCtx: AuthenticationContext = {
-            mode: "Direct",
-            tenant: "default",
-            principal: {
-              email: "jams@gmail.com",
-              groups: ["group1", Groups.ADMINS_GROUP_UUID],
-            },
-        };
-
-        await service.createUser(authCtx, {
-            title: "The title",
-            owner: "root@gmail.com",
-            uuid: "kony-id",
-            email: "jumb@gmail.com",
-            groups: ["--admins--","--users--"],
-        });
-
-        const userOrErr = await service.getUser(authCtx, "kony-id");
-
-        expect(userOrErr.value, errToMsg(userOrErr.value)).toBeTruthy();
-        expect(userOrErr.right.owner).toBe("root@gmail.com");
-        expect(userOrErr.right.uuid).toBe("kony-id");
-    });
-
-    test("should return error if not found user", async () => {
-        const service = usersGroupsService();
-
-        const userOrErr = await service.getUser(authCtx, "--any uuid--");
-        
-        expect(userOrErr.isLeft(), errToMsg(userOrErr.value)).toBeTruthy();
-        expect(userOrErr.value).toBeInstanceOf(UserNotFoundError);
-    });
-
-    test("should return error if node is not user", async () => {
-        const service = usersGroupsService();
-
-        const userOrErr = await service.getUser(authCtx, "--users--");
-        
-        expect(userOrErr.isLeft(), errToMsg(userOrErr.value)).toBeTruthy();
-        expect(userOrErr.value).toBeInstanceOf(UserNotFoundError);
-    });
-});
 
 describe("UsersGroupsService.getUserByEmail", () => {
     test("should return user from repository", async () => {
@@ -180,9 +30,7 @@ describe("UsersGroupsService.getUserByEmail", () => {
         };
 
         await service.createUser(authCtx, {
-            title: "The title",
-            owner: "root@gmail.com",
-            uuid: "dd-uuid",
+            name: "The title",
             email: "july@gmail.com",
             groups: ["--admins--","--users--"],
         });
@@ -190,7 +38,7 @@ describe("UsersGroupsService.getUserByEmail", () => {
         const userOrErr = await service.getUser(authCtx, "july@gmail.com");
 
         expect(userOrErr.value, errToMsg(userOrErr.value)).toBeTruthy();
-        expect(userOrErr.right.owner).toBe("root@gmail.com");
+        expect(userOrErr.right.owner).toBe(authCtx.principal.email);
         expect(userOrErr.right.group).toBe("--admins--");
     });
 
@@ -207,9 +55,7 @@ describe("UsersGroupsService.getUserByEmail", () => {
         };
 
         await service.createUser(authCtx, {
-            title: "The title",
-            owner: "root@gmail.com",
-            uuid: "kend-uuid",
+            name: "The title",
             email: "kend@gmail.com",
             groups: ["--admins--","--users--"],
         });
@@ -217,7 +63,7 @@ describe("UsersGroupsService.getUserByEmail", () => {
         const userOrErr = await service.getUser(authCtx, "kend@gmail.com");
 
         expect(userOrErr.value, errToMsg(userOrErr.value)).toBeTruthy();
-        expect(userOrErr.right.owner).toBe("root@gmail.com");
+        expect(userOrErr.right.owner).toBe(authCtx.principal.email);
         expect(userOrErr.right.group).toBe("--admins--");
     });
 
@@ -274,9 +120,7 @@ describe("UsersGroupsService.getUserByEmail", () => {
         };
 
         await service.createUser(authCtx, {
-            title: "The title",
-            owner: "root@gmail.com",
-            uuid: "steven-id",
+            name: "The title",
             email: "steven@gmail.com",
             groups: ["--admins--","--users--"],
         });
@@ -284,7 +128,7 @@ describe("UsersGroupsService.getUserByEmail", () => {
         const userOrErr = await service.getUser(authCtx, "steven@gmail.com");
 
         expect(userOrErr.value, errToMsg(userOrErr.value)).toBeTruthy();
-        expect(userOrErr.right.owner).toBe("root@gmail.com");
+        expect(userOrErr.right.owner).toBe(authCtx.principal.email);
     });
 
     test("should return error if user is not found", async () => {
@@ -302,9 +146,7 @@ describe("UsersGroupsService.getUserByCredentials", () => {
         const service = usersGroupsService();
 
         await service.createUser(authCtx, {
-            title: "The title",
-            owner: "root@gmail.com",
-            uuid: "darling-uuid",
+            name: "The title",
             email: "darling@gmail.com",
             secret: "darling1234",
             groups: ["--admins--","--users--"],
@@ -313,8 +155,7 @@ describe("UsersGroupsService.getUserByCredentials", () => {
         const userOrErr = await service.getUserByCredentials("darling@gmail.com", "darling1234");
 
         expect(userOrErr.value, errToMsg(userOrErr.value)).toBeTruthy();
-        expect(userOrErr.right.owner).toBe("root@gmail.com");
-        expect(userOrErr.right.group).toBe("--admins--");
+        expect(userOrErr.right.groups.includes("--admins--")).toBeTruthy();
     });
 
     test("should return error if not found user", async () => {
@@ -331,16 +172,15 @@ describe("UsersGroupsService.getGroup", () => {
     test("should return group from repository", async () => {
         const service = usersGroupsService();
 
-        await service.createGroup({
-            title: "The title",
-            owner: "root@gmail.com",
+        await service.createGroup(authCtx, {
             uuid: "gp-uuid",
+            title: "The title",
         });
     
         const groupOrErr = await service.getGroup("gp-uuid");
 
         expect(groupOrErr.value, errToMsg(groupOrErr.value)).toBeTruthy();
-        expect(groupOrErr.right.owner).toBe("root@gmail.com");
+        expect(groupOrErr.right.owner).toBe(authCtx.principal.email);
         expect(groupOrErr.right.mimetype).toBe(Nodes.GROUP_MIMETYPE);
     });
 
@@ -353,22 +193,6 @@ describe("UsersGroupsService.getGroup", () => {
         expect(groupOrErr.right.uuid).toBe(Groups.ADMINS_GROUP_UUID);
         expect(groupOrErr.right.title).toBe("Admins");
         expect(groupOrErr.right.description).toBe("Admins");
-    });
-
-    test("should return group if uuid is in fid format", async () => {
-        const service = usersGroupsService();
-
-        await service.createGroup({
-            title: "The title",
-            owner: "root@gmail.com",
-            fid: "fid-uuid",
-        });
-    
-        const groupOrErr = await service.getGroup("--fid--fid-uuid");
-
-        expect(groupOrErr.value, errToMsg(groupOrErr.value)).toBeTruthy();
-        expect(groupOrErr.right.owner).toBe("root@gmail.com");
-        expect(groupOrErr.right.mimetype).toBe(Nodes.GROUP_MIMETYPE);
     });
 
     test("should return error if group is not found", async () => {

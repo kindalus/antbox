@@ -7,6 +7,8 @@ import { Nodes } from "domain/nodes/nodes.ts";
 import type { ArticleServiceContext } from "./article_service_context.ts";
 import { parse } from "marked";
 import { ArticleNotFound } from "domain/articles/article_not_found_error.ts";
+import { JSDOM } from 'jsdom';
+
 export interface ArticleDTO {
   uuid: string;
   title: string;
@@ -30,13 +32,17 @@ export function nodeToArticle(
   }
 }
 
-export function articleToNode(article: ArticleDTO): ArticleNode {
+export function articleToNode(
+  ctx: AuthenticationContext, 
+  article: ArticleDTO,
+): ArticleNode {
   return ArticleNode.create({
     uuid: article.uuid,
     title: article.title,
     description: article.description,
     size: article.size,
     parent: article.parent,
+    owner: ctx.principal.email,
   }).right;
 }
 export class ArticleService {
@@ -78,24 +84,24 @@ export class ArticleService {
 
     const node = nodeOrErr.value as ArticleNode;
 
-    const contentTextOrErr = await this.#getArticleContentText(ctx, uuid);
-    if(contentTextOrErr.isLeft()) {
-      return left(contentTextOrErr.value);
+    const fileTextOrErr = await this.#getFileText(ctx, uuid);
+    if(fileTextOrErr.isLeft()) {
+      return left(fileTextOrErr.value);
     }
 
-    const contentText = contentTextOrErr.value;
+    const fileText = fileTextOrErr.value;
 
     if(Nodes.isMarkdown(node)) {
-      const html = await this.#markdownToHtml(contentText);
+      const html = await this.#markdownToHtml(fileText);
       return right(nodeToArticle(node, html));
     }
 
     if(Nodes.isHtml(node)) {
-      return right(nodeToArticle(node, contentText));
+      return right(nodeToArticle(node, fileText));
     }
 
     if(Nodes.isTextPlain(node)) {
-      const html = this.#textPlainToHtml(contentText);
+      const html = this.#textPlainToHtml(fileText);
       return right(nodeToArticle(node, html));
     }
 
@@ -103,7 +109,47 @@ export class ArticleService {
       return left(new ArticleNotFound(uuid));
     }
 
-    return right(nodeToArticle(node, contentText));
+    return right(nodeToArticle(node, fileText));
+  }
+
+  async getByLang(
+    ctx: AuthenticationContext, 
+    uuid: string,
+    lang: "pt" | "en" | "fr" | "es",
+  ): Promise<Either<AntboxError, ArticleDTO>> {
+    const articleOrErr = await this.get(ctx, uuid);
+    if(articleOrErr.isLeft()) {
+      return left(articleOrErr.value)
+    }
+
+    if (!["pt", "en", "es", "fr"].includes(lang)) {
+      return left(new ArticleNotFound(uuid));
+    }
+
+    const article = articleOrErr.value;
+    const html = article.content;
+
+    try {
+      const dom = new JSDOM(html);
+      const document = dom.window.document;
+
+      if(!document) {
+        console.error("Error parsing file text to DOM");
+        return right(article);
+      }
+
+      const contentElement =
+        document.querySelector(`template[lang='${lang}']`)?.innerHTML ??
+        document.querySelector("template:not([lang])")?.innerHTML ??
+        document.querySelector("body")?.innerHTML;
+
+      const newArticle = articleToNode(ctx, article);
+
+      return right(nodeToArticle(newArticle, contentElement));
+    } catch (e) {
+      console.error("Error parsing file text to DOM: ", e);
+      return left(new UnknownError("Error parsing file text to DOM"));
+    }
   }
 
   async delete(
@@ -185,7 +231,7 @@ export class ArticleService {
         .filter(p => p.length > 0);
 
       const htmlParagraphs = paragraphs
-        .map((p) => `<p>${this.#escapeHtml(p)}</p>`)
+        .map((p) => `<p>${this.#escapeSpecialCharacterHtml(p)}</p>`)
         .join("");
 
       return htmlParagraphs;
@@ -195,7 +241,7 @@ export class ArticleService {
     }
   }
 
-  #escapeHtml(text: string): string {
+  #escapeSpecialCharacterHtml(text: string): string {
     return text
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
@@ -204,15 +250,15 @@ export class ArticleService {
       .replace(/'/g, '&#039;');
   }
 
-  async #getArticleContentText(ctx: AuthenticationContext, uuid: string): Promise<Either<AntboxError, string>> {
+  async #getFileText(ctx: AuthenticationContext, uuid: string): Promise<Either<AntboxError, string>> {
     const fileOrErr = await this.nodeService.export(ctx, uuid);
     if(fileOrErr.isLeft()) {
       return left(fileOrErr.value);
     }
 
-    const contentText = await fileOrErr.value.text();
+    const fileText = await fileOrErr.value.text();
 
-    return right(contentText);
+    return right(fileText);
   }
 
   async #update(
@@ -267,67 +313,4 @@ export class ArticleService {
 
     return right(nodeOrErr.value);
   }
-
-
-  // async getByLanguage(
-  //   ctx: AuthenticationContext,
-  //   uuid: string,
-  //   lang: "pt" | "en" | "fr" | "es",
-  // ): Promise<Either<NodeNotFoundError, string>> {
-  //   const articleOrErr = await this.get(ctx, uuid);
-  //   if (articleOrErr.isLeft()) {
-  //     return left(articleOrErr.value);
-  //   }
-
-  //   const node = articleOrErr.value;
-
-  //   if (!node[lang] && !["pt", "en", "es", "fr"].includes(lang)) {
-  //     return left(new NodeNotFoundError(uuid));
-  //   }
-
-  //   return right(node[lang] ?? node.pt);
-  // }
-
-  // async #getArticleNodeText(
-  //   ctx: AuthenticationContext,
-  //   uuid: string,
-  // ): Promise<Either<NodeNotFoundError, Partial<ArticleNode>>> {
-  //   const fileOrError = await this.#nodeService.export(ctx, uuid);
-  //   if (fileOrError.isLeft()) {
-  //     return left(fileOrError.value);
-  //   }
-
-  //   const html = await fileOrError.value.text();
-
-  //   return this.#parseHtml(html);
-  // }
-
-  // #parseHtml(html: string): Either<UnknownError, Partial<ArticleNode>> {
-  //   try {
-  //     const document = new DOMParser().parseFromString(html, "text/html");
-
-  //     if (!document) {
-  //       return right({});
-  //     }
-
-  //     const pt =
-  //       document.querySelector("template[lang='pt']")?.innerHTML ??
-  //       document.querySelector("template:not([lang])")?.innerHTML ??
-  //       "";
-
-  //     const en = document.querySelector("template[lang='en']")?.innerHTML;
-  //     const es = document.querySelector("template[lang='es']")?.innerHTML;
-  //     const fr = document.querySelector("template[lang='fr']")?.innerHTML;
-
-  //     return right({
-  //       pt,
-  //       en,
-  //       es,
-  //       fr,
-  //     });
-  //   } catch (e) {
-  //     console.error("Error parsing web content", e);
-  //     return left(new UnknownError("Error parsing web content"));
-  //   }
-
 }

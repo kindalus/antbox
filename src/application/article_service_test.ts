@@ -171,6 +171,29 @@ describe("ArticleService", () => {
         expect(articleOrErr.value).toBeInstanceOf(ArticleNotFound);
     });
 
+    test("getByLang should return an article according language", async () => {
+        const service = createService()
+
+        const file = new File([html], "filename", {
+            type: Nodes.ARTICLE_MIMETYPE,
+        });
+
+        await service.createOrReplace(adminAuthContext, file, {
+            uuid: "--unique--",
+            title: "Title",
+            description: "Description",
+            parent: "--parent--",
+        });
+
+        const articleOrErr = await service.getByLang(adminAuthContext, "--unique--", "en");
+
+        expect(articleOrErr.isRight(), errMsg(articleOrErr.value)).toBeTruthy();
+        expect(articleOrErr.right.title).toBe("Title");
+        expect(articleOrErr.right.parent).toBe("--parent--");
+        expect(articleOrErr.right.size).toBe(file.size);
+        expect(articleOrErr.right.content?.includes("Article Title (EN)")).toBeTruthy();   
+    });
+
     test("delete should remove an article", async () => {
         const service = createService();
 
@@ -363,3 +386,52 @@ function errMsg(err: unknown): string {
 const file = new File(["<p>Content</p>"], "javascript", {
     type: Nodes.ARTICLE_MIMETYPE,
 });
+
+const html = `<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conteúdo Multilíngue</title>
+</head>
+<body>
+
+    <main>
+        <h1>Bem-vindo ao nosso site</h1>
+        <p>Este é o conteúdo principal, que será exibido se não houver um template específico para o idioma do usuário.</p>
+    </main>
+
+    <template lang="pt">
+        <article>
+            <h2>Título do Artigo (PT)</h2>
+            <p>Este é o conteúdo do artigo em português.</p>
+            <img src="imagem-pt.jpg" alt="Imagem em português">
+        </article>
+    </template>
+
+    <template lang="en">
+        <article>
+            <h2>Article Title (EN)</h2>
+            <p>This is the article content in English.</p>
+            <img src="image-en.jpg" alt="Image in English">
+        </article>
+    </template>
+
+    <template lang="fr">
+        <article>
+            <h2>Titre de l'Article (FR)</h2>
+            <p>Ceci est le contenu de l'article en français.</p>
+            <img src="image-fr.jpg" alt="Image en français">
+        </article>
+    </template>
+
+    <template lang="es">
+        <article>
+            <h2>Título del Artículo (ES)</h2>
+            <p>Este es el contenido del artículo en español.</p>
+            <img src="imagen-es.jpg" alt="Imagen en español">
+        </article>
+    </template>
+
+</body>
+</html>`;

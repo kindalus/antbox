@@ -1,14 +1,12 @@
 import { expect, test } from "bun:test";
-import { ValidationError } from "shared/validation_error.ts";
-import { EmailFormatError } from "domain/nodes/email_format_error.ts";
 import { Folders } from "domain/nodes/folders.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import { PropertyRequiredError } from "domain/nodes/property_errors.ts";
+import { ValidationError } from "shared/validation_error.ts";
 import { InvalidFullNameFormatError } from "./invalid_fullname_format_error.ts";
 import { InvalidPasswordFormatError } from "./invalid_password_format_error.ts";
 import { UserGroupRequiredError } from "./user_group_required_error.ts";
 import { UserNode } from "./user_node.ts";
-import { InvalidUsernameFormatError } from "./invalid_username_format_error.ts";
 
 const timeout = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -106,7 +104,7 @@ test("UserNode.create should hash the secret with right shaSum ", async () => {
     secret,
   });
 
-  const sha = await UserNode.shaSum(email, secret);
+  const sha = UserNode.shaSum(email, secret);
 
   await timeout(5);
 
@@ -143,7 +141,7 @@ test("UserNode.update should modify secret and create a new hash", async () => {
     group: "users",
   });
   const user = createResult.right;
-  const sha = await UserNode.shaSum("user@domain.com", "example.com");
+  const sha = UserNode.shaSum("user@domain.com", "example.com");
   const updateResult = user.update({ secret: "example.com" });
   await timeout(5);
 

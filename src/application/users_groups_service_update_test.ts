@@ -97,7 +97,6 @@ describe("UsersGroupsService.changePassword", () => {
       secret: "care-secret",
       groups: ["--users--"],
     });
-
     const sha = UserNode.shaSum("care@gmail.com", "the-new-password");
 
     await service.changePassword(authCtx, "care@gmail.com", "the-new-password");
@@ -127,7 +126,7 @@ describe("UsersGroupsService.updateGroup", () => {
       title: "The title",
     });
 
-    const voidOrErr = await service.updateGroup(createdGroupOrErr.right.uuid, {
+    const voidOrErr = await service.updateGroup(authCtx, createdGroupOrErr.right.uuid, {
       title: "Updated title",
     });
 
@@ -148,7 +147,7 @@ describe("UsersGroupsService.updateGroup", () => {
       groups: ["--users--"],
     });
 
-    const voidOrErr = await service.updateGroup("doily-uuid", { title: "The title" });
+    const voidOrErr = await service.updateGroup(authCtx, "doily-uuid", { title: "The title" });
 
     expect(voidOrErr.isLeft()).toBeTruthy();
     expect(voidOrErr.value).toBeInstanceOf(GroupNotFoundError);
@@ -157,7 +156,7 @@ describe("UsersGroupsService.updateGroup", () => {
   test("should not update builtin group", async () => {
     const service = usersGroupsService();
 
-    const voidOrErr = await service.updateGroup(Groups.ADMINS_GROUP_UUID, { title: "The title" });
+    const voidOrErr = await service.updateGroup(authCtx, Groups.ADMINS_GROUP_UUID, { title: "The title" });
 
     expect(voidOrErr.isLeft()).toBeTruthy();
     expect(voidOrErr.value).toBeInstanceOf(BadRequestError);
@@ -187,8 +186,6 @@ const usersGroupsService = (opts: Partial<UsersGroupsContext> = { repository: re
     storage: opts.storage ?? new InMemoryStorageProvider(),
     repository: opts.repository ?? new InMemoryNodeRepository(),
     bus: opts.bus ?? new InMemoryEventBus(),
-  });
-
-const timeout = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+});
 
 const errToMsg = (err: any) => (err?.message ? err.message : JSON.stringify(err));

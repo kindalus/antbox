@@ -15,6 +15,7 @@ import { ADMINS_GROUP, builtinGroups } from "./builtin_groups/index.ts";
 import { ANONYMOUS_USER, builtinUsers, ROOT_USER } from "./builtin_users/index.ts";
 import { InvalidCredentialsError } from "./invalid_credentials_error.ts";
 import {
+  groupToNode,
   nodeToGroup,
   nodeToUser,
   userToNode,
@@ -251,7 +252,11 @@ export class UsersGroupsService {
     return right(group);
   }
 
-  async updateGroup(uuid: string, data: Partial<GroupNode>): Promise<Either<AntboxError, void>> {
+  async updateGroup(
+    ctx: AuthenticationContext, 
+    uuid: string, 
+    metadata: Partial<GroupDTO>,
+  ): Promise<Either<AntboxError, void>> {
     if (builtinGroups.find((group) => group.uuid === uuid)) {
       return left(new BadRequestError("Cannot update built-in group"));
     }
@@ -261,9 +266,9 @@ export class UsersGroupsService {
       return left(existingOrErr.value);
     }
 
-    const group = existingOrErr.value;
+    const group = groupToNode(ctx, existingOrErr.value);
 
-    const updateResultOrErr = group.update(data);
+    const updateResultOrErr = group.update(metadata);
     if (updateResultOrErr.isLeft()) {
       return left(updateResultOrErr.value);
     }

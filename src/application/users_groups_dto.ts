@@ -1,5 +1,6 @@
 import { UserNode } from "domain/users_groups/user_node";
 import type { AuthenticationContext } from "./authentication_context";
+import { GroupNode } from "domain/users_groups/group_node";
 
 export interface UserDTO {
   uuid?: string;
@@ -43,4 +44,12 @@ export function nodeToGroup(metadata: GroupDTO): GroupDTO {
     uuid: metadata.uuid,
     title: metadata.title,
   };
+}
+
+export function groupToNode(ctx: AuthenticationContext, metadata: GroupDTO): GroupNode {
+  return GroupNode.create({
+    uuid: metadata.uuid,
+    title: metadata.title,
+    owner: ctx.principal.email,
+  }).right;
 }

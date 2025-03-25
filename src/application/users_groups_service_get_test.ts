@@ -16,7 +16,7 @@ import { UsersGroupsService } from "./users_groups_service";
 import type { UsersGroupsContext } from "./users_groups_service_context";
 
 
-describe("UsersGroupsService.getUserByEmail", () => {
+describe("UsersGroupsService.getUser", () => {
     test("should return user from repository", async () => {
         const service = usersGroupsService();
 
@@ -38,8 +38,7 @@ describe("UsersGroupsService.getUserByEmail", () => {
         const userOrErr = await service.getUser(authCtx, "july@gmail.com");
 
         expect(userOrErr.value, errToMsg(userOrErr.value)).toBeTruthy();
-        expect(userOrErr.right.owner).toBe(authCtx.principal.email);
-        expect(userOrErr.right.group).toBe("--admins--");
+        expect(userOrErr.right.groups.includes("--admins--")).toBeTruthy();
     });
 
     test("should return authenticated user", async () => {
@@ -63,8 +62,7 @@ describe("UsersGroupsService.getUserByEmail", () => {
         const userOrErr = await service.getUser(authCtx, "kend@gmail.com");
 
         expect(userOrErr.value, errToMsg(userOrErr.value)).toBeTruthy();
-        expect(userOrErr.right.owner).toBe(authCtx.principal.email);
-        expect(userOrErr.right.group).toBe("--admins--");
+        expect(userOrErr.right.groups.includes("--admins--")).toBeTruthy();
     });
 
     test("should return builtin user root", async () => {
@@ -82,9 +80,8 @@ describe("UsersGroupsService.getUserByEmail", () => {
         const userOrErr = await service.getUser(authCtx, Users.ROOT_USER_EMAIL);
 
         expect(userOrErr.value, errToMsg(userOrErr.value)).toBeTruthy();
-        expect(userOrErr.right.uuid).toBe(Users.ROOT_USER_UUID);
         expect(userOrErr.right.email).toBe(Users.ROOT_USER_EMAIL);
-        expect(userOrErr.right.group).toBe(Groups.ADMINS_GROUP_UUID);
+        expect(userOrErr.right.groups.includes(Groups.ADMINS_GROUP_UUID)).toBeTruthy();
     });
 
     test("should return builtin user anonymous", async () => {
@@ -102,9 +99,8 @@ describe("UsersGroupsService.getUserByEmail", () => {
         const userOrErr = await service.getUser(authCtx, Users.ANONYMOUS_USER_EMAIL);
 
         expect(userOrErr.value, errToMsg(userOrErr.value)).toBeTruthy();
-        expect(userOrErr.right.uuid).toBe(Users.ANONYMOUS_USER_UUID);
         expect(userOrErr.right.email).toBe(Users.ANONYMOUS_USER_EMAIL);
-        expect(userOrErr.right.group).toBe(Groups.ANONYMOUS_GROUP_UUID);
+        expect(userOrErr.right.groups.includes(Groups.ANONYMOUS_GROUP_UUID)).toBeTruthy();
     });
 
     test("should return user if autenticated user is an admin", async () => {
@@ -128,7 +124,7 @@ describe("UsersGroupsService.getUserByEmail", () => {
         const userOrErr = await service.getUser(authCtx, "steven@gmail.com");
 
         expect(userOrErr.value, errToMsg(userOrErr.value)).toBeTruthy();
-        expect(userOrErr.right.owner).toBe(authCtx.principal.email);
+        expect(userOrErr.right.email).toBe("steven@gmail.com");
     });
 
     test("should return error if user is not found", async () => {

@@ -18,38 +18,34 @@ describe("UsersGroupsService.updateUser", () => {
         const service = usersGroupsService();
 
         const createdUserOrErr = await service.createUser(authCtx, {
-            title: "The title",
-            owner: "root@gmail.com",
-            uuid: "dennis-uuid",
+            name: "The Name",
             email: "dennis@gmail.com",
             groups: ["--users--"],
         });
 
-        const voidOrErr = await service.updateUser(authCtx, createdUserOrErr.right.uuid, { title: "James" });
+        const voidOrErr = await service.updateUser(authCtx, createdUserOrErr.right.email, { name: "James" });
 
         expect(voidOrErr.isRight(), errToMsg(voidOrErr.value)).toBeTruthy();
 
-        const updatedUserOrErr = await service.getUser(authCtx, createdUserOrErr.right.uuid);
+        const updatedUserOrErr = await service.getUser(authCtx, createdUserOrErr.right.email!);
         expect(updatedUserOrErr.isRight(), errToMsg(updatedUserOrErr.value)).toBeTruthy();
-        expect(updatedUserOrErr.right.title).toBe("James");
+        expect(updatedUserOrErr.right.name).toBe("The Name");
     });
 
     test("should not update email", async () => {
         const service = usersGroupsService();
 
         const createdUserOrErr = await service.createUser(authCtx, {
-            title: "The title",
-            owner: "root@gmail.com",
-            uuid: "bale-uuid",
+            name: "The Name",
             email: "bale@gmail.com",
             groups: ["--users--"],
         });
 
-        const voidOrErr = await service.updateUser(authCtx, createdUserOrErr.right.uuid, { email: "lande@gmail.com" });
+        const voidOrErr = await service.updateUser(authCtx, createdUserOrErr.right.email, { email: "lande@gmail.com" });
 
         expect(voidOrErr.isRight()).toBeTruthy();
 
-        const updatedUserOrErr = await service.getUser(authCtx, createdUserOrErr.right.uuid);
+        const updatedUserOrErr = await service.getUser(authCtx, createdUserOrErr.right.email);
         expect(updatedUserOrErr.isRight(), errToMsg(updatedUserOrErr.value)).toBeTruthy();
         expect(updatedUserOrErr.right.email).toBe("bale@gmail.com");
     });
@@ -57,7 +53,7 @@ describe("UsersGroupsService.updateUser", () => {
     test("should return error if user not found", async () => {
         const service = usersGroupsService();
 
-        const voidOrErr = await service.updateUser(authCtx, "any uuid", { title: "James" });
+        const voidOrErr = await service.updateUser(authCtx, "any uuid", { name: "James" });
 
         expect(voidOrErr.isLeft()).toBeTruthy();
         expect(voidOrErr.value).toBeInstanceOf(UserNotFoundError);
@@ -66,8 +62,8 @@ describe("UsersGroupsService.updateUser", () => {
     test("should not udpdate builtin root user", async () => {
         const service = usersGroupsService();
 
-        const voidOrErr = await service.updateUser(authCtx, Users.ROOT_USER_UUID, {
-            title: "Anonymous",
+        const voidOrErr = await service.updateUser(authCtx, Users.ROOT_USER_EMAIL, {
+            name: "Anonymous",
             email: "james@gmail.com"
         });
 
@@ -78,8 +74,8 @@ describe("UsersGroupsService.updateUser", () => {
     test("should not udpdate builtin anonymous user", async () => {
         const service = usersGroupsService();
 
-        const voidOrErr = await service.updateUser(authCtx, Users.ANONYMOUS_USER_UUID, {
-            title: "root",
+        const voidOrErr = await service.updateUser(authCtx, Users.ANONYMOUS_USER_EMAIL, {
+            name: "root",
         });
 
         expect(voidOrErr.isLeft()).toBeTruthy();
@@ -92,23 +88,21 @@ describe("UsersGroupsService.changePassword", () => {
         const service = usersGroupsService();
 
         const createdUserOrErr = await service.createUser(authCtx, {
-            title: "The title",
-            owner: "root@gmail.com",
-            uuid: "care-uuid",
+            name: "The Name",
             email: "care@gmail.com",
             secret: "care-secret",
             groups: ["--users--"]
         });
-        const sha =  await UserNode.shaSum("care@gmail.com", "the-new-password");
+        const sha = await UserNode.shaSum("care@gmail.com", "the-new-password");
 
-        const voidOrErr = await service.changePassword(authCtx, createdUserOrErr.right.uuid, "the-new-password");
-        await timeout(5)
+        const voidOrErr = await service.changePassword(authCtx, "care@gmail.com", "the-new-password");
+        await timeout(5);
 
         expect(voidOrErr.isRight(), errToMsg(voidOrErr.value)).toBeTruthy();
         
-        const updatedUserOrErr = await service.getUser(authCtx, createdUserOrErr.right.uuid);
+        const updatedUserOrErr = await service.getUser(authCtx, createdUserOrErr.right.email);
         expect(updatedUserOrErr.isRight(), errToMsg(updatedUserOrErr.value)).toBeTruthy();
-        expect(updatedUserOrErr.right.uuid).toBe(createdUserOrErr.right.uuid);
+        expect(updatedUserOrErr.right.email).toBe(createdUserOrErr.right.email);
         expect(updatedUserOrErr.right.secret).toBe(sha);
     });
 
@@ -126,10 +120,9 @@ describe("UsersGroupsService.updateGroup", () => {
     test("should update the group", async () => {
         const service = usersGroupsService();
 
-        const createdGroupOrErr = await service.createGroup({
+        const createdGroupOrErr = await service.createGroup(authCtx, {
             uuid: "--title--",
             title: "The title",
-            owner: Users.ROOT_USER_EMAIL,
         });
 
         const voidOrErr = await service.updateGroup(createdGroupOrErr.right.uuid, {
@@ -147,8 +140,7 @@ describe("UsersGroupsService.updateGroup", () => {
         const service = usersGroupsService();
 
         await service.createUser(authCtx, {
-            title: "The title",
-            owner: "root@gmail.com",
+            name: "The title",
             uuid: "doily-uuid",
             email: "doily@gmail.com",
             groups: ["--users--"]

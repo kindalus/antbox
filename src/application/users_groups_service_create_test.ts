@@ -28,8 +28,8 @@ describe("UsersGroupsService.createUser", () => {
     const userOrErr = await service.getUser(authCtx, "joane@gmail.com");
 
     expect(userOrErr.isRight(), errToMsg(userOrErr.value)).toBeTruthy();
-    expect(userOrErr.right.title).toBe("The title");
-    expect(userOrErr.right.owner).toBe(authCtx.principal.email);
+    expect(userOrErr.right.name).toBe("The title");
+    expect(userOrErr.right.email).toBe("joane@gmail.com");
   });
 
   test("should remove duplicated groups", async () => {
@@ -44,8 +44,8 @@ describe("UsersGroupsService.createUser", () => {
     const userOrErr = await service.getUser(authCtx, "duck@gmail.com");
 
     expect(userOrErr.isRight(), errToMsg(userOrErr.value)).toBeTruthy();
-    expect(userOrErr.right.group).toBe("--admins--");
-    expect(userOrErr.right.groups).toEqual(["--users--", "--ultimate--"]);
+    expect(userOrErr.right.email).toBe("duck@gmail.com");
+    expect(userOrErr.right.groups).toEqual(["--users--", "--ultimate--", "--admins--"]);
   });
 
   test("should return error if user already exists", async () => {

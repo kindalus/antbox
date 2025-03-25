@@ -1,15 +1,15 @@
-import { AntboxError } from "shared/antbox_error.ts";
-import { type Either, left, right } from "shared/either.ts";
-import { ValidationError } from "shared/validation_error.ts";
 import { EmailValue } from "domain/nodes/email_value.ts";
 import { Folders } from "domain/nodes/folders.ts";
 import { Node } from "domain/nodes/node.ts";
 import { type NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
+import { AntboxError } from "shared/antbox_error.ts";
+import { type Either, left, right } from "shared/either.ts";
+import { ValidationError } from "shared/validation_error.ts";
 import { InvalidFullNameFormatError } from "./invalid_fullname_format_error.ts";
 import { InvalidPasswordFormatError } from "./invalid_password_format_error.ts";
 import { UserGroupRequiredError } from "./user_group_required_error.ts";
-import { InvalidUsernameFormatError } from "./invalid_username_format_error.ts";
+import { createHash } from "crypto";
 
 export class UserNode extends Node {
   #email: EmailValue;
@@ -17,19 +17,13 @@ export class UserNode extends Node {
   #groups: string[];
   #secret: string | undefined;
 
-  static async shaSum(email: string, password: string): Promise<string> {
-    const encoder = new TextEncoder();
-    const dataBuffer = encoder.encode(email.concat(password));
-
-    const hashBuffer = await crypto.subtle.digest("SHA-512", dataBuffer);
-
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+  static shaSum(email: string, password: string): string {
+    return createHash("sha512")
+      .update(email + password)
+      .digest("hex");
   }
 
-  static create(
-    metadata: Partial<NodeMetadata> = {},
-  ): Either<ValidationError, UserNode> {
+  static create(metadata: Partial<NodeMetadata> = {}): Either<ValidationError, UserNode> {
     try {
       const node = new UserNode(metadata);
       return right(node);
@@ -54,17 +48,13 @@ export class UserNode extends Node {
 
     if (metadata.secret) {
       this.#validateSecretComplexity(metadata.secret);
-      UserNode.shaSum(this.#email.value, metadata.secret).then((hash) => {
-        this.#secret = hash;
-      });
+      this.#secret = UserNode.shaSum(this.#email.value, metadata.secret);
     }
 
     this.#validate();
   }
 
-  override update(
-    metadata: Partial<NodeMetadata>,
-  ): Either<ValidationError, void> {
+  override update(metadata: Partial<NodeMetadata>): Either<ValidationError, void> {
     const superUpdateResult = super.update({
       ...metadata,
       parent: Folders.USERS_FOLDER_UUID,
@@ -80,9 +70,7 @@ export class UserNode extends Node {
     try {
       if (metadata.secret) {
         this.#validateSecretComplexity(metadata.secret);
-        UserNode.shaSum(this.#email.value, metadata.secret).then((hash) => {
-          this.#secret = hash;
-        });
+        this.#secret = UserNode.shaSum(this.#email.value, metadata.secret);
       }
 
       this.#validate();
@@ -116,7 +104,7 @@ export class UserNode extends Node {
       errors.push(new InvalidFullNameFormatError(this.title));
     }
 
-    if (!this.#group || this.#group.length === 0) { 
+    if (!this.#group || this.#group.length === 0) {
       errors.push(new UserGroupRequiredError());
     }
 

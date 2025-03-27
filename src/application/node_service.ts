@@ -95,7 +95,6 @@ export class NodeService {
     const uuid = metadata.uuid ?? UuidGenerator.generate();
     const nodeOrErr = NodeFactory.from({
       ...metadata,
-
       uuid,
       fid: metadata.fid ?? FidGenerator.generate(metadata.title!),
       owner: ctx.principal.email,

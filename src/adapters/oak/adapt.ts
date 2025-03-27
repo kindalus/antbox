@@ -1,24 +1,21 @@
 import type { Context } from "@oakserver/oak";
 import { type HttpHandler } from "api/handler.ts";
-
-async function readBody(ctx: Context) {
-  const contentType = ctx.request.headers.get("Content-Type");
-
-  if (contentType?.includes("text/plain")) {
-    return await ctx.request.body.text();
-  } else if (contentType?.includes("application/json")) {
-    return await ctx.request.body.json();
-  }
-
-  return ctx.request.body;
-}
+import { readBody } from "./read_body";
 
 export function adapt(handler: HttpHandler): (ctx: Context) => Promise<void> {
   return async (ctx: Context) => {
+    const body = await readBody(ctx);
+
+    const headers = new Headers();
+    for (const [key, value] of ctx.request.headers.entries()) {
+      headers.set(key, value);
+    }
+    headers.set("x-params", JSON.stringify(ctx.params));
+
     const init: RequestInit = {
-      headers: ctx.request.headers,
+      headers,
       method: ctx.request.method,
-      body: await readBody(ctx),
+      body,
     };
 
     const req = new Request(ctx.request.url, init);

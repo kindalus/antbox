@@ -9,14 +9,11 @@ import { sendOK, sendUnauthorized, type HttpHandler } from "./handler";
 export function rootHandler(tenants: AntboxTenant[]): HttpHandler {
   return defaultMiddlewareChain(tenants, async (req: Request): Promise<Response> => {
     const tenant = getTenant(req, tenants);
-
-    const rootPasswd = tenant.rootPasswd;
     const symmetricKey = tenant.symmetricKey;
-
+    const rootPasswd = tenant.rootPasswd;
     const digestedRootPasswd = await sha256(rootPasswd);
 
     const passwd = await readTextStream(req.body);
-
     if (passwd !== digestedRootPasswd) {
       return sendUnauthorized();
     }

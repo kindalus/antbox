@@ -1,3 +1,4 @@
+import type { AntboxError } from "shared/antbox_error.ts";
 import { type Either } from "shared/either.ts";
 import { ValidationError } from "shared/validation_error.ts";
 import { type Permissions } from "./node.ts";
@@ -6,10 +7,8 @@ import { type NodeMetadata } from "./node_metadata.ts";
 import { type NodeProperties } from "./node_properties.ts";
 import { Nodes } from "./nodes.ts";
 import { PropertyRequiredError } from "./property_required_error.ts";
-import type { AntboxError } from "shared/antbox_error.ts";
 import { PropertyValueFormatError } from "./property_value_format_error.ts";
 
-// deno-lint-ignore no-explicit-any
 export type Constructor<T = any> = new (...args: any[]) => T;
 
 export function WithAspectMixin<TBase extends Constructor>(Base: TBase) {
@@ -19,7 +18,6 @@ export function WithAspectMixin<TBase extends Constructor>(Base: TBase) {
     #tags: string[] = [];
     #related: string[] = [];
 
-    // deno-lint-ignore no-explicit-any
     constructor(...args: any[]) {
       super(...args);
 
@@ -61,7 +59,6 @@ export function FileNodeMixin<TBase extends Constructor>(Base: TBase) {
   return class extends Base {
     #size: number;
 
-    // deno-lint-ignore no-explicit-any
     constructor(...args: any[]) {
       super(...args);
 
@@ -95,7 +92,6 @@ export function FolderNodeMixin<TBase extends Constructor>(Base: TBase) {
     };
     #filters: NodeFilters = [];
 
-    // deno-lint-ignore no-explicit-any
     constructor(...args: any[]) {
       super({ ...args[0], mimetype: Nodes.FOLDER_MIMETYPE });
 

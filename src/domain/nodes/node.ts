@@ -6,8 +6,9 @@ import { EmailValue } from "./email_value.ts";
 import { Folders } from "./folders.ts";
 import { InvalidMimetypeError } from "./invalid_mimetype_error.ts";
 import { type NodeMetadata } from "./node_metadata.ts";
-import { PropertyRequiredError } from "./property_required_error.ts";
+
 import { UuidGenerator } from "shared/uuid_generator.ts";
+import { PropertyRequiredError } from "./property_errors.ts";
 
 export class Node {
   readonly uuid: string;

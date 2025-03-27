@@ -4,13 +4,13 @@ import { FolderNode } from "domain/nodes/folder_node.ts";
 import { Folders } from "domain/nodes/folders.ts";
 import { Node } from "domain/nodes/node.ts";
 import { NodeCreatedEvent } from "domain/nodes/node_created_event.ts";
-import { buildNodeSpecification } from "domain/nodes/node_filters.ts";
+import { NodesFilters } from "domain/nodes_filters.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import { NodeUpdatedEvent } from "domain/nodes/node_updated_event.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import { AntboxError, BadRequestError, UnknownError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
-import { AuthService } from "./auth_service.ts";
+import { UsersGroupsService } from "./users_groups_service.ts";
 import { type AuthenticationContext } from "./authentication_context.ts";
 import { NodeService } from "./node_service.ts";
 import type { RunContext } from "domain/actions/run_context.ts";
@@ -48,7 +48,7 @@ export class ActionService {
 
   constructor(
     private readonly nodeService: NodeService,
-    private readonly authService: AuthService,
+    private readonly authService: UsersGroupsService,
   ) {}
 
   async get(
@@ -272,8 +272,8 @@ export class ActionService {
     }
 
     const nodes = nodesOrErr
-      .map((n) => n.value as Node)
-      .filter(buildNodeSpecification(action.filters));
+      .map((n) => n.right)
+      .filter((n) => NodesFilters.satisfiedBy(action.filters, n).isRight());
 
     return right(nodes.map((n) => n.uuid));
   }
@@ -291,7 +291,7 @@ export class ActionService {
     let group = Nodes.isFolder(evt.payload) ? evt.payload.group : undefined;
 
     if (!group) {
-      const parent = await this.nodeService.get(AuthService.elevatedContext(), evt.payload.parent);
+      const parent = await this.nodeService.get(UsersGroupsService.elevatedContext(), evt.payload.parent);
       group = (parent.right as FolderNode).group;
     }
 
@@ -329,7 +329,7 @@ export class ActionService {
   }
 
   async #getAuthCtxByEmail(email: string): Promise<Either<AntboxError, AuthenticationContext>> {
-    const userOrErr = await this.authService.getUserByEmail(AuthService.elevatedContext(), email);
+    const userOrErr = await this.authService.getUserByEmail(UsersGroupsService.elevatedContext(), email);
     if (userOrErr.isLeft()) {
       return left(userOrErr.value);
     }

@@ -3,9 +3,9 @@ import { ValidationError } from "shared/validation_error.ts";
 import { EmailFormatError } from "domain/nodes/email_format_error.ts";
 import { Folders } from "domain/nodes/folders.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
-import { PropertyRequiredError } from "domain/nodes/property_required_error.ts";
 import { GroupNode } from "./group_node.ts";
 import { InvalidFullNameFormatError } from "./invalid_fullname_format_error.ts";
+import { PropertyRequiredError } from "domain/nodes/property_errors.ts";
 
 test("GroupNode.create should initialize", () => {
   const createResult = GroupNode.create({
@@ -29,12 +29,8 @@ test("GroupNode.create should throw error if owner is missing", () => {
 
   expect(createResult.isLeft()).toBe(true);
   expect(createResult.value).toBeInstanceOf(ValidationError);
-  expect((createResult.value as ValidationError).errors[0]).toBeInstanceOf(
-    PropertyRequiredError,
-  );
-  expect((createResult.value as ValidationError).errors[0].message).toBe(
-    "Node.owner is required",
-  );
+  expect((createResult.value as ValidationError).errors[0]).toBeInstanceOf(PropertyRequiredError);
+  expect((createResult.value as ValidationError).errors[0].message).toBe("Node.owner is required");
 });
 
 test("GroupNode.create should throw error if owner is invalid email format", () => {
@@ -46,9 +42,7 @@ test("GroupNode.create should throw error if owner is invalid email format", () 
 
   expect(createResult.isLeft()).toBe(true);
   expect(createResult.value).toBeInstanceOf(ValidationError);
-  expect((createResult.value as ValidationError).errors[0]).toBeInstanceOf(
-    EmailFormatError,
-  );
+  expect((createResult.value as ValidationError).errors[0]).toBeInstanceOf(EmailFormatError);
 });
 
 test("GroupNode.create should throw error if title is missing", () => {
@@ -59,12 +53,8 @@ test("GroupNode.create should throw error if title is missing", () => {
 
   expect(createResult.isLeft()).toBe(true);
   expect(createResult.value).toBeInstanceOf(ValidationError);
-  expect((createResult.value as ValidationError).errors[0]).toBeInstanceOf(
-    PropertyRequiredError,
-  );
-  expect((createResult.value as ValidationError).errors[0].message).toBe(
-    "Node.title is required",
-  );
+  expect((createResult.value as ValidationError).errors[0]).toBeInstanceOf(PropertyRequiredError);
+  expect((createResult.value as ValidationError).errors[0].message).toBe("Node.title is required");
 });
 
 test("GroupNode.create should throw error if title lenght is less than 3 chars", () => {

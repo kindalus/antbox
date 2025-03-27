@@ -1,24 +1,21 @@
-import type { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository.ts";
-import { buildAspectValidator, type AspectProperty } from "domain/aspects/aspect.ts";
-import { AspectNode } from "domain/aspects/aspect_node.ts";
-import { Groups } from "domain/auth/groups.ts";
-import { Users } from "domain/auth/users.ts";
+import { AspectNode, type AspectProperty } from "domain/aspects/aspect_node.ts";
+import { Aspects } from "domain/aspects/aspects.ts";
 import { NodeFactory } from "domain/node_factory.ts";
+import type { FileLikeNode, NodeLike } from "domain/node_like.ts";
 import { FileNode } from "domain/nodes/file_node.ts";
 import { FolderNode } from "domain/nodes/folder_node.ts";
 import { FolderNotFoundError } from "domain/nodes/folder_not_found_error.ts";
 import { Folders } from "domain/nodes/folders.ts";
 import { MetaNode } from "domain/nodes/meta_node.ts";
 import { Node, type Permission } from "domain/nodes/node.ts";
+import { NodeDeletedEvent } from "domain/nodes/node_deleted_event.ts";
 import {
-  isAnyNodeFilter,
+  isNodeFilters2D,
   type NodeFilter,
   type NodeFilters,
   type NodeFilters1D,
   type NodeFilters2D,
 } from "domain/nodes/node_filter.ts";
-import { areFiltersSatisfiedBy, buildNodeSpecification } from "domain/nodes/node_filters.ts";
-import type { FileLikeNode, NodeLike } from "domain/nodes/node_like.ts";
 import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import type { NodeProperties } from "domain/nodes/node_properties.ts";
@@ -26,12 +23,15 @@ import type { NodeFilterResult } from "domain/nodes/node_repository.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import { SmartFolderNode } from "domain/nodes/smart_folder_node.ts";
 import { SmartFolderNodeNotFoundError } from "domain/nodes/smart_folder_node_not_found_error.ts";
+import { NodesFilters } from "domain/nodes_filters.ts";
+import { Groups } from "domain/users_groups/groups.ts";
+import { Users } from "domain/users_groups/users.ts";
 import { AntboxError, BadRequestError, ForbiddenError, UnknownError } from "shared/antbox_error.ts";
 import { left, right, type Either } from "shared/either.ts";
 import { FidGenerator } from "shared/fid_generator.ts";
 import { UuidGenerator } from "shared/uuid_generator.ts";
 import { ValidationError } from "shared/validation_error.ts";
-import { type AuthenticationContext } from "./authentication_context.ts";
+import type { AuthenticationContext } from "./authentication_context.ts";
 import { builtinFolders, SYSTEM_FOLDER, SYSTEM_FOLDERS } from "./builtin_folders/index.ts";
 import { isPrincipalAllowedTo } from "./is_principal_allowed_to.ts";
 import type { NodeServiceContext } from "./node_service_context.ts";
@@ -115,7 +115,10 @@ export class NodeService {
       return left(new ForbiddenError());
     }
 
-    const filtersSatisfied = areFiltersSatisfiedBy(parentOrErr.value.filters, nodeOrErr.value);
+    const filtersSatisfied = NodesFilters.satisfiedBy(
+      parentOrErr.value.filters,
+      nodeOrErr.value,
+    ).isRight();
     if (!filtersSatisfied) {
       return left(new BadRequestError("Node does not satisfy parent filters"));
     }
@@ -211,7 +214,12 @@ export class NodeService {
     }
 
     if (!Nodes.isFolder(nodeOrErr.value)) {
-      return this.context.repository.delete(uuid);
+      const v = await this.context.repository.delete(uuid);
+      if (v.isRight()) {
+        const evt = new NodeDeletedEvent(ctx.principal.email, nodeOrErr.value);
+        this.context.bus.publish(evt);
+      }
+      return v;
     }
 
     const children = await this.context.repository.filter([["parent", "==", uuid]]);
@@ -223,7 +231,14 @@ export class NodeService {
       return left(new UnknownError(`Error deleting children: ${rejected.map((r) => r.reason)}`));
     }
 
-    return this.context.repository.delete(uuid);
+    const v = await this.context.repository.delete(uuid);
+
+    if (v.isRight()) {
+      const evt = new NodeDeletedEvent(ctx.principal.email, nodeOrErr.value);
+      this.context.bus.publish(evt);
+    }
+
+    return v;
   }
 
   async duplicate(
@@ -293,11 +308,6 @@ export class NodeService {
   ): Promise<Either<SmartFolderNodeNotFoundError, NodeLike[]>> {
     const nodeOrErr = await this.get(ctx, uuid);
     if (nodeOrErr.isLeft()) {
-      console.error(
-        (this.context.repository as unknown as InMemoryNodeRepository).records.map(
-          (n) => n.metadata,
-        ),
-      );
       return left(new SmartFolderNodeNotFoundError(uuid));
     }
 
@@ -306,7 +316,6 @@ export class NodeService {
     }
 
     const node: SmartFolderNode = nodeOrErr.value;
-
     const evaluationOrErr = await this.find(ctx, node.filters, Number.MAX_SAFE_INTEGER);
     if (evaluationOrErr.isLeft()) {
       return left(
@@ -323,7 +332,7 @@ export class NodeService {
     pageSize = 20,
     pageToken = 1,
   ): Promise<Either<AntboxError, NodeFilterResult>> {
-    const f = isAnyNodeFilter(filters) ? filters : [filters];
+    const f = isNodeFilters2D(filters) ? filters : [filters];
 
     const stage1 = f.reduce(this.#toFiltersWithPermissionsResolved(ctx, "Read"), []);
 
@@ -534,7 +543,9 @@ export class NodeService {
       filters.push(["uuid", "==", uuid]);
     }
 
-    const builtinFolder = builtinFolders.find((n) => areFiltersSatisfiedBy(filters, n));
+    const builtinFolder = builtinFolders.find((n) =>
+      NodesFilters.satisfiedBy(filters, n).isRight(),
+    );
     if (builtinFolder) {
       return right(builtinFolder);
     }
@@ -616,8 +627,8 @@ export class NodeService {
     }
 
     // Since system folders are not stored in the repository, we need to handle them separately
-    const satisfiedByFilders = buildNodeSpecification(at);
-    const sysFolders = builtinFolders.filter(satisfiedByFilders);
+    const spec = NodesFilters.nodeSpecificationFrom(at);
+    const sysFolders = builtinFolders.filter((f) => spec.isSatisfiedBy(f).isRight());
 
     const result = await this.context.repository.filter(at, Number.MAX_SAFE_INTEGER, 1);
     const parentList = [...result.nodes.map((n) => n.uuid), ...sysFolders.map((n) => n.uuid)];
@@ -640,14 +651,19 @@ export class NodeService {
     }
 
     const curProps = node.metadata.properties as NodeProperties;
-    const validators = aspects.map((a) => buildAspectValidator(a));
+    const accProps = {} as NodeProperties;
+    const validators = aspects.map(Aspects.specificationFrom);
 
     for (const a of aspects) {
-      a.properties.forEach((p) => this.#addAspectPropertyToNode(node, a, p, curProps));
+      a.properties.forEach((p) =>
+        this.#addAspectPropertyToNode(accProps, curProps, p, `${a.uuid}:${p.name}`),
+      );
     }
 
+    node.update({ properties: accProps });
+
     const errors = validators
-      .map((v) => v(node))
+      .map((v) => v.isSatisfiedBy(node))
       .filter((v) => v.isLeft())
       .map((v) => v.value.errors)
       .flat();
@@ -660,16 +676,15 @@ export class NodeService {
   }
 
   #addAspectPropertyToNode(
-    node: NodeLike,
-    aspect: AspectNode,
-    property: AspectProperty,
+    accProperties: NodeProperties,
     curProperties: NodeProperties,
+    property: AspectProperty,
+    key: string,
   ) {
-    const name = `${aspect.uuid}:${property.name}`;
-    const value = curProperties[name] ?? property.default ?? undefined;
+    const value = curProperties[key] ?? property.default ?? undefined;
 
     if (value || value === false) {
-      node.update({ properties: { ...curProperties, [name]: value } });
+      accProperties[key] = value;
     }
   }
 

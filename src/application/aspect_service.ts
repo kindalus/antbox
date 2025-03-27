@@ -1,4 +1,3 @@
-import { aspectToNode, nodeToAspect } from "domain/aspects/aspect.ts";
 import { AspectNode } from "domain/aspects/aspect_node.ts";
 import { AspectNotFoundError } from "domain/aspects/aspect_not_found_error.ts";
 import { Folders } from "domain/nodes/folders.ts";
@@ -6,7 +5,7 @@ import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import { AntboxError, BadRequestError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
-import { AuthService } from "./auth_service.ts";
+import { type AspectDTO, nodeToAspect } from "./aspect_dto.ts";
 import type { AuthenticationContext } from "./authentication_context.ts";
 import { builtinAspects } from "./builtin_aspects/mod.ts";
 import { NodeService } from "./node_service.ts";
@@ -16,37 +15,68 @@ export class AspectService {
 
   async createOrReplace(
     ctx: AuthenticationContext,
-    metadata: Partial<AspectNode>,
-  ): Promise<Either<AntboxError, AspectNode>> {
+    metadata: AspectDTO,
+  ): Promise<Either<AntboxError, AspectDTO>> {
     if (!metadata.uuid) {
       return left(new BadRequestError("Aspect UUID is required"));
     }
 
-    const nodeOrErr = await this.nodeService.get(ctx, metadata.uuid);
-
-    if (nodeOrErr.isRight() && !Nodes.isAspect(nodeOrErr.value)) {
-      return left(new BadRequestError("Node exists and is not an aspect"));
-    }
-
+    const nodeOrErr = await this.get(ctx, metadata.uuid);
     if (nodeOrErr.isLeft()) {
-      return AspectNode.create(metadata);
+      return this.#create(ctx, metadata);
     }
 
-    const voidOrErr = await this.nodeService.update(ctx, metadata.uuid, metadata);
-    if (voidOrErr.isLeft()) {
-      return left(voidOrErr.value);
-    }
-
-    return this.nodeService.get(ctx, metadata.uuid) as Promise<Either<AntboxError, AspectNode>>;
+    return this.#update(ctx, metadata.uuid, metadata);
   }
 
-  async get(uuid: string): Promise<Either<NodeNotFoundError, AspectNode>> {
-    const builtin = builtinAspects.find((aspect) => aspect.uuid === uuid);
-    if (builtin) {
-      return right(aspectToNode(builtin));
+  async #create(
+    ctx: AuthenticationContext,
+    metadata: AspectDTO,
+  ): Promise<Either<AntboxError, AspectDTO>> {
+    const nodeOrErr = await this.nodeService.create(ctx, {
+      ...metadata,
+      mimetype: Nodes.ASPECT_MIMETYPE,
+    });
+
+    if (nodeOrErr.isLeft()) {
+      return left(nodeOrErr.value);
     }
 
-    const nodeOrErr = await this.nodeService.get(AuthService.elevatedContext(), uuid);
+    return right(nodeToAspect(nodeOrErr.value as AspectNode));
+  }
+
+  async #update(
+    ctx: AuthenticationContext,
+    uuid: string,
+    metadata: AspectDTO,
+  ): Promise<Either<AntboxError, AspectDTO>> {
+    const nodeOrErr = await this.nodeService.update(ctx, uuid, metadata);
+    if (nodeOrErr.isLeft()) {
+      return left(nodeOrErr.value);
+    }
+
+    const aspectOrErr = await this.get(ctx, uuid);
+    if (aspectOrErr.isLeft()) {
+      return left(aspectOrErr.value);
+    }
+
+    return right(aspectOrErr.value);
+  }
+
+  async get(
+    ctx: AuthenticationContext,
+    uuid: string,
+  ): Promise<Either<NodeNotFoundError, AspectDTO>> {
+    const builtin = builtinAspects.find((aspect) => aspect.uuid === uuid);
+    if (builtin) {
+      return right(builtin);
+    }
+
+    const nodeOrErr = await this.nodeService.get(ctx, uuid);
+
+    if (nodeOrErr.isLeft() && nodeOrErr.value instanceof NodeNotFoundError) {
+      return left(new AspectNotFoundError(uuid));
+    }
 
     if (nodeOrErr.isLeft()) {
       return left(nodeOrErr.value);
@@ -56,12 +86,12 @@ export class AspectService {
       return left(new AspectNotFoundError(uuid));
     }
 
-    return right(nodeOrErr.value);
+    return right(nodeToAspect(nodeOrErr.value));
   }
 
-  async list(): Promise<AspectNode[]> {
+  async list(ctx: AuthenticationContext): Promise<AspectDTO[]> {
     const nodesOrErrs = await this.nodeService.find(
-      AuthService.elevatedContext(),
+      ctx,
       [
         ["mimetype", "==", Nodes.ASPECT_MIMETYPE],
         ["parent", "==", Folders.ASPECTS_FOLDER_UUID],
@@ -73,41 +103,33 @@ export class AspectService {
       return [];
     }
 
-    const usersAspects = nodesOrErrs.value.nodes as AspectNode[];
-    const systemAspects = builtinAspects.map(aspectToNode);
-
-    return [...usersAspects, ...systemAspects].sort((a, b) => a.title.localeCompare(b.title));
+    const usersAspects = nodesOrErrs.value.nodes.map(nodeToAspect);
+    return [...usersAspects, ...builtinAspects].sort((a, b) => a.title.localeCompare(b.title));
   }
 
   async delete(ctx: AuthenticationContext, uuid: string): Promise<Either<AntboxError, void>> {
-    const nodeOrErr = await this.nodeService.get(ctx, uuid);
+    const nodeOrErr = await this.get(ctx, uuid);
 
     if (nodeOrErr.isLeft()) {
       return left(nodeOrErr.value);
     }
 
-    if (!Nodes.isAspect(nodeOrErr.value)) {
-      return left(new AspectNotFoundError(uuid));
-    }
-
     return this.nodeService.delete(ctx, uuid);
   }
 
-  async export(node: string | AspectNode): Promise<Either<NodeNotFoundError, File>> {
-    let aspect = typeof node !== "string" ? nodeToAspect(node) : undefined;
-
-    if (typeof node === "string") {
-      const nodeOrErr = await this.get(node);
-      if (nodeOrErr.isLeft()) {
-        return left(nodeOrErr.value);
-      }
-
-      aspect = nodeToAspect(nodeOrErr.value);
+  async export(ctx: AuthenticationContext, uuid: string): Promise<Either<NodeNotFoundError, File>> {
+    const aspectOrErr = await this.get(ctx, uuid);
+    if (aspectOrErr.isLeft()) {
+      return left(aspectOrErr.value);
     }
 
-    const file = new File([JSON.stringify(aspect, null, 2)], `${aspect?.uuid}.json`, {
-      type: "application/json",
-    });
+    const file = new File(
+      [JSON.stringify(aspectOrErr.value, null, 2)],
+      `${aspectOrErr.value?.uuid}.json`,
+      {
+        type: "application/json",
+      },
+    );
 
     return right(file);
   }

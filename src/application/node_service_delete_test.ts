@@ -1,15 +1,17 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test, spyOn } from "bun:test";
 import { NodeService } from "./node_service";
 import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository";
 import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error";
 import type { AuthenticationContext } from "./authentication_context";
-import { Groups } from "domain/auth/groups";
+import { Groups } from "domain/users_groups/groups";
 import { ForbiddenError } from "shared/antbox_error";
 import type { NodeServiceContext } from "./node_service_context";
 import { Folders } from "domain/nodes/folders";
 import { FileNode } from "domain/nodes/file_node";
 import { Nodes } from "domain/nodes/nodes";
+import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus";
+import type { EventBus } from "shared/event_bus";
 
 describe("NodeService.delete", () => {
   test("should delete a node and its metadata", async () => {
@@ -20,10 +22,19 @@ describe("NodeService.delete", () => {
       parent: Folders.ROOT_FOLDER_UUID,
     }).right;
 
+    // const bus: EventBus = new InMemoryEventBus();
+    const bus: EventBus = {
+      publish: async () => undefined,
+      subscribe: () => undefined,
+      unsubscribe: () => undefined,
+    };
+
+    spyOn(bus, "publish");
+
     const repository = new InMemoryNodeRepository();
     await repository.add(node);
 
-    const service = nodeService({ repository });
+    const service = nodeService({ repository, bus });
 
     const deleteOrErr = await service.delete(authCtx, node.uuid);
 
@@ -32,13 +43,11 @@ describe("NodeService.delete", () => {
     const getNodeOrErr = await service.get(authCtx, node.uuid);
     expect(getNodeOrErr.isLeft(), errToMsg(getNodeOrErr.value)).toBeTruthy();
     expect(getNodeOrErr.value).toBeInstanceOf(NodeNotFoundError);
+    expect(bus.publish).toHaveBeenCalled();
   });
 
   test("should return error if node is not found", async () => {
-    const service = new NodeService({
-      storage: new InMemoryStorageProvider(),
-      repository: new InMemoryNodeRepository(),
-    });
+    const service = nodeService();
 
     const deleteOrErr = await service.delete(authCtx, "not-found");
     expect(deleteOrErr.isLeft()).toBeTruthy();
@@ -117,4 +126,5 @@ const nodeService = (opts: Partial<NodeServiceContext> = {}) =>
   new NodeService({
     storage: opts.storage ?? new InMemoryStorageProvider(),
     repository: opts.repository ?? new InMemoryNodeRepository(),
+    bus: opts.bus ?? new InMemoryEventBus(),
   });

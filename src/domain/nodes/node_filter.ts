@@ -20,7 +20,7 @@ export type FilterOperator =
   | "not-contains"
   | "contains-none";
 
-export function isAnyNodeFilter(filters: NodeFilters): filters is NodeFilters2D {
+export function isNodeFilters2D(filters: NodeFilters): filters is NodeFilters2D {
   if (filters.length === 0) {
     return false;
   }

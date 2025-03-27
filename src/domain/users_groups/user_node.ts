@@ -9,6 +9,7 @@ import { Nodes } from "domain/nodes/nodes.ts";
 import { InvalidFullNameFormatError } from "./invalid_fullname_format_error.ts";
 import { InvalidPasswordFormatError } from "./invalid_password_format_error.ts";
 import { UserGroupRequiredError } from "./user_group_required_error.ts";
+import { InvalidUsernameFormatError } from "./invalid_username_format_error.ts";
 
 export class UserNode extends Node {
   #email: EmailValue;
@@ -43,8 +44,8 @@ export class UserNode extends Node {
       mimetype: Nodes.USER_MIMETYPE,
       parent: Folders.USERS_FOLDER_UUID,
     });
-    this.#group = metadata?.group ?? "";
     this.#groups = metadata?.groups ?? [];
+    this.#group = metadata?.group ?? this.groups[0];
     this.#email = undefined as unknown as EmailValue;
 
     if (metadata.email) {
@@ -84,11 +85,6 @@ export class UserNode extends Node {
         });
       }
 
-      if (metadata.email) {
-        this.#email =
-          this.#getValidEmailOrThrowError(metadata.email) ?? this.#email;
-      }
-
       this.#validate();
     } catch (err) {
       return left(err as ValidationError);
@@ -115,11 +111,12 @@ export class UserNode extends Node {
 
   #validate() {
     const errors: AntboxError[] = [];
+
     if (!this.title || this.title.length < 3) {
       errors.push(new InvalidFullNameFormatError(this.title));
     }
 
-    if (!this.#group || this.#group.length === 0) {
+    if (!this.#group || this.#group.length === 0) { 
       errors.push(new UserGroupRequiredError());
     }
 

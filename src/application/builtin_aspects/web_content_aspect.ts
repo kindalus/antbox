@@ -1,4 +1,4 @@
-import { type Aspect } from "domain/aspects/aspect.ts";
+import { type AspectDTO } from "domain/aspects/aspect.ts";
 
 export const WebContentAspect = {
   uuid: "web-content",
@@ -15,4 +15,4 @@ export const WebContentAspect = {
       default: true,
     },
   ],
-} as Aspect;
+} as AspectDTO;

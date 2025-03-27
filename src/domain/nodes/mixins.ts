@@ -6,8 +6,7 @@ import { type NodeFilters } from "./node_filter.ts";
 import { type NodeMetadata } from "./node_metadata.ts";
 import { type NodeProperties } from "./node_properties.ts";
 import { Nodes } from "./nodes.ts";
-import { PropertyRequiredError } from "./property_required_error.ts";
-import { PropertyValueFormatError } from "./property_value_format_error.ts";
+import { PropertyFormatError, PropertyRequiredError } from "./property_errors.ts";
 
 export type Constructor<T = any> = new (...args: any[]) => T;
 
@@ -51,6 +50,15 @@ export function WithAspectMixin<TBase extends Constructor>(Base: TBase) {
         tags: this.#tags,
         related: this.#related,
       };
+    }
+
+    update(metadata: Partial<NodeMetadata>): Either<ValidationError, void> {
+      this.#aspects = metadata.aspects ?? this.#aspects;
+      this.#properties = metadata.properties ?? this.#properties;
+      this.#tags = metadata.tags ?? this.#tags;
+      this.#related = metadata.related ?? this.#related;
+
+      return super.update(metadata);
     }
   };
 }
@@ -177,13 +185,13 @@ export function FolderNodeMixin<TBase extends Constructor>(Base: TBase) {
 
       if (!Array.isArray(this.#permissions.group)) {
         errors.push(
-          new PropertyValueFormatError("permissions.group", "Permissions", this.#permissions.group),
+          new PropertyFormatError("permissions.group", "Permissions", this.#permissions.group),
         );
       }
 
       if (!Array.isArray(this.#permissions.authenticated)) {
         errors.push(
-          new PropertyValueFormatError(
+          new PropertyFormatError(
             "permissions.authenticated",
             "Permissions",
             this.#permissions.authenticated,
@@ -193,7 +201,7 @@ export function FolderNodeMixin<TBase extends Constructor>(Base: TBase) {
 
       if (!Array.isArray(this.#permissions.anonymous)) {
         errors.push(
-          new PropertyValueFormatError(
+          new PropertyFormatError(
             "permissions.anonymous",
             "Permissions",
             this.#permissions.anonymous,

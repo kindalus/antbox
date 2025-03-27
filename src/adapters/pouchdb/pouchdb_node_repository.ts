@@ -9,14 +9,14 @@ import {
   type NodeFilters1D,
   type NodeFilter,
   type NodeFilters2D,
-  isAnyNodeFilter as areOrNodeFilter,
+  isNodeFilters2D as areOrNodeFilter,
   type NodeFilters,
 } from "domain/nodes/node_filter";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error";
 import type { NodeRepository, NodeFilterResult } from "domain/nodes/node_repository";
 import { UnknownError, type AntboxError } from "shared/antbox_error";
 import { type Either, right, left } from "shared/either";
-import type { NodeLike } from "domain/nodes/node_like";
+import type { NodeLike } from "domain/node_like.ts";
 import type { NodeMetadata } from "domain/nodes/node_metadata";
 import { Nodes } from "domain/nodes/nodes";
 import type { AspectProperty } from "domain/aspects/aspect";

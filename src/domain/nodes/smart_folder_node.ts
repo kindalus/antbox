@@ -4,7 +4,7 @@ import { Node } from "./node.ts";
 import { type NodeFilters } from "./node_filter.ts";
 import { type Either, left, right } from "shared/either.ts";
 import { ValidationError } from "shared/validation_error.ts";
-import { PropertyRequiredError } from "./property_required_error.ts";
+import { PropertyRequiredError } from "./property_errors.ts";
 
 export class SmartFolderNode extends Node {
   static create(metadata: Partial<SmartFolderNode> = {}): Either<ValidationError, SmartFolderNode> {

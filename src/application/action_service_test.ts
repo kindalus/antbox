@@ -137,6 +137,18 @@ describe("ActionService", () => {
 
     expect(actions.length).toBe(5);
   });
+
+  test("export should create a 'Javascript' file containing action", async () => {
+    const service = createService();
+
+    await service.createOrReplace(adminAuthContext, new File([testFileContent], "action.js",{ type: "application/javascript" }));
+
+    const fileOrErr = await service.export(adminAuthContext, "test-action-uuid");
+
+    expect(fileOrErr.isRight(), errToMsg(fileOrErr.value)).toBeTruthy();
+    expect(fileOrErr.right.name).toBe("Test Action");
+    expect(fileOrErr.right.type.startsWith("text/javascript")).toBeTruthy();
+  });
 }); 
 
 const errToMsg = (err: any) => {

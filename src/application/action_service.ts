@@ -216,6 +216,27 @@ export class ActionService {
     return right(undefined);
   }
 
+  async export(ctx: AuthenticationContext, uuid: string): Promise<Either<AntboxError, File>> {
+    const builtIn = builtinActions.find((a) => a.uuid === uuid);
+    if (builtIn) {
+      const file = new File([builtIn.toString()], builtIn.title, {
+        type: "application/javascript",
+      });
+      return right(file);
+    }
+
+    const nodeOrErr = await this.get(ctx, uuid);
+    if (nodeOrErr.isLeft()) {
+      return left(nodeOrErr.value);
+    }
+
+    const file = new File([JSON.stringify(nodeOrErr.value)], nodeOrErr.value.title, { 
+      type: "application/javascript" 
+    });
+
+    return right(file);
+  }
+
   async #getNodeAsAction(
     ctx: AuthenticationContext,
     uuid: string,
@@ -240,23 +261,6 @@ export class ActionService {
     }
 
     return fileToAction(fileOrErr.value);
-  }
-
-  async export(ctx: AuthenticationContext, uuid: string): Promise<Either<AntboxError, File>> {
-    const builtIn = builtinActions.find((a) => a.uuid === uuid);
-    if (builtIn) {
-      const file = new File([builtIn.toString()], builtIn.title, {
-        type: "application/javascript",
-      });
-      return right(file);
-    }
-
-    const nodeOrErr = await this.get(ctx, uuid);
-    if (nodeOrErr.isLeft()) {
-      return left(nodeOrErr.value);
-    }
-
-    return this.nodeService.export(ctx, uuid);
   }
 
   #ranTooManyTimes(uuid: string, uuids: string[]): boolean {
@@ -439,7 +443,7 @@ export class ActionService {
     );
   }
 
-  runOnUpdatedScritps(ctx: AuthenticationContext, evt: NodeUpdatedEvent) {
+  async runOnUpdatedScritps(ctx: AuthenticationContext, evt: NodeUpdatedEvent) {
     return this.nodeService.get(ctx, evt.payload.uuid).then(async (node) => {
       if (node.isLeft() || node.value.parent === Folders.ROOT_FOLDER_UUID) {
         return;

@@ -99,7 +99,6 @@ describe("ActionService", () => {
     expect(actionOrErr.right.description).toBe("This is a test action.");
   });
 
-
   test("get should return error if action does not exist", async () => {
     const service = createService();
 
@@ -107,6 +106,16 @@ describe("ActionService", () => {
 
     expect(actionOrErr.isLeft()).toBeTruthy();
     expect(actionOrErr.value).toBeInstanceOf(NodeNotFoundError);
+  });
+
+  test("delete should remove action", async () => {
+    const service = createService();
+
+    await service.createOrReplace(adminAuthContext, new File([testFileContent], "action.js",{ type: "application/javascript" }));
+
+    const deleteResult = await service.delete(adminAuthContext, "test-action-uuid");
+
+    expect(deleteResult.isRight(), errToMsg(deleteResult.value)).toBeTruthy();
   });
 }); 
 

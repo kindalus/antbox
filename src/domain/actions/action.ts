@@ -6,6 +6,8 @@ import { ActionNode } from "./action_node.ts";
 import { type RunContext } from "./run_context.ts";
 import type { Auth } from "mongodb";
 import type { AuthenticationContext } from "application/authentication_context.ts";
+import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
+import type { NodeLike } from "domain/node_like.ts";
 
 /**
  * Regras das actions:

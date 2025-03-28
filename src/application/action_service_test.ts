@@ -7,6 +7,7 @@ import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider";
 import { UsersGroupsService } from "./users_groups_service";
 import type { AuthenticationContext } from "./authentication_context";
 import { Groups } from "domain/users_groups/groups";
+import { NodeNotFoundError } from "domain/nodes/node_not_found_error";
 
 const createService = () => {
   const repository = new InMemoryNodeRepository();
@@ -44,7 +45,7 @@ const testFileContent = `
 `;
 
 describe("ActionService", () => {
-  test("should create an action", async () => {
+  test("createOrReplace should create a new action", async () => {
     const service = createService();
     const file = new File([testFileContent], "action.js",{ type: "application/javascript" });
 
@@ -56,7 +57,7 @@ describe("ActionService", () => {
     expect(actionOrErr.right.description).toBe("This is a test action.");
   });
 
-  test("should replace the action", async () => { 
+  test("createOrReplace should replace existing action", async () => { 
     const service = createService();
 
     await service.createOrReplace(adminAuthContext, new File([testFileContent], "action.js",{ type: "application/javascript" }));
@@ -82,6 +83,29 @@ describe("ActionService", () => {
     expect(actionOrErr.right.uuid).toBe("test-action-uuid");
     expect(actionOrErr.right.title).toBe("New Action Title");
     expect(actionOrErr.right.description).toBe("New Description");
+    expect(actionOrErr.right.groupsAllowed).toEqual(["--root--"]);
+  });
+
+  test("get should return action", async () => {
+    const service = createService();
+
+    await service.createOrReplace(adminAuthContext, new File([testFileContent], "action.js",{ type: "application/javascript" }));
+
+    const actionOrErr = await service.get(adminAuthContext, "test-action-uuid");
+
+    expect(actionOrErr.isRight(), errToMsg(actionOrErr.value)).toBeTruthy();
+    expect(actionOrErr.right.uuid).toBe("test-action-uuid");
+    expect(actionOrErr.right.title).toBe("Test Action");
+    expect(actionOrErr.right.description).toBe("This is a test action.");
+  });
+
+  test("get should return error if action does not exist", async () => {
+    const service = createService();
+
+    const actionOrErr = await service.get(adminAuthContext, "non-existing-action-uuid");
+
+    expect(actionOrErr.isLeft()).toBeTruthy();
+    expect(actionOrErr.value).toBeInstanceOf(NodeNotFoundError);
   });
 }); 
 

@@ -116,6 +116,13 @@ export class ActionService {
         title: action.title,
         description: action.description,
         mimetype: action.mimetype,
+        filters: action.filters,
+        runAs: action.runAs,
+        params: action.params,
+        groupsAllowed: action.groupsAllowed,
+        runOnCreates: action.runOnCreates,
+        runOnUpdates: action.runOnUpdates,
+        runManually: action.runManually,
       });
       if (actionOrErr.isLeft()) {
         return left(actionOrErr.value);
@@ -133,12 +140,18 @@ export class ActionService {
       return left(voidOrErr.value);
     }
 
-    voidOrErr = await this.nodeService.update(ctx, action.uuid, { 
-      ...action, 
+    voidOrErr = await this.nodeService.update(ctx, action.uuid, {
       title: action.title,
       description: action.description,
       mimetype: action.mimetype,
+      filters: action.filters,
+      runAs: action.runAs,
+      params: action.params,
       size: file.size,
+      groupsAllowed: action.groupsAllowed,
+      runOnCreates: action.runOnCreates,
+      runOnUpdates: action.runOnUpdates,
+      runManually: action.runManually,
     });
     if (voidOrErr.isLeft()) {
       return left(voidOrErr.value);

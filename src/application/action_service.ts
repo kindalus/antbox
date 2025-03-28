@@ -15,6 +15,7 @@ import { type AuthenticationContext } from "./authentication_context.ts";
 import { NodeService } from "./node_service.ts";
 import type { RunContext } from "domain/actions/run_context.ts";
 import { builtinActions } from "./builtin_actions/index.ts";
+import type { NodeFilter } from "domain/nodes/node_filter.ts";
 
 type RecordKey = [string, string];
 interface RunnableRecord {
@@ -57,7 +58,7 @@ export class ActionService {
     const found = builtinActions.find((a) => a.uuid === uuid);
 
     if (found) {
-      return right(actionToNode(found).right);
+      return right(actionToNode(ctx, found).right);
     }
 
     const nodeOrErr = await this.nodeService.get(ctx, uuid);
@@ -89,7 +90,7 @@ export class ActionService {
 
     const nodes = [
       ...(nodesOrErrs.value.nodes as ActionNode[]),
-      ...builtinActions.map((a) => actionToNode(a).right),
+      ...builtinActions.map((a) => actionToNode(ctx, a).right),
     ].sort((a, b) => a.title.localeCompare(b.title));
 
     return right(nodes);
@@ -105,22 +106,17 @@ export class ActionService {
       return left(actionOrErr.value);
     }
 
-    const action = actionOrErr.value;
+    const action = actionToNode(ctx, actionOrErr.value).right;
 
     const nodeOrErr = await this.nodeService.get(ctx, action.uuid);
     if (nodeOrErr.isLeft()) {
-      ActionNode.create({
-        ...action,
-        uuid: action.uuid,
-        fid: action.uuid,
+      return this.nodeService.createFile(ctx, file, { 
+        ...action, 
         title: action.title,
         description: action.description,
+        mimetype: action.mimetype,
       });
-
-      return this.nodeService.createFile(ctx, file, nodeOrErr.right);
     }
-
-    const actionNode = actionToNode(action).right;
 
     const decoratedFile = new File([file], nodeOrErr.value.title, {
       type: nodeOrErr.value.mimetype,
@@ -131,7 +127,10 @@ export class ActionService {
       return left<AntboxError, Node>(voidOrErr.value);
     }
 
-    voidOrErr = await this.nodeService.update(ctx, action.uuid, actionNode);
+    voidOrErr = await this.nodeService.update(ctx, 
+      action.uuid, 
+      { ...action, size: file.size }
+    );
     if (voidOrErr.isLeft()) {
       return left<AntboxError, Node>(voidOrErr.value);
     }
@@ -412,7 +411,7 @@ export class ActionService {
 
     return this.#runActions(
       userOrErr.value,
-      parentOrErr.value.#onCreate.filter(this.#nonEmptyActions),
+      parentOrErr.value.onCreate.filter(this.#nonEmptyActions),
       evt.payload.uuid,
     );
   }
@@ -436,7 +435,7 @@ export class ActionService {
 
       return this.#runActions(
         userOrErr.value,
-        parent.value.#onUpdate.filter(this.#nonEmptyActions),
+        parent.value.onUpdate.filter(this.#nonEmptyActions),
         evt.payload.uuid,
       );
     });

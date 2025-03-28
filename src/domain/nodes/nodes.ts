@@ -87,7 +87,7 @@ export class Nodes {
   }
 
   static isJavascript(file: File) {
-    return file.type === "application/javascript" || file.type === "text/javascript";
+    return file.type.startsWith("application/javascript") || file.type.startsWith("text/javascript");
   }
 
   static isFile(node: NodeLike): node is FileNode {

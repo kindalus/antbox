@@ -4,6 +4,8 @@ import { ValidationError } from "shared/validation_error.ts";
 import { type NodeFilter } from "domain/nodes/node_filter.ts";
 import { ActionNode } from "./action_node.ts";
 import { type RunContext } from "./run_context.ts";
+import type { Auth } from "mongodb";
+import type { AuthenticationContext } from "application/authentication_context.ts";
 
 /**
  * Regras das actions:
@@ -63,12 +65,14 @@ export async function fileToAction(
 }
 
 export function actionToNode(
+  ctx: AuthenticationContext,
   action: Action,
 ): Either<ValidationError, ActionNode> {
   return ActionNode.create({
     uuid: action.uuid,
     title: action.title,
     description: action.description,
+    owner: ctx.principal.email,
     runOnCreates: action.runOnCreates,
     runOnUpdates: action.runOnUpdates,
     runManually: action.runManually,

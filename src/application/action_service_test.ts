@@ -99,6 +99,17 @@ describe("ActionService", () => {
     expect(actionOrErr.right.description).toBe("This is a test action.");
   });
 
+  test("get should return built-in action 'copy_to_folder' ", async () => {
+    const service = createService();
+
+    const actionOrErr = await service.get(adminAuthContext, "copy_to_folder");
+
+    expect(actionOrErr.isRight(), errToMsg(actionOrErr.value)).toBeTruthy();
+    expect(actionOrErr.right.uuid).toBe("copy_to_folder");
+    expect(actionOrErr.right.title).toBe("Copiar para pasta");
+    expect(actionOrErr.right.builtIn).toBeTruthy();
+  });
+
   test("get should return error if action does not exist", async () => {
     const service = createService();
 

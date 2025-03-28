@@ -112,7 +112,7 @@ export class ActionService {
     const nodeOrErr = await this.nodeService.get(ctx, action.uuid);
     if (nodeOrErr.isLeft()) {
       const actionOrErr = await this.nodeService.createFile(ctx, file, { 
-        ...action, 
+        uuid: action.uuid, 
         title: action.title,
         description: action.description,
         mimetype: action.mimetype,
@@ -363,6 +363,7 @@ export class ActionService {
       },
     });
   }
+
   async #buildRunContext(ctx: AuthenticationContext, runAs?: string): Promise<RunContext> {
     const defaultCtx: RunContext = {
       authenticationContext: ctx,

@@ -128,6 +128,15 @@ describe("ActionService", () => {
 
     expect(deleteResult.isRight(), errToMsg(deleteResult.value)).toBeTruthy();
   });
+
+  test("list should return all actions including built-ins", async () => {
+    const service = createService();
+    await service.createOrReplace(adminAuthContext, new File([testFileContent], "action.js",{ type: "application/javascript" }));
+
+    const actions = await service.list(adminAuthContext);
+
+    expect(actions.length).toBe(5);
+  });
 }); 
 
 const errToMsg = (err: any) => {

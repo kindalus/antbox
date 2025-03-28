@@ -52,51 +52,6 @@ export class ActionService {
     private readonly authService: UsersGroupsService,
   ) {}
 
-  async get(
-    ctx: AuthenticationContext,
-    uuid: string,
-  ): Promise<Either<NodeNotFoundError, ActionDTO>> {
-    const found = builtinActions.find((a) => a.uuid === uuid);
-
-    if (found) {
-      return right(nodeToAction(found));
-    }
-
-    const nodeOrErr = await this.nodeService.get(ctx, uuid);
-
-    if (nodeOrErr.isLeft()) {
-      return left(nodeOrErr.value);
-    }
-
-    if (!Nodes.isAction(nodeOrErr.value)) {
-      return left(new NodeNotFoundError(uuid));
-    }
-
-    return right(nodeToAction(nodeOrErr.value));
-  }
-
-  async list(ctx: AuthenticationContext): Promise<Either<AntboxError, ActionNode[]>> {
-    const nodesOrErrs = await this.nodeService.find(
-      ctx,
-      [
-        ["mimetype", "==", Nodes.ACTION_MIMETYPE],
-        ["parent", "==", Folders.ACTIONS_FOLDER_UUID],
-      ],
-      Number.MAX_SAFE_INTEGER,
-    );
-
-    if (nodesOrErrs.isLeft()) {
-      return left(nodesOrErrs.value);
-    }
-
-    const nodes = [
-      ...(nodesOrErrs.value.nodes as ActionNode[]),
-      ...builtinActions.map((a) => actionToNode(ctx, a).right),
-    ].sort((a, b) => a.title.localeCompare(b.title));
-
-    return right(nodes);
-  }
-
   async createOrReplace(
     ctx: AuthenticationContext,
     file: File,
@@ -160,6 +115,29 @@ export class ActionService {
     return this.get(ctx, action.uuid);
   }
 
+  async get(
+    ctx: AuthenticationContext,
+    uuid: string,
+  ): Promise<Either<NodeNotFoundError, ActionDTO>> {
+    const found = builtinActions.find((a) => a.uuid === uuid);
+
+    if (found) {
+      return right(nodeToAction(found));
+    }
+
+    const nodeOrErr = await this.nodeService.get(ctx, uuid);
+
+    if (nodeOrErr.isLeft()) {
+      return left(nodeOrErr.value);
+    }
+
+    if (!Nodes.isAction(nodeOrErr.value)) {
+      return left(new NodeNotFoundError(uuid));
+    }
+
+    return right(nodeToAction(nodeOrErr.value));
+  }
+
   async delete(ctx: AuthenticationContext, uuid: string): Promise<Either<AntboxError, void>> {
     const nodeOrErr = await this.get(ctx, uuid);
 
@@ -168,6 +146,28 @@ export class ActionService {
     }
 
     return this.nodeService.delete(ctx, uuid);
+  }
+
+  async list(ctx: AuthenticationContext): Promise<ActionDTO[]> {
+    const nodesOrErrs = await this.nodeService.find(
+      ctx,
+      [
+        ["mimetype", "==", Nodes.ACTION_MIMETYPE],
+        ["parent", "==", Folders.ACTIONS_FOLDER_UUID],
+      ],
+      Number.MAX_SAFE_INTEGER,
+    );
+
+    if (nodesOrErrs.isLeft()) {
+      return [];
+    }
+
+    const nodes = [
+      ...(nodesOrErrs.value.nodes as ActionDTO[]),
+      ...builtinActions.map((a) => nodeToAction(a)),
+    ].sort((a, b) => a.title.localeCompare(b.title));
+
+    return nodes;
   }
 
   async run(

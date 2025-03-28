@@ -28,25 +28,25 @@ const adminAuthContext: AuthenticationContext = {
   },
 }
 
+const testFileContent = `
+  export default {
+    uuid: "test-action-uuid",
+    title: "Test Action",
+    description: "This is a test action.",
+    builtIn: false,
+    runOnCreates: true,
+    runOnUpdates: false,
+    runManually: false,
+    params: [],
+    filters: [],
+    groupsAllowed: ["admins"]
+  };
+`;
+
 describe("ActionService", () => {
   test("should create an action", async () => {
     const service = createService();
-
-    const fileContent = `
-      export default {
-        uuid: "test-action-uuid",
-        title: "Test Action",
-        description: "This is a test action.",
-        builtIn: false,
-        runOnCreates: true,
-        runOnUpdates: false,
-        runManually: false,
-        params: [],
-        filters: [],
-        groupsAllowed: ["admins"]
-      };
-    `;
-    const file = new File([fileContent], "action.js",{ type: "application/javascript" });
+    const file = new File([testFileContent], "action.js",{ type: "application/javascript" });
 
     const actionOrErr = await service.createOrReplace(adminAuthContext, file);
 
@@ -55,11 +55,39 @@ describe("ActionService", () => {
     expect(actionOrErr.right.title).toBe("Test Action");
     expect(actionOrErr.right.description).toBe("This is a test action.");
   });
+
+  test("should replace the action", async () => { 
+    const service = createService();
+
+    await service.createOrReplace(adminAuthContext, new File([testFileContent], "action.js",{ type: "application/javascript" }));
+    
+    const newFileContent = `
+      export default {
+        uuid: "test-action-uuid",
+        title: "New Action Title",
+        description: "New Description",
+        builtIn: false,
+        runOnCreates: false,
+        runOnUpdates: true,
+        runManually: false,
+        params: [],
+        filters: [],
+        groupsAllowed: ["--root--"]
+      }
+    `;
+
+    const actionOrErr = await service.createOrReplace(adminAuthContext, new File([newFileContent], "action.js",{ type: "application/javascript" }));  
+
+    expect(actionOrErr.isRight(), errToMsg(actionOrErr.value)).toBeTruthy();
+    expect(actionOrErr.right.uuid).toBe("test-action-uuid");
+    expect(actionOrErr.right.title).toBe("New Action Title");
+    expect(actionOrErr.right.description).toBe("New Description");
+  });
 }); 
 
 const errToMsg = (err: any) => {
   if (err instanceof Error) {
-      return err.message;
+    return err.message;
   }
 
   return JSON.stringify(err, null, 3);

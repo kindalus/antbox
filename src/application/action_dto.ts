@@ -11,7 +11,6 @@ export interface ActionDTO {
     runManually: boolean;
     runAs?: string;
     params: string[];
-  
     filters: NodeFilters;
     groupsAllowed: string[];
   }
@@ -21,7 +20,7 @@ export interface ActionDTO {
       uuid: metadata.uuid!,
       title: metadata.title!,
       description: metadata.description!,
-      builtIn: metadata.builtIn!,
+      builtIn: metadata.builtIn,
       runOnCreates: metadata.runOnCreates!,
       runOnUpdates: metadata.runOnUpdates!,
       runManually: metadata.runManually!,

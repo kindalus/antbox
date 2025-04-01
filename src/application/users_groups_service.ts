@@ -21,6 +21,17 @@ export class UsersGroupsService {
 
   constructor(private readonly context: UsersGroupsContext) {}
 
+  static elevatedContext(tenant?: string): AuthenticationContext {
+    return {
+      mode: "Direct",
+      tenant: tenant ?? "default",
+      principal: {
+        email: Users.ROOT_USER_EMAIL,
+        groups: [Groups.ADMINS_GROUP_UUID],
+      },
+    };
+  }
+
   async createUser(ctx: AuthenticationContext, metadata: Partial<UserNode>): Promise<Either<AntboxError, UserNode>> {
     const existingOrErr = await this.getUserByEmail(ctx, metadata.email!);
     if(existingOrErr.isRight()) {

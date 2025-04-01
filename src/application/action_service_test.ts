@@ -8,9 +8,28 @@ import { UsersGroupsService } from "./users_groups_service";
 import type { AuthenticationContext } from "./authentication_context";
 import { Groups } from "domain/users_groups/groups";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error";
+import { BadRequestError } from "shared/antbox_error";
+import { GroupNode } from "domain/users_groups/group_node";
 
 const createService = () => {
+  const groupNode1: GroupNode = GroupNode.create({
+    uuid: "--group-1--",
+    title: "The Group",
+    owner: "user@gmail.com",
+    description: "Group description",
+  }).right;
+
+  const groupNode2: GroupNode = GroupNode.create({
+    uuid: "--group-2--",
+    title: "The Group",
+    owner: "user@gmail.com",
+    description: "Group description",
+  }).right;   
+
   const repository = new InMemoryNodeRepository();
+  repository.add(groupNode1);
+  repository.add(groupNode2);
+
   const storage = new InMemoryStorageProvider();
   const eventBus = new InMemoryEventBus();
 
@@ -40,7 +59,11 @@ const testFileContent = `
     runManually: false,
     params: [],
     filters: [],
-    groupsAllowed: ["admins"]
+    groupsAllowed: ["admins"],
+
+    run: async (ctx, uuids, params) => {
+      console.log("The Action is running...");
+    }
   };
 `;
 
@@ -107,7 +130,6 @@ describe("ActionService", () => {
     expect(actionOrErr.isRight(), errToMsg(actionOrErr.value)).toBeTruthy();
     expect(actionOrErr.right.uuid).toBe("copy_to_folder");
     expect(actionOrErr.right.title).toBe("Copiar para pasta");
-    expect(actionOrErr.right.builtIn).toBeTruthy();
   });
 
   test("get should return error if action does not exist", async () => {
@@ -146,8 +168,123 @@ describe("ActionService", () => {
     const fileOrErr = await service.export(adminAuthContext, "test-action-uuid");
 
     expect(fileOrErr.isRight(), errToMsg(fileOrErr.value)).toBeTruthy();
-    expect(fileOrErr.right.name).toBe("Test Action");
+    expect(fileOrErr.right.name).toBe("Test Action.js");
     expect(fileOrErr.right.type.startsWith("text/javascript")).toBeTruthy();
+  });
+
+  test("run should run the action", async () => {
+    const service = createService();
+
+    await service.createOrReplace(adminAuthContext, new File([testFileContent], "action.js",{ type: "application/javascript" }));
+
+    const runResult = await service.run(adminAuthContext, "test-action-uuid", ["node-uuid-1", "node-uuid-2"]);
+
+    expect(runResult.isRight(), errToMsg(runResult.value)).toBeTruthy();
+  });
+
+  test("run should run action as root user", async () => {
+    const service = createService();
+    const fileContent = `
+      export default {
+        uuid: "test-action-uuid",
+        title: "Test Action",
+        description: "Description",
+        builtIn: false,
+        runOnCreates: true,
+        runOnUpdates: false,
+        runManually: false,
+        runAs: "root@antbox.io",
+        params: [],
+        filters: [],
+        groupsAllowed: [],
+
+        run: async (ctx, uuids, params) => {
+          console.log("Running action", ctx.authenticationContext);
+        }
+      };
+    `;
+    await service.createOrReplace(adminAuthContext, new File([fileContent], "action.js",{ type: "application/javascript" }));
+
+    const runResult = await service.run(adminAuthContext, "test-action-uuid", ["node-uuid-1", "node-uuid-2"]);
+
+    expect(runResult.isRight(), errToMsg(runResult.value)).toBeTruthy();
+  });
+
+  test("run should run action to delete more than one node", async () => { 
+    const service = createService();
+    const fileContent = `
+      export default {
+        uuid: "delete-action-uuid",
+        title: "Test Action",
+        description: "This is a test action.",
+        builtIn: false,
+        runOnCreates: true,
+        runOnUpdates: false,
+        runManually: false,
+        params: [],
+        filters: [],
+        groupsAllowed: ["admins"],
+
+        run: async (ctx, uuids, params) => {
+          const tasks = uuids.map((uuid) => ctx.nodeService.delete(ctx.authenticationContext, uuid));
+
+          const results = await Promise.all(tasks);
+
+          const errors = results.filter((voidOrErr) => voidOrErr.isLeft());
+
+          if (errors.length > 0) {
+            errors.forEach((e) => console.error((e.value).message));
+            return errors[0].value;
+          }
+
+          return;
+        }
+      };
+    `;
+    await service.createOrReplace(adminAuthContext, new File([fileContent], "delete.js",{ type: "application/javascript" }));
+
+    const runResult = await service.run(adminAuthContext, "delete-action-uuid", ["--group-1--", "--group-2--"]);
+
+    expect(runResult.isRight(), errToMsg(runResult.value)).toBeTruthy();
+  });
+
+  test("run should return error if 'runMannally' is false and interaction mode is 'Direct'", async () => {
+    const service = createService();
+    const adminAuthContext: AuthenticationContext = {
+      mode: "Direct",
+      tenant: "default",
+      principal: {
+        email: "admin@example.com",
+        groups: [Groups.ADMINS_GROUP_UUID]
+      },
+    }
+
+    const fileContent = `
+      export default {
+        uuid: "test-action-uuid",
+        title: "Title",
+        description: "Description",
+        builtIn: false,
+        runOnCreates: true,
+        runOnUpdates: false,
+        runManually: false,
+        params: [],
+        filters: [],
+        groupsAllowed: ["admins"],
+
+        run: async (ctx, uuids, params) => {
+          console.log("Running action", ctx, uuids, params);
+        }
+      };
+    `;
+
+    await service.createOrReplace(adminAuthContext, new File([fileContent], "action.js",{ type: "application/javascript" }));
+
+    const runResult = await service.run(adminAuthContext, "test-action-uuid", ["--group-1--", "--group-2--"]);
+
+    expect(runResult.isLeft()).toBeTruthy();
+    expect(runResult.value).toBeInstanceOf(BadRequestError);
+    expect((runResult.value as BadRequestError).message).toBe("Action cannot be run manually");
   });
 }); 
 

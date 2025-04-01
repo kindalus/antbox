@@ -1,4 +1,4 @@
-import { type Action, actionToNode, fileToAction } from "domain/actions/action.ts";
+import { type Action, actionNodeToNodeMetadata, actionToNode, fileToAction } from "domain/actions/action.ts";
 import { ActionNode } from "domain/actions/action_node.ts";
 import { FolderNode } from "domain/nodes/folder_node.ts";
 import { Folders } from "domain/nodes/folders.ts";
@@ -17,6 +17,7 @@ import type { RunContext } from "domain/actions/run_context.ts";
 import { builtinActions } from "./builtin_actions/index.ts";
 import type { NodeFilter, NodeFilters } from "domain/nodes/node_filter.ts";
 import { nodeToAction, type ActionDTO } from "./action_dto.ts";
+import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
 
 type RecordKey = [string, string];
 interface RunnableRecord {
@@ -49,7 +50,7 @@ export class ActionService {
 
   constructor(
     private readonly nodeService: NodeService,
-    private readonly authService: UsersGroupsService,
+    private readonly usersGroupsService: UsersGroupsService,
   ) {}
 
   async createOrReplace(
@@ -57,28 +58,16 @@ export class ActionService {
     file: File,
   ): Promise<Either<AntboxError, ActionDTO>> {
     const actionOrErr = await fileToAction(file);
-
+    
     if (actionOrErr.isLeft()) {
       return left(actionOrErr.value);
     }
-
-    const action = actionToNode(ctx, actionOrErr.value).right;
+    
+    const action = actionToNode(ctx, actionOrErr.value);
 
     const nodeOrErr = await this.nodeService.get(ctx, action.uuid);
     if (nodeOrErr.isLeft()) {
-      const actionOrErr = await this.nodeService.createFile(ctx, file, { 
-        uuid: action.uuid, 
-        title: action.title,
-        description: action.description,
-        mimetype: action.mimetype,
-        filters: action.filters,
-        runAs: action.runAs,
-        params: action.params,
-        groupsAllowed: action.groupsAllowed,
-        runOnCreates: action.runOnCreates,
-        runOnUpdates: action.runOnUpdates,
-        runManually: action.runManually,
-      });
+      const actionOrErr = await this.nodeService.createFile(ctx, file, actionNodeToNodeMetadata(action));
       if (actionOrErr.isLeft()) {
         return left(actionOrErr.value);
       }
@@ -96,17 +85,8 @@ export class ActionService {
     }
 
     voidOrErr = await this.nodeService.update(ctx, action.uuid, {
-      title: action.title,
-      description: action.description,
-      mimetype: action.mimetype,
-      filters: action.filters,
-      runAs: action.runAs,
-      params: action.params,
+      ...actionNodeToNodeMetadata(action),
       size: file.size,
-      groupsAllowed: action.groupsAllowed,
-      runOnCreates: action.runOnCreates,
-      runOnUpdates: action.runOnUpdates,
-      runManually: action.runManually,
     });
     if (voidOrErr.isLeft()) {
       return left(voidOrErr.value);
@@ -230,7 +210,7 @@ export class ActionService {
       return left(nodeOrErr.value);
     }
 
-    const file = new File([JSON.stringify(nodeOrErr.value)], nodeOrErr.value.title, { 
+    const file = new File([JSON.stringify(nodeOrErr.value)], `${nodeOrErr.value.title}.js`, { 
       type: "application/javascript" 
     });
 
@@ -353,7 +333,7 @@ export class ActionService {
   }
 
   async #getAuthCtxByEmail(email: string): Promise<Either<AntboxError, AuthenticationContext>> {
-    const userOrErr = await this.authService.getUserByEmail(UsersGroupsService.elevatedContext(), email);
+    const userOrErr = await this.usersGroupsService.getUserByEmail(UsersGroupsService.elevatedContext(), email);
     if (userOrErr.isLeft()) {
       return left(userOrErr.value);
     }
@@ -406,7 +386,7 @@ export class ActionService {
     const nodes = actionsOrErr.value.nodes as ActionNode[];
 
     const actionsTasks = nodes
-      .filter((a) => filtersSpecFrom(a.filters).isSatisfiedBy(node))
+      .filter((a) => NodesFilters.nodeSpecificationFrom(a.filters))
       .map((a) => this.nodeService.export(ctx, a.uuid));
 
     const filesOrErrs = await Promise.all(actionsTasks);

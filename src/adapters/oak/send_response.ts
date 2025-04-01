@@ -1,3 +1,5 @@
+import { Status, type Context } from "@oakserver/oak";
+
 export function sendOK(ctx: Context, body?: ResponseBody) {
   sendResponse(ctx, Status.OK, body);
 }

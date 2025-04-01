@@ -1,20 +1,20 @@
+import { Context, Router } from "@oakserver/oak";
+import type { AntboxTenant } from "api/antbox_tenant.ts";
+import { processError } from "api/process_error.ts";
 import { ContextWithParams } from "./context_with_params.ts";
-import { getRequestContext } from "./get_request_context.ts";
 import { getTenant } from "./get_tenant.ts";
 import { processEither } from "./process_either.ts";
-import { processError } from "./process_error.ts";
 import { sendInternalServerError } from "./send_response.ts";
-import { type AntboxTenant } from "./setup_oak_server.ts";
 
 export default function (tenants: AntboxTenant[]) {
   const extRouter = new Router({ prefix: "/ext" });
 
   const runHandler = async (ctx: ContextWithParams) => {
-    const service = getTenant(ctx, tenants).service;
+    const service = getTenant(ctx, tenants).extService;
     const request = await fromOakRequest(ctx.request);
 
     return service
-      .runExtension(ctx.params.uuid, request)
+      .run(ctx.params.uuid, request)
       .then((resOrErr) => {
         if (resOrErr.isLeft()) {
           return sendInternalServerError(ctx, resOrErr.value);
@@ -22,55 +22,49 @@ export default function (tenants: AntboxTenant[]) {
 
         return writeResponse(resOrErr.value, ctx);
       })
-      .catch((err) => processError(err, ctx));
+      .catch((err) => processError(err));
   };
 
-  const listHandler = (ctx: Context) => {
-    const service = getTenant(ctx, tenants).service;
-    const authCtx = getRequestContext(ctx);
+  const listHandler = async (ctx: Context) => {
+    const service = getTenant(ctx, tenants).extService;
 
     return service
-      .listExtensions(authCtx)
+      .list()
       .then((r) => processEither(ctx, r))
-      .catch((err) => processError(err, ctx));
+      .catch((err) => processError(err));
   };
 
-  const getHandler = (ctx: ContextWithParams) => {
-    const service = getTenant(ctx, tenants).service;
-    const authCtx = getRequestContext(ctx);
+  const getHandler = async (ctx: ContextWithParams) => {
+    const service = getTenant(ctx, tenants).extService;
 
     return service
-      .getExtension(authCtx, ctx.params.uuid)
+      .get(ctx.params.uuid)
       .then((r) => processEither(ctx, r))
-      .catch((err) => processError(err, ctx));
+      .catch((err) => processError(err));
   };
 
   const deleteHandler = (ctx: ContextWithParams) => {
-    const service = getTenant(ctx, tenants).service;
-    const authCtx = getRequestContext(ctx);
+    const service = getTenant(ctx, tenants).extService;
+    const authCtx = ctx;
 
     return service
-      .deleteExtension(authCtx, ctx.params.uuid)
+      .delete(authCtx, ctx.params.uuid)
       .then((r) => processEither(ctx, r))
-      .catch((err) => processError(err, ctx));
+      .catch((err) => processError(err));
   };
 
   const exportHandler = (ctx: ContextWithParams) => {
-    const service = getTenant(ctx, tenants).service;
-    const requestContext = getRequestContext(ctx);
+    const service = getTenant(ctx, tenants).extService;
     const uuid = ctx.params.uuid;
 
-    return Promise.all([
-      service.getExtension(requestContext, uuid),
-      service.exportExtension(requestContext, uuid),
-    ])
+    return Promise.all([service.get(uuid), service.export(uuid)])
       .then(([node, blob]) => {
         if (node.isLeft()) {
-          return processError(node.value, ctx);
+          return processError(node.value);
         }
 
         if (blob.isLeft()) {
-          return processError(blob.value, ctx);
+          return processError(blob.value);
         }
 
         ctx.response.headers.set("Content-Type", "application/javascript");
@@ -83,12 +77,12 @@ export default function (tenants: AntboxTenant[]) {
         ctx.response.type = "blob";
         ctx.response.body = blob.value;
       })
-      .catch((err) => processError(err, ctx));
+      .catch((err) => processError(err));
   };
 
   const updateHandler = async (ctx: ContextWithParams) => {
-    const service = getTenant(ctx, tenants).service;
-    const authCtx = getRequestContext(ctx);
+    const service = getTenant(ctx, tenants).extService;
+    const authCtx = ctx;
 
     const fieldsOrUndefined = await ctx.request.body({ type: "json" }).value;
 
@@ -97,9 +91,9 @@ export default function (tenants: AntboxTenant[]) {
     }
 
     return service
-      .updateExtension(authCtx, ctx.params.uuid, fieldsOrUndefined)
+      .update(authCtx, ctx.params.uuid, fieldsOrUndefined)
       .then((r) => processEither(ctx, r))
-      .catch((err) => processError(err, ctx));
+      .catch((err) => processError(err));
   };
 
   extRouter.get("/:uuid/-/run", runHandler);
@@ -129,10 +123,7 @@ async function fromOakRequest(request: OakRequest): Promise<Request> {
 }
 
 function writeResponse(response: globalThis.Response, ctx: Context) {
-  ctx.response.headers.set(
-    "Content-Type",
-    response.headers.get("Content-Type")!,
-  );
+  ctx.response.headers.set("Content-Type", response.headers.get("Content-Type")!);
   ctx.response.status = response.status;
   ctx.response.body = response.body;
 }

@@ -15,6 +15,7 @@ import { type AuthenticationContext } from "./authentication_context.ts";
 import { NodeService } from "./node_service.ts";
 import type { RunContext } from "domain/actions/run_context.ts";
 import { builtinActions } from "./builtin_actions/index.ts";
+import type { NodeFilter } from "domain/nodes/node_filter.ts";
 
 type RecordKey = [string, string];
 interface RunnableRecord {

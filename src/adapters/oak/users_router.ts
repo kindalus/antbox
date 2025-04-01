@@ -1,110 +1,106 @@
+import { Router, Status, type Context } from "@oakserver/oak";
+import { type AntboxTenant } from "api/antbox_tenant.ts";
+import { processError } from "api/process_error.ts";
 import { AntboxError } from "shared/antbox_error.ts";
 import { type Either } from "shared/either.ts";
 import { ContextWithParams } from "./context_with_params.ts";
-import { getRequestContext } from "./get_request_context.ts";
 import { getTenant } from "./get_tenant.ts";
-import { processError } from "./process_error.ts";
 import { sendOK } from "./send_response.ts";
-import { type AntboxTenant } from "./setup_oak_server.ts";
+import type { AuthenticationContext } from "application/authentication_context.ts";
+import { getTenantByAuthContext } from "api/get_tenant.ts";
 
 export default function (tenants: AntboxTenant[]) {
-  const meHandler = (ctx: Context) => {
-    const service = getTenant(ctx, tenants).service;
+  const meHandler = async (ctx: AuthenticationContext) => {
+    const service = getTenantByAuthContext(ctx, tenants).authService;
 
+    // TODO: get User by ctx no authService
     return service
-      .getMe(getRequestContext(ctx))
+      .getUser(ctx)
       .then((result) => {
         if (result.isLeft()) {
-          return processError(result.value, ctx);
+          return processError(result.value);
         }
 
         return sendOK(ctx, result.value);
       })
-      .catch((err) => processError(err, ctx));
+      .catch((err) => processError(err));
   };
 
-  const listHandler = (ctx: Context) => {
-    const service = getTenant(ctx, tenants).service;
+  const listHandler = async (ctx: Context) => {
+    const service = getTenant(ctx, tenants).authService;
 
     return service
-      .listUsers(getRequestContext(ctx))
+      .listUsers(ctx)
       .then((result) => {
         if (result.isLeft()) {
-          return processError(result.value, ctx);
+          return processError(result.value);
         }
 
         return sendOK(ctx, result.value);
       })
-      .catch((err) => processError(err, ctx));
+      .catch((err) => processError(err));
   };
 
-  const getHandler = (ctx: ContextWithParams) => {
-    const service = getTenant(ctx, tenants).service;
+  const getHandler = async (ctx: ContextWithParams) => {
+    const service = getTenant(ctx, tenants).authService;
+
     return service
-      .getUser(getRequestContext(ctx), ctx.params.uuid)
+      .getUser(ctx, ctx.params.uuid)
       .then((result) => {
         if (result.isLeft()) {
-          return processError(result.value, ctx);
+          return processError(result.value);
         }
 
         ctx.response.status = Status.OK;
         ctx.response.type = "json";
         ctx.response.body = result.value;
       })
-      .catch((err) => processError(err, ctx));
+      .catch((err) => processError(err));
   };
 
   const createHandler = async (ctx: Context) => {
-    const service = getTenant(ctx, tenants).service;
+    const service = getTenant(ctx, tenants).authService;
     const body = await ctx.request.body().value;
 
     return service
-      .createUser(getRequestContext(ctx), body)
+      .createUser(ctx, body)
       .then((result) => processEither(ctx, result))
-      .catch((err) => processError(err, ctx));
+      .catch((err) => processError(err));
   };
 
   const updateHandler = async (ctx: ContextWithParams) => {
-    const service = getTenant(ctx, tenants).service;
+    const service = getTenant(ctx, tenants).authService;
     const body = await ctx.request.body().value;
 
     return service
-      .updateUser(getRequestContext(ctx), ctx.params.uuid, body)
+      .updateUser(ctx, ctx.params.uuid, body)
       .then((result) => processEither(ctx, result))
-      .catch((err) => processError(err, ctx));
+      .catch((err) => processError(err));
   };
 
-  const deleteHandler = (ctx: ContextWithParams) => {
-    const service = getTenant(ctx, tenants).service;
+  const deleteHandler = async (ctx: ContextWithParams) => {
+    const service = getTenant(ctx, tenants).authService;
     return service
-      .deleteUser(getRequestContext(ctx), ctx.params.uuid)
+      .deleteUser(ctx, ctx.params.uuid)
       .then((result) => processEither(ctx, result))
-      .catch((err) => processError(err, ctx));
+      .catch((err) => processError(err));
   };
 
   const usersRouter = new Router({ prefix: "/users" });
 
   usersRouter.use("/me", meHandler);
-
   usersRouter.get("/:uuid", getHandler);
-
   usersRouter.get("/", listHandler);
-
   usersRouter.post("/", createHandler);
-
   usersRouter.patch("/:uuid", updateHandler);
-
   usersRouter.delete("/:uuid", deleteHandler);
 
   return usersRouter;
 }
 
-function processEither<L extends AntboxError, R>(
-  ctx: Context,
-  result: Either<L, R>,
-) {
+function processEither<L extends AntboxError, R>(ctx: Context, result: Either<L, R>) {
   if (result.isLeft()) {
-    return processError(result.value, ctx);
+    return processError(result.value);
   }
 
   return sendOK(ctx, result.value as Record<string, unknown>);

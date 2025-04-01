@@ -9,7 +9,7 @@ import { type EventHandler } from "shared/event_handler.ts";
 import { fileExistsSync } from "shared/file_exists_sync.ts";
 
 export default function buildFlatFileStorageProvider(
-  baseDir: string
+  baseDir: string,
 ): Promise<Either<AntboxError, StorageProvider>> {
   return Promise.resolve(right(new FlatFileStorageProvider(baseDir)));
 }
@@ -56,11 +56,7 @@ class FlatFileStorageProvider implements StorageProvider {
     }
   }
 
-  write(
-    uuid: string,
-    file: File,
-    _opt: never
-  ): Promise<Either<AntboxError, void>> {
+  write(uuid: string, file: File, _opt: never): Promise<Either<AntboxError, void>> {
     const folderPath = this.#buildFileFolderPath(uuid);
     const filePath = this.#buildFilePath(uuid);
 
@@ -75,9 +71,7 @@ class FlatFileStorageProvider implements StorageProvider {
       .then((buffer) => new Uint8Array(buffer))
       .then((buffer) => writeFileSync(filePath, buffer, {}))
       .then(right)
-      .catch((e) => left(error(uuid, e.message))) as Promise<
-      Either<AntboxError, void>
-    >;
+      .catch((e) => left(error(uuid, e.message))) as Promise<Either<AntboxError, void>>;
   }
 
   list(): Promise<string[]> {
@@ -85,9 +79,7 @@ class FlatFileStorageProvider implements StorageProvider {
     return Promise.resolve(files);
   }
 
-  startListeners(
-    _bus: (eventId: string, handler: EventHandler<Event>) => void
-  ): void {}
+  startListeners(_bus: (eventId: string, handler: EventHandler<Event>) => void): void {}
 
   #buildFileFolderPath(uuid: string) {
     const [l1, l2] = uuid;

@@ -328,7 +328,7 @@ export class ActionService {
   }
 
   async #getAuthCtxByEmail(email: string): Promise<Either<AntboxError, AuthenticationContext>> {
-    const userOrErr = await this.authService.getUserByEmail(UsersGroupsService.elevatedContext(), email);
+    const userOrErr = await this.authService.getUser(UsersGroupsService.elevatedContext(), email);
     if (userOrErr.isLeft()) {
       return left(userOrErr.value);
     }

@@ -17,18 +17,16 @@ describe("UsersGroupsService.deleteUser", () => {
         const service = usersGroupsService();
 
         const createdUserOrErr = await service.createUser(authCtx, {
-            title: "The title",
-            owner: "root@gmail.com",
-            uuid: "bale-uuid",
-            email: "bale@gmail.com",
+            name: "The title",
+            email: "debora@gmail.com",
             groups: ["--users--"],
         });
 
-        const voidOrErr = await service.deleteUser(authCtx, createdUserOrErr.right.uuid);
+        const voidOrErr = await service.deleteUser(createdUserOrErr.right.uuid!);
 
         expect(voidOrErr.isRight(), errToMsg(voidOrErr.value)).toBeTruthy();
 
-        const deletedUserOrErr = await service.getUser(authCtx, createdUserOrErr.right.uuid)
+        const deletedUserOrErr = await service.getUser(authCtx, createdUserOrErr.right.email)
         expect(deletedUserOrErr.isLeft(), errToMsg(deletedUserOrErr.value)).toBeTruthy();
         expect(deletedUserOrErr.value).toBeInstanceOf(UserNotFoundError);
     });
@@ -36,7 +34,7 @@ describe("UsersGroupsService.deleteUser", () => {
     test("should return error if user not found", async () => {
         const service = usersGroupsService();
 
-        const deletedUserOrErr = await service.deleteUser(authCtx, "any-delete-uuid");
+        const deletedUserOrErr = await service.deleteUser("any-delete-uuid");
 
         expect(deletedUserOrErr.isLeft(), errToMsg(deletedUserOrErr.value)).toBeTruthy();
         expect(deletedUserOrErr.value).toBeInstanceOf(UserNotFoundError);
@@ -45,7 +43,7 @@ describe("UsersGroupsService.deleteUser", () => {
     test("should not delete builtin root user", async () => {
         const service =  usersGroupsService();
 
-        const deletedUserOrErr = await service.deleteUser(authCtx, Users.ROOT_USER_UUID);
+        const deletedUserOrErr = await service.deleteUser(Users.ROOT_USER_UUID);
 
         expect(deletedUserOrErr.isLeft(), errToMsg(deletedUserOrErr.value)).toBeTruthy();
         expect(deletedUserOrErr.value).toBeInstanceOf(BadRequestError)
@@ -54,7 +52,7 @@ describe("UsersGroupsService.deleteUser", () => {
     test("should not delete builtin anonymous user", async () => {
         const service =  usersGroupsService();
 
-        const deletedUserOrErr = await service.deleteUser(authCtx, Users.ANONYMOUS_USER_UUID);
+        const deletedUserOrErr = await service.deleteUser(Users.ANONYMOUS_USER_UUID);
 
         expect(deletedUserOrErr.isLeft(), errToMsg(deletedUserOrErr.value)).toBeTruthy();
         expect(deletedUserOrErr.value).toBeInstanceOf(BadRequestError)
@@ -65,10 +63,9 @@ describe("UsersGroupsService.deleteGroup", () => {
     test("should delete the group", async () => {
         const service = usersGroupsService();
 
-        const createdGroupOrErr = await service.createGroup({
+        const createdGroupOrErr = await service.createGroup(authCtx, {
             uuid: "--title--",
             title: "The title",
-            owner: Users.ROOT_USER_EMAIL,
         });
 
         const voidOrErr = await service.deleteGroup(createdGroupOrErr.right.uuid);

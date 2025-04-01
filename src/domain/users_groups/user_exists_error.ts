@@ -6,7 +6,7 @@ export class UserExistsError extends AntboxError {
   constructor(email: string) {
     super(
       UserExistsError.ERROR_CODE,
-      `User already exists for the uuid: ${email}`,
+      `User already exists for the email: ${email}`,
     );
   }
 }

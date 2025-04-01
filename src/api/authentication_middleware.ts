@@ -136,7 +136,7 @@ async function authenticateToken(
   }
 
   // TODO: Fix this
-  const userOrErr = await authService.getUserByEmail(
+  const userOrErr = await authService.getUser(
     undefined as unknown as AuthenticationContext,
     tokenOrErr.value.payload.email,
   );

@@ -10,8 +10,11 @@ import { Groups } from "domain/users_groups/groups";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error";
 import { BadRequestError } from "shared/antbox_error";
 import { GroupNode } from "domain/users_groups/group_node";
+import { NodeCreatedEvent } from "domain/nodes/node_created_event";
+import type { ActionNode } from "domain/actions/action_node";
+import { actionToNode, type Action } from "domain/actions/action";
 
-const createService = () => {
+const createService = async () => {
   const groupNode1: GroupNode = GroupNode.create({
     uuid: "--group-1--",
     title: "The Group",
@@ -35,6 +38,13 @@ const createService = () => {
 
   const nodeService = new NodeService({ repository, storage, bus: eventBus });
   const usersGroupsService = new UsersGroupsService({ repository, storage, bus: eventBus });
+
+  await usersGroupsService.createUser(adminAuthContext, {
+    email: "admin@example.com",
+    owner: adminAuthContext.principal.email,
+    title: "Admin",
+    groups: [Groups.ADMINS_GROUP_UUID],
+  });
 
   return new ActionService(nodeService, usersGroupsService);
 }
@@ -69,7 +79,7 @@ const testFileContent = `
 
 describe("ActionService", () => {
   test("createOrReplace should create a new action", async () => {
-    const service = createService();
+    const service = await createService();
     const file = new File([testFileContent], "action.js",{ type: "application/javascript" });
 
     const actionOrErr = await service.createOrReplace(adminAuthContext, file);
@@ -81,7 +91,7 @@ describe("ActionService", () => {
   });
 
   test("createOrReplace should replace existing action", async () => { 
-    const service = createService();
+    const service = await createService();
 
     await service.createOrReplace(adminAuthContext, new File([testFileContent], "action.js",{ type: "application/javascript" }));
     
@@ -110,7 +120,7 @@ describe("ActionService", () => {
   });
 
   test("get should return action", async () => {
-    const service = createService();
+    const service = await createService();
 
     await service.createOrReplace(adminAuthContext, new File([testFileContent], "action.js",{ type: "application/javascript" }));
 
@@ -123,7 +133,7 @@ describe("ActionService", () => {
   });
 
   test("get should return built-in action 'copy_to_folder' ", async () => {
-    const service = createService();
+    const service = await createService();
 
     const actionOrErr = await service.get(adminAuthContext, "copy_to_folder");
 
@@ -133,7 +143,7 @@ describe("ActionService", () => {
   });
 
   test("get should return error if action does not exist", async () => {
-    const service = createService();
+    const service = await createService();
 
     const actionOrErr = await service.get(adminAuthContext, "non-existing-action-uuid");
 
@@ -142,7 +152,7 @@ describe("ActionService", () => {
   });
 
   test("delete should remove action", async () => {
-    const service = createService();
+    const service = await createService();
 
     await service.createOrReplace(adminAuthContext, new File([testFileContent], "action.js",{ type: "application/javascript" }));
 
@@ -152,7 +162,7 @@ describe("ActionService", () => {
   });
 
   test("list should return all actions including built-ins", async () => {
-    const service = createService();
+    const service = await createService();
     await service.createOrReplace(adminAuthContext, new File([testFileContent], "action.js",{ type: "application/javascript" }));
 
     const actions = await service.list(adminAuthContext);
@@ -161,7 +171,7 @@ describe("ActionService", () => {
   });
 
   test("export should create a 'Javascript' file containing action", async () => {
-    const service = createService();
+    const service = await createService();
 
     await service.createOrReplace(adminAuthContext, new File([testFileContent], "action.js",{ type: "application/javascript" }));
 
@@ -173,7 +183,7 @@ describe("ActionService", () => {
   });
 
   test("run should run the action", async () => {
-    const service = createService();
+    const service = await createService();
 
     await service.createOrReplace(adminAuthContext, new File([testFileContent], "action.js",{ type: "application/javascript" }));
 
@@ -183,7 +193,7 @@ describe("ActionService", () => {
   });
 
   test("run should run action as root user", async () => {
-    const service = createService();
+    const service = await createService();
     const fileContent = `
       export default {
         uuid: "test-action-uuid",
@@ -211,7 +221,7 @@ describe("ActionService", () => {
   });
 
   test("run should run action to delete more than one node", async () => { 
-    const service = createService();
+    const service = await createService();
     const fileContent = `
       export default {
         uuid: "delete-action-uuid",
@@ -249,7 +259,7 @@ describe("ActionService", () => {
   });
 
   test("run should return error if 'runMannally' is false and interaction mode is 'Direct'", async () => {
-    const service = createService();
+    const service = await createService();
     const adminAuthContext: AuthenticationContext = {
       mode: "Direct",
       tenant: "default",
@@ -285,6 +295,56 @@ describe("ActionService", () => {
     expect(runResult.isLeft()).toBeTruthy();
     expect(runResult.value).toBeInstanceOf(BadRequestError);
     expect((runResult.value as BadRequestError).message).toBe("Action cannot be run manually");
+  });
+
+  test("runAutomaticActionsForCreates should run action automacally for creates", async () => {
+    const service = await createService();
+    const fileContent = `
+      export default {
+        uuid: "test-action-uuid",
+        title: "Test Action",
+        description: "Description",
+        builtIn: false,
+        runOnCreates: true,
+        runOnUpdates: false,
+        runManually: true,
+        params: [],
+        filters: [],
+        groupsAllowed: [],
+
+        run: async (ctx, uuids, params) => {
+          const tasks = uuids.map((uuid) => ctx.nodeService.delete(ctx.authenticationContext, uuid));
+
+          const results = await Promise.all(tasks);
+
+          const errors = results.filter((voidOrErr) => voidOrErr.isLeft());
+
+          if (errors.length > 0) {
+            errors.forEach((e) => console.error((e.value).message));
+            return errors[0].value;
+          }
+
+          return;
+        }
+      };
+    `;
+    await service.createOrReplace(adminAuthContext, new File([fileContent], "action.js",{ type: "application/javascript" }));
+
+    const nodeCreatedEvent = new NodeCreatedEvent(
+      adminAuthContext.principal.email,
+      "default",
+      {
+        uuid: "test-action-uuid",
+        title: "Test Node",
+        description: "Description",
+        owner: adminAuthContext.principal.email,
+        parent: "--root--",
+      } as ActionNode
+    );
+
+    const runResult = await service.runAutomaticActionsForCreates(nodeCreatedEvent);
+
+    expect(runResult).toBe(undefined);
   });
 }); 
 

@@ -58,7 +58,6 @@ export class ActionService {
     file: File,
   ): Promise<Either<AntboxError, ActionDTO>> {
     const actionOrErr = await fileToAction(file);
-    
     if (actionOrErr.isLeft()) {
       return left(actionOrErr.value);
     }
@@ -299,7 +298,7 @@ export class ActionService {
       group = (parent.right as FolderNode).group;
     }
 
-    const actions = await this.#getAutomaticActions(ctx, evt.payload, runCriteria);
+    const actions = await this.#getAutomaticActions(ctx, runCriteria);
     return this.#runActions(
       ctxOrErr.value,
       actions.map((a) => a.uuid),
@@ -320,7 +319,7 @@ export class ActionService {
       return;
     }
 
-    const actions = await this.#getAutomaticActions(ctx, node.value, runCriteria);
+    const actions = await this.#getAutomaticActions(ctx, runCriteria);
     if (actions.length === 0) {
       return;
     }
@@ -374,7 +373,6 @@ export class ActionService {
 
   async #getAutomaticActions(
     ctx: AuthenticationContext,
-    node: Node,
     runOnCriteria: NodeFilter,
   ): Promise<Action[]> {
     const filters: NodeFilter[] = [["mimetype", "==", Nodes.ACTION_MIMETYPE], runOnCriteria];

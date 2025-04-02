@@ -13,6 +13,8 @@ import { GroupNode } from "domain/users_groups/group_node";
 import { NodeCreatedEvent } from "domain/nodes/node_created_event";
 import type { ActionNode } from "domain/actions/action_node";
 import { actionToNode, type Action } from "domain/actions/action";
+import { file } from "bun";
+import { NodeUpdatedEvent } from "domain/nodes/node_updated_event";
 
 const createService = async () => {
   const groupNode1: GroupNode = GroupNode.create({
@@ -344,7 +346,62 @@ describe("ActionService", () => {
 
     const runResult = await service.runAutomaticActionsForCreates(nodeCreatedEvent);
 
-    expect(runResult).toBe(undefined);
+    expect(runResult).toBeUndefined();
+  });
+
+  test("runAutomaticActionsForUpdates should run action automacally for updates", async () => {
+    const service = await createService();
+
+    const fileContent = `
+      export default {
+        uuid: "copy-folder-uuid",
+        title: "Test Action",
+        description: "Description",
+        builtIn: false,
+        runOnCreates: false,
+        runOnUpdates: true,
+        runManually: false,
+        params: ["to"],
+        filters: [],
+        groupsAllowed: [],
+
+        run: async (ctx, uuids, params) => {
+          const parent = params;
+
+          if (!parent) {
+            return Promise.reject(new Error("Error parameter not given"));
+          }
+
+          const batchCopy = uuids.map((u) => ctx.nodeService.copy(ctx.authenticationContext, u, parent));
+          const results = await Promise.all(batchCopy);
+
+          const errors = results.filter((r) => r.isLeft());
+
+          if (errors.length > 0) {
+            return errors[0].value;
+          }
+
+          return;
+        }
+      };
+    `;
+    await service.createOrReplace(adminAuthContext, new File([fileContent], "action.js",{ type: "application/javascript" }));
+
+    const nodeUpdatedEvent = new NodeUpdatedEvent(
+      adminAuthContext.principal.email,
+      "default",
+      {
+        uuid: "copy-folder-uuid",
+        title: "Test Action",
+        description: "Description",
+        owner: adminAuthContext.principal.email,
+        parent: "--root--",
+      } as ActionNode
+    );
+
+    const runResult = await service.runAutomaticActionsForUpdates(adminAuthContext, nodeUpdatedEvent);
+
+    expect(runResult).toBeUndefined();
   });
 }); 
 

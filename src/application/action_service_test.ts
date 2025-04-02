@@ -404,9 +404,8 @@ describe("ActionService", () => {
     expect(runResult).toBeUndefined();
   });
 
-  test("runOncreatScript should run action on create scripts", async () => {
+  test("runOnCreateScripts should run action on create scripts", async () => {
     const service = await createService();
-
     const fileContent = `
       export default {
         uuid: "test-action-uuid",
@@ -440,6 +439,45 @@ describe("ActionService", () => {
     );
 
     const runResult = await service.runOnCreateScritps(adminAuthContext, nodeCreatedEvent);  
+
+    expect(runResult).toBeUndefined();
+  });
+
+  test("runOnUpdatedScripts should run action on update scripts", async () => {
+    const service = await createService();
+    const fileContent = `
+      export default {
+        uuid: "test-action-uuid",
+        title: "Test Action",
+        description: "Description",
+        builtIn: false,
+        runOnCreates: false,
+        runOnUpdates: true,
+        runManually: true,
+        params: [],
+        filters: [],
+        groupsAllowed: [],
+
+        run: async (ctx, uuids, params) => {
+          console.log("Running action", ctx.authenticationContext);
+        }
+      };
+    `;
+    const actionOrErr = await service.createOrReplace(adminAuthContext, new File([fileContent], "action.js",{ type: "application/javascript" }));
+
+    const nodeUpdatedEvent = new NodeUpdatedEvent(
+      adminAuthContext.principal.email,
+      "default",
+      {
+        uuid: actionOrErr.right.uuid,
+        title: actionOrErr.right.title,
+        description: actionOrErr.right.description,
+        owner: adminAuthContext.principal.email,
+        parent: actionOrErr.right.parent,
+      } as ActionNode
+    );
+
+    const runResult = await service.runOnUpdatedScritps(adminAuthContext, nodeUpdatedEvent);  
 
     expect(runResult).toBeUndefined();
   });

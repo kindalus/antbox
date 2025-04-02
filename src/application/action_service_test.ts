@@ -68,7 +68,7 @@ const testFileContent = `
     builtIn: false,
     runOnCreates: true,
     runOnUpdates: false,
-    runManually: false,
+    runManually: true,
     params: [],
     filters: [],
     groupsAllowed: ["admins"],
@@ -103,9 +103,9 @@ describe("ActionService", () => {
         title: "New Action Title",
         description: "New Description",
         builtIn: false,
-        runOnCreates: false,
-        runOnUpdates: true,
-        runManually: false,
+        runOnCreates: true,
+        runOnUpdates: false,
+        runManually: true,
         params: [],
         filters: [],
         groupsAllowed: ["--root--"]
@@ -204,7 +204,7 @@ describe("ActionService", () => {
         builtIn: false,
         runOnCreates: true,
         runOnUpdates: false,
-        runManually: false,
+        runManually: true,
         runAs: "root@antbox.io",
         params: [],
         filters: [],
@@ -232,7 +232,7 @@ describe("ActionService", () => {
         builtIn: false,
         runOnCreates: true,
         runOnUpdates: false,
-        runManually: false,
+        runManually: true,
         params: [],
         filters: [],
         groupsAllowed: ["admins"],
@@ -309,7 +309,7 @@ describe("ActionService", () => {
         builtIn: false,
         runOnCreates: true,
         runOnUpdates: false,
-        runManually: true,
+        runManually: false,
         params: [],
         filters: [],
         groupsAllowed: [],
@@ -330,17 +330,17 @@ describe("ActionService", () => {
         }
       };
     `;
-    await service.createOrReplace(adminAuthContext, new File([fileContent], "action.js",{ type: "application/javascript" }));
+    const actionOrErr = await service.createOrReplace(adminAuthContext, new File([fileContent], "action.js",{ type: "application/javascript" }));
 
     const nodeCreatedEvent = new NodeCreatedEvent(
       adminAuthContext.principal.email,
       "default",
       {
-        uuid: "test-action-uuid",
-        title: "Test Node",
-        description: "Description",
+        uuid: actionOrErr.right.uuid,
+        title: actionOrErr.right.title,
+        description: actionOrErr.right.description,
         owner: adminAuthContext.principal.email,
-        parent: "--root--",
+        parent: actionOrErr.right.parent,
       } as ActionNode
     );
 
@@ -385,21 +385,61 @@ describe("ActionService", () => {
         }
       };
     `;
-    await service.createOrReplace(adminAuthContext, new File([fileContent], "action.js",{ type: "application/javascript" }));
+    const actionOrErr = await service.createOrReplace(adminAuthContext, new File([fileContent], "action.js",{ type: "application/javascript" }));
 
     const nodeUpdatedEvent = new NodeUpdatedEvent(
       adminAuthContext.principal.email,
       "default",
       {
-        uuid: "copy-folder-uuid",
-        title: "Test Action",
-        description: "Description",
+        uuid: actionOrErr.right.uuid,
+        title: actionOrErr.right.title,
+        description: actionOrErr.right.description,
         owner: adminAuthContext.principal.email,
-        parent: "--root--",
+        parent: actionOrErr.right.parent,
       } as ActionNode
     );
 
     const runResult = await service.runAutomaticActionsForUpdates(adminAuthContext, nodeUpdatedEvent);
+
+    expect(runResult).toBeUndefined();
+  });
+
+  test("runOncreatScript should run action on create scripts", async () => {
+    const service = await createService();
+
+    const fileContent = `
+      export default {
+        uuid: "test-action-uuid",
+        title: "Test Action",
+        description: "Description",
+        builtIn: false,
+        runOnCreates: true,
+        runOnUpdates: false,
+        runManually: true,
+        params: [],
+        filters: [],
+        groupsAllowed: [],
+
+        run: async (ctx, uuids, params) => {
+          console.log("Running action", ctx.authenticationContext);
+        }
+      };
+    `;
+    const actionOrErr = await service.createOrReplace(adminAuthContext, new File([fileContent], "action.js",{ type: "application/javascript" }));
+
+    const nodeCreatedEvent = new NodeCreatedEvent(
+      adminAuthContext.principal.email,
+      "default",
+      {
+        uuid: actionOrErr.right.uuid,
+        title: actionOrErr.right.title,
+        description: actionOrErr.right.description,
+        owner: adminAuthContext.principal.email,
+        parent: actionOrErr.right.parent,
+      } as ActionNode
+    );
+
+    const runResult = await service.runOnCreateScritps(adminAuthContext, nodeCreatedEvent);  
 
     expect(runResult).toBeUndefined();
   });

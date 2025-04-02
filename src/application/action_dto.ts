@@ -5,6 +5,7 @@ export interface ActionDTO {
     uuid: string;
     title: string;
     description: string;
+    parent: string;
     builtIn: boolean;
     runOnCreates: boolean;
     runOnUpdates: boolean;
@@ -20,6 +21,7 @@ export interface ActionDTO {
       uuid: metadata.uuid!,
       title: metadata.title!,
       description: metadata.description!,
+      parent: metadata.parent!,
       builtIn: metadata.builtIn,
       runOnCreates: metadata.runOnCreates!,
       runOnUpdates: metadata.runOnUpdates!,

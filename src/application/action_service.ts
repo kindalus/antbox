@@ -1,25 +1,23 @@
 import { type Action, actionNodeToNodeMetadata, actionToNode, fileToAction } from "domain/actions/action.ts";
 import { ActionNode } from "domain/actions/action_node.ts";
+import type { RunContext } from "domain/actions/run_context.ts";
 import { FolderNode } from "domain/nodes/folder_node.ts";
 import { Folders } from "domain/nodes/folders.ts";
-import { Node } from "domain/nodes/node.ts";
 import { NodeCreatedEvent } from "domain/nodes/node_created_event.ts";
-import { NodesFilters } from "domain/nodes_filters.ts";
+import type { NodeFilter } from "domain/nodes/node_filter.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import { NodeUpdatedEvent } from "domain/nodes/node_updated_event.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
+import { NodesFilters } from "domain/nodes_filters.ts";
 import { AntboxError, BadRequestError, UnknownError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
-import { UsersGroupsService } from "./users_groups_service.ts";
+import { type ActionDTO, nodeToAction } from "./action_dto.ts";
 import { type AuthenticationContext } from "./authentication_context.ts";
-import { NodeService } from "./node_service.ts";
-import type { RunContext } from "domain/actions/run_context.ts";
 import { builtinActions } from "./builtin_actions/index.ts";
-import type { NodeFilter, NodeFilters } from "domain/nodes/node_filter.ts";
-import { nodeToAction, type ActionDTO } from "./action_dto.ts";
-import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
+import { NodeService } from "./node_service.ts";
+import { UsersGroupsService } from "./users_groups_service.ts";
 
-type RecordKey = [string, string];
+type RecordKey = string;
 interface RunnableRecord {
   count: number;
   timestamp: number;
@@ -30,7 +28,10 @@ export class ActionService {
 
   static #getRunnable(key: RecordKey): RunnableRecord {
     if (!this.#runnable.has(key)) {
-      this.#runnable.set(key, { count: 1, timestamp: Date.now() });
+      this.#runnable.set(key, {
+        count: 0, 
+        timestamp: Date.now() 
+      });
     }
 
     return this.#runnable.get(key)!;
@@ -38,9 +39,9 @@ export class ActionService {
 
   static #incRunnable(key: RecordKey) {
     const runnable = this.#getRunnable(key);
-    this.#runnable.set(key, {
-      count: runnable?.count ?? 0 + 1,
-      timestamp: Date.now(),
+    return this.#runnable.set(key, {
+      count: runnable.count + 1,
+      timestamp: runnable.timestamp,
     });
   }
 
@@ -243,19 +244,19 @@ export class ActionService {
   }
 
   #ranTooManyTimes(uuid: string, uuids: string[]): boolean {
-    const key = uuids.join(",");
+    const key = JSON.stringify([uuid, uuids.join(",")]);
     const timestamp = Date.now();
-    const timeout = 1000 * 10; // 10 seconds
+    const timeout = 1000 * 10; // 10 segundos
     const maxCount = 10;
 
-    const entry = ActionService.#getRunnable([uuid, key]);
+    const entry = ActionService.#getRunnable(key);
 
     if (entry.count >= maxCount || entry.timestamp + timeout < timestamp) {
-      ActionService.#deleteRunnable([uuid, key]);
+      ActionService.#deleteRunnable(key);
       return true;
     }
 
-    ActionService.#incRunnable([uuid, key]);
+    ActionService.#incRunnable(key);
     return false;
   }
 

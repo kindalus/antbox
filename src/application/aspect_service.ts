@@ -1,15 +1,14 @@
+import { AspectNode } from "domain/aspects/aspect_node.ts";
 import { AspectNotFoundError } from "domain/aspects/aspect_not_found_error.ts";
 import { Folders } from "domain/nodes/folders.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import { AntboxError, BadRequestError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
+import { type AspectDTO, nodeToAspect } from "./aspect_dto.ts";
 import type { AuthenticationContext } from "./authentication_context.ts";
 import { builtinAspects } from "./builtin_aspects/mod.ts";
-
 import { NodeService } from "./node_service.ts";
-import { type AspectDTO, nodeToAspect } from "./aspect_dto.ts";
-import { AspectNode } from "domain/aspects/aspect_node.ts";
 
 export class AspectService {
   constructor(private readonly nodeService: NodeService) {}

@@ -1,17 +1,18 @@
-import { Node } from "domain/nodes/node.ts";
+import { Router, type Context } from "@oakserver/oak";
+import type { AntboxTenant } from "api/antbox_tenant.ts";
+import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
-import { type Either, left, right } from "shared/either.ts";
+import { readFileSync } from "fs";
+import { left, right, type Either } from "shared/either.ts";
 import { ContextWithParams } from "./context_with_params.ts";
-import { getRequestContext } from "./get_request_context.ts";
 import { getTenant } from "./get_tenant.ts";
 import { processEither } from "./process_either.ts";
-import { processError } from "./process_error.ts";
+import { processError } from "api/process_error.ts";
 import { sendBadRequest, sendOK } from "./send_response.ts";
-import { type AntboxTenant } from "./setup_oak_server.ts";
 
 export default function (tenants: AntboxTenant[]) {
   const createNodeFileHandler = async (ctx: Context) => {
-    const service = getTenant(ctx, tenants).service;
+    const service = getTenant(ctx, tenants).nodeService;
 
     const fieldsOrUndefined = await readRequest(ctx);
     if (fieldsOrUndefined.isLeft()) {
@@ -23,23 +24,19 @@ export default function (tenants: AntboxTenant[]) {
     }
 
     return service
-      .createFile(
-        getRequestContext(ctx),
-        fieldsOrUndefined.value.file,
-        fieldsOrUndefined.value.metadata,
-      )
+      .createFile(ctx, fieldsOrUndefined.value.file, fieldsOrUndefined.value.metadata)
       .then((result) => {
         if (result.isLeft()) {
-          return processError(result.value, ctx);
+          return processError(result.value);
         }
 
         sendOK(ctx, result.value);
       })
-      .catch((err) => processError(err, ctx));
+      .catch((err) => processError(err));
   };
 
   const updateNodeFileHandler = async (ctx: ContextWithParams) => {
-    const service = getTenant(ctx, tenants).service;
+    const service = getTenant(ctx, tenants).nodeService;
     const fieldsOrUndefined = await readRequest(ctx);
 
     if (fieldsOrUndefined.isLeft()) {
@@ -47,24 +44,19 @@ export default function (tenants: AntboxTenant[]) {
     }
 
     return service
-      .updateFile(
-        getRequestContext(ctx),
-        ctx.params.uuid,
-        fieldsOrUndefined.value.file,
-      )
+      .updateFile(ctx, ctx.params.uuid, fieldsOrUndefined.value.file)
       .then((result) => {
         if (result.isLeft()) {
-          return processError(result.value, ctx);
+          return processError(result.value);
         }
 
         sendOK(ctx);
       })
-      .catch((err) => processError(err, ctx));
+      .catch((err) => processError(err));
   };
 
   const createOrReplaceAction = async (ctx: Context) => {
-    const service = getTenant(ctx, tenants).service;
-    const authCtx = getRequestContext(ctx);
+    const service = getTenant(ctx, tenants).nodeService;
 
     const fieldsOrUndefined = await readRequest(ctx);
     if (fieldsOrUndefined.isLeft()) {
@@ -72,14 +64,13 @@ export default function (tenants: AntboxTenant[]) {
     }
 
     return service
-      .createOrReplaceAction(authCtx, fieldsOrUndefined.value.file)
+      .createFile(ctx, fieldsOrUndefined.value.file, fieldsOrUndefined.value.metadata!)
       .then((result) => processEither(ctx, result))
-      .catch((err) => processError(err, ctx));
+      .catch((err) => processError(err));
   };
 
   const createOrReplaceExtension = async (ctx: Context) => {
-    const service = getTenant(ctx, tenants).service;
-    const authCtx = getRequestContext(ctx);
+    const service = getTenant(ctx, tenants).nodeService;
 
     const fieldsOrUndefined = await readRequest(ctx);
     if (fieldsOrUndefined.isLeft()) {
@@ -87,13 +78,9 @@ export default function (tenants: AntboxTenant[]) {
     }
 
     return service
-      .createOrReplaceExtension(
-        authCtx,
-        fieldsOrUndefined.value.file,
-        fieldsOrUndefined.value.metadata!,
-      )
+      .createFile(ctx, fieldsOrUndefined.value.file, fieldsOrUndefined.value.metadata!)
       .then((result) => processEither(ctx, result))
-      .catch((err) => processError(err, ctx));
+      .catch((err) => processError(err));
   };
 
   const uploadRouter = new Router({ prefix: "/upload" });
@@ -109,7 +96,7 @@ export default function (tenants: AntboxTenant[]) {
 
 async function readRequest(
   ctx: Context,
-): Promise<Either<undefined, { file: File; metadata?: Partial<Node> }>> {
+): Promise<Either<undefined, { file: File; metadata?: Partial<NodeMetadata> }>> {
   const body = ctx.request.body();
   if (body.type !== "form-data") {
     return left(undefined);
@@ -133,11 +120,11 @@ async function readRequest(
     return left(undefined);
   }
 
-  const fileContent = Deno.readFileSync(fileUploaded.filename!);
+  const fileContent = readFileSync(fileUploaded.filename!);
 
-  let metadata: Partial<Node> | undefined = undefined;
+  let metadata: Partial<NodeMetadata> | undefined = undefined;
   if (metadataUploaded) {
-    const metadataContent = Deno.readFileSync(metadataUploaded.filename!);
+    const metadataContent = readFileSync(metadataUploaded.filename!);
     metadata = JSON.parse(new TextDecoder().decode(metadataContent));
   }
 

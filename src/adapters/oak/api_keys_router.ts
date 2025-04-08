@@ -1,60 +1,56 @@
+import { Router, Status, type Context } from "@oakserver/oak";
+import { type AntboxTenant } from "api/antbox_tenant.ts";
+import { processError } from "api/process_error.ts";
 import { AntboxError } from "shared/antbox_error.ts";
 import { type Either } from "shared/either.ts";
 import { ContextWithParams } from "./context_with_params.ts";
-import { getRequestContext } from "./get_request_context.ts";
 import { getTenant } from "./get_tenant.ts";
-import { processError } from "./process_error.ts";
 import { sendOK } from "./send_response.ts";
-import { type AntboxTenant } from "./setup_oak_server.ts";
 
 export default function (tenants: AntboxTenant[]) {
-  const listHandler = (ctx: Context) => {
-    const service = getTenant(ctx, tenants).service;
+  const listHandler = async (ctx: Context) => {
+    const service = getTenant(ctx, tenants).apiKeyService;
 
     return service
-      .listApiKeys(getRequestContext(ctx))
+      .list(ctx)
       .then((result) => {
-        if (result.isLeft()) {
-          return processError(result.value, ctx);
-        }
-
-        return sendOK(ctx, result.value);
+        return sendOK(ctx, result);
       })
-      .catch((err) => processError(err, ctx));
+      .catch((err) => processError(err));
   };
 
-  const getHandler = (ctx: ContextWithParams) => {
-    const service = getTenant(ctx, tenants).service;
+  const getHandler = async (ctx: ContextWithParams) => {
+    const service = getTenant(ctx, tenants).apiKeyService;
     return service
-      .getApiKey(getRequestContext(ctx), ctx.params.uuid)
+      .get(ctx.params.uuid)
       .then((result) => {
         if (result.isLeft()) {
-          return processError(result.value, ctx);
+          return processError(result.value);
         }
 
         ctx.response.status = Status.OK;
         ctx.response.type = "json";
         ctx.response.body = result.value;
       })
-      .catch((err) => processError(err, ctx));
+      .catch((err) => processError(err));
   };
 
   const createHandler = async (ctx: Context) => {
-    const service = getTenant(ctx, tenants).service;
+    const service = getTenant(ctx, tenants).apiKeyService;
     const body = await ctx.request.body().value;
 
     return service
-      .createApiKey(getRequestContext(ctx), body.group, body.description)
+      .create(ctx, body.group, body.owner, body.description)
       .then((result) => processEither(ctx, result))
-      .catch((err) => processError(err, ctx));
+      .catch((err) => processError(err));
   };
 
-  const deleteHandler = (ctx: ContextWithParams) => {
-    const service = getTenant(ctx, tenants).service;
+  const deleteHandler = async (ctx: ContextWithParams) => {
+    const service = getTenant(ctx, tenants).apiKeyService;
     return service
-      .deleteApiKey(getRequestContext(ctx), ctx.params.uuid)
+      .delete(ctx, ctx.params.uuid)
       .then((result) => processEither(ctx, result))
-      .catch((err) => processError(err, ctx));
+      .catch((err) => processError(err));
   };
 
   const apiKeysRouter = new Router({ prefix: "/api-keys" });
@@ -70,12 +66,9 @@ export default function (tenants: AntboxTenant[]) {
   return apiKeysRouter;
 }
 
-function processEither<L extends AntboxError, R>(
-  ctx: Context,
-  result: Either<L, R>,
-) {
+function processEither<L extends AntboxError, R>(ctx: Context, result: Either<L, R>) {
   if (result.isLeft()) {
-    return processError(result.value, ctx);
+    return processError(result.value);
   }
 
   return sendOK(ctx, result.value as Record<string, unknown>);

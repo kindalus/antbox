@@ -1,5 +1,5 @@
-import { UserNode } from "domain/users_groups/user_node";
 import { Groups } from "domain/users_groups/groups";
+import { UserNode } from "domain/users_groups/user_node";
 import { Users } from "domain/users_groups/users";
 
 export const ANONYMOUS_USER = UserNode.create({

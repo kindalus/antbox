@@ -1,13 +1,13 @@
-import { ExtNode } from "domain/exts/ext_node";
 import { Folders } from "domain/nodes/folders";
-import type { NodeMetadata } from "domain/nodes/node_metadata";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error";
 import { Nodes } from "domain/nodes/nodes";
 import { AntboxError, BadRequestError } from "shared/antbox_error";
 import { type Either, left, right } from "shared/either";
-import { UsersGroupsService } from "./users_groups_service";
 import type { AuthenticationContext } from "./authentication_context";
+import { type ExtDTO, extToNode, nodeToExt } from "./ext_dto";
+import { ExtNotFoundError } from "./ext_not_found_error";
 import type { NodeService } from "./node_service";
+import { UsersGroupsService } from "./users_groups_service";
 
 export type ExtFn = (request: Request, service: NodeService) => Promise<Response>;
 
@@ -17,46 +17,66 @@ export class ExtService {
   async createOrReplace(
     ctx: AuthenticationContext,
     file: File,
-    metadata: Partial<NodeMetadata>,
-  ): Promise<Either<AntboxError, Node>> {
-    if (metadata.mimetype !== Nodes.EXT_MIMETYPE) {
+    metadata: Partial<ExtDTO>,
+  ): Promise<Either<AntboxError, ExtDTO>> {
+    if (!Nodes.isExt(metadata)) {
       return left(new BadRequestError(`Invalid mimetype: ${file.type}`));
     }
 
-    const uuid = metadata.uuid ?? file.name?.split(".")[0].trim();
-    const fid = metadata.fid ?? uuid;
-
-    const extOrErr = ExtNode.create({ ...metadata, uuid, fid });
+    const extOrErr = nodeToExt(ctx, file, metadata);
     if (extOrErr.isLeft()) {
       return left(extOrErr.value);
     }
 
-    const nodeOrErr = await this.nodeService.get(ctx, uuid);
+    const ext = extOrErr.value;
+
+    const nodeOrErr = await this.get(ctx, ext.uuid);
     if (nodeOrErr.isLeft()) {
-      return this.nodeService.createFile(ctx, file, extOrErr.value);
+      const result = await this.nodeService.createFile(ctx, file, { 
+        uuid: ext.uuid,
+        fid: ext.fid,
+        title: ext.title,
+        description: ext.description,
+        mimetype: ext.mimetype,
+        size: file.size,
+        owner: ext.owner,
+      });
+      return right(extToNode(result.value));
     }
 
-    const voidOrErr = await this.nodeService.updateFile(ctx, uuid, file);
-
-    if (voidOrErr.isLeft()) {
-      return left(voidOrErr.value);
+    const updateFileOrErr = await this.nodeService.updateFile(ctx, ext.uuid, file);
+    if (updateFileOrErr.isLeft()) {
+      return left(updateFileOrErr.value);
     }
 
-    return right(nodeOrErr.value);
+    const updatedNodeOrErr = await this.nodeService.update(ctx, ext.uuid, {
+      title: ext.title,
+      description: ext.description,
+      mimetype: ext.mimetype,
+      size: file.size,
+    });
+    if (updatedNodeOrErr.isLeft()) {
+      return left(updatedNodeOrErr.value);
+    }
+
+    return right((await this.get(ctx, ext.uuid)).right);
   }
 
-  async get(uuid: string): Promise<Either<NodeNotFoundError, Node>> {
-    const nodeOrErr = await this.nodeService.get(UsersGroupsService.elevatedContext(), uuid);
+  async get(
+    ctx: AuthenticationContext,
+    uuid: string
+  ): Promise<Either<NodeNotFoundError, ExtDTO>> {
+    const nodeOrErr = await this.nodeService.get(ctx, uuid);
 
     if (nodeOrErr.isLeft()) {
       return left(nodeOrErr.value);
     }
 
     if (!Nodes.isExt(nodeOrErr.value)) {
-      return left(new NodeNotFoundError(uuid));
+      return left(new ExtNotFoundError(uuid));
     }
 
-    return right(nodeOrErr.value);
+    return right(extToNode(nodeOrErr.value));
   }
 
   async update(
@@ -64,7 +84,7 @@ export class ExtService {
     uuid: string,
     metadata: Partial<Node>,
   ): Promise<Either<NodeNotFoundError, void>> {
-    const nodeOrErr = await this.get(uuid);
+    const nodeOrErr = await this.get(ctx, uuid);
 
     if (nodeOrErr.isLeft()) {
       return left(nodeOrErr.value);

@@ -9,9 +9,9 @@ import type { AspectProperty } from "domain/aspects/aspect_node";
 export interface ExtDTO {
   uuid: string;
   title: string;
-  description: string;
+  description?: string;
   mimetype?: string;
-  size: Number;
+  size?: Number;
   aspects?: string[];
   properties?: NodeProperties | AspectProperty[]; 
 }

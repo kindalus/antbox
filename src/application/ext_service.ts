@@ -36,15 +36,22 @@ export class ExtService {
 
     const nodeOrErr = await this.get(ctx, ext.uuid);
     if (nodeOrErr.isLeft()) {
-      const result = await this.nodeService.createFile(ctx, file, { 
+      const createdFileOrErr = await this.nodeService.createFile(ctx, file, { 
         uuid: ext.uuid,
         fid: ext.fid,
         title: ext.title,
         description: ext.description,
         mimetype: ext.mimetype,
         owner: ext.owner,
+        properties: ext.properties,
+        aspects: ext.aspects,
       });
-      return right(extToNode(result.value));
+
+      if (createdFileOrErr.isLeft()) {
+        return left(createdFileOrErr.value);
+      }
+
+      return right(extToNode(createdFileOrErr.value));
     }
 
     const decoratedFile = new File([file], file.name, {
@@ -63,6 +70,8 @@ export class ExtService {
       mimetype: ext.mimetype,
       owner: ext.owner,
       size: file.size,
+      properties: ext.properties,
+      aspects: ext.aspects,
     });
     if (updatedNodeOrErr.isLeft()) {
       return left(updatedNodeOrErr.value);

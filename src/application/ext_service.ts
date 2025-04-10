@@ -137,7 +137,7 @@ export class ExtService {
     return right(undefined);
   }
 
-  async delete(ctx: AuthenticationContext, uuid: string): Promise<Either<NodeNotFoundError, void>> {
+  async delete(ctx: AuthenticationContext, uuid: string): Promise<Either<AntboxError, void>> {
     const nodeOrErr = await this.get(ctx, uuid);
 
     if (nodeOrErr.isLeft()) {

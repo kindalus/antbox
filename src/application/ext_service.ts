@@ -21,7 +21,7 @@ export class ExtService {
   async createOrReplace(
     ctx: AuthenticationContext,
     file: File,
-    metadata: Partial<ExtDTO>,
+    metadata: ExtDTO,
   ): Promise<Either<AntboxError, ExtDTO>> {
     if (!Nodes.isJavascript(file)) {
       return left(new BadRequestError(`Invalid mimetype: ${file.type}`));
@@ -32,52 +32,67 @@ export class ExtService {
       return left(extOrErr.value);
     }
 
+    const nodeOrErr = await this.get(ctx, extOrErr.value.uuid);
+    if (nodeOrErr.isLeft()) {
+      return this.#create(ctx, file, metadata);
+    }
+
+    return this.#update(ctx, file, metadata);
+  }
+
+  async #create(
+    ctx: AuthenticationContext,
+    file: File,
+    metadata: ExtDTO,
+  ): Promise<Either<AntboxError, ExtDTO>> {
+    const extOrErr = nodeToExt(ctx, file, metadata);
+    if (extOrErr.isLeft()) {
+      return left(extOrErr.value);
+    }
+
     const ext = extOrErr.value;
 
-    const nodeOrErr = await this.get(ctx, ext.uuid);
-    if (nodeOrErr.isLeft()) {
-      const createdFileOrErr = await this.nodeService.createFile(ctx, file, { 
-        uuid: ext.uuid,
-        fid: ext.fid,
-        title: ext.title,
-        description: ext.description,
-        mimetype: ext.mimetype,
-        owner: ext.owner,
-        properties: ext.properties,
-        aspects: ext.aspects,
-      });
-
-      if (createdFileOrErr.isLeft()) {
-        return left(createdFileOrErr.value);
-      }
-
-      return right(extToNode(createdFileOrErr.value));
-    }
-
-    const decoratedFile = new File([file], file.name, {
-      type: Nodes.EXT_MIMETYPE,
-      lastModified: file.lastModified,
-    });
-
-    const updateFileOrErr = await this.nodeService.updateFile(ctx, ext.uuid, decoratedFile);
-    if (updateFileOrErr.isLeft()) {
-      return left(updateFileOrErr.value);
-    }
-
-    const updatedNodeOrErr = await this.nodeService.update(ctx, ext.uuid, {
+    const createdFileOrErr = await this.nodeService.createFile(ctx, file, {
+      uuid: ext.uuid,
+      fid: ext.fid,
       title: ext.title,
       description: ext.description,
       mimetype: ext.mimetype,
       owner: ext.owner,
-      size: file.size,
       properties: ext.properties,
       aspects: ext.aspects,
+    });
+
+    if (createdFileOrErr.isLeft()) {
+      return left(createdFileOrErr.value);
+    }
+
+    return right(extToNode(createdFileOrErr.value));
+  }
+
+  async #update(
+    ctx: AuthenticationContext,
+    file: File,
+    meatadata: ExtDTO,
+  ): Promise<Either<AntboxError, ExtDTO>> {
+    const decoratedFile = new File([file], file.name, {
+      type: Nodes.EXT_MIMETYPE,
+    });
+
+    const updateFileOrErr = await this.nodeService.updateFile(ctx, meatadata.uuid, decoratedFile);
+    if (updateFileOrErr.isLeft()) {
+      return left(updateFileOrErr.value);
+    }
+
+    const updatedNodeOrErr = await this.nodeService.update(ctx, meatadata.uuid, {
+      ...meatadata,
+      size: file.size,
     });
     if (updatedNodeOrErr.isLeft()) {
       return left(updatedNodeOrErr.value);
     }
 
-    return right((await this.get(ctx, ext.uuid)).right);
+    return this.get(ctx, meatadata.uuid);
   }
 
   async get(ctx: AuthenticationContext, uuid: string): Promise<Either<AntboxError, ExtDTO>> {

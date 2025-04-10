@@ -84,7 +84,7 @@ export class ExtService {
     ctx: AuthenticationContext,
     uuid: string,
     metadata: Partial<ExtDTO>,
-  ): Promise<Either<NodeNotFoundError, void>> {
+  ): Promise<Either<AntboxError, void>> {
     const nodeOrErr = await this.get(ctx, uuid);
 
     if (nodeOrErr.isLeft()) {
@@ -108,6 +108,16 @@ export class ExtService {
     return right(undefined);
   }
 
+  async delete(ctx: AuthenticationContext, uuid: string): Promise<Either<NodeNotFoundError, void>> {
+    const nodeOrErr = await this.get(ctx, uuid);
+
+    if (nodeOrErr.isLeft()) {
+      return left(nodeOrErr.value);
+    }
+
+    return this.nodeService.delete(ctx, uuid);
+  }
+
   async list(): Promise<Either<AntboxError, Node[]>> {
     const nodesOrErrs = await this.nodeService.find(
       UsersGroupsService.elevatedContext(),
@@ -123,16 +133,6 @@ export class ExtService {
     }
 
     return right(nodesOrErrs.value.nodes);
-  }
-
-  async delete(ctx: AuthenticationContext, uuid: string): Promise<Either<NodeNotFoundError, void>> {
-    const nodeOrErr = await this.get(ctx, uuid);
-
-    if (nodeOrErr.isLeft()) {
-      return left(nodeOrErr.value);
-    }
-
-    return this.nodeService.delete(ctx, uuid);
   }
 
   async export(ctx: AuthenticationContext, uuid: string): Promise<Either<NodeNotFoundError, File>> {

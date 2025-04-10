@@ -153,4 +153,23 @@ describe("ExtService", () => {
         expect(extOrErr.right.title).toBe("Updated Title");
         expect(extOrErr.right.description).toBe("Updated Description");
     });
+
+    test("delete should remove the ext node", async () => {
+        const service = createService();
+        const file = new File(["content"], "test.ext", { type: Nodes.EXT_MIMETYPE });
+
+        await service.createOrReplace(adminAuthContext, file, {
+            uuid: "--ext-uuid--",
+            title: "Title",
+            description: "Description",
+            mimetype: Nodes.EXT_MIMETYPE,
+        });
+
+        const deleteOrErr = await service.delete(adminAuthContext, "--ext-uuid--");
+        expect(deleteOrErr.isRight(), errMsg(deleteOrErr.value)).toBeTruthy();
+
+        const extOrErr = await service.get(adminAuthContext, "--ext-uuid--");
+        expect(extOrErr.isLeft()).toBeTruthy();
+        expect(extOrErr.value).toBeInstanceOf(NodeNotFoundError);
+    });
 });

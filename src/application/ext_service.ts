@@ -77,6 +77,7 @@ export class ExtService {
   ): Promise<Either<AntboxError, ExtDTO>> {
     const decoratedFile = new File([file], file.name, {
       type: Nodes.EXT_MIMETYPE,
+      lastModified: Date.now(),
     });
 
     const updateFileOrErr = await this.nodeService.updateFile(ctx, meatadata.uuid, decoratedFile);

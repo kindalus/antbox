@@ -117,7 +117,6 @@ describe("ExtService", () => {
     test("get should return error if found node is not an ext", async () => {
         const service = createService();
         const file = new File(["content"], "test.ext", { type: Nodes.EXT_MIMETYPE });
-
         await service.createOrReplace(adminAuthContext, file, {
             uuid: "--ext-uuid--",
             title: "Title",
@@ -129,5 +128,29 @@ describe("ExtService", () => {
 
         expect(extOrErr.isLeft(), errMsg(extOrErr.value)).toBeTruthy();
         expect(extOrErr.value).toBeInstanceOf(ExtNotFoundError);
+    });
+
+    test("update should update the ext node", async () => {
+        const service = createService();
+        const file = new File(["content"], "test.ext", { type: Nodes.EXT_MIMETYPE });
+
+        await service.createOrReplace(adminAuthContext, file, {
+            uuid: "--ext-uuid--",
+            title: "Title",
+            description: "Description",
+            mimetype: Nodes.EXT_MIMETYPE,
+        });
+
+        const updatedExtOrErr = await service.update(adminAuthContext, "--ext-uuid--", {
+            title: "Updated Title",
+            description: "Updated Description",
+        });
+        expect(updatedExtOrErr.isRight(), errMsg(updatedExtOrErr.value)).toBeTruthy();
+
+        const extOrErr = await service.get(adminAuthContext, "--ext-uuid--");
+        expect(extOrErr.isRight(), errMsg(extOrErr.value)).toBeTruthy();
+        expect(extOrErr.right.uuid).toBe("--ext-uuid--");
+        expect(extOrErr.right.title).toBe("Updated Title");
+        expect(extOrErr.right.description).toBe("Updated Description");
     });
 });

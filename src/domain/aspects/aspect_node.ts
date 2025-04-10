@@ -37,7 +37,7 @@ export class AspectNode extends Node {
     }
 
     if (metadata.properties) {
-      this.properties = metadata.properties;
+      this.properties = metadata.properties as AspectProperty[];
     }
 
     return super.update(metadata);

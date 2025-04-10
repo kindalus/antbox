@@ -8,6 +8,7 @@ import { type ExtDTO, extToNode, nodeToExt } from "./ext_dto";
 import { ExtNotFoundError } from "./ext_not_found_error";
 import type { NodeService } from "./node_service";
 import { UsersGroupsService } from "./users_groups_service";
+import type { NodeMetadata } from "domain/nodes/node_metadata";
 
 export type ExtFn = (request: Request, service: NodeService) => Promise<Response>;
 
@@ -82,7 +83,7 @@ export class ExtService {
   async update(
     ctx: AuthenticationContext,
     uuid: string,
-    metadata: Partial<Node>,
+    metadata: Partial<ExtDTO>,
   ): Promise<Either<NodeNotFoundError, void>> {
     const nodeOrErr = await this.get(ctx, uuid);
 
@@ -90,7 +91,7 @@ export class ExtService {
       return left(nodeOrErr.value);
     }
 
-    const safe: Partial<Node> = {};
+    const safe: Partial<NodeMetadata> = {};
     for (const key of ["title", "description", "aspects", "properties"]) {
       if (Object.hasOwnProperty.call(metadata, key)) {
         // deno-lint-ignore no-explicit-any
@@ -125,7 +126,7 @@ export class ExtService {
   }
 
   async delete(ctx: AuthenticationContext, uuid: string): Promise<Either<NodeNotFoundError, void>> {
-    const nodeOrErr = await this.get(uuid);
+    const nodeOrErr = await this.get(ctx, uuid);
 
     if (nodeOrErr.isLeft()) {
       return left(nodeOrErr.value);
@@ -134,14 +135,14 @@ export class ExtService {
     return this.nodeService.delete(ctx, uuid);
   }
 
-  async export(uuid: string): Promise<Either<NodeNotFoundError, File>> {
-    const nodeOrErr = await this.get(uuid);
+  async export(ctx: AuthenticationContext, uuid: string): Promise<Either<NodeNotFoundError, File>> {
+    const nodeOrErr = await this.get(ctx, uuid);
 
     if (nodeOrErr.isLeft()) {
       return left(nodeOrErr.value);
     }
 
-    return this.nodeService.export(UsersGroupsService.elevatedContext(), uuid);
+    return this.nodeService.export(ctx, uuid);
   }
 
   async #getAsModule(uuid: string): Promise<Either<NodeNotFoundError, ExtFn>> {

@@ -201,4 +201,25 @@ describe("ExtService", () => {
         expect(extOrErr.isRight(), errMsg(extOrErr.value)).toBeTruthy();
         expect(extOrErr.right.name).toBe(`Title.js`);
     });
+
+    test("run should execute the ext function", async () => {
+        const service = createService();
+        const file = new File(
+            ["export default (request) => { return { status: 200, body: 'Hello World' } }"], 
+            "test.ext", { 
+                type: "application/javascript" 
+            }
+        );
+        const request = new Request("http://example.com");
+
+        await service.createOrReplace(adminAuthContext, file, {
+            uuid: "--ext-uuid--",
+            title: "Title",
+            description: "Description",
+        });
+
+        const responseOrErr = await service.run(adminAuthContext, "--ext-uuid--", request);
+        expect(responseOrErr.isRight(), errMsg(responseOrErr.value)).toBeTruthy();
+        expect(responseOrErr.right.status).toBe(200);
+    });
 });

@@ -1,24 +1,16 @@
 import { Folders } from "domain/nodes/folders";
 import type { NodeMetadata } from "domain/nodes/node_metadata";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error";
-import type { NodeRepository } from "domain/nodes/node_repository";
 import { Nodes } from "domain/nodes/nodes";
 import { AntboxError, BadRequestError } from "shared/antbox_error";
 import { type Either, left, right } from "shared/either";
-import type { EventBus } from "shared/event_bus";
 import type { AuthenticationContext } from "./authentication_context";
 import { type ExtDTO, extToNode, nodeToExt } from "./ext_dto";
 import { ExtNotFoundError } from "./ext_not_found_error";
 import type { NodeService } from "./node_service";
-import type { StorageProvider } from "./storage_provider";
+import type { ExtServiceContext } from "./ext_service_context";
 
 export type ExtFn = (request: Request, service: NodeService) => Promise<Response>;
-
-export interface ExtServiceContext {
-  readonly repository: NodeRepository;
-  readonly storage: StorageProvider;
-  readonly bus: EventBus;
-}
 
 export class ExtService {
   constructor(
@@ -79,10 +71,7 @@ export class ExtService {
     return right((await this.get(ctx, ext.uuid)).right);
   }
 
-  async get(
-    ctx: AuthenticationContext,
-    uuid: string
-  ): Promise<Either<NodeNotFoundError, ExtDTO>> {
+  async get(ctx: AuthenticationContext, uuid: string): Promise<Either<AntboxError, ExtDTO>> {
     const nodeOrErr = await this.nodeService.get(ctx, uuid);
 
     if (nodeOrErr.isLeft()) {
@@ -170,7 +159,7 @@ export class ExtService {
     return right(file);
   }
 
-  async #getAsModule(ctx: AuthenticationContext, uuid: string): Promise<Either<NodeNotFoundError, ExtFn>> {
+  async #getAsModule(ctx: AuthenticationContext, uuid: string): Promise<Either<AntboxError, ExtFn>> {
     const [nodeError, fileOrError] = await Promise.all([
       this.get(ctx, uuid),
       this.nodeService.export(ctx, uuid),

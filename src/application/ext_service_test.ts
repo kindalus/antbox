@@ -47,13 +47,12 @@ const errMsg = (err: any) => {
 describe("ExtService", () => {
     test("createOrReplace should create a new ext node", async () => {
         const service = createService();
-        const file = new File(["content"], "test.ext", { type: Nodes.EXT_MIMETYPE });
+        const file = new File(["content"], "test.ext", { type: "application/javascript" });
 
         const extOrErr = await service.createOrReplace(adminAuthContext, file, {
             uuid: "--ext-uuid--",
             title: "Title",
             description: "Description",
-            mimetype: Nodes.EXT_MIMETYPE,
         });
 
         expect(extOrErr.isRight(), errMsg(extOrErr.value)).toBeTruthy();
@@ -64,13 +63,12 @@ describe("ExtService", () => {
 
     test("createOrReplace should replace an existing ext node", async () => {
         const service = createService();
-        const file = new File(["content"], "test.ext", { type: Nodes.EXT_MIMETYPE });
+        const file = new File(["content"], "test.ext", { type: "application/javascript" });
 
         const extOrErr = await service.createOrReplace(adminAuthContext, file, {
             uuid: "--ext-uuid--",
             title: "Title",
             description: "Description",
-            mimetype: Nodes.EXT_MIMETYPE,
         });
 
         expect(extOrErr.isRight(), errMsg(extOrErr.value)).toBeTruthy();
@@ -79,7 +77,6 @@ describe("ExtService", () => {
             uuid: "--ext-uuid--",
             title: "Updated Title",
             description: "Updated Description",
-            mimetype: Nodes.EXT_MIMETYPE,
         });
 
         expect(updatedExtOrErr.isRight(), errMsg(updatedExtOrErr.value)).toBeTruthy();
@@ -89,13 +86,12 @@ describe("ExtService", () => {
 
     test("get should return the ext node", async () => {
         const service = createService();
-        const file = new File(["content"], "test.ext", { type: Nodes.EXT_MIMETYPE });
+        const file = new File(["content"], "test.ext", { type: "application/javascript" });
 
         await service.createOrReplace(adminAuthContext, file, {
             uuid: "--ext-uuid--",
             title: "Title",
             description: "Description",
-            mimetype: Nodes.EXT_MIMETYPE,
         });
 
         const extOrErr = await service.get(adminAuthContext, "--ext-uuid--");
@@ -116,12 +112,11 @@ describe("ExtService", () => {
 
     test("get should return error if found node is not an ext", async () => {
         const service = createService();
-        const file = new File(["content"], "test.ext", { type: Nodes.EXT_MIMETYPE });
+        const file = new File(["content"], "test.ext", { type: "application/javascript" });
         await service.createOrReplace(adminAuthContext, file, {
             uuid: "--ext-uuid--",
             title: "Title",
             description: "Description",
-            mimetype: Nodes.EXT_MIMETYPE,
         });
 
         const extOrErr = await service.get(adminAuthContext, "--group-uuid--");
@@ -132,13 +127,12 @@ describe("ExtService", () => {
 
     test("update should update the ext node", async () => {
         const service = createService();
-        const file = new File(["content"], "test.ext", { type: Nodes.EXT_MIMETYPE });
+        const file = new File(["content"], "test.ext", { type: "application/javascript" });
 
         await service.createOrReplace(adminAuthContext, file, {
             uuid: "--ext-uuid--",
             title: "Title",
             description: "Description",
-            mimetype: Nodes.EXT_MIMETYPE,
         });
 
         const updatedExtOrErr = await service.update(adminAuthContext, "--ext-uuid--", {
@@ -156,13 +150,12 @@ describe("ExtService", () => {
 
     test("delete should remove the ext node", async () => {
         const service = createService();
-        const file = new File(["content"], "test.ext", { type: Nodes.EXT_MIMETYPE });
+        const file = new File(["content"], "test.ext", { type: "application/javascript" });
 
         await service.createOrReplace(adminAuthContext, file, {
             uuid: "--ext-uuid--",
             title: "Title",
             description: "Description",
-            mimetype: Nodes.EXT_MIMETYPE,
         });
 
         const deleteOrErr = await service.delete(adminAuthContext, "--ext-uuid--");
@@ -175,24 +168,37 @@ describe("ExtService", () => {
 
     test("list should return all ext nodes", async () => {
         const service = createService();
-        const firstFile = new File(["content"], "test1.ext", { type: Nodes.EXT_MIMETYPE });
-        const secondFile = new File(["content"], "test2.ext", { type: Nodes.EXT_MIMETYPE });
+        const firstFile = new File(["content"], "test1.ext", { type: "application/javascript" });
+        const secondFile = new File(["content"], "test2.ext", { type: "application/javascript" });
 
         await service.createOrReplace(adminAuthContext, firstFile, {
             uuid: "--ext-uuid-1--",
             title: "Title 1",
             description: "Description 1",
-            mimetype: Nodes.EXT_MIMETYPE,
         });
 
         await service.createOrReplace(adminAuthContext, secondFile, {
             uuid: "--ext-uuid-2--",
             title: "Title 2",
             description: "Description 2",
-            mimetype: Nodes.EXT_MIMETYPE,
         });
 
         const exts = await service.list();
         expect(exts.length).toBe(2);
+    });
+
+    test("export should return the ext file in 'Javascript' format", async () => {
+        const service = createService();
+        const file = new File(["content"], "test.ext", { type: "application/javascript" });
+
+        await service.createOrReplace(adminAuthContext, file, {
+            uuid: "--ext-uuid--",
+            title: "Title",
+            description: "Description",
+        });
+
+        const extOrErr = await service.export(adminAuthContext, "--ext-uuid--");
+        expect(extOrErr.isRight(), errMsg(extOrErr.value)).toBeTruthy();
+        expect(extOrErr.right.name).toBe(`Title.js`);
     });
 });

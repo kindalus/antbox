@@ -1,17 +1,16 @@
 import { Folders } from "domain/nodes/folders";
+import type { NodeMetadata } from "domain/nodes/node_metadata";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error";
+import type { NodeRepository } from "domain/nodes/node_repository";
 import { Nodes } from "domain/nodes/nodes";
 import { AntboxError, BadRequestError } from "shared/antbox_error";
 import { type Either, left, right } from "shared/either";
+import type { EventBus } from "shared/event_bus";
 import type { AuthenticationContext } from "./authentication_context";
 import { type ExtDTO, extToNode, nodeToExt } from "./ext_dto";
 import { ExtNotFoundError } from "./ext_not_found_error";
 import type { NodeService } from "./node_service";
-import { UsersGroupsService } from "./users_groups_service";
-import type { NodeMetadata } from "domain/nodes/node_metadata";
-import type { NodeRepository } from "domain/nodes/node_repository";
 import type { StorageProvider } from "./storage_provider";
-import type { EventBus } from "shared/event_bus";
 
 export type ExtFn = (request: Request, service: NodeService) => Promise<Response>;
 
@@ -32,9 +31,9 @@ export class ExtService {
     file: File,
     metadata: Partial<ExtDTO>,
   ): Promise<Either<AntboxError, ExtDTO>> {
-    if (!Nodes.isExt(metadata)) {
+    if (!Nodes.isJavascript(file)) {
       return left(new BadRequestError(`Invalid mimetype: ${file.type}`));
-    }
+    } 
 
     const extOrErr = nodeToExt(ctx, file, metadata);
     if (extOrErr.isLeft()) {
@@ -51,13 +50,17 @@ export class ExtService {
         title: ext.title,
         description: ext.description,
         mimetype: ext.mimetype,
-        size: file.size,
         owner: ext.owner,
       });
       return right(extToNode(result.value));
     }
 
-    const updateFileOrErr = await this.nodeService.updateFile(ctx, ext.uuid, file);
+    const decoratedFile = new File([file], file.name, {
+      type: Nodes.EXT_MIMETYPE,
+      lastModified: file.lastModified,
+    });
+
+    const updateFileOrErr = await this.nodeService.updateFile(ctx, ext.uuid, decoratedFile);
     if (updateFileOrErr.isLeft()) {
       return left(updateFileOrErr.value);
     }
@@ -66,6 +69,7 @@ export class ExtService {
       title: ext.title,
       description: ext.description,
       mimetype: ext.mimetype,
+      owner: ext.owner,
       size: file.size,
     });
     if (updatedNodeOrErr.isLeft()) {
@@ -146,14 +150,24 @@ export class ExtService {
     return nodesOrErrs.nodes.map((node) => extToNode(node));
   }
 
-  async export(ctx: AuthenticationContext, uuid: string): Promise<Either<NodeNotFoundError, File>> {
+  async export(ctx: AuthenticationContext, uuid: string): Promise<Either<AntboxError, File>> {
     const nodeOrErr = await this.get(ctx, uuid);
 
     if (nodeOrErr.isLeft()) {
       return left(nodeOrErr.value);
     }
 
-    return this.nodeService.export(ctx, uuid);
+    const fileOErr = await this.nodeService.export(ctx, uuid);
+    if (fileOErr.isLeft()) {
+      return left(fileOErr.value);
+    }
+
+    const file = new File([JSON.stringify(fileOErr.value)], `${nodeOrErr.right.title}.js`, {
+      type: Nodes.EXT_MIMETYPE,
+      lastModified: Date.now(),
+    });
+
+    return right(file);
   }
 
   async #getAsModule(ctx: AuthenticationContext, uuid: string): Promise<Either<NodeNotFoundError, ExtFn>> {

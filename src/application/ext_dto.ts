@@ -10,7 +10,7 @@ export interface ExtDTO {
   uuid: string;
   title: string;
   description: string;
-  mimetype: string;
+  mimetype?: string;
   size: Number;
   aspects?: string[];
   properties?: NodeProperties | AspectProperty[]; 

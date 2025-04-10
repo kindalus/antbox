@@ -25,7 +25,7 @@ const createService = () => {
     const storage = new InMemoryStorageProvider();
     const eventBus = new InMemoryEventBus();
     const nodeService = new NodeService({ repository, storage, bus: eventBus });
-    return new ExtService(nodeService);
+    return new ExtService({ repository, storage, bus: eventBus }, nodeService);
 }
 
 const adminAuthContext: AuthenticationContext = {
@@ -171,5 +171,28 @@ describe("ExtService", () => {
         const extOrErr = await service.get(adminAuthContext, "--ext-uuid--");
         expect(extOrErr.isLeft()).toBeTruthy();
         expect(extOrErr.value).toBeInstanceOf(NodeNotFoundError);
+    });
+
+    test("list should return all ext nodes", async () => {
+        const service = createService();
+        const firstFile = new File(["content"], "test1.ext", { type: Nodes.EXT_MIMETYPE });
+        const secondFile = new File(["content"], "test2.ext", { type: Nodes.EXT_MIMETYPE });
+
+        await service.createOrReplace(adminAuthContext, firstFile, {
+            uuid: "--ext-uuid-1--",
+            title: "Title 1",
+            description: "Description 1",
+            mimetype: Nodes.EXT_MIMETYPE,
+        });
+
+        await service.createOrReplace(adminAuthContext, secondFile, {
+            uuid: "--ext-uuid-2--",
+            title: "Title 2",
+            description: "Description 2",
+            mimetype: Nodes.EXT_MIMETYPE,
+        });
+
+        const exts = await service.list();
+        expect(exts.length).toBe(2);
     });
 });

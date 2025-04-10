@@ -10,6 +10,7 @@ import { Groups } from 'domain/users_groups/groups';
 import { ExtNotFoundError } from './ext_not_found_error';
 import { GroupNode } from 'domain/users_groups/group_node';
 import { NodeNotFoundError } from 'domain/nodes/node_not_found_error';
+import { BadRequestError } from 'shared/antbox_error';
 
 const createService = () => {
     const groupNode: GroupNode = GroupNode.create({
@@ -59,6 +60,20 @@ describe("ExtService", () => {
         expect(extOrErr.right.uuid).toBe("--ext-uuid--");
         expect(extOrErr.right.title).toBe("Title");
         expect(extOrErr.right.description).toBe("Description");
+    });
+
+    test("createOrReplace should return an error if the file mimetype is invalid", async () => {
+        const service = createService();
+        const file = new File(["content"], "test.ext", { type: "application/json" });
+
+        const extOrErr = await service.createOrReplace(adminAuthContext, file, {
+            uuid: "--ext-uuid--",
+            title: "Title",
+            description: "Description",
+        });
+
+        expect(extOrErr.isLeft()).toBeTruthy();
+        expect(extOrErr.value).toBeInstanceOf(BadRequestError);
     });
 
     test("createOrReplace should replace an existing ext node", async () => {

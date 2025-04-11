@@ -1,46 +1,62 @@
 import { ApiKeyNode } from "domain/api_keys/api_key_node.ts";
 import { ApiKeyNodeFoundError } from "domain/api_keys/api_key_node_found_error.ts";
 import { Folders } from "domain/nodes/folders.ts";
+import type { NodeRepository } from "domain/nodes/node_repository.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
-import { UuidGenerator } from "shared/uuid_generator.ts";
 import { AntboxError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
-import { UsersGroupsService } from "./users_groups_service.ts";
 import { type AuthenticationContext } from "./authentication_context.ts";
-import { builtinGroups } from "./builtin_groups/mod.ts";
+import { builtinGroups } from "./builtin_groups/index.ts";
 import { NodeService } from "./node_service.ts";
+import { UsersGroupsService } from "./users_groups_service.ts";
+
+export interface ApiKeyDTO {
+  group: string;
+  owner?: string;
+  description: string;
+  secret: string;  
+}
 
 export class ApiKeyService {
   readonly #nodeService: NodeService;
-  readonly #uuidGenerator: UuidGenerator;
 
-  constructor(nodeService: NodeService, uuidGenerator: UuidGenerator) {
-    this.#nodeService = nodeService;
-    this.#uuidGenerator = uuidGenerator;
-  }
+  constructor(
+    readonly nodeRepository: NodeRepository,
+    nodeService: NodeService,
+  ) { this.#nodeService = nodeService; }
 
   async create(
     ctx: AuthenticationContext,
-    group: string,
-    owner: string,
-    description: string,
-  ): Promise<Either<AntboxError, ApiKeyNode>> {
-    const builtinGroup = builtinGroups.find((g) => g.uuid === group);
+    metadata: ApiKeyDTO,
+  ): Promise<Either<AntboxError, ApiKeyDTO>> {
+    const builtinGroup = builtinGroups.find((g) => g.uuid === metadata.group);
 
-    const groupsOrErr = await this.#nodeService.get(ctx, group);
+    const groupsOrErr = await this.#nodeService.get(ctx, metadata.group);
     if (groupsOrErr.isLeft() && !builtinGroup) {
       return left(groupsOrErr.value);
     }
 
-    const apiKey = ApiKeyNode.create({
-      group,
-      secret: this.#uuidGenerator.generate(10),
-      description,
-      owner,
+    const apiKeyOrErr = ApiKeyNode.create({
+      ...metadata,
+      owner: metadata.owner ?? ctx.principal.email,
     });
+    if (apiKeyOrErr.isLeft()) {
+      return left(apiKeyOrErr.value);
+    }
 
-    const nodeOrErr = await this.#nodeService.create(ctx, apiKey.right);
-    return nodeOrErr as Either<AntboxError, ApiKeyNode>;
+    const apiKey = apiKeyOrErr.value;
+
+    const voidOrErr = await this.nodeRepository.add(apiKey);  
+    if (voidOrErr.isLeft()) {
+      return left(voidOrErr.value);
+    }
+
+    return right({
+      group: apiKey.group,
+      owner: apiKey.owner,
+      description: apiKey.description,
+      secret: apiKey.secret,
+    } as ApiKeyDTO);
   }
 
   async get(uuid: string): Promise<Either<AntboxError, ApiKeyNode>> {

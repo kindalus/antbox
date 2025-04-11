@@ -6,10 +6,20 @@ import { AntboxError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
 import { ValidationError } from "shared/validation_error.ts";
 import { Node } from "domain/nodes/node.ts";
+import { compareSync, genSaltSync, hashSync } from "bcryptjs";
 
 export class ApiKeyNode extends Node {
   #group: string = null as unknown as string;
   #secret: string = null as unknown as string;
+
+  static generateSecureKey(secret: string): string {
+    const salt = genSaltSync(10);
+    return hashSync(secret, salt);
+  }
+
+  static isSecureKey(key: string): boolean {
+    return compareSync(key, this.generateSecureKey(key));
+  }
 
   static create(metadata: Partial<NodeMetadata>): Either<ValidationError, ApiKeyNode> {
     try {
@@ -50,7 +60,7 @@ export class ApiKeyNode extends Node {
     });
 
     this.#group = group;
-    this.#secret = secret;
+    this.#secret = ApiKeyNode.generateSecureKey(secret);
   }
 
   override update(metadata: Partial<NodeMetadata>): Either<ValidationError, void> {

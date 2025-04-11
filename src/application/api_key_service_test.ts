@@ -9,6 +9,8 @@ import { NodeService } from "./node_service";
 import { GroupNode } from "domain/users_groups/group_node";
 import { Nodes } from "domain/nodes/nodes";
 import { ApiKeyNode } from "domain/api_keys/api_key_node";
+import { NodeNotFoundError } from "domain/nodes/node_not_found_error";
+import { ApiKeyNodeFoundError } from "domain/api_keys/api_key_node_found_error";
 
 export const errToMsg = (err: any): string => {
     if (err instanceof Error) {
@@ -103,5 +105,23 @@ describe("ApiKeyService", () => {
         expect(apiKeyOrErr.right.group).toBe("api-group");
         expect(apiKeyOrErr.right.description).toBe("Test API Key");
         expect(apiKeyOrErr.right.owner).toBe(authContext.principal.email);
+    });
+
+    test("get should return error if node not found", async () => {
+        const service =  createService();
+
+        const apiKeyOrErr = await service.get("--non-existing-uuid--");
+
+        expect(apiKeyOrErr.isLeft(), errToMsg(apiKeyOrErr.value)).toBeTruthy();
+        expect(apiKeyOrErr.value).toBeInstanceOf(NodeNotFoundError);
+    });
+
+    test("get should return error if node found is not API key node ", async () => {
+        const service =  createService();
+
+        const apiKeyOrErr = await service.get("api-group");
+
+        expect(apiKeyOrErr.isLeft(), errToMsg(apiKeyOrErr.value)).toBeTruthy();
+        expect(apiKeyOrErr.value).toBeInstanceOf(ApiKeyNodeFoundError);
     });
 });

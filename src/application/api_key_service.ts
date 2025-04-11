@@ -9,13 +9,7 @@ import { type AuthenticationContext } from "./authentication_context.ts";
 import { builtinGroups } from "./builtin_groups/index.ts";
 import { NodeService } from "./node_service.ts";
 import { UsersGroupsService } from "./users_groups_service.ts";
-
-export interface ApiKeyDTO {
-  group: string;
-  owner?: string;
-  description: string;
-  secret: string;  
-}
+import { nodeToApiKey, type ApiKeyDTO } from "./api_key_dto.ts";
 
 export class ApiKeyService {
   readonly #nodeService: NodeService;
@@ -51,19 +45,11 @@ export class ApiKeyService {
       return left(voidOrErr.value);
     }
 
-    return right({
-      group: apiKey.group,
-      owner: apiKey.owner,
-      description: apiKey.description,
-      secret: apiKey.secret,
-    } as ApiKeyDTO);
+    return right(nodeToApiKey(apiKey));
   }
 
-  async get(uuid: string): Promise<Either<AntboxError, ApiKeyNode>> {
-    const nodeOrErr = await this.#nodeService.get(
-      UsersGroupsService.elevatedContext(),
-      uuid,
-    );
+  async get(uuid: string): Promise<Either<AntboxError, ApiKeyDTO>> {
+    const nodeOrErr = await this.nodeRepository.getById(uuid);
 
     if (nodeOrErr.isLeft()) {
       return left(nodeOrErr.value);
@@ -73,7 +59,9 @@ export class ApiKeyService {
       return left(new ApiKeyNodeFoundError(uuid));
     }
 
-    return right(nodeOrErr.value.cloneWithSecret());
+    const apiKey = nodeOrErr.value;
+
+    return right(nodeToApiKey(apiKey));
   }
 
   async getBySecret(secret: string): Promise<Either<AntboxError, ApiKeyNode>> {

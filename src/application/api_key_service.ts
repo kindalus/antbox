@@ -75,7 +75,7 @@ export class ApiKeyService {
       return left(new ApiKeyNodeFoundError(secret));
     }
 
-    const matchingNode = nodesOrErr.nodes.find(async (node) => {
+    const matchingNode = nodesOrErr.nodes.find((node) => {
       if (!node.secret) return false;
       return ApiKeyNode.isSecureKey(secret);
     });
@@ -87,7 +87,7 @@ export class ApiKeyService {
     return this.get(matchingNode.uuid);
   }
 
-  async list(ctx: AuthenticationContext): Promise<ApiKeyNode[]> {
+  async list(ctx: AuthenticationContext): Promise<ApiKeyDTO[]> {
     const nodesOrErrs = await this.#nodeService.find(
       ctx,
       [
@@ -102,9 +102,11 @@ export class ApiKeyService {
       return [];
     }
 
-    return nodesOrErrs.value.nodes
-      .map((n) => (n as ApiKeyNode).cloneWithSecret())
+    const nodes = nodesOrErrs.value.nodes
+      .map((n) => (n as ApiKeyNode))
       .sort((a, b) => a.title.localeCompare(b.title));
+
+    return nodes.map((n) => nodeToApiKey(n));
   }
 
   async delete(

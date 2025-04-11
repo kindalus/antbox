@@ -76,7 +76,7 @@ describe("ApiKeyService", () => {
         expect(ApiKeyNode.isSecureKey("my-secret")).toBeTruthy();
     });
 
-    test("create should return error if group does not exist", async () => {
+    test("create should return error if group does not exists", async () => {
         const service = createService();
 
         const apiKeyOrErr = await service.create(authContext, {

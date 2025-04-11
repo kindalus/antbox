@@ -4,13 +4,11 @@ import { Folders } from "domain/nodes/folders.ts";
 import type { NodeRepository } from "domain/nodes/node_repository.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import { AntboxError } from "shared/antbox_error.ts";
-import { type Either, left, right } from "shared/either.ts";
+import { left, right, type Either } from "shared/either.ts";
+import { nodeToApiKey, type ApiKeyDTO } from "./api_key_dto.ts";
 import { type AuthenticationContext } from "./authentication_context.ts";
 import { builtinGroups } from "./builtin_groups/index.ts";
 import { NodeService } from "./node_service.ts";
-import { UsersGroupsService } from "./users_groups_service.ts";
-import { nodeToApiKey, type ApiKeyDTO } from "./api_key_dto.ts";
-import bcrypt from "bcryptjs";
 
 export class ApiKeyService {
   readonly #nodeService: NodeService;

@@ -73,4 +73,17 @@ describe("ApiKeyService", () => {
         expect(apiKeyOrErr.isRight(), errToMsg(apiKeyOrErr.value)).toBeTruthy();
         expect(ApiKeyNode.isSecureKey("my-secret")).toBeTruthy();
     });
+
+    test("create should return error if group does not exist", async () => {
+        const service = createService();
+
+        const apiKeyOrErr = await service.create(authContext, {
+            group: "non-existing-group",
+            description: "Test API Key",
+            secret: "my-secret"
+        });
+
+        expect(apiKeyOrErr.isLeft()).toBeTruthy();
+        expect(errToMsg(apiKeyOrErr.value)).toContain("Could not find node");
+    });
 });

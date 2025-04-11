@@ -114,6 +114,7 @@ export class ApiKeyService {
     uuid: string,
   ): Promise<Either<AntboxError, void>> {
     const existingOrErr = await this.get(uuid);
+    
     if (existingOrErr.isLeft()) {
       return left(existingOrErr.value);
     }

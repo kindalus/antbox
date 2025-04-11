@@ -142,4 +142,13 @@ describe("ApiKeyService", () => {
         expect(apiKeyOrErr.right.description).toBe("Test API Key");
         expect(apiKeyOrErr.right.owner).toBe(authContext.principal.email);
     });
+
+    test("getBySecret should return error if node not found", async () => {
+        const service =  createService();
+
+        const apiKeyOrErr = await service.getBySecret("--any-secret--");
+
+        expect(apiKeyOrErr.isLeft(), errToMsg(apiKeyOrErr.value)).toBeTruthy();
+        expect(apiKeyOrErr.value).toBeInstanceOf(ApiKeyNodeFoundError);
+    });
 });

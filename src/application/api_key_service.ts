@@ -10,6 +10,7 @@ import { builtinGroups } from "./builtin_groups/index.ts";
 import { NodeService } from "./node_service.ts";
 import { UsersGroupsService } from "./users_groups_service.ts";
 import { nodeToApiKey, type ApiKeyDTO } from "./api_key_dto.ts";
+import bcrypt from "bcryptjs";
 
 export class ApiKeyService {
   readonly #nodeService: NodeService;
@@ -64,25 +65,26 @@ export class ApiKeyService {
     return right(nodeToApiKey(apiKey));
   }
 
-  async getBySecret(secret: string): Promise<Either<AntboxError, ApiKeyNode>> {
-    const nodeOrErr = await this.#nodeService.find(
-      UsersGroupsService.elevatedContext(),
-      [
-        ["secret", "==", secret],
-        ["mimetype", "==", Nodes.API_KEY_MIMETYPE],
-      ],
-      1,
+  async getBySecret(secret: string): Promise<Either<AntboxError, ApiKeyDTO>> {
+    const nodesOrErr = await this.nodeRepository.filter(
+      [["mimetype", "==", Nodes.API_KEY_MIMETYPE]],
+      Number.MAX_SAFE_INTEGER,
     );
 
-    if (nodeOrErr.isLeft()) {
-      return left(nodeOrErr.value);
-    }
-
-    if (nodeOrErr.value.nodes.length === 0) {
+    if (nodesOrErr.nodes.length === 0) {
       return left(new ApiKeyNodeFoundError(secret));
     }
 
-    return this.get(nodeOrErr.value.nodes[0].uuid);
+    const matchingNode = nodesOrErr.nodes.find(async (node) => {
+      if (!node.secret) return false;
+      return ApiKeyNode.isSecureKey(secret);
+    });
+
+    if (!matchingNode) {
+      return left(new ApiKeyNodeFoundError(secret));
+    }
+
+    return this.get(matchingNode.uuid);
   }
 
   async list(ctx: AuthenticationContext): Promise<ApiKeyNode[]> {

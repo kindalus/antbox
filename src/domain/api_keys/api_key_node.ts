@@ -17,8 +17,8 @@ export class ApiKeyNode extends Node {
     return hashSync(secret, salt);
   }
 
-  static isSecureKey(key: string): boolean {
-    return compareSync(key, this.generateSecureKey(key));
+  static isSecureKey(secret: string): boolean {
+    return compareSync(secret, this.generateSecureKey(secret));
   }
 
   static create(metadata: Partial<NodeMetadata>): Either<ValidationError, ApiKeyNode> {
@@ -99,10 +99,6 @@ export class ApiKeyNode extends Node {
     if (errors.length > 0) {
       throw ValidationError.from(...errors);
     }
-  }
-
-  cloneWithSecret(): ApiKeyNode {
-    return new ApiKeyNode(this.#group, this.#secret, this.description, this.owner);
   }
 
   get group(): string {

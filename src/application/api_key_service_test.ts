@@ -124,4 +124,22 @@ describe("ApiKeyService", () => {
         expect(apiKeyOrErr.isLeft(), errToMsg(apiKeyOrErr.value)).toBeTruthy();
         expect(apiKeyOrErr.value).toBeInstanceOf(ApiKeyNodeFoundError);
     });
+
+    test("getBySecret should return the API key", async() => {
+        const service = createService();
+
+        await service.create(authContext, {
+            uuid: "--uuid--",
+            group: "api-group",
+            description: "Test API Key",
+            secret: "my-secret"
+        });
+
+        const apiKeyOrErr = await service.getBySecret("my-secret");
+
+        expect(apiKeyOrErr.isRight(), errToMsg(apiKeyOrErr.value)).toBeTruthy();
+        expect(apiKeyOrErr.right.group).toBe("api-group");
+        expect(apiKeyOrErr.right.description).toBe("Test API Key");
+        expect(apiKeyOrErr.right.owner).toBe(authContext.principal.email);
+    });
 });

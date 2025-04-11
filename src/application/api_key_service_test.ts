@@ -183,4 +183,12 @@ describe("ApiKeyService", () => {
         const voidOrErr = await service.delete(authContext, createdApiKeyOrErr.right.uuid!);
         expect(voidOrErr.isRight(), errToMsg(voidOrErr.value)).toBeTruthy();
     });
+
+    test("delete should return error if api key not exists", async () => {
+        const service = createService();
+
+        const voidOrErr = await service.delete(authContext, "--any-uuid--");
+
+        expect(voidOrErr.isLeft(), errToMsg(voidOrErr.value)).toBeTruthy();
+    });
 });

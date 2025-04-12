@@ -1,5 +1,8 @@
-import { AspectNode, type AspectProperties } from "domain/aspects/aspect_node";
-import type { NodeFilters } from "domain/nodes/node_filter";
+import {
+  AspectNode,
+  type AspectProperties,
+} from "domain/aspects/aspect_node.ts";
+import type { NodeFilters } from "domain/nodes/node_filter.ts";
 
 export interface AspectDTO {
   uuid: string;

@@ -7,24 +7,41 @@ import { UserExistsError } from "domain/users_groups/user_exists_error.ts";
 import { UserNode } from "domain/users_groups/user_node.ts";
 import { UserNotFoundError } from "domain/users_groups/user_not_found_error.ts";
 import { Users } from "domain/users_groups/users.ts";
-import { AntboxError, BadRequestError, ForbiddenError } from "shared/antbox_error.ts";
-import { left, right, type Either } from "shared/either.ts";
+import {
+  AntboxError,
+  BadRequestError,
+  ForbiddenError,
+} from "shared/antbox_error.ts";
+import { type Either, left, right } from "shared/either.ts";
 import { ValidationError } from "shared/validation_error.ts";
 import type { AuthenticationContext } from "./authentication_context.ts";
 import { ADMINS_GROUP, builtinGroups } from "./builtin_groups/index.ts";
-import { ANONYMOUS_USER, builtinUsers, ROOT_USER } from "./builtin_users/index.ts";
+import {
+  ANONYMOUS_USER,
+  builtinUsers,
+  ROOT_USER,
+} from "./builtin_users/index.ts";
 import { InvalidCredentialsError } from "./invalid_credentials_error.ts";
 import {
+  type GroupDTO,
   groupToNode,
   nodeToGroup,
   nodeToUser,
-  userToNode,
-  type GroupDTO,
   type UserDTO,
+  userToNode,
 } from "./users_groups_dto.ts";
 import type { UsersGroupsContext } from "./users_groups_service_context.ts";
 
 export class UsersGroupsService {
+  static elevatedContext: AuthenticationContext = {
+    mode: "Action",
+    principal: {
+      email: Users.ROOT_USER_EMAIL,
+      groups: [Groups.ADMINS_GROUP_UUID],
+    },
+    tenant: "default",
+  };
+
   constructor(private readonly context: UsersGroupsContext) {}
 
   async createUser(
@@ -74,7 +91,10 @@ export class UsersGroupsService {
     return right(nodeToUser(user));
   }
 
-  async getUser(ctx: AuthenticationContext, email: string): Promise<Either<AntboxError, UserDTO>> {
+  async getUser(
+    ctx: AuthenticationContext,
+    email: string,
+  ): Promise<Either<AntboxError, UserDTO>> {
     if (email === Users.ROOT_USER_EMAIL) {
       return (await this.#hasAdminGroup(ctx))
         ? right(nodeToUser(ROOT_USER))
@@ -100,7 +120,9 @@ export class UsersGroupsService {
       return right(nodeToUser(node));
     }
 
-    return (await this.#hasAdminGroup(ctx)) ? right(nodeToUser(node)) : left(new ForbiddenError());
+    return (await this.#hasAdminGroup(ctx))
+      ? right(nodeToUser(node))
+      : left(new ForbiddenError());
   }
 
   async getUserByCredentials(
@@ -109,7 +131,11 @@ export class UsersGroupsService {
   ): Promise<Either<AntboxError, UserDTO>> {
     const hash = await UserNode.shaSum(email, password);
 
-    const result = await this.context.repository.filter([["secret", "==", hash]]);
+    const result = await this.context.repository.filter([[
+      "secret",
+      "==",
+      hash,
+    ]]);
 
     if (result.nodes.length === 0) {
       return left(new InvalidCredentialsError());
@@ -123,7 +149,9 @@ export class UsersGroupsService {
     email: string,
     metadata: Partial<UserDTO>,
   ): Promise<Either<AntboxError, void>> {
-    if (email === Users.ROOT_USER_EMAIL || email === Users.ANONYMOUS_USER_EMAIL) {
+    if (
+      email === Users.ROOT_USER_EMAIL || email === Users.ANONYMOUS_USER_EMAIL
+    ) {
       return left(new BadRequestError("Cannot update built-in user"));
     }
 
@@ -177,7 +205,9 @@ export class UsersGroupsService {
     const users = usersOrErr.nodes.map(nodeToUser);
     const sytemUsers = builtinUsers.map(nodeToUser);
 
-    return right([...users, ...sytemUsers].sort((a, b) => a.name.localeCompare(b.name)));
+    return right(
+      [...users, ...sytemUsers].sort((a, b) => a.name.localeCompare(b.name)),
+    );
   }
 
   async #hasAdminGroup(ctx: AuthenticationContext): Promise<boolean> {
@@ -253,8 +283,8 @@ export class UsersGroupsService {
   }
 
   async updateGroup(
-    ctx: AuthenticationContext, 
-    uuid: string, 
+    ctx: AuthenticationContext,
+    uuid: string,
     metadata: Partial<GroupDTO>,
   ): Promise<Either<AntboxError, void>> {
     if (builtinGroups.find((group) => group.uuid === uuid)) {
@@ -311,6 +341,8 @@ export class UsersGroupsService {
     const groups = groupsOrErr.nodes.map(nodeToGroup);
     const systemGroups = builtinGroups.map(nodeToGroup);
 
-    return [...groups, ...systemGroups].sort((a, b) => a.title.localeCompare(b.title));
+    return [...groups, ...systemGroups].sort((a, b) =>
+      a.title.localeCompare(b.title)
+    );
   }
 }

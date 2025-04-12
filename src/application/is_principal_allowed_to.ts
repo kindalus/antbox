@@ -1,8 +1,8 @@
-import type { FolderNode } from "domain/nodes/folder_node";
-import type { Permission } from "domain/nodes/node";
-import type { AuthenticationContext } from "./authentication_context";
-import { Groups } from "domain/users_groups/groups";
-import { Users } from "domain/users_groups/users";
+import type { FolderNode } from "domain/nodes/folder_node.ts";
+import type { Permission } from "domain/nodes/node.ts";
+import type { AuthenticationContext } from "./authentication_context.ts";
+import { Groups } from "domain/users_groups/groups.ts";
+import { Users } from "domain/users_groups/users.ts";
 
 export function isPrincipalAllowedTo(
   ctx: AuthenticationContext,
@@ -39,11 +39,17 @@ function isOwner(ctx: AuthenticationContext, folder: FolderNode): boolean {
   return folder.owner === ctx.principal.email;
 }
 
-function isAnonymousAllowedTo(folder: FolderNode, permission: Permission): boolean {
+function isAnonymousAllowedTo(
+  folder: FolderNode,
+  permission: Permission,
+): boolean {
   return folder.permissions.anonymous.includes(permission);
 }
 
-function isAuthenticatedAllowedTo(folder: FolderNode, permission: Permission): boolean {
+function isAuthenticatedAllowedTo(
+  folder: FolderNode,
+  permission: Permission,
+): boolean {
   return folder.permissions.authenticated.includes(permission);
 }
 
@@ -60,11 +66,15 @@ function isGroupAllowedTo(
     return true;
   }
 
-  Object.entries(folder.permissions.advanced ?? []).forEach(([group, permissions]) => {
-    if (permissions.includes(permission) && ctx.principal.groups.includes(group)) {
-      return true;
-    }
-  });
+  Object.entries(folder.permissions.advanced ?? []).forEach(
+    ([group, permissions]) => {
+      if (
+        permissions.includes(permission) && ctx.principal.groups.includes(group)
+      ) {
+        return true;
+      }
+    },
+  );
 
   return false;
 }

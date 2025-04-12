@@ -23,7 +23,9 @@ export class UserNode extends Node {
       .digest("hex");
   }
 
-  static create(metadata: Partial<NodeMetadata> = {}): Either<ValidationError, UserNode> {
+  static create(
+    metadata: Partial<NodeMetadata> = {},
+  ): Either<ValidationError, UserNode> {
     try {
       const node = new UserNode(metadata);
       return right(node);
@@ -54,7 +56,9 @@ export class UserNode extends Node {
     this.#validate();
   }
 
-  override update(metadata: Partial<NodeMetadata>): Either<ValidationError, void> {
+  override update(
+    metadata: Partial<NodeMetadata>,
+  ): Either<ValidationError, void> {
     const superUpdateResult = super.update({
       ...metadata,
       parent: Folders.USERS_FOLDER_UUID,

@@ -1,18 +1,19 @@
-import { describe, test, expect, beforeAll } from "bun:test";
-import { Users } from "domain/users_groups/users";
-import { Groups } from "domain/users_groups/groups";
-import { Folders } from "domain/nodes/folders";
-import { Nodes } from "domain/nodes/nodes";
-import { ForbiddenError } from "shared/antbox_error";
-import type { AuthenticationContext } from "./authentication_context";
-import { NodeService } from "./node_service";
-import type { NodeServiceContext } from "./node_service_context";
-import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository";
-import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider";
-import { SmartFolderNodeNotFoundError } from "domain/nodes/smart_folder_node_not_found_error";
-import type { NodeFilters1D, NodeFilters2D } from "domain/nodes/node_filter";
-import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus";
-import type { AspectProperties } from "domain/aspects/aspect_node";
+import { beforeAll, describe, test } from "bdd";
+import { expect } from "expect";
+import { Users } from "domain/users_groups/users.ts";
+import { Groups } from "domain/users_groups/groups.ts";
+import { Folders } from "domain/nodes/folders.ts";
+import { Nodes } from "domain/nodes/nodes.ts";
+import { ForbiddenError } from "shared/antbox_error.ts";
+import type { AuthenticationContext } from "./authentication_context.ts";
+import { NodeService } from "./node_service.ts";
+import type { NodeServiceContext } from "./node_service_context.ts";
+import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository.ts";
+import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider.ts";
+import { SmartFolderNodeNotFoundError } from "domain/nodes/smart_folder_node_not_found_error.ts";
+import type { NodeFilters1D, NodeFilters2D } from "domain/nodes/node_filter.ts";
+import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus.ts";
+import type { AspectProperties } from "domain/aspects/aspect_node.ts";
 
 const nodeService = (opts: Partial<NodeServiceContext> = {}) => {
   const service = new NodeService({
@@ -76,7 +77,8 @@ describe("NodeService.find", () => {
 
     expect(result.isRight(), errToMsg(result.value)).toBeTruthy();
     expect(result.right.nodes.length).toBe(5);
-    expect(result.right.nodes.every((n: any) => n.aspects?.includes("ope"))).toBeTrue();
+    expect(result.right.nodes.every((n) => n.aspects?.includes("ope")))
+      .toBeTruthy();
   });
 
   test("should find posicao-financeira aspect OR contabilidade folder nodes", async () => {
@@ -90,9 +92,10 @@ describe("NodeService.find", () => {
     expect(result.isRight(), errToMsg(result.value)).toBeTruthy();
     expect(result.right.nodes.length).toBe(8);
     expect(
-      result.right.nodes.some((n: any) => n.aspects?.includes("posicao-financeira")),
-    ).toBeTrue();
-    expect(result.right.nodes.some((n) => n.parent === "contabilidade-uuid")).toBeTrue();
+      result.right.nodes.some((n) => n.aspects?.includes("posicao-financeira")),
+    ).toBeTruthy();
+    expect(result.right.nodes.some((n) => n.parent === "contabilidade-uuid"))
+      .toBeTruthy();
   });
 
   test("should not return files without read permission", async () => {
@@ -144,7 +147,8 @@ describe("NodeService.list", () => {
     const listOrErr = await service.list(authCtx, Folders.ROOT_FOLDER_UUID);
 
     expect(listOrErr.isRight(), errToMsg(listOrErr.value)).toBeTruthy();
-    expect(listOrErr.right.some((n) => n.uuid === Folders.SYSTEM_FOLDER_UUID)).toBeTruthy();
+    expect(listOrErr.right.some((n) => n.uuid === Folders.SYSTEM_FOLDER_UUID))
+      .toBeTruthy();
   });
 
   test("should list all system folders when listing system root folder", async () => {
@@ -152,7 +156,9 @@ describe("NodeService.list", () => {
 
     expect(listOrErr.isRight(), errToMsg(listOrErr.value)).toBeTruthy();
     expect(listOrErr.right.map((n) => n.uuid).sort()).toEqual(
-      Folders.SYSTEM_FOLDERS_UUID.filter((uuid) => uuid !== Folders.SYSTEM_FOLDER_UUID).sort(),
+      Folders.SYSTEM_FOLDERS_UUID.filter((uuid) =>
+        uuid !== Folders.SYSTEM_FOLDER_UUID
+      ).sort(),
     );
   });
 
@@ -165,9 +171,13 @@ describe("NodeService.list", () => {
 
 describe("NodeService.evaluate", () => {
   test("should return filtered nodes", async () => {
-    const evaluationOrErr = await service.evaluate(authCtx, "posicao-financeira-2024-uuid");
+    const evaluationOrErr = await service.evaluate(
+      authCtx,
+      "posicao-financeira-2024-uuid",
+    );
 
-    expect(evaluationOrErr.isRight(), errToMsg(evaluationOrErr.value)).toBeTruthy();
+    expect(evaluationOrErr.isRight(), errToMsg(evaluationOrErr.value))
+      .toBeTruthy();
     expect(evaluationOrErr.right.length).toBe(2);
     expect(evaluationOrErr.right.map((n) => n.title)).toEqual([
       "Posição Financeira - 2024-09-29.pdf",
@@ -176,7 +186,10 @@ describe("NodeService.evaluate", () => {
   });
 
   test("should return error if node is not a smartfolder node", async () => {
-    const evaluationOrErr = await service.evaluate(authCtx, "data-warehouse-uuid");
+    const evaluationOrErr = await service.evaluate(
+      authCtx,
+      "data-warehouse-uuid",
+    );
 
     expect(evaluationOrErr.isLeft()).toBeTruthy();
     expect(evaluationOrErr.value).toBeInstanceOf(SmartFolderNodeNotFoundError);
@@ -253,7 +266,7 @@ all 'Posição Financeira' files from 2024.
     ├── Posição Financeira - 2025-01-05.pdf
     └── Posição Financeira - 2025-02-01.pdf
 
-*/
+  */
 
   // Create OPE aspect
   const opeAspect = await service.create(authCtx, {

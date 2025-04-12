@@ -1,6 +1,6 @@
-import { Groups } from "domain/users_groups/groups";
-import { UserNode } from "domain/users_groups/user_node";
-import { Users } from "domain/users_groups/users";
+import { Groups } from "domain/users_groups/groups.ts";
+import { UserNode } from "domain/users_groups/user_node.ts";
+import { Users } from "domain/users_groups/users.ts";
 
 export const ANONYMOUS_USER = UserNode.create({
   uuid: Users.ANONYMOUS_USER_UUID,

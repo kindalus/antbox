@@ -6,7 +6,10 @@ import { type NodeFilters } from "./node_filter.ts";
 import { type NodeMetadata } from "./node_metadata.ts";
 import { type NodeProperties } from "./node_properties.ts";
 import { Nodes } from "./nodes.ts";
-import { PropertyFormatError, PropertyRequiredError } from "./property_errors.ts";
+import {
+  PropertyFormatError,
+  PropertyRequiredError,
+} from "./property_errors.ts";
 
 export type Constructor<T = any> = new (...args: any[]) => T;
 
@@ -54,7 +57,8 @@ export function WithAspectMixin<TBase extends Constructor>(Base: TBase) {
 
     update(metadata: Partial<NodeMetadata>): Either<ValidationError, void> {
       this.#aspects = metadata.aspects ?? this.#aspects;
-      this.#properties = metadata.properties ?? this.#properties;
+      this.#properties = (metadata.properties as NodeProperties) ??
+        this.#properties;
       this.#tags = metadata.tags ?? this.#tags;
       this.#related = metadata.related ?? this.#related;
 
@@ -73,7 +77,7 @@ export function FileNodeMixin<TBase extends Constructor>(Base: TBase) {
       this.#size = args[0]?.size ?? 0;
     }
 
-    get size(): Number {
+    get size(): number {
       return this.#size;
     }
 
@@ -185,7 +189,11 @@ export function FolderNodeMixin<TBase extends Constructor>(Base: TBase) {
 
       if (!Array.isArray(this.#permissions.group)) {
         errors.push(
-          new PropertyFormatError("permissions.group", "Permissions", this.#permissions.group),
+          new PropertyFormatError(
+            "permissions.group",
+            "Permissions",
+            this.#permissions.group,
+          ),
         );
       }
 

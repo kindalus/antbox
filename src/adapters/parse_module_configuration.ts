@@ -1,6 +1,6 @@
-import type { ModuleConfiguration } from "api/http_server_configuration";
-import type { AntboxError } from "shared/antbox_error";
-import type { Either } from "shared/either";
+import type { ModuleConfiguration } from "api/http_server_configuration.ts";
+import type { AntboxError } from "shared/antbox_error.ts";
+import type { Either } from "shared/either.ts";
 
 export async function providerFrom<T>(
   cfg?: ModuleConfiguration,

@@ -10,7 +10,7 @@ import nodesRouter from "./nodes_router.ts";
 
 import loginRouter from "./login_router.ts";
 import type { AntboxTenant } from "api/antbox_tenant.ts";
-import { Application } from "@oakserver/oak";
+import { Application } from "@oak/oak";
 import type { HttpServerOpts, startHttpServer } from "api/http_server.ts";
 
 export function setupOakServer(tenants: AntboxTenant[]): startHttpServer {

@@ -7,7 +7,9 @@ import { ValidationError } from "shared/validation_error.ts";
 import { PropertyRequiredError } from "./property_errors.ts";
 
 export class SmartFolderNode extends Node {
-  static create(metadata: Partial<SmartFolderNode> = {}): Either<ValidationError, SmartFolderNode> {
+  static create(
+    metadata: Partial<SmartFolderNode> = {},
+  ): Either<ValidationError, SmartFolderNode> {
     try {
       return right(new SmartFolderNode(metadata));
     } catch (err) {
@@ -29,7 +31,9 @@ export class SmartFolderNode extends Node {
     return this.#filters;
   }
 
-  update(metadata: Partial<NodeMetadata>): Either<ValidationError, void> {
+  override update(
+    metadata: Partial<NodeMetadata>,
+  ): Either<ValidationError, void> {
     try {
       if (!metadata.filters?.length) {
         return left(ValidationError.from(new PropertyRequiredError("filters")));

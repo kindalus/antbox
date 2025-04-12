@@ -8,7 +8,9 @@ import { Nodes } from "domain/nodes/nodes.ts";
 import type { NodeFilters } from "domain/nodes/node_filter.ts";
 
 export class AspectNode extends Node {
-  static create(metadata: Partial<NodeMetadata>): Either<ValidationError, AspectNode> {
+  static create(
+    metadata: Partial<NodeMetadata>,
+  ): Either<ValidationError, AspectNode> {
     try {
       const node = new AspectNode(metadata);
       return right(node);
@@ -18,7 +20,7 @@ export class AspectNode extends Node {
   }
 
   filters: NodeFilters;
-  properties: AspectProperty[];
+  properties: AspectProperties;
 
   private constructor(metadata: Partial<NodeMetadata> = {}) {
     super({
@@ -31,13 +33,15 @@ export class AspectNode extends Node {
     this.properties = (metadata.properties as AspectProperty[]) ?? [];
   }
 
-  update(metadata: Partial<NodeMetadata>): Either<ValidationError, void> {
+  override update(
+    metadata: Partial<NodeMetadata>,
+  ): Either<ValidationError, void> {
     if (metadata.filters) {
       this.filters = metadata.filters;
     }
 
-    if (metadata.properties) {
-      this.properties = metadata.properties;
+    if (metadata.properties && metadata.properties.pop) {
+      this.properties = metadata.properties as AspectProperties;
     }
 
     return super.update(metadata);

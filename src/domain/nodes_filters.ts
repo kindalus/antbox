@@ -1,8 +1,8 @@
 import { left, right } from "shared/either.ts";
 import type { NodeLike } from "./node_like.ts";
 import {
-  specificationFn,
   type Specification,
+  specificationFn,
   type ValidationResult,
 } from "shared/specification.ts";
 import { ValidationError } from "shared/validation_error.ts";
@@ -10,10 +10,10 @@ import { BadRequestError } from "shared/antbox_error.ts";
 import { isNodeFilters2D } from "./nodes/node_filter.ts";
 
 import type {
-  NodeFilters2D,
   FilterOperator,
-  NodeFilters,
   NodeFilter,
+  NodeFilters,
+  NodeFilters2D,
 } from "./nodes/node_filter.ts";
 
 export class NodesFilters {
@@ -34,14 +34,18 @@ export class NodesFilters {
         return right(true);
       }
 
-      return left(ValidationError.from(new BadRequestError("Node doesn't satisfy filters")));
+      return left(
+        ValidationError.from(
+          new BadRequestError("Node doesn't satisfy filters"),
+        ),
+      );
     });
   }
 
   static #processNodeFilters(filters: NodeFilters2D): (n: NodeLike) => boolean {
     const predicates = filters.map((f) => {
       if (f.length === 0) {
-        return (n: NodeLike) => true;
+        return () => true;
       }
 
       const predicates = f.map(NodesFilters.#nodeFilterToPredicate);
@@ -68,7 +72,10 @@ export class NodesFilters {
     let acc: Record<string, unknown> | NodeLike = node;
 
     for (const field of fields) {
-      acc = (acc as Record<string, unknown>)?.[field] as Record<string, unknown>;
+      acc = (acc as Record<string, unknown>)?.[field] as Record<
+        string,
+        unknown
+      >;
     }
 
     return acc;
@@ -77,7 +84,7 @@ export class NodesFilters {
   private constructor(public filters: NodeFilters2D) {}
 }
 
-type FilterFn = (a: any, b: any) => boolean;
+type FilterFn = <T>(a: T, b: T) => boolean;
 
 const filterFns: Record<FilterOperator, FilterFn> = {
   "==": (a, b) => a === b,
@@ -87,14 +94,19 @@ const filterFns: Record<FilterOperator, FilterFn> = {
   ">": (a, b) => a > b,
   "!=": (a, b) => a !== b,
 
-  in: (a, b) => (b as [])?.includes(a as never),
-  "not-in": <T>(a: T, b: T[]) => !(b as unknown as T[])?.includes(a),
+  in: <T>(a: T, b: T) => (b as T[])?.includes(a as never),
+  "not-in": <T>(a: T, b: T) => !(b as T[])?.includes(a),
 
-  contains: (a, b) => a?.includes(b) || false,
-  "contains-all": (a, b) => b?.every((item: any) => a?.includes(item)),
-  "contains-any": (a, b) => b?.some((item: any) => a?.includes(item)),
-  "not-contains": (a, b) => !a?.includes(b),
-  "contains-none": (a, b) => !b?.every((item: any) => a?.includes(item)),
+  contains: <T>(a: T, b: T) => (a as T[])?.includes(b) || false,
+  "contains-all": <T>(a: T, b: T) =>
+    (b as T[])?.every((v) => (a as T[])?.includes(v)),
+
+  "contains-any": <T>(a: T, b: T) =>
+    (b as T[])?.some((v) => (a as T[])?.includes(v)),
+
+  "not-contains": <T>(a: T, b: T) => !(a as T[])?.includes(b),
+  "contains-none": <T>(a: T, b: T) =>
+    !(b as T[])?.every((v) => (a as T[])?.includes(v)),
 
   match: (a, b) => {
     const a1 = a as unknown as string;

@@ -1,19 +1,20 @@
-import { describe, test, expect } from "bun:test";
+import { describe, test } from "bdd";
+import { expect } from "expect";
 
-import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository";
-import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider";
-import { FileNode } from "domain/nodes/file_node";
-import { NodeService } from "./node_service";
-import type { AuthenticationContext } from "./authentication_context";
-import { Groups } from "domain/users_groups/groups";
-import { NodeNotFoundError } from "domain/nodes/node_not_found_error";
-import { Users } from "domain/users_groups/users";
-import { BadRequestError, ForbiddenError } from "shared/antbox_error";
-import { FolderNode } from "domain/nodes/folder_node";
-import { Folders } from "domain/nodes/folders";
-import { Nodes } from "domain/nodes/nodes";
-import { NodeFileNotFoundError } from "domain/nodes/node_file_not_found_error";
-import { AuthPlus } from "@googleapis/drive";
+import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository.ts";
+import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider.ts";
+import { FileNode } from "domain/nodes/file_node.ts";
+import { NodeService } from "./node_service.ts";
+import type { AuthenticationContext } from "./authentication_context.ts";
+import { Groups } from "domain/users_groups/groups.ts";
+import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
+import { Users } from "domain/users_groups/users.ts";
+import { ForbiddenError } from "shared/antbox_error.ts";
+import { FolderNode } from "domain/nodes/folder_node.ts";
+import { Folders } from "domain/nodes/folders.ts";
+import { Nodes } from "domain/nodes/nodes.ts";
+import { NodeFileNotFoundError } from "domain/nodes/node_file_not_found_error.ts";
+import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus.ts";
 
 describe("NodeService.get", () => {
   test("should return node information from repository", async () => {
@@ -29,7 +30,11 @@ describe("NodeService.get", () => {
     const repository = new InMemoryNodeRepository();
     await repository.add(node);
 
-    const service = new NodeService({ storage: new InMemoryStorageProvider(), repository });
+    const service = new NodeService({
+      storage: new InMemoryStorageProvider(),
+      repository,
+      bus: new InMemoryEventBus(),
+    });
 
     const nodeOrErr = await service.get(authCtx, node.uuid);
 
@@ -53,7 +58,11 @@ describe("NodeService.get", () => {
 
   test("should return error if node is not found", async () => {
     const repository = new InMemoryNodeRepository();
-    const service = new NodeService({ storage: new InMemoryStorageProvider(), repository });
+    const service = new NodeService({
+      storage: new InMemoryStorageProvider(),
+      repository,
+      bus: new InMemoryEventBus(),
+    });
 
     const nodeOrErr = await service.get(authCtx, "not-found");
 
@@ -98,7 +107,11 @@ describe("NodeService.get", () => {
     await repository.add(parent);
     await repository.add(node);
 
-    const service = new NodeService({ storage: new InMemoryStorageProvider(), repository });
+    const service = new NodeService({
+      storage: new InMemoryStorageProvider(),
+      repository,
+      bus: new InMemoryEventBus(),
+    });
 
     const nodeOrErr = await service.get(authCtx, node.uuid);
 
@@ -116,7 +129,10 @@ describe("NodeService.export", () => {
       mimetype: Nodes.FOLDER_MIMETYPE,
     });
 
-    await service.createFile(authCtx, file, { uuid: "file-uuid", parent: "parent-uuid" });
+    await service.createFile(authCtx, file, {
+      uuid: "file-uuid",
+      parent: "parent-uuid",
+    });
 
     const fileOrErr = await service.export(authCtx, "file-uuid");
 
@@ -147,7 +163,10 @@ describe("NodeService.export", () => {
       },
     });
 
-    await service.createFile(authCtx, file, { uuid: "file-uuid", parent: "parent-uuid" });
+    await service.createFile(authCtx, file, {
+      uuid: "file-uuid",
+      parent: "parent-uuid",
+    });
     const fileOrErr = await service.export(
       {
         mode: "Direct",
@@ -162,7 +181,11 @@ describe("NodeService.export", () => {
 
   test("should return an error if node is not a file", async () => {
     const repository = new InMemoryNodeRepository();
-    const service = new NodeService({ storage: new InMemoryStorageProvider(), repository });
+    const service = new NodeService({
+      storage: new InMemoryStorageProvider(),
+      repository,
+      bus: new InMemoryEventBus(),
+    });
 
     await service.create(authCtx, {
       uuid: "puuid",
@@ -204,6 +227,7 @@ const nodeService = () =>
   new NodeService({
     storage: new InMemoryStorageProvider(),
     repository: new InMemoryNodeRepository(),
+    bus: new InMemoryEventBus(),
   });
 
 const file = new File(["xxxxxxx"], "file.pdf", { type: "application/pdf" });

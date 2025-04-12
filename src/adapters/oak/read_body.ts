@@ -1,4 +1,4 @@
-import type { Context } from "@oakserver/oak";
+import type { Context } from "@oak/oak";
 
 export async function readBody(ctx: Context): Promise<BodyInit | null> {
   const contentType = ctx.request.headers.get("Content-Type");

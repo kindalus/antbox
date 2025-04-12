@@ -1,5 +1,5 @@
-import type { Event } from "./event";
-import type { EventHandler } from "./event_handler";
+import type { Event } from "./event.ts";
+import type { EventHandler } from "./event_handler.ts";
 
 export interface EventBus {
   publish(event: Event): Promise<void>;

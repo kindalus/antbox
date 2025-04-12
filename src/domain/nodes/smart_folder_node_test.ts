@@ -1,8 +1,9 @@
-import { expect, test } from "bun:test";
-import { ValidationError } from "shared/validation_error";
-import { Folders } from "./folders";
-import { Nodes } from "./nodes";
-import { SmartFolderNode } from "./smart_folder_node";
+import { describe, test } from "bdd";
+import { expect } from "expect";
+import { ValidationError } from "shared/validation_error.ts";
+import { Folders } from "./folders.ts";
+import { Nodes } from "./nodes.ts";
+import { SmartFolderNode } from "./smart_folder_node.ts";
 
 test("SmartFolderNode.create should initialize", () => {
   const result = SmartFolderNode.create({

@@ -1,27 +1,27 @@
 import PouchDB from "pouchdb";
 import PouchDbFind from "pouchdb-find";
 
-import { mkdirSync, statSync } from "fs";
-
-import { NodeFactory } from "domain/node_factory";
+import { NodeFactory } from "domain/node_factory.ts";
 import {
   type FilterOperator,
-  type NodeFilters1D,
-  type NodeFilter,
-  type NodeFilters2D,
   isNodeFilters2D as areOrNodeFilter,
+  type NodeFilter,
   type NodeFilters,
-} from "domain/nodes/node_filter";
-import { NodeNotFoundError } from "domain/nodes/node_not_found_error";
-import type { NodeRepository, NodeFilterResult } from "domain/nodes/node_repository";
-import { UnknownError, type AntboxError } from "shared/antbox_error";
-import { type Either, right, left } from "shared/either";
+} from "domain/nodes/node_filter.ts";
+import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
+import type {
+  NodeFilterResult,
+  NodeRepository,
+} from "domain/nodes/node_repository.ts";
+import { type AntboxError, UnknownError } from "shared/antbox_error.ts";
+import { type Either, left, right } from "shared/either.ts";
 import type { NodeLike } from "domain/node_like.ts";
-import type { NodeMetadata } from "domain/nodes/node_metadata";
-import { Nodes } from "domain/nodes/nodes";
-import type { AspectProperty } from "domain/aspects/aspect";
-import type { NodeProperties } from "domain/nodes/node_properties";
-import { DuplicatedNodeError } from "domain/nodes/duplicated_node_error";
+import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
+import { Nodes } from "domain/nodes/nodes.ts";
+import type { NodeProperties } from "domain/nodes/node_properties.ts";
+import { DuplicatedNodeError } from "domain/nodes/duplicated_node_error.ts";
+import { AspectProperty } from "domain/aspects/aspect_node.ts";
+import { Permissions } from "domain/nodes/node.ts";
 
 type Provider = "CouchDb" | "PouchDb";
 PouchDB.plugin(PouchDbFind);
@@ -34,12 +34,14 @@ export default async function buildPouchdbNodeRepository(
   }
 
   if (dbpath.startsWith("http")) {
-    return Promise.resolve(right(new PouchdbNodeRepository(new PouchDB(dbpath), "CouchDb")));
+    return Promise.resolve(
+      right(new PouchdbNodeRepository(new PouchDB(dbpath), "CouchDb")),
+    );
   }
 
   const path = dbpath + "/nodes";
   if (!directoryExists(path)) {
-    mkdirSync(path, { recursive: true });
+    Deno.mkdirSync(path, { recursive: true });
   }
 
   const db = new PouchDB<NodeDbModel>("nodes", {
@@ -49,7 +51,7 @@ export default async function buildPouchdbNodeRepository(
 
   await db
     .createIndex({ index: { fields: ["title", "fid", "parent", "aspects"] } })
-    .catch((err) => {
+    .catch((err: unknown) => {
       console.error(err);
       throw err;
     });
@@ -59,8 +61,8 @@ export default async function buildPouchdbNodeRepository(
 
 function directoryExists(path: string): boolean {
   try {
-    return statSync(path).isDirectory();
-  } catch (error) {
+    return Deno.statSync(path).isDirectory;
+  } catch (_error: unknown) {
     return false;
   }
 }
@@ -139,9 +141,9 @@ class PouchdbNodeRepository implements NodeRepository {
         ...data,
       })
       .then(() => right<NodeNotFoundError, void>(undefined))
-      .catch((err) => {
+      .catch((err: unknown) => {
         console.error(err);
-        return left(new NodeNotFoundError(err));
+        return left(new NodeNotFoundError(node.uuid));
       });
   }
 
@@ -155,29 +157,30 @@ class PouchdbNodeRepository implements NodeRepository {
   }
 
   #toNodeLike(doc: PouchDB.Core.PutDocument<NodeDbModel>): NodeLike {
-    const { _id, _rev, xfilters: xfilters, filters, ...rest } = doc;
+    const { _id, _rev, xfilters: xfilters, ...rest } = doc;
     const metadata = {
       uuid: _id,
       filters: xfilters,
       ...rest,
     } as Partial<NodeMetadata>;
-
     const node = NodeFactory.from(metadata);
 
     if (node.isLeft()) {
-      throw new Error(`Node could not be created:\n ${JSON.stringify(metadata, null, 3)}`);
+      throw new Error(
+        `Node could not be created:\n ${JSON.stringify(metadata, null, 3)}`,
+      );
     }
 
     return node.right;
   }
 
-  async add(node: NodeLike): Promise<Either<DuplicatedNodeError, void>> {
+  add(node: NodeLike): Promise<Either<DuplicatedNodeError, void>> {
     const doc = this.#toPutDocument(node);
 
     return this.db
       .put(doc)
       .then(() => right<DuplicatedNodeError, void>(undefined))
-      .catch((err) => {
+      .catch((err: unknown) => {
         console.error(err);
         return left(new DuplicatedNodeError(node.uuid));
       });
@@ -188,7 +191,7 @@ class PouchdbNodeRepository implements NodeRepository {
       .createIndex({ index: { fields: ["fid"] } })
       .then(() => this.db.find({ selector: { fid: fid } }));
 
-    const nodes = r.docs.map((n) => this.#toNodeLike(n));
+    const nodes = r.docs.map((n: unknown) => this.#toNodeLike(n));
 
     if (nodes.length === 0) {
       return left(new NodeNotFoundError(Nodes.fidToUuid(fid)));
@@ -209,20 +212,28 @@ class PouchdbNodeRepository implements NodeRepository {
 
   async #readFromDb(
     _id: string,
-  ): Promise<Either<NodeNotFoundError, PouchDB.Core.ExistingDocument<NodeDbModel>>> {
+  ): Promise<
+    Either<NodeNotFoundError, PouchDB.Core.ExistingDocument<NodeDbModel>>
+  > {
     return this.db
       .get(_id)
       .then(right)
-      .catch((err) => {
+      .catch((err: unknown) => {
         if ((err as Record<string, unknown>).status === 404) {
           return left(new NodeNotFoundError(_id));
         }
 
         throw err;
-      }) as Promise<Either<NodeNotFoundError, PouchDB.Core.ExistingDocument<NodeDbModel>>>;
+      }) as Promise<
+        Either<NodeNotFoundError, PouchDB.Core.ExistingDocument<NodeDbModel>>
+      >;
   }
 
-  async filter(filters: NodeFilters, pageSize = 20, pageToken = 1): Promise<NodeFilterResult> {
+  async filter(
+    filters: NodeFilters,
+    pageSize = 20,
+    pageToken = 1,
+  ): Promise<NodeFilterResult> {
     const limit = pageSize;
     const skip = pageSize * (pageToken - 1);
 
@@ -237,7 +248,9 @@ class PouchdbNodeRepository implements NodeRepository {
       return composeMangoQuery(mfs);
     });
 
-    const selector = areOrNodeFilter(filters) ? { $or: selectors } : selectors[0];
+    const selector = areOrNodeFilter(filters)
+      ? { $or: selectors }
+      : selectors[0];
 
     try {
       const result = await this.db.find({
@@ -245,7 +258,7 @@ class PouchdbNodeRepository implements NodeRepository {
         limit: pageSize * pageToken,
       });
 
-      const nodes = result.docs.map((d) => this.#toNodeLike(d));
+      const nodes = result.docs.map((doc: unknown) => this.#toNodeLike(doc));
 
       return {
         nodes: nodes.slice(pageSize * (pageToken - 1), pageSize * pageToken),
@@ -271,7 +284,7 @@ class PouchdbNodeRepository implements NodeRepository {
     });
 
     return {
-      nodes: result.docs.map((doc) => this.#toNodeLike(doc)),
+      nodes: result.docs.map((doc: unknown) => this.#toNodeLike(doc)),
       pageSize: limit,
       pageToken: skip / limit + 1,
     };
@@ -302,7 +315,9 @@ function filterToMango(dbprovider: Provider, filter: NodeFilter): MangoFilter {
   if (operator === "match" && typeof value === "string") {
     return {
       [field]: {
-        $regex: dbprovider === "CouchDb" ? `(?i)${value}` : new RegExp(value, "i"),
+        $regex: dbprovider === "CouchDb"
+          ? `(?i)${value}`
+          : new RegExp(value, "i"),
       },
     };
   }

@@ -1,10 +1,8 @@
-import { statSync } from "fs";
-
 export function fileExistsSync(filePath: string): boolean {
   try {
-    statSync(filePath);
+    Deno.statSync(filePath);
     return true;
-  } catch (err) {
+  } catch (_err: unknown) {
     return false;
   }
 }

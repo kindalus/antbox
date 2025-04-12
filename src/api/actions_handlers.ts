@@ -1,19 +1,21 @@
-import type { AntboxTenant } from "./antbox_tenant";
-import { defaultMiddlewareChain } from "./default_middleware_chain";
-import { getAuthenticationContext } from "./get_authentication_context";
-import { getParams } from "./get_params";
-import { getQuery } from "./get_query";
-import { getTenant } from "./get_tenant";
-import { type HttpHandler } from "./handler";
-import { processError } from "./process_error";
-import { processServiceResult } from "./process_service_result";
+import type { AntboxTenant } from "./antbox_tenant.ts";
+import { defaultMiddlewareChain } from "./default_middleware_chain.ts";
+import { getAuthenticationContext } from "./get_authentication_context.ts";
+import { getParams } from "./get_params.ts";
+import { getQuery } from "./get_query.ts";
+import { getTenant } from "./get_tenant.ts";
+import { type HttpHandler } from "./handler.ts";
+import { processError } from "./process_error.ts";
+import { processServiceResult } from "./process_service_result.ts";
 
 export function getHandler(tenants: AntboxTenant[]): HttpHandler {
   return defaultMiddlewareChain(tenants, (req: Request): Promise<Response> => {
     const service = getTenant(req, tenants).actionService;
     const params = getParams(req);
     if (!params.uuid) {
-      return Promise.resolve(new Response("{ uuid } not given", { status: 400 }));
+      return Promise.resolve(
+        new Response("{ uuid } not given", { status: 400 }),
+      );
     }
 
     return service
@@ -24,28 +26,34 @@ export function getHandler(tenants: AntboxTenant[]): HttpHandler {
 }
 
 export function listHandler(tenants: AntboxTenant[]): HttpHandler {
-  return defaultMiddlewareChain(tenants, async (req: Request): Promise<Response> => {
-    const service = getTenant(req, tenants).actionService;
+  return defaultMiddlewareChain(
+    tenants,
+    async (req: Request): Promise<Response> => {
+      const service = getTenant(req, tenants).actionService;
 
-    return service
-      .list(getAuthenticationContext(req))
-      .then(processServiceResult)
-      .catch(processError);
-  });
+      return service
+        .list(getAuthenticationContext(req))
+        .then(processServiceResult)
+        .catch(processError);
+    },
+  );
 }
 
 export function deleteHandler(tenants: AntboxTenant[]): HttpHandler {
-  return defaultMiddlewareChain(tenants, async (req: Request): Promise<Response> => {
-    const service = getTenant(req, tenants).actionService;
-    const params = getParams(req);
-    if (!params.uuid) {
-      return new Response("{ uuid } not given", { status: 400 });
-    }
-    return service
-      .delete(getAuthenticationContext(req), params.uuid)
-      .then(processServiceResult)
-      .catch(processError);
-  });
+  return defaultMiddlewareChain(
+    tenants,
+    async (req: Request): Promise<Response> => {
+      const service = getTenant(req, tenants).actionService;
+      const params = getParams(req);
+      if (!params.uuid) {
+        return new Response("{ uuid } not given", { status: 400 });
+      }
+      return service
+        .delete(getAuthenticationContext(req), params.uuid)
+        .then(processServiceResult)
+        .catch(processError);
+    },
+  );
 }
 
 export function exportHandler(tenants: AntboxTenant[]): HttpHandler {
@@ -53,7 +61,9 @@ export function exportHandler(tenants: AntboxTenant[]): HttpHandler {
     const service = getTenant(req, tenants).actionService;
     const params = getParams(req);
     if (!params.uuid) {
-      return Promise.resolve(new Response("{ uuid } not given", { status: 400 }));
+      return Promise.resolve(
+        new Response("{ uuid } not given", { status: 400 }),
+      );
     }
 
     return Promise.all([
@@ -79,22 +89,25 @@ export function exportHandler(tenants: AntboxTenant[]): HttpHandler {
 }
 
 export function runHandler(tenants: AntboxTenant[]): HttpHandler {
-  return defaultMiddlewareChain(tenants, async (req: Request): Promise<Response> => {
-    const service = getTenant(req, tenants).actionService;
-    const params = getParams(req);
-    const query = getQuery(req);
+  return defaultMiddlewareChain(
+    tenants,
+    async (req: Request): Promise<Response> => {
+      const service = getTenant(req, tenants).actionService;
+      const params = getParams(req);
+      const query = getQuery(req);
 
-    if (!params.uuid) {
-      return Promise.reject(new Error("{ uuid } not given"));
-    }
+      if (!params.uuid) {
+        return Promise.reject(new Error("{ uuid } not given"));
+      }
 
-    if (!query.uuids) {
-      return Promise.reject(new Error("Missing uuids query parameter"));
-    }
-    const uuids = query.uuids.split(",");
-    return service
-      .run(getAuthenticationContext(req), params.uuid, uuids, query)
-      .then(processServiceResult)
-      .catch(processError);
-  });
+      if (!query.uuids) {
+        return Promise.reject(new Error("Missing uuids query parameter"));
+      }
+      const uuids = query.uuids.split(",");
+      return service
+        .run(getAuthenticationContext(req), params.uuid, uuids, query)
+        .then(processServiceResult)
+        .catch(processError);
+    },
+  );
 }

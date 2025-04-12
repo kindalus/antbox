@@ -1,18 +1,22 @@
-import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository";
-import { NodeFactory } from "domain/node_factory";
-import type { NodeLike } from "domain/node_like";
-import type { NodeFilters } from "domain/nodes/node_filter";
-import type { NodeMetadata } from "domain/nodes/node_metadata";
-import { NodeNotFoundError } from "domain/nodes/node_not_found_error";
-import type { NodeFilterResult, NodeRepository } from "domain/nodes/node_repository";
-import { mkdirSync, writeFileSync } from "fs";
-import { join } from "path";
-import { AntboxError, UnknownError } from "shared/antbox_error";
-import { type Either, left, right } from "shared/either";
-import { fileExistsSync } from "shared/file_exists_sync";
-import { copyFile } from "shared/os_helpers";
+import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository.ts";
+import { NodeFactory } from "domain/node_factory.ts";
+import type { NodeLike } from "domain/node_like.ts";
+import type { NodeFilters } from "domain/nodes/node_filter.ts";
+import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
+import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
+import type {
+  NodeFilterResult,
+  NodeRepository,
+} from "domain/nodes/node_repository.ts";
 
-export default async function buildFlatFileStorageProvider(
+import { join } from "path";
+
+import { AntboxError, UnknownError } from "shared/antbox_error.ts";
+import { type Either, left, right } from "shared/either.ts";
+import { fileExistsSync } from "shared/file_exists_sync.ts";
+import { copyFile } from "shared/os_helpers.ts";
+
+export default function buildFlatFileStorageProvider(
   baseDir: string,
 ): Promise<Either<AntboxError, NodeRepository>> {
   const dbFilePath = join(baseDir, "nodes_repo.json");
@@ -20,17 +24,20 @@ export default async function buildFlatFileStorageProvider(
 
   try {
     if (!fileExistsSync(baseDir)) {
-      mkdirSync(baseDir, { recursive: true });
+      Deno.mkdirSync(baseDir, { recursive: true });
     }
 
     let metadata = [];
     if (fileExistsSync(dbFilePath)) {
-      const file = Bun.file(dbFilePath);
-      metadata = await file.json();
+      const data = Deno.readTextFileSync(dbFilePath);
+      metadata = JSON.parse(data);
+
       copyFile(dbFilePath, dbBackupFilePath);
     }
 
-    return Promise.resolve(right(new FlatFileNodeRepository(dbFilePath, metadata)));
+    return Promise.resolve(
+      right(new FlatFileNodeRepository(dbFilePath, metadata)),
+    );
   } catch (err) {
     return Promise.resolve(left(new UnknownError(err as string)));
   }
@@ -61,7 +68,7 @@ class FlatFileNodeRepository implements NodeRepository {
   #saveDb(path?: string) {
     const rows = this.#dataAsArray();
     const rawData = this.#encoder.encode(JSON.stringify(rows));
-    writeFileSync(path || this.#dbFilePath, rawData);
+    Deno.writeFileSync(path || this.#dbFilePath, rawData);
   }
 
   delete(uuid: string): Promise<Either<NodeNotFoundError, void>> {
@@ -120,7 +127,11 @@ class FlatFileNodeRepository implements NodeRepository {
     return this.#base.getById(uuid);
   }
 
-  filter(filters: NodeFilters, pageSize = 20, pageToken = 1): Promise<NodeFilterResult> {
+  filter(
+    filters: NodeFilters,
+    pageSize = 20,
+    pageToken = 1,
+  ): Promise<NodeFilterResult> {
     return this.#base.filter(filters, pageSize, pageToken);
   }
 }

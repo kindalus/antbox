@@ -1,4 +1,4 @@
-import { Router } from "@oakserver/oak";
+import { Router } from "@oak/oak";
 import type { AntboxTenant } from "api/antbox_tenant.ts";
 import { rootHandler } from "api/login_handler.ts";
 import { adapt } from "./adapt.ts";

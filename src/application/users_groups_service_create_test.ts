@@ -1,19 +1,20 @@
-import { describe, test, expect } from "bun:test"
-import { UsersGroupsService } from "./users_groups_service"
-import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider"
-import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository"
-import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus"
-import type { UsersGroupsContext } from "./users_groups_service_context"
-import { ValidationError } from "shared/validation_error"
-import { UserExistsError } from "domain/users_groups/user_exists_error"
-import GroupNotFoundError from "domain/users_groups/group_not_found_error"
-import { Users } from "domain/users_groups/users"
-import { Nodes } from "domain/nodes/nodes"
-import { Folders } from "domain/nodes/folders"
-import { GroupNode } from "domain/users_groups/group_node"
-import type { AuthenticationContext } from "./authentication_context"
-import { Groups } from "domain/users_groups/groups"
-import { UserNode } from "domain/users_groups/user_node"
+import { describe, test } from "bdd";
+import { expect } from "expect";
+import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider.ts";
+import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository.ts";
+import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus.ts";
+import type { UsersGroupsContext } from "./users_groups_service_context.ts";
+import { ValidationError } from "shared/validation_error.ts";
+import { UserExistsError } from "domain/users_groups/user_exists_error.ts";
+import GroupNotFoundError from "domain/users_groups/group_not_found_error.ts";
+import { Users } from "domain/users_groups/users.ts";
+import { Nodes } from "domain/nodes/nodes.ts";
+import { Folders } from "domain/nodes/folders.ts";
+import { GroupNode } from "domain/users_groups/group_node.ts";
+import type { AuthenticationContext } from "./authentication_context.ts";
+import { Groups } from "domain/users_groups/groups.ts";
+import { UserNode } from "domain/users_groups/user_node.ts";
+import { UsersGroupsService } from "application/users_groups_service.ts";
 
 describe("UsersGroupsService.createUser", () => {
   test("should create the user", async () => {
@@ -22,7 +23,7 @@ describe("UsersGroupsService.createUser", () => {
     await service.createUser(authCtx, {
       name: "The title",
       email: "joane@gmail.com",
-      groups: ["--admins--","--users--"],
+      groups: ["--admins--", "--users--"],
     });
 
     const userOrErr = await service.getUser(authCtx, "joane@gmail.com");
@@ -38,14 +39,18 @@ describe("UsersGroupsService.createUser", () => {
     await service.createUser(authCtx, {
       name: "The title",
       email: "duck@gmail.com",
-      groups: ["--admins--", "--admins--","--users--", "--ultimate--"],
+      groups: ["--admins--", "--admins--", "--users--", "--ultimate--"],
     });
 
     const userOrErr = await service.getUser(authCtx, "duck@gmail.com");
 
     expect(userOrErr.isRight(), errToMsg(userOrErr.value)).toBeTruthy();
     expect(userOrErr.right.email).toBe("duck@gmail.com");
-    expect(userOrErr.right.groups).toEqual(["--users--", "--ultimate--", "--admins--"]);
+    expect(userOrErr.right.groups).toEqual([
+      "--users--",
+      "--ultimate--",
+      "--admins--",
+    ]);
   });
 
   test("should return error if user already exists", async () => {
@@ -54,18 +59,20 @@ describe("UsersGroupsService.createUser", () => {
     await service.createUser(authCtx, {
       name: "The title",
       email: "tyrion@gmail.com",
-      groups: ["--admins--","--users--"],
+      groups: ["--admins--", "--users--"],
     });
 
     const userOrErr = await service.createUser(authCtx, {
       name: "The title",
       email: "tyrion@gmail.com",
-      groups: ["--admins--","--users--"],
+      groups: ["--admins--", "--users--"],
     });
 
     expect(userOrErr.isLeft(), errToMsg(userOrErr.value)).toBeTruthy();
     expect(userOrErr.value).toBeInstanceOf(ValidationError);
-    expect((userOrErr.value as ValidationError).errors[0]).toBeInstanceOf(UserExistsError);
+    expect((userOrErr.value as ValidationError).errors[0]).toBeInstanceOf(
+      UserExistsError,
+    );
   });
 
   test("should return error if user group not found", async () => {
@@ -74,25 +81,25 @@ describe("UsersGroupsService.createUser", () => {
     const userOrErr = await service.createUser(authCtx, {
       name: "The title",
       email: "kyle@gmail.com",
-      groups: ["--the user--"]
+      groups: ["--the user--"],
     });
 
     expect(userOrErr.isLeft(), errToMsg(userOrErr.value)).toBeTruthy();
     expect(userOrErr.value).toBeInstanceOf(ValidationError);
-    expect((userOrErr.value as ValidationError).errors[0]).toBeInstanceOf(GroupNotFoundError);
+    expect((userOrErr.value as ValidationError).errors[0]).toBeInstanceOf(
+      GroupNotFoundError,
+    );
   });
 });
 
-describe("UsersGroupsService.createGroup",  () => {
+describe("UsersGroupsService.createGroup", () => {
   test("should create group and persist metadata", async () => {
     const service = usersGroupsService();
 
-    await service.createGroup(authCtx,
-      {
-        title: "The Title",
-        uuid: "--group-uuid--",
-      }
-    );
+    await service.createGroup(authCtx, {
+      title: "The Title",
+      uuid: "--group-uuid--",
+    });
 
     const groupOrErr = await service.getGroup("--group-uuid--");
 
@@ -118,7 +125,7 @@ const userNode: UserNode = UserNode.create({
   group: "user group",
   owner: Users.ROOT_USER_EMAIL,
 }).right;
-  
+
 const firstGoupNode: GroupNode = GroupNode.create({
   uuid: "--admins--",
   title: "The first title",
@@ -143,11 +150,16 @@ repository.add(firstGoupNode);
 repository.add(secondGoupNode);
 repository.add(thirdGoupNode);
 
-const usersGroupsService = (opts: Partial<UsersGroupsContext> = { repository }) =>
+const usersGroupsService = (
+  opts: Partial<UsersGroupsContext> = { repository },
+) =>
   new UsersGroupsService({
     storage: opts.storage ?? new InMemoryStorageProvider(),
     repository: opts.repository ?? new InMemoryNodeRepository(),
     bus: opts.bus ?? new InMemoryEventBus(),
-});
+  });
 
-const errToMsg = (err: any) => (err.message ? err.message : JSON.stringify(err))
+const errToMsg = (
+  // deno-lint-ignore no-explicit-any
+  err: any,
+) => (err.message ? err.message : JSON.stringify(err));

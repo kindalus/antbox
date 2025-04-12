@@ -1,4 +1,5 @@
-import { expect, test } from "bun:test";
+import { describe, test } from "bdd";
+import { expect } from "expect";
 import { ValidationError } from "shared/validation_error.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import { ArticleNode } from "./article_node.ts";
@@ -74,8 +75,12 @@ test("ArticleNode.update should throw error if title is missing", () => {
 
   expect(updateResult.isLeft()).toBe(true);
   expect(updateResult.value).toBeInstanceOf(ValidationError);
-  expect((updateResult.value as ValidationError).errors[0]).toBeInstanceOf(PropertyRequiredError);
-  expect((updateResult.value as ValidationError).errors[0].message).toBe("Node.title is required");
+  expect((updateResult.value as ValidationError).errors[0]).toBeInstanceOf(
+    PropertyRequiredError,
+  );
+  expect((updateResult.value as ValidationError).errors[0].message).toBe(
+    "Node.title is required",
+  );
 });
 
 test("ArticleNode.update should throw error if parent is missing", () => {
@@ -89,6 +94,10 @@ test("ArticleNode.update should throw error if parent is missing", () => {
 
   expect(updateResult.isLeft()).toBe(true);
   expect(updateResult.value).toBeInstanceOf(ValidationError);
-  expect((updateResult.value as ValidationError).errors[0]).toBeInstanceOf(PropertyRequiredError);
-  expect((updateResult.value as ValidationError).errors[0].message).toBe("Node.parent is required");
+  expect((updateResult.value as ValidationError).errors[0]).toBeInstanceOf(
+    PropertyRequiredError,
+  );
+  expect((updateResult.value as ValidationError).errors[0].message).toBe(
+    "Node.parent is required",
+  );
 });

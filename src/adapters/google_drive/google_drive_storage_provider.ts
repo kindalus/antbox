@@ -3,15 +3,15 @@ import type {
   StorageProvider,
   WriteFileOpts,
 } from "application/storage_provider.ts";
-import type { DuplicatedNodeError } from "domain/nodes/duplicated_node_error";
+import type { DuplicatedNodeError } from "domain/nodes/duplicated_node_error.ts";
 import { Folders } from "domain/nodes/folders.ts";
 import { NodeCreatedEvent } from "domain/nodes/node_created_event.ts";
 import { NodeDeletedEvent } from "domain/nodes/node_deleted_event.ts";
-import { NodeFileNotFoundError } from "domain/nodes/node_file_not_found_error";
+import { NodeFileNotFoundError } from "domain/nodes/node_file_not_found_error.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import { NodeUpdatedEvent } from "domain/nodes/node_updated_event.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
-import { createReadStream } from "fs";
+import { createReadStream } from "node:fs";
 import {
   AntboxError,
   BadRequestError,
@@ -20,11 +20,11 @@ import {
 import { type Either, left, right } from "shared/either.ts";
 import { type Event } from "shared/event.ts";
 import { type EventHandler } from "shared/event_handler.ts";
-import { makeTempFileSync, writeFile } from "shared/os_helpers";
+import { makeTempFileSync, writeFile } from "shared/os_helpers.ts";
 
 export default async function buildGoogleDriveStorageProvider(
   keyPath: string,
-  rootFolderId: string
+  rootFolderId: string,
 ): Promise<Either<AntboxError, StorageProvider>> {
   const drive = authenticate(keyPath);
 
@@ -93,7 +93,7 @@ class GoogleDriveStorageProvider implements StorageProvider {
   async write(
     uuid: string,
     file: File,
-    opts: WriteFileOpts
+    opts: WriteFileOpts,
   ): Promise<Either<DuplicatedNodeError, void>> {
     const tmp = makeTempFileSync();
     await writeFile(tmp, file);
@@ -114,9 +114,9 @@ class GoogleDriveStorageProvider implements StorageProvider {
 
     const res = metadataOrError.isRight()
       ? await this.#drive.files.update({
-          fileId: metadataOrError.value.id,
-          media,
-        })
+        fileId: metadataOrError.value.id,
+        media,
+      })
       : await this.#drive.files.create({ media, requestBody });
 
     if (res.status !== 200) {
@@ -230,10 +230,10 @@ class GoogleDriveStorageProvider implements StorageProvider {
     return this.#createGoogleDriveFolder(node.uuid, node.title, parentId);
   }
 
-  async #createGoogleDriveFolder(
+  #createGoogleDriveFolder(
     uuid: string,
     title: string,
-    parentId: string
+    parentId: string,
   ) {
     const requestBody = {
       name: title,
@@ -263,6 +263,7 @@ class GoogleDriveStorageProvider implements StorageProvider {
           return left(new NodeFileNotFoundError(uuid));
         }
 
+        // deno-lint-ignore no-explicit-any
         return right(new File([(res as any).data], name, { type: mimeType }));
       })
       .catch((e: unknown) => {
@@ -272,7 +273,7 @@ class GoogleDriveStorageProvider implements StorageProvider {
   }
 
   startListeners(
-    subscribe: (eventId: string, handler: EventHandler<Event>) => void
+    subscribe: (eventId: string, handler: EventHandler<Event>) => void,
   ): void {
     subscribe(NodeDeletedEvent.EVENT_ID, {
       handle: (evt: NodeDeletedEvent) => this.#handleNodeDeleted(evt),
@@ -287,7 +288,7 @@ class GoogleDriveStorageProvider implements StorageProvider {
   }
 
   async #getDriveMedata(
-    uuid: string
+    uuid: string,
   ): Promise<Either<AntboxError, DriveMetada>> {
     const q = `appProperties has { key='uuid' and value='${uuid}' }`;
 
@@ -315,7 +316,7 @@ class GoogleDriveStorageProvider implements StorageProvider {
     const res = await this.#createGoogleDriveFolder(
       uuid,
       uuid,
-      this.#rootFolderId
+      this.#rootFolderId,
     );
 
     if (!res || res.status !== 200) {

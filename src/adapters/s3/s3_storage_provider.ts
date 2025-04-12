@@ -1,14 +1,17 @@
-import type { StorageProvider, WriteFileOpts } from "application/storage_provider.ts";
-import { S3Client } from "bun";
-import type { DuplicatedNodeError } from "domain/nodes/duplicated_node_error";
-import { NodeNotFoundError } from "domain/nodes/node_not_found_error";
+import type {
+  StorageProvider,
+  WriteFileOpts,
+} from "application/storage_provider.ts";
+import { S3Client } from "s3";
+import type { DuplicatedNodeError } from "domain/nodes/duplicated_node_error.ts";
+import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import path from "path";
 import { AntboxError, UnknownError } from "shared/antbox_error.ts";
-import { left, right, type Either } from "shared/either.ts";
+import { type Either, left, right } from "shared/either.ts";
 import type { Event } from "shared/event.ts";
 import type { EventHandler } from "shared/event_handler.ts";
 
-export default async function buildS3StorageProvider(
+export default function buildS3StorageProvider(
   configPath: string,
 ): Promise<Either<AntboxError, S3StorageProvider>> {
   const config_path = path.resolve(configPath);
@@ -76,12 +79,12 @@ export class S3StorageProvider implements StorageProvider {
   async read(uuid: string): Promise<Either<NodeNotFoundError, File>> {
     const s3FileRef = this.#s3.file(this.#getPath(uuid));
     const name = s3FileRef.name ?? "unknown";
-    const type = s3FileRef.type || "application/octet-stream";
+    const type = (await s3FileRef.type()) || "application/octet-stream";
 
     return s3FileRef
       .arrayBuffer()
       .then((buf) => right(new File([buf], name, { type })))
-      .catch((err) => {
+      .catch((_err: unknown) => {
         return left(new NodeNotFoundError(uuid));
       }) as Promise<Either<NodeNotFoundError, File>>;
   }
@@ -96,5 +99,7 @@ export class S3StorageProvider implements StorageProvider {
     return `nodes/${prefix[0]}/${prefix[1]}`;
   }
 
-  startListeners(_bus: (eventId: string, handler: EventHandler<Event>) => void): void {}
+  startListeners(
+    _bus: (eventId: string, handler: EventHandler<Event>) => void,
+  ): void {}
 }

@@ -1,8 +1,8 @@
-import type { AuthenticationContext } from "application/authentication_context";
-import type { NodeService } from "application/node_service";
-import type { Action } from "domain/actions/action";
-import type { RunContext } from "domain/actions/run_context";
-import { Folders } from "domain/nodes/folders";
+import type { AuthenticationContext } from "application/authentication_context.ts";
+import type { NodeService } from "application/node_service.ts";
+import type { Action } from "domain/actions/action.ts";
+import type { RunContext } from "domain/actions/run_context.ts";
+import { Folders } from "domain/nodes/folders.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import { AntboxError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
@@ -39,7 +39,11 @@ export default {
     uuids: string[],
     _params?: Record<string, unknown>,
   ): Promise<void | Error> {
-    const newParentOrErr = await getNewParent(ctx.authenticationContext, ctx.nodeService, uuids[0]);
+    const newParentOrErr = await getNewParent(
+      ctx.authenticationContext,
+      ctx.nodeService,
+      uuids[0],
+    );
 
     if (newParentOrErr.isLeft()) {
       return newParentOrErr.value;
@@ -65,7 +69,11 @@ export default {
   },
 } as Action;
 
-function updateTaskPredicate(ctx: AuthenticationContext, nodeService: NodeService, parent: string) {
+function updateTaskPredicate(
+  ctx: AuthenticationContext,
+  nodeService: NodeService,
+  parent: string,
+) {
   return (uuid: string) => nodeService.update(ctx, uuid, { parent });
 }
 

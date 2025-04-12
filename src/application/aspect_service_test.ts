@@ -1,17 +1,18 @@
-import { describe, expect, test } from "bun:test";
-import { AspectService } from "./aspect_service";
-import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository";
-import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider";
-import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus";
-import { NodeService } from "./node_service";
-import { Nodes } from "domain/nodes/nodes";
-import { Folders } from "domain/nodes/folders";
-import { Groups } from "domain/users_groups/groups";
-import type { AuthenticationContext } from "./authentication_context";
-import { AspectNode } from "domain/aspects/aspect_node";
-import { AspectNotFoundError } from "domain/aspects/aspect_not_found_error";
-import type { AspectDTO } from "./aspect_dto";
-import type { NodeFilters } from "domain/nodes/node_filter";
+import { describe, test } from "bdd";
+import { expect } from "expect";
+import { AspectService } from "./aspect_service.ts";
+import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository.ts";
+import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider.ts";
+import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus.ts";
+import { NodeService } from "./node_service.ts";
+import { Nodes } from "domain/nodes/nodes.ts";
+import { Folders } from "domain/nodes/folders.ts";
+import { Groups } from "domain/users_groups/groups.ts";
+import type { AuthenticationContext } from "./authentication_context.ts";
+import { AspectNode } from "domain/aspects/aspect_node.ts";
+import { AspectNotFoundError } from "domain/aspects/aspect_not_found_error.ts";
+import type { AspectDTO } from "./aspect_dto.ts";
+import type { NodeFilters } from "domain/nodes/node_filter.ts";
 
 describe("AspectService", () => {
   const adminAuthContext: AuthenticationContext = {
@@ -49,7 +50,10 @@ describe("AspectService", () => {
   test("createOrReplace should create a new aspect", async () => {
     const service = createService();
 
-    const aspectOrErr = await service.createOrReplace(adminAuthContext, testAspect);
+    const aspectOrErr = await service.createOrReplace(
+      adminAuthContext,
+      testAspect,
+    );
 
     expect(aspectOrErr.isRight(), errMsg(aspectOrErr.value)).toBeTruthy();
     expect(aspectOrErr.right.uuid).toBe(testAspect.uuid);
@@ -70,7 +74,10 @@ describe("AspectService", () => {
       filters: [["mimetype", "==", "application/json"]],
     } satisfies AspectDTO;
 
-    const aspectOrErr = await service.createOrReplace(adminAuthContext, updatedAspect);
+    const aspectOrErr = await service.createOrReplace(
+      adminAuthContext,
+      updatedAspect,
+    );
 
     expect(aspectOrErr.isRight(), errMsg(aspectOrErr.value)).toBeTruthy();
     expect(aspectOrErr.right.description).toBe(updatedAspect.description);
@@ -92,7 +99,10 @@ describe("AspectService", () => {
   test("get should return error if aspect not found", async () => {
     const service = createService();
 
-    const aspectOrErr = await service.get(adminAuthContext, "non-existent-aspect");
+    const aspectOrErr = await service.get(
+      adminAuthContext,
+      "non-existent-aspect",
+    );
 
     expect(aspectOrErr.isLeft()).toBeTruthy();
     expect(aspectOrErr.value).toBeInstanceOf(AspectNotFoundError);
@@ -121,7 +131,10 @@ describe("AspectService", () => {
 
     await service.createOrReplace(adminAuthContext, testAspect);
 
-    const deleteResult = await service.delete(adminAuthContext, testAspect.uuid);
+    const deleteResult = await service.delete(
+      adminAuthContext,
+      testAspect.uuid,
+    );
     expect(deleteResult.isRight(), errMsg(deleteResult.value)).toBeTruthy();
 
     const aspectOrErr = await service.get(adminAuthContext, testAspect.uuid);

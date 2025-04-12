@@ -1,6 +1,5 @@
-import { Node } from "./node.ts";
-import { type Event } from "shared/event.ts";
-import { type NodeLike } from "./node_like.ts";
+import { Event } from "shared/event.ts";
+import { NodeLike } from "domain/node_like.ts";
 
 export class NodeCreatedEvent implements Event {
   static EVENT_ID = "NodeCreatedEvent";

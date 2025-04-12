@@ -1,17 +1,19 @@
-import { describe, expect, test, spyOn } from "bun:test";
-import { NodeService } from "./node_service";
-import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository";
-import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider";
-import { NodeNotFoundError } from "domain/nodes/node_not_found_error";
-import type { AuthenticationContext } from "./authentication_context";
-import { Groups } from "domain/users_groups/groups";
-import { ForbiddenError } from "shared/antbox_error";
-import type { NodeServiceContext } from "./node_service_context";
-import { Folders } from "domain/nodes/folders";
-import { FileNode } from "domain/nodes/file_node";
-import { Nodes } from "domain/nodes/nodes";
-import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus";
-import type { EventBus } from "shared/event_bus";
+import { describe, test } from "bdd";
+import { expect } from "expect";
+import { spy } from "mock";
+import { NodeService } from "./node_service.ts";
+import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository.ts";
+import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider.ts";
+import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
+import type { AuthenticationContext } from "./authentication_context.ts";
+import { Groups } from "domain/users_groups/groups.ts";
+import { ForbiddenError } from "shared/antbox_error.ts";
+import type { NodeServiceContext } from "./node_service_context.ts";
+import { Folders } from "domain/nodes/folders.ts";
+import { FileNode } from "domain/nodes/file_node.ts";
+import { Nodes } from "domain/nodes/nodes.ts";
+import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus.ts";
+import type { EventBus } from "shared/event_bus.ts";
 
 describe("NodeService.delete", () => {
   test("should delete a node and its metadata", async () => {
@@ -24,12 +26,12 @@ describe("NodeService.delete", () => {
 
     // const bus: EventBus = new InMemoryEventBus();
     const bus: EventBus = {
-      publish: async () => undefined,
+      publish: () => Promise.resolve(undefined),
       subscribe: () => undefined,
       unsubscribe: () => undefined,
     };
 
-    spyOn(bus, "publish");
+    const publishSpy = spy(bus, "publish");
 
     const repository = new InMemoryNodeRepository();
     await repository.add(node);

@@ -7,7 +7,7 @@ import { AntboxError, BadRequestError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
 import { type AspectDTO, nodeToAspect } from "./aspect_dto.ts";
 import type { AuthenticationContext } from "./authentication_context.ts";
-import { builtinAspects } from "./builtin_aspects/mod.ts";
+
 import { NodeService } from "./node_service.ts";
 
 export class AspectService {
@@ -67,10 +67,10 @@ export class AspectService {
     ctx: AuthenticationContext,
     uuid: string,
   ): Promise<Either<NodeNotFoundError, AspectDTO>> {
-    const builtin = builtinAspects.find((aspect) => aspect.uuid === uuid);
-    if (builtin) {
-      return right(builtin);
-    }
+    // const builtin = builtinAspects.find((aspect) => aspect.uuid === uuid);
+    // if (builtin) {
+    //   return right(builtin);
+    // }
 
     const nodeOrErr = await this.nodeService.get(ctx, uuid);
 
@@ -103,11 +103,20 @@ export class AspectService {
       return [];
     }
 
-    const usersAspects = nodesOrErrs.value.nodes.map(nodeToAspect);
-    return [...usersAspects, ...builtinAspects].sort((a, b) => a.title.localeCompare(b.title));
+    const usersAspects = nodesOrErrs.value.nodes.map(nodeToAspect)
+      .sort((a, b) => a.title.localeCompare(b.title));
+
+    // return [...usersAspects, ...builtinAspects].sort((a, b) =>
+    //   a.title.localeCompare(b.title)
+    // );
+
+    return usersAspects;
   }
 
-  async delete(ctx: AuthenticationContext, uuid: string): Promise<Either<AntboxError, void>> {
+  async delete(
+    ctx: AuthenticationContext,
+    uuid: string,
+  ): Promise<Either<AntboxError, void>> {
     const nodeOrErr = await this.get(ctx, uuid);
 
     if (nodeOrErr.isLeft()) {
@@ -117,7 +126,10 @@ export class AspectService {
     return this.nodeService.delete(ctx, uuid);
   }
 
-  async export(ctx: AuthenticationContext, uuid: string): Promise<Either<NodeNotFoundError, File>> {
+  async export(
+    ctx: AuthenticationContext,
+    uuid: string,
+  ): Promise<Either<NodeNotFoundError, File>> {
     const aspectOrErr = await this.get(ctx, uuid);
     if (aspectOrErr.isLeft()) {
       return left(aspectOrErr.value);

@@ -1,13 +1,13 @@
-import { Router } from "@oakserver/oak";
+import { Router } from "@oak/oak";
 import {
   deleteHandler,
   exportHandler,
   getHandler,
   listHandler,
   runHandler,
-} from "api/actions_handlers";
-import type { AntboxTenant } from "api/antbox_tenant";
-import { adapt } from "./adapt";
+} from "api/actions_handlers.ts";
+import type { AntboxTenant } from "api/antbox_tenant.ts";
+import { adapt } from "./adapt.ts";
 
 export default function (tenants: AntboxTenant[]) {
   const actionsRouter = new Router({ prefix: "/actions" });

@@ -1,14 +1,19 @@
-import type { DuplicatedNodeError } from "domain/nodes/duplicated_node_error";
-import type { NodeFilters } from "domain/nodes/node_filter";
+import type { DuplicatedNodeError } from "domain/nodes/duplicated_node_error.ts";
+import type { NodeFilters } from "domain/nodes/node_filter.ts";
 import type { NodeLike } from "domain/node_like.ts";
-import { NodeNotFoundError } from "domain/nodes/node_not_found_error";
-import type { NodeRepository, NodeFilterResult } from "domain/nodes/node_repository";
-import { Nodes } from "domain/nodes/nodes";
-import type { AntboxError } from "shared/antbox_error";
-import { type Either, right, left } from "shared/either";
-import { NodesFilters } from "domain/nodes_filters";
+import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
+import type {
+  NodeFilterResult,
+  NodeRepository,
+} from "domain/nodes/node_repository.ts";
+import { Nodes } from "domain/nodes/nodes.ts";
+import type { AntboxError } from "shared/antbox_error.ts";
+import { type Either, left, right } from "shared/either.ts";
+import { NodesFilters } from "domain/nodes_filters.ts";
 
-export default function buildInmemNodeRepository(): Promise<Either<AntboxError, NodeRepository>> {
+export default function buildInmemNodeRepository(): Promise<
+  Either<AntboxError, NodeRepository>
+> {
   return Promise.resolve(right(new InMemoryNodeRepository()));
 }
 
@@ -78,12 +83,18 @@ export class InMemoryNodeRepository implements NodeRepository {
     return Promise.resolve(right(metadata));
   }
 
-  filter(filters: NodeFilters, pageSize = 20, pageToken = 1): Promise<NodeFilterResult> {
+  filter(
+    filters: NodeFilters,
+    pageSize = 20,
+    pageToken = 1,
+  ): Promise<NodeFilterResult> {
     const firstIndex = (pageToken - 1) * pageSize;
     const lastIndex = firstIndex + pageSize;
 
     const spec = NodesFilters.nodeSpecificationFrom(filters);
-    const filtered = this.records.filter((n) => spec.isSatisfiedBy(n).isRight());
+    const filtered = this.records.filter((n) =>
+      spec.isSatisfiedBy(n).isRight()
+    );
 
     const nodes = filtered.slice(firstIndex, lastIndex);
 

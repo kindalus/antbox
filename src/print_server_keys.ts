@@ -1,4 +1,4 @@
-import { ROOT_PASSWD, SYMMETRIC_KEY } from "setup/server_defaults";
+import { ROOT_PASSWD, SYMMETRIC_KEY } from "setup/server_defaults.ts";
 
 export async function printServerKeys(opts?: {
   passwd?: string;

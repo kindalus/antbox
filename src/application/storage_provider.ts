@@ -1,5 +1,5 @@
-import type { DuplicatedNodeError } from "domain/nodes/duplicated_node_error";
-import type { NodeNotFoundError } from "domain/nodes/node_not_found_error";
+import type { DuplicatedNodeError } from "domain/nodes/duplicated_node_error.ts";
+import type { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import { type Either } from "shared/either.ts";
 import { type Event } from "shared/event.ts";
 import { type EventHandler } from "shared/event_handler.ts";
@@ -15,10 +15,10 @@ export interface StorageProvider {
   write(
     uuid: string,
     file: File,
-    opts?: WriteFileOpts
+    opts?: WriteFileOpts,
   ): Promise<Either<DuplicatedNodeError, void>>;
   read(uuid: string): Promise<Either<NodeNotFoundError, File>>;
   startListeners(
-    bus: (eventId: string, handler: EventHandler<Event>) => void
+    bus: (eventId: string, handler: EventHandler<Event>) => void,
   ): void;
 }

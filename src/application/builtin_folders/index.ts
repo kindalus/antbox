@@ -1,5 +1,5 @@
-import { Groups } from "domain/users_groups/groups";
-import { Users } from "domain/users_groups/users";
+import { Groups } from "domain/users_groups/groups.ts";
+import { Users } from "domain/users_groups/users.ts";
 import { FolderNode } from "domain/nodes/folder_node.ts";
 import { Folders } from "domain/nodes/folders.ts";
 import type { NodeFilter } from "domain/nodes/node_filter.ts";
@@ -14,7 +14,10 @@ function buildRootFolder(): FolderNode {
     parent: Folders.ROOT_FOLDER_UUID,
     owner: Users.ROOT_USER_EMAIL,
     group: Groups.ADMINS_GROUP_UUID,
-    filters: [["mimetype", "in", [Nodes.FOLDER_MIMETYPE, Nodes.SMART_FOLDER_MIMETYPE]]],
+    filters: [["mimetype", "in", [
+      Nodes.FOLDER_MIMETYPE,
+      Nodes.SMART_FOLDER_MIMETYPE,
+    ]]],
     permissions: {
       group: ["Read", "Write", "Export"],
       authenticated: ["Read"],
@@ -181,10 +184,10 @@ export {
   ASPECTS_FOLDER,
   EXT_FOLDER,
   GROUPS_FOLDER,
+  ROOT_FOLDER,
   SYSTEM_FOLDER,
   SYSTEM_FOLDERS,
   USERS_FOLDER,
-  ROOT_FOLDER,
 };
 
 export const builtinFolders: FolderNode[] = [

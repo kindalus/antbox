@@ -1,4 +1,5 @@
-import { expect, test } from "bun:test";
+import { describe, test } from "bdd";
+import { expect } from "expect";
 import { ValidationError } from "shared/validation_error.ts";
 import { FolderNode } from "./folder_node.ts";
 import { Folders } from "./folders.ts";
@@ -95,7 +96,8 @@ test("FolderNode.update should modify the title, fid, description, permissions a
   const folderNode = createResult.right;
   const initialModifiedTime = folderNode.modifiedTime;
 
-  const timeout = (t: number) => new Promise((res) => setTimeout(() => res(undefined), t));
+  const timeout = (t: number) =>
+    new Promise((res) => setTimeout(() => res(undefined), t));
   await timeout(5);
 
   const updateResult = folderNode.update({
@@ -120,7 +122,10 @@ test("FolderNode.update should modify the title, fid, description, permissions a
   expect(folderNode.permissions.group).toEqual(["Read"]);
   expect(folderNode.permissions.authenticated).toEqual([]);
   expect(folderNode.permissions.anonymous).toEqual([]);
-  expect(folderNode.permissions.advanced["custom-group"]).toEqual(["Read", "Write"]);
+  expect(folderNode.permissions.advanced["custom-group"]).toEqual([
+    "Read",
+    "Write",
+  ]);
   expect(folderNode.parent).toBe("new-parent");
   expect(folderNode.modifiedTime !== initialModifiedTime).toBe(true);
 });

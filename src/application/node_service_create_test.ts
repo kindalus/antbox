@@ -1,19 +1,20 @@
-import { test, expect, describe } from "bun:test";
-import { NodeService } from "./node_service";
-import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider";
-import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository";
-import type { AuthenticationContext } from "./authentication_context";
-import { FolderNode } from "domain/nodes/folder_node";
+import { describe, test } from "bdd";
+import { expect } from "expect";
+import { NodeService } from "./node_service.ts";
+import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider.ts";
+import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository.ts";
+import type { AuthenticationContext } from "./authentication_context.ts";
+import { FolderNode } from "domain/nodes/folder_node.ts";
 import type { FileLikeNode } from "domain/node_like.ts";
-import { Folders } from "domain/nodes/folders";
-import { BadRequestError } from "shared/antbox_error";
-import { ADMINS_GROUP } from "./builtin_groups";
-import { Nodes } from "domain/nodes/nodes";
-import type { Permissions } from "domain/nodes/node";
-import { ValidationError } from "shared/validation_error";
-import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus";
-import type { NodeServiceContext } from "./node_service_context";
-import type { AspectProperties } from "domain/aspects/aspect_node";
+import { Folders } from "domain/nodes/folders.ts";
+import { BadRequestError } from "shared/antbox_error.ts";
+import { ADMINS_GROUP } from "./builtin_groups.ts";
+import { Nodes } from "domain/nodes/nodes.ts";
+import type { Permissions } from "domain/nodes/node.ts";
+import { ValidationError } from "shared/validation_error.ts";
+import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus.ts";
+import type { NodeServiceContext } from "./node_service_context.ts";
+import type { AspectProperties } from "domain/aspects/aspect_node.ts";
 
 describe("NodeService.create", () => {
   test("should create a node and persist the metadata", async () => {
@@ -43,7 +44,11 @@ describe("NodeService.create", () => {
   test("should return an error when properties are inconsistent with aspect specifications", async () => {
     const service = nodeService();
 
-    const props: AspectProperties = [{ name: "amount", title: "Amount", type: "number" }];
+    const props: AspectProperties = [{
+      name: "amount",
+      title: "Amount",
+      type: "number",
+    }];
 
     // Create aspect with string property type
     (
@@ -194,7 +199,9 @@ describe("NodeService.createFile", () => {
       mimetype: Nodes.FOLDER_MIMETYPE,
     });
 
-    const nodeOrErr = await service.createFile(authCtx, dummyFile, { parent: "--parent--" });
+    const nodeOrErr = await service.createFile(authCtx, dummyFile, {
+      parent: "--parent--",
+    });
 
     expect(nodeOrErr.isRight(), errToMsg(nodeOrErr.value)).toBeTruthy();
     expect(nodeOrErr.right.title).toBe(dummyFile.name);
@@ -209,7 +216,9 @@ describe("NodeService.createFile", () => {
       mimetype: Nodes.FOLDER_MIMETYPE,
     });
 
-    const fileNode = await service.createFile(authCtx, dummyFile, { parent: parent.right.uuid });
+    const fileNode = await service.createFile(authCtx, dummyFile, {
+      parent: parent.right.uuid,
+    });
     const fileOrErr = await storage.read(fileNode.right.uuid);
 
     expect(fileOrErr.isRight()).toBeTruthy();
@@ -279,9 +288,13 @@ describe("NodeService.duplicate", () => {
     });
 
     const duplicateOrErr = await service.duplicate(authCtx, node.right.uuid);
-    const duplicatedFileOrErr = await service.export(authCtx, duplicateOrErr.right.uuid);
+    const duplicatedFileOrErr = await service.export(
+      authCtx,
+      duplicateOrErr.right.uuid,
+    );
 
-    expect(duplicatedFileOrErr.isRight(), errToMsg(duplicatedFileOrErr.value)).toBeTruthy();
+    expect(duplicatedFileOrErr.isRight(), errToMsg(duplicatedFileOrErr.value))
+      .toBeTruthy();
     expect(duplicatedFileOrErr.right.size).toBe(dummyFile.size);
   });
 
@@ -321,7 +334,11 @@ describe("NodeService.copy", () => {
       parent: parent1.right.uuid,
     });
 
-    const copyOrErr = await service.copy(authCtx, node.right.uuid, parent2.right.uuid);
+    const copyOrErr = await service.copy(
+      authCtx,
+      node.right.uuid,
+      parent2.right.uuid,
+    );
 
     expect(copyOrErr.isRight(), errToMsg(copyOrErr.value)).toBeTruthy();
     expect(copyOrErr.right.title).toBe("Meta File 2");
@@ -342,7 +359,11 @@ describe("NodeService.copy", () => {
       parent: parent.right.uuid,
     });
 
-    const copyOrErr = await service.copy(authCtx, folder.right.uuid, parent.right.uuid);
+    const copyOrErr = await service.copy(
+      authCtx,
+      folder.right.uuid,
+      parent.right.uuid,
+    );
 
     expect(copyOrErr.isRight()).toBeFalsy();
     expect(copyOrErr.value).toBeInstanceOf(BadRequestError);
@@ -362,10 +383,15 @@ describe("NodeService.copy", () => {
       parent: parent1.right.uuid,
     });
 
-    const copyOrErr = await service.copy(authCtx, node.right.uuid, parent2.right.uuid);
+    const copyOrErr = await service.copy(
+      authCtx,
+      node.right.uuid,
+      parent2.right.uuid,
+    );
     const copiedFileOrErr = await service.export(authCtx, copyOrErr.right.uuid);
 
-    expect(copiedFileOrErr.isRight(), errToMsg(copiedFileOrErr.value)).toBeTruthy();
+    expect(copiedFileOrErr.isRight(), errToMsg(copiedFileOrErr.value))
+      .toBeTruthy();
     expect(copiedFileOrErr.right.size).toBe(dummyFile.size);
   });
 });
@@ -379,7 +405,9 @@ const authCtx: AuthenticationContext = {
   },
 };
 
-const errToMsg = (err: any) => (err.message ? err.message : JSON.stringify(err));
+const errToMsg = (
+  err: any,
+) => (err.message ? err.message : JSON.stringify(err));
 
 const nodeService = (opts: Partial<NodeServiceContext> = {}) =>
   new NodeService({

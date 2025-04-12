@@ -6,19 +6,25 @@ import type {
 } from "application/authentication_context.ts";
 import { Groups } from "domain/users_groups/groups.ts";
 import { Users } from "domain/users_groups/users.ts";
-import { type Either, right, left } from "shared/either.ts";
+import { type Either, left, right } from "shared/either.ts";
 import type { AntboxTenant } from "./antbox_tenant.ts";
 import { getQuery } from "./get_query.ts";
 import { getTenant } from "./get_tenant.ts";
 import type { HttpHandler } from "./handler.ts";
 import type { HttpMiddleware } from "./middleware.ts";
-import { decodeJwt, importJWK, jwtVerify, type JWK, type KeyLike } from "jose";
+import {
+  decodeJwt,
+  importJWK,
+  type JWK,
+  jwtVerify,
+  type KeyObject,
+} from "jose";
 
 export function authenticationMiddleware(
   tenants: AntboxTenant[],
 ): HttpMiddleware {
   return (next: HttpHandler) => {
-    const jwks = new Map<string, KeyLike | Uint8Array>();
+    const jwks = new Map<string, KeyObject | Uint8Array>();
     const secrets = new Map<string, Uint8Array>();
     const authServices = new Map<string, UsersGroupsService>();
     const apiKeysServices = new Map<string, ApiKeyService>();
@@ -125,7 +131,7 @@ async function authenticateApiKey(
 }
 
 async function authenticateToken(
-  jwk: KeyLike | Uint8Array,
+  jwk: KeyObject | Uint8Array,
   authService: UsersGroupsService,
   req: Request,
   token: string,
@@ -148,7 +154,7 @@ async function authenticateToken(
 }
 
 function verifyToken(
-  key: KeyLike | Uint8Array,
+  key: KeyObject | Uint8Array,
   token: string,
 ): Promise<Either<Error, { payload: Principal }>> {
   return jwtVerify(token, key)
@@ -158,10 +164,12 @@ function verifyToken(
 
 function importJwkKey(
   key: JWK,
-): Promise<Either<TypeError, KeyLike | Uint8Array>> {
+): Promise<Either<TypeError, KeyObject | Uint8Array>> {
   return importJWK(key)
     .then((jwk) => right(jwk))
-    .catch((e) => left(e)) as Promise<Either<TypeError, KeyLike | Uint8Array>>;
+    .catch((e) => left(e)) as Promise<
+      Either<TypeError, KeyObject | Uint8Array>
+    >;
 }
 
 function importKey(key: string): Uint8Array {

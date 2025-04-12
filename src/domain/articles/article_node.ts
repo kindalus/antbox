@@ -1,9 +1,9 @@
-import { FileNodeMixin, WithAspectMixin } from "domain/nodes/mixins";
-import type { NodeMetadata } from "domain/nodes/node_metadata";
-import { Nodes } from "domain/nodes/nodes";
+import { FileNodeMixin, WithAspectMixin } from "domain/nodes/mixins.ts";
+import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
+import { Nodes } from "domain/nodes/nodes.ts";
 import { type Either, left, right } from "shared/either.ts";
 import { ValidationError } from "shared/validation_error.ts";
-import { Node } from "domain/nodes/node";
+import { Node } from "domain/nodes/node.ts";
 
 export class ArticleNode extends FileNodeMixin(WithAspectMixin(Node)) {
   static create(

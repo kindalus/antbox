@@ -1,6 +1,6 @@
-import type { Context } from "@oakserver/oak";
+import type { Context } from "@oak/oak";
 import { type HttpHandler } from "api/handler.ts";
-import { readBody } from "./read_body";
+import { readBody } from "./read_body.ts";
 
 export function adapt(handler: HttpHandler): (ctx: Context) => Promise<void> {
   return async (ctx: Context) => {
@@ -10,7 +10,7 @@ export function adapt(handler: HttpHandler): (ctx: Context) => Promise<void> {
     for (const [key, value] of ctx.request.headers.entries()) {
       headers.set(key, value);
     }
-    headers.set("x-params", JSON.stringify(ctx.params));
+    // headers.set("x-params", JSON.stringify(ctx.params));
 
     const init: RequestInit = {
       headers,

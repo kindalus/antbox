@@ -1,9 +1,9 @@
-import { providerFrom } from "adapters/parse_module_configuration";
-import type { StorageProvider } from "application/storage_provider";
+import { providerFrom } from "adapters/parse_module_configuration.ts";
+import type { StorageProvider } from "application/storage_provider.ts";
 import { Folders } from "domain/nodes/folders.ts";
 import type { NodeLike } from "domain/node_like.ts";
-import type { NodeRepository } from "domain/nodes/node_repository";
-import { Nodes } from "domain/nodes/nodes";
+import type { NodeRepository } from "domain/nodes/node_repository.ts";
+import { Nodes } from "domain/nodes/nodes.ts";
 
 const NON_FILES = [
   Nodes.API_KEY_MIMETYPE,
@@ -25,7 +25,10 @@ interface MigrationConfig {
   readonly dst: ServiceConfig;
 }
 
-function assert<T>(provider: T | undefined, message: string): asserts provider is T {
+function assert<T>(
+  provider: T | undefined,
+  message: string,
+): asserts provider is T {
   if (!provider) {
     throw new Error(message);
   }
@@ -73,12 +76,48 @@ async function main() {
   assert(dstStorage, "Invalid destination storage configuration");
 
   await migrateChildren(srcRepo, dstRepo, srcStorage, dstStorage);
-  await migrateChildren(srcRepo, dstRepo, srcStorage, dstStorage, Folders.ACTIONS_FOLDER_UUID);
-  await migrateChildren(srcRepo, dstRepo, srcStorage, dstStorage, Folders.API_KEYS_FOLDER_UUID);
-  await migrateChildren(srcRepo, dstRepo, srcStorage, dstStorage, Folders.ASPECTS_FOLDER_UUID);
-  await migrateChildren(srcRepo, dstRepo, srcStorage, dstStorage, Folders.EXT_FOLDER_UUID);
-  await migrateChildren(srcRepo, dstRepo, srcStorage, dstStorage, Folders.GROUPS_FOLDER_UUID);
-  await migrateChildren(srcRepo, dstRepo, srcStorage, dstStorage, Folders.USERS_FOLDER_UUID);
+  await migrateChildren(
+    srcRepo,
+    dstRepo,
+    srcStorage,
+    dstStorage,
+    Folders.ACTIONS_FOLDER_UUID,
+  );
+  await migrateChildren(
+    srcRepo,
+    dstRepo,
+    srcStorage,
+    dstStorage,
+    Folders.API_KEYS_FOLDER_UUID,
+  );
+  await migrateChildren(
+    srcRepo,
+    dstRepo,
+    srcStorage,
+    dstStorage,
+    Folders.ASPECTS_FOLDER_UUID,
+  );
+  await migrateChildren(
+    srcRepo,
+    dstRepo,
+    srcStorage,
+    dstStorage,
+    Folders.EXT_FOLDER_UUID,
+  );
+  await migrateChildren(
+    srcRepo,
+    dstRepo,
+    srcStorage,
+    dstStorage,
+    Folders.GROUPS_FOLDER_UUID,
+  );
+  await migrateChildren(
+    srcRepo,
+    dstRepo,
+    srcStorage,
+    dstStorage,
+    Folders.USERS_FOLDER_UUID,
+  );
 }
 
 async function migrateChildren(
@@ -88,7 +127,11 @@ async function migrateChildren(
   dstStorage: StorageProvider,
   uuid = Folders.ROOT_FOLDER_UUID,
 ): Promise<void> {
-  const children = await srcRepo?.filter([["parent", "==", uuid]], Number.MAX_SAFE_INTEGER, 1);
+  const children = await srcRepo?.filter(
+    [["parent", "==", uuid]],
+    Number.MAX_SAFE_INTEGER,
+    1,
+  );
 
   console.log(`Migrating children of ${uuid}`);
   console.log(`Number of children: ${children?.nodes.length}`);
@@ -96,7 +139,9 @@ async function migrateChildren(
   for (const node of children?.nodes ?? []) {
     const voidOrErr = await dstRepo.add(node);
     if (voidOrErr.isLeft()) {
-      console.log(`Failed to migrate node uuid: ${node.uuid} / metadata: ${node.title}`);
+      console.log(
+        `Failed to migrate node uuid: ${node.uuid} / metadata: ${node.title}`,
+      );
       console.error(voidOrErr.value.message);
       process.exit(1);
     }
@@ -104,7 +149,13 @@ async function migrateChildren(
     console.log(`Migrated node metadata: ${node.title}`);
 
     if (Nodes.isFolder(node)) {
-      await migrateChildren(srcRepo, dstRepo, srcStorage, dstStorage, node.uuid);
+      await migrateChildren(
+        srcRepo,
+        dstRepo,
+        srcStorage,
+        dstStorage,
+        node.uuid,
+      );
       continue;
     }
 
@@ -124,7 +175,9 @@ async function migrateNode(
   const fileOrErr = await srcStorage.read(node.uuid);
   if (fileOrErr.isLeft()) {
     console.error(fileOrErr.value.message);
-    console.log(`Failed to read file node node uuid: ${node.uuid} / metadata: ${node.title}`);
+    console.log(
+      `Failed to read file node node uuid: ${node.uuid} / metadata: ${node.title}`,
+    );
     process.exit(1);
   }
 
@@ -136,7 +189,9 @@ async function migrateNode(
 
   if (voidOrErr.isLeft()) {
     console.error(voidOrErr.value.message);
-    console.log(`Failed to write file node uuid: ${node.uuid} / metadata: ${node.title}`);
+    console.log(
+      `Failed to write file node uuid: ${node.uuid} / metadata: ${node.title}`,
+    );
     process.exit(1);
   }
 

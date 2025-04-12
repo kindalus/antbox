@@ -1,6 +1,6 @@
-import { GroupNode } from "domain/users_groups/group_node";
-import { Groups } from "domain/users_groups/groups";
-import { Users } from "domain/users_groups/users";
+import { GroupNode } from "domain/users_groups/group_node.ts";
+import { Groups } from "domain/users_groups/groups.ts";
+import { Users } from "domain/users_groups/users.ts";
 
 export const ADMINS_GROUP: GroupNode = GroupNode.create({
   uuid: Groups.ADMINS_GROUP_UUID,

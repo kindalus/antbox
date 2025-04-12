@@ -1,20 +1,28 @@
-import { GroupNode } from "domain/auth/group_node.ts";
-import GroupNotFoundError from "domain/auth/group_not_found_error.ts";
-import { Groups } from "domain/auth/groups.ts";
-import { UserExistsError } from "domain/auth/user_exists_error.ts";
-import { UserNode } from "domain/auth/user_node.ts";
-import { UserNotFoundError } from "domain/auth/user_not_found_error.ts";
-import { Users } from "domain/auth/users.ts";
 import { Folders } from "domain/nodes/folders.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
-import { AntboxError, BadRequestError, ForbiddenError } from "shared/antbox_error.ts";
+import {
+  AntboxError,
+  BadRequestError,
+  ForbiddenError,
+} from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
 import { ValidationError } from "shared/validation_error.ts";
 import type { AuthenticationContext } from "./authentication_context.ts";
 import { InvalidCredentialsError } from "./invalid_credentials_error.ts";
 import { NodeService } from "./node_service.ts";
 import { ADMINS_GROUP, builtinGroups } from "./builtin_groups/index.ts";
-import { ANONYMOUS_USER, builtinUsers, ROOT_USER } from "./builtin_users/index.ts";
+import {
+  ANONYMOUS_USER,
+  builtinUsers,
+  ROOT_USER,
+} from "./builtin_users/index.ts";
+import { GroupNode } from "domain/users_groups/group_node.ts";
+import GroupNotFoundError from "domain/users_groups/group_not_found_error.ts";
+import { Groups } from "domain/users_groups/groups.ts";
+import { UserExistsError } from "domain/users_groups/user_exists_error.ts";
+import { UserNode } from "domain/users_groups/user_node.ts";
+import { UserNotFoundError } from "domain/users_groups/user_not_found_error.ts";
+import { Users } from "domain/users_groups/users.ts";
 
 export class AuthService {
   static elevatedContext(tenant?: string): AuthenticationContext {
@@ -63,19 +71,33 @@ export class AuthService {
       }
     }
 
-    return this.nodeService.create(ctx, metadata);
+    const result = await this.nodeService.create(ctx, metadata);
+
+    if (result.isLeft()) {
+      return left(result.value);
+    }
+
+    return right(result.value as UserNode);
   }
 
-  async getUser(ctx: AuthenticationContext, uuid: string): Promise<Either<AntboxError, UserNode>> {
+  async getUser(
+    ctx: AuthenticationContext,
+    uuid: string,
+  ): Promise<Either<AntboxError, UserNode>> {
     if (uuid === Users.ROOT_USER_UUID) {
-      return this.#hasAdminGroup(ctx) ? right(ROOT_USER) : left(new ForbiddenError());
+      return this.#hasAdminGroup(ctx)
+        ? right(ROOT_USER)
+        : left(new ForbiddenError());
     }
 
     if (uuid === Users.ANONYMOUS_USER_UUID) {
       return right(ANONYMOUS_USER);
     }
 
-    const nodeOrErr = await this.nodeService.get(AuthService.elevatedContext(ctx.tenant), uuid);
+    const nodeOrErr = await this.nodeService.get(
+      AuthService.elevatedContext(ctx.tenant),
+      uuid,
+    );
 
     if (nodeOrErr.isLeft()) {
       return left(nodeOrErr.value);
@@ -168,7 +190,9 @@ export class AuthService {
     return right(node);
   }
 
-  async listUsers(ctx: AuthenticationContext): Promise<Either<ForbiddenError, UserNode[]>> {
+  async listUsers(
+    ctx: AuthenticationContext,
+  ): Promise<Either<ForbiddenError, UserNode[]>> {
     const nodesOrErrs = await this.nodeService.find(
       ctx,
       [
@@ -185,7 +209,9 @@ export class AuthService {
     const users = nodesOrErrs.value.nodes as UserNode[];
     const systemUsers = builtinUsers;
 
-    return right([...users, ...systemUsers].sort((a, b) => a.title.localeCompare(b.title)));
+    return right(
+      [...users, ...systemUsers].sort((a, b) => a.title.localeCompare(b.title)),
+    );
   }
 
   async updateUser(
@@ -203,17 +229,23 @@ export class AuthService {
     }
 
     const user = existingOrErr.value;
-    const errors: AntboxError[] = [];
 
     const voidOrErr = user.update(data);
     if (voidOrErr.isLeft()) {
       return left(voidOrErr.value);
     }
 
-    return this.nodeService.update(AuthService.elevatedContext(ctx.tenant), uuid, user);
+    return this.nodeService.update(
+      AuthService.elevatedContext(ctx.tenant),
+      uuid,
+      user,
+    );
   }
 
-  async deleteUser(ctx: AuthenticationContext, uuid: string): Promise<Either<AntboxError, void>> {
+  async deleteUser(
+    ctx: AuthenticationContext,
+    uuid: string,
+  ): Promise<Either<AntboxError, void>> {
     if (uuid === Users.ROOT_USER_UUID || uuid === Users.ANONYMOUS_USER_UUID) {
       return left(new BadRequestError("Cannot delete built-in user"));
     }
@@ -226,7 +258,7 @@ export class AuthService {
     return this.nodeService.delete(ctx, uuid);
   }
 
-  createGroup(
+  async createGroup(
     ctx: AuthenticationContext,
     groupNode: Partial<GroupNode>,
   ): Promise<Either<AntboxError, GroupNode>> {
@@ -236,7 +268,14 @@ export class AuthService {
     }
 
     const group = groupOrErr.value;
-    return this.nodeService.create(ctx, group);
+
+    const result = await this.nodeService.create(ctx, group);
+
+    if (result.isLeft()) {
+      return left(result.value);
+    }
+
+    return right(result.value as GroupNode);
   }
 
   async getGroup(
@@ -275,7 +314,9 @@ export class AuthService {
 
     const groups = nodesOrErrs.value.nodes as GroupNode[];
 
-    return [...groups, ...builtinGroups].sort((a, b) => a.title.localeCompare(b.title));
+    return [...groups, ...builtinGroups].sort((a, b) =>
+      a.title.localeCompare(b.title)
+    );
   }
 
   async updateGroup(
@@ -302,9 +343,14 @@ export class AuthService {
     return this.nodeService.update(ctx, uuid, group);
   }
 
-  deleteGroup(ctx: AuthenticationContext, uuid: string): Promise<Either<AntboxError, void>> {
+  deleteGroup(
+    ctx: AuthenticationContext,
+    uuid: string,
+  ): Promise<Either<AntboxError, void>> {
     if (uuid === Groups.ADMINS_GROUP_UUID) {
-      return Promise.resolve(left(new BadRequestError("Cannot delete admins group")));
+      return Promise.resolve(
+        left(new BadRequestError("Cannot delete admins group")),
+      );
     }
     return this.nodeService.delete(ctx, uuid);
   }

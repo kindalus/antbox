@@ -1,18 +1,18 @@
-import { type Either } from "shared/either";
-import { ValidationError } from "shared/validation_error";
-import { ActionNode } from "./actions/action_node";
-import { ApiKeyNode } from "./api_keys/api_key_node";
+import { type Either } from "shared/either.ts";
+import { ValidationError } from "shared/validation_error.ts";
+import { ActionNode } from "./actions/action_node.ts";
+import { ApiKeyNode } from "./api_keys/api_key_node.ts";
 import { ArticleNode } from "./articles/article_node.ts";
-import { AspectNode } from "./aspects/aspect_node";
+import { AspectNode } from "./aspects/aspect_node.ts";
 import { GroupNode } from "./users_groups/group_node.ts";
 import { ExtNode } from "./exts/ext_node.ts";
-import { FileNode } from "./nodes/file_node";
-import { FolderNode } from "./nodes/folder_node";
-import { MetaNode } from "./nodes/meta_node";
-import { type NodeLike } from "./nodes/node_like";
-import { type NodeMetadata } from "./nodes/node_metadata";
-import { Nodes } from "./nodes/nodes";
-import { SmartFolderNode } from "./nodes/smart_folder_node";
+import { FileNode } from "./nodes/file_node.ts";
+import { FolderNode } from "./nodes/folder_node.ts";
+import { MetaNode } from "./nodes/meta_node.ts";
+import { type NodeMetadata } from "./nodes/node_metadata.ts";
+import { Nodes } from "./nodes/nodes.ts";
+import { SmartFolderNode } from "./nodes/smart_folder_node.ts";
+import { NodeLike } from "domain/node_like.ts";
 
 export class NodeFactory {
   static from<T extends NodeLike>(

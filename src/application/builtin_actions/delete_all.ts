@@ -1,7 +1,7 @@
-import type { Action } from "domain/actions/action";
-import type { RunContext } from "domain/actions/run_context";
+import type { Action } from "domain/actions/action.ts";
+import type { RunContext } from "domain/actions/run_context.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
-import { Nodes } from "domain/nodes/nodes";
+import { Nodes } from "domain/nodes/nodes.ts";
 import { AntboxError } from "shared/antbox_error.ts";
 import { type Either } from "shared/either.ts";
 
@@ -23,7 +23,9 @@ export default {
     uuids: string[],
     _params?: Record<string, unknown>,
   ): Promise<void | Error> {
-    const tasks = uuids.map((uuid) => ctx.nodeService.delete(ctx.authenticationContext, uuid));
+    const tasks = uuids.map((uuid) =>
+      ctx.nodeService.delete(ctx.authenticationContext, uuid)
+    );
 
     const results = await Promise.all(tasks);
 

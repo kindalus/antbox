@@ -1,8 +1,8 @@
-import type { ActionService } from "application/action_service";
-import type { ApiKeyService } from "application/api_key_service";
-import type { AspectService } from "application/aspect_service";
-import type { AuthService } from "application/auth_service";
-import type { ExtService } from "application/ext_service";
+import type { ActionService } from "application/action_service.ts";
+import type { ApiKeyService } from "application/api_key_service.ts";
+import type { AspectService } from "application/aspect_service.ts";
+import type { AuthService } from "application/auth_service.ts";
+import type { ExtService } from "application/ext_service.ts";
 import { NodeService } from "application/node_service.ts";
 
 export interface AntboxTenant {

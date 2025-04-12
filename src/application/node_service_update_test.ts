@@ -1,14 +1,16 @@
-import { describe, test, expect } from "bun:test";
-import { NodeService } from "./node_service";
-import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository";
-import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider";
-import { Groups } from "domain/users_groups/groups";
-import { NodeNotFoundError } from "domain/nodes/node_not_found_error";
-import { BadRequestError, ForbiddenError } from "shared/antbox_error";
-import type { AuthenticationContext } from "./authentication_context";
-import type { NodeServiceContext } from "./node_service_context";
-import { Nodes } from "domain/nodes/nodes";
-import type { FileNode } from "domain/nodes/file_node";
+import { describe, test } from "bdd";
+import { expect } from "expect";
+import { NodeService } from "./node_service.ts";
+import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository.ts";
+import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider.ts";
+import { Groups } from "domain/users_groups/groups.ts";
+import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
+import { BadRequestError, ForbiddenError } from "shared/antbox_error.ts";
+import type { AuthenticationContext } from "./authentication_context.ts";
+import type { NodeServiceContext } from "./node_service_context.ts";
+import { Nodes } from "domain/nodes/nodes.ts";
+import type { FileNode } from "domain/nodes/file_node.ts";
+import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus.ts";
 
 describe("NodeService.update", () => {
   test("should update the node metadata", async () => {
@@ -26,7 +28,8 @@ describe("NodeService.update", () => {
     expect(updateOrErr.isRight(), errToMsg(updateOrErr.value)).toBeTruthy();
 
     const updatedNodeOrErr = await service.get(authCtx, nodeOrErr.right.uuid);
-    expect(updatedNodeOrErr.isRight(), errToMsg(updatedNodeOrErr.value)).toBeTruthy();
+    expect(updatedNodeOrErr.isRight(), errToMsg(updatedNodeOrErr.value))
+      .toBeTruthy();
     expect(updatedNodeOrErr.right.title).toBe("Updated Title");
     expect(updatedNodeOrErr.right.description).toBe("Updated Description");
   });
@@ -95,7 +98,8 @@ describe("NodeService.update", () => {
     expect(updateResult.isRight(), errToMsg(updateResult.value)).toBeTruthy();
 
     const updatedNodeOrErr = await service.get(authCtx, nodeOrErr.right.uuid);
-    expect(updatedNodeOrErr.isRight(), errToMsg(updatedNodeOrErr.value)).toBeTruthy();
+    expect(updatedNodeOrErr.isRight(), errToMsg(updatedNodeOrErr.value))
+      .toBeTruthy();
     expect(updatedNodeOrErr.right.title).toBe("Updated Title");
     expect(updatedNodeOrErr.right.mimetype).toBe(Nodes.META_NODE_MIMETYPE);
   });
@@ -109,20 +113,33 @@ describe("NodeService.updateFile", () => {
       mimetype: Nodes.FOLDER_MIMETYPE,
     });
 
-    const file = new File(["initial content"], "file.txt", { type: "text/plain" });
+    const file = new File(["initial content"], "file.txt", {
+      type: "text/plain",
+    });
     const nodeOrErr = await service.createFile(authCtx, file, {
       parent: parent.right.uuid,
     });
 
-    const updatedFile = new File(["updated contentxxx"], "file.txt", { type: "text/plain" });
-    const updateOrErr = await service.updateFile(authCtx, nodeOrErr.right.uuid, updatedFile);
+    const updatedFile = new File(["updated contentxxx"], "file.txt", {
+      type: "text/plain",
+    });
+    const updateOrErr = await service.updateFile(
+      authCtx,
+      nodeOrErr.right.uuid,
+      updatedFile,
+    );
     expect(updateOrErr.isRight(), errToMsg(updateOrErr.value)).toBeTruthy();
 
     const updatedNodeOrErr = await service.get(authCtx, nodeOrErr.right.uuid);
-    const updatedFileOrErr = await service.export(authCtx, nodeOrErr.right.uuid);
+    const updatedFileOrErr = await service.export(
+      authCtx,
+      nodeOrErr.right.uuid,
+    );
 
-    expect(updatedNodeOrErr.isRight(), errToMsg(updatedNodeOrErr.value)).toBeTruthy();
-    expect(updatedFileOrErr.isRight(), errToMsg(updatedFileOrErr.value)).toBeTruthy();
+    expect(updatedNodeOrErr.isRight(), errToMsg(updatedNodeOrErr.value))
+      .toBeTruthy();
+    expect(updatedFileOrErr.isRight(), errToMsg(updatedFileOrErr.value))
+      .toBeTruthy();
     expect((updatedNodeOrErr.right as FileNode).size).toBe(updatedFile.size);
     expect(updatedFileOrErr.right.size).toBe(updatedFile.size);
   });
@@ -150,7 +167,11 @@ describe("NodeService.updateFile", () => {
     });
 
     const file = new File(["content"], "file.txt", { type: "text/plain" });
-    const updateOrErr = await service.updateFile(authCtx, nodeOrErr.right.uuid, file);
+    const updateOrErr = await service.updateFile(
+      authCtx,
+      nodeOrErr.right.uuid,
+      file,
+    );
 
     expect(updateOrErr.isLeft()).toBeTruthy();
     expect(updateOrErr.value).toBeInstanceOf(NodeNotFoundError);
@@ -169,7 +190,9 @@ describe("NodeService.updateFile", () => {
       },
     });
 
-    const originalFile = new File(["content"], "file.txt", { type: "text/plain" });
+    const originalFile = new File(["content"], "file.txt", {
+      type: "text/plain",
+    });
     const nodeOrErr = await service.createFile(authCtx, originalFile, {
       parent: parent.right.uuid,
     });
@@ -181,7 +204,11 @@ describe("NodeService.updateFile", () => {
     };
 
     const file = new File(["content"], "file.txt", { type: "text/plain" });
-    const updateOrErr = await service.updateFile(ctx, nodeOrErr.right.uuid, file);
+    const updateOrErr = await service.updateFile(
+      ctx,
+      nodeOrErr.right.uuid,
+      file,
+    );
 
     expect(updateOrErr.isLeft()).toBeTruthy();
     expect(updateOrErr.value).toBeInstanceOf(ForbiddenError);
@@ -199,8 +226,14 @@ describe("NodeService.updateFile", () => {
       parent: parent.right.uuid,
     });
 
-    const updatedFile = new File(["content"], "file.txt", { type: "application/json" });
-    const updateOrErr = await service.updateFile(authCtx, nodeOrErr.right.uuid, updatedFile);
+    const updatedFile = new File(["content"], "file.txt", {
+      type: "application/json",
+    });
+    const updateOrErr = await service.updateFile(
+      authCtx,
+      nodeOrErr.right.uuid,
+      updatedFile,
+    );
 
     expect(updateOrErr.isLeft()).toBeTruthy();
     expect(updateOrErr.value).toBeInstanceOf(BadRequestError);
@@ -216,10 +249,14 @@ const authCtx: AuthenticationContext = {
   },
 };
 
-const errToMsg = (err: any) => (err?.message ? err.message : JSON.stringify(err));
+const errToMsg = (
+  // deno-lint-ignore no-explicit-any
+  err: any,
+) => (err?.message ? err.message : JSON.stringify(err));
 
 const nodeService = (opts: Partial<NodeServiceContext> = {}) =>
   new NodeService({
     storage: opts.storage ?? new InMemoryStorageProvider(),
     repository: opts.repository ?? new InMemoryNodeRepository(),
+    bus: opts.bus ?? new InMemoryEventBus(),
   });

@@ -1,4 +1,4 @@
-import { AntboxError } from "shared/antbox_error"
+import { AntboxError } from "shared/antbox_error.ts";
 
 export class ArticleNotFound extends AntboxError {
   static ERROR_CODE = "ArticleNotFound";

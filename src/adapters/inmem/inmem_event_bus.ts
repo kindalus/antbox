@@ -1,6 +1,6 @@
-import type { EventBus } from "shared/event_bus";
-import type { Event } from "shared/event";
-import type { EventHandler } from "shared/event_handler";
+import type { EventBus } from "shared/event_bus.ts";
+import type { Event } from "shared/event.ts";
+import type { EventHandler } from "shared/event_handler.ts";
 
 export class InMemoryEventBus implements EventBus {
   #handlers: Record<string, EventHandler<Event>[]> = {};

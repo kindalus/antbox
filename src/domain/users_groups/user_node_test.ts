@@ -1,4 +1,5 @@
-import { expect, test } from "bun:test";
+import { describe, test } from "bdd";
+import { expect } from "expect";
 import { Folders } from "domain/nodes/folders.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import { PropertyRequiredError } from "domain/nodes/property_errors.ts";
@@ -8,7 +9,8 @@ import { InvalidPasswordFormatError } from "./invalid_password_format_error.ts";
 import { UserGroupRequiredError } from "./user_group_required_error.ts";
 import { UserNode } from "./user_node.ts";
 
-const timeout = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const timeout = (ms: number) =>
+  new Promise((resolve) => setTimeout(resolve, ms));
 
 test("UserNode.create should initialize", () => {
   const createResult = UserNode.create({
@@ -56,7 +58,9 @@ test("UserNode.create should throw error if group is missing", async () => {
 
   expect(createResult.isLeft()).toBe(true);
   expect(createResult.value).toBeInstanceOf(ValidationError);
-  expect((createResult.value as ValidationError).errors[0]).toBeInstanceOf(UserGroupRequiredError);
+  expect((createResult.value as ValidationError).errors[0]).toBeInstanceOf(
+    UserGroupRequiredError,
+  );
 });
 
 test("UserNode.create should throw error if owner is missing", async () => {
@@ -72,7 +76,9 @@ test("UserNode.create should throw error if owner is missing", async () => {
 
   expect(createResult.isLeft()).toBe(true);
   expect(createResult.value).toBeInstanceOf(ValidationError);
-  expect((createResult.value as ValidationError).errors[0]).toBeInstanceOf(PropertyRequiredError);
+  expect((createResult.value as ValidationError).errors[0]).toBeInstanceOf(
+    PropertyRequiredError,
+  );
 });
 
 test("UserNode.create should throw error if title length less than 3 chars", async () => {

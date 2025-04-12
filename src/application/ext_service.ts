@@ -1,15 +1,19 @@
-import { ExtNode } from "domain/exts/ext_node";
-import { Folders } from "domain/nodes/folders";
-import type { NodeMetadata } from "domain/nodes/node_metadata";
-import { NodeNotFoundError } from "domain/nodes/node_not_found_error";
-import { Nodes } from "domain/nodes/nodes";
-import { AntboxError, BadRequestError } from "shared/antbox_error";
-import { type Either, left, right } from "shared/either";
-import { UsersGroupsService } from "./users_groups_service";
-import type { AuthenticationContext } from "./authentication_context";
-import type { NodeService } from "./node_service";
+import { ExtNode } from "domain/exts/ext_node.ts";
+import { Folders } from "domain/nodes/folders.ts";
+import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
+import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
+import { Nodes } from "domain/nodes/nodes.ts";
+import { AntboxError, BadRequestError } from "shared/antbox_error.ts";
+import { type Either, left, right } from "shared/either.ts";
+import { UsersGroupsService } from "./users_groups_service.ts";
+import type { AuthenticationContext } from "./authentication_context.ts";
+import type { NodeService } from "./node_service.ts";
+import { NodeLike } from "domain/node_like.ts";
 
-export type ExtFn = (request: Request, service: NodeService) => Promise<Response>;
+export type ExtFn = (
+  request: Request,
+  service: NodeService,
+) => Promise<Response>;
 
 export class ExtService {
   constructor(private readonly nodeService: NodeService) {}
@@ -18,7 +22,7 @@ export class ExtService {
     ctx: AuthenticationContext,
     file: File,
     metadata: Partial<NodeMetadata>,
-  ): Promise<Either<AntboxError, Node>> {
+  ): Promise<Either<AntboxError, NodeLike>> {
     if (metadata.mimetype !== Nodes.EXT_MIMETYPE) {
       return left(new BadRequestError(`Invalid mimetype: ${file.type}`));
     }
@@ -45,8 +49,11 @@ export class ExtService {
     return right(nodeOrErr.value);
   }
 
-  async get(uuid: string): Promise<Either<NodeNotFoundError, Node>> {
-    const nodeOrErr = await this.nodeService.get(UsersGroupsService.elevatedContext(), uuid);
+  async get(uuid: string): Promise<Either<NodeNotFoundError, NodeLike>> {
+    const nodeOrErr = await this.nodeService.get(
+      UsersGroupsService.elevatedContext,
+      uuid,
+    );
 
     if (nodeOrErr.isLeft()) {
       return left(nodeOrErr.value);
@@ -62,7 +69,7 @@ export class ExtService {
   async update(
     ctx: AuthenticationContext,
     uuid: string,
-    metadata: Partial<Node>,
+    metadata: Partial<NodeLike>,
   ): Promise<Either<NodeNotFoundError, void>> {
     const nodeOrErr = await this.get(uuid);
 
@@ -70,7 +77,7 @@ export class ExtService {
       return left(nodeOrErr.value);
     }
 
-    const safe: Partial<Node> = {};
+    const safe: Partial<NodeLike> = {};
     for (const key of ["title", "description", "aspects", "properties"]) {
       if (Object.hasOwnProperty.call(metadata, key)) {
         // deno-lint-ignore no-explicit-any
@@ -87,9 +94,9 @@ export class ExtService {
     return right(undefined);
   }
 
-  async list(): Promise<Either<AntboxError, Node[]>> {
+  async list(): Promise<Either<AntboxError, NodeLike[]>> {
     const nodesOrErrs = await this.nodeService.find(
-      UsersGroupsService.elevatedContext(),
+      UsersGroupsService.elevatedContext,
       [
         ["mimetype", "==", Nodes.EXT_MIMETYPE],
         ["parent", "==", Folders.EXT_FOLDER_UUID],
@@ -104,7 +111,10 @@ export class ExtService {
     return right(nodesOrErrs.value.nodes);
   }
 
-  async delete(ctx: AuthenticationContext, uuid: string): Promise<Either<NodeNotFoundError, void>> {
+  async delete(
+    ctx: AuthenticationContext,
+    uuid: string,
+  ): Promise<Either<NodeNotFoundError, void>> {
     const nodeOrErr = await this.get(uuid);
 
     if (nodeOrErr.isLeft()) {
@@ -121,13 +131,13 @@ export class ExtService {
       return left(nodeOrErr.value);
     }
 
-    return this.nodeService.export(UsersGroupsService.elevatedContext(), uuid);
+    return this.nodeService.export(UsersGroupsService.elevatedContext, uuid);
   }
 
   async #getAsModule(uuid: string): Promise<Either<NodeNotFoundError, ExtFn>> {
     const [nodeError, fileOrError] = await Promise.all([
       this.get(uuid),
-      this.nodeService.export(UsersGroupsService.elevatedContext(), uuid),
+      this.nodeService.export(UsersGroupsService.elevatedContext, uuid),
     ]);
 
     if (fileOrError.isLeft()) {
@@ -145,7 +155,10 @@ export class ExtService {
     return right(module.default);
   }
 
-  async run(uuid: string, request: Request): Promise<Either<NodeNotFoundError | Error, Response>> {
+  async run(
+    uuid: string,
+    request: Request,
+  ): Promise<Either<NodeNotFoundError | Error, Response>> {
     const extOrErr = await this.#getAsModule(uuid);
 
     if (extOrErr.isLeft()) {

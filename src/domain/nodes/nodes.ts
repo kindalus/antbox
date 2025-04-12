@@ -8,8 +8,8 @@ import { ExtNode } from "domain/exts/ext_node.ts";
 import { FileNode } from "./file_node.ts";
 import { FolderNode } from "./folder_node.ts";
 import { MetaNode } from "./meta_node.ts";
-import { type NodeLike } from "./node_like.ts";
 import { SmartFolderNode } from "./smart_folder_node.ts";
+import type { NodeLike } from "domain/node_like.ts";
 
 export class Nodes {
   static FID_PREFIX = "--fid--";
@@ -87,7 +87,7 @@ export class Nodes {
   }
 
   static isJavascript(file: File) {
-    return file.type === "application/javascript" || file.type === "text/javascript";
+    return file.type.startsWith("application/javascript") || file.type.startsWith("text/javascript");
   }
 
   static isFile(node: NodeLike): node is FileNode {

@@ -1,76 +1,127 @@
-import { ExtNode } from "domain/exts/ext_node";
 import { Folders } from "domain/nodes/folders";
 import type { NodeMetadata } from "domain/nodes/node_metadata";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error";
 import { Nodes } from "domain/nodes/nodes";
 import { AntboxError, BadRequestError } from "shared/antbox_error";
 import { type Either, left, right } from "shared/either";
-import { UsersGroupsService } from "./users_groups_service";
 import type { AuthenticationContext } from "./authentication_context";
+import { type ExtDTO, extToNode, nodeToExt } from "./ext_dto";
+import { ExtNotFoundError } from "./ext_not_found_error";
 import type { NodeService } from "./node_service";
+import type { ExtServiceContext } from "./ext_service_context";
 
 export type ExtFn = (request: Request, service: NodeService) => Promise<Response>;
 
 export class ExtService {
-  constructor(private readonly nodeService: NodeService) {}
+  constructor(
+    private readonly context: ExtServiceContext, 
+    private readonly nodeService: NodeService,
+  ) {}
 
   async createOrReplace(
     ctx: AuthenticationContext,
     file: File,
-    metadata: Partial<NodeMetadata>,
-  ): Promise<Either<AntboxError, Node>> {
-    if (metadata.mimetype !== Nodes.EXT_MIMETYPE) {
+    metadata: ExtDTO,
+  ): Promise<Either<AntboxError, ExtDTO>> {
+    if (!Nodes.isJavascript(file)) {
       return left(new BadRequestError(`Invalid mimetype: ${file.type}`));
-    }
+    } 
 
-    const uuid = metadata.uuid ?? file.name?.split(".")[0].trim();
-    const fid = metadata.fid ?? uuid;
-
-    const extOrErr = ExtNode.create({ ...metadata, uuid, fid });
+    const extOrErr = nodeToExt(ctx, file, metadata);
     if (extOrErr.isLeft()) {
       return left(extOrErr.value);
     }
 
-    const nodeOrErr = await this.nodeService.get(ctx, uuid);
+    const nodeOrErr = await this.get(ctx, extOrErr.value.uuid);
     if (nodeOrErr.isLeft()) {
-      return this.nodeService.createFile(ctx, file, extOrErr.value);
+      return this.#create(ctx, file, metadata);
     }
 
-    const voidOrErr = await this.nodeService.updateFile(ctx, uuid, file);
-
-    if (voidOrErr.isLeft()) {
-      return left(voidOrErr.value);
-    }
-
-    return right(nodeOrErr.value);
+    return this.#update(ctx, file, metadata);
   }
 
-  async get(uuid: string): Promise<Either<NodeNotFoundError, Node>> {
-    const nodeOrErr = await this.nodeService.get(UsersGroupsService.elevatedContext(), uuid);
+  async #create(
+    ctx: AuthenticationContext,
+    file: File,
+    metadata: ExtDTO,
+  ): Promise<Either<AntboxError, ExtDTO>> {
+    const extOrErr = nodeToExt(ctx, file, metadata);
+    if (extOrErr.isLeft()) {
+      return left(extOrErr.value);
+    }
+
+    const ext = extOrErr.value;
+
+    const createdFileOrErr = await this.nodeService.createFile(ctx, file, {
+      uuid: ext.uuid,
+      fid: ext.fid,
+      title: ext.title,
+      description: ext.description,
+      mimetype: ext.mimetype,
+      owner: ext.owner,
+      properties: ext.properties,
+      aspects: ext.aspects,
+    });
+
+    if (createdFileOrErr.isLeft()) {
+      return left(createdFileOrErr.value);
+    }
+
+    return right(extToNode(createdFileOrErr.value));
+  }
+
+  async #update(
+    ctx: AuthenticationContext,
+    file: File,
+    meatadata: ExtDTO,
+  ): Promise<Either<AntboxError, ExtDTO>> {
+    const decoratedFile = new File([file], file.name, {
+      type: Nodes.EXT_MIMETYPE,
+      lastModified: Date.now(),
+    });
+
+    const updateFileOrErr = await this.nodeService.updateFile(ctx, meatadata.uuid, decoratedFile);
+    if (updateFileOrErr.isLeft()) {
+      return left(updateFileOrErr.value);
+    }
+
+    const updatedNodeOrErr = await this.nodeService.update(ctx, meatadata.uuid, {
+      ...meatadata,
+      size: file.size,
+    });
+    if (updatedNodeOrErr.isLeft()) {
+      return left(updatedNodeOrErr.value);
+    }
+
+    return this.get(ctx, meatadata.uuid);
+  }
+
+  async get(ctx: AuthenticationContext, uuid: string): Promise<Either<AntboxError, ExtDTO>> {
+    const nodeOrErr = await this.nodeService.get(ctx, uuid);
 
     if (nodeOrErr.isLeft()) {
       return left(nodeOrErr.value);
     }
 
     if (!Nodes.isExt(nodeOrErr.value)) {
-      return left(new NodeNotFoundError(uuid));
+      return left(new ExtNotFoundError(uuid));
     }
 
-    return right(nodeOrErr.value);
+    return right(extToNode(nodeOrErr.value));
   }
 
   async update(
     ctx: AuthenticationContext,
     uuid: string,
-    metadata: Partial<Node>,
-  ): Promise<Either<NodeNotFoundError, void>> {
-    const nodeOrErr = await this.get(uuid);
+    metadata: Partial<ExtDTO>,
+  ): Promise<Either<AntboxError, void>> {
+    const nodeOrErr = await this.get(ctx, uuid);
 
     if (nodeOrErr.isLeft()) {
       return left(nodeOrErr.value);
     }
 
-    const safe: Partial<Node> = {};
+    const safe: Partial<NodeMetadata> = {};
     for (const key of ["title", "description", "aspects", "properties"]) {
       if (Object.hasOwnProperty.call(metadata, key)) {
         // deno-lint-ignore no-explicit-any
@@ -87,25 +138,8 @@ export class ExtService {
     return right(undefined);
   }
 
-  async list(): Promise<Either<AntboxError, Node[]>> {
-    const nodesOrErrs = await this.nodeService.find(
-      UsersGroupsService.elevatedContext(),
-      [
-        ["mimetype", "==", Nodes.EXT_MIMETYPE],
-        ["parent", "==", Folders.EXT_FOLDER_UUID],
-      ],
-      Number.MAX_SAFE_INTEGER,
-    );
-
-    if (nodesOrErrs.isLeft()) {
-      return left(nodesOrErrs.value);
-    }
-
-    return right(nodesOrErrs.value.nodes);
-  }
-
-  async delete(ctx: AuthenticationContext, uuid: string): Promise<Either<NodeNotFoundError, void>> {
-    const nodeOrErr = await this.get(uuid);
+  async delete(ctx: AuthenticationContext, uuid: string): Promise<Either<AntboxError, void>> {
+    const nodeOrErr = await this.get(ctx, uuid);
 
     if (nodeOrErr.isLeft()) {
       return left(nodeOrErr.value);
@@ -114,20 +148,46 @@ export class ExtService {
     return this.nodeService.delete(ctx, uuid);
   }
 
-  async export(uuid: string): Promise<Either<NodeNotFoundError, File>> {
-    const nodeOrErr = await this.get(uuid);
+  async list(): Promise<ExtDTO[]> {
+    const nodesOrErrs = await this.context.repository.filter(
+      [
+        ["mimetype", "==", Nodes.EXT_MIMETYPE],
+        ["parent", "==", Folders.EXT_FOLDER_UUID],
+      ],
+      Number.MAX_SAFE_INTEGER,
+    );
+
+    if (nodesOrErrs.nodes.length === 0) {
+      return [];
+    }
+
+    return nodesOrErrs.nodes.map((node) => extToNode(node));
+  }
+
+  async export(ctx: AuthenticationContext, uuid: string): Promise<Either<AntboxError, File>> {
+    const nodeOrErr = await this.get(ctx, uuid);
 
     if (nodeOrErr.isLeft()) {
       return left(nodeOrErr.value);
     }
 
-    return this.nodeService.export(UsersGroupsService.elevatedContext(), uuid);
+    const fileOErr = await this.nodeService.export(ctx, uuid);
+    if (fileOErr.isLeft()) {
+      return left(fileOErr.value);
+    }
+
+    const file = new File([JSON.stringify(fileOErr.value)], `${nodeOrErr.right.title}.js`, {
+      type: Nodes.EXT_MIMETYPE,
+      lastModified: Date.now(),
+    });
+
+    return right(file);
   }
 
-  async #getAsModule(uuid: string): Promise<Either<NodeNotFoundError, ExtFn>> {
+  async #getAsModule(ctx: AuthenticationContext, uuid: string): Promise<Either<AntboxError, ExtFn>> {
     const [nodeError, fileOrError] = await Promise.all([
-      this.get(uuid),
-      this.nodeService.export(UsersGroupsService.elevatedContext(), uuid),
+      this.get(ctx, uuid),
+      this.nodeService.export(ctx, uuid),
     ]);
 
     if (fileOrError.isLeft()) {
@@ -145,8 +205,12 @@ export class ExtService {
     return right(module.default);
   }
 
-  async run(uuid: string, request: Request): Promise<Either<NodeNotFoundError | Error, Response>> {
-    const extOrErr = await this.#getAsModule(uuid);
+  async run(
+    ctx: AuthenticationContext,
+    uuid: string, 
+    request: Request
+  ): Promise<Either<AntboxError, Response>> {
+    const extOrErr = await this.#getAsModule(ctx, uuid);
 
     if (extOrErr.isLeft()) {
       return left(extOrErr.value);

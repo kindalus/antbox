@@ -1,4 +1,4 @@
-import { type AspectProperties } from "domain/aspects/aspect.ts";
+import type { AspectProperty } from "domain/aspects/aspect_node.ts";
 import { type Permissions } from "./node.ts";
 import { type NodeFilters } from "./node_filter.ts";
 import { type NodeProperties } from "./node_properties.ts";
@@ -17,7 +17,7 @@ export interface NodeMetadata {
   aspects: string[];
   tags: string[];
   related: string[];
-  properties: NodeProperties | AspectProperties;
+  properties: NodeProperties | AspectProperty[];
   fulltext: string;
 
   filters: NodeFilters;

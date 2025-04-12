@@ -27,6 +27,17 @@ import type { UsersGroupsContext } from "./users_groups_service_context.ts";
 export class UsersGroupsService {
   constructor(private readonly context: UsersGroupsContext) {}
 
+  static elevatedContext(tenant?: string): AuthenticationContext {
+    return {
+      mode: "Direct",
+      tenant: tenant ?? "default",
+      principal: {
+        email: Users.ROOT_USER_EMAIL,
+        groups: [Groups.ADMINS_GROUP_UUID],
+      },
+    };
+  }
+
   async createUser(
     ctx: AuthenticationContext,
     metadata: Partial<UserDTO>,

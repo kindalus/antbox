@@ -1,9 +1,10 @@
+import type { AuthenticationContext } from "application/authentication_context.ts";
+import { type NodeFilter } from "domain/nodes/node_filter.ts";
 import { AntboxError, UnknownError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
-import { ValidationError } from "shared/validation_error.ts";
-import { type NodeFilter } from "domain/nodes/node_filter.ts";
 import { ActionNode } from "./action_node.ts";
 import { type RunContext } from "./run_context.ts";
+import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
 
 /**
  * Regras das actions:
@@ -63,12 +64,14 @@ export async function fileToAction(
 }
 
 export function actionToNode(
+  ctx: AuthenticationContext,
   action: Action,
-): Either<ValidationError, ActionNode> {
+):  ActionNode {
   return ActionNode.create({
     uuid: action.uuid,
     title: action.title,
     description: action.description,
+    owner: ctx.principal.email,
     runOnCreates: action.runOnCreates,
     runOnUpdates: action.runOnUpdates,
     runManually: action.runManually,
@@ -76,5 +79,21 @@ export function actionToNode(
     params: action.params,
     filters: action.filters,
     groupsAllowed: action.groupsAllowed,
-  });
+  }).right;
+}
+
+export function actionNodeToNodeMetadata(action: ActionNode): NodeMetadata {
+  return {
+    uuid: action.uuid,
+    title: action.title,
+    description: action.description!,
+    mimetype: action.mimetype,
+    filters: action.filters,
+    runAs: action.runAs,
+    params: action.params,
+    groupsAllowed: action.groupsAllowed,
+    runOnCreates: action.runOnCreates,
+    runOnUpdates: action.runOnUpdates,
+    runManually: action.runManually,
+  } as NodeMetadata;
 }

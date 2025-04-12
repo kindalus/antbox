@@ -1,23 +1,24 @@
-import { type Action, actionToNode, fileToAction } from "domain/actions/action.ts";
+import { type Action, actionNodeToNodeMetadata, actionToNode, fileToAction } from "domain/actions/action.ts";
 import { ActionNode } from "domain/actions/action_node.ts";
+import type { RunContext } from "domain/actions/run_context.ts";
 import { FolderNode } from "domain/nodes/folder_node.ts";
 import { Folders } from "domain/nodes/folders.ts";
-import { Node } from "domain/nodes/node.ts";
 import { NodeCreatedEvent } from "domain/nodes/node_created_event.ts";
-import { NodesFilters } from "domain/nodes_filters.ts";
+import type { NodeFilter } from "domain/nodes/node_filter.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import { NodeUpdatedEvent } from "domain/nodes/node_updated_event.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
+import { NodesFilters } from "domain/nodes_filters.ts";
 import { AntboxError, BadRequestError, UnknownError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
-import { UsersGroupsService } from "./users_groups_service.ts";
+import { type ActionDTO, nodeToAction } from "./action_dto.ts";
 import { type AuthenticationContext } from "./authentication_context.ts";
-import { NodeService } from "./node_service.ts";
-import type { RunContext } from "domain/actions/run_context.ts";
 import { builtinActions } from "./builtin_actions/index.ts";
-import type { NodeFilter } from "domain/nodes/node_filter.ts";
+import { NodeService } from "./node_service.ts";
+import { UsersGroupsService } from "./users_groups_service.ts";
 
-type RecordKey = [string, string];
+
+type RecordKey = string;
 interface RunnableRecord {
   count: number;
   timestamp: number;
@@ -28,7 +29,10 @@ export class ActionService {
 
   static #getRunnable(key: RecordKey): RunnableRecord {
     if (!this.#runnable.has(key)) {
-      this.#runnable.set(key, { count: 1, timestamp: Date.now() });
+      this.#runnable.set(key, {
+        count: 0, 
+        timestamp: Date.now() 
+      });
     }
 
     return this.#runnable.get(key)!;
@@ -36,9 +40,9 @@ export class ActionService {
 
   static #incRunnable(key: RecordKey) {
     const runnable = this.#getRunnable(key);
-    this.#runnable.set(key, {
-      count: runnable?.count ?? 0 + 1,
-      timestamp: Date.now(),
+    return this.#runnable.set(key, {
+      count: runnable.count + 1,
+      timestamp: runnable.timestamp,
     });
   }
 
@@ -48,17 +52,58 @@ export class ActionService {
 
   constructor(
     private readonly nodeService: NodeService,
-    private readonly authService: UsersGroupsService,
+    private readonly usersGroupsService: UsersGroupsService,
   ) {}
+
+  async createOrReplace(
+    ctx: AuthenticationContext,
+    file: File,
+  ): Promise<Either<AntboxError, ActionDTO>> {
+    const actionOrErr = await fileToAction(file);
+    if (actionOrErr.isLeft()) {
+      return left(actionOrErr.value);
+    }
+    
+    const action = actionToNode(ctx, actionOrErr.value);
+
+    const nodeOrErr = await this.nodeService.get(ctx, action.uuid);
+    if (nodeOrErr.isLeft()) {
+      const actionOrErr = await this.nodeService.createFile(ctx, file, actionNodeToNodeMetadata(action));
+      if (actionOrErr.isLeft()) {
+        return left(actionOrErr.value);
+      }
+
+      return right(nodeToAction(actionOrErr.value));
+    }
+
+    const decoratedFile = new File([file], nodeOrErr.value.title, {
+      type: nodeOrErr.value.mimetype,
+    });
+
+    let voidOrErr = await this.nodeService.updateFile(ctx, action.uuid, decoratedFile);
+    if (voidOrErr.isLeft()) {
+      return left(voidOrErr.value);
+    }
+
+    voidOrErr = await this.nodeService.update(ctx, action.uuid, {
+      ...actionNodeToNodeMetadata(action),
+      size: file.size,
+    });
+    if (voidOrErr.isLeft()) {
+      return left(voidOrErr.value);
+    }
+
+    return this.get(ctx, action.uuid);
+  }
 
   async get(
     ctx: AuthenticationContext,
     uuid: string,
-  ): Promise<Either<NodeNotFoundError, ActionNode>> {
+  ): Promise<Either<NodeNotFoundError, ActionDTO>> {
     const found = builtinActions.find((a) => a.uuid === uuid);
 
     if (found) {
-      return right(actionToNode(found).right);
+      return right(nodeToAction(found));
     }
 
     const nodeOrErr = await this.nodeService.get(ctx, uuid);
@@ -71,73 +116,7 @@ export class ActionService {
       return left(new NodeNotFoundError(uuid));
     }
 
-    return right(nodeOrErr.value);
-  }
-
-  async list(ctx: AuthenticationContext): Promise<Either<AntboxError, ActionNode[]>> {
-    const nodesOrErrs = await this.nodeService.find(
-      ctx,
-      [
-        ["mimetype", "==", Nodes.ACTION_MIMETYPE],
-        ["parent", "==", Folders.ACTIONS_FOLDER_UUID],
-      ],
-      Number.MAX_SAFE_INTEGER,
-    );
-
-    if (nodesOrErrs.isLeft()) {
-      return left(nodesOrErrs.value);
-    }
-
-    const nodes = [
-      ...(nodesOrErrs.value.nodes as ActionNode[]),
-      ...builtinActions.map((a) => actionToNode(a).right),
-    ].sort((a, b) => a.title.localeCompare(b.title));
-
-    return right(nodes);
-  }
-
-  async createOrReplace(
-    ctx: AuthenticationContext,
-    file: File,
-  ): Promise<Either<AntboxError, Node>> {
-    const actionOrErr = await fileToAction(file);
-
-    if (actionOrErr.isLeft()) {
-      return left(actionOrErr.value);
-    }
-
-    const action = actionOrErr.value;
-
-    const nodeOrErr = await this.nodeService.get(ctx, action.uuid);
-    if (nodeOrErr.isLeft()) {
-      ActionNode.create({
-        ...action,
-        uuid: action.uuid,
-        fid: action.uuid,
-        title: action.title,
-        description: action.description,
-      });
-
-      return this.nodeService.createFile(ctx, file, nodeOrErr.right);
-    }
-
-    const actionNode = actionToNode(action).right;
-
-    const decoratedFile = new File([file], nodeOrErr.value.title, {
-      type: nodeOrErr.value.mimetype,
-    });
-
-    let voidOrErr = await this.nodeService.updateFile(ctx, action.uuid, decoratedFile);
-    if (voidOrErr.isLeft()) {
-      return left<AntboxError, Node>(voidOrErr.value);
-    }
-
-    voidOrErr = await this.nodeService.update(ctx, action.uuid, actionNode);
-    if (voidOrErr.isLeft()) {
-      return left<AntboxError, Node>(voidOrErr.value);
-    }
-
-    return this.nodeService.get(ctx, action.uuid);
+    return right(nodeToAction(nodeOrErr.value));
   }
 
   async delete(ctx: AuthenticationContext, uuid: string): Promise<Either<AntboxError, void>> {
@@ -148,6 +127,28 @@ export class ActionService {
     }
 
     return this.nodeService.delete(ctx, uuid);
+  }
+
+  async list(ctx: AuthenticationContext): Promise<ActionDTO[]> {
+    const nodesOrErrs = await this.nodeService.find(
+      ctx,
+      [
+        ["mimetype", "==", Nodes.ACTION_MIMETYPE],
+        ["parent", "==", Folders.ACTIONS_FOLDER_UUID],
+      ],
+      Number.MAX_SAFE_INTEGER,
+    );
+
+    if (nodesOrErrs.isLeft()) {
+      return [];
+    }
+
+    const nodes = [
+      ...(nodesOrErrs.value.nodes as ActionDTO[]),
+      ...builtinActions.map((a) => nodeToAction(a)),
+    ].sort((a, b) => a.title.localeCompare(b.title));
+
+    return nodes;
   }
 
   async run(
@@ -196,6 +197,27 @@ export class ActionService {
     return right(undefined);
   }
 
+  async export(ctx: AuthenticationContext, uuid: string): Promise<Either<AntboxError, File>> {
+    const builtIn = builtinActions.find((a) => a.uuid === uuid);
+    if (builtIn) {
+      const file = new File([builtIn.toString()], builtIn.title, {
+        type: "application/javascript",
+      });
+      return right(file);
+    }
+
+    const nodeOrErr = await this.get(ctx, uuid);
+    if (nodeOrErr.isLeft()) {
+      return left(nodeOrErr.value);
+    }
+
+    const file = new File([JSON.stringify(nodeOrErr.value)], `${nodeOrErr.value.title}.js`, { 
+      type: "application/javascript" 
+    });
+
+    return right(file);
+  }
+
   async #getNodeAsAction(
     ctx: AuthenticationContext,
     uuid: string,
@@ -222,37 +244,20 @@ export class ActionService {
     return fileToAction(fileOrErr.value);
   }
 
-  async export(ctx: AuthenticationContext, uuid: string): Promise<Either<AntboxError, File>> {
-    const builtIn = builtinActions.find((a) => a.uuid === uuid);
-    if (builtIn) {
-      const file = new File([builtIn.toString()], builtIn.title, {
-        type: "application/javascript",
-      });
-      return right(file);
-    }
-
-    const nodeOrErr = await this.get(ctx, uuid);
-    if (nodeOrErr.isLeft()) {
-      return left(nodeOrErr.value);
-    }
-
-    return this.nodeService.export(ctx, uuid);
-  }
-
   #ranTooManyTimes(uuid: string, uuids: string[]): boolean {
-    const key = uuids.join(",");
+    const key = JSON.stringify([uuid, uuids.join(",")]);
     const timestamp = Date.now();
-    const timeout = 1000 * 10; // 10 seconds
+    const timeout = 1000 * 10; // 10 segundos
     const maxCount = 10;
 
-    const entry = ActionService.#getRunnable([uuid, key]);
+    const entry = ActionService.#getRunnable(key);
 
     if (entry.count >= maxCount || entry.timestamp + timeout < timestamp) {
-      ActionService.#deleteRunnable([uuid, key]);
+      ActionService.#deleteRunnable(key);
       return true;
     }
 
-    ActionService.#incRunnable([uuid, key]);
+    ActionService.#incRunnable(key);
     return false;
   }
 
@@ -295,7 +300,7 @@ export class ActionService {
       group = (parent.right as FolderNode).group;
     }
 
-    const actions = await this.#getAutomaticActions(ctx, evt.payload, runCriteria);
+    const actions = await this.#getAutomaticActions(ctx, runCriteria);
     return this.#runActions(
       ctxOrErr.value,
       actions.map((a) => a.uuid),
@@ -316,7 +321,7 @@ export class ActionService {
       return;
     }
 
-    const actions = await this.#getAutomaticActions(ctx, node.value, runCriteria);
+    const actions = await this.#getAutomaticActions(ctx, runCriteria);
     if (actions.length === 0) {
       return;
     }
@@ -329,7 +334,7 @@ export class ActionService {
   }
 
   async #getAuthCtxByEmail(email: string): Promise<Either<AntboxError, AuthenticationContext>> {
-    const userOrErr = await this.authService.getUser(UsersGroupsService.elevatedContext(), email);
+    const userOrErr = await this.usersGroupsService.getUserByEmail(UsersGroupsService.elevatedContext(), email);
     if (userOrErr.isLeft()) {
       return left(userOrErr.value);
     }
@@ -343,6 +348,7 @@ export class ActionService {
       },
     });
   }
+
   async #buildRunContext(ctx: AuthenticationContext, runAs?: string): Promise<RunContext> {
     const defaultCtx: RunContext = {
       authenticationContext: ctx,
@@ -369,7 +375,6 @@ export class ActionService {
 
   async #getAutomaticActions(
     ctx: AuthenticationContext,
-    node: Node,
     runOnCriteria: NodeFilter,
   ): Promise<Action[]> {
     const filters: NodeFilter[] = [["mimetype", "==", Nodes.ACTION_MIMETYPE], runOnCriteria];
@@ -381,7 +386,7 @@ export class ActionService {
     const nodes = actionsOrErr.value.nodes as ActionNode[];
 
     const actionsTasks = nodes
-      .filter((a) => filtersSpecFrom(a.filters).isSatisfiedBy(node))
+      .filter((a) => NodesFilters.nodeSpecificationFrom(a.filters))
       .map((a) => this.nodeService.export(ctx, a.uuid));
 
     const filesOrErrs = await Promise.all(actionsTasks);
@@ -413,12 +418,12 @@ export class ActionService {
 
     return this.#runActions(
       userOrErr.value,
-      parentOrErr.value.#onCreate.filter(this.#nonEmptyActions),
+      parentOrErr.value.onCreate.filter(this.#nonEmptyActions),
       evt.payload.uuid,
     );
   }
 
-  runOnUpdatedScritps(ctx: AuthenticationContext, evt: NodeUpdatedEvent) {
+  async runOnUpdatedScritps(ctx: AuthenticationContext, evt: NodeUpdatedEvent) {
     return this.nodeService.get(ctx, evt.payload.uuid).then(async (node) => {
       if (node.isLeft() || node.value.parent === Folders.ROOT_FOLDER_UUID) {
         return;
@@ -437,7 +442,7 @@ export class ActionService {
 
       return this.#runActions(
         userOrErr.value,
-        parent.value.#onUpdate.filter(this.#nonEmptyActions),
+        parent.value.onUpdate.filter(this.#nonEmptyActions),
         evt.payload.uuid,
       );
     });

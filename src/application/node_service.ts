@@ -106,7 +106,7 @@ export class NodeService {
       ...metadata,
       uuid,
       fid: metadata.fid ?? FidGenerator.generate(metadata.title!),
-      owner: ctx.principal.email,
+      owner: metadata.owner ?? ctx.principal.email,
       group: metadata.group ?? ctx.principal.groups[0],
     });
 

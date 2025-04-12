@@ -1,0 +1,32 @@
+{
+  "imports": {
+    "adapters/": "./src/adapters/",
+    "api/": "./src/api/",
+    "application/": "./src/application/",
+    "domain/": "./src/domain/",
+    "setup/": "./src/setup/",
+    "shared/": "./src/shared/",
+
+    "bdd": "jsr:@std/testing/bdd",
+    "expect": "jsr:@std/expect",
+    "path": "jsr:@std/path",
+    "mock": "jsr:@std/testing/mock",
+
+    "@googleapis/drive": "npm:@googleapis/drive",
+    "@oak/oak": "jsr:@oak/oak",
+    "commander": "npm:commander",
+    "crypto": "npm:crypto",
+    "h3": "npm:h3",
+    "jose": "npm:jose",
+    "jsdom": "npm:jsdom",
+    "marked": "npm:marked",
+    "mongodb": "npm:mongodb",
+    "pouchdb": "npm:pouchdb",
+    "pouchdb-find": "npm:pouchdb-find",
+    "s3": "jsr:@hk/s3"
+  },
+  "tasks": {
+    "test-node-repository": "deno run -A ./src/adapters/run_node_repository_tests.ts",
+    "test-storage-provider": "deno run -A ./src/adapters/run_storage_provider_tests.ts"
+  }
+}

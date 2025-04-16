@@ -7,7 +7,6 @@ import { AntboxError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
 import { ValidationError } from "shared/validation_error.ts";
 import { InvalidFullNameFormatError } from "./invalid_fullname_format_error.ts";
-import { InvalidPasswordFormatError } from "./invalid_password_format_error.ts";
 import { UserGroupRequiredError } from "./user_group_required_error.ts";
 import { createHash } from "crypto";
 
@@ -49,8 +48,7 @@ export class UserNode extends Node {
     }
 
     if (metadata.secret) {
-      this.#validateSecretComplexity(metadata.secret);
-      this.#secret = UserNode.shaSum(this.#email.value, metadata.secret);
+      this.#secret = metadata.secret;
     }
 
     this.#validate();
@@ -73,8 +71,7 @@ export class UserNode extends Node {
 
     try {
       if (metadata.secret) {
-        this.#validateSecretComplexity(metadata.secret);
-        this.#secret = UserNode.shaSum(this.#email.value, metadata.secret);
+        this.#secret = metadata.secret;
       }
 
       this.#validate();
@@ -93,12 +90,6 @@ export class UserNode extends Node {
     }
 
     return emailOrErr.value;
-  }
-
-  #validateSecretComplexity(secret: string): void {
-    if (secret.length < 8) {
-      throw ValidationError.from(new InvalidPasswordFormatError());
-    }
   }
 
   #validate() {

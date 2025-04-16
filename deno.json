@@ -15,7 +15,7 @@
     "@googleapis/drive": "npm:@googleapis/drive",
     "@oak/oak": "jsr:@oak/oak",
     "commander": "npm:commander",
-    "crypto": "npm:crypto",
+    "crypto": "node:crypto",
     "h3": "npm:h3",
     "jose": "npm:jose",
     "jsdom": "npm:jsdom",
@@ -28,5 +28,13 @@
   "tasks": {
     "test-node-repository": "deno run -A ./src/adapters/run_node_repository_tests.ts",
     "test-storage-provider": "deno run -A ./src/adapters/run_storage_provider_tests.ts"
+  },
+
+  "fmt": {
+    "useTabs": true,
+    "lineWidth": 100,
+    "identWidth": 3,
+    "semiColons": true,
+    "singleQuote": false
   }
 }

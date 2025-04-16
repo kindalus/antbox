@@ -16,6 +16,10 @@ export function rootHandler(tenants: AntboxTenant[]): HttpHandler {
       const rootPasswd = tenant.rootPasswd;
       const digestedRootPasswd = await sha256(rootPasswd);
 
+      if (!req.body) {
+        return sendUnauthorized();
+      }
+
       const passwd = await readTextStream(req.body);
       if (passwd !== digestedRootPasswd) {
         return sendUnauthorized();

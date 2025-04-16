@@ -171,7 +171,9 @@ export class ArticleService {
       return [];
     }
 
-    const articles = nodesOrErrs.value.nodes.map((n) => nodeToArticle(n));
+    const articles = nodesOrErrs.value.nodes.map((n) =>
+      nodeToArticle(n as ArticleNode)
+    );
     return articles;
   }
 

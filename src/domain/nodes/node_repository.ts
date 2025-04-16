@@ -1,8 +1,8 @@
 import { type Either } from "shared/either.ts";
 import { type NodeFilter, type NodeFilters2D } from "./node_filter.ts";
-import { type NodeLike } from "./node_like.ts";
 import { NodeNotFoundError } from "./node_not_found_error.ts";
 import type { DuplicatedNodeError } from "./duplicated_node_error.ts";
+import { NodeLike } from "domain/node_like.ts";
 
 export interface NodeFilterResult {
   pageToken: number;

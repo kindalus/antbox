@@ -1,6 +1,5 @@
 import { describe, test } from "bdd";
-import { expect } from "expect";
-import { spy } from "mock";
+import { expect, fn } from "expect";
 import { NodeService } from "./node_service.ts";
 import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository.ts";
 import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider.ts";
@@ -14,6 +13,7 @@ import { FileNode } from "domain/nodes/file_node.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus.ts";
 import type { EventBus } from "shared/event_bus.ts";
+import { pid } from "node:process";
 
 describe("NodeService.delete", () => {
   test("should delete a node and its metadata", async () => {
@@ -26,12 +26,10 @@ describe("NodeService.delete", () => {
 
     // const bus: EventBus = new InMemoryEventBus();
     const bus: EventBus = {
-      publish: () => Promise.resolve(undefined),
+      publish: fn() as () => Promise<void>,
       subscribe: () => undefined,
       unsubscribe: () => undefined,
     };
-
-    const publishSpy = spy(bus, "publish");
 
     const repository = new InMemoryNodeRepository();
     await repository.add(node);

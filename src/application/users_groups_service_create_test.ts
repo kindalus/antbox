@@ -39,7 +39,7 @@ describe("UsersGroupsService.createUser", () => {
     await service.createUser(authCtx, {
       name: "The title",
       email: "duck@gmail.com",
-      groups: ["--admins--", "--admins--", "--users--", "--ultimate--"],
+      groups: ["--users--", "--admins--", "--admins--", "--ultimate--"],
     });
 
     const userOrErr = await service.getUser(authCtx, "duck@gmail.com");
@@ -47,9 +47,8 @@ describe("UsersGroupsService.createUser", () => {
     expect(userOrErr.isRight(), errToMsg(userOrErr.value)).toBeTruthy();
     expect(userOrErr.right.email).toBe("duck@gmail.com");
     expect(userOrErr.right.groups).toEqual([
-      "--users--",
-      "--ultimate--",
       "--admins--",
+      "--ultimate--",
     ]);
   });
 

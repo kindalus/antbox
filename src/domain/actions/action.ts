@@ -5,6 +5,7 @@ import { type Either, left, right } from "shared/either.ts";
 import { ActionNode } from "./action_node.ts";
 import { type RunContext } from "./run_context.ts";
 import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
+import { Nodes } from "domain/nodes/nodes.ts";
 
 /**
  * Regras das actions:
@@ -63,15 +64,14 @@ export async function fileToAction(
   }
 }
 
-export function actionToNode(
-  ctx: AuthenticationContext,
+export function actionToNodeMetadata(
   action: Action,
-):  ActionNode {
-  return ActionNode.create({
+  owner?: string,
+): NodeMetadata {
+  return {
     uuid: action.uuid,
     title: action.title,
     description: action.description,
-    owner: ctx.principal.email,
     runOnCreates: action.runOnCreates,
     runOnUpdates: action.runOnUpdates,
     runManually: action.runManually,
@@ -79,7 +79,9 @@ export function actionToNode(
     params: action.params,
     filters: action.filters,
     groupsAllowed: action.groupsAllowed,
-  }).right;
+    mimetype: Nodes.ACTION_MIMETYPE,
+    owner: owner || undefined,
+  } as NodeMetadata;
 }
 
 export function actionNodeToNodeMetadata(action: ActionNode): NodeMetadata {

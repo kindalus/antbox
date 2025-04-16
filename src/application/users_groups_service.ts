@@ -31,6 +31,8 @@ import {
   userToNode,
 } from "./users_groups_dto.ts";
 import type { UsersGroupsContext } from "./users_groups_service_context.ts";
+import { InvalidSecretFormatError as InvalidSecretFormatError } from "domain/users_groups/invalid_secret_format_error.ts";
+import { NodeMetadata } from "domain/nodes/node_metadata.ts";
 
 export class UsersGroupsService {
   static elevatedContext: AuthenticationContext = {
@@ -44,21 +46,29 @@ export class UsersGroupsService {
 
   constructor(private readonly context: UsersGroupsContext) {}
 
-  static elevatedContext(tenant?: string): AuthenticationContext {
-    return {
-      mode: "Direct",
-      tenant: tenant ?? "default",
-      principal: {
-        email: Users.ROOT_USER_EMAIL,
-        groups: [Groups.ADMINS_GROUP_UUID],
-      },
-    };
+  #validateSecretComplexity(
+    secret: string,
+  ): Either<InvalidSecretFormatError, void> {
+    if (secret.length < 8) {
+      return left(ValidationError.from(new InvalidSecretFormatError()));
+    }
+
+    return right(undefined);
   }
 
   async createUser(
     ctx: AuthenticationContext,
     metadata: Partial<UserDTO>,
   ): Promise<Either<AntboxError, UserDTO>> {
+    const validSecretOrErr: Either<InvalidSecretFormatError, void> =
+      metadata.secret
+        ? this.#validateSecretComplexity(metadata.secret)
+        : right(undefined);
+
+    if (validSecretOrErr.isLeft()) {
+      return left(validSecretOrErr.value);
+    }
+
     const existingOrErr = await this.getUser(ctx, metadata.email!);
     if (existingOrErr.isRight()) {
       return left(ValidationError.from(new UserExistsError(metadata.email!)));
@@ -70,7 +80,7 @@ export class UsersGroupsService {
       ...metadata,
       title: metadata.name,
       owner: ctx.principal.email,
-      secret: metadata.secret,
+      secret: UserNode.shaSum(metadata.email ?? "", metadata.secret ?? ""),
       group: Array.from(groups)[0],
       groups: Array.from(groups).slice(1),
     });
@@ -125,7 +135,7 @@ export class UsersGroupsService {
       return left(new UserNotFoundError(email));
     }
 
-    const node = result.nodes[0];
+    const node = result.nodes[0] as UserNode;
 
     if (node.email === ctx.principal.email) {
       return right(nodeToUser(node));
@@ -140,7 +150,7 @@ export class UsersGroupsService {
     email: string,
     password: string,
   ): Promise<Either<AntboxError, UserDTO>> {
-    const hash = await UserNode.shaSum(email, password);
+    const hash = UserNode.shaSum(email, password);
 
     const result = await this.context.repository.filter([[
       "secret",
@@ -152,7 +162,7 @@ export class UsersGroupsService {
       return left(new InvalidCredentialsError());
     }
 
-    return right(nodeToUser(result.nodes[0]));
+    return right(nodeToUser(result.nodes[0] as UserNode));
   }
 
   async updateUser(
@@ -173,7 +183,22 @@ export class UsersGroupsService {
 
     const user = userToNode(ctx, existingOrErr.value);
 
-    const updateResultOrErr = user.update(metadata);
+    const { name, group, groups } = metadata;
+    const newMetadata: Partial<NodeMetadata> = {};
+
+    if (name) {
+      newMetadata.title = name;
+    }
+
+    if (group) {
+      newMetadata.group = group;
+    }
+
+    if (groups) {
+      newMetadata.groups = [...groups];
+    }
+
+    const updateResultOrErr = user.update(newMetadata);
     if (updateResultOrErr.isLeft()) {
       return left(updateResultOrErr.value);
     }
@@ -213,7 +238,7 @@ export class UsersGroupsService {
       Number.MAX_SAFE_INTEGER,
     );
 
-    const users = usersOrErr.nodes.map(nodeToUser);
+    const users = (usersOrErr.nodes as UserNode[]).map(nodeToUser);
     const sytemUsers = builtinUsers.map(nodeToUser);
 
     return right(
@@ -221,15 +246,26 @@ export class UsersGroupsService {
     );
   }
 
-  async #hasAdminGroup(ctx: AuthenticationContext): Promise<boolean> {
-    return ctx.principal.groups.includes(Groups.ADMINS_GROUP_UUID);
+  #hasAdminGroup(ctx: AuthenticationContext): Promise<boolean> {
+    return Promise.resolve(
+      ctx.principal.groups.includes(Groups.ADMINS_GROUP_UUID),
+    );
   }
 
-  async changePassword(
+  async changeSecret(
     ctx: AuthenticationContext,
     email: string,
-    password: string,
+    secret: string,
   ): Promise<Either<AntboxError, void>> {
+    const validSecretOrErr = this.#validateSecretComplexity(secret);
+    if (validSecretOrErr.isLeft()) {
+      return left(validSecretOrErr.value);
+    }
+
+    if (validSecretOrErr.isLeft()) {
+      return left(validSecretOrErr.value);
+    }
+
     const existingOrErr = await this.getUser(ctx, email);
     if (existingOrErr.isLeft()) {
       return left(existingOrErr.value);
@@ -237,7 +273,9 @@ export class UsersGroupsService {
 
     const user = userToNode(ctx, existingOrErr.value);
 
-    const updateResult = user.update({ secret: password });
+    const updateResult = user.update({
+      secret: UserNode.shaSum(email, secret),
+    });
     if (updateResult.isLeft()) {
       return left(updateResult.value);
     }

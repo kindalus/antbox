@@ -87,6 +87,11 @@ export function FileNodeMixin<TBase extends Constructor>(Base: TBase) {
         size: this.#size,
       };
     }
+
+    update(metadata: Partial<NodeMetadata>): Either<ValidationError, void> {
+      this.#size = metadata.size ?? this.#size;
+      return super.update(metadata);
+    }
   };
 }
 

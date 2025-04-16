@@ -1,7 +1,6 @@
 import { ApiKeyNode } from "domain/api_keys/api_key_node.ts";
 import { ApiKeyNodeFoundError } from "domain/api_keys/api_key_node_found_error.ts";
 import { Folders } from "domain/nodes/folders.ts";
-import type { NodeRepository } from "domain/nodes/node_repository.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import { AntboxError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
@@ -10,12 +9,13 @@ import { type AuthenticationContext } from "./authentication_context.ts";
 import { builtinGroups } from "./builtin_groups/index.ts";
 import { NodeService } from "./node_service.ts";
 import { UsersGroupsService } from "application/users_groups_service.ts";
+import { UuidGenerator } from "shared/uuid_generator.ts";
+import { NodeMetadata } from "domain/nodes/node_metadata.ts";
 
 export class ApiKeyService {
   readonly #nodeService: NodeService;
 
   constructor(
-    readonly nodeRepository: NodeRepository,
     nodeService: NodeService,
   ) {
     this.#nodeService = nodeService;
@@ -23,31 +23,34 @@ export class ApiKeyService {
 
   async create(
     ctx: AuthenticationContext,
-    metadata: ApiKeyDTO,
+    group: string,
+    description?: string,
   ): Promise<Either<AntboxError, ApiKeyDTO>> {
-    const builtinGroup = builtinGroups.find((g) => g.uuid === metadata.group);
+    const builtinGroup = builtinGroups.find((g) => g.uuid === group);
 
-    const groupsOrErr = await this.#nodeService.get(ctx, metadata.group);
+    const groupsOrErr = await this.#nodeService.get(ctx, group);
     if (groupsOrErr.isLeft() && !builtinGroup) {
       return left(groupsOrErr.value);
     }
 
-    const apiKeyOrErr = ApiKeyNode.create({
-      ...metadata,
-      owner: metadata.owner ?? ctx.principal.email,
-    });
+    const metadata: Partial<NodeMetadata> = {
+      secret: UuidGenerator.generate().concat(UuidGenerator.generate()),
+      group,
+      mimetype: Nodes.API_KEY_MIMETYPE,
+      parent: Folders.API_KEYS_FOLDER_UUID,
+    };
+
+    if (description) {
+      metadata.description = description;
+    }
+
+    const apiKeyOrErr = await this.#nodeService.create(ctx, metadata);
+
     if (apiKeyOrErr.isLeft()) {
       return left(apiKeyOrErr.value);
     }
 
-    const apiKey = apiKeyOrErr.value;
-
-    const voidOrErr = await this.nodeRepository.add(apiKey);
-    if (voidOrErr.isLeft()) {
-      return left(voidOrErr.value);
-    }
-
-    return right(nodeToApiKey(apiKey));
+    return right(nodeToApiKey(apiKeyOrErr.value as ApiKeyNode));
   }
 
   async get(uuid: string): Promise<Either<AntboxError, ApiKeyDTO>> {
@@ -83,16 +86,7 @@ export class ApiKeyService {
       return left(new ApiKeyNodeFoundError(secret));
     }
 
-    const matchingNode = nodesOrErr.right.nodes.find((node) => {
-      if (!node.secret) return false;
-      return ApiKeyNode.isSecureKey(secret);
-    });
-
-    if (!matchingNode) {
-      return left(new ApiKeyNodeFoundError(secret));
-    }
-
-    return this.get(matchingNode.uuid);
+    return this.get(nodesOrErr.right.nodes[0].uuid);
   }
 
   async list(ctx: AuthenticationContext): Promise<ApiKeyDTO[]> {

@@ -1,6 +1,7 @@
 import { UserNode } from "domain/users_groups/user_node.ts";
 import type { AuthenticationContext } from "./authentication_context.ts";
 import { GroupNode } from "domain/users_groups/group_node.ts";
+import { log } from "node:console";
 
 export interface UserDTO {
   uuid?: string;
@@ -39,8 +40,8 @@ export function userToNode(
     email: metadata.email,
     owner: ctx.principal.email,
     secret: metadata.secret,
-    group: Array.from(groups)[0],
-    groups: Array.from(groups).slice(1),
+    group: metadata.group,
+    groups: Array.from(groups),
   }).right;
 }
 

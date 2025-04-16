@@ -14,6 +14,7 @@ import { SmartFolderNodeNotFoundError } from "domain/nodes/smart_folder_node_not
 import type { NodeFilters1D, NodeFilters2D } from "domain/nodes/node_filter.ts";
 import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus.ts";
 import type { AspectProperties } from "domain/aspects/aspect_node.ts";
+import { AspectableNode } from "domain/node_like.ts";
 
 const nodeService = (opts: Partial<NodeServiceContext> = {}) => {
   const service = new NodeService({
@@ -77,7 +78,11 @@ describe("NodeService.find", () => {
 
     expect(result.isRight(), errToMsg(result.value)).toBeTruthy();
     expect(result.right.nodes.length).toBe(5);
-    expect(result.right.nodes.every((n) => n.aspects?.includes("ope")))
+    expect(
+      result.right.nodes.every((n) =>
+        (n as AspectableNode).aspects?.includes("ope")
+      ),
+    )
       .toBeTruthy();
   });
 
@@ -92,7 +97,9 @@ describe("NodeService.find", () => {
     expect(result.isRight(), errToMsg(result.value)).toBeTruthy();
     expect(result.right.nodes.length).toBe(8);
     expect(
-      result.right.nodes.some((n) => n.aspects?.includes("posicao-financeira")),
+      result.right.nodes.some((n) =>
+        (n as AspectableNode).aspects?.includes("posicao-financeira")
+      ),
     ).toBeTruthy();
     expect(result.right.nodes.some((n) => n.parent === "contabilidade-uuid"))
       .toBeTruthy();

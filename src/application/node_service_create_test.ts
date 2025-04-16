@@ -8,13 +8,13 @@ import { FolderNode } from "domain/nodes/folder_node.ts";
 import type { FileLikeNode } from "domain/node_like.ts";
 import { Folders } from "domain/nodes/folders.ts";
 import { BadRequestError } from "shared/antbox_error.ts";
-import { ADMINS_GROUP } from "./builtin_groups.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import type { Permissions } from "domain/nodes/node.ts";
 import { ValidationError } from "shared/validation_error.ts";
 import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus.ts";
 import type { NodeServiceContext } from "./node_service_context.ts";
 import type { AspectProperties } from "domain/aspects/aspect_node.ts";
+import { ADMINS_GROUP } from "application/builtin_groups/index.ts";
 
 describe("NodeService.create", () => {
   test("should create a node and persist the metadata", async () => {

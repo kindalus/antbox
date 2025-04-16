@@ -1,6 +1,6 @@
 import {
   type Action,
-  actionToNode,
+  actionToNodeMetadata,
   fileToAction,
 } from "domain/actions/action.ts";
 import { ActionNode } from "domain/actions/action_node.ts";
@@ -25,6 +25,7 @@ import type { RunContext } from "domain/actions/run_context.ts";
 import { builtinActions } from "./builtin_actions/index.ts";
 import type { NodeFilter } from "domain/nodes/node_filter.ts";
 import { NodeLike } from "domain/node_like.ts";
+import { Users } from "domain/users_groups/users.ts";
 
 type RecordKey = [string, string];
 interface RunnableRecord {
@@ -67,7 +68,10 @@ export class ActionService {
     const found = builtinActions.find((a) => a.uuid === uuid);
 
     if (found) {
-      return right(actionToNode(found).right);
+      return right(
+        ActionNode.create(actionToNodeMetadata(found, Users.ROOT_USER_EMAIL))
+          .right,
+      );
     }
 
     const nodeOrErr = await this.nodeService.get(ctx, uuid);
@@ -101,7 +105,9 @@ export class ActionService {
 
     const nodes = [
       ...(nodesOrErrs.value.nodes as ActionNode[]),
-      ...builtinActions.map((a) => actionToNode(a).right),
+      ...builtinActions.map((a) =>
+        ActionNode.create(actionToNodeMetadata(a, Users.ROOT_USER_EMAIL)).right
+      ),
     ].sort((a, b) => a.title.localeCompare(b.title));
 
     return right(nodes);
@@ -118,36 +124,30 @@ export class ActionService {
     }
 
     const action = actionOrErr.value;
+    const metadata = actionToNodeMetadata(action);
 
     const nodeOrErr = await this.nodeService.get(ctx, action.uuid);
     if (nodeOrErr.isLeft()) {
-      ActionNode.create({
-        ...action,
-        uuid: action.uuid,
-        fid: action.uuid,
-        title: action.title,
-        description: action.description,
-      });
-
-      return this.nodeService.createFile(ctx, file, nodeOrErr.right);
+      return this.nodeService.createFile(ctx, file, metadata);
     }
 
-    const actionNode = actionToNode(action).right;
-
-    const decoratedFile = new File([file], nodeOrErr.value.title, {
-      type: nodeOrErr.value.mimetype,
-    });
+    const decoratedFile = new File(
+      [file],
+      metadata.title ?? nodeOrErr.value.title,
+      { type: nodeOrErr.value.mimetype },
+    );
 
     let voidOrErr = await this.nodeService.updateFile(
       ctx,
       action.uuid,
       decoratedFile,
     );
+
     if (voidOrErr.isLeft()) {
       return left<AntboxError, Node>(voidOrErr.value);
     }
 
-    voidOrErr = await this.nodeService.update(ctx, action.uuid, actionNode);
+    voidOrErr = await this.nodeService.update(ctx, action.uuid, metadata);
     if (voidOrErr.isLeft()) {
       return left<AntboxError, Node>(voidOrErr.value);
     }
@@ -256,7 +256,7 @@ export class ActionService {
   ): Promise<Either<AntboxError, File>> {
     const builtIn = builtinActions.find((a) => a.uuid === uuid);
     if (builtIn) {
-      const file = new File([builtIn.toString()], builtIn.title, {
+      const file = new File([builtIn.toString()], builtIn.title.concat(".js"), {
         type: "application/javascript",
       });
       return right(file);

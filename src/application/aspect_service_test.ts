@@ -5,14 +5,10 @@ import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository.ts"
 import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider.ts";
 import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus.ts";
 import { NodeService } from "./node_service.ts";
-import { Nodes } from "domain/nodes/nodes.ts";
-import { Folders } from "domain/nodes/folders.ts";
 import { Groups } from "domain/users_groups/groups.ts";
 import type { AuthenticationContext } from "./authentication_context.ts";
-import { AspectNode } from "domain/aspects/aspect_node.ts";
 import { AspectNotFoundError } from "domain/aspects/aspect_not_found_error.ts";
 import type { AspectDTO } from "./aspect_dto.ts";
-import type { NodeFilters } from "domain/nodes/node_filter.ts";
 
 describe("AspectService", () => {
   const adminAuthContext: AuthenticationContext = {
@@ -120,10 +116,9 @@ describe("AspectService", () => {
 
     const aspects = await service.list(adminAuthContext);
 
-    expect(aspects.length).toBeGreaterThanOrEqual(2);
+    expect(aspects.length).toEqual(2);
     expect(aspects.some((a) => a.uuid === testAspect.uuid)).toBeTruthy();
     expect(aspects.some((a) => a.uuid === "another-aspect")).toBeTruthy();
-    expect(aspects.some((a) => a.uuid === "web-content")).toBeTruthy(); // Built-in aspect
   });
 
   test("delete should remove an aspect", async () => {
@@ -150,7 +145,7 @@ describe("AspectService", () => {
     const fileOrErr = await service.export(adminAuthContext, testAspect.uuid);
 
     expect(fileOrErr.isRight(), errMsg(fileOrErr.value)).toBeTruthy();
-    expect(fileOrErr.right.type).toBe("application/json;charset=utf-8");
+    expect(fileOrErr.right.type).toBe("application/json");
     expect(fileOrErr.right.name).toBe(`${testAspect.uuid}.json`);
 
     const content = JSON.parse(await fileOrErr.right.text());

@@ -11,4 +11,13 @@ export const ADMINS_GROUP: GroupNode = GroupNode.create({
   group: Groups.ADMINS_GROUP_UUID,
 }).right;
 
-export const builtinGroups: GroupNode[] = [ADMINS_GROUP];
+export const ANONYMOUS_GROUP: GroupNode = GroupNode.create({
+  uuid: Groups.ANONYMOUS_GROUP_UUID,
+  fid: Groups.ANONYMOUS_GROUP_UUID,
+  title: "Anonymous",
+  description: "Anonymous",
+  owner: Users.ROOT_USER_EMAIL,
+  group: Groups.ANONYMOUS_GROUP_UUID,
+}).right;
+
+export const builtinGroups: GroupNode[] = [ADMINS_GROUP, ANONYMOUS_GROUP];

@@ -105,7 +105,7 @@ export class NodeService {
     const nodeOrErr = NodeFactory.from({
       ...metadata,
       uuid,
-      fid: metadata.fid ?? FidGenerator.generate(metadata.title!),
+      fid: metadata.fid ?? FidGenerator.generate(metadata.title ?? ""),
       owner: metadata.owner ?? ctx.principal.email,
       group: metadata.group ?? ctx.principal.groups[0],
     });
@@ -334,9 +334,17 @@ export class NodeService {
     }
 
     const type = this.#mapAntboxMimetypes(nodeOrErr.value.mimetype);
-    const file = new File([fileOrErr.value], nodeOrErr.value.title, { type });
+    if (Nodes.isAction(nodeOrErr.value)) {
+      return right(
+        new File([fileOrErr.value], nodeOrErr.value.title.concat(".js"), {
+          type,
+        }),
+      );
+    }
 
-    return right(file);
+    return right(
+      new File([fileOrErr.value], nodeOrErr.value.title, { type }),
+    );
   }
 
   async evaluate(
@@ -469,7 +477,7 @@ export class NodeService {
   async update(
     ctx: AuthenticationContext,
     uuid: string,
-    data: Partial<NodeMetadata>,
+    metadata: Partial<NodeMetadata>,
   ): Promise<Either<NodeNotFoundError, void>> {
     let nodeOrErr = await this.get(ctx, uuid);
     if (nodeOrErr.isLeft()) {
@@ -498,14 +506,14 @@ export class NodeService {
     if (Nodes.isFileLike(nodeOrErr.value)) {
       nodeOrErr = NodeFactory.from({
         ...nodeOrErr.value.metadata,
-        size: data.size,
+        size: metadata.size,
       });
       if (nodeOrErr.isLeft()) {
         return left(nodeOrErr.value);
       }
     }
 
-    const voidOrErr = nodeOrErr.value.update(data);
+    const voidOrErr = nodeOrErr.value.update(metadata);
     if (voidOrErr.isLeft()) {
       return left(voidOrErr.value);
     }
@@ -547,7 +555,7 @@ export class NodeService {
       return left(new NodeNotFoundError(uuid));
     }
 
-    if (nodeOrErr.value.mimetype !== file.type) {
+    if (this.#mapAntboxMimetypes(nodeOrErr.value.mimetype) !== file.type) {
       return left(new BadRequestError("Mimetype mismatch"));
     }
 

@@ -1,4 +1,4 @@
-import type { ApiKeyNode } from "domain/api_keys/api_key_node";
+import type { ApiKeyNode } from "domain/api_keys/api_key_node.ts";
 
 export interface ApiKeyDTO {
   uuid?: string;

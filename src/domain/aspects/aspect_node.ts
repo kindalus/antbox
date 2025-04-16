@@ -19,8 +19,8 @@ export class AspectNode extends Node {
     }
   }
 
-  filters: NodeFilters;
-  properties: AspectProperties;
+  #filters: NodeFilters;
+  #properties: AspectProperties;
 
   private constructor(metadata: Partial<NodeMetadata> = {}) {
     super({
@@ -29,22 +29,30 @@ export class AspectNode extends Node {
       parent: Folders.ASPECTS_FOLDER_UUID,
     });
 
-    this.filters = metadata.filters ?? [];
-    this.properties = (metadata.properties as AspectProperty[]) ?? [];
+    this.#filters = metadata.filters ?? [];
+    this.#properties = (metadata.properties as AspectProperty[]) ?? [];
   }
 
   override update(
     metadata: Partial<NodeMetadata>,
   ): Either<ValidationError, void> {
     if (metadata.filters) {
-      this.filters = metadata.filters;
+      this.#filters = metadata.filters;
     }
 
     if (metadata.properties && metadata.properties.pop) {
-      this.properties = metadata.properties as AspectProperties;
+      this.#properties = metadata.properties as AspectProperties;
     }
 
     return super.update(metadata);
+  }
+
+  get properties(): AspectProperties {
+    return this.#properties;
+  }
+
+  get filters(): NodeFilters {
+    return this.#filters;
   }
 }
 

@@ -27,20 +27,14 @@ describe("UsersGroupsService.updateUser", () => {
     const voidOrErr = await service.updateUser(
       authCtx,
       createdUserOrErr.right.email,
-      {
-        name: "James",
-      },
+      { name: "James" },
     );
 
     expect(voidOrErr.isRight(), errToMsg(voidOrErr.value)).toBeTruthy();
 
-    const updatedUserOrErr = await service.getUser(
-      authCtx,
-      createdUserOrErr.right.email!,
-    );
-    expect(updatedUserOrErr.isRight(), errToMsg(updatedUserOrErr.value))
-      .toBeTruthy();
-    expect(updatedUserOrErr.right.name).toBe("The Name");
+    const updated =
+      (await service.getUser(authCtx, createdUserOrErr.right.email!)).right;
+    expect(updated.name).toBe("James");
   });
 
   test("should not update email", async () => {
@@ -122,7 +116,7 @@ describe("UsersGroupsService.changePassword", () => {
     });
     const sha = UserNode.shaSum("care@gmail.com", "the-new-password");
 
-    await service.changePassword(authCtx, "care@gmail.com", "the-new-password");
+    await service.changeSecret(authCtx, "care@gmail.com", "the-new-password");
 
     const updatedUserOrErr = await service.getUser(
       authCtx,
@@ -137,7 +131,7 @@ describe("UsersGroupsService.changePassword", () => {
   test("should return error if user not found", async () => {
     const service = usersGroupsService();
 
-    const voidOrErr = await service.changePassword(
+    const voidOrErr = await service.changeSecret(
       authCtx,
       "any-user-uuid",
       "the-new-password",
@@ -178,12 +172,12 @@ describe("UsersGroupsService.updateGroup", () => {
   test("should return error if group not found", async () => {
     const service = usersGroupsService();
 
-    await service.createUser(authCtx, {
+    (await service.createUser(authCtx, {
       name: "The title",
       uuid: "doily-uuid",
       email: "doily@gmail.com",
       groups: ["--users--"],
-    });
+    })).right;
 
     const voidOrErr = await service.updateGroup(authCtx, "doily-uuid", {
       title: "The title",

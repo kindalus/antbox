@@ -266,7 +266,7 @@ describe("ArticleService", () => {
     const fileOrErr = await service.export(adminAuthContext, articleDummy.uuid);
 
     expect(fileOrErr.isRight(), errMsg(fileOrErr.value)).toBeTruthy();
-    expect(fileOrErr.right.type).toBe("application/json;charset=utf-8");
+    expect(fileOrErr.right.type).toBe("application/json");
     expect(fileOrErr.right.name).toBe(`${articleDummy.uuid}.json`);
 
     const content = JSON.parse(await fileOrErr.right.text());

@@ -103,7 +103,9 @@ export class AspectService {
       return [];
     }
 
-    const usersAspects = nodesOrErrs.value.nodes.map(nodeToAspect)
+    const usersAspects = nodesOrErrs.value.nodes.map((n) =>
+      nodeToAspect(n as AspectNode)
+    )
       .sort((a, b) => a.title.localeCompare(b.title));
 
     // return [...usersAspects, ...builtinAspects].sort((a, b) =>

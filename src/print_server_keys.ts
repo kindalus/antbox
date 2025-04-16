@@ -1,6 +1,7 @@
 import { ROOT_PASSWD, SYMMETRIC_KEY } from "setup/server_defaults.ts";
+import { fileExistsSync, readFileSync } from "shared/os_helpers.ts";
 
-export async function printServerKeys(opts?: {
+export function printServerKeys(opts?: {
   passwd?: string;
   symmetricKey?: string;
   jwkPath?: string;
@@ -9,11 +10,11 @@ export async function printServerKeys(opts?: {
 
   console.log("Symmetric Key:\t", opts?.symmetricKey ?? SYMMETRIC_KEY);
 
-  const file = Bun.file(opts?.jwkPath ?? "");
-  if (!file.exists) {
+  const path = opts?.jwkPath ?? "";
+  if (!fileExistsSync(opts?.jwkPath ?? "")) {
     console.error("JWK file not found");
-    process.exit(-1);
+    Deno.exit(-1);
   }
 
-  console.log("JSON Web Key:\t", JSON.stringify(await file.json(), null, 4));
+  console.log("JSON Web Key:\t", JSON.stringify(readFileSync(path), null, 4));
 }

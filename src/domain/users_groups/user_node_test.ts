@@ -5,7 +5,7 @@ import { Nodes } from "domain/nodes/nodes.ts";
 import { PropertyRequiredError } from "domain/nodes/property_errors.ts";
 import { ValidationError } from "shared/validation_error.ts";
 import { InvalidFullNameFormatError } from "./invalid_fullname_format_error.ts";
-import { InvalidPasswordFormatError } from "./invalid_password_format_error.ts";
+import { InvalidSecretFormatError } from "./invalid_secret_format_error.ts";
 import { UserGroupRequiredError } from "./user_group_required_error.ts";
 import { UserNode } from "./user_node.ts";
 
@@ -41,7 +41,7 @@ test("UserNode.create should throw error if secret has not the correct format", 
   expect(createResult.isLeft()).toBe(true);
   expect(createResult.value).toBeInstanceOf(ValidationError);
   expect((createResult.value as ValidationError).errors[0]).toBeInstanceOf(
-    InvalidPasswordFormatError,
+    InvalidSecretFormatError,
   );
 });
 
@@ -134,7 +134,7 @@ test("UserNode.update should throw error if new secret is invalid", async () => 
   expect(updateResult.isLeft()).toBe(true);
   expect(updateResult.value).toBeInstanceOf(ValidationError);
   expect((updateResult.value as ValidationError).errors[0]).toBeInstanceOf(
-    InvalidPasswordFormatError,
+    InvalidSecretFormatError,
   );
 });
 

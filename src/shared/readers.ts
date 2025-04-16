@@ -1,6 +1,6 @@
-export async function readTextStream(readableStream) {
+export async function readTextStream(stream: ReadableStream) {
   const decoder = new TextDecoder();
-  const reader = readableStream.getReader();
+  const reader = stream.getReader();
 
   while (true) {
     const { done, value } = await reader.read();
@@ -13,8 +13,8 @@ export async function readTextStream(readableStream) {
   }
 }
 
-export async function readJsonStream(readableStream) {
-  const reader = readableStream.getReader();
+export async function readJsonStream(stream: ReadableStream) {
+  const reader = stream.getReader();
   const decoder = new TextDecoder();
   let accumulatedText = "";
 

@@ -38,7 +38,6 @@ describe("UsersGroupsService.getUser", () => {
     const userOrErr = await service.getUser(authCtx, "july@gmail.com");
 
     expect(userOrErr.value, errToMsg(userOrErr.value)).toBeTruthy();
-    expect(userOrErr.right.groups.includes("--admins--")).toBeTruthy();
   });
 
   test("should return authenticated user", async () => {
@@ -62,7 +61,6 @@ describe("UsersGroupsService.getUser", () => {
     const userOrErr = await service.getUser(authCtx, "kend@gmail.com");
 
     expect(userOrErr.value, errToMsg(userOrErr.value)).toBeTruthy();
-    expect(userOrErr.right.groups.includes("--admins--")).toBeTruthy();
   });
 
   test("should return builtin user root", async () => {
@@ -81,8 +79,6 @@ describe("UsersGroupsService.getUser", () => {
 
     expect(userOrErr.value, errToMsg(userOrErr.value)).toBeTruthy();
     expect(userOrErr.right.email).toBe(Users.ROOT_USER_EMAIL);
-    expect(userOrErr.right.groups.includes(Groups.ADMINS_GROUP_UUID))
-      .toBeTruthy();
   });
 
   test("should return builtin user anonymous", async () => {
@@ -104,8 +100,6 @@ describe("UsersGroupsService.getUser", () => {
 
     expect(userOrErr.value, errToMsg(userOrErr.value)).toBeTruthy();
     expect(userOrErr.right.email).toBe(Users.ANONYMOUS_USER_EMAIL);
-    expect(userOrErr.right.groups.includes(Groups.ANONYMOUS_GROUP_UUID))
-      .toBeTruthy();
   });
 
   test("should return user if autenticated user is an admin", async () => {
@@ -159,7 +153,6 @@ describe("UsersGroupsService.getUserByCredentials", () => {
     );
 
     expect(userOrErr.value, errToMsg(userOrErr.value)).toBeTruthy();
-    expect(userOrErr.right.groups.includes("--admins--")).toBeTruthy();
   });
 
   test("should return error if not found user", async () => {

@@ -1,6 +1,4 @@
 import { ActionNode } from "domain/actions/action_node.ts";
-import { ApiKeyNode } from "domain/api_keys/api_key_node.ts";
-import { ArticleNode } from "domain/articles/article_node.ts";
 import { AspectNode } from "domain/aspects/aspect_node.ts";
 import { GroupNode } from "domain/users_groups/group_node.ts";
 import { UserNode } from "domain/users_groups/user_node.ts";
@@ -10,6 +8,8 @@ import { FolderNode } from "./folder_node.ts";
 import { MetaNode } from "./meta_node.ts";
 import { SmartFolderNode } from "./smart_folder_node.ts";
 import type { NodeLike } from "domain/node_like.ts";
+import { ArticleNode } from "domain/articles/article_node.ts";
+import { ApiKeyNode } from "domain/api_keys/api_key_node.ts";
 
 export class Nodes {
   static FID_PREFIX = "--fid--";
@@ -43,7 +43,9 @@ export class Nodes {
   }
 
   static uuidToFid(fid: string): string {
-    return fid?.startsWith(Nodes.FID_PREFIX) ? fid.substring(Nodes.FID_PREFIX.length) : fid;
+    return fid?.startsWith(Nodes.FID_PREFIX)
+      ? fid.substring(Nodes.FID_PREFIX.length)
+      : fid;
   }
 
   static isFolder(node: NodeLike): node is FolderNode {
@@ -87,7 +89,8 @@ export class Nodes {
   }
 
   static isJavascript(file: File) {
-    return file.type.startsWith("application/javascript") || file.type.startsWith("text/javascript");
+    return file.type.startsWith("application/javascript") ||
+      file.type.startsWith("text/javascript");
   }
 
   static isFile(node: NodeLike): node is FileNode {
@@ -98,8 +101,11 @@ export class Nodes {
     return Nodes.isMetaNode(node) || Nodes.isFile(node) || Nodes.isFolder(node);
   }
 
-  static isFileLike(node: NodeLike): node is FileNode | ExtNode | ActionNode | ArticleNode{
-    return Nodes.isFile(node) || Nodes.isExt(node) || Nodes.isAction(node) ||  Nodes.isArticle(node);
+  static isFileLike(
+    node: NodeLike,
+  ): node is FileNode | ExtNode | ActionNode | ArticleNode {
+    return Nodes.isFile(node) || Nodes.isExt(node) || Nodes.isAction(node) ||
+      Nodes.isArticle(node);
   }
 
   static isTextPlain(node: NodeLike) {

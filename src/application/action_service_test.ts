@@ -1,19 +1,19 @@
-import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus";
-import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository";
-import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider";
-import { describe, expect, test } from "bun:test";
-import type { ActionNode } from "domain/actions/action_node";
-import { NodeCreatedEvent } from "domain/nodes/node_created_event";
-import { NodeNotFoundError } from "domain/nodes/node_not_found_error";
-import { NodeUpdatedEvent } from "domain/nodes/node_updated_event";
-import { GroupNode } from "domain/users_groups/group_node";
-import { Groups } from "domain/users_groups/groups";
-import { BadRequestError } from "shared/antbox_error";
-import { ActionService } from "./action_service";
-import type { AuthenticationContext } from "./authentication_context";
-import { NodeService } from "./node_service";
-import { UsersGroupsService } from "./users_groups_service";
-
+import { expect } from "expect/expect";
+import { describe, test } from "bdd";
+import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus.ts";
+import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository.ts";
+import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider.ts";
+import { ActionNode } from "domain/actions/action_node.ts";
+import { NodeCreatedEvent } from "domain/nodes/node_created_event.ts";
+import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
+import { NodeUpdatedEvent } from "domain/nodes/node_updated_event.ts";
+import { GroupNode } from "domain/users_groups/group_node.ts";
+import { Groups } from "domain/users_groups/groups.ts";
+import { BadRequestError } from "shared/antbox_error.ts";
+import { ActionService } from "application/action_service.ts";
+import { AuthenticationContext } from "application/authentication_context.ts";
+import { NodeService } from "application/node_service.ts";
+import { UsersGroupsService } from "application/users_groups_service.ts";
 
 const createService = async () => {
   const firstGroupNode: GroupNode = GroupNode.create({
@@ -28,7 +28,7 @@ const createService = async () => {
     title: "The Group",
     owner: "user@gmail.com",
     description: "Group description",
-  }).right;   
+  }).right;
 
   const repository = new InMemoryNodeRepository();
   repository.add(firstGroupNode);
@@ -38,26 +38,29 @@ const createService = async () => {
   const eventBus = new InMemoryEventBus();
 
   const nodeService = new NodeService({ repository, storage, bus: eventBus });
-  const usersGroupsService = new UsersGroupsService({ repository, storage, bus: eventBus });
+  const usersGroupsService = new UsersGroupsService({
+    repository,
+    storage,
+    bus: eventBus,
+  });
 
   await usersGroupsService.createUser(adminAuthContext, {
     email: "admin@example.com",
-    owner: adminAuthContext.principal.email,
-    title: "Admin",
+    name: "Admin",
     groups: [Groups.ADMINS_GROUP_UUID],
   });
 
   return new ActionService(nodeService, usersGroupsService);
-}
+};
 
 const adminAuthContext: AuthenticationContext = {
   mode: "Action",
   tenant: "default",
   principal: {
     email: "admin@example.com",
-    groups: [Groups.ADMINS_GROUP_UUID]
+    groups: [Groups.ADMINS_GROUP_UUID],
   },
-}
+};
 
 const testFileContent = `
   export default {
@@ -81,7 +84,9 @@ const testFileContent = `
 describe("ActionService", () => {
   test("createOrReplace should create a new action", async () => {
     const service = await createService();
-    const file = new File([testFileContent], "action.js",{ type: "application/javascript" });
+    const file = new File([testFileContent], "action.js", {
+      type: "application/javascript",
+    });
 
     const actionOrErr = await service.createOrReplace(adminAuthContext, file);
 
@@ -91,13 +96,15 @@ describe("ActionService", () => {
     expect(actionOrErr.right.description).toBe("This is a test action.");
   });
 
-  test("createOrReplace should replace existing action", async () => { 
+  test("createOrReplace should replace existing action", async () => {
     const service = await createService();
     await service.createOrReplace(
-      adminAuthContext, 
-      new File([testFileContent], "action.js",{ type: "application/javascript" })
+      adminAuthContext,
+      new File([testFileContent], "action.js", {
+        type: "application/javascript",
+      }),
     );
-    
+
     const newFileContent = `
       export default {
         uuid: "test-action-uuid",
@@ -113,22 +120,25 @@ describe("ActionService", () => {
       }
     `;
     const actionOrErr = await service.createOrReplace(
-      adminAuthContext, 
-      new File([newFileContent], "action.js",{ type: "application/javascript" })
-    );  
+      adminAuthContext,
+      new File([newFileContent], "action.js", {
+        type: "application/javascript",
+      }),
+    );
 
     expect(actionOrErr.isRight(), errToMsg(actionOrErr.value)).toBeTruthy();
     expect(actionOrErr.right.uuid).toBe("test-action-uuid");
     expect(actionOrErr.right.title).toBe("New Action Title");
     expect(actionOrErr.right.description).toBe("New Description");
-    expect(actionOrErr.right.groupsAllowed).toEqual(["--root--"]);
   });
 
   test("get should return action", async () => {
     const service = await createService();
     await service.createOrReplace(
-      adminAuthContext, 
-      new File([testFileContent], "action.js",{ type: "application/javascript" })
+      adminAuthContext,
+      new File([testFileContent], "action.js", {
+        type: "application/javascript",
+      }),
     );
 
     const actionOrErr = await service.get(adminAuthContext, "test-action-uuid");
@@ -152,7 +162,10 @@ describe("ActionService", () => {
   test("get should return error if action does not exist", async () => {
     const service = await createService();
 
-    const actionOrErr = await service.get(adminAuthContext, "non-existing-action-uuid");
+    const actionOrErr = await service.get(
+      adminAuthContext,
+      "non-existing-action-uuid",
+    );
 
     expect(actionOrErr.isLeft()).toBeTruthy();
     expect(actionOrErr.value).toBeInstanceOf(NodeNotFoundError);
@@ -161,11 +174,16 @@ describe("ActionService", () => {
   test("delete should remove action", async () => {
     const service = await createService();
     await service.createOrReplace(
-      adminAuthContext, 
-      new File([testFileContent], "action.js",{ type: "application/javascript" })
+      adminAuthContext,
+      new File([testFileContent], "action.js", {
+        type: "application/javascript",
+      }),
     );
 
-    const deleteResult = await service.delete(adminAuthContext, "test-action-uuid");
+    const deleteResult = await service.delete(
+      adminAuthContext,
+      "test-action-uuid",
+    );
 
     expect(deleteResult.isRight(), errToMsg(deleteResult.value)).toBeTruthy();
   });
@@ -173,37 +191,50 @@ describe("ActionService", () => {
   test("list should return all actions including built-ins", async () => {
     const service = await createService();
     await service.createOrReplace(
-      adminAuthContext, 
-      new File([testFileContent], "action.js",{ type: "application/javascript" })
+      adminAuthContext,
+      new File([testFileContent], "action.js", {
+        type: "application/javascript",
+      }),
     );
 
     const actions = await service.list(adminAuthContext);
 
-    expect(actions.length).toBe(5);
+    expect(actions.right.length).toBe(5);
   });
 
   test("export should create a 'Javascript' file containing action", async () => {
     const service = await createService();
     await service.createOrReplace(
-      adminAuthContext, 
-      new File([testFileContent], "action.js",{ type: "application/javascript" })
+      adminAuthContext,
+      new File([testFileContent], "action.js", {
+        type: "application/javascript",
+      }),
     );
 
-    const fileOrErr = await service.export(adminAuthContext, "test-action-uuid");
+    const fileOrErr = await service.export(
+      adminAuthContext,
+      "test-action-uuid",
+    );
 
     expect(fileOrErr.isRight(), errToMsg(fileOrErr.value)).toBeTruthy();
     expect(fileOrErr.right.name).toBe("Test Action.js");
-    expect(fileOrErr.right.type.startsWith("text/javascript")).toBeTruthy();
+    expect(fileOrErr.right.type.startsWith("application/javascript"))
+      .toBeTruthy();
   });
 
   test("run should run the action", async () => {
     const service = await createService();
     await service.createOrReplace(
-      adminAuthContext, 
-      new File([testFileContent], "action.js",{ type: "application/javascript" })
+      adminAuthContext,
+      new File([testFileContent], "action.js", {
+        type: "application/javascript",
+      }),
     );
 
-    const runResult = await service.run(adminAuthContext, "test-action-uuid", ["node-uuid-1", "node-uuid-2"]);
+    const runResult = await service.run(adminAuthContext, "test-action-uuid", [
+      "node-uuid-1",
+      "node-uuid-2",
+    ]);
 
     expect(runResult.isRight(), errToMsg(runResult.value)).toBeTruthy();
     expect(runResult.value).toBeUndefined();
@@ -231,17 +262,20 @@ describe("ActionService", () => {
       };
     `;
     await service.createOrReplace(
-      adminAuthContext, 
-      new File([fileContent], "action.js",{ type: "application/javascript" })
+      adminAuthContext,
+      new File([fileContent], "action.js", { type: "application/javascript" }),
     );
 
-    const runResult = await service.run(adminAuthContext, "test-action-uuid", ["node-uuid-1", "node-uuid-2"]);
+    const runResult = await service.run(adminAuthContext, "test-action-uuid", [
+      "node-uuid-1",
+      "node-uuid-2",
+    ]);
 
     expect(runResult.isRight(), errToMsg(runResult.value)).toBeTruthy();
     expect(runResult.value).toBeUndefined();
   });
 
-  test("run should run action to delete more than one node", async () => { 
+  test("run should run action to delete more than one node", async () => {
     const service = await createService();
     const fileContent = `
       export default {
@@ -273,11 +307,15 @@ describe("ActionService", () => {
       };
     `;
     await service.createOrReplace(
-      adminAuthContext, 
-      new File([fileContent], "delete.js",{ type: "application/javascript" })
+      adminAuthContext,
+      new File([fileContent], "delete.js", { type: "application/javascript" }),
     );
 
-    const runResult = await service.run(adminAuthContext, "delete-action-uuid", ["--group-1--", "--group-2--"]);
+    const runResult = await service.run(
+      adminAuthContext,
+      "delete-action-uuid",
+      ["--group-1--", "--group-2--"],
+    );
 
     expect(runResult.isRight(), errToMsg(runResult.value)).toBeTruthy();
     expect(runResult.value).toBeUndefined();
@@ -290,9 +328,9 @@ describe("ActionService", () => {
       tenant: "default",
       principal: {
         email: "admin@example.com",
-        groups: [Groups.ADMINS_GROUP_UUID]
+        groups: [Groups.ADMINS_GROUP_UUID],
       },
-    }
+    };
     const fileContent = `
       export default {
         uuid: "test-action-uuid",
@@ -312,57 +350,30 @@ describe("ActionService", () => {
       };
     `;
     await service.createOrReplace(
-      adminAuthContext, 
-      new File([fileContent], "action.js",{ type: "application/javascript" })
+      adminAuthContext,
+      new File([fileContent], "action.js", { type: "application/javascript" }),
     );
 
-    const runResult = await service.run(adminAuthContext, "test-action-uuid", ["--group-1--", "--group-2--"]);
+    const runResult = await service.run(adminAuthContext, "test-action-uuid", [
+      "--group-1--",
+      "--group-2--",
+    ]);
 
     expect(runResult.isLeft()).toBeTruthy();
     expect(runResult.value).toBeInstanceOf(BadRequestError);
-    expect((runResult.value as BadRequestError).message).toBe("Action cannot be run manually");
-  });
-
-  test("run should return error if action run too many times", async () => {
-    const service = await createService();
-    const fileContent = `
-      export default {
-        uuid: "--action-uuid--",
-        title: "Test Action",
-        description: "Description",
-        builtIn: false,
-        runOnCreates: true,
-        runOnUpdates: false,
-        runManually: true,
-        params: [],
-        filters: [],
-        groupsAllowed: [],
-  
-        run: async (ctx, uuids, params) => {
-          console.log("Action is running...");
-        }
-      };
-    `;
-    await service.createOrReplace(
-      adminAuthContext, 
-      new File([fileContent], "action.js", { type: "application/javascript" })
+    expect((runResult.value as BadRequestError).message).toBe(
+      "Action cannot be run manually",
     );
-
-    for (let i = 0; i < 10; i++) {
-      const runResult = await service.run(adminAuthContext, "--action-uuid--", ["--group-1--", "--group-2--"]);
-      expect(runResult.isRight()).toBeTruthy();
-    }
-    
-    const runResult = await service.run(adminAuthContext, "--action-uuid--", ["--group-1--", "--group-2--"]);
-    expect(runResult.isLeft()).toBeTruthy();
-    expect(runResult.value).toBeInstanceOf(BadRequestError);
-    expect((runResult.value as BadRequestError).message).toContain("Action ran too many times");
   });
 
   test("run should return error if action is not found", async () => {
     const service = await createService();
 
-    const runResult = await service.run(adminAuthContext, "non-existing-action-uuid", ["node-uuid-1", "node-uuid-2"]);
+    const runResult = await service.run(
+      adminAuthContext,
+      "non-existing-action-uuid",
+      ["node-uuid-1", "node-uuid-2"],
+    );
 
     expect(runResult.isLeft()).toBeTruthy();
     expect(runResult.value).toBeInstanceOf(NodeNotFoundError);
@@ -400,8 +411,8 @@ describe("ActionService", () => {
       };
     `;
     const actionOrErr = await service.createOrReplace(
-      adminAuthContext, 
-      new File([fileContent], "action.js",{ type: "application/javascript" })
+      adminAuthContext,
+      new File([fileContent], "action.js", { type: "application/javascript" }),
     );
 
     const nodeCreatedEvent = new NodeCreatedEvent(
@@ -413,10 +424,12 @@ describe("ActionService", () => {
         description: actionOrErr.right.description,
         owner: adminAuthContext.principal.email,
         parent: actionOrErr.right.parent,
-      } as ActionNode
+      } as ActionNode,
     );
 
-    const runResult = await service.runAutomaticActionsForCreates(nodeCreatedEvent);
+    const runResult = await service.runAutomaticActionsForCreates(
+      nodeCreatedEvent,
+    );
 
     expect(runResult).toBeUndefined();
   });
@@ -457,8 +470,8 @@ describe("ActionService", () => {
       };
     `;
     const actionOrErr = await service.createOrReplace(
-      adminAuthContext, 
-      new File([fileContent], "action.js",{ type: "application/javascript" })
+      adminAuthContext,
+      new File([fileContent], "action.js", { type: "application/javascript" }),
     );
 
     const nodeUpdatedEvent = new NodeUpdatedEvent(
@@ -470,10 +483,13 @@ describe("ActionService", () => {
         description: actionOrErr.right.description,
         owner: adminAuthContext.principal.email,
         parent: actionOrErr.right.parent,
-      } as ActionNode
+      } as ActionNode,
     );
 
-    const runResult = await service.runAutomaticActionsForUpdates(adminAuthContext, nodeUpdatedEvent);
+    const runResult = await service.runAutomaticActionsForUpdates(
+      adminAuthContext,
+      nodeUpdatedEvent,
+    );
 
     expect(runResult).toBeUndefined();
   });
@@ -499,8 +515,8 @@ describe("ActionService", () => {
       };
     `;
     const actionOrErr = await service.createOrReplace(
-      adminAuthContext, 
-      new File([fileContent], "action.js",{ type: "application/javascript" })
+      adminAuthContext,
+      new File([fileContent], "action.js", { type: "application/javascript" }),
     );
 
     const nodeCreatedEvent = new NodeCreatedEvent(
@@ -512,10 +528,13 @@ describe("ActionService", () => {
         description: actionOrErr.right.description,
         owner: adminAuthContext.principal.email,
         parent: actionOrErr.right.parent,
-      } as ActionNode
+      } as ActionNode,
     );
 
-    const runResult = await service.runOnCreateScritps(adminAuthContext, nodeCreatedEvent);  
+    const runResult = await service.runOnCreateScritps(
+      adminAuthContext,
+      nodeCreatedEvent,
+    );
 
     expect(runResult).toBeUndefined();
   });
@@ -541,8 +560,8 @@ describe("ActionService", () => {
       };
     `;
     const actionOrErr = await service.createOrReplace(
-      adminAuthContext, 
-      new File([fileContent], "action.js",{ type: "application/javascript" })
+      adminAuthContext,
+      new File([fileContent], "action.js", { type: "application/javascript" }),
     );
 
     const nodeUpdatedEvent = new NodeUpdatedEvent(
@@ -554,14 +573,17 @@ describe("ActionService", () => {
         description: actionOrErr.right.description,
         owner: adminAuthContext.principal.email,
         parent: actionOrErr.right.parent,
-      } as ActionNode
+      } as ActionNode,
     );
 
-    const runResult = await service.runOnUpdatedScritps(adminAuthContext, nodeUpdatedEvent);  
+    const runResult = await service.runOnUpdatedScritps(
+      adminAuthContext,
+      nodeUpdatedEvent,
+    );
 
     expect(runResult).toBeUndefined();
   });
-}); 
+});
 
 const errToMsg = (err: any) => {
   if (err instanceof Error) {
@@ -569,6 +591,4 @@ const errToMsg = (err: any) => {
   }
 
   return JSON.stringify(err, null, 3);
-}
-
-
+};

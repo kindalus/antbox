@@ -18,9 +18,9 @@ export function nodeToArticle(
     uuid: article.uuid,
     title: article.title,
     description: article.description,
-    size: article.size as number,
+    size: article.size,
     parent: article.parent,
-    content: content,
+    content,
   };
 }
 

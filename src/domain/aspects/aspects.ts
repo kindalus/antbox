@@ -5,12 +5,21 @@ import { ValidationError } from "shared/validation_error.ts";
 import type { FileNode } from "domain/nodes/file_node.ts";
 import type { MetaNode } from "domain/nodes/meta_node.ts";
 import type { FolderNode } from "domain/nodes/folder_node.ts";
-import { andSpecification, specificationFn, type Specification } from "shared/specification.ts";
-import { PropertyRequiredError, PropertyTypeError } from "domain/nodes/property_errors.ts";
+import {
+  andSpecification,
+  type Specification,
+  specificationFn,
+} from "shared/specification.ts";
+import {
+  PropertyRequiredError,
+  PropertyTypeError,
+} from "domain/nodes/property_errors.ts";
 
 export class Aspects {
   static specificationFrom(aspect: AspectNode): Specification<AspectableNode> {
-    const specs = aspect.properties.map((p) => Aspects.#propertySpecificationFrom(aspect, p));
+    const specs = aspect.properties.map((p) =>
+      Aspects.#propertySpecificationFrom(aspect, p)
+    );
 
     if (!specs.length) {
       return specificationFn((_n) => right(true));
@@ -49,7 +58,9 @@ export class Aspects {
       }
 
       if (!n.properties[propName] && n.properties[propName] !== false) {
-        return left(ValidationError.from(new PropertyRequiredError(property.title)));
+        return left(
+          ValidationError.from(new PropertyRequiredError(property.title)),
+        );
       }
       return right(true);
     });
@@ -69,9 +80,11 @@ export class Aspects {
       }
 
       if (["string", "boolean", "number"].includes(ptype)) {
-        return ptype === vtype
-          ? right(true)
-          : left(ValidationError.from(new PropertyTypeError(property.title, property.type, ptype)));
+        return ptype === vtype ? right(true) : left(
+          ValidationError.from(
+            new PropertyTypeError(property.title, property.type, ptype),
+          ),
+        );
       }
 
       switch (property.type) {

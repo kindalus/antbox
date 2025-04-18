@@ -134,7 +134,7 @@ export class ActionService {
     const decoratedFile = new File(
       [file],
       metadata.title ?? nodeOrErr.value.title,
-      { type: nodeOrErr.value.mimetype },
+      { type: file.type },
     );
 
     let voidOrErr = await this.nodeService.updateFile(

@@ -2,8 +2,8 @@ import { Command } from "commander";
 import { join } from "path";
 import { printServerKeys } from "./print_server_keys.ts";
 import { setupOakServer } from "adapters/oak/setup_oak_server.ts";
-import { PORT } from "./setup/server_defaults.ts";
-import { setupTenants } from "./setup/setup_tenants.ts";
+import { PORT } from "setup/server_defaults.ts";
+import { setupTenants } from "setup/setup_tenants.ts";
 
 interface CommandOpts {
   port?: string;

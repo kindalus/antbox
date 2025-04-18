@@ -27,7 +27,7 @@ export class ActionNode extends FileMixin(Node) {
     this.#runOnUpdates = metadata.runOnUpdates ?? false;
     this.#runManually = metadata.runManually ?? true;
     this.#runAs = metadata.runAs;
-    this.#params = metadata.params ?? [];
+    //this.#params = metadata.params ?? [];
     this.#filters = metadata.filters ?? [];
     this.#groupsAllowed = metadata.groupsAllowed ?? [];
   }

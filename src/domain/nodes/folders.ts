@@ -9,6 +9,7 @@ export class Folders {
   static EXT_FOLDER_UUID = "--ext--";
   static SYSTEM_FOLDER_UUID = "--system--";
   static API_KEYS_FOLDER_UUID = "--api-keys--";
+  static FUNCTIONS_FOLDER_UUID = "--functions--";
 
   static SYSTEM_FOLDERS_UUID = [
     Folders.USERS_FOLDER_UUID,
@@ -18,6 +19,7 @@ export class Folders {
     Folders.EXT_FOLDER_UUID,
     Folders.SYSTEM_FOLDER_UUID,
     Folders.API_KEYS_FOLDER_UUID,
+    Folders.FUNCTIONS_FOLDER_UUID,
   ];
 
   static isRootFolder(node: FolderNode): boolean {
@@ -38,6 +40,10 @@ export class Folders {
 
   static isApiKeysFolder(node: FolderNode): boolean {
     return node.uuid === Folders.API_KEYS_FOLDER_UUID;
+  }
+
+  static isFunctionsFolder(node: FolderNode): boolean {
+    return node.uuid === Folders.FUNCTIONS_FOLDER_UUID;
   }
 
   static isSystemFolder(uuid: string): boolean {

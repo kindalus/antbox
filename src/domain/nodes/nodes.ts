@@ -10,6 +10,7 @@ import { SmartFolderNode } from "./smart_folder_node.ts";
 import type { NodeLike } from "domain/node_like.ts";
 import { ArticleNode } from "domain/articles/article_node.ts";
 import { ApiKeyNode } from "domain/api_keys/api_key_node.ts";
+import { FunctionNode } from "domain/funtions/function_node.ts";
 
 export class Nodes {
   static FID_PREFIX = "--fid--";
@@ -19,6 +20,7 @@ export class Nodes {
   static SMART_FOLDER_MIMETYPE = "application/vnd.antbox.smartfolder";
   static ASPECT_MIMETYPE = "application/vnd.antbox.aspect";
   static ACTION_MIMETYPE = "application/vnd.antbox.action";
+  static FUNCTION_MIMETYPE = "application/vnd.antbox.function";
   static EXT_MIMETYPE = "application/vnd.antbox.extension";
   static USER_MIMETYPE = "application/vnd.antbox.user";
   static GROUP_MIMETYPE = "application/vnd.antbox.group";
@@ -28,6 +30,7 @@ export class Nodes {
   static SYSTEM_MIMETYPES = [
     Nodes.ASPECT_MIMETYPE,
     Nodes.ACTION_MIMETYPE,
+    Nodes.FUNCTION_MIMETYPE,
     Nodes.EXT_MIMETYPE,
     Nodes.USER_MIMETYPE,
     Nodes.GROUP_MIMETYPE,
@@ -74,6 +77,10 @@ export class Nodes {
 
   static isAction(node: NodeLike): node is ActionNode {
     return node.mimetype === Nodes.ACTION_MIMETYPE;
+  }
+
+  static isFunction(node: NodeLike): node is FunctionNode {
+    return node.mimetype === Nodes.FUNCTION_MIMETYPE;
   }
 
   static isExt(node: NodeLike): node is ExtNode {

@@ -1,13 +1,13 @@
 import { type Either, left, right } from "shared/either.ts";
 import { ValidationError } from "shared/validation_error.ts";
 import { Folders } from "domain/nodes/folders.ts";
-import { FileNodeMixin } from "domain/nodes/mixins.ts";
 import { Node } from "domain/nodes/node.ts";
 import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import { InvalidExtNodeParentError } from "./invalid_ext_node_parent_error.ts";
+import { FileMixin } from "domain/nodes/file_mixin.ts";
 
-export class ExtNode extends FileNodeMixin(Node) {
+export class ExtNode extends FileMixin(Node) {
   static create(
     metadata: Partial<NodeMetadata>,
   ): Either<ValidationError, ExtNode> {

@@ -1,13 +1,13 @@
 import { Folders } from "domain/nodes/folders.ts";
-import { FileNodeMixin } from "domain/nodes/mixins.ts";
 import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import { type Either, left, right } from "shared/either.ts";
 import { ValidationError } from "shared/validation_error.ts";
 import { Node } from "domain/nodes/node.ts";
 import type { NodeFilters } from "domain/nodes/node_filter.ts";
+import { FileMixin } from "domain/nodes/file_mixin.ts";
 
-export class ActionNode extends FileNodeMixin(Node) {
+export class ActionNode extends FileMixin(Node) {
   #runOnCreates: boolean;
   #runOnUpdates: boolean;
   #runManually: boolean;

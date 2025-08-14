@@ -13,6 +13,7 @@ import { type NodeMetadata } from "./nodes/node_metadata.ts";
 import { Nodes } from "./nodes/nodes.ts";
 import { SmartFolderNode } from "./nodes/smart_folder_node.ts";
 import { NodeLike } from "domain/node_like.ts";
+import { FunctionNode } from "domain/functions/function_node.ts";
 
 export class NodeFactory {
   static from<T extends NodeLike>(
@@ -57,6 +58,10 @@ export class NodeFactory {
 
       case Nodes.ARTICLE_MIMETYPE:
         createFn = ArticleNode.create;
+        break;
+
+      case Nodes.FUNCTION_MIMETYPE:
+        createFn = FunctionNode.create;
         break;
 
       default:

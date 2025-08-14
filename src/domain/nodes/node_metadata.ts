@@ -2,7 +2,7 @@ import { AspectProperties } from "domain/aspects/aspect_node.ts";
 import { type Permissions } from "./node.ts";
 import { type NodeFilters } from "./node_filter.ts";
 import { type NodeProperties } from "./node_properties.ts";
-import { FunctionParameter } from "domain/funtions/function_node.ts";
+import { FunctionParameter } from "domain/functions/function_node.ts";
 
 export interface NodeMetadata {
   uuid: string;
@@ -35,6 +35,17 @@ export interface NodeMetadata {
   runManually: boolean;
   runAs?: string;
   parameters: FunctionParameter[];
+  returnType:
+    | "string"
+    | "number"
+    | "boolean"
+    | "array"
+    | "object"
+    | "file"
+    | "void";
+  returnDescription: string | undefined | null;
+  returnContentType: string | undefined | null;
+
   groupsAllowed: string[];
 
   runOnCreates: boolean;

@@ -6,45 +6,20 @@ import { ActionNode } from "./action_node.ts";
 import { type RunContext } from "./run_context.ts";
 import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
+import { FunctionParameter } from "domain/functions/function_node.ts";
 
-/**
- * Regras das actions:
- * - para poder executar runOnCreate ou runOnUpdate
- * --- especificar aspect ou mimetype constraints
- * --- não pode especificar parametros
- *
- * - para ser executar como trigger das folders
- * --- tem que especificar o mimetype 'application/folder'
- * --- a folder tem que conter um dos aspectos especificados na mimetype constraints
- *
- * - para poder executar na interface gráfica, recomenda-se:
- * --- não pode especificar parametros
- * --- deve ter runManually = true
- * --- o nó deve especificar um mimetype e um dos aspectos
- *     especificados na mimetype e aspect constraints
- *
- * - se não for especificado, pode correr manualmente
- * - se não for especificado pelo runAs, corre com os privilégios do grupo
- */
 export interface Action {
   uuid: string;
   title: string;
   description: string;
-  builtIn: boolean;
   runOnCreates: boolean;
   runOnUpdates: boolean;
   runManually: boolean;
   runAs?: string;
-  params: string[];
+  parameters: FunctionParameter[];
 
   filters: NodeFilter[];
   groupsAllowed: string[];
-
-  run: (
-    ctx: RunContext,
-    uuids: string[],
-    params?: Record<string, string>,
-  ) => Promise<void | Error>;
 }
 
 export async function fileToAction(

@@ -105,7 +105,7 @@ describe("ExtService", () => {
         uuid: "--ext-uuid--",
         title: "Updated Title",
         description: "Updated Description",
-      }
+      },
     );
 
     expect(extOrErr.isRight(), errMsg(extOrErr.value)).toBeTruthy();
@@ -147,6 +147,7 @@ describe("ExtService", () => {
     const file = new File(["content"], "test.ext", {
       type: "application/javascript",
     });
+
     await service.createOrReplace(adminAuthContext, file, {
       uuid: "--ext-uuid--",
       title: "Title",
@@ -177,11 +178,11 @@ describe("ExtService", () => {
       {
         title: "Updated Title",
         description: "Updated Description",
-      }
+      },
     );
     expect(
       updatedExtOrErr.isRight(),
-      errMsg(updatedExtOrErr.value)
+      errMsg(updatedExtOrErr.value),
     ).toBeTruthy();
 
     const extOrErr = await service.get("--ext-uuid--");
@@ -262,7 +263,7 @@ describe("ExtService", () => {
       "test.ext",
       {
         type: "application/javascript",
-      }
+      },
     );
     const request = new Request("http://example.com");
 

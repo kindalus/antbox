@@ -9,12 +9,14 @@ import type { FileNode } from "./nodes/file_node.ts";
 import type { FolderNode } from "./nodes/folder_node.ts";
 import type { MetaNode } from "./nodes/meta_node.ts";
 import type { SmartFolderNode } from "./nodes/smart_folder_node.ts";
+import { FunctionNode } from "domain/functions/function_node.ts";
 
 export type NodeLike =
   | ActionNode
   | ApiKeyNode
   | ArticleNode
   | AspectNode
+  | FunctionNode
   | ExtNode
   | FileNode
   | FolderNode
@@ -25,4 +27,9 @@ export type NodeLike =
 
 export type AspectableNode = ArticleNode | FileNode | FolderNode | MetaNode;
 
-export type FileLikeNode = ActionNode | ArticleNode | FileNode | ExtNode;
+export type FileLikeNode =
+  | ActionNode
+  | ArticleNode
+  | FileNode
+  | ExtNode
+  | FunctionNode;

@@ -4,7 +4,7 @@ import { Folders } from "domain/nodes/folders.ts";
 import { Node } from "domain/nodes/node.ts";
 import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
-import { InvalidExtNodeParentError } from "./invalid_ext_node_parent_error.ts";
+import { InvalidExtNodeParentError } from "domain/exts/invalid_ext_node_parent_error.ts";
 import { FileMixin } from "domain/nodes/file_mixin.ts";
 
 export class ExtNode extends FileMixin(Node) {

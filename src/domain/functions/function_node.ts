@@ -50,7 +50,6 @@ export interface Function {
 }
 
 export class FunctionNode extends Node {
-  readonly name: string;
   readonly exposeAction: boolean;
   readonly runOnCreates: boolean;
   readonly runOnUpdates: boolean;
@@ -73,32 +72,32 @@ export class FunctionNode extends Node {
   readonly returnContentType?: string;
 
   constructor(
-    metadata: NodeMetadata & {
-      name?: string;
-      exposeAction?: boolean;
-      runOnCreates?: boolean;
-      runOnUpdates?: boolean;
-      runManually?: boolean;
-      filters?: NodeFilter[];
-      exposeExtension?: boolean;
-      exposeMCP?: boolean;
-      runAs?: string;
-      groupsAllowed?: string[];
-      parameters?: FunctionParameter[];
-      returnType?:
-        | "string"
-        | "number"
-        | "boolean"
-        | "array"
-        | "object"
-        | "file"
-        | "void";
-      returnDescription?: string;
-      returnContentType?: string;
-    },
+    metadata: Partial<
+      NodeMetadata & {
+        exposeAction?: boolean;
+        runOnCreates?: boolean;
+        runOnUpdates?: boolean;
+        runManually?: boolean;
+        filters?: NodeFilter[];
+        exposeExtension?: boolean;
+        exposeMCP?: boolean;
+        runAs?: string;
+        groupsAllowed?: string[];
+        parameters?: FunctionParameter[];
+        returnType?:
+          | "string"
+          | "number"
+          | "boolean"
+          | "array"
+          | "object"
+          | "file"
+          | "void";
+        returnDescription?: string;
+        returnContentType?: string;
+      }
+    >,
   ) {
     super(metadata);
-    this.name = metadata.name || metadata.title;
     this.exposeAction = metadata.exposeAction ?? false;
     this.runOnCreates = metadata.runOnCreates ?? false;
     this.runOnUpdates = metadata.runOnUpdates ?? false;
@@ -114,11 +113,10 @@ export class FunctionNode extends Node {
     this.returnContentType = metadata.returnContentType;
   }
 
-  override get metadata(): NodeMetadata {
+  override get metadata(): Partial<NodeMetadata> {
     return {
       ...super.metadata,
       mimetype: Nodes.FUNCTION_MIMETYPE,
-      name: this.name,
       exposeAction: this.exposeAction,
       runOnCreates: this.runOnCreates,
       runOnUpdates: this.runOnUpdates,
@@ -136,31 +134,32 @@ export class FunctionNode extends Node {
   }
 
   static create(
-    metadata: Partial<NodeMetadata> & {
-      name?: string;
-      exposeAction?: boolean;
-      runOnCreates?: boolean;
-      runOnUpdates?: boolean;
-      runManually?: boolean;
-      filters?: NodeFilter[];
-      exposeExtension?: boolean;
-      exposeMCP?: boolean;
-      runAs?: string;
-      groupsAllowed?: string[];
-      parameters?: FunctionParameter[];
-      returnType?:
-        | "string"
-        | "number"
-        | "boolean"
-        | "array"
-        | "object"
-        | "file"
-        | "void";
-      returnDescription?: string;
-      returnContentType?: string;
-    },
+    metadata: Partial<
+      NodeMetadata & {
+        exposeAction?: boolean;
+        runOnCreates?: boolean;
+        runOnUpdates?: boolean;
+        runManually?: boolean;
+        filters?: NodeFilter[];
+        exposeExtension?: boolean;
+        exposeMCP?: boolean;
+        runAs?: string;
+        groupsAllowed?: string[];
+        parameters?: FunctionParameter[];
+        returnType?:
+          | "string"
+          | "number"
+          | "boolean"
+          | "array"
+          | "object"
+          | "file"
+          | "void";
+        returnDescription?: string;
+        returnContentType?: string;
+      }
+    >,
   ): Either<ValidationError, FunctionNode> {
-    if (!metadata.name && !metadata.title) {
+    if (!metadata.uuid && !metadata.title) {
       return left(
         ValidationError.from(
           new AntboxError("ValidationError", "Name or title is required"),
@@ -174,7 +173,7 @@ export class FunctionNode extends Node {
     };
 
     try {
-      const node = new FunctionNode(safeMeta as NodeMetadata);
+      const node = new FunctionNode(safeMeta);
       return right(node);
     } catch (error) {
       return left(

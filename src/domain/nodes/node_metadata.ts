@@ -1,7 +1,7 @@
 import { AspectProperties } from "domain/aspects/aspect_node.ts";
-import { type Permissions } from "./node.ts";
-import { type NodeFilters } from "./node_filter.ts";
-import { type NodeProperties } from "./node_properties.ts";
+import { type Permissions } from "domain/nodes/node.ts";
+import { type NodeFilters } from "domain/nodes/node_filter.ts";
+import { type NodeProperties } from "domain/nodes/node_properties.ts";
 import { FunctionParameter } from "domain/functions/function_node.ts";
 
 export interface NodeMetadata {

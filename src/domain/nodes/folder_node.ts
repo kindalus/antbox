@@ -1,7 +1,7 @@
 import { type Either, left, right } from "shared/either.ts";
 import { ValidationError } from "shared/validation_error.ts";
-import { Node } from "./node.ts";
-import { type NodeMetadata } from "./node_metadata.ts";
+import { Node } from "domain/nodes/node.ts";
+import { type NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { FolderMixin } from "domain/nodes/folder_mixin.ts";
 import { WithAspectMixin } from "domain/nodes/with_aspect_mixin.ts";
 

@@ -1,8 +1,6 @@
-import { ActionNode } from "domain/actions/action_node.ts";
 import { AspectNode } from "domain/aspects/aspect_node.ts";
 import { GroupNode } from "domain/users_groups/group_node.ts";
 import { UserNode } from "domain/users_groups/user_node.ts";
-import { ExtNode } from "domain/exts/ext_node.ts";
 import { FileNode } from "./file_node.ts";
 import { FolderNode } from "./folder_node.ts";
 import { MetaNode } from "./meta_node.ts";
@@ -75,7 +73,7 @@ export class Nodes {
     return node.mimetype === Nodes.META_NODE_MIMETYPE;
   }
 
-  static isAction(node: NodeLike): node is ActionNode {
+  static isAction(node: NodeLike): node is SkillNode {
     return node.mimetype === Nodes.ACTION_MIMETYPE;
   }
 
@@ -83,7 +81,7 @@ export class Nodes {
     return node.mimetype === Nodes.SKILL_MIMETYPE;
   }
 
-  static isExt(node: NodeLike): node is ExtNode {
+  static isExt(node: NodeLike): node is SkillNode {
     return node.mimetype === Nodes.EXT_MIMETYPE;
   }
 
@@ -110,7 +108,7 @@ export class Nodes {
 
   static isFileLike(
     node: NodeLike,
-  ): node is FileNode | ExtNode | ActionNode | ArticleNode {
+  ): node is FileNode | SkillNode | ArticleNode {
     return Nodes.isFile(node) || Nodes.isExt(node) || Nodes.isAction(node) ||
       Nodes.isArticle(node);
   }

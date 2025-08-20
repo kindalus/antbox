@@ -2,7 +2,7 @@ import {
   type Action,
   actionToNodeMetadata,
   fileToAction,
-} from "domain/actions/action.ts";
+} from "domain/skills/action.ts";
 import { SkillNode } from "domain/skills/skill_node.ts";
 import { FolderNode } from "domain/nodes/folder_node.ts";
 import { Folders } from "domain/nodes/folders.ts";
@@ -69,7 +69,9 @@ export class ActionService {
 
     if (found) {
       return right(
-        SkillNode.create(actionToNodeMetadata(found, Users.ROOT_USER_EMAIL))
+        SkillNode.create(
+          actionToNodeMetadata(found, Users.ROOT_USER_EMAIL) as any,
+        )
           .right,
       );
     }
@@ -106,7 +108,8 @@ export class ActionService {
     const nodes = [
       ...(nodesOrErrs.value.nodes as SkillNode[]),
       ...builtinActions.map((a) =>
-        SkillNode.create(actionToNodeMetadata(a, Users.ROOT_USER_EMAIL)).right
+        SkillNode.create(actionToNodeMetadata(a, Users.ROOT_USER_EMAIL) as any)
+          .right
       ),
     ].sort((a, b) => a.title.localeCompare(b.title));
 
@@ -213,12 +216,12 @@ export class ActionService {
         uuidsOrErr.value,
         params,
       )
-      .catch((e) => e);
+      .catch((e: unknown) => e);
 
     if (error) {
       return (error as AntboxError).errorCode
         ? left(error as AntboxError)
-        : left(new UnknownError(error.message));
+        : left(new UnknownError((error as Error).message));
     }
 
     return right(undefined);
@@ -449,12 +452,14 @@ export class ActionService {
     const filesOrErrs = await Promise.all(actionsTasks);
 
     const actions = filesOrErrs
-      .filter((v) => v.isRight())
-      .map((v) => v.value as File)
-      .map(async (v) => await fileToAction(v));
+      .filter((v: Either<any, any>) => v.isRight())
+      .map((v: Either<any, any>) => v.value as File)
+      .map(async (v: File) => await fileToAction(v));
 
     return Promise.all(actions).then((a) =>
-      a.filter((v) => v.isRight()).map((v) => v.value as Action)
+      a.filter((v: Either<any, any>) => v.isRight()).map((
+        v: Either<any, any>,
+      ) => v.value as Action)
     );
   }
 

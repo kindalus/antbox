@@ -92,13 +92,13 @@ const testFunctionContent = `
 `;
 
 describe("SkillService", () => {
-  test("createOrReplace should create a new function", async () => {
+  test("create should create a new function", async () => {
     const service = await createService();
     const file = new File([testFunctionContent], "function.js", {
       type: "application/javascript",
     });
 
-    const functionOrErr = await service.createOrReplace(adminAuthContext, file);
+    const functionOrErr = await service.create(adminAuthContext, file);
 
     expect(functionOrErr.isRight(), errToMsg(functionOrErr.value)).toBeTruthy();
     expect(functionOrErr.right.id).toBe("test-function-uuid");
@@ -110,9 +110,9 @@ describe("SkillService", () => {
     expect(functionOrErr.right.parameters[0].name).toBe("param1");
   });
 
-  test("createOrReplace should replace existing function", async () => {
+  test("update should replace existing function", async () => {
     const service = await createService();
-    await service.createOrReplace(
+    await service.create(
       adminAuthContext,
       new File([testFunctionContent], "function.js", {
         type: "application/javascript",
@@ -154,8 +154,9 @@ describe("SkillService", () => {
         }
       };
     `;
-    const functionOrErr = await service.createOrReplace(
+    const funcOrErr = await service.updateFile(
       adminAuthContext,
+      "test-function-uuid",
       new File([newFileContent], "function.js", {
         type: "application/javascript",
       }),
@@ -173,7 +174,7 @@ describe("SkillService", () => {
 
   test("get should return function", async () => {
     const service = await createService();
-    await service.createOrReplace(
+    await service.create(
       adminAuthContext,
       new File([testFunctionContent], "function.js", {
         type: "application/javascript",
@@ -214,7 +215,7 @@ describe("SkillService", () => {
 
   test("delete should remove function", async () => {
     const service = await createService();
-    await service.createOrReplace(
+    await service.create(
       adminAuthContext,
       new File([testFunctionContent], "function.js", {
         type: "application/javascript",
@@ -238,7 +239,7 @@ describe("SkillService", () => {
 
   test("list should return all functions", async () => {
     const service = await createService();
-    await service.createOrReplace(
+    await service.create(
       adminAuthContext,
       new File([testFunctionContent], "function1.js", {
         type: "application/javascript",
@@ -253,7 +254,7 @@ describe("SkillService", () => {
       "Second Function",
     );
 
-    await service.createOrReplace(
+    await service.create(
       adminAuthContext,
       new File([secondFunctionContent], "function2.js", {
         type: "application/javascript",
@@ -272,7 +273,7 @@ describe("SkillService", () => {
 
   test("export should create a JavaScript file containing function", async () => {
     const service = await createService();
-    await service.createOrReplace(
+    await service.create(
       adminAuthContext,
       new File([testFunctionContent], "function.js", {
         type: "application/javascript",
@@ -292,7 +293,7 @@ describe("SkillService", () => {
 
   test("run should execute the function and return result", async () => {
     const service = await createService();
-    await service.createOrReplace(
+    await service.create(
       adminAuthContext,
       new File([testFunctionContent], "function.js", {
         type: "application/javascript",
@@ -308,7 +309,7 @@ describe("SkillService", () => {
     );
 
     expect(runResult.isRight(), errToMsg(runResult.value)).toBeTruthy();
-    expect(runResult.value).toBe("Hello, World");
+    expect((runResult as any).value).toBe("Hello World");
   });
 
   test("run should return error if parameter validation fails", async () => {
@@ -342,7 +343,7 @@ describe("SkillService", () => {
       };
     `;
 
-    await service.createOrReplace(
+    await service.create(
       adminAuthContext,
       new File([functionWithValidationContent], "validation.js", {
         type: "application/javascript",
@@ -383,7 +384,7 @@ describe("SkillService", () => {
       };
     `;
 
-    await service.createOrReplace(
+    await service.create(
       adminAuthContext,
       new File([notManuallyRunnableFunction], "automatic.js", {
         type: "application/javascript",

@@ -5,7 +5,6 @@ import { Node } from "domain/nodes/node.ts";
 import { Either, left, right } from "shared/either.ts";
 import { ValidationError } from "shared/validation_error.ts";
 import { AntboxError } from "shared/antbox_error.ts";
-import { RunContext } from "domain/skills/skill_run_context.ts";
 
 export interface SkillParameter {
   name: string;
@@ -13,37 +12,6 @@ export interface SkillParameter {
   required: boolean;
   description?: string;
   defaultValue?: string | number | boolean | object | Array<unknown>;
-}
-
-export interface Skill {
-  uuid: string;
-  name: string;
-  description: string;
-  exposeAction: boolean;
-  runOnCreates: boolean;
-  runOnUpdates: boolean;
-  runManually: boolean;
-  filters: NodeFilter[];
-
-  exposeExtension: boolean;
-  exposeMCP: boolean;
-
-  runAs?: string;
-  groupsAllowed: string[];
-  parameters: SkillParameter[];
-
-  returnType:
-    | "string"
-    | "number"
-    | "boolean"
-    | "array"
-    | "object"
-    | "file"
-    | "void";
-  returnDescription?: string;
-  returnContentType?: string;
-
-  run(ctx: RunContext, args: Record<string, unknown>): Promise<unknown>;
 }
 
 export class SkillNode extends Node {

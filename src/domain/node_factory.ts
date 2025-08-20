@@ -1,11 +1,11 @@
 import { type Either } from "shared/either.ts";
 import { ValidationError } from "shared/validation_error.ts";
-import { ActionNode } from "./actions/action_node.ts";
+
 import { ApiKeyNode } from "./api_keys/api_key_node.ts";
 import { ArticleNode } from "./articles/article_node.ts";
 import { AspectNode } from "./aspects/aspect_node.ts";
 import { GroupNode } from "./users_groups/group_node.ts";
-import { ExtNode } from "./exts/ext_node.ts";
+
 import { FileNode } from "./nodes/file_node.ts";
 import { FolderNode } from "./nodes/folder_node.ts";
 import { MetaNode } from "./nodes/meta_node.ts";
@@ -20,12 +20,12 @@ export class NodeFactory {
     metadata: Partial<NodeMetadata>,
   ): Either<ValidationError, T> {
     let createFn: (
-      metadata: Partial<NodeMetadata>,
+      metadata: any,
     ) => Either<ValidationError, NodeLike>;
 
     switch (metadata.mimetype) {
       case Nodes.ACTION_MIMETYPE:
-        createFn = ActionNode.create;
+        createFn = SkillNode.create;
         break;
 
       case Nodes.API_KEY_MIMETYPE:
@@ -37,7 +37,7 @@ export class NodeFactory {
         break;
 
       case Nodes.EXT_MIMETYPE:
-        createFn = ExtNode.create;
+        createFn = SkillNode.create;
         break;
 
       case Nodes.FOLDER_MIMETYPE:

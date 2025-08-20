@@ -1,5 +1,5 @@
-import type { Action } from "domain/actions/action.ts";
-import type { RunContext } from "domain/actions/run_context.ts";
+import type { Action } from "domain/skills/action.ts";
+import type { RunContext } from "domain/skills/skill_run_context.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import { AntboxError } from "shared/antbox_error.ts";
@@ -13,7 +13,7 @@ export default {
   multiple: false,
   filters: [["mimetype", "not-in", Nodes.SYSTEM_MIMETYPES]],
   groupsAllowed: [],
-  params: [],
+  parameters: [],
   runManually: true,
   runOnCreates: false,
   runOnUpdates: false,

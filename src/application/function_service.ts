@@ -1,5 +1,5 @@
-import type { Function } from "domain/skills/skill_node.ts";
-import { fileToFunction, functionToNodeMetadata } from "domain/skills/skill.ts";
+import type { Skill } from "domain/skills/skill.ts";
+import { fileToFunction, skillToNodeMetadata } from "domain/skills/skill.ts";
 import { SkillNode } from "domain/skills/skill_node.ts";
 import { SkillNotFoundError } from "domain/skills/skill_not_found_error.ts";
 import { Folders } from "domain/nodes/folders.ts";
@@ -69,14 +69,14 @@ export class SkillService {
     file: File,
     metadata?: Partial<NodeMetadata>,
   ): Promise<Either<AntboxError, SkillDTO>> {
-    const functionOrErr = await fileToFunction(file);
+    const skillOrErr = await fileToFunction(file);
 
-    if (functionOrErr.isLeft()) {
-      return left(functionOrErr.value);
+    if (skillOrErr.isLeft()) {
+      return left(skillOrErr.value);
     }
 
-    const func = functionOrErr.value;
-    const funcMetadata = functionToNodeMetadata(func, ctx.principal.email);
+    const func = skillOrErr.value;
+    const funcMetadata = skillToNodeMetadata(func, ctx.principal.email);
     const combinedMetadata = metadata
       ? { ...funcMetadata, ...metadata }
       : funcMetadata;
@@ -98,10 +98,10 @@ export class SkillService {
     uuid: string,
     metadata: Partial<NodeMetadata>,
   ): Promise<Either<AntboxError, SkillDTO>> {
-    const functionOrErr = await this.get(ctx, uuid);
+    const skillOrErr = await this.get(ctx, uuid);
 
-    if (functionOrErr.isLeft()) {
-      return left(functionOrErr.value);
+    if (skillOrErr.isLeft()) {
+      return left(skillOrErr.value);
     }
 
     const voidOrErr = await this.nodeService.update(ctx, uuid, metadata);
@@ -125,10 +125,10 @@ export class SkillService {
     uuid: string,
     file: File,
   ): Promise<Either<AntboxError, SkillDTO>> {
-    const functionOrErr = await this.get(ctx, uuid);
+    const skillOrErr = await this.get(ctx, uuid);
 
-    if (functionOrErr.isLeft()) {
-      return left(functionOrErr.value);
+    if (skillOrErr.isLeft()) {
+      return left(skillOrErr.value);
     }
 
     const voidOrErr = await this.nodeService.updateFile(ctx, uuid, file);
@@ -151,10 +151,10 @@ export class SkillService {
     ctx: AuthenticationContext,
     uuid: string,
   ): Promise<Either<AntboxError, void>> {
-    const functionOrErr = await this.get(ctx, uuid);
+    const skillOrErr = await this.get(ctx, uuid);
 
-    if (functionOrErr.isLeft()) {
-      return left(functionOrErr.value);
+    if (skillOrErr.isLeft()) {
+      return left(skillOrErr.value);
     }
 
     return this.nodeService.delete(ctx, uuid);
@@ -165,12 +165,12 @@ export class SkillService {
     uuid: string,
     args: Record<string, unknown>,
   ): Promise<Either<AntboxError, T>> {
-    const functionOrErr = await this.#getNodeAsFunction(ctx, uuid);
-    if (functionOrErr.isLeft()) {
-      return left(functionOrErr.value);
+    const skillOrErr = await this.#getNodeAsFunction(ctx, uuid);
+    if (skillOrErr.isLeft()) {
+      return left(skillOrErr.value);
     }
 
-    const func = functionOrErr.value;
+    const func = skillOrErr.value;
 
     if (!func.runManually && ctx.mode === "Direct") {
       return left(new BadRequestError("Skill cannot be run manually"));
@@ -210,9 +210,9 @@ export class SkillService {
     ctx: AuthenticationContext,
     uuid: string,
   ): Promise<Either<AntboxError, File>> {
-    const functionOrErr = await this.get(ctx, uuid);
-    if (functionOrErr.isLeft()) {
-      return left(functionOrErr.value);
+    const skillOrErr = await this.get(ctx, uuid);
+    if (skillOrErr.isLeft()) {
+      return left(skillOrErr.value);
     }
 
     return this.nodeService.export(ctx, uuid);
@@ -221,7 +221,7 @@ export class SkillService {
   async #getNodeAsFunction(
     ctx: AuthenticationContext,
     uuid: string,
-  ): Promise<Either<AntboxError, Function>> {
+  ): Promise<Either<AntboxError, Skill>> {
     const nodeOrErr = await this.nodeService.get(ctx, uuid);
 
     if (nodeOrErr.isLeft()) {

@@ -1,7 +1,7 @@
 import type { AuthenticationContext } from "application/authentication_context.ts";
 import type { NodeService } from "application/node_service.ts";
-import type { Action } from "domain/actions/action.ts";
-import type { RunContext } from "domain/actions/run_context.ts";
+import type { Action } from "domain/skills/action.ts";
+import type { RunContext } from "domain/skills/skill_run_context.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import { AntboxError } from "shared/antbox_error.ts";
 import { type Either } from "shared/either.ts";
@@ -13,7 +13,14 @@ export default {
   builtIn: true,
   multiple: true,
   filters: [],
-  params: ["to"],
+  parameters: [
+    {
+      name: "to",
+      type: "string",
+      required: true,
+      description: "Target folder UUID",
+    },
+  ],
   runManually: true,
   runOnCreates: false,
   runOnUpdates: false,

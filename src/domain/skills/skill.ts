@@ -1,10 +1,42 @@
-import { type Function, FunctionParameter } from "domain/skills/skill_node.ts";
+import { SkillParameter } from "domain/skills/skill_node.ts";
 import { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { NodeFilter } from "domain/nodes/node_filter.ts";
 import { Folders } from "domain/nodes/folders.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import { AntboxError, BadRequestError } from "shared/antbox_error.ts";
 import { Either, left, right } from "shared/either.ts";
+import { RunContext } from "domain/skills/skill_run_context.ts";
+
+export interface Skill {
+  uuid: string;
+  name: string;
+  description: string;
+  exposeAction: boolean;
+  runOnCreates: boolean;
+  runOnUpdates: boolean;
+  runManually: boolean;
+  filters: NodeFilter[];
+
+  exposeExtension: boolean;
+  exposeMCP: boolean;
+
+  runAs?: string;
+  groupsAllowed: string[];
+  parameters: SkillParameter[];
+
+  returnType:
+    | "string"
+    | "number"
+    | "boolean"
+    | "array"
+    | "object"
+    | "file"
+    | "void";
+  returnDescription?: string;
+  returnContentType?: string;
+
+  run(ctx: RunContext, args: Record<string, unknown>): Promise<unknown>;
+}
 
 export interface SkillMetadata {
   uuid: string;
@@ -19,7 +51,7 @@ export interface SkillMetadata {
   exposeMCP: boolean;
   runAs?: string;
   groupsAllowed: string[];
-  parameters: FunctionParameter[];
+  parameters: SkillParameter[];
   returnType:
     | "string"
     | "number"
@@ -32,10 +64,10 @@ export interface SkillMetadata {
   returnContentType?: string;
 }
 
-export function functionToNodeMetadata(
-  func: Function,
+export function skillToNodeMetadata(
+  func: Skill,
   owner?: string,
-): NodeMetadata {
+): Partial<NodeMetadata> {
   return {
     uuid: func.uuid,
     title: func.name,
@@ -62,7 +94,7 @@ export function functionToNodeMetadata(
 
 export async function fileToFunction(
   file: File,
-): Promise<Either<AntboxError, Function>> {
+): Promise<Either<AntboxError, Skill>> {
   if (file.type !== "application/javascript") {
     return left(new BadRequestError(`Invalid file type: ${file.type}`));
   }
@@ -75,14 +107,14 @@ export async function fileToFunction(
 
     try {
       // Workaround to avoid type issues with dynamic import
-      const importFunc = new Function("url", "return import(url)");
+      const importFunc = new globalThis.Function("url", "return import(url)");
       const module = await importFunc(url);
 
       if (!module.default) {
         return left(new BadRequestError("Module must have a default export"));
       }
 
-      const func = module.default as Function;
+      const func = module.default as Skill;
 
       if (!func.uuid) {
         return left(new BadRequestError("Skill must have a uuid"));
@@ -110,5 +142,3 @@ export async function fileToFunction(
     );
   }
 }
-
-export { Function };

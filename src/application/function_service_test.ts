@@ -9,7 +9,7 @@ import { NodeUpdatedEvent } from "domain/nodes/node_updated_event.ts";
 import { GroupNode } from "domain/users_groups/group_node.ts";
 import { Groups } from "domain/users_groups/groups.ts";
 import { BadRequestError } from "shared/antbox_error.ts";
-import { FunctionService } from "application/function_service.ts";
+import { SkillService } from "application/function_service.ts";
 import { AuthenticationContext } from "application/authentication_context.ts";
 import { NodeService } from "application/node_service.ts";
 import { UsersGroupsService } from "application/users_groups_service.ts";
@@ -49,7 +49,7 @@ const createService = async () => {
     groups: [Groups.ADMINS_GROUP_UUID],
   });
 
-  return new FunctionService(nodeService, usersGroupsService);
+  return new SkillService(nodeService, usersGroupsService);
 };
 
 const adminAuthContext: AuthenticationContext = {
@@ -91,7 +91,7 @@ const testFunctionContent = `
   };
 `;
 
-describe("FunctionService", () => {
+describe("SkillService", () => {
   test("createOrReplace should create a new function", async () => {
     const service = await createService();
     const file = new File([testFunctionContent], "function.js", {
@@ -398,7 +398,7 @@ describe("FunctionService", () => {
 
     expect(runResult.isLeft()).toBeTruthy();
     expect(runResult.value).toBeInstanceOf(BadRequestError);
-    expect(runResult.value.message).toBe("Function cannot be run manually");
+    expect(runResult.value.message).toBe("Skill cannot be run manually");
   });
 });
 

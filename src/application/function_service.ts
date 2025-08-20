@@ -12,13 +12,13 @@ import {
 } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
 import { type AuthenticationContext } from "./authentication_context.ts";
-import { NodeService } from "./node_service.ts";
-import { UsersGroupsService } from "./users_groups_service.ts";
-import { FunctionDTO } from "./function_dto.ts";
+import { NodeService } from "application/node_service.ts";
+import { UsersGroupsService } from "application/users_groups_service.ts";
+import { SkillDTO } from "application/skill_dto.ts";
 import { RunContext } from "domain/skills/skill_run_context.ts";
 import { NodeMetadata } from "domain/nodes/node_metadata.ts";
 
-export class FunctionService {
+export class SkillService {
   constructor(
     private readonly nodeService: NodeService,
     private readonly authService: UsersGroupsService,
@@ -27,7 +27,7 @@ export class FunctionService {
   async get(
     ctx: AuthenticationContext,
     uuid: string,
-  ): Promise<Either<NodeNotFoundError | SkillNotFoundError, FunctionDTO>> {
+  ): Promise<Either<NodeNotFoundError | SkillNotFoundError, SkillDTO>> {
     const nodeOrErr = await this.nodeService.get(ctx, uuid);
 
     if (nodeOrErr.isLeft()) {
@@ -39,12 +39,12 @@ export class FunctionService {
     }
 
     const func = nodeOrErr.value;
-    return right(this.#nodeToFunctionDTO(func));
+    return right(this.#nodeToSkillDTO(func));
   }
 
   async list(
     ctx: AuthenticationContext,
-  ): Promise<Either<AntboxError, FunctionDTO[]>> {
+  ): Promise<Either<AntboxError, SkillDTO[]>> {
     const nodesOrErrs = await this.nodeService.find(
       ctx,
       [
@@ -59,7 +59,7 @@ export class FunctionService {
     }
 
     const nodes = nodesOrErrs.value.nodes as SkillNode[];
-    const dtos = nodes.map((n) => this.#nodeToFunctionDTO(n));
+    const dtos = nodes.map((n) => this.#nodeToSkillDTO(n));
 
     return right(dtos);
   }
@@ -68,7 +68,7 @@ export class FunctionService {
     ctx: AuthenticationContext,
     file: File,
     metadata?: Partial<NodeMetadata>,
-  ): Promise<Either<AntboxError, FunctionDTO>> {
+  ): Promise<Either<AntboxError, SkillDTO>> {
     const functionOrErr = await fileToFunction(file);
 
     if (functionOrErr.isLeft()) {
@@ -90,14 +90,14 @@ export class FunctionService {
       return left(nodeOrErr.value);
     }
 
-    return right(this.#nodeToFunctionDTO(nodeOrErr.value as SkillNode));
+    return right(this.#nodeToSkillDTO(nodeOrErr.value as SkillNode));
   }
 
   async update(
     ctx: AuthenticationContext,
     uuid: string,
     metadata: Partial<NodeMetadata>,
-  ): Promise<Either<AntboxError, FunctionDTO>> {
+  ): Promise<Either<AntboxError, SkillDTO>> {
     const functionOrErr = await this.get(ctx, uuid);
 
     if (functionOrErr.isLeft()) {
@@ -116,7 +116,7 @@ export class FunctionService {
     }
 
     return right(
-      this.#nodeToFunctionDTO(updatedNodeOrErr.value as SkillNode),
+      this.#nodeToSkillDTO(updatedNodeOrErr.value as SkillNode),
     );
   }
 
@@ -124,7 +124,7 @@ export class FunctionService {
     ctx: AuthenticationContext,
     uuid: string,
     file: File,
-  ): Promise<Either<AntboxError, FunctionDTO>> {
+  ): Promise<Either<AntboxError, SkillDTO>> {
     const functionOrErr = await this.get(ctx, uuid);
 
     if (functionOrErr.isLeft()) {
@@ -143,7 +143,7 @@ export class FunctionService {
     }
 
     return right(
-      this.#nodeToFunctionDTO(updatedNodeOrErr.value as SkillNode),
+      this.#nodeToSkillDTO(updatedNodeOrErr.value as SkillNode),
     );
   }
 
@@ -261,7 +261,7 @@ export class FunctionService {
     });
   }
 
-  #nodeToFunctionDTO(node: SkillNode): FunctionDTO {
+  #nodeToSkillDTO(node: SkillNode): SkillDTO {
     return {
       id: node.uuid,
       name: node.name,

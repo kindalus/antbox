@@ -1,7 +1,7 @@
 import { NodeFilter } from "domain/nodes/node_filter.ts";
 import { SkillParameter } from "domain/skills/skill_node.ts";
 
-export interface FunctionDTO {
+export interface SkillDTO {
   id: string;
   name: string;
   description: string;

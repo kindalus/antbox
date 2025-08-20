@@ -1,7 +1,4 @@
-import {
-  type Function,
-  FunctionParameter,
-} from "domain/functions/function_node.ts";
+import { type Function, FunctionParameter } from "domain/skills/skill_node.ts";
 import { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { NodeFilter } from "domain/nodes/node_filter.ts";
 import { Folders } from "domain/nodes/folders.ts";
@@ -9,7 +6,7 @@ import { Nodes } from "domain/nodes/nodes.ts";
 import { AntboxError, BadRequestError } from "shared/antbox_error.ts";
 import { Either, left, right } from "shared/either.ts";
 
-export interface FunctionMetadata {
+export interface SkillMetadata {
   uuid: string;
   name: string;
   description: string;
@@ -43,9 +40,9 @@ export function functionToNodeMetadata(
     uuid: func.uuid,
     title: func.name,
     description: func.description || "",
-    parent: Folders.FUNCTIONS_FOLDER_UUID,
-    mimetype: Nodes.FUNCTION_MIMETYPE,
-    name: func.name,
+    parent: Folders.SKILLS_FOLDER_UUID,
+    mimetype: Nodes.SKILL_MIMETYPE,
+    //name: func.name,
     exposeAction: func.exposeAction,
     runOnCreates: func.runOnCreates,
     runOnUpdates: func.runOnUpdates,
@@ -88,16 +85,16 @@ export async function fileToFunction(
       const func = module.default as Function;
 
       if (!func.uuid) {
-        return left(new BadRequestError("Function must have a uuid"));
+        return left(new BadRequestError("Skill must have a uuid"));
       }
 
       if (!func.name) {
-        return left(new BadRequestError("Function must have a name"));
+        return left(new BadRequestError("Skill must have a name"));
       }
 
       if (!func.run || typeof func.run !== "function") {
         return left(
-          new BadRequestError("Function must implement a run method"),
+          new BadRequestError("Skill must implement a run method"),
         );
       }
 
@@ -108,7 +105,7 @@ export async function fileToFunction(
   } catch (error) {
     return left(
       new BadRequestError(
-        `Failed to parse function: ${(error as Error).message}`,
+        `Failed to parse skill: ${(error as Error).message}`,
       ),
     );
   }

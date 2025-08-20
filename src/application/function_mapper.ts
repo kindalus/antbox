@@ -1,7 +1,7 @@
 import { FunctionDTO } from "application/function_dto.ts";
-import { FunctionNode } from "domain/functions/function_node.ts";
+import { FunctionNode as SkillNode } from "domain/skills/skill_node.ts";
 
-export function nodeToFunction(node: FunctionNode): FunctionDTO {
+export function nodeToFunction(node: SkillNode): FunctionDTO {
   return {
     id: node.uuid,
     name: node.title,

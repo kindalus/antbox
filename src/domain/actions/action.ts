@@ -4,7 +4,7 @@ import { type Either, left, right } from "shared/either.ts";
 import { ActionNode } from "domain/actions/action_node.ts";
 import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
-import { FunctionParameter } from "domain/functions/function_node.ts";
+import { FunctionParameter } from "domain/skills/skill_node.ts";
 
 export interface Action {
   uuid: string;

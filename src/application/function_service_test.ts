@@ -3,7 +3,7 @@ import { describe, test } from "bdd";
 import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus.ts";
 import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository.ts";
 import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider.ts";
-import { FunctionNotFoundError } from "domain/functions/function_not_found_error.ts";
+import { SkillNotFoundError } from "domain/skills/skill_not_found_error.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import { NodeUpdatedEvent } from "domain/nodes/node_updated_event.ts";
 import { GroupNode } from "domain/users_groups/group_node.ts";
@@ -141,14 +141,14 @@ describe("FunctionService", () => {
           },
           {
             name: "param2",
-            type: "number", 
+            type: "number",
             required: false,
             description: "Another parameter"
           }
         ],
         returnType: "object",
         returnDescription: "A result object",
-        
+
         run: async (ctx, args) => {
           return { message: "Hello, " + args.param1, value: args.param2 };
         }
@@ -180,7 +180,10 @@ describe("FunctionService", () => {
       }),
     );
 
-    const functionOrErr = await service.get(adminAuthContext, "test-function-uuid");
+    const functionOrErr = await service.get(
+      adminAuthContext,
+      "test-function-uuid",
+    );
 
     expect(functionOrErr.isRight(), errToMsg(functionOrErr.value)).toBeTruthy();
     expect(functionOrErr.right.id).toBe("test-function-uuid");
@@ -206,7 +209,7 @@ describe("FunctionService", () => {
     const functionOrErr = await service.get(adminAuthContext, "--group-1--");
 
     expect(functionOrErr.isLeft()).toBeTruthy();
-    expect(functionOrErr.value).toBeInstanceOf(FunctionNotFoundError);
+    expect(functionOrErr.value).toBeInstanceOf(SkillNotFoundError);
   });
 
   test("delete should remove function", async () => {
@@ -225,7 +228,10 @@ describe("FunctionService", () => {
 
     expect(deleteResult.isRight(), errToMsg(deleteResult.value)).toBeTruthy();
 
-    const getFunctionResult = await service.get(adminAuthContext, "test-function-uuid");
+    const getFunctionResult = await service.get(
+      adminAuthContext,
+      "test-function-uuid",
+    );
     expect(getFunctionResult.isLeft()).toBeTruthy();
     expect(getFunctionResult.value).toBeInstanceOf(NodeNotFoundError);
   });
@@ -241,10 +247,10 @@ describe("FunctionService", () => {
 
     const secondFunctionContent = testFunctionContent.replace(
       "test-function-uuid",
-      "second-function-uuid"
+      "second-function-uuid",
     ).replace(
       "Test Function",
-      "Second Function"
+      "Second Function",
     );
 
     await service.createOrReplace(
@@ -258,8 +264,10 @@ describe("FunctionService", () => {
 
     expect(functions.isRight(), errToMsg(functions.value)).toBeTruthy();
     expect(functions.right.length).toBe(2);
-    expect(functions.right.some(f => f.id === "test-function-uuid")).toBeTruthy();
-    expect(functions.right.some(f => f.id === "second-function-uuid")).toBeTruthy();
+    expect(functions.right.some((f) => f.id === "test-function-uuid"))
+      .toBeTruthy();
+    expect(functions.right.some((f) => f.id === "second-function-uuid"))
+      .toBeTruthy();
   });
 
   test("export should create a JavaScript file containing function", async () => {
@@ -291,9 +299,13 @@ describe("FunctionService", () => {
       }),
     );
 
-    const runResult = await service.run(adminAuthContext, "test-function-uuid", {
-      param1: "World"
-    });
+    const runResult = await service.run(
+      adminAuthContext,
+      "test-function-uuid",
+      {
+        param1: "World",
+      },
+    );
 
     expect(runResult.isRight(), errToMsg(runResult.value)).toBeTruthy();
     expect(runResult.value).toBe("Hello, World");
@@ -337,7 +349,11 @@ describe("FunctionService", () => {
       }),
     );
 
-    const runResult = await service.run(adminAuthContext, "validation-function-uuid", {});
+    const runResult = await service.run(
+      adminAuthContext,
+      "validation-function-uuid",
+      {},
+    );
 
     expect(runResult.isLeft()).toBeTruthy();
     expect(runResult.value.message).toContain("Required parameter missing");
@@ -374,7 +390,11 @@ describe("FunctionService", () => {
       }),
     );
 
-    const runResult = await service.run(adminAuthContext, "automatic-function-uuid", {});
+    const runResult = await service.run(
+      adminAuthContext,
+      "automatic-function-uuid",
+      {},
+    );
 
     expect(runResult.isLeft()).toBeTruthy();
     expect(runResult.value).toBeInstanceOf(BadRequestError);

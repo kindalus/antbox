@@ -2,7 +2,7 @@ import { AspectProperties } from "domain/aspects/aspect_node.ts";
 import { type Permissions } from "domain/nodes/node.ts";
 import { type NodeFilters } from "domain/nodes/node_filter.ts";
 import { type NodeProperties } from "domain/nodes/node_properties.ts";
-import { FunctionParameter } from "domain/functions/function_node.ts";
+import { FunctionParameter } from "domain/skills/skill_node.ts";
 
 export interface NodeMetadata {
   uuid: string;

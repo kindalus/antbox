@@ -1,10 +1,7 @@
-import type { Function } from "domain/functions/function_node.ts";
-import {
-  fileToFunction,
-  functionToNodeMetadata,
-} from "domain/functions/function.ts";
-import { FunctionNode } from "domain/functions/function_node.ts";
-import { FunctionNotFoundError } from "domain/functions/function_not_found_error.ts";
+import type { Function } from "domain/skills/skill_node.ts";
+import { fileToFunction, functionToNodeMetadata } from "domain/skills/skill.ts";
+import { SkillNode } from "domain/skills/skill_node.ts";
+import { SkillNotFoundError } from "domain/skills/skill_not_found_error.ts";
 import { Folders } from "domain/nodes/folders.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
@@ -18,7 +15,7 @@ import { type AuthenticationContext } from "./authentication_context.ts";
 import { NodeService } from "./node_service.ts";
 import { UsersGroupsService } from "./users_groups_service.ts";
 import { FunctionDTO } from "./function_dto.ts";
-import { RunContext } from "domain/functions/run_context.ts";
+import { RunContext } from "domain/skills/skill_run_context.ts";
 import { NodeMetadata } from "domain/nodes/node_metadata.ts";
 
 export class FunctionService {
@@ -30,15 +27,15 @@ export class FunctionService {
   async get(
     ctx: AuthenticationContext,
     uuid: string,
-  ): Promise<Either<NodeNotFoundError | FunctionNotFoundError, FunctionDTO>> {
+  ): Promise<Either<NodeNotFoundError | SkillNotFoundError, FunctionDTO>> {
     const nodeOrErr = await this.nodeService.get(ctx, uuid);
 
     if (nodeOrErr.isLeft()) {
       return left(nodeOrErr.value);
     }
 
-    if (!Nodes.isFunction(nodeOrErr.value)) {
-      return left(new FunctionNotFoundError(uuid));
+    if (!Nodes.isSkill(nodeOrErr.value)) {
+      return left(new SkillNotFoundError(uuid));
     }
 
     const func = nodeOrErr.value;
@@ -51,8 +48,8 @@ export class FunctionService {
     const nodesOrErrs = await this.nodeService.find(
       ctx,
       [
-        ["mimetype", "==", Nodes.FUNCTION_MIMETYPE],
-        ["parent", "==", Folders.FUNCTIONS_FOLDER_UUID],
+        ["mimetype", "==", Nodes.SKILL_MIMETYPE],
+        ["parent", "==", Folders.SKILLS_FOLDER_UUID],
       ],
       Number.MAX_SAFE_INTEGER,
     );
@@ -61,7 +58,7 @@ export class FunctionService {
       return left(nodesOrErrs.value);
     }
 
-    const nodes = nodesOrErrs.value.nodes as FunctionNode[];
+    const nodes = nodesOrErrs.value.nodes as SkillNode[];
     const dtos = nodes.map((n) => this.#nodeToFunctionDTO(n));
 
     return right(dtos);
@@ -93,7 +90,7 @@ export class FunctionService {
       return left(nodeOrErr.value);
     }
 
-    return right(this.#nodeToFunctionDTO(nodeOrErr.value as FunctionNode));
+    return right(this.#nodeToFunctionDTO(nodeOrErr.value as SkillNode));
   }
 
   async update(
@@ -119,7 +116,7 @@ export class FunctionService {
     }
 
     return right(
-      this.#nodeToFunctionDTO(updatedNodeOrErr.value as FunctionNode),
+      this.#nodeToFunctionDTO(updatedNodeOrErr.value as SkillNode),
     );
   }
 
@@ -146,7 +143,7 @@ export class FunctionService {
     }
 
     return right(
-      this.#nodeToFunctionDTO(updatedNodeOrErr.value as FunctionNode),
+      this.#nodeToFunctionDTO(updatedNodeOrErr.value as SkillNode),
     );
   }
 
@@ -176,7 +173,7 @@ export class FunctionService {
     const func = functionOrErr.value;
 
     if (!func.runManually && ctx.mode === "Direct") {
-      return left(new BadRequestError("Function cannot be run manually"));
+      return left(new BadRequestError("Skill cannot be run manually"));
     }
 
     let runCtx: RunContext = {
@@ -231,8 +228,8 @@ export class FunctionService {
       return left(nodeOrErr.value);
     }
 
-    if (!Nodes.isFunction(nodeOrErr.value)) {
-      return left(new FunctionNotFoundError(uuid));
+    if (!Nodes.isSkill(nodeOrErr.value)) {
+      return left(new SkillNotFoundError(uuid));
     }
 
     const fileOrErr = await this.nodeService.export(ctx, uuid);
@@ -264,7 +261,7 @@ export class FunctionService {
     });
   }
 
-  #nodeToFunctionDTO(node: FunctionNode): FunctionDTO {
+  #nodeToFunctionDTO(node: SkillNode): FunctionDTO {
     return {
       id: node.uuid,
       name: node.name,

@@ -1,5 +1,5 @@
 import { NodeFilter } from "domain/nodes/node_filter.ts";
-import { FunctionParameter } from "domain/functions/function_node.ts";
+import { SkillParameter } from "domain/skills/skill_node.ts";
 
 export interface FunctionDTO {
   id: string;
@@ -16,7 +16,7 @@ export interface FunctionDTO {
 
   runAs?: string;
   groupsAllowed: string[];
-  parameters: FunctionParameter[];
+  parameters: SkillParameter[];
 
   returnType:
     | "string"

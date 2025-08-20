@@ -3,7 +3,7 @@ import {
   actionToNodeMetadata,
   fileToAction,
 } from "domain/actions/action.ts";
-import { ActionNode } from "domain/actions/action_node.ts";
+import { SkillNode as FunctionNode } from "domain/skills/skill_node.ts";
 import { FolderNode } from "domain/nodes/folder_node.ts";
 import { Folders } from "domain/nodes/folders.ts";
 import { Node } from "domain/nodes/node.ts";
@@ -21,7 +21,7 @@ import { type Either, left, right } from "shared/either.ts";
 import { UsersGroupsService } from "application/users_groups_service.ts";
 import { type AuthenticationContext } from "application/authentication_context.ts";
 import { NodeService } from "application/node_service.ts";
-import type { RunContext } from "domain/actions/run_context.ts";
+import { RunContext } from "domain/skills/skill_run_context.ts";
 import { builtinActions } from "application/builtin_actions/index.ts";
 import type { NodeFilter } from "domain/nodes/node_filter.ts";
 import { NodeLike } from "domain/node_like.ts";

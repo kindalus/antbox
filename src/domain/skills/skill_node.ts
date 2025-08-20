@@ -4,10 +4,10 @@ import { Nodes } from "domain/nodes/nodes.ts";
 import { Node } from "domain/nodes/node.ts";
 import { Either, left, right } from "shared/either.ts";
 import { ValidationError } from "shared/validation_error.ts";
-import { RunContext } from "domain/functions/run_context.ts";
 import { AntboxError } from "shared/antbox_error.ts";
+import { RunContext } from "domain/skills/skill_run_context.ts";
 
-export interface FunctionParameter {
+export interface SkillParameter {
   name: string;
   type: "string" | "number" | "boolean" | "object" | "array" | "file";
   required: boolean;
@@ -15,7 +15,10 @@ export interface FunctionParameter {
   defaultValue?: string | number | boolean | object | Array<unknown>;
 }
 
-export interface Function {
+// Backward-compat types while migrating naming across the codebase
+export type FunctionParameter = SkillParameter;
+
+export interface Skill {
   uuid: string;
   name: string;
   description: string;
@@ -30,7 +33,7 @@ export interface Function {
 
   runAs?: string;
   groupsAllowed: string[];
-  parameters: FunctionParameter[];
+  parameters: SkillParameter[];
 
   returnType:
     | "string"
@@ -43,13 +46,14 @@ export interface Function {
   returnDescription?: string;
   returnContentType?: string;
 
-  run(
-    ctx: RunContext,
-    args: Record<string, unknown>,
-  ): Promise<unknown>;
+  run(ctx: RunContext, args: Record<string, unknown>): Promise<unknown>;
 }
 
-export class FunctionNode extends Node {
+// Backward-compat alias while migrating imports
+export type Function = Skill;
+
+export class SkillNode extends Node {
+  readonly name: string;
   readonly exposeAction: boolean;
   readonly runOnCreates: boolean;
   readonly runOnUpdates: boolean;
@@ -59,7 +63,7 @@ export class FunctionNode extends Node {
   readonly exposeMCP: boolean;
   readonly runAs?: string;
   readonly groupsAllowed: string[];
-  readonly parameters: FunctionParameter[];
+  readonly parameters: SkillParameter[];
   readonly returnType:
     | "string"
     | "number"
@@ -72,32 +76,32 @@ export class FunctionNode extends Node {
   readonly returnContentType?: string;
 
   constructor(
-    metadata: Partial<
-      NodeMetadata & {
-        exposeAction?: boolean;
-        runOnCreates?: boolean;
-        runOnUpdates?: boolean;
-        runManually?: boolean;
-        filters?: NodeFilter[];
-        exposeExtension?: boolean;
-        exposeMCP?: boolean;
-        runAs?: string;
-        groupsAllowed?: string[];
-        parameters?: FunctionParameter[];
-        returnType?:
-          | "string"
-          | "number"
-          | "boolean"
-          | "array"
-          | "object"
-          | "file"
-          | "void";
-        returnDescription?: string;
-        returnContentType?: string;
-      }
-    >,
+    metadata: NodeMetadata & {
+      name?: string;
+      exposeAction?: boolean;
+      runOnCreates?: boolean;
+      runOnUpdates?: boolean;
+      runManually?: boolean;
+      filters?: NodeFilter[];
+      exposeExtension?: boolean;
+      exposeMCP?: boolean;
+      runAs?: string;
+      groupsAllowed?: string[];
+      parameters?: SkillParameter[];
+      returnType?:
+        | "string"
+        | "number"
+        | "boolean"
+        | "array"
+        | "object"
+        | "file"
+        | "void";
+      returnDescription?: string;
+      returnContentType?: string;
+    },
   ) {
     super(metadata);
+    this.name = metadata.name || metadata.title;
     this.exposeAction = metadata.exposeAction ?? false;
     this.runOnCreates = metadata.runOnCreates ?? false;
     this.runOnUpdates = metadata.runOnUpdates ?? false;
@@ -113,10 +117,11 @@ export class FunctionNode extends Node {
     this.returnContentType = metadata.returnContentType;
   }
 
-  override get metadata(): Partial<NodeMetadata> {
+  override get metadata(): NodeMetadata {
     return {
       ...super.metadata,
-      mimetype: Nodes.FUNCTION_MIMETYPE,
+      mimetype: Nodes.SKILL_MIMETYPE,
+      // Intentionally not adding `name` to metadata as NodeMetadata schema does not include it.
       exposeAction: this.exposeAction,
       runOnCreates: this.runOnCreates,
       runOnUpdates: this.runOnUpdates,
@@ -134,32 +139,31 @@ export class FunctionNode extends Node {
   }
 
   static create(
-    metadata: Partial<
-      NodeMetadata & {
-        exposeAction?: boolean;
-        runOnCreates?: boolean;
-        runOnUpdates?: boolean;
-        runManually?: boolean;
-        filters?: NodeFilter[];
-        exposeExtension?: boolean;
-        exposeMCP?: boolean;
-        runAs?: string;
-        groupsAllowed?: string[];
-        parameters?: FunctionParameter[];
-        returnType?:
-          | "string"
-          | "number"
-          | "boolean"
-          | "array"
-          | "object"
-          | "file"
-          | "void";
-        returnDescription?: string;
-        returnContentType?: string;
-      }
-    >,
-  ): Either<ValidationError, FunctionNode> {
-    if (!metadata.uuid && !metadata.title) {
+    metadata: Partial<NodeMetadata> & {
+      name?: string;
+      exposeAction?: boolean;
+      runOnCreates?: boolean;
+      runOnUpdates?: boolean;
+      runManually?: boolean;
+      filters?: NodeFilter[];
+      exposeExtension?: boolean;
+      exposeMCP?: boolean;
+      runAs?: string;
+      groupsAllowed?: string[];
+      parameters?: SkillParameter[];
+      returnType?:
+        | "string"
+        | "number"
+        | "boolean"
+        | "array"
+        | "object"
+        | "file"
+        | "void";
+      returnDescription?: string;
+      returnContentType?: string;
+    },
+  ): Either<ValidationError, SkillNode> {
+    if (!metadata.name && !metadata.title) {
       return left(
         ValidationError.from(
           new AntboxError("ValidationError", "Name or title is required"),
@@ -168,12 +172,12 @@ export class FunctionNode extends Node {
     }
 
     const safeMeta = {
-      mimetype: Nodes.FUNCTION_MIMETYPE,
+      mimetype: Nodes.SKILL_MIMETYPE,
       ...metadata,
     };
 
     try {
-      const node = new FunctionNode(safeMeta);
+      const node = new SkillNode(safeMeta as NodeMetadata);
       return right(node);
     } catch (error) {
       return left(

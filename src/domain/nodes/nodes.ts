@@ -10,7 +10,7 @@ import { SmartFolderNode } from "./smart_folder_node.ts";
 import type { NodeLike } from "domain/node_like.ts";
 import { ArticleNode } from "domain/articles/article_node.ts";
 import { ApiKeyNode } from "domain/api_keys/api_key_node.ts";
-import { FunctionNode as SkillNode } from "domain/skills/skill_node.ts";
+import { SkillNode } from "domain/skills/skill_node.ts";
 
 export class Nodes {
   static FID_PREFIX = "--fid--";

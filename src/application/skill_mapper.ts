@@ -1,5 +1,5 @@
 import { SkillDTO } from "application/skill_dto.ts";
-import { FunctionNode as SkillNode } from "domain/skills/skill_node.ts";
+import { SkillNode } from "domain/skills/skill_node.ts";
 
 export function nodeToSkill(node: SkillNode): SkillDTO {
   return {

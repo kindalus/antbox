@@ -7,9 +7,9 @@ import { UserNode } from "domain/users_groups/user_node.ts";
 import { ExtNode } from "domain/exts/ext_node.ts";
 import type { FileNode } from "./nodes/file_node.ts";
 import type { FolderNode } from "./nodes/folder_node.ts";
-import type { MetaNode } from "./nodes/meta_node.ts";
-import type { SmartFolderNode } from "./nodes/smart_folder_node.ts";
-import { FunctionNode as SkillNode } from "domain/skills/skill_node.ts";
+import type { MetaNode } from "domain/nodes/meta_node.ts";
+import type { SmartFolderNode } from "domain/nodes/smart_folder_node.ts";
+import { SkillNode } from "domain/skills/skill_node.ts";
 
 export type NodeLike =
   | ActionNode

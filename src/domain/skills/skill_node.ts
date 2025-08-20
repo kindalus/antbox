@@ -15,9 +15,6 @@ export interface SkillParameter {
   defaultValue?: string | number | boolean | object | Array<unknown>;
 }
 
-// Backward-compat types while migrating naming across the codebase
-export type FunctionParameter = SkillParameter;
-
 export interface Skill {
   uuid: string;
   name: string;
@@ -49,9 +46,6 @@ export interface Skill {
   run(ctx: RunContext, args: Record<string, unknown>): Promise<unknown>;
 }
 
-// Backward-compat alias while migrating imports
-export type Function = Skill;
-
 export class SkillNode extends Node {
   readonly name: string;
   readonly exposeAction: boolean;
@@ -76,32 +70,34 @@ export class SkillNode extends Node {
   readonly returnContentType?: string;
 
   constructor(
-    metadata: NodeMetadata & {
-      name?: string;
-      exposeAction?: boolean;
-      runOnCreates?: boolean;
-      runOnUpdates?: boolean;
-      runManually?: boolean;
-      filters?: NodeFilter[];
-      exposeExtension?: boolean;
-      exposeMCP?: boolean;
-      runAs?: string;
-      groupsAllowed?: string[];
-      parameters?: SkillParameter[];
-      returnType?:
-        | "string"
-        | "number"
-        | "boolean"
-        | "array"
-        | "object"
-        | "file"
-        | "void";
-      returnDescription?: string;
-      returnContentType?: string;
-    },
+    metadata: Partial<
+      NodeMetadata & {
+        name?: string;
+        exposeAction?: boolean;
+        runOnCreates?: boolean;
+        runOnUpdates?: boolean;
+        runManually?: boolean;
+        filters?: NodeFilter[];
+        exposeExtension?: boolean;
+        exposeMCP?: boolean;
+        runAs?: string;
+        groupsAllowed?: string[];
+        parameters?: SkillParameter[];
+        returnType?:
+          | "string"
+          | "number"
+          | "boolean"
+          | "array"
+          | "object"
+          | "file"
+          | "void";
+        returnDescription?: string;
+        returnContentType?: string;
+      }
+    >,
   ) {
     super(metadata);
-    this.name = metadata.name || metadata.title;
+    this.name = metadata.name || metadata.title!;
     this.exposeAction = metadata.exposeAction ?? false;
     this.runOnCreates = metadata.runOnCreates ?? false;
     this.runOnUpdates = metadata.runOnUpdates ?? false;
@@ -117,7 +113,7 @@ export class SkillNode extends Node {
     this.returnContentType = metadata.returnContentType;
   }
 
-  override get metadata(): NodeMetadata {
+  override get metadata(): Partial<NodeMetadata> {
     return {
       ...super.metadata,
       mimetype: Nodes.SKILL_MIMETYPE,
@@ -177,7 +173,7 @@ export class SkillNode extends Node {
     };
 
     try {
-      const node = new SkillNode(safeMeta as NodeMetadata);
+      const node = new SkillNode(safeMeta);
       return right(node);
     } catch (error) {
       return left(

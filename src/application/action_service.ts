@@ -3,7 +3,7 @@ import {
   actionToNodeMetadata,
   fileToAction,
 } from "domain/actions/action.ts";
-import { SkillNode as FunctionNode } from "domain/skills/skill_node.ts";
+import { SkillNode } from "domain/skills/skill_node.ts";
 import { FolderNode } from "domain/nodes/folder_node.ts";
 import { Folders } from "domain/nodes/folders.ts";
 import { Node } from "domain/nodes/node.ts";
@@ -64,12 +64,12 @@ export class ActionService {
   async get(
     ctx: AuthenticationContext,
     uuid: string,
-  ): Promise<Either<NodeNotFoundError, ActionNode>> {
+  ): Promise<Either<NodeNotFoundError, SkillNode>> {
     const found = builtinActions.find((a) => a.uuid === uuid);
 
     if (found) {
       return right(
-        ActionNode.create(actionToNodeMetadata(found, Users.ROOT_USER_EMAIL))
+        SkillNode.create(actionToNodeMetadata(found, Users.ROOT_USER_EMAIL))
           .right,
       );
     }
@@ -89,7 +89,7 @@ export class ActionService {
 
   async list(
     ctx: AuthenticationContext,
-  ): Promise<Either<AntboxError, ActionNode[]>> {
+  ): Promise<Either<AntboxError, SkillNode[]>> {
     const nodesOrErrs = await this.nodeService.find(
       ctx,
       [
@@ -104,9 +104,9 @@ export class ActionService {
     }
 
     const nodes = [
-      ...(nodesOrErrs.value.nodes as ActionNode[]),
+      ...(nodesOrErrs.value.nodes as SkillNode[]),
       ...builtinActions.map((a) =>
-        ActionNode.create(actionToNodeMetadata(a, Users.ROOT_USER_EMAIL)).right
+        SkillNode.create(actionToNodeMetadata(a, Users.ROOT_USER_EMAIL)).right
       ),
     ].sort((a, b) => a.title.localeCompare(b.title));
 
@@ -440,7 +440,7 @@ export class ActionService {
       return [];
     }
 
-    const actionCandidates = actionsOrErr.value.nodes as ActionNode[];
+    const actionCandidates = actionsOrErr.value.nodes as SkillNode[];
 
     const actionsTasks = actionCandidates
       .filter((a) => NodesFilters.satisfiedBy(a.filters, node))

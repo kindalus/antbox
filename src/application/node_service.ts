@@ -36,14 +36,14 @@ import { type Either, left, right } from "shared/either.ts";
 import { FidGenerator } from "shared/fid_generator.ts";
 import { UuidGenerator } from "shared/uuid_generator.ts";
 import { ValidationError } from "shared/validation_error.ts";
-import type { AuthenticationContext } from "./authentication_context.ts";
+import type { AuthenticationContext } from "application/authentication_context.ts";
 import {
   builtinFolders,
   SYSTEM_FOLDER,
   SYSTEM_FOLDERS,
-} from "./builtin_folders/index.ts";
-import { isPrincipalAllowedTo } from "./is_principal_allowed_to.ts";
-import type { NodeServiceContext } from "./node_service_context.ts";
+} from "application/builtin_folders/index.ts";
+import { isPrincipalAllowedTo } from "application/is_principal_allowed_to.ts";
+import type { NodeServiceContext } from "application/node_service_context.ts";
 
 // TODO: Implements throwing events
 

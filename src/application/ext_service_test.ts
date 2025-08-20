@@ -8,7 +8,7 @@ import { GroupNode } from "domain/users_groups/group_node.ts";
 import { Groups } from "domain/users_groups/groups.ts";
 import { BadRequestError } from "shared/antbox_error.ts";
 import { AuthenticationContext } from "application/authentication_context.ts";
-import { ExtService } from "application/ext_service.ts";
+import { ExtService } from "application/skill_service.ts";
 import { NodeService } from "application/node_service.ts";
 
 const createService = (repository = new InMemoryNodeRepository()) => {

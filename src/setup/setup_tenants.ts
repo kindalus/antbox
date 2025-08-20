@@ -1,15 +1,25 @@
+import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus.ts";
 import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository.ts";
 import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider.ts";
 import type { AntboxTenant } from "api/antbox_tenant.ts";
-import type { ServerConfiguration, TenantConfiguration } from "api/http_server_configuration.ts";
+import type {
+  ServerConfiguration,
+  TenantConfiguration,
+} from "api/http_server_configuration.ts";
 import { NodeService } from "application/node_service.ts";
 import type { StorageProvider } from "application/storage_provider.ts";
 import type { NodeRepository } from "domain/nodes/node_repository.ts";
 import { JWK, ROOT_PASSWD, SYMMETRIC_KEY } from "./server_defaults.ts";
 import { providerFrom } from "adapters/parse_module_configuration.ts";
 import { AspectService } from "application/aspect_service.ts";
+import { SkillService } from "application/skill_service.ts";
+import { UsersGroupsService } from "application/users_groups_service.ts";
+import { AuthService } from "application/auth_service.ts";
+import { ApiKeyService } from "application/api_key_service.ts";
 
-export async function setupTenants(o: ServerConfiguration): Promise<AntboxTenant[]> {
+export function setupTenants(
+  o: ServerConfiguration,
+): Promise<AntboxTenant[]> {
   // const ocrEngine =
   //   (await providerFrom<OcrEngine>(o.ocrEngine)) ?? new TesseractOcrEngine();
   return Promise.all(o.tenants.map(setupTenant));
@@ -22,18 +32,31 @@ async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
   const rawJwk = await loadJwk(cfg?.jwkPath);
   const repository = await providerFrom<NodeRepository>(cfg?.repository);
   const storage = await providerFrom<StorageProvider>(cfg?.storage);
+  const eventBus = new InMemoryEventBus();
 
   const nodeService = new NodeService({
     repository: repository ?? new InMemoryNodeRepository(),
     storage: storage ?? new InMemoryStorageProvider(),
+    bus: eventBus,
   });
 
   const aspectService = new AspectService(nodeService);
+  const usersGroupsService = new UsersGroupsService({
+    repository: repository ?? new InMemoryNodeRepository(),
+    storage: storage ?? new InMemoryStorageProvider(),
+    bus: eventBus,
+  });
+  const skillService = new SkillService(nodeService, usersGroupsService);
+  const authService = new AuthService(nodeService);
+  const apiKeyService = new ApiKeyService(nodeService);
 
   return {
     name: cfg.name,
     nodeService,
     aspectService,
+    skillService,
+    authService,
+    apiKeyService,
     rootPasswd: passwd,
     symmetricKey,
     rawJwk,
@@ -45,11 +68,11 @@ async function loadJwk(jwkPath?: string): Promise<Record<string, string>> {
     return JWK;
   }
 
-  const file = Bun.file(jwkPath);
-  if (!file.exists) {
+  try {
+    const file = await Deno.readTextFile(jwkPath);
+    return JSON.parse(file);
+  } catch {
     console.error("JWK file not found");
-    process.exit(-1);
+    Deno.exit(-1);
   }
-
-  return file.json();
 }

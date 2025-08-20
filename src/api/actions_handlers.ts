@@ -10,7 +10,7 @@ import { processServiceResult } from "./process_service_result.ts";
 
 export function getHandler(tenants: AntboxTenant[]): HttpHandler {
   return defaultMiddlewareChain(tenants, (req: Request): Promise<Response> => {
-    const service = getTenant(req, tenants).actionService;
+    const service = getTenant(req, tenants).skillService;
     const params = getParams(req);
     if (!params.uuid) {
       return Promise.resolve(
@@ -19,7 +19,7 @@ export function getHandler(tenants: AntboxTenant[]): HttpHandler {
     }
 
     return service
-      .get(getAuthenticationContext(req), params.uuid)
+      .getAction(getAuthenticationContext(req), params.uuid)
       .then(processServiceResult)
       .catch(processError);
   });
@@ -29,10 +29,10 @@ export function listHandler(tenants: AntboxTenant[]): HttpHandler {
   return defaultMiddlewareChain(
     tenants,
     async (req: Request): Promise<Response> => {
-      const service = getTenant(req, tenants).actionService;
+      const service = getTenant(req, tenants).skillService;
 
       return service
-        .list(getAuthenticationContext(req))
+        .listActions(getAuthenticationContext(req))
         .then(processServiceResult)
         .catch(processError);
     },
@@ -43,13 +43,13 @@ export function deleteHandler(tenants: AntboxTenant[]): HttpHandler {
   return defaultMiddlewareChain(
     tenants,
     async (req: Request): Promise<Response> => {
-      const service = getTenant(req, tenants).actionService;
+      const service = getTenant(req, tenants).skillService;
       const params = getParams(req);
       if (!params.uuid) {
         return new Response("{ uuid } not given", { status: 400 });
       }
       return service
-        .delete(getAuthenticationContext(req), params.uuid)
+        .deleteAction(getAuthenticationContext(req), params.uuid)
         .then(processServiceResult)
         .catch(processError);
     },
@@ -58,7 +58,7 @@ export function deleteHandler(tenants: AntboxTenant[]): HttpHandler {
 
 export function exportHandler(tenants: AntboxTenant[]): HttpHandler {
   return defaultMiddlewareChain(tenants, (req: Request): Promise<Response> => {
-    const service = getTenant(req, tenants).actionService;
+    const service = getTenant(req, tenants).skillService;
     const params = getParams(req);
     if (!params.uuid) {
       return Promise.resolve(
@@ -67,8 +67,8 @@ export function exportHandler(tenants: AntboxTenant[]): HttpHandler {
     }
 
     return Promise.all([
-      service.get(getAuthenticationContext(req), params.uuid),
-      service.export(getAuthenticationContext(req), params.uuid),
+      service.getAction(getAuthenticationContext(req), params.uuid),
+      service.exportAction(getAuthenticationContext(req), params.uuid),
     ])
       .then(([node, blob]) => {
         if (node.isLeft()) {
@@ -92,7 +92,7 @@ export function runHandler(tenants: AntboxTenant[]): HttpHandler {
   return defaultMiddlewareChain(
     tenants,
     async (req: Request): Promise<Response> => {
-      const service = getTenant(req, tenants).actionService;
+      const service = getTenant(req, tenants).skillService;
       const params = getParams(req);
       const query = getQuery(req);
 
@@ -105,7 +105,7 @@ export function runHandler(tenants: AntboxTenant[]): HttpHandler {
       }
       const uuids = query.uuids.split(",");
       return service
-        .run(getAuthenticationContext(req), params.uuid, uuids, query)
+        .runAction(getAuthenticationContext(req), params.uuid, uuids, query)
         .then(processServiceResult)
         .catch(processError);
     },

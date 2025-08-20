@@ -9,7 +9,7 @@ import { NodeUpdatedEvent } from "domain/nodes/node_updated_event.ts";
 import { GroupNode } from "domain/users_groups/group_node.ts";
 import { Groups } from "domain/users_groups/groups.ts";
 import { BadRequestError } from "shared/antbox_error.ts";
-import { SkillService } from "application/function_service.ts";
+import { SkillService } from "application/skill_service.ts";
 import { AuthenticationContext } from "application/authentication_context.ts";
 import { NodeService } from "application/node_service.ts";
 import { UsersGroupsService } from "application/users_groups_service.ts";

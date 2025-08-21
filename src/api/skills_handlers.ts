@@ -1,12 +1,12 @@
-import type { AntboxTenant } from "./antbox_tenant.ts";
-import { defaultMiddlewareChain } from "./default_middleware_chain.ts";
-import { getAuthenticationContext } from "./get_authentication_context.ts";
-import { getParams } from "./get_params.ts";
-import { getQuery } from "./get_query.ts";
-import { getTenant } from "./get_tenant.ts";
-import { type HttpHandler } from "./handler.ts";
-import { processError } from "./process_error.ts";
-import { processServiceResult } from "./process_service_result.ts";
+import type { AntboxTenant } from "api/antbox_tenant.ts";
+import { defaultMiddlewareChain } from "api/default_middleware_chain.ts";
+import { getAuthenticationContext } from "api/get_authentication_context.ts";
+import { getParams } from "api/get_params.ts";
+import { getQuery } from "api/get_query.ts";
+import { getTenant } from "api/get_tenant.ts";
+import { type HttpHandler } from "api/handler.ts";
+import { processError } from "api/process_error.ts";
+import { processServiceResult } from "api/process_service_result.ts";
 
 export function getHandler(tenants: AntboxTenant[]): HttpHandler {
   return defaultMiddlewareChain(tenants, (req: Request): Promise<Response> => {

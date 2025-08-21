@@ -12,6 +12,15 @@ export async function readBody(ctx: Context): Promise<BodyInit | null> {
     return JSON.stringify(body);
   }
 
+  if (contentType?.includes("application/x-www-form-urlencoded")) {
+    const body = await ctx.request.body.form();
+    const formData = new FormData();
+    for (const [key, value] of Object.entries(body)) {
+      formData.append(key, String(value));
+    }
+    return formData;
+  }
+
   if (contentType?.includes("multipart/form-data")) {
     const body = await ctx.request.body.formData();
     return body as BodyInit;

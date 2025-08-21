@@ -1,14 +1,14 @@
-import aspectsRouter from "./aspects_router.ts";
-import nodesRouter from "./nodes_router.ts";
-import skillsRouter from "./skills_router.ts";
-import actionsRouter from "./actions_router.ts";
+import aspectsRouter from "adapters/oak/aspects_router.ts";
+import nodesRouter from "adapters/oak/nodes_router.ts";
+import skillsRouter from "adapters/oak/skills_router.ts";
+import actionsRouter from "adapters/oak/actions_router.ts";
 // import uploadRouter from "./upload_router.ts";
 // import webContentsRouter from "./web_contents_router.ts";
 // import groupsRouter from "./groups_router.ts";
 // import usersRouter from "./users_router.ts";
 // import apiKeysRouter from "./api_keys_router.ts";
 
-import loginRouter from "./login_router.ts";
+import loginRouter from "adapters/oak/login_router.ts";
 import type { AntboxTenant } from "api/antbox_tenant.ts";
 import { Application } from "@oak/oak";
 import type { HttpServerOpts, startHttpServer } from "api/http_server.ts";

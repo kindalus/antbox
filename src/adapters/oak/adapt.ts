@@ -10,7 +10,12 @@ export function adapt(handler: HttpHandler): (ctx: Context) => Promise<void> {
     for (const [key, value] of ctx.request.headers.entries()) {
       headers.set(key, value);
     }
-    // headers.set("x-params", JSON.stringify(ctx.params));
+    headers.set(
+      "x-params",
+      JSON.stringify(
+        (ctx as Context & { params: Record<string, string> }).params,
+      ),
+    );
 
     const init: RequestInit = {
       headers,
@@ -24,6 +29,13 @@ export function adapt(handler: HttpHandler): (ctx: Context) => Promise<void> {
 
     ctx.response.status = res.status;
     ctx.response.body = res.body;
+
+    // Copy all response headers
+    for (const [key, value] of res.headers.entries()) {
+      ctx.response.headers.set(key, value);
+    }
+
+    // Set content type if it's JSON
     if (res.headers.get("Content-Type") === "application/json") {
       ctx.response.type = "json";
     }

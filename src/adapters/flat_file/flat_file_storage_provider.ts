@@ -6,7 +6,7 @@ import { AntboxError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
 import { type Event } from "shared/event.ts";
 import { type EventHandler } from "shared/event_handler.ts";
-import { fileExistsSync } from "shared/file_exists_sync.ts";
+import { fileExistsSync } from "shared/os_helpers.ts";
 
 export default function buildFlatFileStorageProvider(
   baseDir: string,

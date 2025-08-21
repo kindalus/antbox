@@ -13,8 +13,7 @@ import { join } from "path";
 
 import { AntboxError, UnknownError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
-import { fileExistsSync } from "shared/file_exists_sync.ts";
-import { copyFile } from "shared/os_helpers.ts";
+import { copyFile, fileExistsSync } from "shared/os_helpers.ts";
 
 export default function buildFlatFileStorageProvider(
   baseDir: string,

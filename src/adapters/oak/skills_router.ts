@@ -17,16 +17,16 @@ import { adapt } from "./adapt.ts";
 export default function (tenants: AntboxTenant[]) {
   const skillsRouter = new Router({ prefix: "/skills" });
 
-  // Core skill operations
-  skillsRouter.get("/:uuid", adapt(getHandler(tenants)));
-  skillsRouter.delete("/:uuid", adapt(deleteHandler(tenants)));
-  skillsRouter.get("/:uuid/-/export", adapt(exportHandler(tenants)));
-
   // List operations
   skillsRouter.get("/", adapt(listHandler(tenants))); // List all skills
   skillsRouter.get("/-/actions", adapt(listActionsHandler(tenants))); // List action-exposed skills
   skillsRouter.get("/-/extensions", adapt(listExtsHandler(tenants))); // List extension-exposed skills
   skillsRouter.get("/-/mcp-tools", adapt(listMcpToolsHandler(tenants))); // List MCP-exposed skills
+
+  // Core skill operations
+  skillsRouter.get("/:uuid", adapt(getHandler(tenants)));
+  skillsRouter.delete("/:uuid", adapt(deleteHandler(tenants)));
+  skillsRouter.get("/:uuid/-/export", adapt(exportHandler(tenants)));
 
   // Run operations
   skillsRouter.get("/:uuid/-/run-action", adapt(runActionHandler(tenants))); // Run as action

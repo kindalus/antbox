@@ -108,6 +108,29 @@ export class SkillService {
     return right(dtos);
   }
 
+  async listMcpTools(
+    ctx: AuthenticationContext,
+  ): Promise<Either<AntboxError, SkillDTO[]>> {
+    const nodesOrErrs = await this.nodeService.find(
+      ctx,
+      [
+        ["mimetype", "==", Nodes.SKILL_MIMETYPE],
+        ["parent", "==", Folders.SKILLS_FOLDER_UUID],
+        ["exposeMCP", "==", true],
+      ],
+      Number.MAX_SAFE_INTEGER,
+    );
+
+    if (nodesOrErrs.isLeft()) {
+      return left(nodesOrErrs.value);
+    }
+
+    const nodes = nodesOrErrs.value.nodes as SkillNode[];
+    const dtos = nodes.map((n) => this.#nodeToSkillDTO(n));
+
+    return right(dtos);
+  }
+
   async createSkill(
     ctx: AuthenticationContext,
     file: File,
@@ -262,6 +285,56 @@ export class SkillService {
     return this.nodeService.export(ctx, uuid);
   }
 
+  async exportSkillForType(
+    ctx: AuthenticationContext,
+    uuid: string,
+    exportType: string,
+  ): Promise<Either<AntboxError, File>> {
+    const skillOrErr = await this.getSkill(ctx, uuid);
+    if (skillOrErr.isLeft()) {
+      return left(skillOrErr.value);
+    }
+
+    const skill = skillOrErr.value;
+
+    // Get the original file content
+    const fileOrErr = await this.nodeService.export(ctx, uuid);
+    if (fileOrErr.isLeft()) {
+      return left(fileOrErr.value);
+    }
+
+    const originalFile = fileOrErr.value;
+    const originalContent = await originalFile.text();
+
+    let exportContent = originalContent;
+    let filename = `${skill.name}.js`;
+
+    // Filter fields based on export type
+    switch (exportType) {
+      case "action":
+        filename = `${skill.name}_action.js`;
+        // Keep only action-relevant fields in the export
+        break;
+      case "extension":
+        filename = `${skill.name}_extension.js`;
+        // Keep only extension-relevant fields in the export
+        break;
+      case "mcp":
+        filename = `${skill.name}_mcp.js`;
+        // Keep only MCP-relevant fields in the export
+        break;
+      default:
+        // Export full skill
+        break;
+    }
+
+    const exportFile = new File([exportContent], filename, {
+      type: "application/javascript",
+    });
+
+    return right(exportFile);
+  }
+
   // === ACTION METHODS ===
 
   async getAction(
@@ -295,7 +368,19 @@ export class SkillService {
   async listActions(
     ctx: AuthenticationContext,
   ): Promise<Either<AntboxError, SkillNode[]>> {
-    const nodesOrErrs = await this.nodeService.find(
+    // Get skills that are exposed as actions
+    const skillsOrErrs = await this.nodeService.find(
+      ctx,
+      [
+        ["mimetype", "==", Nodes.SKILL_MIMETYPE],
+        ["parent", "==", Folders.SKILLS_FOLDER_UUID],
+        ["exposeAction", "==", true],
+      ],
+      Number.MAX_SAFE_INTEGER,
+    );
+
+    // Also get legacy action nodes
+    const actionsOrErrs = await this.nodeService.find(
       ctx,
       [
         ["mimetype", "==", Nodes.ACTION_MIMETYPE],
@@ -304,12 +389,16 @@ export class SkillService {
       Number.MAX_SAFE_INTEGER,
     );
 
-    if (nodesOrErrs.isLeft()) {
-      return left(nodesOrErrs.value);
-    }
+    const skillNodes = skillsOrErrs.isRight()
+      ? skillsOrErrs.value.nodes as SkillNode[]
+      : [];
+    const actionNodes = actionsOrErrs.isRight()
+      ? actionsOrErrs.value.nodes as SkillNode[]
+      : [];
 
     const nodes = [
-      ...(nodesOrErrs.value.nodes as SkillNode[]),
+      ...skillNodes,
+      ...actionNodes,
       ...builtinActions.map((a) =>
         SkillNode.create(actionToNodeMetadata(a, Users.ROOT_USER_EMAIL) as any)
           .right
@@ -658,7 +747,19 @@ export class SkillService {
   }
 
   async listExtensions(): Promise<Either<AntboxError, NodeLike[]>> {
-    const nodesOrErrs = await this.nodeService.find(
+    // Get skills that are exposed as extensions
+    const skillsOrErrs = await this.nodeService.find(
+      UsersGroupsService.elevatedContext,
+      [
+        ["mimetype", "==", Nodes.SKILL_MIMETYPE],
+        ["parent", "==", Folders.SKILLS_FOLDER_UUID],
+        ["exposeExtension", "==", true],
+      ],
+      Number.MAX_SAFE_INTEGER,
+    );
+
+    // Also get legacy extension nodes
+    const extsOrErrs = await this.nodeService.find(
       UsersGroupsService.elevatedContext,
       [
         ["mimetype", "==", Nodes.EXT_MIMETYPE],
@@ -667,11 +768,10 @@ export class SkillService {
       Number.MAX_SAFE_INTEGER,
     );
 
-    if (nodesOrErrs.isLeft()) {
-      return left(nodesOrErrs.value);
-    }
+    const skillNodes = skillsOrErrs.isRight() ? skillsOrErrs.value.nodes : [];
+    const extNodes = extsOrErrs.isRight() ? extsOrErrs.value.nodes : [];
 
-    return right(nodesOrErrs.value.nodes);
+    return right([...skillNodes, ...extNodes]);
   }
 
   async exportExtension(uuid: string): Promise<Either<AntboxError, File>> {
@@ -690,7 +790,19 @@ export class SkillService {
   async runExtension(
     uuid: string,
     request: Request,
+    parameters?: Record<string, unknown>,
   ): Promise<Either<NodeNotFoundError | Error, Response>> {
+    // First check if the skill is exposed as extension
+    const skillOrErr = await this.getExtension(uuid);
+    if (skillOrErr.isLeft()) {
+      return left(skillOrErr.value);
+    }
+
+    const skill = skillOrErr.value;
+    if (!skill.exposeExtension) {
+      return left(new BadRequestError("Skill is not exposed as extension"));
+    }
+
     const extOrErr = await this.#getExtensionAsModule(uuid);
 
     if (extOrErr.isLeft()) {
@@ -700,6 +812,56 @@ export class SkillService {
     const resp = await extOrErr.value(request, this.nodeService);
 
     return right(resp);
+  }
+
+  async runMcpTool<T>(
+    ctx: AuthenticationContext,
+    uuid: string,
+    mcpRequest: Record<string, unknown>,
+  ): Promise<Either<AntboxError, T>> {
+    const skillOrErr = await this.#getNodeAsFunction(ctx, uuid);
+    if (skillOrErr.isLeft()) {
+      return left(skillOrErr.value);
+    }
+
+    const skill = skillOrErr.value;
+
+    if (!skill.exposeMCP) {
+      return left(new BadRequestError("Skill is not exposed as MCP tool"));
+    }
+
+    if (!skill.runManually && ctx.mode === "Direct") {
+      return left(new BadRequestError("MCP tool cannot be run manually"));
+    }
+
+    let runCtx: RunContext = {
+      authenticationContext: ctx,
+      nodeService: this.nodeService,
+    };
+
+    if (skill.runAs) {
+      const authContextOrErr = await this.#getAuthCtxByEmail(skill.runAs);
+      if (authContextOrErr.isRight()) {
+        runCtx = {
+          authenticationContext: {
+            ...ctx,
+            ...authContextOrErr.value,
+          },
+          nodeService: this.nodeService,
+        };
+      }
+    }
+
+    try {
+      const result = await skill.run(runCtx, mcpRequest);
+      return right(result as T);
+    } catch (error) {
+      return left(
+        (error as AntboxError).errorCode
+          ? (error as AntboxError)
+          : new UnknownError((error as Error).message),
+      );
+    }
   }
 
   // === PRIVATE METHODS ===

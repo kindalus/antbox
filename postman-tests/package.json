@@ -1,0 +1,66 @@
+{
+  "name": "antbox-api-tests",
+  "version": "1.0.0",
+  "description": "Postman collections and automated tests for Antbox API",
+  "main": "run-tests.js",
+  "scripts": {
+    "test": "node run-tests.js",
+    "test:dev": "node run-tests.js --env development",
+    "test:prod": "node run-tests.js --env production",
+    "test:skills": "node run-tests.js --collection skills",
+    "test:nodes": "node run-tests.js --collection nodes",
+    "test:aspects": "node run-tests.js --collection aspects",
+    "test:html": "node run-tests.js --reporter html --output ./reports",
+    "test:json": "node run-tests.js --reporter json --output ./reports",
+    "test:verbose": "node run-tests.js --verbose",
+    "test:bail": "node run-tests.js --bail",
+    "test:ci": "node run-tests.js --reporter json --bail --output ./reports",
+    "install-deps": "npm install -g newman newman-reporter-html newman-reporter-json",
+    "clean": "rm -rf reports/*",
+    "validate": "newman --version && echo 'Newman is installed and ready'"
+  },
+  "keywords": [
+    "antbox",
+    "api",
+    "postman",
+    "newman",
+    "testing",
+    "automation",
+    "rest-api"
+  ],
+  "author": "Antbox Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kindalus/antbox.git"
+  },
+  "bugs": {
+    "url": "https://github.com/kindalus/antbox/issues"
+  },
+  "homepage": "https://github.com/kindalus/antbox#readme",
+  "devDependencies": {},
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "config": {
+    "collections": {
+      "skills": "Antbox-Skills.postman_collection.json",
+      "nodes": "Antbox-Nodes.postman_collection.json",
+      "aspects": "Antbox-Aspects.postman_collection.json"
+    },
+    "environments": {
+      "development": "Antbox-Development.postman_environment.json",
+      "production": "Antbox-Production.postman_environment.json"
+    }
+  },
+  "directories": {
+    "test": ".",
+    "doc": "."
+  },
+  "files": [
+    "*.postman_collection.json",
+    "*.postman_environment.json",
+    "run-tests.js",
+    "README.md"
+  ]
+}

@@ -1,0 +1,1144 @@
+{
+  "info": {
+    "_postman_id": "b2c3d4e5-f6g7-8901-bcde-234567890123",
+    "name": "Antbox Nodes API",
+    "description": "Node management endpoints for Antbox - nodes are the core content entities that can have aspects attached to extend their functionality.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "23456789"
+  },
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Root Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has JWT token\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('jwt');",
+                  "    pm.expect(jsonData.jwt).to.be.a('string');",
+                  "    pm.expect(jsonData.jwt.length).to.be.greaterThan(0);",
+                  "});",
+                  "",
+                  "pm.test(\"Store JWT token for subsequent requests\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.jwt) {",
+                  "        pm.collectionVariables.set(\"jwt_token\", jsonData.jwt);",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "text/plain"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{root_password_hash}}"
+            },
+            "url": {
+              "raw": "{{base_url}}/login/root",
+              "host": ["{{base_url}}"],
+              "path": ["login", "root"]
+            },
+            "description": "Authenticate as root user using SHA256 hashed password"
+          },
+          "response": []
+        }
+      ],
+      "description": "Authentication endpoints for Antbox API"
+    },
+    {
+      "name": "Node Management",
+      "item": [
+        {
+          "name": "List Nodes",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response is an array\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.be.an('array');",
+                  "});",
+                  "",
+                  "pm.test(\"Nodes have required properties\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.length > 0) {",
+                  "        var node = jsonData[0];",
+                  "        pm.expect(node).to.have.property('uuid');",
+                  "        pm.expect(node).to.have.property('fid');",
+                  "        pm.expect(node).to.have.property('title');",
+                  "        pm.expect(node).to.have.property('mimetype');",
+                  "        pm.expect(node).to.have.property('owner');",
+                  "        pm.expect(node).to.have.property('createdTime');",
+                  "        pm.expect(node).to.have.property('modifiedTime');",
+                  "    }",
+                  "});",
+                  "",
+                  "pm.test(\"Store first node UUID for subsequent tests\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.length > 0) {",
+                  "        pm.collectionVariables.set(\"node_uuid\", jsonData[0].uuid);",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwt_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/nodes?limit={{limit}}&offset={{offset}}",
+              "host": ["{{base_url}}"],
+              "path": ["nodes"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "{{limit}}",
+                  "description": "Maximum number of nodes to return"
+                },
+                {
+                  "key": "offset",
+                  "value": "{{offset}}",
+                  "description": "Number of nodes to skip"
+                }
+              ]
+            },
+            "description": "Retrieve a paginated list of nodes"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Node",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has node properties\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('uuid');",
+                  "    pm.expect(jsonData).to.have.property('title');",
+                  "    pm.expect(jsonData).to.have.property('mimetype');",
+                  "});",
+                  "",
+                  "pm.test(\"Store created node UUID\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.uuid) {",
+                  "        pm.collectionVariables.set(\"created_node_uuid\", jsonData.uuid);",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwt_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"title\": \"Test Node\",\n    \"description\": \"A test node created via Postman\",\n    \"mimetype\": \"text/plain\",\n    \"parent\": \"{{parent_uuid}}\",\n    \"tags\": [\"test\", \"postman\"],\n    \"aspects\": []\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/nodes",
+              "host": ["{{base_url}}"],
+              "path": ["nodes"]
+            },
+            "description": "Create a new node in the system"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Node by UUID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has node properties\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('uuid');",
+                  "    pm.expect(jsonData).to.have.property('fid');",
+                  "    pm.expect(jsonData).to.have.property('title');",
+                  "    pm.expect(jsonData).to.have.property('mimetype');",
+                  "    pm.expect(jsonData).to.have.property('size');",
+                  "    pm.expect(jsonData).to.have.property('parent');",
+                  "    pm.expect(jsonData).to.have.property('createdTime');",
+                  "    pm.expect(jsonData).to.have.property('modifiedTime');",
+                  "    pm.expect(jsonData).to.have.property('owner');",
+                  "    pm.expect(jsonData).to.have.property('permissions');",
+                  "});",
+                  "",
+                  "pm.test(\"UUID matches request parameter\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    var requestedUuid = pm.request.url.path[1];",
+                  "    pm.expect(jsonData.uuid).to.eql(requestedUuid);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwt_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/nodes/{{node_uuid}}",
+              "host": ["{{base_url}}"],
+              "path": ["nodes", "{{node_uuid}}"]
+            },
+            "description": "Retrieve a specific node by its UUID"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Node",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has updated node properties\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('uuid');",
+                  "    pm.expect(jsonData).to.have.property('title');",
+                  "});",
+                  "",
+                  "pm.test(\"Title was updated\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.title).to.include('Updated');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwt_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"title\": \"Updated Test Node\",\n    \"description\": \"An updated test node via Postman\",\n    \"tags\": [\"test\", \"postman\", \"updated\"]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/nodes/{{node_uuid}}",
+              "host": ["{{base_url}}"],
+              "path": ["nodes", "{{node_uuid}}"]
+            },
+            "description": "Update an existing node"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Node",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response indicates success\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('success');",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwt_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/nodes/{{created_node_uuid}}",
+              "host": ["{{base_url}}"],
+              "path": ["nodes", "{{created_node_uuid}}"]
+            },
+            "description": "Delete a node by its UUID"
+          },
+          "response": []
+        }
+      ],
+      "description": "Basic CRUD operations for nodes"
+    },
+    {
+      "name": "Node Operations",
+      "item": [
+        {
+          "name": "Copy Node",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has copied node properties\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('uuid');",
+                  "    pm.expect(jsonData).to.have.property('title');",
+                  "});",
+                  "",
+                  "pm.test(\"Store copied node UUID\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.uuid) {",
+                  "        pm.collectionVariables.set(\"copied_node_uuid\", jsonData.uuid);",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwt_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"target\": \"{{target_parent_uuid}}\",\n    \"deep\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/nodes/{{node_uuid}}/-/copy",
+              "host": ["{{base_url}}"],
+              "path": ["nodes", "{{node_uuid}}", "-", "copy"]
+            },
+            "description": "Copy a node to another location"
+          },
+          "response": []
+        },
+        {
+          "name": "Duplicate Node",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has duplicated node properties\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('uuid');",
+                  "    pm.expect(jsonData).to.have.property('title');",
+                  "});",
+                  "",
+                  "pm.test(\"UUID is different from original\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    var originalUuid = pm.collectionVariables.get('node_uuid');",
+                  "    pm.expect(jsonData.uuid).to.not.eql(originalUuid);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwt_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/nodes/{{node_uuid}}/-/duplicate",
+              "host": ["{{base_url}}"],
+              "path": ["nodes", "{{node_uuid}}", "-", "duplicate"]
+            },
+            "description": "Create a duplicate of a node in the same location"
+          },
+          "response": []
+        },
+        {
+          "name": "Export Node",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has Content-Disposition header\", function () {",
+                  "    pm.expect(pm.response.headers.get('Content-Disposition')).to.include('attachment');",
+                  "});",
+                  "",
+                  "pm.test(\"Response has content\", function () {",
+                  "    pm.expect(pm.response.text()).to.have.length.greaterThan(0);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwt_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/nodes/{{node_uuid}}/-/export",
+              "host": ["{{base_url}}"],
+              "path": ["nodes", "{{node_uuid}}", "-", "export"]
+            },
+            "description": "Export node content as a file"
+          },
+          "response": []
+        },
+        {
+          "name": "Evaluate Node",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has evaluation result\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('result');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwt_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/nodes/{{node_uuid}}/-/evaluate",
+              "host": ["{{base_url}}"],
+              "path": ["nodes", "{{node_uuid}}", "-", "evaluate"]
+            },
+            "description": "Evaluate node content (execute if it's executable)"
+          },
+          "response": []
+        }
+      ],
+      "description": "Operations that can be performed on nodes"
+    },
+    {
+      "name": "Search & Find",
+      "item": [
+        {
+          "name": "Find Nodes",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has search results\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('nodes');",
+                  "    pm.expect(jsonData.nodes).to.be.an('array');",
+                  "});",
+                  "",
+                  "pm.test(\"Response has pagination info\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('total');",
+                  "    pm.expect(jsonData).to.have.property('offset');",
+                  "    pm.expect(jsonData).to.have.property('limit');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwt_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"query\": \"test\",\n    \"filters\": {\n        \"mimetype\": \"text/plain\",\n        \"tags\": [\"test\"]\n    },\n    \"limit\": 20,\n    \"offset\": 0\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/nodes/-/find",
+              "host": ["{{base_url}}"],
+              "path": ["nodes", "-", "find"]
+            },
+            "description": "Search for nodes using filters and full-text search"
+          },
+          "response": []
+        },
+        {
+          "name": "Find Nodes by Tags",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"All returned nodes have required tags\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.nodes && jsonData.nodes.length > 0) {",
+                  "        jsonData.nodes.forEach(function(node) {",
+                  "            pm.expect(node.tags).to.include('postman');",
+                  "        });",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwt_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"filters\": {\n        \"tags\": [\"postman\"]\n    },\n    \"limit\": 50,\n    \"offset\": 0\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/nodes/-/find",
+              "host": ["{{base_url}}"],
+              "path": ["nodes", "-", "find"]
+            },
+            "description": "Find nodes by specific tags"
+          },
+          "response": []
+        },
+        {
+          "name": "Find Nodes by Mimetype",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"All returned nodes have correct mimetype\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.nodes && jsonData.nodes.length > 0) {",
+                  "        jsonData.nodes.forEach(function(node) {",
+                  "            pm.expect(node.mimetype).to.eql('application/javascript');",
+                  "        });",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwt_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"filters\": {\n        \"mimetype\": \"application/javascript\"\n    },\n    \"limit\": 10,\n    \"offset\": 0\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/nodes/-/find",
+              "host": ["{{base_url}}"],
+              "path": ["nodes", "-", "find"]
+            },
+            "description": "Find nodes by specific MIME type"
+          },
+          "response": []
+        }
+      ],
+      "description": "Search and discovery operations for nodes"
+    },
+    {
+      "name": "Error Scenarios",
+      "item": [
+        {
+          "name": "Get Non-existent Node",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 404\", function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has error structure\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('errorCode');",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwt_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/nodes/00000000-0000-0000-0000-000000000000",
+              "host": ["{{base_url}}"],
+              "path": ["nodes", "00000000-0000-0000-0000-000000000000"]
+            },
+            "description": "Test 404 error for non-existent node"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Node with Invalid Data",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 400\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has error structure\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('errorCode');",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwt_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"title\": \"\",\n    \"parent\": \"invalid-uuid-format\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/nodes",
+              "host": ["{{base_url}}"],
+              "path": ["nodes"]
+            },
+            "description": "Test validation error with invalid node data"
+          },
+          "response": []
+        },
+        {
+          "name": "Unauthorized Node Access",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 401\", function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has error structure\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('errorCode');",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/nodes",
+              "host": ["{{base_url}}"],
+              "path": ["nodes"]
+            },
+            "description": "Test unauthorized access without JWT token"
+          },
+          "response": []
+        }
+      ],
+      "description": "Error handling and edge case tests"
+    },
+    {
+      "name": "Node-Skill Integration",
+      "item": [
+        {
+          "name": "Execute Skill on Node",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has execution result\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('result');",
+                  "});",
+                  "",
+                  "pm.test(\"Execution context includes node\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.context) {",
+                  "        pm.expect(jsonData.context).to.have.property('nodeUuid');",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwt_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"skillUuid\": \"{{skill_uuid}}\",\n  \"parameters\": {\n    \"action\": \"process\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/nodes/{{node_uuid}}/-/execute-skill",
+              "host": ["{{base_url}}"],
+              "path": ["nodes", "{{node_uuid}}", "-", "execute-skill"]
+            },
+            "description": "Execute a skill in the context of a specific node"
+          },
+          "response": []
+        },
+        {
+          "name": "List Node-Compatible Skills",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response is an array\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.be.an('array');",
+                  "});",
+                  "",
+                  "pm.test(\"Skills have compatibility info\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.length > 0) {",
+                  "        var skill = jsonData[0];",
+                  "        pm.expect(skill).to.have.property('uuid');",
+                  "        pm.expect(skill).to.have.property('title');",
+                  "        pm.expect(skill).to.have.property('compatible');",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwt_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/nodes/{{node_uuid}}/-/compatible-skills",
+              "host": ["{{base_url}}"],
+              "path": ["nodes", "{{node_uuid}}", "-", "compatible-skills"]
+            },
+            "description": "Get list of skills compatible with this node's content type"
+          },
+          "response": []
+        },
+        {
+          "name": "Attach Skill to Node",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response indicates success\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('success');",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "});",
+                  "",
+                  "pm.test(\"Attachment info is provided\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('attachmentId');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwt_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"skillUuid\": \"{{skill_uuid}}\",\n  \"config\": {\n    \"autoExecute\": false,\n    \"priority\": \"normal\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/nodes/{{node_uuid}}/-/attach-skill",
+              "host": ["{{base_url}}"],
+              "path": ["nodes", "{{node_uuid}}", "-", "attach-skill"]
+            },
+            "description": "Attach a skill to a node for automated processing"
+          },
+          "response": []
+        }
+      ],
+      "description": "Integration tests for node-skill interactions and functionality"
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Global pre-request script for nodes collection",
+          "// Set default values if not already set",
+          "if (!pm.collectionVariables.get('limit')) {",
+          "    pm.collectionVariables.set('limit', '20');",
+          "}",
+          "if (!pm.collectionVariables.get('offset')) {",
+          "    pm.collectionVariables.set('offset', '0');",
+          "}"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Global test script for nodes collection",
+          "pm.test(\"Response time is reasonable\", function () {",
+          "    pm.expect(pm.response.responseTime).to.be.below(parseInt(pm.collectionVariables.get('api_timeout')));",
+          "});",
+          "",
+          "pm.test(\"Response has proper headers\", function () {",
+          "    pm.expect(pm.response.headers.get('Content-Type')).to.exist;",
+          "});"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:7180",
+      "type": "string"
+    },
+    {
+      "key": "jwt_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "root_password_hash",
+      "value": "a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3",
+      "type": "string"
+    },
+    {
+      "key": "node_uuid",
+      "value": "550e8400-e29b-41d4-a716-446655440002",
+      "type": "string"
+    },
+    {
+      "key": "created_node_uuid",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "copied_node_uuid",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "parent_uuid",
+      "value": "550e8400-e29b-41d4-a716-446655440010",
+      "type": "string"
+    },
+    {
+      "key": "target_parent_uuid",
+      "value": "550e8400-e29b-41d4-a716-446655440011",
+      "type": "string"
+    },
+    {
+      "key": "limit",
+      "value": "20",
+      "type": "string"
+    },
+    {
+      "key": "offset",
+      "value": "0",
+      "type": "string"
+    },
+    {
+      "key": "api_timeout",
+      "value": "5000",
+      "type": "string"
+    },
+    {
+      "key": "skill_uuid",
+      "value": "550e8400-e29b-41d4-a716-446655440001",
+      "type": "string"
+    }
+  ]
+}

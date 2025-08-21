@@ -1,0 +1,283 @@
+name: Antbox API Tests
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Run tests daily at 2 AM UTC
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Environment to test against"
+        required: true
+        default: "development"
+        type: choice
+        options:
+          - development
+          - production
+      collection:
+        description: "Collection to run (all collections if empty)"
+        required: false
+        type: choice
+        options:
+          - ""
+          - skills
+          - nodes
+          - aspects
+
+jobs:
+  api-tests:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [16, 18, 20]
+      fail-fast: false
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: "npm"
+          cache-dependency-path: postman-tests/package.json
+
+      - name: Install Newman and dependencies
+        run: |
+          npm install -g newman@latest
+          npm install -g newman-reporter-html@latest
+          npm install -g newman-reporter-json@latest
+
+      - name: Verify Newman installation
+        run: newman --version
+
+      - name: Setup test environment
+        working-directory: postman-tests
+        run: |
+          mkdir -p reports
+          chmod +x run-tests.js
+
+      - name: Start Antbox API (Development)
+        if: github.event.inputs.environment == 'development' || github.event.inputs.environment == ''
+        run: |
+          # Start the Antbox API server in background
+          cd ..
+          # Add your server startup command here
+          # Example: npm start &
+          # Wait for server to be ready
+          sleep 10
+          # Verify server is running
+          curl -f http://localhost:7180/health || exit 1
+
+      - name: Update test environment variables
+        working-directory: postman-tests
+        run: |
+          # Update environment files with CI-specific values
+          ENV_FILE="Antbox-Development.postman_environment.json"
+          if [ "${{ github.event.inputs.environment }}" = "production" ]; then
+            ENV_FILE="Antbox-Production.postman_environment.json"
+          fi
+
+          # Set root password hash from secrets
+          if [ -n "${{ secrets.ANTBOX_ROOT_PASSWORD_HASH }}" ]; then
+            sed -i 's/"value": "a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3"/"value": "${{ secrets.ANTBOX_ROOT_PASSWORD_HASH }}"/' "$ENV_FILE"
+          fi
+
+      - name: Run API Tests - All Collections
+        if: github.event.inputs.collection == '' || github.event.inputs.collection == null
+        working-directory: postman-tests
+        run: |
+          ENV="${{ github.event.inputs.environment }}"
+          if [ -z "$ENV" ]; then
+            ENV="development"
+          fi
+          node run-tests.js --env "$ENV" --reporter json --output ./reports
+        continue-on-error: true
+
+      - name: Run API Tests - Specific Collection
+        if: github.event.inputs.collection != '' && github.event.inputs.collection != null
+        working-directory: postman-tests
+        run: |
+          ENV="${{ github.event.inputs.environment }}"
+          if [ -z "$ENV" ]; then
+            ENV="development"
+          fi
+          node run-tests.js --env "$ENV" --collection "${{ github.event.inputs.collection }}" --reporter json --output ./reports
+        continue-on-error: true
+
+      - name: Generate HTML Reports
+        if: always()
+        working-directory: postman-tests
+        run: |
+          ENV="${{ github.event.inputs.environment }}"
+          if [ -z "$ENV" ]; then
+            ENV="development"
+          fi
+          COLLECTION="${{ github.event.inputs.collection }}"
+          if [ -n "$COLLECTION" ]; then
+            node run-tests.js --env "$ENV" --collection "$COLLECTION" --reporter html --output ./reports || true
+          else
+            node run-tests.js --env "$ENV" --reporter html --output ./reports || true
+          fi
+
+      - name: Parse test results
+        if: always()
+        working-directory: postman-tests
+        run: |
+          # Create a summary of test results
+          echo "## API Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Find JSON report files
+          for report in reports/*.json; do
+            if [ -f "$report" ]; then
+              echo "### $(basename "$report" .json)" >> $GITHUB_STEP_SUMMARY
+
+              # Extract summary information from Newman JSON report
+              TOTAL_TESTS=$(jq '.run.stats.tests.total // 0' "$report")
+              FAILED_TESTS=$(jq '.run.stats.tests.failed // 0' "$report")
+              PASSED_TESTS=$(jq '.run.stats.tests.passed // 0' "$report")
+
+              echo "- 📊 Total Tests: $TOTAL_TESTS" >> $GITHUB_STEP_SUMMARY
+              echo "- ✅ Passed: $PASSED_TESTS" >> $GITHUB_STEP_SUMMARY
+              echo "- ❌ Failed: $FAILED_TESTS" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+
+              # Add details of failed tests if any
+              if [ "$FAILED_TESTS" -gt 0 ]; then
+                echo "#### Failed Tests:" >> $GITHUB_STEP_SUMMARY
+                jq -r '.run.executions[] | select(.assertions[] | select(.error != null)) | "- " + .item.name + ": " + (.assertions[] | select(.error != null) | .assertion)' "$report" >> $GITHUB_STEP_SUMMARY || true
+                echo "" >> $GITHUB_STEP_SUMMARY
+              fi
+            fi
+          done
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-test-reports-node-${{ matrix.node-version }}
+          path: postman-tests/reports/
+          retention-days: 30
+
+      - name: Upload test results to GitHub
+        if: always()
+        uses: dorny/test-reporter@v1
+        with:
+          name: API Tests (Node ${{ matrix.node-version }})
+          path: postman-tests/reports/*.json
+          reporter: newman
+          fail-on-error: false
+
+      - name: Comment PR with test results
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+
+            // Read test reports
+            const reportsDir = 'postman-tests/reports';
+            let comment = '## 🧪 API Test Results\n\n';
+
+            try {
+              const reports = fs.readdirSync(reportsDir).filter(f => f.endsWith('.json'));
+
+              for (const reportFile of reports) {
+                const reportPath = path.join(reportsDir, reportFile);
+                const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
+
+                const collectionName = reportFile.replace('.json', '');
+                const stats = report.run.stats;
+
+                comment += `### ${collectionName}\n`;
+                comment += `- 📊 Total Tests: ${stats.tests.total || 0}\n`;
+                comment += `- ✅ Passed: ${stats.tests.passed || 0}\n`;
+                comment += `- ❌ Failed: ${stats.tests.failed || 0}\n`;
+                comment += `- ⏱️ Total Time: ${stats.run.total || 0}ms\n\n`;
+              }
+            } catch (error) {
+              comment += '❌ Could not parse test results\n\n';
+            }
+
+            comment += `**Node.js Version:** ${{ matrix.node-version }}\n`;
+            comment += `**Environment:** ${{ github.event.inputs.environment || 'development' }}\n`;
+            comment += `**Commit:** ${context.sha.substring(0, 7)}\n`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
+      - name: Fail job if tests failed
+        if: always()
+        working-directory: postman-tests
+        run: |
+          # Check if any tests failed
+          FAILED=false
+          for report in reports/*.json; do
+            if [ -f "$report" ]; then
+              FAILED_COUNT=$(jq '.run.stats.tests.failed // 0' "$report")
+              if [ "$FAILED_COUNT" -gt 0 ]; then
+                FAILED=true
+                echo "❌ Tests failed in $(basename "$report"): $FAILED_COUNT failures"
+              fi
+            fi
+          done
+
+          if [ "$FAILED" = true ]; then
+            echo "❌ One or more test collections failed"
+            exit 1
+          else
+            echo "✅ All tests passed"
+          fi
+
+  security-scan:
+    runs-on: ubuntu-latest
+    needs: api-tests
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: "fs"
+          scan-ref: "postman-tests"
+          format: "sarif"
+          output: "trivy-results.sarif"
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: "trivy-results.sarif"
+
+  notify:
+    runs-on: ubuntu-latest
+    needs: [api-tests, security-scan]
+    if: always() && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+
+    steps:
+      - name: Notify on failure
+        if: needs.api-tests.result == 'failure'
+        run: |
+          echo "API tests failed! Check the workflow results."
+          # Add notification logic here (Slack, email, etc.)
+
+      - name: Notify on success
+        if: needs.api-tests.result == 'success'
+        run: |
+          echo "All API tests passed successfully!"
+          # Add notification logic here if needed

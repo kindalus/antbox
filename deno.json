@@ -13,7 +13,7 @@
     "mock": "jsr:@std/testing/mock",
 
     "@googleapis/drive": "npm:@googleapis/drive",
-    "@oak/oak": "jsr:@oak/oak",
+    "@oak/oak": "jsr:@oak/oak@^17.1.6",
     "commander": "npm:commander",
     "crypto": "node:crypto",
     "h3": "npm:h3",
@@ -29,7 +29,7 @@
     "test-node-repository": "deno run -A ./src/adapters/run_node_repository_tests.ts",
     "test-storage-provider": "deno run -A ./src/adapters/run_storage_provider_tests.ts"
   },
-
+  "nodeModulesDir": "auto",
   "fmt": {
     "useTabs": true,
     "lineWidth": 100,

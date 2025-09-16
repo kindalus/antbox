@@ -221,7 +221,6 @@ export class FeatureService {
     // Update the node metadata with parsed feature data
     const updateMetadataOrErr = await this.nodeService.update(ctx, uuid, {
       title: newFeatureMetadata.title,
-      name: newFeature.name,
       description: newFeatureMetadata.description,
       exposeAction: newFeatureMetadata.exposeAction,
       runOnCreates: newFeatureMetadata.runOnCreates,
@@ -1017,7 +1016,7 @@ export class FeatureService {
   #nodeToFeatureDTO(node: FeatureNode): FeatureDTO {
     return {
       id: node.uuid,
-      name: node.name,
+      name: node.title,
       description: node.description || "",
       exposeAction: node.exposeAction,
       runOnCreates: node.runOnCreates,

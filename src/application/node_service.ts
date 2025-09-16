@@ -575,8 +575,11 @@ export class NodeService {
   ): Promise<string> {
     const fulltext = [node.title, node.description ?? ""];
 
-    if ((Nodes.isFileLike(node) || Nodes.isFolder(node)) && node.tags?.length) {
-      fulltext.push(...node.tags);
+    if (
+      (Nodes.isFileLike(node) || Nodes.isFolder(node)) &&
+      (node as any).tags?.length
+    ) {
+      fulltext.push(...(node as any).tags);
     }
 
     if (Nodes.hasAspects(node)) {

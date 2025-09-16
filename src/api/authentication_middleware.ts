@@ -82,6 +82,11 @@ export function authenticationMiddleware(
 }
 
 function getToken(req: Request) {
+  const bearer = req.headers.get("authorization");
+
+  if (bearer && /Bearer\s.*/.test(bearer)) {
+    return bearer.split(" ")[1];
+  }
   return req.headers.get("x-access-token");
 }
 

@@ -1,5 +1,4 @@
-import { startServer } from "mod.ts";
-
+import startServer from "../server.ts";
 // Start the server with the tenants
 startServer({
   tenants: [

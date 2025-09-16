@@ -8,7 +8,9 @@ import { SmartFolderNode } from "./smart_folder_node.ts";
 import type { NodeLike } from "domain/node_like.ts";
 import { ArticleNode } from "domain/articles/article_node.ts";
 import { ApiKeyNode } from "domain/api_keys/api_key_node.ts";
-import { SkillNode } from "domain/skills/skill_node.ts";
+import { FeatureNode } from "domain/features/feature_node.ts";
+import { GroupNode } from "domain/users_groups/group_node.ts";
+import { UserNode } from "domain/users_groups/user_node.ts";
 
 export class Nodes {
   static FID_PREFIX = "--fid--";
@@ -19,6 +21,7 @@ export class Nodes {
   static ASPECT_MIMETYPE = "application/vnd.antbox.aspect";
   static ACTION_MIMETYPE = "application/vnd.antbox.action";
   static SKILL_MIMETYPE = "application/vnd.antbox.skill";
+  static FEATURE_MIMETYPE = "application/vnd.antbox.feature";
   static EXT_MIMETYPE = "application/vnd.antbox.extension";
   static USER_MIMETYPE = "application/vnd.antbox.user";
   static GROUP_MIMETYPE = "application/vnd.antbox.group";
@@ -29,6 +32,7 @@ export class Nodes {
     Nodes.ASPECT_MIMETYPE,
     Nodes.ACTION_MIMETYPE,
     Nodes.SKILL_MIMETYPE,
+    Nodes.FEATURE_MIMETYPE,
     Nodes.EXT_MIMETYPE,
     Nodes.USER_MIMETYPE,
     Nodes.GROUP_MIMETYPE,
@@ -77,11 +81,11 @@ export class Nodes {
     return node.mimetype === Nodes.ACTION_MIMETYPE;
   }
 
-  static isSkill(node: NodeLike): node is SkillNode {
-    return node.mimetype === Nodes.SKILL_MIMETYPE;
+  static isFeature(node: NodeLike): node is FeatureNode {
+    return node.mimetype === Nodes.FEATURE_MIMETYPE;
   }
 
-  static isExt(node: NodeLike): node is SkillNode {
+  static isExt(node: NodeLike): node is FeatureNode {
     return node.mimetype === Nodes.EXT_MIMETYPE;
   }
 
@@ -94,8 +98,10 @@ export class Nodes {
   }
 
   static isJavascript(file: File) {
-    return file.type.startsWith("application/javascript") ||
-      file.type.startsWith("text/javascript");
+    return (
+      file.type.startsWith("application/javascript") ||
+      file.type.startsWith("text/javascript")
+    );
   }
 
   static isFile(node: NodeLike): node is FileNode {
@@ -108,9 +114,14 @@ export class Nodes {
 
   static isFileLike(
     node: NodeLike,
-  ): node is FileNode | SkillNode | ArticleNode {
-    return Nodes.isFile(node) || Nodes.isExt(node) || Nodes.isAction(node) ||
-      Nodes.isArticle(node);
+  ): node is FileNode | SkillNode | FeatureNode | ArticleNode {
+    return (
+      Nodes.isFile(node) ||
+      Nodes.isExt(node) ||
+      Nodes.isAction(node) ||
+      Nodes.isFeature(node) ||
+      Nodes.isArticle(node)
+    );
   }
 
   static isTextPlain(node: NodeLike) {

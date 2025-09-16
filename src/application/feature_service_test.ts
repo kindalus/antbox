@@ -3,16 +3,16 @@ import { describe, test } from "bdd";
 import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus.ts";
 import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository.ts";
 import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider.ts";
-import { SkillNotFoundError } from "domain/skills/skill_not_found_error.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
-import { NodeUpdatedEvent } from "domain/nodes/node_updated_event.ts";
 import { GroupNode } from "domain/users_groups/group_node.ts";
 import { Groups } from "domain/users_groups/groups.ts";
 import { BadRequestError } from "shared/antbox_error.ts";
-import { SkillService } from "application/skill_service.ts";
+import { FeatureService } from "application/feature_service.ts";
+import { FeatureNotFoundError } from "domain/features/feature_not_found_error.ts";
 import { AuthenticationContext } from "application/authentication_context.ts";
 import { NodeService } from "application/node_service.ts";
 import { UsersGroupsService } from "application/users_groups_service.ts";
+import { builtinFolders } from "application/builtin_folders/index.ts";
 
 const createService = async () => {
   const firstGroupNode: GroupNode = GroupNode.create({
@@ -33,6 +33,9 @@ const createService = async () => {
   repository.add(firstGroupNode);
   repository.add(secondGroupNode);
 
+  // Add builtin folders
+  builtinFolders.forEach((folder) => repository.add(folder));
+
   const storage = new InMemoryStorageProvider();
   const eventBus = new InMemoryEventBus();
 
@@ -49,7 +52,7 @@ const createService = async () => {
     groups: [Groups.ADMINS_GROUP_UUID],
   });
 
-  return new SkillService(nodeService, usersGroupsService);
+  return new FeatureService(nodeService, usersGroupsService);
 };
 
 const adminAuthContext: AuthenticationContext = {
@@ -72,7 +75,7 @@ const testFunctionContent = `
     runManually: true,
     filters: [],
     exposeExtension: false,
-    exposeMCP: false,
+    exposeAITool: false,
     groupsAllowed: ["admins"],
     parameters: [
       {
@@ -91,7 +94,7 @@ const testFunctionContent = `
   };
 `;
 
-describe("SkillService", () => {
+describe("FeatureService", () => {
   test("create should create a new function", async () => {
     const service = await createService();
     const file = new File([testFunctionContent], "function.js", {
@@ -130,7 +133,7 @@ describe("SkillService", () => {
         runManually: true,
         filters: [],
         exposeExtension: true,
-        exposeMCP: false,
+        exposeAITool: false,
         groupsAllowed: ["admins"],
         parameters: [
           {
@@ -162,14 +165,14 @@ describe("SkillService", () => {
       }),
     );
 
-    expect(functionOrErr.isRight(), errToMsg(functionOrErr.value)).toBeTruthy();
-    expect(functionOrErr.right.id).toBe("test-function-uuid");
-    expect(functionOrErr.right.name).toBe("Updated Function Name");
-    expect(functionOrErr.right.description).toBe("Updated description");
-    expect(functionOrErr.right.exposeAction).toBe(false);
-    expect(functionOrErr.right.exposeExtension).toBe(true);
-    expect(functionOrErr.right.returnType).toBe("object");
-    expect(functionOrErr.right.parameters.length).toBe(2);
+    expect(funcOrErr.isRight(), errToMsg(funcOrErr.value)).toBeTruthy();
+    expect(funcOrErr.right.id).toBe("test-function-uuid");
+    expect(funcOrErr.right.name).toBe("Updated Function Name");
+    expect(funcOrErr.right.description).toBe("Updated description");
+    expect(funcOrErr.right.exposeAction).toBe(false);
+    expect(funcOrErr.right.exposeExtension).toBe(true);
+    expect(funcOrErr.right.returnType).toBe("object");
+    expect(funcOrErr.right.parameters.length).toBe(2);
   });
 
   test("get should return function", async () => {
@@ -210,7 +213,7 @@ describe("SkillService", () => {
     const functionOrErr = await service.get(adminAuthContext, "--group-1--");
 
     expect(functionOrErr.isLeft()).toBeTruthy();
-    expect(functionOrErr.value).toBeInstanceOf(SkillNotFoundError);
+    expect(functionOrErr.value).toBeInstanceOf(FeatureNotFoundError);
   });
 
   test("delete should remove function", async () => {
@@ -357,7 +360,9 @@ describe("SkillService", () => {
     );
 
     expect(runResult.isLeft()).toBeTruthy();
-    expect(runResult.value.message).toContain("Required parameter missing");
+    expect((runResult.value as any).message).toContain(
+      "Required parameter missing",
+    );
   });
 
   test("run should return error if function cannot be run manually", async () => {
@@ -399,7 +404,9 @@ describe("SkillService", () => {
 
     expect(runResult.isLeft()).toBeTruthy();
     expect(runResult.value).toBeInstanceOf(BadRequestError);
-    expect(runResult.value.message).toBe("Skill cannot be run manually");
+    expect((runResult.value as any).message).toBe(
+      "Feature cannot be run manually",
+    );
   });
 });
 

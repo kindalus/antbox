@@ -13,15 +13,14 @@ import { type NodeMetadata } from "./nodes/node_metadata.ts";
 import { Nodes } from "./nodes/nodes.ts";
 import { SmartFolderNode } from "./nodes/smart_folder_node.ts";
 import { NodeLike } from "domain/node_like.ts";
-import { SkillNode } from "domain/skills/skill_node.ts";
+
+import { FeatureNode } from "domain/features/feature_node.ts";
 
 export class NodeFactory {
   static from<T extends NodeLike>(
     metadata: Partial<NodeMetadata>,
   ): Either<ValidationError, T> {
-    let createFn: (
-      metadata: any,
-    ) => Either<ValidationError, NodeLike>;
+    let createFn: (metadata: any) => Either<ValidationError, NodeLike>;
 
     switch (metadata.mimetype) {
       case Nodes.ACTION_MIMETYPE:
@@ -60,8 +59,8 @@ export class NodeFactory {
         createFn = ArticleNode.create;
         break;
 
-      case Nodes.SKILL_MIMETYPE:
-        createFn = SkillNode.create;
+      case Nodes.FEATURE_MIMETYPE:
+        createFn = FeatureNode.create;
         break;
 
       default:

@@ -10,7 +10,7 @@ import {
   runActionHandler,
   runExtHandler,
   runMcpToolHandler,
-} from "api/skills_handlers.ts";
+} from "api/features_handlers.ts";
 import type { AntboxTenant } from "api/antbox_tenant.ts";
 import { adapt } from "./adapt.ts";
 

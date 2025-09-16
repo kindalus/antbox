@@ -10,7 +10,7 @@ import { processServiceResult } from "api/process_service_result.ts";
 
 export function getHandler(tenants: AntboxTenant[]): HttpHandler {
   return defaultMiddlewareChain(tenants, (req: Request): Promise<Response> => {
-    const service = getTenant(req, tenants).skillService;
+    const service = getTenant(req, tenants).featureService;
     const params = getParams(req);
     if (!params.uuid) {
       return Promise.resolve(
@@ -19,7 +19,7 @@ export function getHandler(tenants: AntboxTenant[]): HttpHandler {
     }
 
     return service
-      .getSkill(getAuthenticationContext(req), params.uuid)
+      .exportFeature(getAuthenticationContext(req), params.uuid)
       .then(processServiceResult)
       .catch(processError);
   });
@@ -29,10 +29,10 @@ export function listHandler(tenants: AntboxTenant[]): HttpHandler {
   return defaultMiddlewareChain(
     tenants,
     (req: Request): Promise<Response> => {
-      const service = getTenant(req, tenants).skillService;
+      const service = getTenant(req, tenants).featureService;
 
       return service
-        .listSkills(getAuthenticationContext(req))
+        .listFeatures(getAuthenticationContext(req))
         .then(processServiceResult)
         .catch(processError);
     },
@@ -43,7 +43,7 @@ export function listActionsHandler(tenants: AntboxTenant[]): HttpHandler {
   return defaultMiddlewareChain(
     tenants,
     (req: Request): Promise<Response> => {
-      const service = getTenant(req, tenants).skillService;
+      const service = getTenant(req, tenants).featureService;
 
       return service
         .listActions(getAuthenticationContext(req))
@@ -57,7 +57,7 @@ export function listExtsHandler(tenants: AntboxTenant[]): HttpHandler {
   return defaultMiddlewareChain(
     tenants,
     (req: Request): Promise<Response> => {
-      const service = getTenant(req, tenants).skillService;
+      const service = getTenant(req, tenants).featureService;
 
       return service
         .listExtensions()
@@ -71,7 +71,7 @@ export function listMcpToolsHandler(tenants: AntboxTenant[]): HttpHandler {
   return defaultMiddlewareChain(
     tenants,
     (req: Request): Promise<Response> => {
-      const service = getTenant(req, tenants).skillService;
+      const service = getTenant(req, tenants).featureService;
 
       return service
         .listMcpTools(getAuthenticationContext(req))
@@ -85,7 +85,7 @@ export function deleteHandler(tenants: AntboxTenant[]): HttpHandler {
   return defaultMiddlewareChain(
     tenants,
     (req: Request): Promise<Response> => {
-      const service = getTenant(req, tenants).skillService;
+      const service = getTenant(req, tenants).featureService;
       const params = getParams(req);
       if (!params.uuid) {
         return Promise.resolve(
@@ -93,7 +93,7 @@ export function deleteHandler(tenants: AntboxTenant[]): HttpHandler {
         );
       }
       return service
-        .deleteSkill(getAuthenticationContext(req), params.uuid)
+        .deleteFeature(getAuthenticationContext(req), params.uuid)
         .then(processServiceResult)
         .catch(processError);
     },
@@ -102,7 +102,7 @@ export function deleteHandler(tenants: AntboxTenant[]): HttpHandler {
 
 export function exportHandler(tenants: AntboxTenant[]): HttpHandler {
   return defaultMiddlewareChain(tenants, (req: Request): Promise<Response> => {
-    const service = getTenant(req, tenants).skillService;
+    const service = getTenant(req, tenants).featureService;
     const params = getParams(req);
     const query = getQuery(req);
 
@@ -143,7 +143,7 @@ export function runActionHandler(tenants: AntboxTenant[]): HttpHandler {
   return defaultMiddlewareChain(
     tenants,
     (req: Request): Promise<Response> => {
-      const service = getTenant(req, tenants).skillService;
+      const service = getTenant(req, tenants).featureService;
       const params = getParams(req);
       const query = getQuery(req);
 
@@ -168,7 +168,7 @@ export function runExtHandler(tenants: AntboxTenant[]): HttpHandler {
   return defaultMiddlewareChain(
     tenants,
     async (req: Request): Promise<Response> => {
-      const service = getTenant(req, tenants).skillService;
+      const service = getTenant(req, tenants).featureService;
       const params = getParams(req);
 
       if (!params.uuid) {
@@ -222,7 +222,7 @@ export function runMcpToolHandler(tenants: AntboxTenant[]): HttpHandler {
   return defaultMiddlewareChain(
     tenants,
     async (req: Request): Promise<Response> => {
-      const service = getTenant(req, tenants).skillService;
+      const service = getTenant(req, tenants).featureService;
       const params = getParams(req);
 
       if (!params.uuid) {

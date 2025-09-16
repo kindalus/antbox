@@ -6,7 +6,7 @@ import { Either, left, right } from "shared/either.ts";
 import { ValidationError } from "shared/validation_error.ts";
 import { AntboxError } from "shared/antbox_error.ts";
 
-export interface SkillParameter {
+export interface FeatureParameter {
   name: string;
   type: "string" | "number" | "boolean" | "object" | "array" | "file";
   required: boolean;
@@ -14,7 +14,7 @@ export interface SkillParameter {
   defaultValue?: string | number | boolean | object | Array<unknown>;
 }
 
-export class SkillNode extends Node {
+export class FeatureNode extends Node {
   readonly name: string;
   readonly exposeAction: boolean;
   readonly runOnCreates: boolean;
@@ -22,10 +22,10 @@ export class SkillNode extends Node {
   readonly runManually: boolean;
   readonly filters: NodeFilter[];
   readonly exposeExtension: boolean;
-  readonly exposeMCP: boolean;
+  readonly exposeAITool: boolean;
   readonly runAs?: string;
   readonly groupsAllowed: string[];
-  readonly parameters: SkillParameter[];
+  readonly parameters: FeatureParameter[];
   readonly returnType:
     | "string"
     | "number"
@@ -47,10 +47,10 @@ export class SkillNode extends Node {
         runManually?: boolean;
         filters?: NodeFilter[];
         exposeExtension?: boolean;
-        exposeMCP?: boolean;
+        exposeAITool?: boolean;
         runAs?: string;
         groupsAllowed?: string[];
-        parameters?: SkillParameter[];
+        parameters?: FeatureParameter[];
         returnType?:
           | "string"
           | "number"
@@ -72,7 +72,7 @@ export class SkillNode extends Node {
     this.runManually = metadata.runManually ?? true;
     this.filters = metadata.filters ?? [];
     this.exposeExtension = metadata.exposeExtension ?? false;
-    this.exposeMCP = metadata.exposeMCP ?? false;
+    this.exposeAITool = metadata.exposeAITool ?? false;
     this.runAs = metadata.runAs;
     this.groupsAllowed = metadata.groupsAllowed ?? [];
     this.parameters = metadata.parameters ?? [];
@@ -84,7 +84,7 @@ export class SkillNode extends Node {
   override get metadata(): Partial<NodeMetadata> {
     return {
       ...super.metadata,
-      mimetype: Nodes.SKILL_MIMETYPE,
+      mimetype: Nodes.FEATURE_MIMETYPE,
       // Intentionally not adding `name` to metadata as NodeMetadata schema does not include it.
       exposeAction: this.exposeAction,
       runOnCreates: this.runOnCreates,
@@ -92,7 +92,7 @@ export class SkillNode extends Node {
       runManually: this.runManually,
       filters: this.filters,
       exposeExtension: this.exposeExtension,
-      exposeMCP: this.exposeMCP,
+      exposeAITool: this.exposeAITool,
       runAs: this.runAs,
       groupsAllowed: this.groupsAllowed,
       parameters: this.parameters,
@@ -111,10 +111,10 @@ export class SkillNode extends Node {
       runManually?: boolean;
       filters?: NodeFilter[];
       exposeExtension?: boolean;
-      exposeMCP?: boolean;
+      exposeAITool?: boolean;
       runAs?: string;
       groupsAllowed?: string[];
-      parameters?: SkillParameter[];
+      parameters?: FeatureParameter[];
       returnType?:
         | "string"
         | "number"
@@ -126,7 +126,7 @@ export class SkillNode extends Node {
       returnDescription?: string;
       returnContentType?: string;
     },
-  ): Either<ValidationError, SkillNode> {
+  ): Either<ValidationError, FeatureNode> {
     if (!metadata.name && !metadata.title) {
       return left(
         ValidationError.from(
@@ -136,12 +136,12 @@ export class SkillNode extends Node {
     }
 
     const safeMeta = {
-      mimetype: Nodes.SKILL_MIMETYPE,
+      mimetype: Nodes.FEATURE_MIMETYPE,
       ...metadata,
     };
 
     try {
-      const node = new SkillNode(safeMeta);
+      const node = new FeatureNode(safeMeta);
       return right(node);
     } catch (error) {
       return left(

@@ -7,7 +7,8 @@ import type { FileNode } from "./nodes/file_node.ts";
 import type { FolderNode } from "./nodes/folder_node.ts";
 import type { MetaNode } from "domain/nodes/meta_node.ts";
 import type { SmartFolderNode } from "domain/nodes/smart_folder_node.ts";
-import { SkillNode } from "domain/skills/skill_node.ts";
+
+import { FeatureNode } from "domain/features/feature_node.ts";
 
 export type NodeLike =
   | ApiKeyNode
@@ -17,13 +18,10 @@ export type NodeLike =
   | FolderNode
   | GroupNode
   | MetaNode
-  | SkillNode
+  | FeatureNode
   | SmartFolderNode
   | UserNode;
 
 export type AspectableNode = ArticleNode | FileNode | FolderNode | MetaNode;
 
-export type FileLikeNode =
-  | ArticleNode
-  | FileNode
-  | SkillNode;
+export type FileLikeNode = ArticleNode | FileNode | SkillNode | FeatureNode;

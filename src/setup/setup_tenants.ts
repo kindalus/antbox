@@ -12,7 +12,7 @@ import type { NodeRepository } from "domain/nodes/node_repository.ts";
 import { JWK, ROOT_PASSWD, SYMMETRIC_KEY } from "./server_defaults.ts";
 import { providerFrom } from "adapters/parse_module_configuration.ts";
 import { AspectService } from "application/aspect_service.ts";
-import { SkillService } from "application/skill_service.ts";
+import { FeatureService } from "application/feature_service.ts";
 import { UsersGroupsService } from "application/users_groups_service.ts";
 import { AuthService } from "application/auth_service.ts";
 import { ApiKeyService } from "application/api_key_service.ts";
@@ -46,15 +46,16 @@ async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
     storage: storage ?? new InMemoryStorageProvider(),
     bus: eventBus,
   });
-  const skillService = new SkillService(nodeService, usersGroupsService);
+  const featureService = new FeatureService(nodeService, usersGroupsService);
   const authService = new AuthService(nodeService);
   const apiKeyService = new ApiKeyService(nodeService);
 
   return {
     name: cfg.name,
+    symmetricKey,
     nodeService,
     aspectService,
-    skillService,
+    featureService,
     authService,
     apiKeyService,
     rootPasswd: passwd,

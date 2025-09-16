@@ -1,10 +1,10 @@
 import { type NodeFilter } from "domain/nodes/node_filter.ts";
 import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
-import { SkillParameter } from "domain/skills/skill_node.ts";
+import { FeatureParameter } from "domain/features/feature_node.ts";
 import { AntboxError, UnknownError } from "shared/antbox_error.ts";
 import { Either, left, right } from "shared/either.ts";
-import { RunContext } from "domain/skills/skill_run_context.ts";
+import { RunContext } from "domain/features/feature_run_context.ts";
 
 export interface Action {
   uuid: string;
@@ -14,7 +14,7 @@ export interface Action {
   runOnUpdates: boolean;
   runManually: boolean;
   runAs?: string;
-  parameters: SkillParameter[];
+  parameters: FeatureParameter[];
 
   filters: NodeFilter[];
   groupsAllowed: string[];

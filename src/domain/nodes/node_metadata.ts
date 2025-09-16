@@ -2,7 +2,8 @@ import { AspectProperties } from "domain/aspects/aspect_node.ts";
 import { type Permissions } from "domain/nodes/node.ts";
 import { type NodeFilters } from "domain/nodes/node_filter.ts";
 import { type NodeProperties } from "domain/nodes/node_properties.ts";
-import { SkillParameter } from "domain/skills/skill_node.ts";
+
+import { FeatureParameter } from "domain/features/feature_node.ts";
 
 export interface NodeMetadata {
   uuid: string;
@@ -34,7 +35,7 @@ export interface NodeMetadata {
 
   runManually: boolean;
   runAs?: string;
-  parameters: SkillParameter[];
+  parameters: FeatureParameter[];
   returnType:
     | "string"
     | "number"
@@ -53,5 +54,5 @@ export interface NodeMetadata {
 
   exposeAction: boolean;
   exposeExtension: boolean;
-  exposeMCP: boolean;
+  exposeAITool: boolean;
 }

@@ -111,6 +111,17 @@ function buildApiKeysFolder(): FolderNode {
   ).right;
 }
 
+function buildFeaturesFolder(): FolderNode {
+  return FolderNode.create(
+    createSystemFolderMetadata(
+      Folders.FEATURES_FOLDER_UUID,
+      Folders.FEATURES_FOLDER_UUID,
+      "Features",
+      Folders.SYSTEM_FOLDER_UUID,
+    ),
+  ).right;
+}
+
 function createSystemFolderMetadata(
   uuid: string,
   fid: string,
@@ -141,6 +152,9 @@ function createSystemFolderMetadata(
     case Folders.API_KEYS_FOLDER_UUID:
       filters.push(["mimetype", "==", Nodes.API_KEY_MIMETYPE]);
       break;
+    case Folders.FEATURES_FOLDER_UUID:
+      filters.push(["mimetype", "==", Nodes.FEATURE_MIMETYPE]);
+      break;
   }
 
   return {
@@ -167,6 +181,7 @@ const SYSTEM_FOLDER = buildSystemFolder();
 const ACTIONS_FOLDER = buildActionsFolder();
 const EXT_FOLDER = buildExtFolder();
 const API_KEYS_FOLDER = buildApiKeysFolder();
+const FEATURES_FOLDER = buildFeaturesFolder();
 const ROOT_FOLDER = buildRootFolder();
 
 const SYSTEM_FOLDERS = [
@@ -176,6 +191,7 @@ const SYSTEM_FOLDERS = [
   ACTIONS_FOLDER,
   EXT_FOLDER,
   API_KEYS_FOLDER,
+  FEATURES_FOLDER,
 ];
 
 export {
@@ -183,6 +199,7 @@ export {
   API_KEYS_FOLDER,
   ASPECTS_FOLDER,
   EXT_FOLDER,
+  FEATURES_FOLDER,
   GROUPS_FOLDER,
   ROOT_FOLDER,
   SYSTEM_FOLDER,
@@ -195,6 +212,7 @@ export const builtinFolders: FolderNode[] = [
   API_KEYS_FOLDER,
   ASPECTS_FOLDER,
   EXT_FOLDER,
+  FEATURES_FOLDER,
   GROUPS_FOLDER,
   SYSTEM_FOLDER,
   USERS_FOLDER,

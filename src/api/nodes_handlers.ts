@@ -17,7 +17,7 @@ export function listHandler(tenants: AntboxTenant[]): HttpHandler {
 
       const parent = query.parent?.length > 0 ? query.parent : undefined;
 
-      return service
+      return await service
         .list(getAuthenticationContext(req), parent)
         .then(processServiceResult)
         .catch(processError);
@@ -35,7 +35,7 @@ export function getHandler(tenants: AntboxTenant[]): HttpHandler {
         return new Response("{ uuid } not given", { status: 400 });
       }
 
-      return service
+      return await service
         .get(getAuthenticationContext(req), params.uuid)
         .then(processServiceResult)
         .catch(processError);
@@ -74,7 +74,7 @@ export function updateHandler(tenants: AntboxTenant[]): HttpHandler {
       }
 
       const body = await req.json();
-      return service
+      return await service
         .update(getAuthenticationContext(req), params.uuid, body)
         .then(processServiceResult)
         .catch(processError);
@@ -92,7 +92,7 @@ export function deleteHandler(tenants: AntboxTenant[]): HttpHandler {
         return new Response("{ uuid } not given", { status: 400 });
       }
 
-      return service
+      return await service
         .delete(getAuthenticationContext(req), params.uuid)
         .then(processServiceResult)
         .catch(processError);
@@ -111,7 +111,7 @@ export function copyHandler(tenants: AntboxTenant[]): HttpHandler {
         return new Response("{ uuid } not given", { status: 400 });
       }
 
-      return service
+      return await service
         .copy(getAuthenticationContext(req), params.uuid, body.to)
         .then(processServiceResult)
         .catch(processError);
@@ -120,20 +120,21 @@ export function copyHandler(tenants: AntboxTenant[]): HttpHandler {
 }
 
 export function duplicateHandler(tenants: AntboxTenant[]): HttpHandler {
-  return defaultMiddlewareChain(tenants, (req: Request): Promise<Response> => {
-    const service = getTenant(req, tenants).nodeService;
-    const params = getParams(req);
-    if (!params.uuid) {
-      return Promise.resolve(
-        new Response("{ uuid } not given", { status: 400 }),
-      );
-    }
+  return defaultMiddlewareChain(
+    tenants,
+    async (req: Request): Promise<Response> => {
+      const service = getTenant(req, tenants).nodeService;
+      const params = getParams(req);
+      if (!params.uuid) {
+        new Response("{ uuid } not given", { status: 400 });
+      }
 
-    return service
-      .duplicate(getAuthenticationContext(req), params.uuid)
-      .then(processServiceResult)
-      .catch(processError);
-  });
+      return await service
+        .duplicate(getAuthenticationContext(req), params.uuid)
+        .then(processServiceResult)
+        .catch(processError);
+    },
+  );
 }
 
 export function findHandler(tenants: AntboxTenant[]): HttpHandler {
@@ -165,7 +166,7 @@ export function evaluateHandler(tenants: AntboxTenant[]): HttpHandler {
         return new Response("{ uuid } not given", { status: 400 });
       }
 
-      return service
+      return await service
         .evaluate(getAuthenticationContext(req), params.uuid)
         .then(processServiceResult)
         .catch(processError);
@@ -186,33 +187,34 @@ export function evaluateHandler(tenants: AntboxTenant[]): HttpHandler {
 // }
 
 export function exportHandler(tenants: AntboxTenant[]): HttpHandler {
-  return defaultMiddlewareChain(tenants, (req: Request): Promise<Response> => {
-    const service = getTenant(req, tenants).nodeService;
-    const params = getParams(req);
-    if (!params.uuid) {
-      return Promise.resolve(
-        new Response("{ uuid } not given", { status: 400 }),
-      );
-    }
+  return defaultMiddlewareChain(
+    tenants,
+    async (req: Request): Promise<Response> => {
+      const service = getTenant(req, tenants).nodeService;
+      const params = getParams(req);
+      if (!params.uuid) {
+        return new Response("{ uuid } not given", { status: 400 });
+      }
 
-    return Promise.all([
-      service.get(getAuthenticationContext(req), params.uuid),
-      service.export(getAuthenticationContext(req), params.uuid),
-    ])
-      .then(([node, blob]) => {
-        if (node.isLeft()) {
-          return processError(node.value);
-        }
+      return await Promise.all([
+        service.get(getAuthenticationContext(req), params.uuid),
+        service.export(getAuthenticationContext(req), params.uuid),
+      ])
+        .then(([node, blob]) => {
+          if (node.isLeft()) {
+            return processError(node.value);
+          }
 
-        if (blob.isLeft()) {
-          return processError(blob.value);
-        }
+          if (blob.isLeft()) {
+            return processError(blob.value);
+          }
 
-        const response = new Response(blob.value);
-        response.headers.set("Content-Type", node.value.mimetype);
-        response.headers.set("Content-length", blob.value.size.toString());
-        return response;
-      })
-      .catch(processError);
-  });
+          const response = new Response(blob.value);
+          response.headers.set("Content-Type", node.value.mimetype);
+          response.headers.set("Content-length", blob.value.size.toString());
+          return response;
+        })
+        .catch(processError);
+    },
+  );
 }

@@ -7,7 +7,7 @@ import {
   getHandler,
   listActionsHandler,
   runActionHandler,
-} from "api/skills_handlers.ts";
+} from "api/features_handlers.ts";
 
 export default function (tenants: AntboxTenant[]) {
   const actionsRouter = new Router({ prefix: "/actions" });

@@ -155,6 +155,10 @@ export class Node {
       fulltext: this.fulltext,
     };
   }
+
+  toJSON() {
+    return this.metadata;
+  }
 }
 
 export type Permission = "Read" | "Write" | "Export";

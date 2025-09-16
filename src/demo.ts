@@ -4,6 +4,7 @@ import { printServerKeys } from "./print_server_keys.ts";
 import { setupOakServer } from "adapters/oak/setup_oak_server.ts";
 import { PORT } from "setup/server_defaults.ts";
 import { setupTenants } from "setup/setup_tenants.ts";
+import process from "node:process";
 
 interface CommandOpts {
   port?: string;
@@ -53,12 +54,12 @@ if (import.meta.main) {
     .action((baseDir, opts) => {
       if (opts.keys) {
         printServerKeys({ passwd: opts.passwd });
-        process.exit(0);
+        Deno.exit(0);
       }
 
       if (!baseDir) {
         console.error("No base folder specified");
-        process.exit(-1);
+        Deno.exit(-1);
       }
 
       startDemoServer(baseDir, opts);

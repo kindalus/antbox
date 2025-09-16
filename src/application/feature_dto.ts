@@ -1,7 +1,7 @@
 import { NodeFilter } from "domain/nodes/node_filter.ts";
-import { SkillParameter } from "domain/skills/skill_node.ts";
+import { FeatureParameter } from "domain/features/feature_node.ts";
 
-export interface SkillDTO {
+export interface FeatureDTO {
   id: string;
   name: string;
   description: string;
@@ -12,11 +12,11 @@ export interface SkillDTO {
   filters: NodeFilter[];
 
   exposeExtension: boolean;
-  exposeMCP: boolean;
+  exposeAITool: boolean;
 
   runAs?: string;
   groupsAllowed: string[];
-  parameters: SkillParameter[];
+  parameters: FeatureParameter[];
 
   returnType:
     | "string"

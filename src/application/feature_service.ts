@@ -159,7 +159,6 @@ export class FeatureService {
     if (nodeOrErr.isLeft()) {
       return left(nodeOrErr.value);
     }
-
     return right(this.#nodeToFeatureDTO(nodeOrErr.value as FeatureNode));
   }
 
@@ -201,9 +200,46 @@ export class FeatureService {
       return left(featureOrErr.value);
     }
 
+    // Parse the new feature file to get updated metadata
+    const newFeatureOrErr = await fileToFeature(file);
+    if (newFeatureOrErr.isLeft()) {
+      return left(newFeatureOrErr.value);
+    }
+
+    const newFeature = newFeatureOrErr.value;
+    const newFeatureMetadata = featureToNodeMetadata(
+      newFeature,
+      ctx.principal.email,
+    );
+
+    // Update the file content
     const voidOrErr = await this.nodeService.updateFile(ctx, uuid, file);
     if (voidOrErr.isLeft()) {
       return left(voidOrErr.value);
+    }
+
+    // Update the node metadata with parsed feature data
+    const updateMetadataOrErr = await this.nodeService.update(ctx, uuid, {
+      title: newFeatureMetadata.title,
+      name: newFeature.name,
+      description: newFeatureMetadata.description,
+      exposeAction: newFeatureMetadata.exposeAction,
+      runOnCreates: newFeatureMetadata.runOnCreates,
+      runOnUpdates: newFeatureMetadata.runOnUpdates,
+      runManually: newFeatureMetadata.runManually,
+      filters: newFeatureMetadata.filters,
+      exposeExtension: newFeatureMetadata.exposeExtension,
+      exposeAITool: newFeatureMetadata.exposeAITool,
+      runAs: newFeatureMetadata.runAs,
+      groupsAllowed: newFeatureMetadata.groupsAllowed,
+      parameters: newFeatureMetadata.parameters,
+      returnType: newFeatureMetadata.returnType,
+      returnDescription: newFeatureMetadata.returnDescription,
+      returnContentType: newFeatureMetadata.returnContentType,
+    });
+
+    if (updateMetadataOrErr.isLeft()) {
+      return left(updateMetadataOrErr.value);
     }
 
     // Get the updated node to return it
@@ -363,7 +399,7 @@ export class FeatureService {
 
   async listActions(
     ctx: AuthenticationContext,
-  ): Promise<Either<AntboxError, FeatureNode[]>> {
+  ): Promise<Either<AntboxError, NodeLike[]>> {
     // Get features that are exposed as actions
     const featuresOrErrs = await this.nodeService.find(
       ctx,
@@ -391,7 +427,7 @@ export class FeatureService {
       ? actionsOrErrs.value.nodes
       : [];
 
-    const nodes = [
+    const nodes: NodeLike[] = [
       ...featureNodes,
       ...actionNodes,
       ...builtinActions.map((a) =>
@@ -482,13 +518,11 @@ export class FeatureService {
 
     try {
       const actionParams: Record<string, unknown> = params ?? {};
-      // TODO: Fix typing issue with action.run call
-      // const result = await action.run(
-      //   runContext,
-      //   filteredUuids,
-      //   actionParams,
-      // );
-      const result = "temporary result"; // Placeholder
+      const result = await action.run(
+        runContext,
+        filteredUuids,
+        actionParams,
+      );
       return right(result);
     } catch (error) {
       return left(
@@ -536,8 +570,7 @@ export class FeatureService {
       };
 
       try {
-        // TODO: Fix typing issue with action.run call
-        // await action.run(runContext, [evt.payload.uuid], {});
+        await action.run(runContext, [evt.payload.uuid], {});
       } catch (error) {
         console.error(`Error running action ${action.uuid}:`, error);
       }
@@ -555,7 +588,7 @@ export class FeatureService {
     for (const action of actions) {
       const filterOrErr = NodesFilters.satisfiedBy(
         action.filters,
-        evt.payload,
+        evt.payload as any,
       );
 
       if (filterOrErr.isLeft()) {
@@ -572,8 +605,7 @@ export class FeatureService {
       };
 
       try {
-        // TODO: Fix typing issue with action.run call
-        // await action.run(runContext, [evt.payload.uuid], {});
+        await action.run(runContext, [evt.payload.uuid], {});
       } catch (error) {
         console.error(`Error running action ${action.uuid}:`, error);
       }

@@ -9,8 +9,6 @@ import type { NodeLike } from "domain/node_like.ts";
 import { ArticleNode } from "domain/articles/article_node.ts";
 import { ApiKeyNode } from "domain/api_keys/api_key_node.ts";
 import { FeatureNode } from "domain/features/feature_node.ts";
-import { GroupNode } from "domain/users_groups/group_node.ts";
-import { UserNode } from "domain/users_groups/user_node.ts";
 
 export class Nodes {
   static FID_PREFIX = "--fid--";
@@ -77,7 +75,7 @@ export class Nodes {
     return node.mimetype === Nodes.META_NODE_MIMETYPE;
   }
 
-  static isAction(node: NodeLike): node is SkillNode {
+  static isAction(node: NodeLike): node is FeatureNode {
     return node.mimetype === Nodes.ACTION_MIMETYPE;
   }
 
@@ -114,7 +112,7 @@ export class Nodes {
 
   static isFileLike(
     node: NodeLike,
-  ): node is FileNode | SkillNode | FeatureNode | ArticleNode {
+  ): node is FileNode | FeatureNode | ArticleNode {
     return (
       Nodes.isFile(node) ||
       Nodes.isExt(node) ||

@@ -24,4 +24,4 @@ export type NodeLike =
 
 export type AspectableNode = ArticleNode | FileNode | FolderNode | MetaNode;
 
-export type FileLikeNode = ArticleNode | FileNode | SkillNode | FeatureNode;
+export type FileLikeNode = ArticleNode | FileNode | FeatureNode;

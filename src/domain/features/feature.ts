@@ -95,7 +95,10 @@ export function featureToNodeMetadata(
 export async function fileToFeature(
   file: File,
 ): Promise<Either<AntboxError, Feature>> {
-  if (file.type !== "application/javascript") {
+  if (
+    file.type !== "application/javascript" &&
+    file.type !== "application/vnd.antbox.feature"
+  ) {
     return left(new BadRequestError(`Invalid file type: ${file.type}`));
   }
 

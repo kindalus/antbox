@@ -172,7 +172,8 @@ export class NodeService {
     metadata: Partial<NodeMetadata>,
   ): Promise<Either<AntboxError, FileLikeNode>> {
     const useFileType = !metadata.mimetype ||
-      ![Nodes.EXT_MIMETYPE, Nodes.ACTION_MIMETYPE].includes(metadata.mimetype);
+      ![Nodes.EXT_MIMETYPE, Nodes.ACTION_MIMETYPE, Nodes.FEATURE_MIMETYPE]
+        .includes(metadata.mimetype);
 
     const nodeOrErr = await this.create(ctx, {
       ...metadata,
@@ -836,6 +837,7 @@ export class NodeService {
       [Nodes.ACTION_MIMETYPE]: "application/javascript",
       [Nodes.ASPECT_MIMETYPE]: "application/json",
       [Nodes.EXT_MIMETYPE]: "application/javascript",
+      [Nodes.FEATURE_MIMETYPE]: "application/javascript",
       [Nodes.SMART_FOLDER_MIMETYPE]: "application/json",
     };
 

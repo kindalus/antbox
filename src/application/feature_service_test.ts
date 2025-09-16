@@ -312,7 +312,7 @@ describe("FeatureService", () => {
     );
 
     expect(runResult.isRight(), errToMsg(runResult.value)).toBeTruthy();
-    expect((runResult as any).value).toBe("Hello World");
+    expect((runResult as any).value).toBe("Hello, World");
   });
 
   test("run should return error if parameter validation fails", async () => {

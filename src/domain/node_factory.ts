@@ -24,7 +24,7 @@ export class NodeFactory {
 
     switch (metadata.mimetype) {
       case Nodes.ACTION_MIMETYPE:
-        createFn = SkillNode.create;
+        createFn = FeatureNode.create;
         break;
 
       case Nodes.API_KEY_MIMETYPE:
@@ -36,7 +36,7 @@ export class NodeFactory {
         break;
 
       case Nodes.EXT_MIMETYPE:
-        createFn = SkillNode.create;
+        createFn = FeatureNode.create;
         break;
 
       case Nodes.FOLDER_MIMETYPE:

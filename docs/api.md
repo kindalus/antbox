@@ -6,8 +6,6 @@
 2. [Endpoints](#endpoints)
    - [Nodes API](#nodes-api)
    - [Features API](#features-api)
-   - [Actions API (Legacy)](#actions-api-legacy)
-   - [Skills API (Legacy)](#skills-api-legacy)
    - [Aspects API](#aspects-api)
    - [Extensions API](#extensions-api)
    - [File Upload API](#file-upload-api)
@@ -54,34 +52,6 @@ Base path: `/features`
 | `/-/mcp-tools`        | GET         | List features exposed as MCP tools  |                                               |
 | `/:uuid/-/run-action` | GET         | Run feature as action               | `uuids` (comma-separated), `additionalParams` |
 | `/:uuid/-/run-ext`    | GET, POST   | Run feature as extension            | Various parameters                            |
-| `/:uuid/-/run-mcp`    | POST        | Run feature as MCP tool             | JSON request body                             |
-
-### Actions API (Legacy)
-
-Base Path: `/actions` - **Deprecated: Use `/features` instead**
-
-| Method | Path           | Description                                     | Query Parameters          |
-| ------ | -------------- | ----------------------------------------------- | ------------------------- |
-| `GET`  | `/`            | Retrieve a list of action-exposed features.     |                           |
-| `GET`  | `/:uuid`       | Retrieve details of a specific feature by UUID. |                           |
-| `GET`  | `/:uuid/-/run` | Trigger the execution of a specific action.     | `uuids` (comma-separated) |
-
-### Skills API (Legacy)
-
-Base Path: `/skills` - **Deprecated: Use `/features` instead**
-
-| Method     | Path                  | Description                                | Query Parameters    |
-| ---------- | --------------------- | ------------------------------------------ | ------------------- |
-| `GET`      | `/`                   | List all features (legacy endpoint)        |                     |
-| `GET`      | `/:uuid`              | Get feature by UUID (legacy endpoint)      |                     |
-| `DELETE`   | `/:uuid`              | Delete feature by UUID (legacy endpoint)   |                     |
-| `GET`      | `/:uuid/-/export`     | Export feature as JavaScript file (legacy) | `type` parameter    |
-| `GET`      | `/-/actions`          | List action-exposed features (legacy)      |                     |
-| `GET`      | `/-/extensions`       | List extension-exposed features (legacy)   |                     |
-| `GET`      | `/-/mcp-tools`        | List MCP tool-exposed features (legacy)    |                     |
-| `GET`      | `/:uuid/-/run-action` | Run feature as action (legacy)             | `uuids`, parameters |
-| `GET,POST` | `/:uuid/-/run-ext`    | Run feature as extension (legacy)          | Various parameters  |
-| `POST`     | `/:uuid/-/run-mcp`    | Run feature as MCP tool (legacy)           | JSON request body   |
 
 ### Aspects API
 

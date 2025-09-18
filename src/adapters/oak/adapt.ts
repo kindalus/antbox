@@ -1,10 +1,9 @@
 import type { Context } from "@oak/oak";
 import { type HttpHandler } from "api/handler.ts";
-import { readBody } from "./read_body.ts";
 
 export function adapt(handler: HttpHandler): (ctx: Context) => Promise<void> {
   return async (ctx: Context) => {
-    const body = await readBody(ctx);
+    const body = await ctx.request.body.init();
 
     const headers = new Headers();
     for (const [key, value] of ctx.request.headers.entries()) {

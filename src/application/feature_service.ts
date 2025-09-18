@@ -4,7 +4,7 @@ import {
   fileToFeature,
 } from "domain/features/feature.ts";
 import {
-  type Action as FeatureAction,
+  type Action,
   actionToNodeMetadata,
   fileToAction,
 } from "domain/features/action.ts";
@@ -65,9 +65,13 @@ export class FeatureService {
   }
 
   constructor(
-    private readonly nodeService: NodeService,
+    private readonly _nodeService: NodeService,
     private readonly authService: UsersGroupsService,
   ) {}
+
+  get nodeService(): NodeService {
+    return this._nodeService;
+  }
 
   // === FEATURE METHODS ===
 
@@ -75,7 +79,7 @@ export class FeatureService {
     ctx: AuthenticationContext,
     uuid: string,
   ): Promise<Either<NodeNotFoundError | FeatureNotFoundError, FeatureDTO>> {
-    const nodeOrErr = await this.nodeService.get(ctx, uuid);
+    const nodeOrErr = await this._nodeService.get(ctx, uuid);
 
     if (nodeOrErr.isLeft()) {
       return left(nodeOrErr.value);
@@ -92,34 +96,11 @@ export class FeatureService {
   async listFeatures(
     ctx: AuthenticationContext,
   ): Promise<Either<AntboxError, FeatureDTO[]>> {
-    const nodesOrErrs = await this.nodeService.find(
+    const nodesOrErrs = await this._nodeService.find(
       ctx,
       [
         ["mimetype", "==", Nodes.FEATURE_MIMETYPE],
         ["parent", "==", Folders.FEATURES_FOLDER_UUID],
-      ],
-      Number.MAX_SAFE_INTEGER,
-    );
-
-    if (nodesOrErrs.isLeft()) {
-      return left(nodesOrErrs.value);
-    }
-
-    const nodes = nodesOrErrs.value.nodes as FeatureNode[];
-    const dtos = nodes.map((n) => this.#nodeToFeatureDTO(n));
-
-    return right(dtos);
-  }
-
-  async listMcpTools(
-    ctx: AuthenticationContext,
-  ): Promise<Either<AntboxError, FeatureDTO[]>> {
-    const nodesOrErrs = await this.nodeService.find(
-      ctx,
-      [
-        ["mimetype", "==", Nodes.FEATURE_MIMETYPE],
-        ["parent", "==", Folders.FEATURES_FOLDER_UUID],
-        ["exposeAITool", "==", true],
       ],
       Number.MAX_SAFE_INTEGER,
     );
@@ -151,7 +132,7 @@ export class FeatureService {
       ? { ...featureMetadata, ...metadata }
       : featureMetadata;
 
-    const nodeOrErr = await this.nodeService.createFile(
+    const nodeOrErr = await this._nodeService.createFile(
       ctx,
       file,
       combinedMetadata,
@@ -163,33 +144,6 @@ export class FeatureService {
   }
 
   async updateFeature(
-    ctx: AuthenticationContext,
-    uuid: string,
-    metadata: Partial<NodeMetadata>,
-  ): Promise<Either<AntboxError, FeatureDTO>> {
-    const featureOrErr = await this.getFeature(ctx, uuid);
-
-    if (featureOrErr.isLeft()) {
-      return left(featureOrErr.value);
-    }
-
-    const voidOrErr = await this.nodeService.update(ctx, uuid, metadata);
-    if (voidOrErr.isLeft()) {
-      return left(voidOrErr.value);
-    }
-
-    // Get the updated node to return it
-    const updatedNodeOrErr = await this.nodeService.get(ctx, uuid);
-    if (updatedNodeOrErr.isLeft()) {
-      return left(updatedNodeOrErr.value);
-    }
-
-    return right(
-      this.#nodeToFeatureDTO(updatedNodeOrErr.value as FeatureNode),
-    );
-  }
-
-  async updateFeatureFile(
     ctx: AuthenticationContext,
     uuid: string,
     file: File,
@@ -213,13 +167,13 @@ export class FeatureService {
     );
 
     // Update the file content
-    const voidOrErr = await this.nodeService.updateFile(ctx, uuid, file);
-    if (voidOrErr.isLeft()) {
-      return left(voidOrErr.value);
+    const updateResult = await this._nodeService.updateFile(ctx, uuid, file);
+    if (updateResult.isLeft()) {
+      return left(updateResult.value);
     }
 
     // Update the node metadata with parsed feature data
-    const updateMetadataOrErr = await this.nodeService.update(ctx, uuid, {
+    const updateMetadataOrErr = await this._nodeService.update(ctx, uuid, {
       title: newFeatureMetadata.title,
       description: newFeatureMetadata.description,
       exposeAction: newFeatureMetadata.exposeAction,
@@ -242,7 +196,7 @@ export class FeatureService {
     }
 
     // Get the updated node to return it
-    const updatedNodeOrErr = await this.nodeService.get(ctx, uuid);
+    const updatedNodeOrErr = await this._nodeService.get(ctx, uuid);
     if (updatedNodeOrErr.isLeft()) {
       return left(updatedNodeOrErr.value);
     }
@@ -262,7 +216,7 @@ export class FeatureService {
       return left(featureOrErr.value);
     }
 
-    return this.nodeService.delete(ctx, uuid);
+    return this._nodeService.delete(ctx, uuid);
   }
 
   async runFeature<T>(
@@ -283,7 +237,7 @@ export class FeatureService {
 
     const runContext: RunContext = {
       authenticationContext: ctx,
-      nodeService: this.nodeService,
+      nodeService: this._nodeService,
     };
 
     try {
@@ -303,7 +257,7 @@ export class FeatureService {
       return;
     }
 
-    const onCreateTasksOrErr = await this.nodeService.find(
+    const onCreateTasksOrErr = await this._nodeService.find(
       ctx,
       [
         ["parent", "==", evt.payload.parent],
@@ -328,17 +282,9 @@ export class FeatureService {
     console.log("Running onCreate tasks", onCreateTasks.length);
   }
 
-  exportFeature(
+  async export(
     ctx: AuthenticationContext,
     uuid: string,
-  ): Promise<Either<AntboxError, File>> {
-    return this.exportFeatureForType(ctx, uuid, "feature");
-  }
-
-  async exportFeatureForType(
-    ctx: AuthenticationContext,
-    uuid: string,
-    _type: string,
   ): Promise<Either<AntboxError, File>> {
     const featureOrErr = await this.getFeature(ctx, uuid);
 
@@ -347,7 +293,7 @@ export class FeatureService {
     }
 
     // Get the original file content
-    const fileOrErr = await this.nodeService.export(ctx, uuid);
+    const fileOrErr = await this._nodeService.export(ctx, uuid);
     if (fileOrErr.isLeft()) {
       return left(fileOrErr.value);
     }
@@ -383,7 +329,7 @@ export class FeatureService {
       );
     }
 
-    const nodeOrErr = await this.nodeService.get(ctx, uuid);
+    const nodeOrErr = await this._nodeService.get(ctx, uuid);
 
     if (nodeOrErr.isLeft()) {
       return left(nodeOrErr.value);
@@ -400,7 +346,7 @@ export class FeatureService {
     ctx: AuthenticationContext,
   ): Promise<Either<AntboxError, NodeLike[]>> {
     // Get features that are exposed as actions
-    const featuresOrErrs = await this.nodeService.find(
+    const featuresOrErrs = await this._nodeService.find(
       ctx,
       [
         ["mimetype", "==", Nodes.FEATURE_MIMETYPE],
@@ -410,7 +356,7 @@ export class FeatureService {
       Number.MAX_SAFE_INTEGER,
     );
 
-    const actionsOrErrs = await this.nodeService.find(
+    const actionsOrErrs = await this._nodeService.find(
       ctx,
       [
         ["mimetype", "==", Nodes.ACTION_MIMETYPE],
@@ -453,19 +399,29 @@ export class FeatureService {
     const action = actionOrErr.value;
     const metadata = actionToNodeMetadata(action);
 
-    const nodeOrErr = await this.nodeService.get(ctx, action.uuid);
+    const nodeOrErr = await this._nodeService.get(ctx, action.uuid);
 
     if (nodeOrErr.isLeft()) {
-      return this.nodeService.createFile(ctx, file, {
+      return this._nodeService.createFile(ctx, file, {
         ...metadata,
         uuid: action.uuid,
         parent: Folders.ACTIONS_FOLDER_UUID,
       });
     }
 
-    await this.nodeService.updateFile(ctx, action.uuid, file);
+    await this._nodeService.updateFile(ctx, action.uuid, file);
 
-    const updatedNodeOrErr = await this.nodeService.get(ctx, action.uuid);
+    // Update the node metadata with new action properties
+    const updateResult = await this._nodeService.update(
+      ctx,
+      action.uuid,
+      metadata,
+    );
+    if (updateResult.isLeft()) {
+      return left(updateResult.value);
+    }
+
+    const updatedNodeOrErr = await this._nodeService.get(ctx, action.uuid);
 
     if (updatedNodeOrErr.isLeft()) {
       return left(updatedNodeOrErr.value);
@@ -484,7 +440,27 @@ export class FeatureService {
       return left(actionOrErr.value);
     }
 
-    return this.nodeService.delete(ctx, uuid);
+    return this._nodeService.delete(ctx, uuid);
+  }
+
+  async exportAction(
+    ctx: AuthenticationContext,
+    uuid: string,
+  ): Promise<Either<AntboxError, File>> {
+    const actionOrErr = await this.getAction(ctx, uuid);
+
+    if (actionOrErr.isLeft()) {
+      return left(actionOrErr.value);
+    }
+
+    const action = actionOrErr.value;
+    const fileOrErr = await this._nodeService.export(ctx, uuid);
+
+    if (fileOrErr.isLeft()) {
+      return left(fileOrErr.value);
+    }
+
+    return right(fileOrErr.value);
   }
 
   async runAction(
@@ -499,7 +475,11 @@ export class FeatureService {
       return left(actionOrErr.value);
     }
 
-    const action: FeatureAction = actionOrErr.value;
+    const action: Action = actionOrErr.value;
+
+    if (!action.runManually && ctx.mode === "Direct") {
+      return left(new BadRequestError("Action cannot be run manually"));
+    }
 
     const filteredResults = await this.#filterUuidsByAction(ctx, action, uuids);
     const filteredUuids = filteredResults
@@ -512,7 +492,7 @@ export class FeatureService {
 
     const runContext: RunContext = {
       authenticationContext: ctx,
-      nodeService: this.nodeService,
+      nodeService: this._nodeService,
     };
 
     try {
@@ -530,18 +510,6 @@ export class FeatureService {
           : new UnknownError((error as Error).message),
       );
     }
-  }
-
-  async exportAction(
-    ctx: AuthenticationContext,
-    uuid: string,
-  ): Promise<Either<AntboxError, File>> {
-    const actionOrErr = await this.getAction(ctx, uuid);
-    if (actionOrErr.isLeft()) {
-      return left(actionOrErr.value);
-    }
-
-    return this.nodeService.export(ctx, uuid);
   }
 
   async runAutomaticActionsForCreates(evt: NodeCreatedEvent) {
@@ -565,7 +533,7 @@ export class FeatureService {
 
       const runContext: RunContext = {
         authenticationContext: UsersGroupsService.elevatedContext,
-        nodeService: this.nodeService,
+        nodeService: this._nodeService,
       };
 
       try {
@@ -600,7 +568,7 @@ export class FeatureService {
 
       const runContext: RunContext = {
         authenticationContext: ctx,
-        nodeService: this.nodeService,
+        nodeService: this._nodeService,
       };
 
       try {
@@ -612,12 +580,12 @@ export class FeatureService {
   }
 
   async runOnUpdatedScripts(ctx: AuthenticationContext, evt: NodeUpdatedEvent) {
-    const node = await this.nodeService.get(ctx, evt.payload.uuid);
+    const node = await this._nodeService.get(ctx, evt.payload.uuid);
     if (node.isLeft() || node.value.parent === Folders.ROOT_FOLDER_UUID) {
       return;
     }
 
-    const onUpdateTasksOrErr = await this.nodeService.find(
+    const featuresOrErr = await this._nodeService.find(
       ctx,
       [
         ["parent", "==", node.value.parent],
@@ -626,15 +594,15 @@ export class FeatureService {
       Number.MAX_SAFE_INTEGER,
     );
 
-    if (onUpdateTasksOrErr.isLeft()) {
+    if (featuresOrErr.isLeft()) {
       return;
     }
 
-    if (onUpdateTasksOrErr.value.nodes.length === 0) {
+    if (featuresOrErr.value.nodes.length === 0) {
       return;
     }
 
-    const onUpdateTasks = onUpdateTasksOrErr.value.nodes.filter((task) =>
+    const onUpdateTasks = featuresOrErr.value.nodes.filter((task: any) =>
       (task as any).onUpdate &&
       (task as any).onUpdate.includes(evt.payload.uuid)
     );
@@ -647,7 +615,12 @@ export class FeatureService {
   async createOrReplaceExtension(
     ctx: AuthenticationContext,
     file: File,
-    metadata: { uuid?: string; title?: string; description?: string },
+    metadata: {
+      uuid?: string;
+      title?: string;
+      description?: string;
+      exposeExtension?: boolean;
+    },
   ): Promise<Either<AntboxError, FeatureNode>> {
     if (file.type !== "application/javascript") {
       return left(new BadRequestError(`Invalid mimetype: ${file.type}`));
@@ -655,14 +628,15 @@ export class FeatureService {
 
     const uuid = metadata.uuid ?? file.name?.split(".")[0].trim();
 
-    const nodeOrErr = await this.nodeService.get(ctx, uuid);
+    const nodeOrErr = await this._nodeService.get(ctx, uuid);
     if (nodeOrErr.isLeft()) {
-      const createResult = await this.nodeService.createFile(ctx, file, {
+      const createResult = await this._nodeService.createFile(ctx, file, {
         uuid,
         title: metadata.title ?? uuid,
         description: metadata.description ?? "",
         mimetype: Nodes.EXT_MIMETYPE,
         parent: Folders.EXT_FOLDER_UUID,
+        exposeExtension: metadata.exposeExtension ?? true,
       });
 
       if (createResult.isLeft()) {
@@ -672,22 +646,23 @@ export class FeatureService {
       return right(createResult.value as FeatureNode);
     }
 
-    let voidOrErr = await this.nodeService.updateFile(ctx, uuid, file);
+    let voidOrErr = await this._nodeService.updateFile(ctx, uuid, file);
 
     if (voidOrErr.isLeft()) {
       return left(voidOrErr.value);
     }
 
-    voidOrErr = await this.nodeService.update(ctx, uuid, {
+    voidOrErr = await this._nodeService.update(ctx, uuid, {
       title: metadata.title,
       description: metadata.description,
+      exposeExtension: metadata.exposeExtension ?? true,
     });
 
     if (voidOrErr.isLeft()) {
       return left(voidOrErr.value);
     }
 
-    const updatedNodeOrErr = await this.nodeService.get(ctx, uuid);
+    const updatedNodeOrErr = await this._nodeService.get(ctx, uuid);
     if (updatedNodeOrErr.isLeft()) {
       return left(updatedNodeOrErr.value);
     }
@@ -697,9 +672,10 @@ export class FeatureService {
 
   async getExtension(
     uuid: string,
+    ctx?: AuthenticationContext,
   ): Promise<Either<NodeNotFoundError, FeatureNode>> {
-    const nodeOrErr = await this.nodeService.get(
-      UsersGroupsService.elevatedContext,
+    const nodeOrErr = await this._nodeService.get(
+      ctx || UsersGroupsService.elevatedContext,
       uuid,
     );
     if (nodeOrErr.isLeft()) {
@@ -718,14 +694,14 @@ export class FeatureService {
     uuid: string,
     metadata: { title?: string; description?: string; size?: number },
   ) {
-    const extOrErr = await this.getExtension(uuid);
+    const extOrErr = await this.getExtension(uuid, ctx);
 
     if (extOrErr.isLeft()) {
       return left(extOrErr.value);
     }
 
     const ext = extOrErr.value;
-    const voidOrErr = await this.nodeService.update(ctx, uuid, {
+    const voidOrErr = await this._nodeService.update(ctx, uuid, {
       title: metadata.title,
       description: metadata.description,
       size: metadata.size,
@@ -742,18 +718,18 @@ export class FeatureService {
     ctx: AuthenticationContext,
     uuid: string,
   ): Promise<Either<AntboxError, void>> {
-    const extOrErr = await this.getExtension(uuid);
+    const extOrErr = await this.getExtension(uuid, ctx);
 
     if (extOrErr.isLeft()) {
       return left(extOrErr.value);
     }
 
-    return this.nodeService.delete(ctx, uuid);
+    return this._nodeService.delete(ctx, uuid);
   }
 
   async listExtensions(): Promise<Either<AntboxError, NodeLike[]>> {
     // Get features that are exposed as extensions
-    const featuresOrErrs = await this.nodeService.find(
+    const featuresOrErrs = await this._nodeService.find(
       UsersGroupsService.elevatedContext,
       [
         ["mimetype", "==", Nodes.FEATURE_MIMETYPE],
@@ -763,7 +739,7 @@ export class FeatureService {
       Number.MAX_SAFE_INTEGER,
     );
 
-    const extsOrErrs = await this.nodeService.find(
+    const extsOrErrs = await this._nodeService.find(
       UsersGroupsService.elevatedContext,
       [
         ["mimetype", "==", Nodes.EXT_MIMETYPE],
@@ -787,7 +763,7 @@ export class FeatureService {
       return left(nodeOrErr.value);
     }
 
-    return this.nodeService.export(UsersGroupsService.elevatedContext, uuid);
+    return this._nodeService.export(UsersGroupsService.elevatedContext, uuid);
   }
 
   async runExtension(
@@ -821,7 +797,7 @@ export class FeatureService {
         return left(new BadRequestError("Extension must export a function"));
       }
 
-      const response = await module(request, this.nodeService);
+      const response = await module(request, this._nodeService);
       return right(response);
     } catch (error) {
       return left(
@@ -830,45 +806,11 @@ export class FeatureService {
     }
   }
 
-  async runMcpTool(
-    ctx: AuthenticationContext,
-    uuid: string,
-    mcpRequest: Record<string, unknown>,
-  ): Promise<Either<AntboxError, unknown>> {
-    const functionOrErr = await this.#getNodeAsFunction(ctx, uuid);
-
-    if (functionOrErr.isLeft()) {
-      return left(functionOrErr.value);
-    }
-
-    const feature = functionOrErr.value;
-
-    if (!feature.exposeAITool) {
-      return left(new BadRequestError("Feature is not exposed as MCP tool"));
-    }
-
-    try {
-      FeatureService.#incRunnable([uuid, "mcp"]);
-
-      const runContext: RunContext = {
-        authenticationContext: ctx,
-        nodeService: this.nodeService,
-      };
-
-      const result = await feature.run(runContext, mcpRequest);
-      return right(result);
-    } catch (error) {
-      return left(
-        new UnknownError(`MCP tool error: ${(error as Error).message}`),
-      );
-    }
-  }
-
   async #getNodeAsFunction(
     ctx: AuthenticationContext,
     uuid: string,
   ): Promise<Either<AntboxError, Feature>> {
-    const nodeOrErr = await this.nodeService.get(ctx, uuid);
+    const nodeOrErr = await this._nodeService.get(ctx, uuid);
 
     if (nodeOrErr.isLeft()) {
       return left(nodeOrErr.value);
@@ -878,7 +820,7 @@ export class FeatureService {
       return left(new FeatureNotFoundError(uuid));
     }
 
-    const fileOrErr = await this.nodeService.export(ctx, uuid);
+    const fileOrErr = await this._nodeService.export(ctx, uuid);
 
     if (fileOrErr.isLeft()) {
       return left(fileOrErr.value);
@@ -896,12 +838,12 @@ export class FeatureService {
   async #getNodeAsAction(
     ctx: AuthenticationContext,
     uuid: string,
-  ): Promise<Either<AntboxError, FeatureAction>> {
+  ): Promise<Either<AntboxError, Action>> {
     if (builtinActions.some((a) => a.uuid === uuid)) {
       return right(builtinActions.find((a) => a.uuid === uuid)!);
     }
 
-    const nodeOrErr = await this.nodeService.get(ctx, uuid);
+    const nodeOrErr = await this._nodeService.get(ctx, uuid);
 
     if (nodeOrErr.isLeft()) {
       return left(nodeOrErr.value);
@@ -911,7 +853,7 @@ export class FeatureService {
       return left(new NodeNotFoundError(uuid));
     }
 
-    const fileOrErr = await this.nodeService.export(ctx, uuid);
+    const fileOrErr = await this._nodeService.export(ctx, uuid);
 
     if (fileOrErr.isLeft()) {
       return left(fileOrErr.value);
@@ -929,7 +871,7 @@ export class FeatureService {
   async #getExtensionAsModule(
     uuid: string,
   ): Promise<Either<AntboxError, ExtFn>> {
-    const fileOrError = await this.nodeService.export(
+    const fileOrError = await this._nodeService.export(
       UsersGroupsService.elevatedContext,
       uuid,
     );
@@ -947,7 +889,7 @@ export class FeatureService {
 
   async #getAutomaticActions(
     criteria: NodeFilter,
-  ): Promise<FeatureAction[]> {
+  ): Promise<Action[]> {
     // Get builtin actions that match criteria
     const builtinMatches = builtinActions.filter((a) => {
       const [key, op, value] = criteria;
@@ -957,7 +899,7 @@ export class FeatureService {
     });
 
     // Get action nodes from the repository
-    const actionsOrErrs = await this.nodeService.find(
+    const actionsOrErrs = await this._nodeService.find(
       UsersGroupsService.elevatedContext,
       [
         ["mimetype", "==", Nodes.ACTION_MIMETYPE],
@@ -988,11 +930,11 @@ export class FeatureService {
 
   async #filterUuidsByAction(
     ctx: AuthenticationContext,
-    action: FeatureAction,
+    action: Action,
     uuids: string[],
   ): Promise<Array<{ uuid: string; passed: boolean }>> {
     const promises = uuids.map(async (uuid) => {
-      const nodeOrErr = await this.nodeService.get(ctx, uuid);
+      const nodeOrErr = await this._nodeService.get(ctx, uuid);
 
       if (nodeOrErr.isLeft()) {
         return { uuid, passed: false };
@@ -1034,34 +976,6 @@ export class FeatureService {
     };
   }
 
-  // === COMPATIBILITY ALIASES ===
-  // These provide backward compatibility for existing code that expects ActionService and ExtService methods
-
-  // FeatureService primary methods
-  get(ctx: AuthenticationContext, uuid: string) {
-    return this.getFeature(ctx, uuid);
-  }
-
-  list(ctx: AuthenticationContext) {
-    return this.listFeatures(ctx);
-  }
-
-  create(ctx: AuthenticationContext, file: File) {
-    return this.createFeature(ctx, file);
-  }
-
-  createOrReplace(ctx: AuthenticationContext, file: File) {
-    return this.createOrReplaceAction(ctx, file);
-  }
-
-  updateFile(ctx: AuthenticationContext, uuid: string, file: File) {
-    return this.updateFeatureFile(ctx, uuid, file);
-  }
-
-  delete(ctx: AuthenticationContext, uuid: string) {
-    return this.deleteAction(ctx, uuid);
-  }
-
   run(
     ctx: AuthenticationContext,
     uuid: string,
@@ -1079,52 +993,37 @@ export class FeatureService {
     return this.runAction(ctx, uuid, argsOrUuids as string[], params);
   }
 
-  export(ctx: AuthenticationContext, uuid: string) {
-    return this.exportAction(ctx, uuid);
+  // === COMPATIBILITY ALIASES ===
+
+  // Feature compatibility methods
+  create(ctx: AuthenticationContext, file: File) {
+    return this.createFeature(ctx, file);
   }
 
-  // ExtService compatibility - these methods use different signatures
-  createOrReplaceExt(
-    ctx: AuthenticationContext,
-    file: File,
-    metadata: { uuid?: string; title?: string; description?: string },
-  ) {
-    return this.createOrReplaceExtension(ctx, file, metadata);
+  get(ctx: AuthenticationContext, uuid: string) {
+    return this.getAction(ctx, uuid);
   }
 
-  getExt(uuid: string) {
-    return this.getExtension(uuid);
+  updateFile(ctx: AuthenticationContext, uuid: string, file: File) {
+    return this.updateFeature(ctx, uuid, file);
   }
 
-  updateExt(
+  delete(ctx: AuthenticationContext, uuid: string) {
+    return this.deleteFeature(ctx, uuid);
+  }
+
+  // Export methods for handlers
+  exportFeature(ctx: AuthenticationContext, uuid: string) {
+    return this.export(ctx, uuid);
+  }
+
+  exportFeatureForType(
     ctx: AuthenticationContext,
     uuid: string,
-    metadata: { title?: string; description?: string; size?: number },
+    type: string = "feature",
   ) {
-    return this.updateExtension(ctx, uuid, metadata);
-  }
-
-  deleteExt(ctx: AuthenticationContext, uuid: string) {
-    return this.deleteExtension(ctx, uuid);
-  }
-
-  listExt() {
-    return this.listExtensions();
-  }
-
-  exportExt(uuid: string) {
-    return this.exportExtension(uuid);
-  }
-
-  runExt(uuid: string, request: Request) {
-    return this.runExtension(uuid, request);
+    // For now, just call the basic export method
+    // Could be enhanced to handle different export types
+    return this.export(ctx, uuid);
   }
 }
-
-// Legacy type aliases for backward compatibility
-export type ActionService = FeatureService;
-export type ExtService = FeatureService;
-export type SkillService = FeatureService;
-export const ActionService = FeatureService;
-export const ExtService = FeatureService;
-export const SkillService = FeatureService;

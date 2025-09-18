@@ -8,8 +8,9 @@ import { GroupNode } from "domain/users_groups/group_node.ts";
 import { Groups } from "domain/users_groups/groups.ts";
 import { BadRequestError } from "shared/antbox_error.ts";
 import { AuthenticationContext } from "application/authentication_context.ts";
-import { ExtService } from "application/skill_service.ts";
+import { FeatureService } from "application/feature_service.ts";
 import { NodeService } from "application/node_service.ts";
+import { UsersGroupsService } from "application/users_groups_service.ts";
 
 const createService = (repository = new InMemoryNodeRepository()) => {
   const groupNode: GroupNode = GroupNode.create({
@@ -24,7 +25,12 @@ const createService = (repository = new InMemoryNodeRepository()) => {
   const storage = new InMemoryStorageProvider();
   const eventBus = new InMemoryEventBus();
   const nodeService = new NodeService({ repository, storage, bus: eventBus });
-  return new ExtService({ repository, storage, bus: eventBus, nodeService });
+  const usersGroupsService = new UsersGroupsService({
+    repository,
+    storage,
+    bus: eventBus,
+  });
+  return new FeatureService(nodeService, usersGroupsService);
 };
 
 const adminAuthContext: AuthenticationContext = {
@@ -43,18 +49,22 @@ const errMsg = (err: any) => {
   return JSON.stringify(err);
 };
 
-describe("ExtService", () => {
+describe("FeatureService", () => {
   test("createOrReplace should create a new ext node", async () => {
     const service = createService();
     const file = new File(["content"], "test.ext", {
       type: "application/javascript",
     });
 
-    const extOrErr = await service.createOrReplace(adminAuthContext, file, {
-      uuid: "--ext-uuid--",
-      title: "Title",
-      description: "Description",
-    });
+    const extOrErr = await service.createOrReplaceExtension(
+      adminAuthContext,
+      file,
+      {
+        uuid: "--ext-uuid--",
+        title: "Title",
+        description: "Description",
+      },
+    );
 
     expect(extOrErr.isRight(), errMsg(extOrErr.value)).toBeTruthy();
     expect(extOrErr.right.uuid).toBe("--ext-uuid--");
@@ -68,11 +78,15 @@ describe("ExtService", () => {
       type: "application/pdf",
     });
 
-    const extOrErr = await service.createOrReplace(adminAuthContext, file, {
-      uuid: "--ext-uuid--",
-      title: "Title",
-      description: "Description",
-    });
+    const extOrErr = await service.createOrReplaceExtension(
+      adminAuthContext,
+      file,
+      {
+        uuid: "--ext-uuid--",
+        title: "Title",
+        description: "Description",
+      },
+    );
 
     expect(extOrErr.isLeft()).toBeTruthy();
     expect(extOrErr.value).toBeInstanceOf(BadRequestError);
@@ -87,7 +101,7 @@ describe("ExtService", () => {
     });
 
     (
-      await service.createOrReplace(adminAuthContext, file, {
+      await service.createOrReplaceExtension(adminAuthContext, file, {
         uuid: "--ext-uuid--",
         title: "Title",
         description: "Description",
@@ -98,18 +112,18 @@ describe("ExtService", () => {
       type: "application/javascript",
     });
 
-    const extOrErr = await service.createOrReplace(
+    const extOrErr = await service.createOrReplaceExtension(
       adminAuthContext,
       updatedFile,
       {
-        uuid: "--ext-uuid--",
-        title: "Updated Title",
+        uuid: "ext-uuid",
+        title: "New Ext",
         description: "Updated Description",
       },
     );
 
     expect(extOrErr.isRight(), errMsg(extOrErr.value)).toBeTruthy();
-    expect(extOrErr.right.size).toBe(updatedFile.size);
+    expect(extOrErr.right.title).toBe("New Ext");
     expect(extOrErr.right.description).toBe("Updated Description");
   });
 
@@ -119,13 +133,16 @@ describe("ExtService", () => {
       type: "application/javascript",
     });
 
-    await service.createOrReplace(adminAuthContext, file, {
+    await service.createOrReplaceExtension(adminAuthContext, file, {
       uuid: "--ext-uuid--",
       title: "Title",
       description: "Description",
     });
 
-    const extOrErr = await service.get("--ext-uuid--");
+    const extOrErr = await service.getExtension(
+      "--ext-uuid--",
+      adminAuthContext,
+    );
 
     expect(extOrErr.isRight(), errMsg(extOrErr.value)).toBeTruthy();
     expect(extOrErr.right.uuid).toBe("--ext-uuid--");
@@ -136,7 +153,10 @@ describe("ExtService", () => {
   test("get should return an error if the ext node not found", async () => {
     const service = createService();
 
-    const extOrErr = await service.get("--any-ext-uuid--");
+    const extOrErr = await service.getExtension(
+      "--not-found--",
+      adminAuthContext,
+    );
 
     expect(extOrErr.isLeft()).toBeTruthy();
     expect(extOrErr.value).toBeInstanceOf(NodeNotFoundError);
@@ -144,17 +164,11 @@ describe("ExtService", () => {
 
   test("get should return error if found node is not an ext", async () => {
     const service = createService();
-    const file = new File(["content"], "test.ext", {
-      type: "application/javascript",
-    });
 
-    await service.createOrReplace(adminAuthContext, file, {
-      uuid: "--ext-uuid--",
-      title: "Title",
-      description: "Description",
-    });
-
-    const extOrErr = await service.get("--group-uuid--");
+    const extOrErr = await service.getExtension(
+      "--group-uuid--",
+      adminAuthContext,
+    );
 
     expect(extOrErr.isLeft(), errMsg(extOrErr.value)).toBeTruthy();
     expect(extOrErr.value).toBeInstanceOf(NodeNotFoundError);
@@ -166,18 +180,23 @@ describe("ExtService", () => {
       type: "application/javascript",
     });
 
-    await service.createOrReplace(adminAuthContext, file, {
-      uuid: "--ext-uuid--",
-      title: "Title",
-      description: "Description",
-    });
+    const createResult = await service.createOrReplaceExtension(
+      adminAuthContext,
+      file,
+      {
+        uuid: "--ext-uuid--",
+        title: "Title",
+        description: "Description",
+      },
+    );
+    expect(createResult.isRight(), errMsg(createResult.value)).toBeTruthy();
 
-    const updatedExtOrErr = await service.update(
+    const updatedExtOrErr = await service.updateExtension(
       adminAuthContext,
       "--ext-uuid--",
       {
-        title: "Updated Title",
-        description: "Updated Description",
+        title: "New Title",
+        description: "New Description",
       },
     );
     expect(
@@ -185,11 +204,14 @@ describe("ExtService", () => {
       errMsg(updatedExtOrErr.value),
     ).toBeTruthy();
 
-    const extOrErr = await service.get("--ext-uuid--");
+    const extOrErr = await service.getExtension(
+      "--ext-uuid--",
+      adminAuthContext,
+    );
     expect(extOrErr.isRight(), errMsg(extOrErr.value)).toBeTruthy();
     expect(extOrErr.right.uuid).toBe("--ext-uuid--");
-    expect(extOrErr.right.title).toBe("Updated Title");
-    expect(extOrErr.right.description).toBe("Updated Description");
+    expect(extOrErr.right.title).toBe("New Title");
+    expect(extOrErr.right.description).toBe("New Description");
   });
 
   test("delete should remove the ext node", async () => {
@@ -198,16 +220,23 @@ describe("ExtService", () => {
       type: "application/javascript",
     });
 
-    await service.createOrReplace(adminAuthContext, file, {
+    await service.createOrReplaceExtension(adminAuthContext, file, {
       uuid: "--ext-uuid--",
       title: "Title",
       description: "Description",
     });
 
-    const deleteOrErr = await service.delete(adminAuthContext, "--ext-uuid--");
-    expect(deleteOrErr.isRight(), errMsg(deleteOrErr.value)).toBeTruthy();
+    const deleteResult = await service.deleteExtension(
+      adminAuthContext,
+      "--ext-uuid--",
+    );
 
-    const extOrErr = await service.get("--ext-uuid--");
+    expect(deleteResult.isRight(), errMsg(deleteResult.value)).toBeTruthy();
+
+    const extOrErr = await service.getExtension(
+      "--ext-uuid--",
+      adminAuthContext,
+    );
     expect(extOrErr.isLeft()).toBeTruthy();
     expect(extOrErr.value).toBeInstanceOf(NodeNotFoundError);
   });
@@ -217,24 +246,25 @@ describe("ExtService", () => {
     const firstFile = new File(["content"], "test1.ext", {
       type: "application/javascript",
     });
-    const secondFile = new File(["content"], "test2.ext", {
+    const secondFile = new File(["content2"], "test2.ext", {
       type: "application/javascript",
     });
 
-    await service.createOrReplace(adminAuthContext, firstFile, {
-      uuid: "--ext-uuid-1--",
-      title: "Title 1",
-      description: "Description 1",
+    await service.createOrReplaceExtension(adminAuthContext, firstFile, {
+      uuid: "--ext-uuid--",
+      title: "Title",
+      description: "Description",
     });
 
-    await service.createOrReplace(adminAuthContext, secondFile, {
-      uuid: "--ext-uuid-2--",
+    await service.createOrReplaceExtension(adminAuthContext, secondFile, {
+      uuid: "--ext-uuid2--",
       title: "Title 2",
       description: "Description 2",
     });
 
-    const exts = await service.list();
-    expect(exts.right.length).toBe(2);
+    const result = await service.listExtensions();
+    expect(result.isRight()).toBeTruthy();
+    expect(result.right.length).toBe(2);
   });
 
   test("export should return the ext file in 'Javascript' format", async () => {
@@ -243,13 +273,13 @@ describe("ExtService", () => {
       type: "application/javascript",
     });
 
-    await service.createOrReplace(adminAuthContext, file, {
+    await service.createOrReplaceExtension(adminAuthContext, file, {
       uuid: "--ext-uuid--",
       title: "Title",
       description: "Description",
     });
 
-    const extOrErr = await service.export("--ext-uuid--");
+    const extOrErr = await service.exportExtension("--ext-uuid--");
     expect(extOrErr.isRight(), errMsg(extOrErr.value)).toBeTruthy();
     expect(extOrErr.right.name).toBe("Title");
   });
@@ -267,13 +297,13 @@ describe("ExtService", () => {
     );
     const request = new Request("http://example.com");
 
-    await service.createOrReplace(adminAuthContext, file, {
+    await service.createOrReplaceExtension(adminAuthContext, file, {
       uuid: "--ext-uuid--",
-      title: "Title",
-      description: "Description",
+      title: "Test Extension",
+      description: "Test Description",
     });
 
-    const responseOrErr = await service.run("--ext-uuid--", request);
+    const responseOrErr = await service.runExtension("--ext-uuid--", request);
     expect(responseOrErr.isRight(), errMsg(responseOrErr.value)).toBeTruthy();
     expect(responseOrErr.right.status).toBe(200);
   });

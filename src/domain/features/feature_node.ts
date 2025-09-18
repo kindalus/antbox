@@ -5,6 +5,7 @@ import { Node } from "domain/nodes/node.ts";
 import { Either, left, right } from "shared/either.ts";
 import { ValidationError } from "shared/validation_error.ts";
 import { AntboxError } from "shared/antbox_error.ts";
+import { FileMixin } from "domain/nodes/file_mixin.ts";
 
 export interface FeatureParameter {
   name: string;
@@ -14,7 +15,7 @@ export interface FeatureParameter {
   defaultValue?: string | number | boolean | object | Array<unknown>;
 }
 
-export class FeatureNode extends Node {
+export class FeatureNode extends FileMixin(Node) {
   readonly name: string;
   readonly exposeAction: boolean;
   readonly runOnCreates: boolean;

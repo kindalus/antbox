@@ -182,6 +182,7 @@ const ACTIONS_FOLDER = buildActionsFolder();
 const EXT_FOLDER = buildExtFolder();
 const API_KEYS_FOLDER = buildApiKeysFolder();
 const FEATURES_FOLDER = buildFeaturesFolder();
+
 const ROOT_FOLDER = buildRootFolder();
 
 const SYSTEM_FOLDERS = [
@@ -214,6 +215,7 @@ export const builtinFolders: FolderNode[] = [
   EXT_FOLDER,
   FEATURES_FOLDER,
   GROUPS_FOLDER,
+
   SYSTEM_FOLDER,
   USERS_FOLDER,
   ROOT_FOLDER,

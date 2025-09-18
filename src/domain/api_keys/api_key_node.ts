@@ -28,7 +28,9 @@ export class ApiKeyNode extends Node {
       ...metadata,
       mimetype: Nodes.API_KEY_MIMETYPE,
       parent: Folders.API_KEYS_FOLDER_UUID,
-      title: metadata.secret?.replace(/^(\w{4}).*$/g, "$1******"),
+      title: metadata.secret && metadata.secret.length > 0
+        ? metadata.secret.replace(/^(\w{4}).*$/g, "$1******")
+        : metadata.title || "API Key",
     });
 
     this.#group = metadata.group!;

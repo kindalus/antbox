@@ -19,7 +19,7 @@ export function getHandler(tenants: AntboxTenant[]): HttpHandler {
     }
 
     return service
-      .exportFeature(getAuthenticationContext(req), params.uuid)
+      .export(getAuthenticationContext(req), params.uuid)
       .then(processServiceResult)
       .catch(processError);
   });
@@ -67,20 +67,6 @@ export function listExtsHandler(tenants: AntboxTenant[]): HttpHandler {
   );
 }
 
-export function listMcpToolsHandler(tenants: AntboxTenant[]): HttpHandler {
-  return defaultMiddlewareChain(
-    tenants,
-    (req: Request): Promise<Response> => {
-      const service = getTenant(req, tenants).featureService;
-
-      return service
-        .listMcpTools(getAuthenticationContext(req))
-        .then(processServiceResult)
-        .catch(processError);
-    },
-  );
-}
-
 export function deleteHandler(tenants: AntboxTenant[]): HttpHandler {
   return defaultMiddlewareChain(
     tenants,
@@ -112,15 +98,15 @@ export function exportHandler(tenants: AntboxTenant[]): HttpHandler {
       );
     }
 
-    const exportType = query.type || "skill"; // Default to full skill export
+    const exportType = query.type || "feature"; // Default to full feature export
 
     return service
-      .exportSkillForType(
+      .exportFeatureForType(
         getAuthenticationContext(req),
         params.uuid,
         exportType,
       )
-      .then((result) => {
+      .then((result: any) => {
         if (result.isLeft()) {
           return processError(result.value);
         }
@@ -213,39 +199,6 @@ export function runExtHandler(tenants: AntboxTenant[]): HttpHandler {
           }
           return result.value;
         })
-        .catch(processError);
-    },
-  );
-}
-
-export function runMcpToolHandler(tenants: AntboxTenant[]): HttpHandler {
-  return defaultMiddlewareChain(
-    tenants,
-    async (req: Request): Promise<Response> => {
-      const service = getTenant(req, tenants).featureService;
-      const params = getParams(req);
-
-      if (!params.uuid) {
-        return Promise.reject(new Error("{ uuid } not given"));
-      }
-
-      let mcpRequest: Record<string, unknown> = {};
-
-      try {
-        if (req.method === "POST") {
-          mcpRequest = await req.json();
-        } else {
-          return new Response("MCP tools only support POST requests", {
-            status: 405,
-          });
-        }
-      } catch (_error) {
-        return new Response("Invalid JSON in request body", { status: 400 });
-      }
-
-      return service
-        .runMcpTool(getAuthenticationContext(req), params.uuid, mcpRequest)
-        .then(processServiceResult)
         .catch(processError);
     },
   );

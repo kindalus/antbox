@@ -595,7 +595,7 @@ export class NodeService {
       fulltext.push(...propertiesFulltext);
     }
 
-    return fulltext
+    const parts = fulltext
       .join(" ")
       .toLocaleLowerCase()
       .replace(/[áàâäãå]/g, "a")
@@ -609,7 +609,10 @@ export class NodeService {
       .replace(/[\W\._]/g, " ")
       .replace(/(^|\s)\w{1,2}\s/g, " ")
       .replace(/\s+/g, " ")
-      .trim();
+      .trim()
+      .split(" ");
+
+    return Array.from(new Set(parts)).join(" ");
   }
 
   async #getBuiltinFolderOrFromRepository(

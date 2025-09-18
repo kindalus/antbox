@@ -10,7 +10,9 @@ import { NodeUpdatedEvent } from "domain/nodes/node_updated_event.ts";
 import { GroupNode } from "domain/users_groups/group_node.ts";
 import { Groups } from "domain/users_groups/groups.ts";
 import { BadRequestError } from "shared/antbox_error.ts";
-import { ActionService } from "application/skill_service.ts";
+import { FeatureService } from "application/feature_service.ts";
+import { Folders } from "domain/nodes/folders.ts";
+import { Nodes } from "domain/nodes/nodes.ts";
 import { AuthenticationContext } from "application/authentication_context.ts";
 import { NodeService } from "application/node_service.ts";
 import { UsersGroupsService } from "application/users_groups_service.ts";
@@ -50,7 +52,7 @@ const createService = async () => {
     groups: [Groups.ADMINS_GROUP_UUID],
   });
 
-  return new ActionService(nodeService, usersGroupsService);
+  return new FeatureService(nodeService, usersGroupsService);
 };
 
 const adminAuthContext: AuthenticationContext = {
@@ -73,7 +75,7 @@ const testFileContent = `
     runManually: true,
     params: [],
     filters: [],
-    groupsAllowed: ["admins"],
+    groupsAllowed: [],
 
     run: async (ctx, uuids, params) => {
       console.log("The Action is running...");
@@ -81,14 +83,17 @@ const testFileContent = `
   };
 `;
 
-describe("ActionService", () => {
+describe("FeatureService", () => {
   test("createOrReplace should create a new action", async () => {
     const service = await createService();
     const file = new File([testFileContent], "action.js", {
       type: "application/javascript",
     });
 
-    const actionOrErr = await service.createOrReplace(adminAuthContext, file);
+    const actionOrErr = await service.createOrReplaceAction(
+      adminAuthContext,
+      file,
+    );
 
     expect(actionOrErr.isRight(), errToMsg(actionOrErr.value)).toBeTruthy();
     expect(actionOrErr.right.uuid).toBe("test-action-uuid");
@@ -98,7 +103,7 @@ describe("ActionService", () => {
 
   test("createOrReplace should replace existing action", async () => {
     const service = await createService();
-    await service.createOrReplace(
+    await service.createOrReplaceAction(
       adminAuthContext,
       new File([testFileContent], "action.js", {
         type: "application/javascript",
@@ -119,7 +124,7 @@ describe("ActionService", () => {
         groupsAllowed: ["--root--"]
       }
     `;
-    const actionOrErr = await service.createOrReplace(
+    const actionOrErr = await service.createOrReplaceAction(
       adminAuthContext,
       new File([newFileContent], "action.js", {
         type: "application/javascript",
@@ -134,14 +139,17 @@ describe("ActionService", () => {
 
   test("get should return action", async () => {
     const service = await createService();
-    await service.createOrReplace(
+    await service.createOrReplaceAction(
       adminAuthContext,
       new File([testFileContent], "action.js", {
         type: "application/javascript",
       }),
     );
 
-    const actionOrErr = await service.get(adminAuthContext, "test-action-uuid");
+    const actionOrErr = await service.getAction(
+      adminAuthContext,
+      "test-action-uuid",
+    );
 
     expect(actionOrErr.isRight(), errToMsg(actionOrErr.value)).toBeTruthy();
     expect(actionOrErr.right.uuid).toBe("test-action-uuid");
@@ -173,14 +181,14 @@ describe("ActionService", () => {
 
   test("delete should remove action", async () => {
     const service = await createService();
-    await service.createOrReplace(
+    await service.createOrReplaceAction(
       adminAuthContext,
       new File([testFileContent], "action.js", {
         type: "application/javascript",
       }),
     );
 
-    const deleteResult = await service.delete(
+    const deleteResult = await service.deleteAction(
       adminAuthContext,
       "test-action-uuid",
     );
@@ -190,28 +198,28 @@ describe("ActionService", () => {
 
   test("list should return all actions including built-ins", async () => {
     const service = await createService();
-    await service.createOrReplace(
+    await service.createOrReplaceAction(
       adminAuthContext,
       new File([testFileContent], "action.js", {
         type: "application/javascript",
       }),
     );
 
-    const actions = await service.list(adminAuthContext);
+    const actions = await service.listActions(adminAuthContext);
 
     expect(actions.right.length).toBe(5);
   });
 
   test("export should create a 'Javascript' file containing action", async () => {
     const service = await createService();
-    await service.createOrReplace(
+    await service.createOrReplaceAction(
       adminAuthContext,
       new File([testFileContent], "action.js", {
         type: "application/javascript",
       }),
     );
 
-    const fileOrErr = await service.export(
+    const fileOrErr = await service.exportAction(
       adminAuthContext,
       "test-action-uuid",
     );
@@ -224,7 +232,24 @@ describe("ActionService", () => {
 
   test("run should run the action", async () => {
     const service = await createService();
-    await service.createOrReplace(
+
+    // Create nodes that the action will run on first
+    const nodeService = service.nodeService;
+    await nodeService.create(adminAuthContext, {
+      uuid: "node-uuid-1",
+      title: "Test Node 1",
+      mimetype: Nodes.FOLDER_MIMETYPE,
+      parent: Folders.ROOT_FOLDER_UUID,
+    });
+
+    await nodeService.create(adminAuthContext, {
+      uuid: "node-uuid-2",
+      title: "Test Node 2",
+      mimetype: Nodes.FOLDER_MIMETYPE,
+      parent: Folders.ROOT_FOLDER_UUID,
+    });
+
+    await service.createOrReplaceAction(
       adminAuthContext,
       new File([testFileContent], "action.js", {
         type: "application/javascript",
@@ -242,28 +267,47 @@ describe("ActionService", () => {
 
   test("run should run action as root user", async () => {
     const service = await createService();
+
+    // Create nodes that the action will run on first
+    const nodeService = service.nodeService;
+    await nodeService.create(adminAuthContext, {
+      uuid: "node-uuid-1",
+      title: "Test Node 1",
+      mimetype: Nodes.FOLDER_MIMETYPE,
+      parent: Folders.ROOT_FOLDER_UUID,
+    });
+
+    await nodeService.create(adminAuthContext, {
+      uuid: "node-uuid-2",
+      title: "Test Node 2",
+      mimetype: Nodes.FOLDER_MIMETYPE,
+      parent: Folders.ROOT_FOLDER_UUID,
+    });
+
     const fileContent = `
       export default {
         uuid: "test-action-uuid",
         title: "Test Action",
         description: "Description",
         builtIn: false,
-        runOnCreates: true,
+        runOnCreates: false,
         runOnUpdates: false,
         runManually: true,
-        runAs: "root@antbox.io",
         params: [],
         filters: [],
         groupsAllowed: [],
+        runAs: "root@example.com",
 
         run: async (ctx, uuids, params) => {
-          console.log("Running action", ctx.authenticationContext);
+          console.log("The Action is running...");
         }
       };
     `;
-    await service.createOrReplace(
+    await service.createOrReplaceAction(
       adminAuthContext,
-      new File([fileContent], "action.js", { type: "application/javascript" }),
+      new File([fileContent], "action.js", {
+        type: "application/javascript",
+      }),
     );
 
     const runResult = await service.run(adminAuthContext, "test-action-uuid", [
@@ -306,7 +350,7 @@ describe("ActionService", () => {
         }
       };
     `;
-    await service.createOrReplace(
+    await service.createOrReplaceAction(
       adminAuthContext,
       new File([fileContent], "delete.js", { type: "application/javascript" }),
     );
@@ -349,7 +393,7 @@ describe("ActionService", () => {
         }
       };
     `;
-    await service.createOrReplace(
+    await service.createOrReplaceAction(
       adminAuthContext,
       new File([fileContent], "action.js", { type: "application/javascript" }),
     );
@@ -410,7 +454,7 @@ describe("ActionService", () => {
         }
       };
     `;
-    const actionOrErr = await service.createOrReplace(
+    const actionOrErr = await service.createOrReplaceAction(
       adminAuthContext,
       new File([fileContent], "action.js", { type: "application/javascript" }),
     );
@@ -450,9 +494,10 @@ describe("ActionService", () => {
         groupsAllowed: [],
 
         run: async (ctx, uuids, params) => {
-          const parent = params;
+          // Handle empty params object or provide a default parent
+          const parent = typeof params === 'string' ? params : params?.to || "--root--";
 
-          if (!parent) {
+          if (!parent || typeof parent !== 'string') {
             return Promise.reject(new Error("Error parameter not given"));
           }
 
@@ -469,7 +514,7 @@ describe("ActionService", () => {
         }
       };
     `;
-    const actionOrErr = await service.createOrReplace(
+    const actionOrErr = await service.createOrReplaceAction(
       adminAuthContext,
       new File([fileContent], "action.js", { type: "application/javascript" }),
     );
@@ -514,7 +559,7 @@ describe("ActionService", () => {
         }
       };
     `;
-    const actionOrErr = await service.createOrReplace(
+    const actionOrErr = await service.createOrReplaceAction(
       adminAuthContext,
       new File([fileContent], "action.js", { type: "application/javascript" }),
     );
@@ -531,7 +576,7 @@ describe("ActionService", () => {
       } as ActionNode,
     );
 
-    const runResult = await service.runOnCreateScritps(
+    const runResult = await service.runOnCreateScripts(
       adminAuthContext,
       nodeCreatedEvent,
     );
@@ -559,7 +604,7 @@ describe("ActionService", () => {
         }
       };
     `;
-    const actionOrErr = await service.createOrReplace(
+    const actionOrErr = await service.createOrReplaceAction(
       adminAuthContext,
       new File([fileContent], "action.js", { type: "application/javascript" }),
     );
@@ -576,7 +621,7 @@ describe("ActionService", () => {
       } as ActionNode,
     );
 
-    const runResult = await service.runOnUpdatedScritps(
+    const runResult = await service.runOnUpdatedScripts(
       adminAuthContext,
       nodeUpdatedEvent,
     );

@@ -2,8 +2,8 @@ openapi: 3.0.3
 info:
   title: Antbox API
   description: |
-    Antbox is a skill-centric platform that provides unified access to dynamic features through skills.
-    Skills can be exposed as actions, extensions, or MCP tools, providing a flexible architecture
+    Antbox is a feature-centric platform that provides unified access to dynamic functionality through features.
+    Features can be exposed as actions and extensions, providing a flexible architecture
     for content management and automation.
   version: 1.0.0
   contact:
@@ -35,7 +35,7 @@ paths:
               type: string
               description: SHA256 hashed root password
       responses:
-        '200':
+        "200":
           description: Login successful
           content:
             application/json:
@@ -45,555 +45,247 @@ paths:
                   jwt:
                     type: string
                     description: JWT token for authentication
-        '401':
-          $ref: '#/components/responses/Unauthorized'
+        "401":
+          $ref: "#/components/responses/Unauthorized"
 
-  # Skills endpoints
-  /skills:
+  # Features endpoints (primary API)
+  /features:
     get:
       tags:
-        - Skills
-      summary: List all skills
-      description: Retrieve a list of all skills in the system
+        - Features
+      summary: List all features
+      description: Retrieve a list of all features in the system
       responses:
-        '200':
-          description: List of skills
+        "200":
+          description: List of features
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Skill'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
+                  $ref: "#/components/schemas/Feature"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
 
-  /skills/{uuid}:
+  /features/{uuid}:
     get:
       tags:
-        - Skills
-      summary: Get skill by UUID
-      description: Retrieve a specific skill by its UUID
+        - Features
+      summary: Get feature by UUID
+      description: Retrieve a specific feature by its UUID
       parameters:
-        - $ref: '#/components/parameters/UuidPath'
+        - $ref: "#/components/parameters/UuidPath"
       responses:
-        '200':
-          description: Skill details
+        "200":
+          description: Feature details
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Skill'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
+                $ref: "#/components/schemas/Feature"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
 
     delete:
       tags:
-        - Skills
-      summary: Delete skill
-      description: Delete a skill by its UUID
+        - Features
+      summary: Delete feature
+      description: Delete a feature by its UUID
       parameters:
-        - $ref: '#/components/parameters/UuidPath'
+        - $ref: "#/components/parameters/UuidPath"
       responses:
-        '200':
-          $ref: '#/components/responses/Success'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
+        "200":
+          description: Feature deleted successfully
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
 
-  /skills/{uuid}/-/export:
+  /features/{uuid}/-/export:
     get:
       tags:
-        - Skills
-      summary: Export skill
-      description: Export skill as JavaScript file with optional type filtering
+        - Features
+      summary: Export feature
+      description: Export a feature in various formats
       parameters:
-        - $ref: '#/components/parameters/UuidPath'
+        - $ref: "#/components/parameters/UuidPath"
         - name: type
           in: query
-          description: Export type (skill, action, extension, mcp)
+          description: Export type (feature, action, extension)
           schema:
             type: string
-            enum: [skill, action, extension, mcp]
-            default: skill
+            enum: [feature, action, extension]
+            default: feature
       responses:
-        '200':
-          description: Exported skill file
+        "200":
+          description: Exported feature code
           content:
             application/javascript:
               schema:
                 type: string
-                format: binary
-          headers:
-            Content-Disposition:
-              schema:
-                type: string
-                example: 'attachment; filename="uuid_skill.js"'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
+                description: JavaScript code for the feature
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
 
-  /skills/-/actions:
+  /features/-/actions:
     get:
       tags:
-        - Skills
-      summary: List action-exposed skills
-      description: Retrieve skills that are exposed as actions
+        - Features
+      summary: List action-exposed features
+      description: Retrieve features that are exposed as actions
       responses:
-        '200':
-          description: List of action-exposed skills
+        "200":
+          description: List of action-exposed features
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Skill'
+                  $ref: "#/components/schemas/Feature"
 
-  /skills/-/extensions:
+  /features/-/extensions:
     get:
       tags:
-        - Skills
-      summary: List extension-exposed skills
-      description: Retrieve skills that are exposed as extensions
+        - Features
+      summary: List extension-exposed features
+      description: Retrieve features that are exposed as extensions
       responses:
-        '200':
-          description: List of extension-exposed skills
+        "200":
+          description: List of extension-exposed features
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Skill'
+                  $ref: "#/components/schemas/Feature"
 
-  /skills/-/mcp-tools:
+  /features/{uuid}/-/run-action:
     get:
       tags:
-        - Skills
-      summary: List MCP tool-exposed skills
-      description: Retrieve skills that are exposed as MCP tools
-      responses:
-        '200':
-          description: List of MCP tool-exposed skills
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Skill'
-
-  /skills/{uuid}/-/run-action:
-    get:
-      tags:
-        - Skills
-      summary: Run skill as action
-      description: Execute a skill as an action with specified node UUIDs
+        - Features
+      summary: Run feature as action
+      description: Execute a feature as an action with query parameters
       parameters:
-        - $ref: '#/components/parameters/UuidPath'
+        - $ref: "#/components/parameters/UuidPath"
         - name: uuids
           in: query
           required: true
           description: Comma-separated list of node UUIDs to process
           schema:
             type: string
-            example: "uuid1,uuid2,uuid3"
-        - name: additionalParams
-          in: query
-          description: Additional parameters for the action
-          style: form
-          explode: true
-          schema:
-            type: object
-            additionalProperties:
-              type: string
       responses:
-        '200':
+        "200":
           description: Action execution result
           content:
             application/json:
               schema:
                 type: object
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
+                additionalProperties: true
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
 
-  /skills/{uuid}/-/run-ext:
+  /features/{uuid}/-/run-ext:
     get:
       tags:
-        - Skills
-      summary: Run skill as extension (GET)
-      description: Execute a skill as an extension using query parameters
+        - Features
+      summary: Run feature as extension (GET)
+      description: Execute a feature as an extension using query parameters
       parameters:
-        - $ref: '#/components/parameters/UuidPath'
-        - name: parameters
-          in: query
-          description: Extension parameters
-          style: form
-          explode: true
-          schema:
-            type: object
-            additionalProperties: true
+        - $ref: "#/components/parameters/UuidPath"
       responses:
-        '200':
+        "200":
           description: Extension execution result
           content:
-            '*/*':
+            text/html:
               schema:
-                oneOf:
-                  - type: string
-                  - type: object
-                  - type: array
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '405':
-          $ref: '#/components/responses/MethodNotAllowed'
+                type: string
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "405":
+          $ref: "#/components/responses/MethodNotAllowed"
 
     post:
       tags:
-        - Skills
-      summary: Run skill as extension (POST)
-      description: Execute a skill as an extension using form data or JSON body
+        - Features
+      summary: Run feature as extension (POST)
+      description: Execute a feature as an extension with form data or JSON
       parameters:
-        - $ref: '#/components/parameters/UuidPath'
+        - $ref: "#/components/parameters/UuidPath"
       requestBody:
+        required: false
         content:
           application/x-www-form-urlencoded:
             schema:
               type: object
-              additionalProperties:
-                type: string
+              additionalProperties: true
           application/json:
             schema:
               type: object
               additionalProperties: true
       responses:
-        '200':
+        "200":
           description: Extension execution result
           content:
-            '*/*':
-              schema:
-                oneOf:
-                  - type: string
-                  - type: object
-                  - type: array
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '405':
-          $ref: '#/components/responses/MethodNotAllowed'
-
-  /skills/{uuid}/-/run-mcp:
-    post:
-      tags:
-        - Skills
-      summary: Run skill as MCP tool
-      description: Execute a skill as an MCP tool with JSON request
-      parameters:
-        - $ref: '#/components/parameters/UuidPath'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              additionalProperties: true
-              description: MCP tool request payload
-      responses:
-        '200':
-          description: MCP tool execution result
-          content:
-            application/json:
-              schema:
-                type: object
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '405':
-          $ref: '#/components/responses/MethodNotAllowed'
-
-  # Legacy Actions endpoints (backward compatibility)
-  /actions:
-    get:
-      tags:
-        - Actions (Legacy)
-      summary: List action-exposed skills (legacy)
-      description: Legacy endpoint for listing action-exposed skills
-      deprecated: true
-      responses:
-        '200':
-          description: List of action-exposed skills
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Skill'
-
-  /actions/{uuid}:
-    get:
-      tags:
-        - Actions (Legacy)
-      summary: Get skill by UUID (legacy)
-      description: Legacy endpoint for getting skill details
-      deprecated: true
-      parameters:
-        - $ref: '#/components/parameters/UuidPath'
-      responses:
-        '200':
-          description: Skill details
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Skill'
-
-    delete:
-      tags:
-        - Actions (Legacy)
-      summary: Delete skill (legacy)
-      description: Legacy endpoint for deleting skills
-      deprecated: true
-      parameters:
-        - $ref: '#/components/parameters/UuidPath'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
-
-  /actions/{uuid}/-/export:
-    get:
-      tags:
-        - Actions (Legacy)
-      summary: Export skill (legacy)
-      description: Legacy endpoint for exporting skills
-      deprecated: true
-      parameters:
-        - $ref: '#/components/parameters/UuidPath'
-      responses:
-        '200':
-          description: Exported skill file
-          content:
-            application/javascript:
+            text/html:
               schema:
                 type: string
-                format: binary
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "405":
+          $ref: "#/components/responses/MethodNotAllowed"
 
-  /actions/{uuid}/-/run:
-    get:
-      tags:
-        - Actions (Legacy)
-      summary: Run action (legacy)
-      description: Legacy endpoint for running actions
-      deprecated: true
-      parameters:
-        - $ref: '#/components/parameters/UuidPath'
-        - name: uuids
-          in: query
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Action execution result
-          content:
-            application/json:
-              schema:
-                type: object
-
-  # Nodes endpoints
+  # Node management endpoints
   /nodes:
     get:
       tags:
         - Nodes
       summary: List nodes
-      description: Retrieve a list of nodes, optionally filtered by parent
+      description: Retrieve a list of nodes with optional filtering
       parameters:
         - name: parent
           in: query
-          description: Parent folder UUID to filter nodes
+          description: Parent folder UUID to filter by
           schema:
             type: string
-      responses:
-        '200':
-          description: List of nodes
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Node'
-
-    post:
-      tags:
-        - Nodes
-      summary: Create node
-      description: Create a new node
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/NodeCreate'
-      responses:
-        '200':
-          description: Created node
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Node'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-
-  /nodes/{uuid}:
-    get:
-      tags:
-        - Nodes
-      summary: Get node by UUID
-      description: Retrieve a specific node by its UUID
-      parameters:
-        - $ref: '#/components/parameters/UuidPath'
-      responses:
-        '200':
-          description: Node details
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Node'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-    patch:
-      tags:
-        - Nodes
-      summary: Update node
-      description: Update an existing node
-      parameters:
-        - $ref: '#/components/parameters/UuidPath'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/NodeUpdate'
-      responses:
-        '200':
-          description: Updated node
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Node'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-    delete:
-      tags:
-        - Nodes
-      summary: Delete node
-      description: Delete a node by its UUID
-      parameters:
-        - $ref: '#/components/parameters/UuidPath'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  /nodes/{uuid}/-/copy:
-    post:
-      tags:
-        - Nodes
-      summary: Copy node
-      description: Copy a node to a new location
-      parameters:
-        - $ref: '#/components/parameters/UuidPath'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                to:
-                  type: string
-                  description: Target parent UUID
-              required:
-                - to
-      responses:
-        '200':
-          description: Copied node
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Node'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-
-  /nodes/{uuid}/-/duplicate:
-    get:
-      tags:
-        - Nodes
-      summary: Duplicate node
-      description: Create a duplicate of an existing node
-      parameters:
-        - name: uuid
+        - name: mimetype
           in: query
-          required: true
+          description: MIME type to filter by
           schema:
             type: string
+        - name: limit
+          in: query
+          description: Maximum number of results
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+            default: 100
       responses:
-        '200':
-          description: Duplicated node
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Node'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-
-  /nodes/-/find:
-    post:
-      tags:
-        - Nodes
-      summary: Find nodes
-      description: Search for nodes using filters
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                filters:
-                  type: array
-                  items:
-                    $ref: '#/components/schemas/NodeFilter'
-                pageSize:
-                  type: integer
-                  minimum: 1
-                  maximum: 100
-                  default: 20
-                pageToken:
-                  type: string
-                  description: Token for pagination
-      responses:
-        '200':
-          description: Search results
+        "200":
+          description: List of nodes
           content:
             application/json:
               schema:
@@ -602,91 +294,62 @@ paths:
                   nodes:
                     type: array
                     items:
-                      $ref: '#/components/schemas/Node'
-                  nextPageToken:
-                    type: string
-                    nullable: true
+                      $ref: "#/components/schemas/Node"
+                  total:
+                    type: integer
+                    description: Total number of nodes
 
-  /nodes/{uuid}/-/export:
+  /nodes/{uuid}:
     get:
       tags:
         - Nodes
-      summary: Export node
-      description: Export node content as file
+      summary: Get node by UUID
+      description: Retrieve a specific node by its UUID
       parameters:
-        - name: uuid
-          in: query
-          required: true
-          schema:
-            type: string
+        - $ref: "#/components/parameters/UuidPath"
       responses:
-        '200':
-          description: Node content
-          content:
-            '*/*':
-              schema:
-                type: string
-                format: binary
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  /nodes/{uuid}/-/evaluate:
-    get:
-      tags:
-        - Nodes
-      summary: Evaluate node
-      description: Evaluate/process a node
-      parameters:
-        - $ref: '#/components/parameters/UuidPath'
-      responses:
-        '200':
-          description: Evaluation result
+        "200":
+          description: Node details
           content:
             application/json:
               schema:
-                type: object
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '404':
-          $ref: '#/components/responses/NotFound'
+                $ref: "#/components/schemas/Node"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
 
-  # Aspects endpoints
+    delete:
+      tags:
+        - Nodes
+      summary: Delete node
+      description: Delete a node by its UUID
+      parameters:
+        - $ref: "#/components/parameters/UuidPath"
+      responses:
+        "200":
+          description: Node deleted successfully
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # Aspect endpoints
   /aspects:
     get:
       tags:
         - Aspects
       summary: List aspects
-      description: Retrieve all aspects
+      description: Retrieve a list of all aspects
       responses:
-        '200':
+        "200":
           description: List of aspects
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Aspect'
-
-    post:
-      tags:
-        - Aspects
-      summary: Create or replace aspect
-      description: Create a new aspect or replace an existing one
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AspectCreate'
-      responses:
-        '200':
-          description: Created or updated aspect
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Aspect'
-        '400':
-          $ref: '#/components/responses/BadRequest'
+                  $ref: "#/components/schemas/Aspect"
 
   /aspects/{uuid}:
     get:
@@ -695,54 +358,16 @@ paths:
       summary: Get aspect by UUID
       description: Retrieve a specific aspect by its UUID
       parameters:
-        - $ref: '#/components/parameters/UuidPath'
+        - $ref: "#/components/parameters/UuidPath"
       responses:
-        '200':
+        "200":
           description: Aspect details
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Aspect'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-    delete:
-      tags:
-        - Aspects
-      summary: Delete aspect
-      description: Delete an aspect by its UUID
-      parameters:
-        - $ref: '#/components/parameters/UuidPath'
-      responses:
-        '200':
-          $ref: '#/components/responses/Success'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  /aspects/{uuid}/-/export:
-    get:
-      tags:
-        - Aspects
-      summary: Export aspect
-      description: Export aspect content
-      parameters:
-        - $ref: '#/components/parameters/UuidPath'
-      responses:
-        '200':
-          description: Aspect content
-          content:
-            '*/*':
-              schema:
-                type: string
-                format: binary
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '404':
-          $ref: '#/components/responses/NotFound'
+                $ref: "#/components/schemas/Aspect"
+        "404":
+          $ref: "#/components/responses/NotFound"
 
 components:
   securitySchemes:
@@ -756,78 +381,124 @@ components:
       name: uuid
       in: path
       required: true
-      description: Unique identifier (UUID) of the resource
+      description: UUID of the resource
       schema:
         type: string
         format: uuid
 
   responses:
-    Success:
-      description: Operation successful
-      content:
-        application/json:
-          schema:
-            type: object
-            properties:
-              success:
-                type: boolean
-                example: true
-
     BadRequest:
-      description: Bad request
+      description: Bad request - invalid parameters or request body
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/Error'
+            $ref: "#/components/schemas/Error"
 
     Unauthorized:
-      description: Unauthorized
+      description: Unauthorized - invalid or missing authentication
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/Error'
+            $ref: "#/components/schemas/Error"
 
     Forbidden:
-      description: Forbidden
+      description: Forbidden - insufficient permissions
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/Error'
+            $ref: "#/components/schemas/Error"
 
     NotFound:
       description: Resource not found
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/Error'
-
-    Conflict:
-      description: Resource conflict
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/Error'
+            $ref: "#/components/schemas/Error"
 
     MethodNotAllowed:
-      description: Method not allowed
+      description: Method not allowed for this resource
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/Error'
+            $ref: "#/components/schemas/Error"
 
   schemas:
-    Error:
+    Feature:
       type: object
       properties:
-        errorCode:
+        uuid:
           type: string
-          description: Error code identifier
-        message:
+          format: uuid
+          description: Unique identifier for the feature
+        fid:
           type: string
-          description: Human-readable error message
-      required:
-        - errorCode
-        - message
+          description: File identifier
+        title:
+          type: string
+          description: Feature title
+        name:
+          type: string
+          description: Feature name
+        description:
+          type: string
+          description: Feature description
+        mimetype:
+          type: string
+          description: MIME type of the feature
+        parent:
+          type: string
+          description: Parent folder UUID
+        owner:
+          type: string
+          description: Owner email
+        group:
+          type: string
+          description: Group UUID
+        exposeAsAction:
+          type: boolean
+          description: Whether feature is exposed as an action
+        exposeAsExtension:
+          type: boolean
+          description: Whether feature is exposed as an extension
+        parameters:
+          type: array
+          items:
+            $ref: "#/components/schemas/Parameter"
+          description: Feature parameters
+        returnType:
+          type: string
+          description: Return type of the feature
+        returnDescription:
+          type: string
+          description: Description of the return value
+        permissions:
+          $ref: "#/components/schemas/Permissions"
+        createdAt:
+          type: string
+          format: date-time
+          description: Creation timestamp
+        modifiedAt:
+          type: string
+          format: date-time
+          description: Last modification timestamp
+
+    Parameter:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Parameter name
+        type:
+          type: string
+          description: Parameter type
+        description:
+          type: string
+          description: Parameter description
+        required:
+          type: boolean
+          description: Whether parameter is required
+        defaultValue:
+          description: Default value for the parameter
 
     Node:
       type: object
@@ -838,290 +509,60 @@ components:
           description: Unique identifier
         fid:
           type: string
-          description: Friendly identifier
+          description: File identifier
         title:
           type: string
           description: Node title
-        description:
-          type: string
-          nullable: true
-          description: Node description
         mimetype:
           type: string
-          description: MIME type of the node content
-        size:
-          type: integer
-          description: Size in bytes
+          description: MIME type
         parent:
           type: string
-          format: uuid
           description: Parent folder UUID
-        createdTime:
+        owner:
+          type: string
+          description: Owner email
+        group:
+          type: string
+          description: Group UUID
+        permissions:
+          $ref: "#/components/schemas/Permissions"
+        size:
+          type: integer
+          description: Size in bytes (for files)
+        createdAt:
           type: string
           format: date-time
           description: Creation timestamp
-        modifiedTime:
+        modifiedAt:
           type: string
           format: date-time
           description: Last modification timestamp
-        owner:
-          type: string
-          format: email
-          description: Owner email address
-        aspects:
-          type: array
-          items:
-            type: string
-            format: uuid
-          description: Associated aspect UUIDs
-        tags:
-          type: array
-          items:
-            type: string
-          description: Node tags
-        related:
-          type: array
-          items:
-            type: string
-            format: uuid
-          description: Related node UUIDs
-        fulltext:
-          type: string
-          description: Full-text searchable content
-        permissions:
-          $ref: '#/components/schemas/Permissions'
-      required:
-        - uuid
-        - fid
-        - title
-        - mimetype
-        - parent
-        - createdTime
-        - modifiedTime
-        - owner
-
-    NodeCreate:
-      type: object
-      properties:
-        title:
-          type: string
-          description: Node title
-        description:
-          type: string
-          description: Node description
-        mimetype:
-          type: string
-          description: MIME type of the node content
-        parent:
-          type: string
-          format: uuid
-          description: Parent folder UUID
-        tags:
-          type: array
-          items:
-            type: string
-        aspects:
-          type: array
-          items:
-            type: string
-            format: uuid
-      required:
-        - mimetype
-
-    NodeUpdate:
-      type: object
-      properties:
-        title:
-          type: string
-        description:
-          type: string
-        fid:
-          type: string
-        parent:
-          type: string
-          format: uuid
-        tags:
-          type: array
-          items:
-            type: string
-        fulltext:
-          type: string
-
-    NodeFilter:
-      type: array
-      items:
-        oneOf:
-          - type: string
-          - type: array
-            items:
-              type: string
-      minItems: 3
-      maxItems: 3
-      description: Filter format [field, operator, value] where operator can be ==, !=, contains, match
-      example: ["mimetype", "==", "application/json"]
-
-    Skill:
-      allOf:
-        - $ref: '#/components/schemas/Node'
-        - type: object
-          properties:
-            exposeAction:
-              type: boolean
-              description: Whether skill is exposed as an action
-            exposeExtension:
-              type: boolean
-              description: Whether skill is exposed as an extension
-            exposeMCP:
-              type: boolean
-              description: Whether skill is exposed as an MCP tool
-            runManually:
-              type: boolean
-              description: Whether skill can be run manually
-            runOnCreates:
-              type: boolean
-              description: Whether skill runs on node creation
-            runOnUpdates:
-              type: boolean
-              description: Whether skill runs on node updates
-            runAs:
-              type: string
-              nullable: true
-              description: User to run skill as
-            groupsAllowed:
-              type: array
-              items:
-                type: string
-              description: Groups allowed to execute skill
-            parameters:
-              type: array
-              items:
-                $ref: '#/components/schemas/SkillParameter'
-              description: Skill parameters
-            returnType:
-              type: string
-              enum: [string, number, boolean, array, object, file, void]
-              description: Expected return type
-            returnDescription:
-              type: string
-              nullable: true
-              description: Description of return value
-            returnContentType:
-              type: string
-              nullable: true
-              description: Content type of return value
-            filters:
-              type: array
-              items:
-                $ref: '#/components/schemas/NodeFilter'
-              description: Node filters for automatic execution
-
-    SkillParameter:
-      type: object
-      properties:
-        name:
-          type: string
-          description: Parameter name
-        type:
-          type: string
-          enum: [string, number, boolean, object, array, file]
-          description: Parameter type
-        required:
-          type: boolean
-          description: Whether parameter is required
-        description:
-          type: string
-          description: Parameter description
-        defaultValue:
-          oneOf:
-            - type: string
-            - type: number
-            - type: boolean
-            - type: object
-            - type: array
-          description: Default parameter value
-      required:
-        - name
-        - type
-        - required
 
     Aspect:
-      allOf:
-        - $ref: '#/components/schemas/Node'
-        - type: object
-          properties:
-            properties:
-              type: array
-              items:
-                $ref: '#/components/schemas/AspectProperty'
-              description: Aspect property definitions
-            filters:
-              type: array
-              items:
-                $ref: '#/components/schemas/NodeFilter'
-              description: Node filters for aspect application
-
-    AspectCreate:
       type: object
       properties:
+        uuid:
+          type: string
+          format: uuid
+          description: Unique identifier
         title:
           type: string
           description: Aspect title
+        name:
+          type: string
+          description: Aspect name
         description:
           type: string
           description: Aspect description
-        properties:
-          type: array
-          items:
-            $ref: '#/components/schemas/AspectProperty'
-        filters:
-          type: array
-          items:
-            $ref: '#/components/schemas/NodeFilter'
-      required:
-        - title
-
-    AspectProperty:
-      type: object
-      properties:
-        name:
+        mimetype:
           type: string
-          pattern: '^[a-zA-Z_][_a-zA-Z0-9_]{2,}$'
-          description: Property name (must be valid identifier)
-        title:
+          description: MIME type
+        owner:
           type: string
-          description: Human-readable property title
-        type:
-          type: string
-          enum: [boolean, date, dateTime, json, number, number[], richText, string, string[], text, uuid, uuid[]]
-          description: Property data type
-        readonly:
-          type: boolean
-          description: Whether property is read-only
-        validationRegex:
-          type: string
-          description: Regex pattern for validation
-        validationList:
-          type: array
-          items:
-            type: string
-          description: List of allowed values
-        validationFilters:
-          type: array
-          items:
-            $ref: '#/components/schemas/NodeFilter'
-          description: Node filters for validation
-        required:
-          type: boolean
-          description: Whether property is required
-        searchable:
-          type: boolean
-          description: Whether property is searchable
-        default:
-          description: Default property value
-      required:
-        - name
-        - title
-        - type
+          description: Owner email
+        permissions:
+          $ref: "#/components/schemas/Permissions"
 
     Permissions:
       type: object
@@ -1131,7 +572,7 @@ components:
           items:
             type: string
             enum: [Read, Write, Export]
-          description: Permissions for user's group
+          description: Permissions for group members
         authenticated:
           type: array
           items:
@@ -1146,21 +587,29 @@ components:
           description: Permissions for anonymous users
         advanced:
           type: object
-          additionalProperties:
-            type: array
-            items:
-              type: string
-              enum: [Read, Write, Export]
-          description: Advanced permissions by group/user
+          additionalProperties: true
+          description: Advanced permission settings
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+        code:
+          type: string
+          description: Error code
+        details:
+          type: object
+          additionalProperties: true
+          description: Additional error details
 
 tags:
   - name: Authentication
-    description: User authentication and authorization
-  - name: Skills
-    description: Skill management and execution
-  - name: Actions (Legacy)
-    description: Legacy action endpoints (deprecated)
+    description: Authentication and authorization endpoints
+  - name: Features
+    description: Feature management and execution
   - name: Nodes
-    description: Node content management
+    description: Node management operations
   - name: Aspects
-    description: Aspect management for extending node properties
+    description: Aspect management operations

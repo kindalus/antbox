@@ -274,7 +274,7 @@ export class UsersGroupsService {
     const user = userToNode(ctx, existingOrErr.value);
 
     const updateResult = user.update({
-      secret: UserNode.shaSum(email, secret),
+      secret: secret,
     });
     if (updateResult.isLeft()) {
       return left(updateResult.value);

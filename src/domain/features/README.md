@@ -1,6 +1,6 @@
-# Features (formerly Skills)
+# Features
 
-This module contains the implementation of Features, which are the core extensible functionality units in the Antbox system. Features were previously called "Skills" but have been renamed to be more intuitive and better reflect their purpose.
+This module contains the implementation of Features, which are the core extensible functionality units in the Antbox system.
 
 ## What are Features?
 
@@ -9,7 +9,6 @@ Features are JavaScript functions that expose new functionalities to the Antbox 
 - **Actions**: Execute operations on specific nodes
 - **Extensions**: Provide functionality through browser extensions
 - **AI Tools**: Expose functionality for AI model integration
-- **Direct Features**: Run standalone functionality
 
 ## Feature Structure
 
@@ -44,58 +43,6 @@ export interface Feature {
   run(ctx: RunContext, args: Record<string, unknown>): Promise<unknown>;
 }
 ```
-
-## Migration from Skills
-
-### Backward Compatibility
-
-The system maintains backward compatibility with existing Skills:
-
-- Skills continue to work with the `application/vnd.antbox.skill` mimetype
-- New Features use the `application/vnd.antbox.feature` mimetype
-- Both Skills and Features folders are supported (`--skills--` and `--features--`)
-
-### Key Changes
-
-1. **Terminology**: `Skill` → `Feature`, `SkillNode` → `FeatureNode`, etc.
-2. **Folder**: New features should be placed in the Features folder
-3. **Imports**: Update imports from `domain/skills/` to `domain/features/`
-
-### Migration Path
-
-To migrate existing skills to features:
-
-1. Update imports:
-
-   ```typescript
-   // Old
-   import { Skill } from "domain/skills/skill.ts";
-
-   // New
-   import { Feature } from "domain/features/feature.ts";
-   ```
-
-2. Rename interfaces and types:
-
-   ```typescript
-   // Old
-   export interface MySkill extends Skill {}
-
-   // New
-   export interface MyFeature extends Feature {}
-   ```
-
-3. Update function names:
-
-   ```typescript
-   // Old
-   fileToFunction();
-   skillToNodeMetadata();
-
-   // New
-   fileToFeature();
-   featureToNodeMetadata();
-   ```
 
 ## File Organization
 
@@ -220,17 +167,6 @@ const result = await exampleFeature.run(mockContext, {
 console.assert(result.processedText === "Hello World");
 ```
 
-### Migration Checklist
-
-When migrating from Skills to Features:
-
-- [ ] Update all import statements
-- [ ] Rename interface implementations
-- [ ] Update function calls (`fileToFunction` → `fileToFeature`)
-- [ ] Test functionality with new Feature interface
-- [ ] Update any documentation or comments
-- [ ] Consider using new Features folder for organization
-
 ## AI Tool Integration
 
 Features can be exposed as AI Tools for integration with AI systems. This replaces the previous MCP (Model Context Protocol) terminology with more intuitive "AI Tool" naming.
@@ -337,60 +273,3 @@ if (result.success) {
 3. **Parameter Documentation**: Document all parameters with clear descriptions
 4. **Error Handling**: Implement robust error handling for AI consumption
 5. **Metadata**: Include relevant metadata in responses
-
-## Migration Utilities
-
-The `migration_utils.ts` file provides comprehensive tools to help with the Skills to Features migration:
-
-### Automated Migration
-
-```typescript
-import { SkillToFeatureMigration } from "domain/features/migration_utils.ts";
-
-// Convert a skill to feature
-const feature = SkillToFeatureMigration.skillToFeature(existingSkill);
-
-// Generate migration report
-const report = SkillToFeatureMigration.generateMigrationReport(existingSkill);
-console.log(`Effort: ${report.estimatedEffort}`);
-console.log(`Warnings: ${report.warnings.length}`);
-```
-
-### Batch Migration Analysis
-
-For large codebases with many skills:
-
-```typescript
-import { BatchMigrationUtils } from "domain/features/migration_utils.ts";
-
-// Analyze all skills
-const analysis = BatchMigrationUtils.analyzeSkillsForMigration(allSkills);
-
-// Generate migration plan
-const plan = BatchMigrationUtils.generateMigrationPlan(allSkills);
-console.log(`Total estimated time: ${plan.totalEstimatedTime}`);
-```
-
-### Migration Script Generation
-
-Automatically generate migration template code:
-
-```typescript
-const script = SkillToFeatureMigration.generateMigrationScript(skill);
-// Outputs a complete TypeScript file template
-```
-
-### Validation
-
-Ensure migrations maintain compatibility:
-
-```typescript
-const validation = SkillToFeatureMigration.validateMigration(
-  originalSkill,
-  migratedFeature,
-);
-
-if (!validation.isValid) {
-  console.error("Migration errors:", validation.errors);
-}
-```

@@ -5,7 +5,9 @@
 1. [Overview](#overview)
 2. [Endpoints](#endpoints)
    - [Nodes API](#nodes-api)
-   - [Actions API](#actions-api)
+   - [Features API](#features-api)
+   - [Actions API (Legacy)](#actions-api-legacy)
+   - [Skills API (Legacy)](#skills-api-legacy)
    - [Aspects API](#aspects-api)
    - [Extensions API](#extensions-api)
    - [File Upload API](#file-upload-api)
@@ -14,7 +16,9 @@
 
 ## Overview
 
-This document describes the REST API for the Antbox system. It outlines the available endpoints, their responsibilities, and the expected inputs and outputs for each.
+This document describes the REST API for the Antbox system. Antbox is a feature-centric platform that provides unified access to dynamic functionality through features. Features can be exposed as actions, extensions, or MCP tools, providing a flexible architecture for content management and automation.
+
+This document outlines the available endpoints, their responsibilities, and the expected inputs and outputs for each.
 
 ## Endpoints
 
@@ -35,15 +39,49 @@ Base path: `/nodes`
 | `/:uuid`             | PATCH       | Update a node by its UUID    |
 | `/:uuid`             | DELETE      | Delete a node by its UUID    |
 
-### Actions API
+### Features API
 
-Base Path: `/actions`
+Base path: `/features`
 
-| Method | Path           | Description                                        | Query Parameters          |
-| ------ | -------------- | -------------------------------------------------- | ------------------------- |
-| `GET`  | `/`            | Retrieve a list of all actions.                    |                           |
-| `GET`  | `/:uuid`       | Retrieve details of a specific action by its UUID. |                           |
-| `GET`  | `/:uuid/-/run` | Trigger the execution of a specific action.        | `uuids` (comma-separated) |
+| Endpoint              | HTTP Method | Description                         | Query Parameters                              |
+| --------------------- | ----------- | ----------------------------------- | --------------------------------------------- |
+| `/`                   | GET         | List all features                   |                                               |
+| `/:uuid`              | GET         | Get feature by UUID                 |                                               |
+| `/:uuid`              | DELETE      | Delete feature by UUID              |                                               |
+| `/:uuid/-/export`     | GET         | Export feature as JavaScript file   | `type` (feature, action, extension, mcp)      |
+| `/-/actions`          | GET         | List features exposed as actions    |                                               |
+| `/-/extensions`       | GET         | List features exposed as extensions |                                               |
+| `/-/mcp-tools`        | GET         | List features exposed as MCP tools  |                                               |
+| `/:uuid/-/run-action` | GET         | Run feature as action               | `uuids` (comma-separated), `additionalParams` |
+| `/:uuid/-/run-ext`    | GET, POST   | Run feature as extension            | Various parameters                            |
+| `/:uuid/-/run-mcp`    | POST        | Run feature as MCP tool             | JSON request body                             |
+
+### Actions API (Legacy)
+
+Base Path: `/actions` - **Deprecated: Use `/features` instead**
+
+| Method | Path           | Description                                     | Query Parameters          |
+| ------ | -------------- | ----------------------------------------------- | ------------------------- |
+| `GET`  | `/`            | Retrieve a list of action-exposed features.     |                           |
+| `GET`  | `/:uuid`       | Retrieve details of a specific feature by UUID. |                           |
+| `GET`  | `/:uuid/-/run` | Trigger the execution of a specific action.     | `uuids` (comma-separated) |
+
+### Skills API (Legacy)
+
+Base Path: `/skills` - **Deprecated: Use `/features` instead**
+
+| Method     | Path                  | Description                                | Query Parameters    |
+| ---------- | --------------------- | ------------------------------------------ | ------------------- |
+| `GET`      | `/`                   | List all features (legacy endpoint)        |                     |
+| `GET`      | `/:uuid`              | Get feature by UUID (legacy endpoint)      |                     |
+| `DELETE`   | `/:uuid`              | Delete feature by UUID (legacy endpoint)   |                     |
+| `GET`      | `/:uuid/-/export`     | Export feature as JavaScript file (legacy) | `type` parameter    |
+| `GET`      | `/-/actions`          | List action-exposed features (legacy)      |                     |
+| `GET`      | `/-/extensions`       | List extension-exposed features (legacy)   |                     |
+| `GET`      | `/-/mcp-tools`        | List MCP tool-exposed features (legacy)    |                     |
+| `GET`      | `/:uuid/-/run-action` | Run feature as action (legacy)             | `uuids`, parameters |
+| `GET,POST` | `/:uuid/-/run-ext`    | Run feature as extension (legacy)          | Various parameters  |
+| `POST`     | `/:uuid/-/run-mcp`    | Run feature as MCP tool (legacy)           | JSON request body   |
 
 ### Aspects API
 
@@ -101,4 +139,5 @@ For the majority of the APIs, authentication and authorization are critical. The
 Ensure that you keep your JWTs safe and never expose them in client-side scripts or other insecure locations.
 
 ```
+
 ```

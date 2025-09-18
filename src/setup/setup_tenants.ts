@@ -20,8 +20,6 @@ import { ApiKeyService } from "application/api_key_service.ts";
 export function setupTenants(
   o: ServerConfiguration,
 ): Promise<AntboxTenant[]> {
-  // const ocrEngine =
-  //   (await providerFrom<OcrEngine>(o.ocrEngine)) ?? new TesseractOcrEngine();
   return Promise.all(o.tenants.map(setupTenant));
 }
 
@@ -59,7 +57,6 @@ async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
     authService,
     apiKeyService,
     rootPasswd: passwd,
-    symmetricKey,
     rawJwk,
   };
 }

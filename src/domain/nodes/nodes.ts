@@ -18,7 +18,7 @@ export class Nodes {
   static SMART_FOLDER_MIMETYPE = "application/vnd.antbox.smartfolder";
   static ASPECT_MIMETYPE = "application/vnd.antbox.aspect";
   static ACTION_MIMETYPE = "application/vnd.antbox.action";
-  static SKILL_MIMETYPE = "application/vnd.antbox.skill";
+
   static FEATURE_MIMETYPE = "application/vnd.antbox.feature";
   static EXT_MIMETYPE = "application/vnd.antbox.extension";
   static USER_MIMETYPE = "application/vnd.antbox.user";
@@ -29,7 +29,6 @@ export class Nodes {
   static SYSTEM_MIMETYPES = [
     Nodes.ASPECT_MIMETYPE,
     Nodes.ACTION_MIMETYPE,
-    Nodes.SKILL_MIMETYPE,
     Nodes.FEATURE_MIMETYPE,
     Nodes.EXT_MIMETYPE,
     Nodes.USER_MIMETYPE,

@@ -244,6 +244,14 @@ describe("NodeService.createFile", () => {
 
   test("should use node mimetype if given action or ext mimetype", async () => {
     const service = nodeService();
+
+    // Create parent folder first
+    await service.create(authCtx, {
+      uuid: "--parent--",
+      title: "Parent Folder",
+      mimetype: Nodes.FOLDER_MIMETYPE,
+    });
+
     const nodeOrErr = await service.createFile(authCtx, dummyFile, {
       parent: "--parent--",
       mimetype: Nodes.EXT_MIMETYPE,

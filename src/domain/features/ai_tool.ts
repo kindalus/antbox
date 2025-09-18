@@ -97,8 +97,8 @@ export function featureToAITool(feature: Feature): AIToolMetadata | null {
     toolName: feature.name.toLowerCase().replace(/\s+/g, "_"),
     aiDescription: feature.description,
     inputSchema,
-    outputDescription:
-      feature.returnDescription || `Returns ${feature.returnType}`,
+    outputDescription: feature.returnDescription ||
+      `Returns ${feature.returnType}`,
     category: "utility",
   };
 }
@@ -202,8 +202,9 @@ export class AIToolRunner {
 
       return {
         success: false,
-        error:
-          error instanceof Error ? error.message : "Unknown error occurred",
+        error: error instanceof Error
+          ? error.message
+          : "Unknown error occurred",
         metadata: {
           executionTime,
           toolName: feature.name,
@@ -281,21 +282,3 @@ export class AIToolRegistry {
     this.tools.clear();
   }
 }
-
-/**
- * Backward compatibility alias for MCP
- * @deprecated Use AIToolRegistry instead
- */
-export const MCPRegistry = AIToolRegistry;
-
-/**
- * Backward compatibility alias for MCP
- * @deprecated Use AIToolMetadata instead
- */
-export type MCPMetadata = AIToolMetadata;
-
-/**
- * Backward compatibility alias for MCP
- * @deprecated Use featureToAITool instead
- */
-export const featureToMCP = featureToAITool;

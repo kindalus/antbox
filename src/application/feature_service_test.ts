@@ -185,7 +185,7 @@ describe("FeatureService", () => {
       }),
     );
 
-    const functionOrErr = await service.get(
+    const functionOrErr = await service.getFeature(
       adminAuthContext,
       "test-function-uuid",
     );
@@ -211,7 +211,10 @@ describe("FeatureService", () => {
   test("get should return error if node is not a function", async () => {
     const service = await createService();
 
-    const functionOrErr = await service.get(adminAuthContext, "--group-1--");
+    const functionOrErr = await service.getFeature(
+      adminAuthContext,
+      "--group-1--",
+    );
 
     expect(functionOrErr.isLeft()).toBeTruthy();
     expect(functionOrErr.value).toBeInstanceOf(FeatureNotFoundError);
@@ -258,14 +261,14 @@ describe("FeatureService", () => {
       "Second Function",
     );
 
-    await service.create(
+    await service.createFeature(
       adminAuthContext,
       new File([secondFunctionContent], "function2.js", {
         type: "application/javascript",
       }),
     );
 
-    const functions = await service.list(adminAuthContext);
+    const functions = await service.listFeatures(adminAuthContext);
 
     expect(functions.isRight(), errToMsg(functions.value)).toBeTruthy();
     expect(functions.right.length).toBe(2);

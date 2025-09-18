@@ -1,7 +1,6 @@
 import aspectsRouter from "adapters/oak/aspects_router.ts";
 import nodesRouter from "adapters/oak/nodes_router.ts";
-import skillsRouter from "adapters/oak/skills_router.ts";
-import actionsRouter from "adapters/oak/actions_router.ts";
+import featuresRouter from "adapters/oak/features_router.ts";
 // import uploadRouter from "./upload_router.ts";
 // import webContentsRouter from "./web_contents_router.ts";
 // import groupsRouter from "./groups_router.ts";
@@ -18,8 +17,7 @@ export function setupOakServer(tenants: AntboxTenant[]): startHttpServer {
 
   const nodes = nodesRouter(tenants);
   const aspects = aspectsRouter(tenants);
-  const skills = skillsRouter(tenants);
-  const actions = actionsRouter(tenants); // Backward compatibility
+  const features = featuresRouter(tenants);
   const login = loginRouter(tenants);
 
   // const upload = uploadRouter(tenants);
@@ -30,8 +28,7 @@ export function setupOakServer(tenants: AntboxTenant[]): startHttpServer {
 
   app.use(nodes.routes());
   app.use(aspects.routes());
-  app.use(skills.routes());
-  app.use(actions.routes()); // Backward compatibility
+  app.use(features.routes());
   app.use(login.routes());
 
   // app.use(webContent.routes());
@@ -42,8 +39,7 @@ export function setupOakServer(tenants: AntboxTenant[]): startHttpServer {
 
   app.use(nodes.allowedMethods());
   app.use(aspects.allowedMethods());
-  app.use(skills.allowedMethods());
-  app.use(actions.allowedMethods()); // Backward compatibility
+  app.use(features.allowedMethods());
   app.use(login.allowedMethods());
 
   // app.use(webContent.allowedMethods());

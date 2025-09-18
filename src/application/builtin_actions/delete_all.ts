@@ -8,7 +8,7 @@ import { type Either } from "shared/either.ts";
 export default {
   uuid: "delete_all",
   title: "Eliminar",
-  description: "Elimina todos os nós selecionados",
+  description: "Elimina todos os nós seleccionados",
   builtIn: true,
   multiple: false,
   filters: [["mimetype", "not-in", Nodes.SYSTEM_MIMETYPES]],

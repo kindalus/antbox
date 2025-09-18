@@ -39,6 +39,7 @@ test("ApiKeyNode.create should throw error if secret is missing", () => {
     title: "Api key title",
     secret: "",
     group: "admin",
+    owner: "user@domain.com",
   });
 
   expect(apiKey.isLeft()).toBeTruthy();
@@ -52,6 +53,7 @@ test("ApiKeyNode.create should throw error if group is missing", () => {
     title: "Api key title",
     secret: "secret",
     group: "",
+    owner: "user@domain.com",
   });
 
   expect(apiKey.isLeft()).toBeTruthy();

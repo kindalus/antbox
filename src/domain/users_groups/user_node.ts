@@ -9,7 +9,18 @@ import { ValidationError } from "shared/validation_error.ts";
 import { InvalidFullNameFormatError } from "./invalid_fullname_format_error.ts";
 import { InvalidSecretFormatError } from "./invalid_secret_format_error.ts";
 import { UserGroupRequiredError } from "./user_group_required_error.ts";
+import { PropertyFormatError } from "domain/nodes/property_errors.ts";
 import { createHash } from "crypto";
+import { z } from "zod";
+
+const UserValidationSchema = z.object({
+  title: z.string().min(3, "Invalid Fullname Format"),
+  group: z.string().min(1, "User must have at least one group"),
+});
+
+const SecretValidationSchema = z.object({
+  secret: z.string().min(8, "Secret must be at least 8 characters long"),
+});
 
 export class UserNode extends Node {
   #email: EmailValue;
@@ -96,23 +107,42 @@ export class UserNode extends Node {
   }
 
   #validate() {
-    const errors: AntboxError[] = [];
+    const result = UserValidationSchema.safeParse({
+      title: this.title,
+      group: this.#group,
+    });
 
-    if (!this.title || this.title.length < 3) {
-      errors.push(new InvalidFullNameFormatError(this.title));
-    }
+    if (!result.success) {
+      const errors: AntboxError[] = [];
 
-    if (!this.#group || this.#group.length === 0) {
-      errors.push(new UserGroupRequiredError());
-    }
+      for (const issue of result.error.issues) {
+        const fieldName = issue.path.length > 0
+          ? String(issue.path[0])
+          : "unknown";
 
-    if (errors.length > 0) {
+        if (fieldName === "title") {
+          errors.push(new InvalidFullNameFormatError(this.title));
+        } else if (fieldName === "group") {
+          errors.push(new UserGroupRequiredError());
+        } else {
+          errors.push(
+            new PropertyFormatError(
+              fieldName,
+              "valid format",
+              issue.message,
+            ),
+          );
+        }
+      }
+
       throw ValidationError.from(...errors);
     }
   }
 
   #validateSecret(secret: string) {
-    if (!secret || secret.length < 8) {
+    const result = SecretValidationSchema.safeParse({ secret });
+
+    if (!result.success) {
       throw ValidationError.from(new InvalidSecretFormatError());
     }
   }

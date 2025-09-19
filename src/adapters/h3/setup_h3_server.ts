@@ -3,11 +3,9 @@ import nodesRouter from "adapters/h3/nodes_v2_router.ts";
 import featuresRouter from "adapters/h3/features_v2_router.ts";
 import loginRouter from "adapters/h3/login_v2_router.ts";
 import type { AntboxTenant } from "api/antbox_tenant.ts";
-import { createApp, createRouter, toNodeListener, useBase } from "h3";
-import type { HttpServerOpts, startHttpServer } from "api/http_server.ts";
-import { createServer } from "node:http";
+import { App, createApp, createRouter, useBase } from "h3";
 
-export function setupH3Server(tenants: AntboxTenant[]): startHttpServer {
+export function setupH3Server(tenants: AntboxTenant[]): App {
   const app = createApp();
 
   const nodes = nodesRouter(tenants);
@@ -27,13 +25,5 @@ export function setupH3Server(tenants: AntboxTenant[]): startHttpServer {
   // Mount v2 router under /v2 prefix
   app.use("/v2/**", useBase("/v2", v2Router.handler));
 
-  return (options: HttpServerOpts = { port: 7180 }) => {
-    return new Promise((resolve) => {
-      const server = createServer(toNodeListener(app));
-      server.listen(options.port, () => {
-        console.log(`H3 server running on port ${options.port}`);
-        resolve(server);
-      });
-    });
-  };
+  return app;
 }

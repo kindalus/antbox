@@ -6,9 +6,23 @@ import { EmailValue } from "./email_value.ts";
 import { Folders } from "./folders.ts";
 import { InvalidMimetypeError } from "./invalid_mimetype_error.ts";
 import { type NodeMetadata } from "./node_metadata.ts";
-
+import {
+  PropertyFormatError,
+  PropertyRequiredError,
+} from "./property_errors.ts";
 import { UuidGenerator } from "shared/uuid_generator.ts";
-import { PropertyRequiredError } from "./property_errors.ts";
+import { z } from "zod";
+
+const NodeValidationSchema = z.object({
+  uuid: z.string().min(1, "Node.uuid is required"),
+  title: z.string().min(1, "Node.title is required"),
+  mimetype: z.string().regex(
+    /^\w+\/[a-z0-9.-]+(;\w+=.+)?$/,
+    "Invalid Mimetype",
+  ),
+  parent: z.string().min(1, "Node.parent is required"),
+  owner: z.string().min(1, "Node.owner is required"),
+});
 
 export class Node {
   readonly uuid: string;
@@ -57,29 +71,31 @@ export class Node {
   }
 
   #validate() {
-    const errors: AntboxError[] = [];
+    const result = NodeValidationSchema.safeParse(this.metadata);
 
-    if (!this.uuid || this.uuid.length === 0) {
-      errors.push(new PropertyRequiredError("Node.uuid"));
-    }
+    if (!result.success) {
+      const errors: AntboxError[] = [];
 
-    if (!this.#title || this.#title.length === 0) {
-      errors.push(new PropertyRequiredError("Node.title"));
-    }
+      for (const issue of result.error.issues) {
+        const fieldName = issue.path.length > 0
+          ? String(issue.path[0])
+          : "unknown";
 
-    if (!this.mimetype || !/^\w+\/[a-z0-9.-]+(;\w+=.+)?$/.test(this.mimetype)) {
-      errors.push(new InvalidMimetypeError(this.mimetype));
-    }
+        if (issue.code === "too_small" && issue.minimum === 1) {
+          errors.push(new PropertyRequiredError(`Node.${fieldName}`));
+        } else if (fieldName === "mimetype") {
+          errors.push(new InvalidMimetypeError(this.#mimetype));
+        } else {
+          errors.push(
+            new PropertyFormatError(
+              `Node.${fieldName}`,
+              "valid format",
+              issue.message,
+            ),
+          );
+        }
+      }
 
-    if (!this.parent || this.parent.length === 0) {
-      errors.push(new PropertyRequiredError("Node.parent"));
-    }
-
-    if (!this.#owner) {
-      errors.push(new PropertyRequiredError("Node.owner"));
-    }
-
-    if (errors.length > 0) {
       throw ValidationError.from(...errors);
     }
   }
@@ -134,7 +150,7 @@ export class Node {
   }
 
   get owner(): string {
-    return this.#owner.value;
+    return this.#owner?.value;
   }
 
   get fulltext(): string {

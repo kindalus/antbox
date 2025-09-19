@@ -10,6 +10,20 @@ import {
   PropertyFormatError,
   PropertyRequiredError,
 } from "domain/nodes/property_errors.ts";
+import { z } from "zod";
+
+const PermissionSchema = z.array(z.enum(["Read", "Write", "Export"]));
+
+const FolderValidationSchema = z.object({
+  group: z.string().min(1, "group is required"),
+  permissions: z.object({
+    group: PermissionSchema,
+    authenticated: PermissionSchema,
+    anonymous: PermissionSchema,
+    advanced: z.record(z.string(), PermissionSchema),
+  }),
+  filters: z.array(z.unknown()),
+});
 
 export function FolderMixin<TBase extends Constructor>(Base: TBase) {
   return class extends Base {
@@ -78,67 +92,56 @@ export function FolderMixin<TBase extends Constructor>(Base: TBase) {
     }
 
     #validate() {
-      const errors: AntboxError[] = [];
+      const result = FolderValidationSchema.safeParse({
+        ...this.metadata,
+        group: this.#group,
+        permissions: this.#permissions,
+        filters: this.#filters,
+      });
 
-      if (!this.#group || this.#group.length === 0) {
-        errors.push(new PropertyRequiredError("group"));
-      }
+      if (!result.success) {
+        const errors: AntboxError[] = [];
 
-      if (!this.#permissions) {
-        errors.push(new PropertyRequiredError("permissions"));
-      }
+        for (const issue of result.error.issues) {
+          const fieldPath = issue.path.join(".");
 
-      if (!this.#filters) {
-        errors.push(new PropertyRequiredError("filters"));
-      }
+          if (issue.code === "too_small" && issue.minimum === 1) {
+            if (fieldPath === "group") {
+              errors.push(new PropertyRequiredError("group"));
+            } else if (fieldPath.startsWith("permissions.")) {
+              errors.push(new PropertyRequiredError(fieldPath));
+            } else {
+              errors.push(new PropertyRequiredError(fieldPath));
+            }
+          } else if (issue.code === "invalid_type") {
+            if (fieldPath.startsWith("permissions.")) {
+              errors.push(
+                new PropertyFormatError(
+                  fieldPath,
+                  "Permissions",
+                  issue.message,
+                ),
+              );
+            } else {
+              errors.push(
+                new PropertyFormatError(
+                  fieldPath,
+                  "valid format",
+                  issue.message,
+                ),
+              );
+            }
+          } else {
+            errors.push(
+              new PropertyFormatError(
+                fieldPath,
+                "valid format",
+                issue.message,
+              ),
+            );
+          }
+        }
 
-      if (!this.#permissions.group) {
-        errors.push(new PropertyRequiredError("permissions.group"));
-      }
-
-      if (!this.#permissions.authenticated) {
-        errors.push(new PropertyRequiredError("permissions.authenticated"));
-      }
-
-      if (!this.#permissions.anonymous) {
-        errors.push(new PropertyRequiredError("permissions.anonymous"));
-      }
-
-      if (!this.#permissions.advanced) {
-        errors.push(new PropertyRequiredError("permissions.advanced"));
-      }
-
-      if (!Array.isArray(this.#permissions.group)) {
-        errors.push(
-          new PropertyFormatError(
-            "permissions.group",
-            "Permissions",
-            this.#permissions.group,
-          ),
-        );
-      }
-
-      if (!Array.isArray(this.#permissions.authenticated)) {
-        errors.push(
-          new PropertyFormatError(
-            "permissions.authenticated",
-            "Permissions",
-            this.#permissions.authenticated,
-          ),
-        );
-      }
-
-      if (!Array.isArray(this.#permissions.anonymous)) {
-        errors.push(
-          new PropertyFormatError(
-            "permissions.anonymous",
-            "Permissions",
-            this.#permissions.anonymous,
-          ),
-        );
-      }
-
-      if (errors.length > 0) {
         throw ValidationError.from(...errors);
       }
     }

@@ -23,7 +23,8 @@
     "mongodb": "npm:mongodb",
     "pouchdb": "npm:pouchdb",
     "pouchdb-find": "npm:pouchdb-find",
-    "s3": "jsr:@hk/s3"
+    "s3": "jsr:@hk/s3",
+    "zod": "npm:zod"
   },
   "tasks": {
     "test-node-repository": "deno run -A ./src/adapters/run_node_repository_tests.ts",

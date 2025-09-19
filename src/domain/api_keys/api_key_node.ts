@@ -5,11 +5,20 @@ import { Folders } from "domain/nodes/folders.ts";
 import { Node } from "domain/nodes/node.ts";
 import { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
-import { PropertyRequiredError } from "domain/nodes/property_errors.ts";
+import {
+  PropertyFormatError,
+  PropertyRequiredError,
+} from "domain/nodes/property_errors.ts";
+import { z } from "zod";
+
+const ApiKeyValidationSchema = z.object({
+  group: z.string().min(1, "Node.group is required"),
+  secret: z.string().min(1, "Node.secret is required"),
+});
 
 export class ApiKeyNode extends Node {
-  #group: string = null as unknown as string;
-  #secret: string = null as unknown as string;
+  #group: string;
+  #secret: string;
 
   static create(
     metadata: Partial<NodeMetadata>,
@@ -19,7 +28,7 @@ export class ApiKeyNode extends Node {
 
       return right(node);
     } catch (e) {
-      return left(ValidationError.from(e as AntboxError));
+      return left(e as ValidationError);
     }
   }
 
@@ -33,8 +42,8 @@ export class ApiKeyNode extends Node {
         : metadata.title || "API Key",
     });
 
-    this.#group = metadata.group!;
-    this.#secret = metadata.secret!;
+    this.#group = metadata.group || "";
+    this.#secret = metadata.secret || "";
 
     this.#validate();
   }
@@ -64,21 +73,33 @@ export class ApiKeyNode extends Node {
   }
 
   #validate() {
-    const errors = [];
+    const result = ApiKeyValidationSchema.safeParse({
+      ...this.metadata,
+      group: this.#group,
+      secret: this.#secret,
+    });
 
-    if (!this.#group || this.#group.length === 0) {
-      errors.push(
-        ValidationError.from(new PropertyRequiredError("Node.group")),
-      );
-    }
+    if (!result.success) {
+      const errors: AntboxError[] = [];
 
-    if (!this.#secret || this.#secret.length === 0) {
-      errors.push(
-        ValidationError.from(new PropertyRequiredError("Node.secret")),
-      );
-    }
+      for (const issue of result.error.issues) {
+        const fieldName = issue.path.length > 0
+          ? String(issue.path[0])
+          : "unknown";
 
-    if (errors.length > 0) {
+        if (issue.code === "too_small" && issue.minimum === 1) {
+          errors.push(new PropertyRequiredError(`Node.${fieldName}`));
+        } else {
+          errors.push(
+            new PropertyFormatError(
+              `Node.${fieldName}`,
+              "valid format",
+              issue.message,
+            ),
+          );
+        }
+      }
+
       throw ValidationError.from(...errors);
     }
   }

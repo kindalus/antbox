@@ -6,52 +6,53 @@ import { NodeProperties } from "domain/nodes/node_properties.ts";
 
 export function WithAspectMixin<TBase extends Constructor>(Base: TBase) {
   return class extends Base {
-    #aspects: string[] = [];
-    #properties: NodeProperties = {};
-    #tags: string[] = [];
-    #related: string[] = [];
+    protected _aspects: string[] = [];
+    protected _properties: NodeProperties = {};
+    protected _tags: string[] = [];
+    protected _related: string[] = [];
 
+    // deno-lint-ignore no-explicit-any
     constructor(...args: any[]) {
       super(...args);
 
-      this.#aspects = args[0]?.aspects ?? [];
-      this.#properties = args[0]?.properties ?? {};
-      this.#tags = args[0]?.tags ?? [];
-      this.#related = args[0]?.related ?? [];
+      this._aspects = args[0]?.aspects ?? [];
+      this._properties = args[0]?.properties ?? {};
+      this._tags = args[0]?.tags ?? [];
+      this._related = args[0]?.related ?? [];
     }
 
     get aspects(): string[] {
-      return this.#aspects;
+      return this._aspects;
     }
 
     get properties(): NodeProperties {
-      return this.#properties;
+      return this._properties;
     }
 
     get tags(): string[] {
-      return this.#tags;
+      return this._tags;
     }
 
     get related(): string[] {
-      return this.#related;
+      return this._related;
     }
 
     get metadata(): Partial<NodeMetadata> {
       return {
         ...super.metadata,
-        aspects: this.#aspects,
-        properties: this.#properties,
-        tags: this.#tags,
-        related: this.#related,
+        aspects: this._aspects,
+        properties: this._properties,
+        tags: this._tags,
+        related: this._related,
       };
     }
 
     update(metadata: Partial<NodeMetadata>): Either<ValidationError, void> {
-      this.#aspects = metadata.aspects ?? this.#aspects;
-      this.#properties = (metadata.properties as NodeProperties) ??
-        this.#properties;
-      this.#tags = metadata.tags ?? this.#tags;
-      this.#related = metadata.related ?? this.#related;
+      this._aspects = metadata.aspects ?? this._aspects;
+      this._properties = (metadata.properties as NodeProperties) ??
+        this._properties;
+      this._tags = metadata.tags ?? this._tags;
+      this._related = metadata.related ?? this._related;
 
       return super.update(metadata);
     }

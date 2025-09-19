@@ -5,27 +5,28 @@ import { NodeMetadata } from "domain/nodes/node_metadata.ts";
 
 export function FileMixin<TBase extends Constructor>(Base: TBase) {
   return class extends Base {
-    #size: number;
+    protected _size: number;
 
+    // deno-lint-ignore no-explicit-any
     constructor(...args: any[]) {
       super(...args);
 
-      this.#size = args[0]?.size ?? 0;
+      this._size = args[0]?.size ?? 0;
     }
 
     get size(): number {
-      return this.#size;
+      return this._size;
     }
 
     get metadata(): Partial<NodeMetadata> {
       return {
         ...super.metadata,
-        size: this.#size,
+        size: this._size,
       };
     }
 
     update(metadata: Partial<NodeMetadata>): Either<ValidationError, void> {
-      this.#size = metadata.size ?? this.#size;
+      this._size = metadata.size ?? this._size;
       return super.update(metadata);
     }
   };

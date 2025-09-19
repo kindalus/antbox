@@ -17,8 +17,8 @@ const ApiKeyValidationSchema = z.object({
 });
 
 export class ApiKeyNode extends Node {
-  #group: string;
-  #secret: string;
+  protected _group: string;
+  protected _secret: string;
 
   static create(
     metadata: Partial<NodeMetadata>,
@@ -42,10 +42,10 @@ export class ApiKeyNode extends Node {
         : metadata.title || "API Key",
     });
 
-    this.#group = metadata.group || "";
-    this.#secret = metadata.secret || "";
+    this._group = metadata.group || "";
+    this._secret = metadata.secret || "";
 
-    this.#validate();
+    this._validateNode();
   }
 
   override update(
@@ -60,11 +60,11 @@ export class ApiKeyNode extends Node {
       return superUpdateResult;
     }
 
-    this.#group = metadata.group ?? this.#group;
-    this.#secret = metadata.secret ?? this.#secret;
+    this._group = metadata.group ?? this._group;
+    this._secret = metadata.secret ?? this._secret;
 
     try {
-      this.#validate();
+      this._validateNode();
     } catch (e) {
       return left(e as ValidationError);
     }
@@ -72,11 +72,11 @@ export class ApiKeyNode extends Node {
     return right(undefined);
   }
 
-  #validate() {
+  protected override _validateNode() {
     const result = ApiKeyValidationSchema.safeParse({
       ...this.metadata,
-      group: this.#group,
-      secret: this.#secret,
+      group: this._group,
+      secret: this._secret,
     });
 
     if (!result.success) {
@@ -105,10 +105,10 @@ export class ApiKeyNode extends Node {
   }
 
   get group(): string {
-    return this.#group;
+    return this._group;
   }
 
   get secret(): string {
-    return this.#secret;
+    return this._secret;
   }
 }

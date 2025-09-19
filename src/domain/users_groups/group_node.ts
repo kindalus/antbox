@@ -4,14 +4,6 @@ import { Folders } from "domain/nodes/folders.ts";
 import { Node } from "domain/nodes/node.ts";
 import { type NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
-import { InvalidFullNameFormatError } from "./invalid_fullname_format_error.ts";
-import { PropertyFormatError } from "domain/nodes/property_errors.ts";
-import { AntboxError } from "shared/antbox_error.ts";
-import { z } from "zod";
-
-const GroupValidationSchema = z.object({
-  title: z.string().min(3, "Invalid Fullname Format"),
-});
 
 export class GroupNode extends Node {
   static create(
@@ -33,7 +25,7 @@ export class GroupNode extends Node {
       parent: Folders.GROUPS_FOLDER_UUID,
     });
 
-    this.#validate();
+    this._validateNode();
   }
 
   override update(
@@ -49,39 +41,11 @@ export class GroupNode extends Node {
     }
 
     try {
-      this.#validate();
+      this._validateNode();
 
       return right(undefined);
     } catch (e) {
       return left(e as ValidationError);
-    }
-  }
-
-  #validate() {
-    const result = GroupValidationSchema.safeParse(this.metadata);
-
-    if (!result.success) {
-      const errors: AntboxError[] = [];
-
-      for (const issue of result.error.issues) {
-        const fieldName = issue.path.length > 0
-          ? String(issue.path[0])
-          : "unknown";
-
-        if (fieldName === "title") {
-          errors.push(new InvalidFullNameFormatError(this.title));
-        } else {
-          errors.push(
-            new PropertyFormatError(
-              fieldName,
-              "valid format",
-              issue.message,
-            ),
-          );
-        }
-      }
-
-      throw ValidationError.from(...errors);
     }
   }
 }

@@ -29,3 +29,14 @@ export class PropertyRequiredError extends AntboxError {
     super(PropertyRequiredError.ERROR_CODE, `${property} is required`);
   }
 }
+
+export class UnknownPropertyError extends AntboxError {
+  static ERROR_CODE = "UnknownPropertyError";
+
+  constructor(property: string, message: string) {
+    super(
+      UnknownPropertyError.ERROR_CODE,
+      `${property} is unknown property. ${message}`,
+    );
+  }
+}

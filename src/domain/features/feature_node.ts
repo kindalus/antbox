@@ -10,6 +10,8 @@ import { FileMixin } from "domain/nodes/file_mixin.ts";
 export interface FeatureParameter {
   name: string;
   type: "string" | "number" | "boolean" | "object" | "array" | "file";
+  arrayType?: "string" | "number" | "object";
+  stringMimetype?: string;
   required: boolean;
   description?: string;
   defaultValue?: string | number | boolean | object | Array<unknown>;

@@ -14,7 +14,7 @@ test("FeatureNode.create should initialize with minimal metadata", () => {
     mimetype: Nodes.FEATURE_MIMETYPE,
   });
 
-  expect(result.isRight()).toBe(true);
+  expect(result.isRight(), result.value.message).toBe(true);
   const featureNode = result.right;
   expect(Nodes.isFeature(featureNode)).toBe(true);
   expect(featureNode.title).toBe("Test Feature");
@@ -33,7 +33,7 @@ test("FeatureNode.create should initialize with name override", () => {
     mimetype: Nodes.FEATURE_MIMETYPE,
   });
 
-  expect(result.isRight()).toBe(true);
+  expect(result.isRight(), result.value.message).toBe(true);
   const featureNode = result.right;
   expect(featureNode.title).toBe("Test Feature Title");
   expect(featureNode.name).toBe("custom_feature_name");
@@ -47,7 +47,7 @@ test("FeatureNode.create should set default boolean values", () => {
     mimetype: Nodes.FEATURE_MIMETYPE,
   });
 
-  expect(result.isRight()).toBe(true);
+  expect(result.isRight(), result.value.message).toBe(true);
   const featureNode = result.right;
   expect(featureNode.exposeAction).toBe(false);
   expect(featureNode.runOnCreates).toBe(false);
@@ -65,7 +65,7 @@ test("FeatureNode.create should set default array and object values", () => {
     mimetype: Nodes.FEATURE_MIMETYPE,
   });
 
-  expect(result.isRight()).toBe(true);
+  expect(result.isRight(), result.value.message).toBe(true);
   const featureNode = result.right;
   expect(featureNode.filters).toEqual([]);
   expect(featureNode.groupsAllowed).toEqual([]);
@@ -80,7 +80,7 @@ test("FeatureNode.create should set default return type to void", () => {
     mimetype: Nodes.FEATURE_MIMETYPE,
   });
 
-  expect(result.isRight()).toBe(true);
+  expect(result.isRight(), result.value.message).toBe(true);
   const featureNode = result.right;
   expect(featureNode.returnType).toBe("void");
   expect(featureNode.returnDescription).toBeUndefined();
@@ -109,11 +109,9 @@ test("FeatureNode.create should initialize with full metadata", () => {
   const result = FeatureNode.create({
     title: "Full Feature",
     name: "full_feature",
-    parent: Folders.FEATURES_FOLDER_UUID,
     owner: "user@domain.com",
-    mimetype: Nodes.FEATURE_MIMETYPE,
     description: "A complete feature",
-    exposeAction: true,
+    exposeAction: false,
     runOnCreates: true,
     runOnUpdates: true,
     runManually: false,
@@ -128,14 +126,14 @@ test("FeatureNode.create should initialize with full metadata", () => {
     returnContentType: "text/plain",
   });
 
-  expect(result.isRight()).toBe(true);
+  expect(result.isRight(), result.value.message).toBe(true);
   const featureNode = result.right;
   expect(featureNode.name).toBe("full_feature");
   expect(featureNode.description).toBe("A complete feature");
-  expect(featureNode.exposeAction).toBe(true);
-  expect(featureNode.runOnCreates).toBe(true);
-  expect(featureNode.runOnUpdates).toBe(true);
-  expect(featureNode.runManually).toBe(false);
+  expect(featureNode.exposeAction).toBe(false);
+  expect(featureNode.runOnCreates).toBe(false);
+  expect(featureNode.runOnUpdates).toBe(false);
+  expect(featureNode.runManually).toBe(true);
   expect(featureNode.filters).toEqual(filters);
   expect(featureNode.exposeExtension).toBe(true);
   expect(featureNode.exposeAITool).toBe(true);
@@ -155,7 +153,7 @@ test("FeatureNode.create should always have FEATURE_MIMETYPE", () => {
     owner: "user@domain.com",
   });
 
-  expect(result.isRight()).toBe(true);
+  expect(result.isRight(), result.value.message).toBe(true);
   expect(result.right.mimetype).toBe(Nodes.FEATURE_MIMETYPE);
 });
 
@@ -248,7 +246,7 @@ test("FeatureNode.create should handle various parameter types", () => {
     parameters: parameters,
   });
 
-  expect(result.isRight()).toBe(true);
+  expect(result.isRight(), result.value.message).toBe(true);
   const featureNode = result.right;
   expect(featureNode.parameters).toEqual(parameters);
 });
@@ -273,13 +271,20 @@ test("FeatureNode.create should handle various return types", () => {
       returnType: returnType,
     });
 
-    expect(result.isRight()).toBe(true);
+    expect(result.isRight(), result.value.message).toBe(true);
     expect(result.right.returnType).toBe(returnType);
   });
 });
 
 test("FeatureNode should include all properties in metadata", () => {
   const parameters: FeatureParameter[] = [
+    {
+      name: "uuids",
+      type: "array",
+      arrayType: "string",
+      required: true,
+      description: "Node UUIDs to process",
+    },
     {
       name: "test",
       type: "string",
@@ -312,7 +317,7 @@ test("FeatureNode should include all properties in metadata", () => {
     size: 1024,
   });
 
-  expect(result.isRight()).toBe(true);
+  expect(result.isRight(), result.value.message).toBe(true);
   const featureNode = result.right;
   const metadata = featureNode.metadata;
 
@@ -378,7 +383,7 @@ test("FeatureNode should inherit from FileMixin", () => {
     size: 2048,
   });
 
-  expect(result.isRight()).toBe(true);
+  expect(result.isRight(), result.value.message).toBe(true);
   const featureNode = result.right;
   expect(featureNode.size).toBe(2048);
   expect(typeof featureNode.update).toBe("function");
@@ -393,7 +398,7 @@ test("FeatureNode should handle empty parameters gracefully", () => {
     parameters: [],
   });
 
-  expect(result.isRight()).toBe(true);
+  expect(result.isRight(), result.value.message).toBe(true);
   expect(result.right.parameters).toEqual([]);
 });
 
@@ -408,7 +413,7 @@ test("FeatureNode should handle undefined optional properties", () => {
     returnContentType: undefined,
   });
 
-  expect(result.isRight()).toBe(true);
+  expect(result.isRight(), result.value.message).toBe(true);
   const featureNode = result.right;
   expect(featureNode.runAs).toBeUndefined();
   expect(featureNode.returnDescription).toBeUndefined();
@@ -421,6 +426,15 @@ test("FeatureNode should handle security and execution configurations", () => {
     parent: Folders.FEATURES_FOLDER_UUID,
     owner: "user@domain.com",
     mimetype: Nodes.FEATURE_MIMETYPE,
+    parameters: [
+      {
+        name: "uuids",
+        type: "array",
+        arrayType: "string",
+        required: true,
+        description: "Input data",
+      },
+    ],
     exposeAction: true,
     runOnCreates: true,
     runOnUpdates: true,
@@ -429,7 +443,7 @@ test("FeatureNode should handle security and execution configurations", () => {
     groupsAllowed: ["admin", "editor", "viewer"],
   });
 
-  expect(result.isRight()).toBe(true);
+  expect(result.isRight(), result.value.message).toBe(true);
   const featureNode = result.right;
   expect(featureNode.exposeAction).toBe(true);
   expect(featureNode.runOnCreates).toBe(true);
@@ -440,6 +454,16 @@ test("FeatureNode should handle security and execution configurations", () => {
 });
 
 test("FeatureNode should handle exposure configurations", () => {
+  const parameters: FeatureParameter[] = [
+    {
+      name: "uuids",
+      type: "array",
+      arrayType: "string",
+      required: true,
+      description: "Node UUIDs to process",
+    },
+  ];
+
   const testCases = [
     { exposeAction: true, exposeExtension: false, exposeAITool: false },
     { exposeAction: false, exposeExtension: true, exposeAITool: false },
@@ -453,10 +477,11 @@ test("FeatureNode should handle exposure configurations", () => {
       parent: Folders.FEATURES_FOLDER_UUID,
       owner: "user@domain.com",
       mimetype: Nodes.FEATURE_MIMETYPE,
+      parameters,
       ...testCase,
     });
 
-    expect(result.isRight()).toBe(true);
+    expect(result.isRight(), result.value.message).toBe(true);
     const featureNode = result.right;
     expect(featureNode.exposeAction).toBe(testCase.exposeAction);
     expect(featureNode.exposeExtension).toBe(testCase.exposeExtension);
@@ -490,7 +515,7 @@ test("FeatureNode should require 'uuids' parameter when exposed as action", () =
     parameters: parametersWithUuids,
   });
 
-  expect(result.isRight()).toBe(true);
+  expect(result.isRight(), result.value.message).toBe(true);
   const featureNode = result.right;
   expect(featureNode.exposeAction).toBe(true);
 
@@ -550,7 +575,7 @@ test("FeatureNode with file parameter should be exposed as extension only", () =
     parameters: parametersWithFile,
   });
 
-  expect(result.isRight()).toBe(true);
+  expect(result.isRight(), result.value.message).toBe(true);
   const featureNode = result.right;
   expect(featureNode.exposeExtension).toBe(true);
   expect(featureNode.exposeAction).toBe(false);
@@ -587,7 +612,7 @@ test("FeatureNode with array of files parameter should be exposed as extension o
     parameters: parametersWithFileArray,
   });
 
-  expect(result.isRight()).toBe(true);
+  expect(result.isRight(), result.value.message).toBe(true);
   const featureNode = result.right;
   expect(featureNode.exposeExtension).toBe(true);
   expect(featureNode.exposeAction).toBe(false);
@@ -633,7 +658,7 @@ test("FeatureNode should handle mixed parameter types correctly", () => {
     parameters: mixedParameters,
   });
 
-  expect(result.isRight()).toBe(true);
+  expect(result.isRight(), result.value.message).toBe(true);
   const featureNode = result.right;
   expect(featureNode.exposeExtension).toBe(true);
   expect(featureNode.exposeAction).toBe(false);

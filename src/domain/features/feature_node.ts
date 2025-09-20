@@ -64,7 +64,12 @@ export class FeatureNode extends FileMixin(Node) {
   readonly exposeAITool: boolean;
 
   constructor(metadata: Partial<NodeMetadata>) {
-    super(metadata);
+    super({
+      ...metadata,
+      mimetype: Nodes.FEATURE_MIMETYPE,
+      parent: Folders.FEATURES_FOLDER_UUID,
+    });
+
     this.name = metadata.name || metadata.title!;
     this.parameters = metadata.parameters ?? [];
     this.filters = metadata.filters ?? [] as NodeFilters;
@@ -83,7 +88,7 @@ export class FeatureNode extends FileMixin(Node) {
       : false;
     this.runManually = metadata.exposeAction
       ? metadata.runManually ?? true
-      : false;
+      : true;
 
     this.exposeExtension = metadata.exposeExtension ?? false;
     this.exposeAITool = metadata.exposeAITool ?? false;

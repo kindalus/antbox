@@ -3,10 +3,6 @@ import { expect } from "expect";
 import { Aspects } from "./aspects.ts";
 import { AspectNode, type AspectProperty } from "./aspect_node.ts";
 import { ValidationError } from "shared/validation_error.ts";
-import {
-  PropertyRequiredError,
-  PropertyTypeError,
-} from "domain/nodes/property_errors.ts";
 import { Folders } from "domain/nodes/folders.ts";
 import type { AspectableNode } from "domain/node_like.ts";
 import { FileNode } from "domain/nodes/file_node.ts";

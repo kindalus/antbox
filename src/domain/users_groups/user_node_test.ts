@@ -1,12 +1,12 @@
-import { describe, test } from "bdd";
+import { test } from "bdd";
 import { expect } from "expect";
 import { Folders } from "domain/nodes/folders.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
-import { PropertyRequiredError } from "domain/nodes/property_errors.ts";
+import {
+  PropertyFormatError,
+  PropertyRequiredError,
+} from "domain/nodes/property_errors.ts";
 import { ValidationError } from "shared/validation_error.ts";
-import { InvalidFullNameFormatError } from "./invalid_fullname_format_error.ts";
-import { InvalidSecretFormatError } from "./invalid_secret_format_error.ts";
-import { UserGroupRequiredError } from "./user_group_required_error.ts";
 import { UserNode } from "./user_node.ts";
 
 const timeout = (ms: number) =>
@@ -17,7 +17,7 @@ test("UserNode.create should initialize", () => {
     owner: "root@antbox.io",
     email: "user@domain.com",
     title: "Example User",
-    secret: "secret-pass",
+
     group: "users",
   });
   const user = createResult.right;
@@ -29,28 +29,12 @@ test("UserNode.create should initialize", () => {
   expect(user.parent).toBe(Folders.USERS_FOLDER_UUID);
 });
 
-test("UserNode.create should throw error if secret has not the correct format", () => {
-  const createResult = UserNode.create({
-    owner: "root@antbox.io",
-    email: "user@domain.com",
-    title: "Example User",
-    secret: "se",
-    group: "users",
-  });
-
-  expect(createResult.isLeft()).toBe(true);
-  expect(createResult.value).toBeInstanceOf(ValidationError);
-  expect((createResult.value as ValidationError).errors[0]).toBeInstanceOf(
-    InvalidSecretFormatError,
-  );
-});
-
 test("UserNode.create should throw error if group is missing", async () => {
   const createResult = UserNode.create({
     owner: "root@antbox.io",
     email: "user@domain.com",
     title: "Example User",
-    secret: "secret-password",
+
     group: "",
   });
 
@@ -59,7 +43,7 @@ test("UserNode.create should throw error if group is missing", async () => {
   expect(createResult.isLeft()).toBe(true);
   expect(createResult.value).toBeInstanceOf(ValidationError);
   expect((createResult.value as ValidationError).errors[0]).toBeInstanceOf(
-    UserGroupRequiredError,
+    PropertyRequiredError,
   );
 });
 
@@ -68,7 +52,7 @@ test("UserNode.create should throw error if owner is missing", async () => {
     owner: "",
     email: "user@domain.com",
     title: "Example User",
-    secret: "secret-password",
+
     group: "users",
   });
 
@@ -86,7 +70,7 @@ test("UserNode.create should throw error if title length less than 3 chars", asy
     owner: "root@antbox.io",
     email: "user@domain.com",
     title: "Ex",
-    secret: "secret-password",
+
     group: "users",
   });
 
@@ -95,64 +79,8 @@ test("UserNode.create should throw error if title length less than 3 chars", asy
   expect(createResult.isLeft()).toBe(true);
   expect(createResult.value).toBeInstanceOf(ValidationError);
   expect((createResult.value as ValidationError).errors[0]).toBeInstanceOf(
-    InvalidFullNameFormatError,
+    PropertyFormatError,
   );
-});
-
-test("UserNode.create should hash the secret with right shaSum ", async () => {
-  const secret = "secret-password";
-  const email = "user@domain.com";
-  const createResult = UserNode.create({
-    owner: "root@antbox.io",
-    title: "Example User",
-    group: "users",
-    email,
-    secret,
-  });
-
-  const sha = UserNode.shaSum(email, secret);
-
-  await timeout(5);
-
-  expect(createResult.isRight()).toBe(true);
-  expect(createResult.right.secret).toBe(sha);
-});
-
-test("UserNode.update should throw error if new secret is invalid", async () => {
-  const createResult = UserNode.create({
-    owner: "root@antbox.io",
-    email: "user@domain.com",
-    title: "Example user",
-    secret: "secret-password",
-    group: "users",
-  });
-
-  const updateResult = createResult.right.update({ secret: "ex" });
-
-  await timeout(5);
-
-  expect(updateResult.isLeft()).toBe(true);
-  expect(updateResult.value).toBeInstanceOf(ValidationError);
-  expect((updateResult.value as ValidationError).errors[0]).toBeInstanceOf(
-    InvalidSecretFormatError,
-  );
-});
-
-test("UserNode.update should modify secret and create a new hash", async () => {
-  const createResult = UserNode.create({
-    owner: "root@antbox.io",
-    email: "user@domain.com",
-    title: "Example user",
-    secret: "secret-password",
-    group: "users",
-  });
-  const user = createResult.right;
-  const sha = UserNode.shaSum("user@domain.com", "example.com");
-  const updateResult = user.update({ secret: "example.com" });
-  await timeout(5);
-
-  expect(updateResult.isRight()).toBe(true);
-  expect(user.secret).toBe(sha);
 });
 
 test("UserNode.update should modify group, groups, title and description", async () => {
@@ -160,7 +88,7 @@ test("UserNode.update should modify group, groups, title and description", async
     owner: "root@antbox.io",
     email: "user@domain.com",
     title: "Example User",
-    secret: "secret-password",
+
     group: "users",
     groups: ["bankers", "writers"],
   });
@@ -186,7 +114,7 @@ test("UserNode.update should not modify parent", async () => {
     owner: "root@antbox.io",
     email: "user@domain.com",
     title: "Example User",
-    secret: "secret-password",
+
     group: "users",
   });
 
@@ -202,7 +130,7 @@ test("UserNode.update should not modify mimetype", async () => {
     owner: "root@antbox.io",
     email: "user@domain.com",
     title: "Example User",
-    secret: "secret-password",
+
     group: "users",
   });
   const user = createResult.right;
@@ -219,7 +147,7 @@ test("UserNode.update should not modify email", async () => {
     owner: "root@antbox.io",
     email: "user@domain.com",
     title: "Example User",
-    secret: "secret-password",
+
     group: "users",
   });
   const user = createResult.right;

@@ -1,12 +1,14 @@
-import { describe, test } from "bdd";
+import { test } from "bdd";
 import { expect } from "expect";
 import { ValidationError } from "shared/validation_error.ts";
 import { EmailFormatError } from "domain/nodes/email_format_error.ts";
 import { Folders } from "domain/nodes/folders.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import { GroupNode } from "./group_node.ts";
-import { InvalidFullNameFormatError } from "./invalid_fullname_format_error.ts";
-import { PropertyRequiredError } from "domain/nodes/property_errors.ts";
+import {
+  PropertyFormatError,
+  PropertyRequiredError,
+} from "domain/nodes/property_errors.ts";
 
 test("GroupNode.create should initialize", () => {
   const createResult = GroupNode.create({
@@ -78,7 +80,7 @@ test("GroupNode.create should throw error if title lenght is less than 3 chars",
   expect(createResult.isLeft()).toBe(true);
   expect(createResult.value).toBeInstanceOf(ValidationError);
   expect((createResult.value as ValidationError).errors[0]).toBeInstanceOf(
-    InvalidFullNameFormatError,
+    PropertyFormatError,
   );
 });
 

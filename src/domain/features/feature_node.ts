@@ -1,4 +1,4 @@
-import { NodeFilter } from "domain/nodes/node_filter.ts";
+import { NodeFilters } from "domain/nodes/node_filter.ts";
 import { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import { Node } from "domain/nodes/node.ts";
@@ -6,12 +6,29 @@ import { Either, left, right } from "shared/either.ts";
 import { ValidationError } from "shared/validation_error.ts";
 import { AntboxError } from "shared/antbox_error.ts";
 import { FileMixin } from "domain/nodes/file_mixin.ts";
+import z from "zod";
+import { Folders } from "../nodes/folders.ts";
+import { toPropertyError } from "../validation_schemas.ts";
+
+const FeatureNodeValidationSchema = z.object({
+  name: z.string().min(1, "Node.title is required"),
+  mimetype: z.literal(
+    Nodes.FEATURE_MIMETYPE,
+    "FeatureNode.mimetype must be feature",
+  ),
+  parent: z.literal(
+    Folders.FEATURES_FOLDER_UUID,
+    "FeatureNode.parent must be features folder",
+  ),
+});
 
 export interface FeatureParameter {
   name: string;
+  // Type file and array of files are allowed when the feature
+  // is exposed as extension only
   type: "string" | "number" | "boolean" | "object" | "array" | "file";
-  arrayType?: "string" | "number" | "object";
-  stringMimetype?: string;
+  arrayType?: "string" | "number" | "file" | "object";
+  contentType?: string;
   required: boolean;
   description?: string;
   defaultValue?: string | number | boolean | object | Array<unknown>;
@@ -19,16 +36,8 @@ export interface FeatureParameter {
 
 export class FeatureNode extends FileMixin(Node) {
   readonly name: string;
-  readonly exposeAction: boolean;
-  readonly runOnCreates: boolean;
-  readonly runOnUpdates: boolean;
-  readonly runManually: boolean;
-  readonly filters: NodeFilter[];
-  readonly exposeExtension: boolean;
-  readonly exposeAITool: boolean;
-  readonly runAs?: string;
-  readonly groupsAllowed: string[];
   readonly parameters: FeatureParameter[];
+
   readonly returnType:
     | "string"
     | "number"
@@ -40,55 +49,72 @@ export class FeatureNode extends FileMixin(Node) {
   readonly returnDescription?: string;
   readonly returnContentType?: string;
 
-  constructor(
-    metadata: Partial<
-      NodeMetadata & {
-        name?: string;
-        exposeAction?: boolean;
-        runOnCreates?: boolean;
-        runOnUpdates?: boolean;
-        runManually?: boolean;
-        filters?: NodeFilter[];
-        exposeExtension?: boolean;
-        exposeAITool?: boolean;
-        runAs?: string;
-        groupsAllowed?: string[];
-        parameters?: FeatureParameter[];
-        returnType?:
-          | "string"
-          | "number"
-          | "boolean"
-          | "array"
-          | "object"
-          | "file"
-          | "void";
-        returnDescription?: string;
-        returnContentType?: string;
-      }
-    >,
-  ) {
+  readonly runAs?: string;
+  readonly groupsAllowed: string[];
+
+  // Action exposure and action only execution settings
+  // It is mandatory to have a parameter callled uuids of type `array` and arrayType `string`
+  readonly exposeAction: boolean;
+  readonly filters: NodeFilters;
+  readonly runOnUpdates: boolean;
+  readonly runManually: boolean;
+  readonly runOnCreates: boolean;
+
+  readonly exposeExtension: boolean;
+  readonly exposeAITool: boolean;
+
+  constructor(metadata: Partial<NodeMetadata>) {
     super(metadata);
     this.name = metadata.name || metadata.title!;
-    this.exposeAction = metadata.exposeAction ?? false;
-    this.runOnCreates = metadata.runOnCreates ?? false;
-    this.runOnUpdates = metadata.runOnUpdates ?? false;
-    this.runManually = metadata.runManually ?? true;
-    this.filters = metadata.filters ?? [];
-    this.exposeExtension = metadata.exposeExtension ?? false;
-    this.exposeAITool = metadata.exposeAITool ?? false;
+    this.parameters = metadata.parameters ?? [];
+    this.filters = metadata.filters ?? [] as NodeFilters;
+    this.returnType = metadata.returnType ?? "void";
+    this.returnDescription = metadata.returnDescription!;
+    this.returnContentType = metadata.returnContentType!;
     this.runAs = metadata.runAs;
     this.groupsAllowed = metadata.groupsAllowed ?? [];
-    this.parameters = metadata.parameters ?? [];
-    this.returnType = metadata.returnType ?? "void";
-    this.returnDescription = metadata.returnDescription;
-    this.returnContentType = metadata.returnContentType;
+
+    this.exposeAction = metadata.exposeAction ?? false;
+    this.runOnCreates = this.exposeAction
+      ? metadata.runOnCreates ?? false
+      : false;
+    this.runOnUpdates = metadata.exposeAction
+      ? metadata.runOnUpdates ?? false
+      : false;
+    this.runManually = metadata.exposeAction
+      ? metadata.runManually ?? true
+      : false;
+
+    this.exposeExtension = metadata.exposeExtension ?? false;
+    this.exposeAITool = metadata.exposeAITool ?? false;
+
+    this._validateFeatureNode();
+  }
+
+  override update(
+    metadata: Partial<NodeMetadata>,
+  ): Either<ValidationError, void> {
+    super.update({
+      ...metadata,
+      mimetype: Nodes.FEATURE_MIMETYPE,
+      parent: Folders.FEATURES_FOLDER_UUID,
+    });
+
+    try {
+      this._validateFeatureNode();
+    } catch (e) {
+      return left(e as ValidationError);
+    }
+
+    return right(undefined);
   }
 
   override get metadata(): Partial<NodeMetadata> {
     return {
       ...super.metadata,
       mimetype: Nodes.FEATURE_MIMETYPE,
-      // Intentionally not adding `name` to metadata as NodeMetadata schema does not include it.
+      parent: Folders.FEATURES_FOLDER_UUID,
+      name: this.name,
       exposeAction: this.exposeAction,
       runOnCreates: this.runOnCreates,
       runOnUpdates: this.runOnUpdates,
@@ -106,29 +132,7 @@ export class FeatureNode extends FileMixin(Node) {
   }
 
   static create(
-    metadata: Partial<NodeMetadata> & {
-      name?: string;
-      exposeAction?: boolean;
-      runOnCreates?: boolean;
-      runOnUpdates?: boolean;
-      runManually?: boolean;
-      filters?: NodeFilter[];
-      exposeExtension?: boolean;
-      exposeAITool?: boolean;
-      runAs?: string;
-      groupsAllowed?: string[];
-      parameters?: FeatureParameter[];
-      returnType?:
-        | "string"
-        | "number"
-        | "boolean"
-        | "array"
-        | "object"
-        | "file"
-        | "void";
-      returnDescription?: string;
-      returnContentType?: string;
-    },
+    metadata: Partial<NodeMetadata>,
   ): Either<ValidationError, FeatureNode> {
     if (!metadata.name && !metadata.title) {
       return left(
@@ -138,13 +142,8 @@ export class FeatureNode extends FileMixin(Node) {
       );
     }
 
-    const safeMeta = {
-      mimetype: Nodes.FEATURE_MIMETYPE,
-      ...metadata,
-    };
-
     try {
-      const node = new FeatureNode(safeMeta);
+      const node = new FeatureNode(metadata);
       return right(node);
     } catch (error) {
       return left(
@@ -152,6 +151,54 @@ export class FeatureNode extends FileMixin(Node) {
           new AntboxError("ValidationError", (error as Error).message),
         ),
       );
+    }
+  }
+
+  protected _validateFeatureNode(): void {
+    const errors: AntboxError[] = [];
+
+    const nodeErrors = super._safeValidateNode();
+    if (nodeErrors) {
+      errors.push(...nodeErrors.errors);
+    }
+
+    const featureErrors = FeatureNodeValidationSchema.safeParse(this.metadata);
+    if (!featureErrors.success) {
+      errors.push(...(featureErrors.error.issues.map(toPropertyError)));
+    }
+
+    if (this.exposeAction) {
+      const uuidParam = this.parameters.find((p) => p.name === "uuids");
+
+      if (
+        !uuidParam ||
+        uuidParam.type !== "array" ||
+        uuidParam.arrayType !== "string"
+      ) {
+        errors.push(
+          new AntboxError(
+            "ValidationError",
+            'When "exposeAction" is true, a parameter called "uuids" of type array and arrayType string is required',
+          ),
+        );
+      }
+    }
+
+    const hasFileParam = this.parameters.some((p) =>
+      p.type === "file" || p.arrayType === "file"
+    );
+
+    if (hasFileParam && (this.exposeAction || this.exposeAITool)) {
+      errors.push(
+        new AntboxError(
+          "ValidationError",
+          'Parameters of type "file" or arrayType "file" are not allowed when "exposeAction" or "exposeAITool" is true',
+        ),
+      );
+    }
+
+    if (errors.length) {
+      throw ValidationError.from(...errors);
     }
   }
 }

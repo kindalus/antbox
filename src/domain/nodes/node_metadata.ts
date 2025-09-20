@@ -9,6 +9,7 @@ export interface NodeMetadata {
   uuid: string;
   fid: string;
   title: string;
+  name: string;
   description: string;
   mimetype: string;
   size: number;
@@ -44,8 +45,8 @@ export interface NodeMetadata {
     | "object"
     | "file"
     | "void";
-  returnDescription: string | undefined | null;
-  returnContentType: string | undefined | null;
+  returnDescription: string;
+  returnContentType: string;
 
   groupsAllowed: string[];
 

@@ -15,7 +15,7 @@ test("FolderNode.create should initialize", () => {
     group: "group-1",
   });
 
-  expect(result.isRight()).toBe(true);
+  expect(result.isRight(), result.value.message).toBe(true);
   const folderNode = result.right;
   expect(Nodes.isFolder(folderNode)).toBe(true);
   expect(folderNode.title).toBe("New folder");
@@ -43,7 +43,7 @@ test("FolderNode.create should always have application/vnd.antbox.folder mimetyp
     group: "group-1",
   });
 
-  expect(result.isRight()).toBe(true);
+  expect(result.isRight(), result.value.message).toBe(true);
   expect(result.right.mimetype).toBe(Nodes.FOLDER_MIMETYPE);
 });
 

@@ -12,7 +12,7 @@ test("AspectNode.create should initialize", () => {
     owner: "user@domain.com",
   });
 
-  expect(result.isRight()).toBe(true);
+  expect(result.isRight(), result.value.message).toBe(true);
   const aspectNode = result.right;
   expect(Nodes.isAspect(aspectNode)).toBe(true);
   expect(aspectNode.title).toBe("New aspect");
@@ -48,7 +48,7 @@ test("AspectNode.create should initialize with properties and filters", () => {
     filters: filters,
   });
 
-  expect(result.isRight()).toBe(true);
+  expect(result.isRight(), result.value.message).toBe(true);
   const aspectNode = result.right;
   expect(aspectNode.properties).toEqual(properties);
   expect(aspectNode.filters).toEqual(filters);
@@ -61,7 +61,7 @@ test("AspectNode.create should always have aspect mimetype", () => {
     owner: "user@domain.com",
   });
 
-  expect(result.isRight()).toBe(true);
+  expect(result.isRight(), result.value.message).toBe(true);
   expect(result.right.mimetype).toBe(Nodes.ASPECT_MIMETYPE);
 });
 
@@ -72,7 +72,7 @@ test("AspectNode.create should always have aspects folder as parent", () => {
     owner: "user@domain.com",
   });
 
-  expect(result.isRight()).toBe(true);
+  expect(result.isRight(), result.value.message).toBe(true);
   expect(result.right.parent).toBe(Folders.ASPECTS_FOLDER_UUID);
 });
 
@@ -142,7 +142,7 @@ test("AspectNode.create should initialize with various property types", () => {
     properties: properties,
   });
 
-  expect(result.isRight()).toBe(true);
+  expect(result.isRight(), result.value.message).toBe(true);
   const aspectNode = result.right;
   expect(aspectNode.properties).toEqual(properties);
 });
@@ -305,7 +305,7 @@ test("AspectNode properties should support validation configuration", () => {
     properties: properties,
   });
 
-  expect(result.isRight()).toBe(true);
+  expect(result.isRight(), result.value.message).toBe(true);
   const aspectNode = result.right;
 
   const validatedString = aspectNode.properties.find((p) =>
@@ -347,7 +347,7 @@ test("AspectNode should handle empty filters and properties gracefully", () => {
     filters: [],
   });
 
-  expect(result.isRight()).toBe(true);
+  expect(result.isRight(), result.value.message).toBe(true);
   const aspectNode = result.right;
   expect(aspectNode.properties).toEqual([]);
   expect(aspectNode.filters).toEqual([]);

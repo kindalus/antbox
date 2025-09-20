@@ -13,7 +13,7 @@ test("FileNode.create should initialize", () => {
     mimetype: "application/pdf",
   });
 
-  expect(result.isRight()).toBe(true);
+  expect(result.isRight(), result.value.message).toBe(true);
   const fileNode = result.right;
   expect(Nodes.isFile(fileNode)).toBe(true);
   expect(fileNode.title).toBe("New file");
@@ -29,7 +29,7 @@ test("FileNode.create should set the mimetype to 'application/javascript' if giv
     owner: "user@domain.com",
     mimetype: "text/javascript",
   });
-  expect(result.isRight()).toBe(true);
+  expect(result.isRight(), result.value.message).toBe(true);
   const fileNode = result.right;
   expect(fileNode.mimetype).toBe("application/javascript");
 });

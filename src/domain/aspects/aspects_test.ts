@@ -81,7 +81,7 @@ test("Aspects.specificationFrom should return always-true specification for aspe
   const node = createMockAspectableNode();
   const result = specification.isSatisfiedBy(node);
 
-  expect(result.isRight()).toBe(true);
+  expect(result.isRight(), result.value.message).toBe(true);
 });
 
 test("Aspects.specificationFrom should create specification for single property", () => {
@@ -98,7 +98,7 @@ test("Aspects.specificationFrom should create specification for single property"
   const node = createMockAspectableNode();
   const result = specification.isSatisfiedBy(node);
 
-  expect(result.isRight()).toBe(true);
+  expect(result.isRight(), result.value.message).toBe(true);
 });
 
 test("Aspects.specificationFrom should create specification for multiple properties", () => {
@@ -113,7 +113,7 @@ test("Aspects.specificationFrom should create specification for multiple propert
   const node = createMockAspectableNode();
   const result = specification.isSatisfiedBy(node);
 
-  expect(result.isRight()).toBe(true);
+  expect(result.isRight(), result.value.message).toBe(true);
 });
 
 test("Aspects.specificationFrom should validate required properties", () => {
@@ -164,7 +164,7 @@ test("Aspects.specificationFrom should handle false boolean values for required 
   });
   const result = specification.isSatisfiedBy(nodeWithFalse);
 
-  expect(result.isRight()).toBe(true);
+  expect(result.isRight(), result.value.message).toBe(true);
 });
 
 test("Aspects.specificationFrom should validate string property types", () => {
@@ -323,7 +323,7 @@ test("Aspects.specificationFrom should handle non-primitive types gracefully", (
   const result = specification.isSatisfiedBy(node);
 
   // These should pass as the type validation for non-primitive types returns right(true)
-  expect(result.isRight()).toBe(true);
+  expect(result.isRight(), result.value.message).toBe(true);
 });
 
 test("Aspects.specificationFrom should combine multiple property validations", () => {

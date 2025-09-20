@@ -96,7 +96,7 @@ test("GroupNode.update should modify title and description", () => {
     description: "Desc 2",
   });
 
-  expect(result.isRight()).toBe(true);
+  expect(result.isRight(), result.value.message).toBe(true);
   expect(createResult.right.title).toBe("Group-2");
   expect(createResult.right.description).toBe("Desc 2");
 });
@@ -110,7 +110,7 @@ test("GroupNode.update should not modify parent ", () => {
 
   const result = group.right.update({ parent: "--root--" });
 
-  expect(result.isRight()).toBe(true);
+  expect(result.isRight(), result.value.message).toBe(true);
   expect(group.right.parent).toBe(Folders.GROUPS_FOLDER_UUID);
 });
 
@@ -123,6 +123,6 @@ test("GroupNode.update should not modify mimetype ", () => {
 
   const result = group.right.update({ mimetype: "image/jpg" });
 
-  expect(result.isRight()).toBe(true);
+  expect(result.isRight(), result.value.message).toBe(true);
   expect(group.right.mimetype).toBe(Nodes.GROUP_MIMETYPE);
 });

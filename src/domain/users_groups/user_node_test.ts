@@ -102,7 +102,7 @@ test("UserNode.update should modify group, groups, title and description", async
     description: "New Desc",
   });
 
-  expect(result.isRight()).toBe(true);
+  expect(result.isRight(), result.value.message).toBe(true);
   expect(user.group).toBe("admin");
   expect(user.title).toBe("New Title");
   expect(user.description).toBe("New Desc");

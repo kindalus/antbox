@@ -9,11 +9,10 @@ import { toPropertyError, uuid } from "../validation_schemas.ts";
 
 const NodeValidationSchema = z.object({
   uuid: uuid().min(1, "Node.uuid is required"),
-  title: z.string().min(1, "Node.title is required"),
-  mimetype: z.string().regex(
-    /^\w+\/[a-z0-9.-]+(;\w+=.+)?$/,
-    "Invalid Mimetype",
-  ),
+  title: z.string().min(1, "Node.title is required")
+    .min(3, "Node.title must be at least 3 characters"),
+  mimetype: z.string()
+    .regex(/^\w+\/[a-z0-9.-]+(;\w+=.+)?$/, "Invalid Mimetype"),
   parent: z.string().min(1, "Node.parent is required"),
   owner: z.email().min(1, "Node.owner is required"),
 });
@@ -60,7 +59,7 @@ export class Node {
     const result = NodeValidationSchema.safeParse(this.metadata);
 
     if (!result.success) {
-      const errors = result.error.issues.map(toPropertyError);
+      const errors = result.error.issues.map(toPropertyError("Node"));
       return ValidationError.from(...errors);
     }
 

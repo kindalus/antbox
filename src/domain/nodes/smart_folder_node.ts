@@ -72,7 +72,7 @@ export class SmartFolderNode extends Node {
 
     if (!result.success) {
       errors.push(
-        ...result.error.issues.map(toPropertyError),
+        ...result.error.issues.map(toPropertyError("SmartFolderNode")),
       );
     }
 

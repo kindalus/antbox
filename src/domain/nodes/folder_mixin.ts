@@ -91,7 +91,7 @@ export function FolderMixin<TBase extends Constructor>(Base: TBase) {
 
       if (!result.success) {
         return ValidationError.from(
-          ...result.error.issues.map(toPropertyError),
+          ...result.error.issues.map(toPropertyError("Node")),
         );
       }
     }

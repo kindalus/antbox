@@ -169,7 +169,9 @@ export class FeatureNode extends FileMixin(Node) {
 
     const featureErrors = FeatureNodeValidationSchema.safeParse(this.metadata);
     if (!featureErrors.success) {
-      errors.push(...(featureErrors.error.issues.map(toPropertyError)));
+      errors.push(
+        ...(featureErrors.error.issues.map(toPropertyError("FeatureNode"))),
+      );
     }
 
     if (this.exposeAction) {

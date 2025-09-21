@@ -95,7 +95,7 @@ export class AspectNode extends Node {
 
     const result = AspectNodeValidationSchema.safeParse(this.metadata);
     if (!result.success) {
-      errors.push(...(result.error.issues.map(toPropertyError)));
+      errors.push(...(result.error.issues.map(toPropertyError("AspectNode"))));
     }
 
     if (errors.length) {

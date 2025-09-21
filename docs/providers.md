@@ -1,257 +1,362 @@
 # Antbox Storage and Persistence Providers
 
-Project Antbox is a lightweight ECM server that offers flexibility in storage and persistence options. By implementing the NodeRepository or StorageProvider interfaces, you can define your own storage mechanisms. This document outlines the provided solutions and gives examples of their usage.
+Antbox is a flexible ECM system that separates content storage from metadata persistence through two key abstractions: **Storage Providers** (for binary content) and **Node Repositories** (for metadata and relationships). This pluggable architecture allows you to choose the best backend for your specific needs.
 
 ## Table of Contents
 
-- [How to Use](#how-to-use)
-- [Available Implementations](#available-implementations)
-  - [1. Flat File Node Repository](#1-flat-file-node-repository)
-  - [2. Flat File Storage Provider](#2-flat-file-storage-provider)
-  - [3. Google Drive Storage Provider](#3-google-drive-storage-provider)
-  - [4. Mongodb Node Repository](#4-mongodb-node-repository)
-  - [5. PouchDB Node Repository](#5-pouchdb-node-repository)
-  - [6. S3 Storage Provider](#6-s3-storage-provider)
-- [Interfaces](#interfaces)
+- [Architecture Overview](#architecture-overview)
+- [Configuration](#configuration)
+- [Available Storage Providers](#available-storage-providers)
+- [Available Node Repositories](#available-node-repositories)
+- [Provider Interfaces](#provider-interfaces)
+- [Configuration Examples](#configuration-examples)
+- [Creating Custom Providers](#creating-custom-providers)
 
-## How to Use
+## Architecture Overview
 
-To use any of the defined storage or persistence providers, follow the example:
+Antbox uses a dual-provider architecture:
+
+- **Storage Providers**: Handle binary content (files, documents, media)
+- **Node Repositories**: Handle metadata, relationships, and structured data
+
+This separation allows optimal storage choices - for example, using S3 for content with MongoDB for metadata, or local files with PouchDB for offline-first scenarios.
+
+## Configuration
+
+Providers are configured during server setup using the `setupTenants` function:
 
 ```typescript
-startServer({
-  port: program.options.port ? parseInt(program.options.port) : undefined,
+import { setupTenants } from "setup/setup_tenants.ts";
+
+const tenants = await setupTenants({
   tenants: [
     {
-      name: "demo",
-      rootPasswd: "secret",
-      storage: ["flat_file/flat_file_storage_provider.ts", "/var/lib/data"],
-      repository: ["pouchdb/pouchdb_node_repository.ts", "/var/lib/db"],
+      name: "production",
+      rootPasswd: "secure_password",
+      storage: ["s3/s3_storage_provider.ts", "/path/to/s3_config.json"],
+      repository: [
+        "mongodb/mongodb_node_repository.ts",
+        "mongodb://localhost:27017/antbox",
+      ],
     },
   ],
 });
 ```
 
-Providers can be referenced by path relative to the folder "src/adapters" or by using a fully qualified file location.
+Providers are referenced by their module path relative to `src/adapters/` or as fully qualified file paths.
 
-## Available Implementations
+## Available Storage Providers
 
-### 1. Flat File Node Repository
+Storage providers handle binary content storage and retrieval.
 
-- **Description**: Utilizes a JSON file (`nodes_repo.json`) to maintain node records.
-- **Path**: `flat_file/flat_file_node_repository.ts`
+### 1. Flat File Storage Provider
 
-**Usage Example**:
-
-```typescript
-{
-  name: "myTenant",
-  rootPasswd: "myPassword",
-  repository: [
-    "flat_file/flat_file_node_repository.ts",
-    "/path/to/repository/directory"
-  ]
-}
-```
-
-### 2. Flat File Storage Provider
-
-- **Description**: Uses the file system for data storage.
 - **Path**: `flat_file/flat_file_storage_provider.ts`
-
-**Usage Example**:
-
-```typescript
-{
-  name: "myTenant",
-  rootPasswd: "myPassword",
-  storage: [
-    "flat_file/flat_file_storage_provider.ts",
-    "/path/to/storage/directory"
-  ]
-}
-```
-
-### 3. Google Drive Storage Provider
-
-- **Description**: Store data on Google Drive. Ideal for cloud-based applications and for data accessibility across devices.
-- **Path**: "google_drive/google_drive_storage_provider.ts"
-
-**Usage Example**:
+- **Description**: Stores files directly on the file system
+- **Best for**: Development, small deployments, local installations
+- **Configuration**: Directory path for storage
 
 ```typescript
 {
-  name: "myTenant",
-  rootPasswd: "myPassword",
-  storage: [
-    "google_drive/google_drive_storage_provider.ts",
-    "/path/to/google_drive_api_key",
-    "root_folder_id"
-  ]
+  storage: ["flat_file/flat_file_storage_provider.ts", "/data/storage"];
 }
 ```
 
-#### 3.1. How to create the credentials file to access Google Drive API using Node.js googleapis package
+### 2. In-Memory Storage Provider
 
-To create a credentials file to access the Google Drive API using the Node.js googleapis package, you will need to:
-
-1. Create a service account in the Google Cloud Platform Console.
-2. Enable the Google Drive API for your project.
-3. Download the JSON key file for your service account.
-
-**Steps:**
-
-1. **Create a service account**
-
-   - Go to the Google Cloud Platform Console.
-   - Click the **hamburger menu** (three lines) in the top left corner of the page.
-   - Select **IAM & Admin**.
-   - Under **Service accounts**, click **Create Service Account**.
-   - Enter a name and description for your service account.
-   - Select the **Role** for your service account. For most cases, the **Editor** role is sufficient.
-   - Click **Create and Continue**.
-   - On the **Grant this service account access to project** page, select the **project** that you want to grant access to.
-   - Click **Continue**.
-
-2. **Enable the Google Drive API**
-
-   - Go to the Google Cloud Platform Console.
-   - Click the **hamburger menu** (three lines) in the top left corner of the page.
-   - Select **APIs & Services**.
-   - Click **Library**.
-   - Search for "Google Drive API" and click on it.
-   - Click **Enable**.
-
-3. **Download the JSON key file for your service account**
-
-   - Go to the Google Cloud Platform Console.
-   - Click the **hamburger menu** (three lines) in the top left corner of the page.
-   - Select **IAM & Admin**.
-   - Under **Service accounts**, click on the name of the service account that you created.
-   - Click the **Keys** tab.
-   - Click the **Add Key** button and select **JSON** as the key type.
-   - Click **Create**.
-   - A JSON key file will be downloaded to your computer. Save this file in a safe place.
-
-4. **Create a folder in Google Drive**
-
-   - Go to Google Drive.
-   - Click **New**.
-   - Click **Folder**.
-   - Enter a name for your folder.
-   - Click **Create**.
-   - Click on the folder you just created.
-   - The folder ID will be in the URL. It is the string of characters after the last slash. For example, if the URL is `https://drive.google.com/drive/folders/1XyZ3X4Y5Z6X7Y8Z`, the folder ID is `1XyZ3X4Y5Z6X7Y8Z`.
-
-5. **Use the credentials file path and the folder ID in your Antbox configuration file**
-   - In your Antbox configuration file, use the credentials file path and the folder ID in the following format:
+- **Path**: `inmem/inmem_storage_provider.ts`
+- **Description**: Volatile storage in system memory
+- **Best for**: Testing, development, temporary data
+- **Configuration**: No parameters required
 
 ```typescript
 {
-  name: "myTenant",
-  rootPasswd: "myPassword",
-  storage: [
-    "google_drive/google_drive_storage_provider.ts",
-    "/path/to/google_drive_api_key",
-    "1XyZ3X4Y5Z6X7Y8Z"
-  ]
+  storage: ["inmem/inmem_storage_provider.ts"];
 }
 ```
 
-**Once you have completed all of these steps, you will have a credentials file that you can use to access the Google Drive API using the Node.js googleapis package.**
+### 3. Null Storage Provider
 
-For more information on how to use the Google Drive API, please see the official documentation: https://developers.google.com/drive/api/guides/about-sdk.
-
-⚠️ **Warning**: The googleapi packa does **not** work on deno 1.33.4+.
-
-### 4. MongoDB Node Repository
-
-- **Description**: Leverages MongoDB for node persistence. Suitable for larger applications with a need for scale.
-- **Path**: `mongodb/mongodb_node_repository.ts`
-
-**Usage Example**:
+- **Path**: `null/null_storage_provider.ts`
+- **Description**: Discards all content (no-op storage)
+- **Best for**: Testing, metadata-only scenarios
+- **Configuration**: No parameters required
 
 ```typescript
 {
-  name: "myTenant",
-  rootPasswd: "myPassword",
-  repository: [
-    "mongodb/mongodb_node_repository.ts",
-    "mongodb://localhost:27017/mydatabase"
-  ]
+  storage: ["null/null_storage_provider.ts"];
 }
 ```
 
-### 5. PouchDB / CouchDB Node Repository
+### 4. S3 Storage Provider
 
-- **Description**: Uses PouchDB, a JavaScript database inspired by CouchDB, for node persistence. This implementation provides an offline-first database solution, allowing applications to store data locally and synchronize with compatible servers when online. This provider can be used with CouchDB as well, minus the offline-first feature.
-- **Path**: `pouchdb/pouchdb_node_repository.ts`
-
-**Usage Example**:
-
-```typescript
-{
-  name: "myTenant",
-  rootPasswd: "myPassword",
-  repository: [
-    "pouchdb/pouchdb_node_repository.ts",
-    "/path/to/db"
-  ]
-}
-```
-
----
-
-With the PouchDB Node Repository, Antbox offers an offline-first solution which can be particularly useful for applications that might not always have a reliable internet connection but still need a robust database solution. This way, data can be stored locally and synced when online connectivity is restored.
-
-#### Limitations:
-
-⚠️ **Warning**: The PouchDB Node Repository does **not** work on ARM macOS.
-
-### 6. S3 Storage Provider
-
-- **Description**: Uses Amazon S3 for data storage. Ideal for cloud-based applications and for data accessibility across devices.
 - **Path**: `s3/s3_storage_provider.ts`
-
-**Usage Example**:
+- **Description**: Amazon S3 and S3-compatible object storage
+- **Best for**: Production, scalability, cloud deployments
+- **Configuration**: S3 configuration JSON file
 
 ```typescript
 {
-name: "myTenant",
-rootPasswd: "myPassword",
-storage: [
-    "s3/s3_storage_provider.ts",
-    "/path/to/s3_config.json"
-  ]
+  storage: ["s3/s3_storage_provider.ts", "/path/to/s3_config.json"];
 }
 ```
 
-#### 6.1. Structure of the S3 Configuration File
-
-The S3 configuration file should be a JSON file with the following structure:
+#### S3 Configuration File
 
 ```json
 {
   "forcePathStyle": false,
-  "endpoint": "s3.amazonaws.com", // or the endpoint of your S3-compatible storage provider
-  "region": "us-east-1", // or the region of your S3-compatible storage provider
-  "bucket": "my-bucket-name",
+  "endpoint": "s3.amazonaws.com",
+  "region": "us-east-1",
+  "bucket": "antbox-storage",
   "credentials": {
-    "accessKeyId": "my_access_key",
-    "secretAccessKey": "my_secret_access_key"
+    "accessKeyId": "AKIAIOSFODNN7EXAMPLE",
+    "secretAccessKey": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
   }
 }
 ```
 
-## Interfaces
+### 5. Google Drive Storage Provider
 
-For developers seeking to build custom implementations, the two main interfaces to consider are:
+- **Path**: `google_drive/google_drive_storage_provider.ts`
+- **Description**: Google Drive cloud storage integration
+- **Best for**: Cloud storage, collaboration, accessibility
+- **Configuration**: Service account credentials and folder ID
 
-1. `StorageProvider`: Defines methods for writing, reading, and deleting data.
-2. `NodeRepository`: Provides methods to add, update, delete, retrieve, and filter nodes.
+```typescript
+{
+  storage: [
+    "google_drive/google_drive_storage_provider.ts",
+    "/path/to/service_account.json",
+    "google_drive_folder_id",
+  ];
+}
+```
 
-Refer to the provided source code for method details and structure.
+⚠️ **Note**: Google Drive integration requires service account setup and may have compatibility issues with newer Deno versions.
+
+## Available Node Repositories
+
+Node repositories handle metadata, relationships, and structured data persistence.
+
+### 1. In-Memory Node Repository
+
+- **Path**: `inmem/inmem_node_repository.ts`
+- **Description**: Volatile metadata storage in system memory
+- **Best for**: Development, testing, temporary data
+- **Configuration**: No parameters required
+
+```typescript
+{
+  repository: ["inmem/inmem_node_repository.ts"];
+}
+```
+
+### 2. Flat File Node Repository
+
+- **Path**: `flat_file/flat_file_node_repository.ts`
+- **Description**: JSON file-based metadata storage (`nodes_repo.json`)
+- **Best for**: Development, small deployments, simple setups
+- **Configuration**: Directory path for repository files
+
+```typescript
+{
+  repository: ["flat_file/flat_file_node_repository.ts", "/data/repository"];
+}
+```
+
+### 3. PouchDB Node Repository
+
+- **Path**: `pouchdb/pouchdb_node_repository.ts`
+- **Description**: Offline-first document database with CouchDB compatibility
+- **Best for**: Offline scenarios, synchronization, distributed deployments
+- **Configuration**: Database path or URL
+
+```typescript
+{
+  repository: ["pouchdb/pouchdb_node_repository.ts", "/data/pouchdb"];
+}
+```
+
+⚠️ **Limitation**: May not work on ARM macOS due to native dependencies.
+
+### 4. MongoDB Node Repository
+
+- **Path**: `mongodb/mongodb_node_repository.ts`
+- **Description**: Scalable NoSQL document database
+- **Best for**: Production, large datasets, complex queries
+- **Configuration**: MongoDB connection string
+
+```typescript
+{
+  repository: [
+    "mongodb/mongodb_node_repository.ts",
+    "mongodb://localhost:27017/antbox",
+  ];
+}
+```
+
+## Provider Interfaces
+
+Antbox defines clear interfaces for custom provider implementation:
+
+### StorageProvider Interface
+
+```typescript
+interface StorageProvider {
+  write(uuid: string, content: Uint8Array): Promise<void>;
+  read(uuid: string): Promise<Uint8Array>;
+  exists(uuid: string): Promise<boolean>;
+  delete(uuid: string): Promise<void>;
+}
+```
+
+### NodeRepository Interface
+
+```typescript
+interface NodeRepository {
+  add(node: NodeLike): Promise<Either<AntboxError, void>>;
+  update(
+    uuid: string,
+    metadata: Partial<NodeMetadata>,
+  ): Promise<Either<AntboxError, void>>;
+  delete(uuid: string): Promise<Either<AntboxError, void>>;
+  get(uuid: string): Promise<Either<NodeNotFoundError, NodeLike>>;
+  find(
+    filters: NodeFilters,
+    limit?: number,
+    offset?: number,
+  ): Promise<NodeFilterResult>;
+}
+```
+
+## Configuration Examples
+
+### Development Setup (In-Memory)
+
+Perfect for development and testing:
+
+```typescript
+{
+  name: "dev",
+  rootPasswd: "dev123",
+  storage: ["inmem/inmem_storage_provider.ts"],
+  repository: ["inmem/inmem_node_repository.ts"]
+}
+```
+
+### Local File Setup
+
+Good for small deployments:
+
+```typescript
+{
+  name: "local",
+  rootPasswd: "secure_password",
+  storage: ["flat_file/flat_file_storage_provider.ts", "/data/storage"],
+  repository: ["flat_file/flat_file_node_repository.ts", "/data/repository"]
+}
+```
+
+### Production Setup
+
+Scalable production configuration:
+
+```typescript
+{
+  name: "production",
+  rootPasswd: "very_secure_password",
+  storage: ["s3/s3_storage_provider.ts", "/config/s3_config.json"],
+  repository: ["mongodb/mongodb_node_repository.ts", "mongodb://cluster.mongodb.net/antbox?retryWrites=true&w=majority"]
+}
+```
+
+### Hybrid Setup
+
+MongoDB for metadata, local storage for content:
+
+```typescript
+{
+  name: "hybrid",
+  rootPasswd: "secure_password",
+  storage: ["flat_file/flat_file_storage_provider.ts", "/data/content"],
+  repository: ["mongodb/mongodb_node_repository.ts", "mongodb://localhost:27017/antbox"]
+}
+```
+
+## Creating Custom Providers
+
+### Custom Storage Provider Example
+
+```typescript
+import { Either, left, right } from "shared/either.ts";
+import { AntboxError } from "shared/antbox_error.ts";
+import { StorageProvider } from "application/storage_provider.ts";
+
+export default function buildMyCustomStorage(
+  config: string,
+): Promise<Either<AntboxError, StorageProvider>> {
+  return Promise.resolve(right(new MyCustomStorageProvider(config)));
+}
+
+class MyCustomStorageProvider implements StorageProvider {
+  constructor(private config: string) {}
+
+  async write(uuid: string, content: Uint8Array): Promise<void> {
+    // Custom implementation
+  }
+
+  async read(uuid: string): Promise<Uint8Array> {
+    // Custom implementation
+  }
+
+  async exists(uuid: string): Promise<boolean> {
+    // Custom implementation
+  }
+
+  async delete(uuid: string): Promise<void> {
+    // Custom implementation
+  }
+}
+```
+
+### Custom Repository Provider Example
+
+```typescript
+import { Either, left, right } from "shared/either.ts";
+import { AntboxError } from "shared/antbox_error.ts";
+import {
+  NodeRepository,
+  NodeFilterResult,
+} from "domain/nodes/node_repository.ts";
+
+export default function buildMyCustomRepository(
+  connectionString: string,
+): Promise<Either<AntboxError, NodeRepository>> {
+  return Promise.resolve(right(new MyCustomRepository(connectionString)));
+}
+
+class MyCustomRepository implements NodeRepository {
+  constructor(private connectionString: string) {}
+
+  async add(node: NodeLike): Promise<Either<AntboxError, void>> {
+    // Custom implementation
+  }
+
+  // ... implement other required methods
+}
+```
+
+## Best Practices
+
+1. **Choose appropriate providers**: Match providers to your deployment needs
+2. **Consider data locality**: Keep related data geographically close
+3. **Plan for scalability**: Use scalable backends for production
+4. **Backup strategies**: Ensure your chosen providers support your backup needs
+5. **Performance testing**: Test provider performance under your expected load
+6. **Security**: Configure proper access controls and encryption
+7. **Monitoring**: Set up monitoring for your chosen backends
 
 ---
 
-With these defined providers, Project Antbox aims to offer flexibility and adaptability for different storage and persistence needs. By adhering to the outlined interfaces, you can even define your custom solutions to fit your specific requirements.
+Antbox's pluggable provider architecture ensures you can adapt the system to your specific infrastructure requirements while maintaining consistent functionality across different deployment scenarios.

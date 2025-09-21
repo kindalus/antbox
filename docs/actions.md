@@ -1,45 +1,334 @@
-# **The Power of Node Behaviors in AntBox ECM Actions**
+# Features, Actions & Extensions in Antbox ECM
 
-When it comes to efficiently managing content in the realm of ECM, the ability to associate behaviors with nodes is not just a feature; it's an art. The AntBox ECM actions system shines brightly in this space, offering a way to associate behaviors seamlessly to a node. This documentation provides a comprehensive look into this captivating feature.
+Antbox ECM is built around a **feature-centric architecture** where **Features** serve as the core building blocks for dynamic functionality. Features are JavaScript/TypeScript functions that can be exposed in multiple ways to provide automation, custom endpoints, and AI integration capabilities.
 
-## **How It Works**
+## Core Concept: Features
 
-ECM Actions allow for the definition of a behavior or a set of operations that should be executed when a node meets certain predefined criteria or filter conditions. Here's a glance at the structure that enables this feature:
+A **Feature** in Antbox is a JavaScript module that encapsulates specific functionality. Features can be exposed as:
 
-1. **Action Attributes:**
-   The given code outlines the interface `Action`, which encompasses several attributes:
-   - `uuid`: A unique identifier for the action.
-   - `title`: A descriptive title for the action.
-   - `description`: A detailed description of what the action does.
-   - `builtIn`: Indicates if the action is built into the system or custom-created.
-   - `runOnCreates`: Specifies if the action runs when a node is created.
-   - `runOnUpdates`: Specifies if the action runs when a node is updated.
-   - `runManually`: Specifies if the action can be run manually by the user.
-   - `runAs`: Optionally indicates the user or role as which the action should be executed.
-   - `params`: The list of parameters required by the action.
-   - `filters`: An array of `NodeFilter` objects that define the conditions a node must meet for the action to be applicable.
+- **Actions**: Automated behaviors triggered by node operations
+- **Extensions**: HTTP-accessible endpoints for custom functionality
+- **MCP Tools**: Model Context Protocol compatible tools for AI integration
 
-2. **Running the Action:**
-   The `run` method is the heart of the action, allowing it to execute its logic. The method takes in:
-   - A `RunContext`, which provides the environment or state during the action's execution.
-   - An array of `uuids`, which represents the nodes the action is to be applied on.
-   - An optional `params` object containing any additional parameters required by the action.
+This unified approach allows you to write functionality once and expose it in multiple ways based on your needs.
 
-3. **Node Filters:**
-   As specified, the node must meet _all_ conditions set by the `filters` for the action to apply. This ensures precision and accuracy in the behaviors applied to nodes.
+## Feature Structure
 
-## **Advantages**
+### Basic Feature Definition
 
-- **Flexibility**: The action interface is designed to cater to various scenarios, whether you want the action to run during node creation, updates, or manually.
+```typescript
+// example-feature.ts
+export default async function (
+  context: FeatureContext,
+  params: Record<string, unknown>,
+) {
+  const { nodeService, request, user } = context;
 
-- **Precision**: The `filters` ensure that actions are applied only to nodes that truly match the criteria. This fine-tuning prevents unnecessary or unwanted behaviors.
+  // Your custom logic here
+  const nodes = await nodeService.find({
+    filters: [{ property: "mimetype", value: "text/plain" }],
+  });
 
-- **Extensibility**: The distinction between built-in and custom actions ensures that while the system provides robust default actions, there's always room for bespoke behaviors to cater to specific needs.
+  return {
+    processed: nodes.length,
+    message: "Feature executed successfully",
+  };
+}
+```
 
-- **Transparency**: Attributes like `title` and `description` provide clarity on what each action does, ensuring users are always in the know.
+### Feature Metadata
 
-- **Secure Execution**: The optional `runAs` attribute can ensure actions run with the right permissions, keeping data integrity and security in check.
+Features include metadata that defines how they can be used:
 
-## **In Summary**
+```typescript
+interface FeatureNode {
+  uuid: string;
+  name: string;
+  title: string;
+  description: string;
+  parameters: FeatureParameter[];
 
-The AntBox ECM Actions feature is a testament to innovation and thorough design. By allowing users to associate behaviors with nodes, it doesn't just enhance the user experience; it revolutionizes it. The fusion of flexibility, precision, and extensibility wrapped in a well-defined interface is truly commendable. Kudos to the masterminds behind this feature; you've added an invaluable tool to the ECM world!
+  // Exposure configuration
+  runOnCreates: boolean; // Can be triggered on node creation
+  runOnUpdates: boolean; // Can be triggered on node updates
+  runManually: boolean; // Can be executed manually
+  runAs?: string; // Execute as specific user
+
+  // Filtering
+  filters: NodeFilters; // When this feature applies
+  groupsAllowed: string[]; // Which groups can execute
+}
+```
+
+### Feature Parameters
+
+Features can define typed parameters for validation and documentation:
+
+```typescript
+interface FeatureParameter {
+  name: string;
+  type: "string" | "number" | "boolean" | "object" | "array" | "file";
+  arrayType?: "string" | "number" | "file" | "object";
+  contentType?: string;
+  required: boolean;
+  description?: string;
+  defaultValue?: any;
+}
+```
+
+## Features as Actions
+
+When exposed as **Actions**, features provide automated behaviors that execute based on node lifecycle events or manual triggers.
+
+### Action Triggers
+
+- **onCreate**: Executes when a node matching the filters is created
+- **onUpdate**: Executes when a matching node is updated
+- **Manual**: Executes when explicitly triggered via API
+
+### Built-in Actions
+
+Antbox includes several built-in actions:
+
+- `copy_to_folder`: Copy nodes to a specific folder
+- `move_to_folder`: Move nodes to a specific folder
+- `move_up`: Move nodes up in hierarchy
+- `delete_all`: Bulk delete operations
+
+### Action Execution Context
+
+```typescript
+interface ActionContext {
+  nodeService: NodeService;
+  user: User;
+  tenant: string;
+  uuids: string[]; // Target node UUIDs
+  additionalParams?: any; // Extra parameters
+}
+```
+
+### Example Action Feature
+
+```typescript
+// auto-tag-documents.ts
+export default async function (context: ActionContext, params: any) {
+  const { nodeService, uuids } = context;
+
+  for (const uuid of uuids) {
+    const node = await nodeService.get(uuid);
+
+    if (node.mimetype === "application/pdf") {
+      // Add automatic tags based on content analysis
+      await nodeService.update(uuid, {
+        tags: ["document", "pdf", "auto-tagged"],
+      });
+    }
+  }
+
+  return { tagged: uuids.length };
+}
+```
+
+## Features as Extensions
+
+When exposed as **Extensions**, features become HTTP endpoints that can be accessed directly via REST API.
+
+### Extension Endpoints
+
+Extensions are accessible at: `GET/POST /ext/{feature-uuid}`
+
+### Extension Context
+
+```typescript
+interface ExtensionContext {
+  nodeService: NodeService;
+  request: Request; // HTTP request object
+  user: User;
+  tenant: string;
+}
+```
+
+### Example Extension Feature
+
+```typescript
+// report-generator.ts
+export default async function (context: ExtensionContext, params: any) {
+  const { nodeService, request } = context;
+
+  // Generate custom report
+  const nodes = await nodeService.find({
+    filters: [
+      { property: "createdTime", operator: ">=", value: params.startDate },
+    ],
+  });
+
+  const html = `
+    <html>
+      <head><title>Content Report</title></head>
+      <body>
+        <h1>Content Report</h1>
+        <p>Total nodes: ${nodes.length}</p>
+        <ul>
+          ${nodes.map((n) => `<li>${n.title}</li>`).join("")}
+        </ul>
+      </body>
+    </html>
+  `;
+
+  return new Response(html, {
+    headers: { "content-type": "text/html" },
+  });
+}
+```
+
+## Features as MCP Tools
+
+Features can be exposed as **Model Context Protocol (MCP) Tools** for AI integration.
+
+### MCP Integration
+
+MCP Tools allow AI models to interact with Antbox content programmatically:
+
+```typescript
+// search-content.ts
+export default async function (context: MCPContext, params: any) {
+  const { nodeService } = context;
+
+  const results = await nodeService.find({
+    filters: [
+      { property: "fulltext", operator: "contains", value: params.query },
+    ],
+  });
+
+  return {
+    results: results.map((node) => ({
+      uuid: node.uuid,
+      title: node.title,
+      excerpt: node.description,
+    })),
+  };
+}
+```
+
+## Feature Management
+
+### Creating Features
+
+Features are created as nodes with specific metadata:
+
+```typescript
+const feature = await nodeService.create({
+  mimetype: "application/vnd.antbox.feature",
+  parent: Folders.FEATURES_FOLDER_UUID,
+  name: "my-feature",
+  title: "My Custom Feature",
+  description: "Performs custom processing",
+  parameters: [
+    {
+      name: "query",
+      type: "string",
+      required: true,
+      description: "Search query",
+    },
+  ],
+  runManually: true,
+  filters: [],
+});
+```
+
+### Feature Execution
+
+Features can be executed through various APIs:
+
+```bash
+# As Action
+GET /features/{uuid}/-/run-action?uuids=uuid1,uuid2
+
+# As Extension
+GET /ext/{uuid}?param1=value1
+
+# Via Features API
+GET /features/{uuid}/-/run?type=action&uuids=uuid1
+```
+
+## Security & Permissions
+
+### Access Control
+
+- **Group Restrictions**: `groupsAllowed` controls which groups can execute
+- **User Context**: Features run with appropriate user permissions
+- **Tenant Isolation**: Features respect multi-tenant boundaries
+
+### Sandboxed Execution
+
+Features run in a controlled environment with:
+
+- Limited system access
+- Controlled API surface
+- Resource monitoring
+- Timeout protection
+
+## Advanced Features
+
+### Content Processing
+
+```typescript
+// text-processor.ts
+export default async function (context: ActionContext) {
+  const { nodeService, uuids } = context;
+
+  for (const uuid of uuids) {
+    const node = await nodeService.get(uuid);
+
+    if (node.mimetype === "text/plain") {
+      const content = await nodeService.getContent(uuid);
+      const wordCount = content.toString().split(/\s+/).length;
+
+      await nodeService.update(uuid, {
+        wordCount: wordCount,
+        processed: true,
+      });
+    }
+  }
+}
+```
+
+### External Integration
+
+```typescript
+// webhook-notifier.ts
+export default async function (context: ActionContext, params: any) {
+  const { nodeService, uuids } = context;
+
+  for (const uuid of uuids) {
+    const node = await nodeService.get(uuid);
+
+    await fetch(params.webhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        event: "node_created",
+        node: {
+          uuid: node.uuid,
+          title: node.title,
+          mimetype: node.mimetype,
+        },
+      }),
+    });
+  }
+}
+```
+
+## Best Practices
+
+1. **Single Responsibility**: Each feature should have a focused purpose
+2. **Error Handling**: Always handle errors gracefully and return meaningful messages
+3. **Performance**: Consider the impact on system performance, especially for onCreate/onUpdate actions
+4. **Security**: Validate all inputs and respect user permissions
+5. **Documentation**: Provide clear descriptions and parameter documentation
+
+## Conclusion
+
+The feature-centric architecture of Antbox ECM provides unprecedented flexibility in content management and automation. By creating features once and exposing them as actions, extensions, or MCP tools, you can build powerful, reusable functionality that adapts to different use cases and integration requirements.
+
+Whether you need automated content processing, custom HTTP endpoints, or AI-powered tools, features provide the foundation for extending Antbox to meet your specific needs.

@@ -1,113 +1,575 @@
-# Antbox API Documentation
+# Antbox REST API Reference
 
 ## Table of Contents
 
 1. [Overview](#overview)
-2. [Endpoints](#endpoints)
+2. [Authentication](#authentication)
+3. [Core Endpoints](#core-endpoints)
+   - [Authentication API](#authentication-api)
    - [Nodes API](#nodes-api)
    - [Features API](#features-api)
    - [Aspects API](#aspects-api)
    - [Extensions API](#extensions-api)
-   - [File Upload API](#file-upload-api)
-   - [Login API](#login-api)
-3. [Authentication & Authorization](#authentication--authorization)
+4. [Request/Response Format](#requestresponse-format)
+5. [Error Handling](#error-handling)
+6. [Examples](#examples)
 
 ## Overview
 
-This document describes the REST API for the Antbox system. Antbox is a feature-centric platform that provides unified access to dynamic functionality through features. Features can be exposed as actions, extensions, or MCP tools, providing a flexible architecture for content management and automation.
+Antbox provides a comprehensive REST API that follows RESTful principles and supports the feature-centric architecture. The API enables complete management of nodes, features, aspects, and all other system entities.
 
-This document outlines the available endpoints, their responsibilities, and the expected inputs and outputs for each.
+**Base URL**: `http://localhost:7180` (default)
+**API Version**: v1
+**Content Type**: `application/json` (unless specified otherwise)
 
-## Endpoints
+## Authentication
+
+Antbox uses JWT (JSON Web Tokens) for authentication with tenant-based access control.
+
+### Headers Required
+
+- `x-access-token`: JWT token obtained from login
+- `x-tenant`: Tenant name (defaults to first configured tenant if not specified)
+- `Content-Type`: `application/json` (for JSON payloads)
+
+### Login Flow
+
+```http
+POST /login/root
+Content-Type: text/plain
+Body: <sha256-hashed-password>
+```
+
+Response:
+
+```json
+{
+  "jwt": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
+
+## Core Endpoints
+
+### Authentication API
+
+#### Root Login
+
+```http
+POST /login/root
+```
+
+Authenticate as root user using SHA256 hashed password.
+
+**Request Body**: Plain text SHA256 hash of password
+**Response**: JWT token for subsequent requests
+
+---
 
 ### Nodes API
 
 Base path: `/nodes`
 
-| Endpoint             | HTTP Method | Description                  |
-| -------------------- | ----------- | ---------------------------- |
-| `/:uuid`             | GET         | Fetch a node by its UUID     |
-| `/:uuid/-/export`    | GET         | Export a node by its UUID    |
-| `/:uuid/-/duplicate` | GET         | Duplicate a node by its UUID |
-| `/:uuid/-/evaluate`  | GET         | Evaluate a node by its UUID  |
-| `/`                  | GET         | List nodes                   |
-| `/`                  | POST        | Create a new node            |
-| `/:uuid/-/copy`      | POST        | Copy a node by its UUID      |
-| `/-/query`           | POST        | Query nodes with filters     |
-| `/:uuid`             | PATCH       | Update a node by its UUID    |
-| `/:uuid`             | DELETE      | Delete a node by its UUID    |
+#### Get Node by UUID
+
+```http
+GET /nodes/{uuid}
+```
+
+**Parameters**:
+
+- `uuid` (path): Node UUID or FID
+
+**Response**: Node object with metadata and properties
+
+#### List Nodes
+
+```http
+GET /nodes
+```
+
+**Query Parameters**:
+
+- `parent` (optional): Parent folder UUID
+- `limit` (optional): Number of results (default: 50)
+- `offset` (optional): Pagination offset
+
+**Response**: Array of node objects
+
+#### Create Node
+
+```http
+POST /nodes
+```
+
+**Request Body**:
+
+```json
+{
+  "mimetype": "text/plain",
+  "title": "My Document",
+  "description": "Document description",
+  "parent": "folder-uuid",
+  "content": "File content here"
+}
+```
+
+**Response**: Created node object
+
+#### Update Node
+
+```http
+PATCH /nodes/{uuid}
+```
+
+**Request Body**: Partial node metadata to update
+
+**Response**: Updated node object
+
+#### Delete Node
+
+```http
+DELETE /nodes/{uuid}
+```
+
+**Response**: `204 No Content` on success
+
+#### Query Nodes
+
+```http
+POST /nodes/-/query
+```
+
+Advanced node searching with filters.
+
+**Request Body**:
+
+```json
+{
+  "filters": [
+    {
+      "property": "mimetype",
+      "operator": "equals",
+      "value": "text/plain"
+    },
+    {
+      "property": "createdTime",
+      "operator": ">=",
+      "value": "2024-01-01T00:00:00Z"
+    }
+  ],
+  "limit": 100,
+  "offset": 0
+}
+```
+
+#### Copy Node
+
+```http
+POST /nodes/{uuid}/-/copy
+```
+
+**Request Body**:
+
+```json
+{
+  "parent": "destination-folder-uuid",
+  "title": "New Title (optional)"
+}
+```
+
+#### Export Node
+
+```http
+GET /nodes/{uuid}/-/export
+```
+
+Export node in various formats.
+
+**Query Parameters**:
+
+- `format` (optional): Export format (json, raw, etc.)
+
+#### Duplicate Node
+
+```http
+GET /nodes/{uuid}/-/duplicate
+```
+
+Create a duplicate of the node in the same parent folder.
+
+#### Evaluate Node
+
+```http
+GET /nodes/{uuid}/-/evaluate
+```
+
+Execute/evaluate node content (for executable node types).
+
+---
 
 ### Features API
 
 Base path: `/features`
 
-| Endpoint              | HTTP Method | Description                         | Query Parameters                              |
-| --------------------- | ----------- | ----------------------------------- | --------------------------------------------- |
-| `/`                   | GET         | List all features                   |                                               |
-| `/:uuid`              | GET         | Get feature by UUID                 |                                               |
-| `/:uuid`              | DELETE      | Delete feature by UUID              |                                               |
-| `/:uuid/-/export`     | GET         | Export feature as JavaScript file   | `type` (feature, action, extension, mcp)      |
-| `/-/actions`          | GET         | List features exposed as actions    |                                               |
-| `/-/extensions`       | GET         | List features exposed as extensions |                                               |
-| `/-/mcp-tools`        | GET         | List features exposed as MCP tools  |                                               |
-| `/:uuid/-/run-action` | GET         | Run feature as action               | `uuids` (comma-separated), `additionalParams` |
-| `/:uuid/-/run-ext`    | GET, POST   | Run feature as extension            | Various parameters                            |
+#### List All Features
+
+```http
+GET /features
+```
+
+**Response**: Array of all features in the system
+
+#### Get Feature by UUID
+
+```http
+GET /features/{uuid}
+```
+
+**Response**: Feature object with metadata and parameters
+
+#### Delete Feature
+
+```http
+DELETE /features/{uuid}
+```
+
+**Response**: `204 No Content` on success
+
+#### Export Feature
+
+```http
+GET /features/{uuid}/-/export
+```
+
+Export feature as JavaScript file.
+
+**Query Parameters**:
+
+- `type` (optional): Export type (`feature`, `action`, `extension`, `mcp`)
+
+**Response**: JavaScript code as `text/javascript`
+
+#### List Actions
+
+```http
+GET /features/-/actions
+```
+
+List all features that can be exposed as actions.
+
+**Response**: Array of features with action-specific metadata
+
+#### List Extensions
+
+```http
+GET /features/-/extensions
+```
+
+List all features that can be exposed as extensions.
+
+**Response**: Array of features with extension-specific metadata
+
+#### List MCP Tools
+
+```http
+GET /features/-/mcp-tools
+```
+
+List all features that can be exposed as MCP (Model Context Protocol) tools.
+
+**Response**: Array of features with MCP tool metadata
+
+#### Run Feature as Action
+
+```http
+GET /features/{uuid}/-/run-action
+```
+
+Execute a feature in action mode.
+
+**Query Parameters**:
+
+- `uuids` (required): Comma-separated list of target node UUIDs
+- `additionalParams` (optional): JSON-encoded additional parameters
+
+**Response**: Action execution result
+
+#### Run Feature as Extension
+
+```http
+GET /features/{uuid}/-/run-ext
+POST /features/{uuid}/-/run-ext
+```
+
+Execute a feature in extension mode.
+
+**Query/Body Parameters**: Varies by feature parameter definitions
+
+**Response**: Feature-specific response (HTML, JSON, etc.)
+
+---
 
 ### Aspects API
 
-Base Path: `/aspects`
+Base path: `/aspects`
 
-| Method | Path     | Description                                        |
-| ------ | -------- | -------------------------------------------------- |
-| `GET`  | `/`      | Retrieve a list of all aspects.                    |
-| `GET`  | `/:uuid` | Retrieve details of a specific aspect by its UUID. |
+#### List All Aspects
+
+```http
+GET /aspects
+```
+
+**Response**: Array of all aspect definitions
+
+#### Get Aspect by UUID
+
+```http
+GET /aspects/{uuid}
+```
+
+**Response**: Aspect object with properties and validation rules
+
+---
 
 ### Extensions API
 
-Base Path: `/ext`
+Base path: `/ext`
 
-| Method | Path     | Description                                                  |
-| ------ | -------- | ------------------------------------------------------------ |
-| `GET`  | `/:uuid` | Trigger the execution of a specific extension (GET method).  |
-| `POST` | `/:uuid` | Trigger the execution of a specific extension (POST method). |
+#### Execute Extension (GET)
 
-### File Upload API
-
-Base path: (Not explicitly defined in provided code, assuming as an extension of Nodes API)
-
-| Endpoint                   | HTTP Method | Description                    |
-| -------------------------- | ----------- | ------------------------------ |
-| `/upload/createFile`       | POST        | Create a new node file         |
-| `/upload/updateFile/:uuid` | POST        | Update a node file by its UUID |
-
-### Login API
-
-Base Path: `/login`
-
-| Method | Path    | Description                    |
-| ------ | ------- | ------------------------------ |
-| `POST` | `/root` | Authenticate as the root user. |
-
-## Authentication & Authorization
-
-For the majority of the APIs, authentication and authorization are critical. The system uses JWTs (JSON Web Tokens) for this purpose. Here are the steps involved:
-
-1. **Fetching the JWT**:
-   - Clients can authenticate as the root user by making a `POST` request to the `/login/root` endpoint with the correct password.
-   - Upon successful authentication, a JWT is returned in the response.
-
-2. **Sending the JWT**:
-   - Once obtained, the JWT should be included in the `x-access-token` header of subsequent API requests.
-   - The system will verify the JWT to ensure it's valid and hasn't expired. If the JWT is invalid or has expired, the request will be denied.
-
-3. **Tenant Information**:
-   - Requests should also include tenant information in the `x-tenant` header. If no tenant is specified, the system defaults to the first tenant in the configuration.
-
-4. **User Information**:
-   - Once a JWT is verified, the system extracts the user's details and attaches them to the request context. This allows for fine-grained access control based on the user's roles and permissions.
-
-Ensure that you keep your JWTs safe and never expose them in client-side scripts or other insecure locations.
-
+```http
+GET /ext/{uuid}
 ```
 
+Execute a feature as an extension using GET method.
+
+**Query Parameters**: Defined by the specific feature
+
+#### Execute Extension (POST)
+
+```http
+POST /ext/{uuid}
 ```
+
+Execute a feature as an extension using POST method.
+
+**Request Body**: Parameters defined by the specific feature
+
+---
+
+## Request/Response Format
+
+### Standard Node Object
+
+```json
+{
+  "uuid": "123e4567-e89b-12d3-a456-426614174000",
+  "fid": "my-document",
+  "title": "My Document",
+  "description": "Document description",
+  "mimetype": "text/plain",
+  "parent": "parent-folder-uuid",
+  "owner": "user@example.com",
+  "createdTime": "2024-01-01T12:00:00Z",
+  "modifiedTime": "2024-01-01T12:00:00Z",
+  "size": 1024,
+  "fulltext": "Extracted text content",
+  "aspects": {
+    "custom-aspect": {
+      "property1": "value1",
+      "property2": "value2"
+    }
+  }
+}
+```
+
+### Feature Object
+
+```json
+{
+  "uuid": "feature-uuid",
+  "name": "my-feature",
+  "title": "My Custom Feature",
+  "description": "Feature description",
+  "parameters": [
+    {
+      "name": "param1",
+      "type": "string",
+      "required": true,
+      "description": "Parameter description"
+    }
+  ],
+  "runOnCreates": false,
+  "runOnUpdates": false,
+  "runManually": true,
+  "filters": [],
+  "groupsAllowed": ["admins"]
+}
+```
+
+### Query Filters
+
+Supported operators:
+
+- `equals`, `=`: Exact match
+- `not_equals`, `!=`: Not equal
+- `contains`: String contains (case-insensitive)
+- `starts_with`: String starts with
+- `ends_with`: String ends with
+- `>`, `>=`, `<`, `<=`: Numeric/date comparisons
+- `in`: Value in array
+- `not_in`: Value not in array
+- `exists`: Property exists
+- `not_exists`: Property doesn't exist
+
+## Error Handling
+
+### Standard Error Response
+
+```json
+{
+  "error": {
+    "code": "NODE_NOT_FOUND",
+    "message": "Node with UUID 'invalid-uuid' not found",
+    "details": {
+      "uuid": "invalid-uuid"
+    }
+  }
+}
+```
+
+### HTTP Status Codes
+
+- `200 OK`: Successful request
+- `201 Created`: Resource created successfully
+- `204 No Content`: Successful deletion
+- `400 Bad Request`: Invalid request parameters
+- `401 Unauthorized`: Authentication required
+- `403 Forbidden`: Insufficient permissions
+- `404 Not Found`: Resource not found
+- `409 Conflict`: Resource conflict (e.g., duplicate)
+- `422 Unprocessable Entity`: Validation error
+- `500 Internal Server Error`: Server error
+
+### Common Error Codes
+
+- `AUTHENTICATION_REQUIRED`: No valid JWT token provided
+- `INSUFFICIENT_PERMISSIONS`: User lacks required permissions
+- `NODE_NOT_FOUND`: Specified node doesn't exist
+- `FEATURE_NOT_FOUND`: Specified feature doesn't exist
+- `VALIDATION_ERROR`: Request data validation failed
+- `DUPLICATE_NODE`: Node with same identifier already exists
+- `INVALID_MIMETYPE`: Unsupported or invalid MIME type
+- `FOLDER_NOT_FOUND`: Parent folder doesn't exist
+
+## Examples
+
+### Complete Workflow Example
+
+1. **Authenticate**:
+
+```bash
+curl -X POST http://localhost:7180/login/root \
+  -H "Content-Type: text/plain" \
+  -d "$(echo -n 'mypassword' | sha256sum | cut -d' ' -f1)"
+```
+
+2. **Create a folder**:
+
+```bash
+curl -X POST http://localhost:7180/nodes \
+  -H "x-access-token: YOUR_JWT_TOKEN" \
+  -H "x-tenant: demo" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "mimetype": "application/vnd.antbox.folder",
+    "title": "My Documents",
+    "description": "Document storage folder"
+  }'
+```
+
+3. **Upload a file**:
+
+```bash
+curl -X POST http://localhost:7180/nodes \
+  -H "x-access-token: YOUR_JWT_TOKEN" \
+  -H "x-tenant: demo" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "mimetype": "text/plain",
+    "title": "README.txt",
+    "parent": "FOLDER_UUID_FROM_STEP_2",
+    "content": "This is my readme file content"
+  }'
+```
+
+4. **Query files**:
+
+```bash
+curl -X POST http://localhost:7180/nodes/-/query \
+  -H "x-access-token: YOUR_JWT_TOKEN" \
+  -H "x-tenant: demo" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "filters": [
+      {
+        "property": "mimetype",
+        "operator": "equals",
+        "value": "text/plain"
+      }
+    ]
+  }'
+```
+
+5. **Execute a feature as extension**:
+
+```bash
+curl -X GET "http://localhost:7180/ext/FEATURE_UUID?param1=value1&param2=value2" \
+  -H "x-access-token: YOUR_JWT_TOKEN" \
+  -H "x-tenant: demo"
+```
+
+### Feature Development Example
+
+Create a custom feature that processes text files:
+
+```javascript
+// text-processor-feature.js
+export default async function (context, params) {
+  const { nodeService, user } = context;
+  const { operation, targetUuids } = params;
+
+  const results = [];
+
+  for (const uuid of targetUuids) {
+    const node = await nodeService.get(uuid);
+
+    if (node.mimetype === "text/plain") {
+      const content = await nodeService.getContent(uuid);
+
+      let processedContent;
+      switch (operation) {
+        case "uppercase":
+          processedContent = content.toString().toUpperCase();
+          break;
+        case "lowercase":
+          processedContent = content.toString().toLowerCase();
+          break;
+        case "word_count":
+          const wordCount = content.toString().split(/\s+/).length;
+          results.push({ uuid, wordCount });
+          continue;
+      }
+
+      if (processedContent) {
+        await nodeService.updateContent(uuid, processedContent);
+        results.push({ uuid, processed: true });
+      }
+    }
+  }
+
+  return { results };
+}
+```
+
+This comprehensive API reference provides everything needed to integrate with and extend the Antbox ECM system through its feature-centric architecture.

@@ -85,7 +85,6 @@ graph TB
 
     %% External Services
     subgraph "External Integrations"
-        OCR[OCR Engine<br/>Tesseract]
         JWT[JWT Authentication<br/>Jose Library]
         FileSystem[File System]
         Database[(Database)]
@@ -136,7 +135,6 @@ graph TB
     GoogleDrive --> CloudStorage
     FlatFile --> FileSystem
 
-    ActionService --> OCR
     AuthService --> JWT
 
     %% Multi-tenancy flow
@@ -155,7 +153,7 @@ graph TB
     class Node,Aspect,Action,Skill,User,NodeRepo,StorageProvider,NodeFilters,NodeFactory domainLayer
     class InMemRepo,PouchDB,MongoDB,InMemStorage,FlatFile,S3Storage,GoogleDrive,OakAdapter,H3Adapter,NullStorage adapterLayer
     class TenantSetup,ServerDefaults setupLayer
-    class OCR,JWT,FileSystem,Database,CloudStorage external
+    class JWT,FileSystem,Database,CloudStorage external
 ```
 
 ## Architectural Layers
@@ -194,7 +192,7 @@ Infrastructure implementations:
 - **Repository Implementations**: PouchDB, MongoDB, In-Memory
 - **Storage Providers**: File system, S3, Google Drive
 - **HTTP Server Adapters**: Oak, H3 framework integrations
-- **External Service Integrations**: OCR, authentication libraries
+- **External Service Integrations**: Authentication libraries
 
 ### 5. Setup Layer (`src/setup/`)
 
@@ -246,7 +244,6 @@ Configuration and initialization:
 - **Databases**: PouchDB, MongoDB
 - **Storage**: File System, AWS S3, Google Drive
 - **Authentication**: JWT (Jose library)
-- **OCR**: Tesseract
 - **Build**: Native Deno tooling
 
 ## Benefits of This Architecture

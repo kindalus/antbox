@@ -12,15 +12,15 @@ ADD https://worldtimeapi.org/api/timezone/Etc/UTC /.timestamp
 WORKDIR /app
 COPY . .
 
-RUN deno cache demo.ts
+RUN deno cache main.ts
 
 ENV PORT=7180
 EXPOSE 7180
 
 RUN addgroup -S antx && adduser -S antx -G antx
 
-#USER antx
+USER antx
 
 VOLUME [ "/data" ]
 
-CMD ["deno", "run", "-A", "demo.ts", "/data"]
+CMD ["./start_server.sh", "--demo"]

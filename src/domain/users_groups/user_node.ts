@@ -54,6 +54,15 @@ export class UserNode extends Node {
     this._validateUserNode();
   }
 
+  override get metadata(): Partial<NodeMetadata> {
+    return {
+      ...super.metadata,
+      email: this._email,
+      group: this._group,
+      groups: this._groups ?? [],
+    };
+  }
+
   override update(
     metadata: Partial<NodeMetadata>,
   ): Either<ValidationError, void> {

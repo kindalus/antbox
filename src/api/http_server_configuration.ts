@@ -1,5 +1,6 @@
 export interface ServerConfiguration {
   port?: number;
+  engine?: string;
   tenants: TenantConfiguration[];
 }
 

@@ -1,0 +1,10 @@
+engine = "oak"
+port = 7180
+
+[[tenants]]
+name = "sandbox"
+rootPasswd = "demo"
+key = "./.config/antbox.key"
+jwk = "./.config/antbox.jwk"
+storage = ["inmem/inmem_storage_provider.ts"]
+repository = ["inmem/inmem_node_repository.ts"]

@@ -20,3 +20,6 @@ deno.lock
 node_modules
 bun.lock
 bun.lockb
+
+# Data directories
+data/

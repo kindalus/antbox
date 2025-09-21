@@ -1,0 +1,10 @@
+engine = "oak"
+port = 7180
+
+[[tenants]]
+name = "production"
+rootPasswd = "secure_password"
+key = "./.config/antbox.key"
+jwk = "./.config/antbox.jwk"
+storage = ["s3/s3_storage_provider.ts", "/path/to/s3_config.json"]
+repository = ["mongodb/mongodb_node_repository.ts", "mongodb://localhost:27017/antbox"]

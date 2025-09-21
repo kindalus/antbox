@@ -10,9 +10,9 @@ export function printServerKeys(opts?: {
 
   console.log("Symmetric Key:\t", opts?.symmetricKey ?? SYMMETRIC_KEY);
 
-  const path = opts?.jwkPath ?? "";
-  if (!fileExistsSync(opts?.jwkPath ?? "")) {
-    console.error("JWK file not found");
+  const path = opts?.jwkPath ?? ".config/antbox.jwk";
+  if (!fileExistsSync(path)) {
+    console.error(`JWK file not found: ${path}`);
     Deno.exit(-1);
   }
 

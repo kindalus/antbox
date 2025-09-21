@@ -25,7 +25,7 @@ export function setupTenants(
 
 async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
   const passwd = cfg?.rootPasswd ?? ROOT_PASSWD;
-  const symmetricKey = cfg?.symmetricKey ?? SYMMETRIC_KEY;
+  const symmetricKey = await loadSymmetricKey(cfg?.symmetricKey);
 
   const rawJwk = await loadJwk(cfg?.jwkPath);
   const repository = await providerFrom<NodeRepository>(cfg?.repository);
@@ -67,10 +67,51 @@ async function loadJwk(jwkPath?: string): Promise<Record<string, string>> {
   }
 
   try {
-    const file = await Deno.readTextFile(jwkPath);
-    return JSON.parse(file);
-  } catch {
-    console.error("JWK file not found");
+    let content: string;
+
+    // Check if jwkPath is a URL
+    if (jwkPath.startsWith("http://") || jwkPath.startsWith("https://")) {
+      const response = await fetch(jwkPath);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch JWK from URL: ${response.statusText}`);
+      }
+      content = await response.text();
+    } else {
+      // Local file path
+      content = await Deno.readTextFile(jwkPath);
+    }
+
+    return JSON.parse(content);
+  } catch (error) {
+    console.error(
+      `JWK loading failed: ${
+        error instanceof Error ? error.message : "Unknown error"
+      }`,
+    );
+    Deno.exit(-1);
+  }
+}
+
+async function loadSymmetricKey(keyPath?: string): Promise<string> {
+  if (!keyPath) {
+    return SYMMETRIC_KEY;
+  }
+
+  // If it looks like a key value (base64), return it directly
+  if (keyPath.match(/^[A-Za-z0-9+/]+=*$/)) {
+    return keyPath;
+  }
+
+  try {
+    // Otherwise, treat it as a file path
+    const content = await Deno.readTextFile(keyPath);
+    return content.trim();
+  } catch (error) {
+    console.error(
+      `Symmetric key loading failed: ${
+        error instanceof Error ? error.message : "Unknown error"
+      }`,
+    );
     Deno.exit(-1);
   }
 }

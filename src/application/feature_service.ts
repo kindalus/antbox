@@ -3,11 +3,6 @@ import {
   featureToNodeMetadata,
   fileToFeature,
 } from "domain/features/feature.ts";
-import {
-  type Action,
-  actionToNodeMetadata,
-  fileToAction,
-} from "domain/features/action.ts";
 import { FeatureNode } from "domain/features/feature_node.ts";
 import { FeatureNotFoundError } from "domain/features/feature_not_found_error.ts";
 import { Folders } from "domain/nodes/folders.ts";
@@ -390,14 +385,14 @@ export class FeatureService {
     ctx: AuthenticationContext,
     file: File,
   ): Promise<Either<AntboxError, Node>> {
-    const actionOrErr = await fileToAction(file);
+    const funcOrErr = await fileToFeature(file);
 
-    if (actionOrErr.isLeft()) {
-      return left(actionOrErr.value);
+    if (funcOrErr.isLeft()) {
+      return left(funcOrErr.value);
     }
 
-    const action = actionOrErr.value;
-    const metadata = actionToNodeMetadata(action);
+    const action = funcOrErr.value;
+    const metadata = featureToNodeMetadata(action);
 
     const nodeOrErr = await this._nodeService.get(ctx, action.uuid);
 
@@ -434,10 +429,10 @@ export class FeatureService {
     ctx: AuthenticationContext,
     uuid: string,
   ): Promise<Either<AntboxError, void>> {
-    const actionOrErr = await this.getAction(ctx, uuid);
+    const featureOrErr = await this.getAction(ctx, uuid);
 
-    if (actionOrErr.isLeft()) {
-      return left(actionOrErr.value);
+    if (featureOrErr.isLeft()) {
+      return left(featureOrErr.value);
     }
 
     return this._nodeService.delete(ctx, uuid);
@@ -447,13 +442,13 @@ export class FeatureService {
     ctx: AuthenticationContext,
     uuid: string,
   ): Promise<Either<AntboxError, File>> {
-    const actionOrErr = await this.getAction(ctx, uuid);
+    const featureOrErr = await this.getAction(ctx, uuid);
 
-    if (actionOrErr.isLeft()) {
-      return left(actionOrErr.value);
+    if (featureOrErr.isLeft()) {
+      return left(featureOrErr.value);
     }
 
-    const action = actionOrErr.value;
+    const action = featureOrErr.value;
     const fileOrErr = await this._nodeService.export(ctx, uuid);
 
     if (fileOrErr.isLeft()) {
@@ -469,13 +464,13 @@ export class FeatureService {
     uuids: string[],
     params?: Record<string, unknown>,
   ): Promise<Either<AntboxError, unknown>> {
-    const actionOrErr = await this.#getNodeAsAction(ctx, actionUuid);
+    const featureOrErr = await this.#getNodeAsAction(ctx, actionUuid);
 
-    if (actionOrErr.isLeft()) {
-      return left(actionOrErr.value);
+    if (featureOrErr.isLeft()) {
+      return left(featureOrErr.value);
     }
 
-    const action: Action = actionOrErr.value;
+    const action: Feature = featureOrErr.value;
 
     if (!action.runManually && ctx.mode === "Direct") {
       return left(new BadRequestError("Action cannot be run manually"));
@@ -517,9 +512,9 @@ export class FeatureService {
 
     const actions = await this.#getAutomaticActions(runCriteria);
 
-    for (const action of actions) {
+    for (const feature of actions) {
       const filterOrErr = NodesFilters.satisfiedBy(
-        action.filters,
+        feature.filters,
         evt.payload,
       );
 
@@ -552,9 +547,9 @@ export class FeatureService {
 
     const actions = await this.#getAutomaticActions(runCriteria);
 
-    for (const action of actions) {
+    for (const feature of actions) {
       const filterOrErr = NodesFilters.satisfiedBy(
-        action.filters,
+        feature.filters,
         evt.payload as any,
       );
 
@@ -859,13 +854,13 @@ export class FeatureService {
       return left(fileOrErr.value);
     }
 
-    const actionOrErr = await fileToAction(fileOrErr.value);
+    const featureOrErr = await fileToFeature(fileOrErr.value);
 
-    if (actionOrErr.isLeft()) {
-      return left(actionOrErr.value);
+    if (featureOrErr.isLeft()) {
+      return left(featureOrErr.value);
     }
 
-    return right(actionOrErr.value);
+    return right(featureOrErr.value);
   }
 
   async #getExtensionAsModule(
@@ -915,13 +910,13 @@ export class FeatureService {
 
     const actions = [];
     for (const node of actionsOrErrs.value.nodes) {
-      const actionOrErr = await this.#getNodeAsAction(
+      const featureOrErr = await this.#getNodeAsAction(
         UsersGroupsService.elevatedContext,
         node.uuid,
       );
 
-      if (actionOrErr.isRight()) {
-        actions.push(actionOrErr.value);
+      if (featureOrErr.isRight()) {
+        actions.push(featureOrErr.value);
       }
     }
 

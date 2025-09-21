@@ -1,0 +1,10 @@
+engine = "oak"
+port = 7180
+
+[[tenants]]
+name = "demo"
+rootPasswd = "demo"
+key = "./.config/antbox.key"
+jwk = "./.config/antbox.jwk"
+storage = ["flat_file/flat_file_storage_provider.ts", "./data/storage"]
+repository = ["flat_file/flat_file_node_repository.ts", "./data/repository"]

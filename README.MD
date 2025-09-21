@@ -66,15 +66,57 @@ Everything in Antbox is represented as a **Node** with rich metadata and extensi
 
 Antbox offers multiple deployment modes to suit different requirements:
 
-### Quick Start - Sandbox Mode
+### Quick Start - New Configuration-Based Approach
 
-Run a completely in-memory server for development and testing:
+The new main.ts entry point uses TOML configuration files for easy deployment:
 
 ```shell
-deno run --allow-net --allow-read src/sandbox.ts
+# Run with default configuration (.config/antbox.toml)
+deno run --allow-net --allow-read --allow-write --allow-env main.ts
+
+# Run sandbox server (in-memory)
+deno run --allow-net --allow-read --allow-write --allow-env main.ts --sandbox
+
+# Run demo server (flat file storage)
+deno run --allow-net --allow-read --allow-write --allow-env main.ts --demo
+
+# Use custom configuration file
+deno run --allow-net --allow-read --allow-write --allow-env main.ts -f myconfig.toml
+
+# Print crypto keys
+deno run --allow-net --allow-read --allow-write --allow-env main.ts --keys
+
+# Or use the shell script wrapper
+./start_server.sh --sandbox
+./start_server.sh --demo
+./start_server.sh -f custom.toml
 ```
 
-### Persistent Demo Server
+### Configuration Structure
+
+Server configuration uses TOML format (`.config/antbox.toml`):
+
+```toml
+# Server engine: "oak" or "h3"
+engine = "oak"
+port = 7180
+
+[[tenants]]
+name = "production"
+rootPasswd = "secure_password"
+key = "./.config/antbox.key"          # Symmetric key file
+jwk = "./.config/antbox.jwk"          # JSON Web Key (can be URL)
+storage = ["s3/s3_storage_provider.ts", "/path/to/s3_config.json"]
+repository = ["mongodb/mongodb_node_repository.ts", "mongodb://localhost:27017/antbox"]
+```
+
+**Pre-configured environments:**
+
+- `.config/demo.toml` - Flat file storage for development
+- `.config/sandbox.toml` - In-memory storage for testing
+- `.config/antbox.toml` - Production template
+
+### Legacy Entry Points (Deprecated)
 
 Set up a server with PouchDB and flat file storage:
 

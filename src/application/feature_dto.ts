@@ -1,4 +1,4 @@
-import { NodeFilter } from "domain/nodes/node_filter.ts";
+import { NodeFilters } from "domain/nodes/node_filter.ts";
 import { FeatureParameter } from "domain/features/feature_node.ts";
 
 export interface FeatureDTO {
@@ -9,7 +9,7 @@ export interface FeatureDTO {
   runOnCreates: boolean;
   runOnUpdates: boolean;
   runManually: boolean;
-  filters: NodeFilter[];
+  filters: NodeFilters;
 
   exposeExtension: boolean;
   exposeAITool: boolean;

@@ -15,7 +15,6 @@ interface CommandOpts {
 async function startDemoServer(baseDir: string, opts: CommandOpts) {
   const port = opts.port ? parseInt(opts.port) : PORT;
   const tenants = await setupTenants({
-    ocrEngine: ["tesseract/tesseract_ocr_engine.ts"],
     tenants: [
       {
         name: "demo",

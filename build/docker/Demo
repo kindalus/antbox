@@ -6,11 +6,6 @@ RUN echo "http://dl-cdn.alpinelinux.org/alpine/v3.17/community" >> /etc/apk/repo
 RUN apk update
 
 
-RUN apk add --no-cache libstdc++ 
-RUN apk add --no-cache  tesseract-ocr 
-RUN apk add --no-cache tesseract-ocr-data-por 
-RUN apk add --no-cache ghostscript 
-RUN apk add --no-cache ffmpeg
 
 ADD https://worldtimeapi.org/api/timezone/Etc/UTC /.timestamp
 
@@ -29,4 +24,3 @@ RUN addgroup -S antx && adduser -S antx -G antx
 VOLUME [ "/data" ]
 
 CMD ["deno", "run", "-A", "demo.ts", "/data"]
-

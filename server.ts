@@ -13,14 +13,12 @@ interface TenantConfig {
 interface ServerConfig {
   tenants: TenantConfig[];
   port?: number;
-  ocrEngine?: [string];
 }
 
 export default async function startServer(config: ServerConfig) {
   const port = config.port || PORT;
 
   const tenants = await setupTenants({
-    ocrEngine: config.ocrEngine || ["tesseract/tesseract_ocr_engine.ts"],
     tenants: config.tenants.map((tenant) => ({
       name: tenant.name,
       rootPasswd: tenant.rootPasswd,

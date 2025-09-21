@@ -8,9 +8,13 @@
     "shared/": "./src/shared/",
 
     "bdd": "jsr:@std/testing/bdd",
+
     "expect": "jsr:@std/expect",
+    "fs": "jsr:@std/fs",
+
     "path": "jsr:@std/path",
     "mock": "jsr:@std/testing/mock",
+    "toml": "jsr:@std/toml",
 
     "@googleapis/drive": "npm:@googleapis/drive",
     "@oak/oak": "jsr:@oak/oak@^17.1.6",

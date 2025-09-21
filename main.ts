@@ -1,12 +1,10 @@
 import { Command } from "commander";
-import { exists } from "https://deno.land/std@0.208.0/fs/mod.ts";
-import { parse } from "https://deno.land/std@0.208.0/toml/mod.ts";
 import { printServerKeys } from "./src/print_server_keys.ts";
-import { setupTenants } from "./src/setup/setup_tenants.ts";
-import { setupOakServer } from "./src/adapters/oak/setup_oak_server.ts";
-import { setupH3Server } from "./src/adapters/h3/setup_h3_server.ts";
-import { PORT } from "./src/setup/server_defaults.ts";
-import type { ServerConfiguration } from "./src/api/http_server_configuration.ts";
+import { setupTenants } from "setup/setup_tenants.ts";
+import { PORT } from "setup/server_defaults.ts";
+import { parse } from "toml";
+import { fileExistsSync } from "shared/os_helpers.ts";
+import { ServerConfiguration } from "api/http_server_configuration.ts";
 import process from "node:process";
 
 interface CommandOpts {
@@ -16,42 +14,20 @@ interface CommandOpts {
   sandbox?: boolean;
 }
 
-interface TomlConfiguration {
-  engine: string;
-  port?: number;
-  tenants: Array<{
-    name: string;
-    rootPasswd?: string;
-    key?: string;
-    jwk?: string;
-    storage?: [string, ...string[]];
-    repository?: [string, ...string[]];
-  }>;
-}
-
 async function loadConfiguration(
   configPath: string,
 ): Promise<ServerConfiguration> {
-  if (!(await exists(configPath))) {
+  if (!(fileExistsSync(configPath))) {
     console.error(`Configuration file not found: ${configPath}`);
     Deno.exit(1);
   }
 
   const configText = await Deno.readTextFile(configPath);
-  const tomlConfig = parse(configText) as TomlConfiguration;
+  const config = parse(configText) as unknown as ServerConfiguration;
 
-  return {
-    port: tomlConfig.port || PORT,
-    engine: tomlConfig.engine,
-    tenants: tomlConfig.tenants.map((tenant) => ({
-      name: tenant.name,
-      rootPasswd: tenant.rootPasswd,
-      symmetricKey: tenant.key,
-      jwkPath: tenant.jwk,
-      storage: tenant.storage,
-      repository: tenant.repository,
-    })),
-  };
+  if (!config.port) config.port = PORT;
+
+  return config;
 }
 
 async function startServer(config: ServerConfiguration) {
@@ -59,14 +35,14 @@ async function startServer(config: ServerConfiguration) {
     tenants: config.tenants,
   });
 
+  const serverLocation = `adapters/${config.engine}/server.ts`;
   let startServerFn;
-
-  if (config.engine === "oak") {
-    startServerFn = setupOakServer(tenants);
-  } else if (config.engine === "h3") {
-    startServerFn = setupH3Server(tenants);
-  } else {
-    console.error(`Unknown engine: ${config.engine}`);
+  try {
+    const setupServer = await import(`./src/${serverLocation}`);
+    startServerFn = setupServer.default(tenants);
+  } catch (error) {
+    console.error(`Failed to load server engine module: ${serverLocation}`);
+    console.error(error);
     Deno.exit(1);
   }
 

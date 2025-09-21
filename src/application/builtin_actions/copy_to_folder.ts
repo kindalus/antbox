@@ -1,5 +1,5 @@
-import type { Action } from "domain/features/action.ts";
 import type { RunContext } from "domain/features/feature_run_context.ts";
+import { Feature } from "domain/features/feature.ts";
 
 export default {
   uuid: "copy_to_folder",
@@ -46,4 +46,4 @@ export default {
 
     return;
   },
-} as Action;
+} as unknown as Feature;

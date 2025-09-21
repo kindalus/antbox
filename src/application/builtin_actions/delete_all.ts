@@ -1,9 +1,9 @@
-import type { Action } from "domain/features/action.ts";
 import type { RunContext } from "domain/features/feature_run_context.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import { AntboxError } from "shared/antbox_error.ts";
 import { type Either } from "shared/either.ts";
+import { Feature } from "domain/features/feature.ts";
 
 export default {
   uuid: "delete_all",
@@ -38,7 +38,7 @@ export default {
 
     return;
   },
-} as Action;
+} as unknown as Feature;
 
 function errorResultsOnly(voidOrErr: Either<NodeNotFoundError, void>): boolean {
   return voidOrErr.isLeft();

@@ -1,11 +1,11 @@
 import type { AuthenticationContext } from "application/authentication_context.ts";
 import type { NodeService } from "application/node_service.ts";
-import type { Action } from "domain/features/action.ts";
 import type { RunContext } from "domain/features/feature_run_context.ts";
 import { Folders } from "domain/nodes/folders.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import { AntboxError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
+import { Feature } from "domain/features/feature.ts";
 
 export default {
   uuid: "move_up",
@@ -67,7 +67,7 @@ export default {
 
     return;
   },
-} as Action;
+} as unknown as Feature;
 
 function updateTaskPredicate(
   ctx: AuthenticationContext,

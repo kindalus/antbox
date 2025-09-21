@@ -9,8 +9,8 @@ export type ModuleConfiguration = [modulePath: string, ...params: string[]];
 export interface TenantConfiguration {
   name: string;
   rootPasswd?: string;
-  symmetricKey?: string;
-  jwkPath?: string;
+  key?: string;
+  jwk?: string;
   storage?: ModuleConfiguration;
   repository?: ModuleConfiguration;
 }

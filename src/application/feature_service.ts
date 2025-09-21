@@ -171,7 +171,7 @@ export class FeatureService {
     const updateMetadataOrErr = await this._nodeService.update(ctx, uuid, {
       title: newFeatureMetadata.title,
       description: newFeatureMetadata.description,
-      exposeAction: newFeatureMetadata.exposeAction,
+      exposeFeature: newFeatureMetadata.exposeFeature,
       runOnCreates: newFeatureMetadata.runOnCreates,
       runOnUpdates: newFeatureMetadata.runOnUpdates,
       runManually: newFeatureMetadata.runManually,
@@ -309,7 +309,7 @@ export class FeatureService {
 
   // === ACTION METHODS ===
 
-  async getAction(
+  async getFeature(
     ctx: AuthenticationContext,
     uuid: string,
   ): Promise<Either<NodeNotFoundError, FeatureNode>> {
@@ -317,9 +317,7 @@ export class FeatureService {
 
     if (found) {
       return right(
-        FeatureNode.create(
-          actionToNodeMetadata(found, Users.ROOT_USER_EMAIL) as any,
-        )
+        FeatureNode.create({ ...found.metadata, owner: Users.ROOT_USER_EMAIL })
           .right,
       );
     }
@@ -330,14 +328,14 @@ export class FeatureService {
       return left(nodeOrErr.value);
     }
 
-    if (!Nodes.isAction(nodeOrErr.value)) {
+    if (!Nodes.isFeature(nodeOrErr.value)) {
       return left(new NodeNotFoundError(uuid));
     }
 
     return right(nodeOrErr.value as FeatureNode);
   }
 
-  async listActions(
+  async listFeatures(
     ctx: AuthenticationContext,
   ): Promise<Either<AntboxError, NodeLike[]>> {
     // Get features that are exposed as actions
@@ -346,7 +344,7 @@ export class FeatureService {
       [
         ["mimetype", "==", Nodes.FEATURE_MIMETYPE],
         ["parent", "==", Folders.FEATURES_FOLDER_UUID],
-        ["exposeAction", "==", true],
+        ["exposeFeature", "==", true],
       ],
       Number.MAX_SAFE_INTEGER,
     );
@@ -370,10 +368,8 @@ export class FeatureService {
     const nodes: NodeLike[] = [
       ...featureNodes,
       ...actionNodes,
-      ...builtinActions.map((a) =>
-        FeatureNode.create(
-          actionToNodeMetadata(a, Users.ROOT_USER_EMAIL) as any,
-        )
+      ...builtinFeatures.map((a) =>
+        FeatureNode.create({ ...a.metadata, owner: Users.ROOT_USER_EMAIL })
           .right
       ),
     ].sort((a, b) => a.title.localeCompare(b.title));
@@ -381,7 +377,7 @@ export class FeatureService {
     return right(nodes);
   }
 
-  async createOrReplaceAction(
+  async createOrReplaceFeature(
     ctx: AuthenticationContext,
     file: File,
   ): Promise<Either<AntboxError, Node>> {
@@ -425,11 +421,11 @@ export class FeatureService {
     return right(updatedNodeOrErr.value);
   }
 
-  async deleteAction(
+  async deleteFeature(
     ctx: AuthenticationContext,
     uuid: string,
   ): Promise<Either<AntboxError, void>> {
-    const featureOrErr = await this.getAction(ctx, uuid);
+    const featureOrErr = await this.getFeature(ctx, uuid);
 
     if (featureOrErr.isLeft()) {
       return left(featureOrErr.value);
@@ -438,11 +434,11 @@ export class FeatureService {
     return this._nodeService.delete(ctx, uuid);
   }
 
-  async exportAction(
+  async exportFeature(
     ctx: AuthenticationContext,
     uuid: string,
   ): Promise<Either<AntboxError, File>> {
-    const featureOrErr = await this.getAction(ctx, uuid);
+    const featureOrErr = await this.getFeature(ctx, uuid);
 
     if (featureOrErr.isLeft()) {
       return left(featureOrErr.value);
@@ -458,13 +454,13 @@ export class FeatureService {
     return right(fileOrErr.value);
   }
 
-  async runAction(
+  async runFeature(
     ctx: AuthenticationContext,
     actionUuid: string,
     uuids: string[],
     params?: Record<string, unknown>,
   ): Promise<Either<AntboxError, unknown>> {
-    const featureOrErr = await this.#getNodeAsAction(ctx, actionUuid);
+    const featureOrErr = await this.#getNodeAsRunnableFeature(ctx, actionUuid);
 
     if (featureOrErr.isLeft()) {
       return left(featureOrErr.value);
@@ -473,10 +469,14 @@ export class FeatureService {
     const action: Feature = featureOrErr.value;
 
     if (!action.runManually && ctx.mode === "Direct") {
-      return left(new BadRequestError("Action cannot be run manually"));
+      return left(new BadRequestError("Feature cannot be run manually"));
     }
 
-    const filteredResults = await this.#filterUuidsByAction(ctx, action, uuids);
+    const filteredResults = await this.#filterUuidsByFeature(
+      ctx,
+      action,
+      uuids,
+    );
     const filteredUuids = filteredResults
       .filter((u) => u.passed)
       .map((u) => u.uuid);
@@ -507,10 +507,10 @@ export class FeatureService {
     }
   }
 
-  async runAutomaticActionsForCreates(evt: NodeCreatedEvent) {
+  async runAutomaticFeaturesForCreates(evt: NodeCreatedEvent) {
     const runCriteria: NodeFilter = ["runOnCreates", "==", true];
 
-    const actions = await this.#getAutomaticActions(runCriteria);
+    const actions = await this.#getAutomaticFeatures(runCriteria);
 
     for (const feature of actions) {
       const filterOrErr = NodesFilters.satisfiedBy(
@@ -539,13 +539,13 @@ export class FeatureService {
     }
   }
 
-  async runAutomaticActionsForUpdates(
+  async runAutomaticFeaturesForUpdates(
     ctx: AuthenticationContext,
     evt: NodeUpdatedEvent,
   ) {
     const runCriteria: NodeFilter = ["runOnUpdates", "==", true];
 
-    const actions = await this.#getAutomaticActions(runCriteria);
+    const actions = await this.#getAutomaticFeatures(runCriteria);
 
     for (const feature of actions) {
       const filterOrErr = NodesFilters.satisfiedBy(
@@ -830,10 +830,10 @@ export class FeatureService {
     return right(featureOrErr.value);
   }
 
-  async #getNodeAsAction(
+  async #getNodeAsRunnableFeature(
     ctx: AuthenticationContext,
     uuid: string,
-  ): Promise<Either<AntboxError, Action>> {
+  ): Promise<Either<AntboxError, Feature>> {
     if (builtinActions.some((a) => a.uuid === uuid)) {
       return right(builtinActions.find((a) => a.uuid === uuid)!);
     }
@@ -844,7 +844,7 @@ export class FeatureService {
       return left(nodeOrErr.value);
     }
 
-    if (!Nodes.isAction(nodeOrErr.value)) {
+    if (!Nodes.isFeature(nodeOrErr.value)) {
       return left(new NodeNotFoundError(uuid));
     }
 
@@ -882,11 +882,11 @@ export class FeatureService {
     return right(module.default);
   }
 
-  async #getAutomaticActions(
+  async #getAutomaticFeatures(
     criteria: NodeFilter,
-  ): Promise<Action[]> {
+  ): Promise<Feature[]> {
     // Get builtin actions that match criteria
-    const builtinMatches = builtinActions.filter((a) => {
+    const builtinMatches = builtinFeatures.filter((a) => {
       const [key, op, value] = criteria;
       return op === "=="
         ? (a as any)[key] === value
@@ -910,7 +910,7 @@ export class FeatureService {
 
     const actions = [];
     for (const node of actionsOrErrs.value.nodes) {
-      const featureOrErr = await this.#getNodeAsAction(
+      const featureOrErr = await this.#getNodeAsRunnableFeature(
         UsersGroupsService.elevatedContext,
         node.uuid,
       );
@@ -923,9 +923,9 @@ export class FeatureService {
     return [...builtinMatches, ...actions];
   }
 
-  async #filterUuidsByAction(
+  async #filterUuidsByFeature(
     ctx: AuthenticationContext,
-    action: Action,
+    action: Feature,
     uuids: string[],
   ): Promise<Array<{ uuid: string; passed: boolean }>> {
     const promises = uuids.map(async (uuid) => {
@@ -955,7 +955,7 @@ export class FeatureService {
       id: node.uuid,
       name: node.title,
       description: node.description || "",
-      exposeAction: node.exposeAction,
+      exposeFeature: node.exposeFeature,
       runOnCreates: node.runOnCreates,
       runOnUpdates: node.runOnUpdates,
       runManually: node.runManually,
@@ -985,7 +985,7 @@ export class FeatureService {
       return this.runFeature(ctx, uuid, argsOrUuids);
     }
     // Otherwise, run as action
-    return this.runAction(ctx, uuid, argsOrUuids as string[], params);
+    return this.runFeature(ctx, uuid, argsOrUuids as string[], params);
   }
 
   // === COMPATIBILITY ALIASES ===
@@ -996,7 +996,7 @@ export class FeatureService {
   }
 
   get(ctx: AuthenticationContext, uuid: string) {
-    return this.getAction(ctx, uuid);
+    return this.getFeature(ctx, uuid);
   }
 
   updateFile(ctx: AuthenticationContext, uuid: string, file: File) {

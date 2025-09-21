@@ -5,18 +5,13 @@ import { Nodes } from "domain/nodes/nodes.ts";
 import { AntboxError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
 import { ValidationError } from "shared/validation_error.ts";
-import {
-  PropertyFormatError,
-  PropertyRequiredError,
-  PropertyTypeError,
-  UnknownPropertyError,
-} from "domain/nodes/property_errors.ts";
 import { z } from "zod";
+import { toPropertyError } from "../validation_schemas.ts";
 
 const UserValidationSchema = z.object({
   // Title must have at least first name and last name
   title: z.string().regex(
-    /^\s*\S+(?:\s+\S+)+\s*$/,
+    /^(\s*\S+(?:\s+\S+)+\s*|root|anonymous)$/,
     "Full name must include at least first name and last name",
   ),
   group: z.string().min(1, "User must have at least one group"),
@@ -88,39 +83,22 @@ export class UserNode extends Node {
   }
 
   protected _validateUserNode() {
-    const result = UserValidationSchema.safeParse(this.metadata);
+    const errors: AntboxError[] = [];
 
-    if (!result.success) {
-      const errors: AntboxError[] = [];
+    const nodeError = super._safeValidateNode();
+    if (nodeError) {
+      errors.push(...nodeError.errors);
+    }
 
-      for (const issue of result.error.issues) {
-        const fieldName = issue.path.length > 0
-          ? String(issue.path[0])
-          : "unknown";
+    const userValidation = UserValidationSchema.safeParse(this.metadata);
+    if (!userValidation.success) {
+      errors.push(
+        ...userValidation.error.issues.map(toPropertyError("UserNode")),
+      );
+    }
 
-        switch (issue.code) {
-          case "too_small":
-            errors.push(new PropertyRequiredError(fieldName));
-            break;
-
-          case "invalid_format":
-            errors.push(
-              new PropertyFormatError(fieldName, issue.format, issue.message),
-            );
-            break;
-
-          case "invalid_type":
-            errors.push(
-              new PropertyTypeError(fieldName, issue.expected, issue.message),
-            );
-            break;
-
-          default:
-            errors.push(new UnknownPropertyError(fieldName, issue.message));
-        }
-
-        throw ValidationError.from(...errors);
-      }
+    if (errors.length) {
+      throw ValidationError.from(...errors);
     }
   }
   get email(): string {

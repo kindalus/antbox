@@ -10,7 +10,7 @@ import { $ZodIssue } from "zod/v4/core";
 
 export function uuid() {
   const uuidValidationSchema = z.string().regex(
-    /^(\w{8,}|---\w+---)$/,
+    /^(\w{6,}|--[\w-]+--)$/,
     "Invalid UUID format",
   );
 
@@ -34,7 +34,7 @@ export function toPropertyError(
           `${issue.minimum ? "at least" : "exactly"} ${
             issue.minimum ?? issue.exact
           } characters long`,
-          `"${issue.input}"`,
+          issue.message,
         );
 
       case "invalid_format":

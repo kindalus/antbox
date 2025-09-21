@@ -17,17 +17,20 @@ import { UsersGroupsService } from "application/users_groups_service.ts";
 import { AuthService } from "application/auth_service.ts";
 import { ApiKeyService } from "application/api_key_service.ts";
 
+import {} from "path";
+import { resolve } from "path";
+
 export function setupTenants(
-  o: ServerConfiguration,
+  cfg: ServerConfiguration,
 ): Promise<AntboxTenant[]> {
-  return Promise.all(o.tenants.map(setupTenant));
+  return Promise.all(cfg.tenants.map(setupTenant));
 }
 
 async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
   const passwd = cfg?.rootPasswd ?? ROOT_PASSWD;
-  const symmetricKey = await loadSymmetricKey(cfg?.symmetricKey);
+  const symmetricKey = await loadSymmetricKey(cfg?.key);
 
-  const rawJwk = await loadJwk(cfg?.jwkPath);
+  const rawJwk = await loadJwk(cfg?.jwk);
   const repository = await providerFrom<NodeRepository>(cfg?.repository);
   const storage = await providerFrom<StorageProvider>(cfg?.storage);
   const eventBus = new InMemoryEventBus();
@@ -63,7 +66,7 @@ async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
 
 async function loadJwk(jwkPath?: string): Promise<Record<string, string>> {
   if (!jwkPath) {
-    return JWK;
+    jwkPath = JWK;
   }
 
   try {
@@ -77,7 +80,7 @@ async function loadJwk(jwkPath?: string): Promise<Record<string, string>> {
       }
       content = await response.text();
     } else {
-      // Local file path
+      jwkPath = resolve(jwkPath);
       content = await Deno.readTextFile(jwkPath);
     }
 
@@ -94,7 +97,7 @@ async function loadJwk(jwkPath?: string): Promise<Record<string, string>> {
 
 async function loadSymmetricKey(keyPath?: string): Promise<string> {
   if (!keyPath) {
-    return SYMMETRIC_KEY;
+    keyPath = SYMMETRIC_KEY;
   }
 
   // If it looks like a key value (base64), return it directly
@@ -103,7 +106,7 @@ async function loadSymmetricKey(keyPath?: string): Promise<string> {
   }
 
   try {
-    // Otherwise, treat it as a file path
+    keyPath = resolve(keyPath);
     const content = await Deno.readTextFile(keyPath);
     return content.trim();
   } catch (error) {

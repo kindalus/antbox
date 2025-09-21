@@ -25,6 +25,33 @@ Everything in Antbox is represented as a **Node** with rich metadata and extensi
 - **Article Nodes**: Rich text content with markdown support
 - **API Key Nodes**: Programmatic access credentials
 
+### NodeFilter - Powerful Query System
+
+**NodeFilter** is a fundamental concept that enables sophisticated content discovery and automation throughout Antbox:
+
+- **Tuple-based queries**: `[field, operator, value]` format for precise filtering
+- **Complex logic**: Support for AND/OR combinations across multiple criteria
+- **Deep field access**: Query nested properties using dot notation (`metadata.size`, `aspects.custom.category`)
+- **Rich operators**: Equality, comparison, array operations, and fuzzy text matching
+- **Universal application**: Used in search APIs, smart folders, feature targeting, and access control
+
+**Example NodeFilter queries:**
+
+```javascript
+// Find all PDF files larger than 1MB
+[
+  ["mimetype", "==", "application/pdf"],
+  ["size", ">", 1048576],
+][
+  // Find nodes with specific tags OR in certain folders
+  ([["tags", "contains", "urgent"]], [["parent", "==", "folder-uuid"]])
+][
+  // Complex aspect-based filtering
+  (["aspects.document.category", "==", "report"],
+  ["metadata.name", "match", "2024"])
+];
+```
+
 ## Key Features
 
 - **Multi-tenancy**: Efficiently manage multiple tenants within a single instance

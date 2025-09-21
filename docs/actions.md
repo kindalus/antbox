@@ -54,8 +54,8 @@ interface FeatureNode {
   runManually: boolean; // Can be executed manually
   runAs?: string; // Execute as specific user
 
-  // Filtering
-  filters: NodeFilters; // When this feature applies
+  // Filtering - Uses NodeFilter system for precise targeting
+  filters: NodeFilters; // When this feature applies (see NodeFilter documentation)
   groupsAllowed: string[]; // Which groups can execute
 }
 ```
@@ -75,6 +75,44 @@ interface FeatureParameter {
   defaultValue?: any;
 }
 ```
+
+### NodeFilter Integration
+
+Features use the powerful **NodeFilter** system to determine when they should be executed. This allows for sophisticated targeting based on node properties, metadata, and aspects:
+
+```typescript
+// Action that applies only to PDF files larger than 1MB
+{
+  filters: [
+    ["mimetype", "==", "application/pdf"],
+    ["size", ">", 1048576],
+  ];
+}
+
+// Action for urgent documents in specific folders
+{
+  filters: [
+    [["tags", "contains", "urgent"]],
+    [["parent", "==", "reports-folder-uuid"]],
+  ];
+}
+
+// Complex aspect-based targeting
+{
+  filters: [
+    ["aspects.document.category", "==", "contract"],
+    ["aspects.document.status", "!=", "archived"],
+  ];
+}
+```
+
+**Key NodeFilter capabilities for Actions:**
+
+- **Field access**: Query any node property using dot notation
+- **Operator support**: Equality, comparison, array operations, text matching
+- **Complex logic**: AND/OR combinations for precise targeting
+- **Aspect integration**: Filter based on custom aspect properties
+- **Performance**: Efficient evaluation across large node collections
 
 ## Features as Actions
 

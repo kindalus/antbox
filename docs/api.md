@@ -407,20 +407,105 @@ Execute a feature as an extension using POST method.
 }
 ```
 
-### Query Filters
+### NodeFilter Query System
 
-Supported operators:
+NodeFilter is the core query mechanism in Antbox, providing powerful and flexible content discovery capabilities. It uses a tuple-based format: `[field, operator, value]`.
 
-- `equals`, `=`: Exact match
-- `not_equals`, `!=`: Not equal
-- `contains`: String contains (case-insensitive)
-- `starts_with`: String starts with
-- `ends_with`: String ends with
-- `>`, `>=`, `<`, `<=`: Numeric/date comparisons
-- `in`: Value in array
-- `not_in`: Value not in array
-- `exists`: Property exists
-- `not_exists`: Property doesn't exist
+#### Supported Filter Operators
+
+**Equality & Comparison:**
+
+- `==`: Exact equality match
+- `!=`: Not equal
+- `<`, `<=`, `>`, `>=`: Numeric/date comparisons
+
+**Array Operations:**
+
+- `in`: Value exists in array
+- `not-in`: Value does not exist in array
+- `contains`: Array contains specific value
+- `contains-all`: Array contains all specified values
+- `contains-any`: Array contains any of the specified values
+- `not-contains`: Array does not contain value
+- `contains-none`: Array contains none of the specified values
+
+**Text Matching:**
+
+- `match`: Regex-based fuzzy matching (case-insensitive)
+
+#### NodeFilter Structure Types
+
+**1D Filters (AND Logic):**
+
+```json
+[
+  ["mimetype", "==", "application/pdf"],
+  ["size", ">", 1048576]
+]
+```
+
+**2D Filters (OR between groups, AND within groups):**
+
+```json
+[
+  [
+    ["type", "==", "file"],
+    ["size", ">", 1000]
+  ],
+  [
+    ["type", "==", "folder"],
+    ["name", "match", "important"]
+  ]
+]
+```
+
+#### Field Path Resolution
+
+NodeFilter supports deep property access using dot notation:
+
+```json
+[
+  ["metadata.name", "match", "document"],
+  ["aspects.custom.category", "==", "report"],
+  ["tags", "contains", "urgent"]
+]
+```
+
+#### Example Filter Queries
+
+**Find all PDF files larger than 1MB:**
+
+```json
+{
+  "filters": [
+    ["mimetype", "==", "application/pdf"],
+    ["size", ">", 1048576]
+  ]
+}
+```
+
+**Find urgent files OR files in specific folder:**
+
+```json
+{
+  "filters": [
+    [["tags", "contains", "urgent"]],
+    [["parent", "==", "folder-uuid-here"]]
+  ]
+}
+```
+
+**Complex aspect-based filtering:**
+
+```json
+{
+  "filters": [
+    ["aspects.document.category", "==", "report"],
+    ["metadata.name", "match", "2024"],
+    ["size", ">=", 500000]
+  ]
+}
+```
 
 ## Error Handling
 

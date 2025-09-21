@@ -7,6 +7,7 @@
   - [1. Node - The Foundation](#1-node---the-foundation)
   - [2. Node Types](#2-node-types)
   - [3. Aspects - Extensible Schema](#3-aspects---extensible-schema)
+  - [4. NodeFilter - Query System](#4-nodefilter---query-system)
 
 - [Node Architecture](#node-architecture)
 - [Practical Examples](#practical-examples)
@@ -133,6 +134,72 @@ Aspects are applied to nodes based on filters:
 - **Path filters**: Apply to content in specific locations
 - **Property filters**: Apply based on existing node properties
 - **Custom filters**: Complex rule-based application
+
+### 4. NodeFilter - Query System
+
+NodeFilter is a fundamental concept that enables sophisticated querying and filtering of nodes throughout Antbox. It provides a unified way to express search criteria, apply business rules, and automate workflows.
+
+#### Filter Structure
+
+NodeFilter uses a tuple-based approach: `[field, operator, value]`
+
+```typescript
+type NodeFilter = [field: string, operator: FilterOperator, value: unknown];
+
+// Examples:
+["mimetype", "==", "application/pdf"][("size", ">", 1048576)][
+  ("aspects.document.category", "==", "report")
+];
+```
+
+#### Filter Combinations
+
+**1D Filters (AND logic):**
+
+```typescript
+// Find PDF files larger than 1MB
+[
+  ["mimetype", "==", "application/pdf"],
+  ["size", ">", 1048576],
+];
+```
+
+**2D Filters (OR between groups, AND within groups):**
+
+```typescript
+// Find urgent files OR files in specific folder
+[[["tags", "contains", "urgent"]], [["parent", "==", "folder-uuid"]]];
+```
+
+#### Supported Operations
+
+- **Equality**: `==`, `!=`
+- **Comparison**: `<`, `<=`, `>`, `>=`
+- **Array operations**: `in`, `not-in`, `contains`, `contains-all`, `contains-any`, `not-contains`, `contains-none`
+- **Text matching**: `match` (fuzzy regex-based matching)
+
+#### Deep Property Access
+
+NodeFilter supports dot notation for accessing nested properties:
+
+```typescript
+// Access node metadata
+["metadata.name", "match", "document"][
+  // Access aspect properties
+  ("aspects.custom.category", "==", "important")
+][
+  // Access array elements
+  ("tags", "contains", "urgent")
+];
+```
+
+#### Key Use Cases
+
+1. **Content Discovery**: Power the `/nodes/-/find` API endpoint
+2. **Smart Folders**: Dynamic content aggregation based on criteria
+3. **Feature Targeting**: Actions and Extensions use filters to determine applicability
+4. **Aspect Application**: Aspects use filters to determine which nodes they apply to
+5. **Access Control**: Folder-based security leverages filters for permission evaluation
 
 ## Node Architecture
 

@@ -150,11 +150,92 @@ graph TB
 
     class HttpServer,AuthMiddleware,Handlers,TenantMgmt apiLayer
     class NodeService,AspectService,ActionService,SkillService,AuthService,UserGroupService,ExtService,ArticleService,ApiKeyService appLayer
-    class Node,Aspect,Action,Skill,User,NodeRepo,StorageProvider,NodeFilters,NodeFactory domainLayer
+    class Node,Aspect,Action,Skill,User,NodeRepo,StorageProvider,NodeFilters,NodeFactory,NodesFilters domainLayer
     class InMemRepo,PouchDB,MongoDB,InMemStorage,FlatFile,S3Storage,GoogleDrive,OakAdapter,H3Adapter,NullStorage adapterLayer
     class TenantSetup,ServerDefaults setupLayer
     class JWT,FileSystem,Database,CloudStorage external
 ```
+
+## NodeFilter - A Key Architectural Concept
+
+**NodeFilter** is one of the most important concepts in Antbox, providing a powerful and flexible way to query, filter, and match nodes across the entire system. It serves as the foundation for content discovery, smart folders, feature targeting, and automated workflows.
+
+### NodeFilter Structure
+
+A NodeFilter is a tuple-based query system:
+
+```typescript
+type NodeFilter = [field: string, operator: FilterOperator, value: unknown];
+```
+
+**Supported Operators:**
+
+- **Equality**: `==`, `!=`
+- **Comparison**: `<`, `<=`, `>`, `>=`
+- **Array operations**: `in`, `not-in`, `contains`, `contains-all`, `contains-any`, `not-contains`, `contains-none`
+- **Text matching**: `match` (regex-based fuzzy matching)
+
+### NodeFilters Combinations
+
+NodeFilter supports both simple and complex query structures:
+
+```typescript
+// 1D Filters (AND logic within array)
+type NodeFilters1D = NodeFilter[];
+// Example: [["type", "==", "file"], ["size", ">", 1000]]
+// Matches: nodes that are files AND larger than 1000 bytes
+
+// 2D Filters (OR logic between arrays, AND within arrays)
+type NodeFilters2D = NodeFilters1D[];
+// Example: [[["type", "==", "file"]], [["type", "==", "folder"]]]
+// Matches: nodes that are files OR folders
+```
+
+### Core Use Cases
+
+1. **Content Discovery**: The `/nodes/-/find` API endpoint uses NodeFilter for powerful search capabilities
+2. **Smart Folders**: Dynamic content aggregation based on filter criteria
+3. **Feature Targeting**: Actions and Extensions use filters to determine when they apply
+4. **Access Control**: Folder-based security leverages filters for permission evaluation
+5. **System Folders**: Built-in folders use filters to automatically organize content
+
+### Implementation Architecture
+
+**NodesFilters Class** (`src/domain/nodes_filters.ts`):
+
+- Converts NodeFilter expressions into executable specifications
+- Provides field path resolution (e.g., `"metadata.size"`, `"aspects.custom.value"`)
+- Implements all filter operators with type safety
+
+**Repository Integration**:
+
+- **MongoDB**: Translates filters to MongoDB query syntax
+- **PouchDB**: Converts to Mango query format
+- **In-Memory**: Uses JavaScript predicates for filtering
+- **Flat File**: Delegates to in-memory implementation
+
+**API Integration**:
+
+- **POST /nodes/-/find**: Accept filters in request body
+- **GET /nodes?parent=uuid**: Built-in parent folder filtering
+- Smart folder resolution uses filters for dynamic content
+
+### Field Path Resolution
+
+NodeFilter supports deep field access using dot notation:
+
+```typescript
+// Access node metadata
+["metadata.name", "match", "document"][
+  // Access aspect properties
+  ("aspects.custom.category", "==", "important")
+][
+  // Access array elements
+  ("tags", "contains", "urgent")
+];
+```
+
+This makes NodeFilter incredibly powerful for querying complex node structures and custom aspects.
 
 ## Architectural Layers
 

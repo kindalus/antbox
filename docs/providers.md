@@ -223,12 +223,49 @@ interface NodeRepository {
   delete(uuid: string): Promise<Either<AntboxError, void>>;
   get(uuid: string): Promise<Either<NodeNotFoundError, NodeLike>>;
   find(
-    filters: NodeFilters,
+    filters: NodeFilters, // Uses powerful NodeFilter system for querying
     limit?: number,
     offset?: number,
   ): Promise<NodeFilterResult>;
 }
 ```
+
+### NodeFilter Integration
+
+The `find` method uses Antbox's powerful **NodeFilter** system for sophisticated querying:
+
+```typescript
+// The NodeFilter system supports:
+// - Tuple format: [field, operator, value]
+// - Complex combinations: AND/OR logic
+// - Deep property access: dot notation
+// - Rich operators: equality, comparison, array ops, text matching
+
+interface NodeFilterResult {
+  nodes: NodeLike[];
+  pageToken: number;
+  pageSize: number;
+}
+
+// Example repository usage:
+const result = await repository.find(
+  [
+    ["mimetype", "==", "application/pdf"],
+    ["size", ">", 1048576],
+  ],
+  20,
+  1,
+);
+```
+
+**Repository Implementation Notes:**
+
+- **MongoDB**: Translates NodeFilter to MongoDB query syntax
+- **PouchDB**: Converts to Mango query format
+- **In-Memory**: Uses JavaScript predicates for filtering
+- **Flat File**: Delegates to in-memory implementation
+
+Each repository adapter must handle the full NodeFilter specification to ensure consistent behavior across storage backends.
 
 ## Configuration Examples
 

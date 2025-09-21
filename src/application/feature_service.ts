@@ -27,7 +27,7 @@ import { NodeService } from "application/node_service.ts";
 import { UsersGroupsService } from "application/users_groups_service.ts";
 import { FeatureDTO } from "application/feature_dto.ts";
 import { RunContext } from "domain/features/feature_run_context.ts";
-import { builtinActions } from "application/builtin_actions/index.ts";
+import { builtinActions } from "application/builtin_features/index.ts";
 
 type RecordKey = [string, string];
 interface RunnableRecord {

@@ -6,36 +6,52 @@ import { AntboxError } from "shared/antbox_error.ts";
 import { type Either } from "shared/either.ts";
 import { Feature } from "domain/features/feature.ts";
 
-export default {
+const moveToFolder: Feature = {
   uuid: "move_to_folder",
-  title: "Mover para pasta",
-  description: "Move os nós para uma pasta",
-  builtIn: true,
-  multiple: true,
+  name: "move_to_folder",
+  description: "Move nodes to a target folder",
+  exposeAction: true,
+  runOnCreates: false,
+  runOnUpdates: false,
+  runManually: true,
   filters: [],
+  exposeExtension: false,
+  exposeAITool: true,
+  runAs: undefined,
+  groupsAllowed: [],
   parameters: [
     {
       name: "to",
       type: "string",
       required: true,
       description: "Target folder UUID",
+      defaultValue: undefined,
+    },
+    {
+      name: "uuids",
+      type: "array",
+      arrayType: "string",
+      required: true,
+      description: "Array of node UUIDs to move",
+      defaultValue: undefined,
     },
   ],
-  runManually: true,
-  runOnCreates: false,
-  runOnUpdates: false,
-
-  groupsAllowed: [],
+  returnType: "void",
+  returnDescription: "Moves the specified nodes to the target folder",
 
   async run(
     ctx: RunContext,
-    uuids: string[],
-    params: Record<string, string>,
-  ): Promise<void | Error> {
-    const parent = params["to"];
+    args: Record<string, unknown>,
+  ): Promise<void> {
+    const parent = args["to"] as string;
+    const uuids = args["uuids"] as string[];
 
     if (!parent) {
-      return new Error("Error parameter not given");
+      throw new Error("Target folder UUID parameter 'to' is required");
+    }
+
+    if (!uuids || !Array.isArray(uuids) || uuids.length === 0) {
+      throw new Error("Node UUIDs parameter 'uuids' is required");
     }
 
     const toUpdateTask = updateTaskPredicate(
@@ -51,12 +67,10 @@ export default {
     const errors = results.filter(errorResultsOnly);
 
     if (errors.length > 0) {
-      return errors[0].value as AntboxError;
+      throw errors[0].value as AntboxError;
     }
-
-    return;
   },
-} as unknown as Feature;
+};
 
 function updateTaskPredicate(
   ctx: AuthenticationContext,
@@ -71,3 +85,5 @@ function errorResultsOnly(
 ): boolean {
   return voidOrErr.isLeft();
 }
+
+export default moveToFolder;

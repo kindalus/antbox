@@ -7,15 +7,14 @@ import { AntboxError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
 import { Feature } from "domain/features/feature.ts";
 
-export default {
+const moveUp: Feature = {
   uuid: "move_up",
-  title: "Mover para cima",
-  description: "Move o nó para uma pasta acima",
-  builtIn: true,
-  multiple: false,
-  runManually: true,
+  name: "move_up",
+  description: "Move nodes one level up in the folder hierarchy",
+  exposeAction: true,
   runOnCreates: false,
   runOnUpdates: false,
+  runManually: true,
   filters: [
     [
       "parent",
@@ -31,14 +30,33 @@ export default {
       ],
     ],
   ],
+  exposeExtension: false,
+  exposeAITool: true,
+  runAs: undefined,
   groupsAllowed: [],
-  parameters: [],
+  parameters: [
+    {
+      name: "uuids",
+      type: "array",
+      arrayType: "string",
+      required: true,
+      description: "Array of node UUIDs to move up",
+      defaultValue: undefined,
+    },
+  ],
+  returnType: "void",
+  returnDescription:
+    "Moves the specified nodes up one level in the folder hierarchy",
 
   async run(
     ctx: RunContext,
-    uuids: string[],
-    _params?: Record<string, unknown>,
-  ): Promise<void | Error> {
+    args: Record<string, unknown>,
+  ): Promise<void> {
+    const uuids = args["uuids"] as string[];
+
+    if (!uuids || !Array.isArray(uuids) || uuids.length === 0) {
+      throw new Error("Node UUIDs parameter 'uuids' is required");
+    }
     const newParentOrErr = await getNewParent(
       ctx.authenticationContext,
       ctx.nodeService,
@@ -46,7 +64,7 @@ export default {
     );
 
     if (newParentOrErr.isLeft()) {
-      return newParentOrErr.value;
+      throw newParentOrErr.value;
     }
 
     const toUpdateTask = updateTaskPredicate(
@@ -62,12 +80,10 @@ export default {
     const errors = results.filter(errorResultsOnly);
 
     if (errors.length > 0) {
-      return errors[0].value as AntboxError;
+      throw errors[0].value as AntboxError;
     }
-
-    return;
   },
-} as unknown as Feature;
+};
 
 function updateTaskPredicate(
   ctx: AuthenticationContext,
@@ -104,3 +120,5 @@ async function getNewParent(
 
   return right(firstParentOrErr.value.parent);
 }
+
+export default moveUp;

@@ -4,9 +4,12 @@ import copy_to_folder from "./copy_to_folder.ts";
 import move_to_folder from "./move_to_folder.ts";
 import { Feature } from "domain/features/feature.ts";
 
-export const builtinActions: Feature[] = [
+export const builtinFeatures: Feature[] = [
   copy_to_folder,
   move_to_folder,
   delete_all,
   move_up,
 ];
+
+// Legacy export for backward compatibility
+export const builtinActions = builtinFeatures;

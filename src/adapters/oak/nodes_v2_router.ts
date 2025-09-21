@@ -10,7 +10,6 @@ import {
   findHandler,
   getHandler,
   listHandler,
-  // recognizeHandler,
   updateHandler,
 } from "api/nodes_handlers.ts";
 import { adapt } from "./adapt.ts";
@@ -34,9 +33,6 @@ export default function (tenants: AntboxTenant[]): Router {
   // Search operations
   router.post("/-/find", adapt(findHandler(tenants)));
   router.post("/-/query", adapt(findHandler(tenants))); // Alias for backward compatibility
-
-  // Commented out for future implementation
-  // router.get("/:uuid/-/ocr", adapt(recognizeHandler(tenants)));
 
   return router;
 }

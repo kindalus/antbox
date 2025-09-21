@@ -174,15 +174,6 @@ export function evaluateHandler(tenants: AntboxTenant[]): HttpHandler {
   );
 }
 
-// TODO: Implement recognizeHandler
-// export function recognizeHandler(tenants: AntboxTenant[]): HttpHandler {
-// 	return defaultMiddlewareChain(tenants, (req: Request): Promise<Response> => {
-// 		const service = getTenant(req, tenants).nodeService;
-// 		const query = getQuery(req);
-// 		return service
-// 			.recognizeText(getAuthenticationContext(req), query.uuid)
-// 			.then(processServiceResult)
-// 			.catch(processError);
 // 	});
 // }
 

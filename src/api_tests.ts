@@ -9,7 +9,6 @@ import { Groups } from "domain/users_groups/groups.ts";
 
 async function startApiTestServer() {
   const tenants = await setupTenants({
-    ocrEngine: ["tesseract/tesseract_ocr_engine.ts"],
     tenants: [
       {
         name: "test",

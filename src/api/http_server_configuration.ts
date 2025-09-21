@@ -1,6 +1,5 @@
 export interface ServerConfiguration {
   port?: number;
-  ocrEngine: ModuleConfiguration;
   tenants: TenantConfiguration[];
 }
 

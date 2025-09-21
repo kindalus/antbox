@@ -14,7 +14,6 @@ async function startSandboxServer(opts: ComandOpts) {
   const port = opts.port ? parseInt(opts.port) : PORT;
 
   const tenants = await setupTenants({
-    ocrEngine: ["tesseract/tesseract_ocr_engine.ts"],
     tenants: [
       {
         name: "sandbox",

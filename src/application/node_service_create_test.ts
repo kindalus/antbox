@@ -15,6 +15,7 @@ import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus.ts";
 import type { NodeServiceContext } from "./node_service_context.ts";
 import type { AspectProperties } from "domain/aspects/aspect_node.ts";
 import { ADMINS_GROUP } from "application/builtin_groups/index.ts";
+import { Left, Right } from "shared/either.ts";
 
 describe("NodeService.create", () => {
   test("should create a node and persist the metadata", async () => {
@@ -413,10 +414,14 @@ const authCtx: AuthenticationContext = {
   },
 };
 
-const errToMsg = (
-  err: any,
-) => (err.message ? err.message : JSON.stringify(err));
+const errToMsg = (err: unknown) => {
+  const v = err instanceof Left || err instanceof Right ? err.value : err;
+  if (v instanceof Error) {
+    return v.message;
+  }
 
+  return JSON.stringify(v, null, 3);
+};
 const nodeService = (opts: Partial<NodeServiceContext> = {}) =>
   new NodeService({
     storage: opts.storage ?? new InMemoryStorageProvider(),

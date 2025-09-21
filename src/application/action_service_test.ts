@@ -3,7 +3,6 @@ import { describe, test } from "bdd";
 import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus.ts";
 import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository.ts";
 import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider.ts";
-import { ActionNode } from "domain/actions/action_node.ts";
 import { NodeCreatedEvent } from "domain/nodes/node_created_event.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import { NodeUpdatedEvent } from "domain/nodes/node_updated_event.ts";
@@ -16,6 +15,8 @@ import { Nodes } from "domain/nodes/nodes.ts";
 import { AuthenticationContext } from "application/authentication_context.ts";
 import { NodeService } from "application/node_service.ts";
 import { UsersGroupsService } from "application/users_groups_service.ts";
+import { FeatureNode } from "domain/features/feature_node.ts";
+import { Left, Right } from "shared/either.ts";
 
 const createService = async () => {
   const firstGroupNode: GroupNode = GroupNode.create({
@@ -468,7 +469,7 @@ describe("FeatureService", () => {
         description: actionOrErr.right.description,
         owner: adminAuthContext.principal.email,
         parent: actionOrErr.right.parent,
-      } as ActionNode,
+      } as FeatureNode,
     );
 
     const runResult = await service.runAutomaticActionsForCreates(
@@ -528,7 +529,7 @@ describe("FeatureService", () => {
         description: actionOrErr.right.description,
         owner: adminAuthContext.principal.email,
         parent: actionOrErr.right.parent,
-      } as ActionNode,
+      } as FeatureNode,
     );
 
     const runResult = await service.runAutomaticActionsForUpdates(
@@ -573,7 +574,7 @@ describe("FeatureService", () => {
         description: actionOrErr.right.description,
         owner: adminAuthContext.principal.email,
         parent: actionOrErr.right.parent,
-      } as ActionNode,
+      } as FeatureNode,
     );
 
     const runResult = await service.runOnCreateScripts(
@@ -618,7 +619,7 @@ describe("FeatureService", () => {
         description: actionOrErr.right.description,
         owner: adminAuthContext.principal.email,
         parent: actionOrErr.right.parent,
-      } as ActionNode,
+      } as FeatureNode,
     );
 
     const runResult = await service.runOnUpdatedScripts(
@@ -630,10 +631,11 @@ describe("FeatureService", () => {
   });
 });
 
-const errToMsg = (err: any) => {
-  if (err instanceof Error) {
-    return err.message;
+const errToMsg = (err: unknown) => {
+  const v = err instanceof Left || err instanceof Right ? err.value : err;
+  if (v instanceof Error) {
+    return v.message;
   }
 
-  return JSON.stringify(err, null, 3);
+  return JSON.stringify(v, null, 3);
 };

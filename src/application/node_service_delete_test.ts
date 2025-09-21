@@ -14,6 +14,7 @@ import { Nodes } from "domain/nodes/nodes.ts";
 import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus.ts";
 import type { EventBus } from "shared/event_bus.ts";
 import { pid } from "node:process";
+import { Left, Right } from "shared/either.ts";
 
 describe("NodeService.delete", () => {
   test("should delete a node and its metadata", async () => {
@@ -115,11 +116,12 @@ const authCtx: AuthenticationContext = {
 };
 
 const errToMsg = (err: unknown) => {
-  if (err instanceof Error) {
-    return `Error: ${err.message}`;
+  const v = err instanceof Left || err instanceof Right ? err.value : err;
+  if (v instanceof Error) {
+    return v.message;
   }
 
-  return `Error: ${JSON.stringify(err, null, 2)}`;
+  return JSON.stringify(v, null, 3);
 };
 
 const nodeService = (opts: Partial<NodeServiceContext> = {}) =>

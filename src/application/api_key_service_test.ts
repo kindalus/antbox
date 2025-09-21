@@ -13,13 +13,15 @@ import { ApiKeyService } from "application/api_key_service.ts";
 import { AuthenticationContext } from "application/authentication_context.ts";
 import { NodeService } from "application/node_service.ts";
 import { Users } from "domain/users_groups/users.ts";
+import { Left, Right } from "shared/either.ts";
 
-export const errToMsg = (err: any): string => {
-  if (err instanceof Error) {
-    return err.message;
+const errToMsg = (err: unknown) => {
+  const v = err instanceof Left || err instanceof Right ? err.value : err;
+  if (v instanceof Error) {
+    return v.message;
   }
 
-  return JSON.stringify(err);
+  return JSON.stringify(v, null, 3);
 };
 
 const createService = (repository = new InMemoryNodeRepository()) => {

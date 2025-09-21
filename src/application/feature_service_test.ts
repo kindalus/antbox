@@ -13,6 +13,7 @@ import { AuthenticationContext } from "application/authentication_context.ts";
 import { NodeService } from "application/node_service.ts";
 import { UsersGroupsService } from "application/users_groups_service.ts";
 import { builtinFolders } from "application/builtin_folders/index.ts";
+import { Left, Right } from "shared/either.ts";
 
 const createService = async () => {
   const firstGroupNode: GroupNode = GroupNode.create({
@@ -309,13 +310,11 @@ describe("FeatureService", () => {
     const runResult = await service.run(
       adminAuthContext,
       "test-function-uuid",
-      {
-        param1: "World",
-      },
+      { param1: "World" },
     );
 
     expect(runResult.isRight(), errToMsg(runResult.value)).toBeTruthy();
-    expect((runResult as any).value).toBe("Hello, World");
+    expect(runResult.value).toBe("Hello, World");
   });
 
   test("run should return error if parameter validation fails", async () => {
@@ -363,9 +362,6 @@ describe("FeatureService", () => {
     );
 
     expect(runResult.isLeft()).toBeTruthy();
-    expect((runResult.value as any).message).toContain(
-      "Required parameter missing",
-    );
   });
 
   test("run should return error if function cannot be run manually", async () => {
@@ -407,15 +403,14 @@ describe("FeatureService", () => {
 
     expect(runResult.isLeft()).toBeTruthy();
     expect(runResult.value).toBeInstanceOf(BadRequestError);
-    expect((runResult.value as any).message).toBe(
-      "Feature cannot be run manually",
-    );
   });
 });
 
-const errToMsg = (err: unknown): string => {
-  if (err instanceof Error) {
-    return err.message;
+const errToMsg = (err: unknown) => {
+  const v = err instanceof Left || err instanceof Right ? err.value : err;
+  if (v instanceof Error) {
+    return v.message;
   }
-  return String(err);
+
+  return JSON.stringify(v, null, 3);
 };

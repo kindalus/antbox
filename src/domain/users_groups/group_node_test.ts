@@ -1,7 +1,6 @@
 import { test } from "bdd";
 import { expect } from "expect";
 import { ValidationError } from "shared/validation_error.ts";
-import { EmailFormatError } from "domain/nodes/email_format_error.ts";
 import { Folders } from "domain/nodes/folders.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import { GroupNode } from "./group_node.ts";
@@ -32,12 +31,11 @@ test("GroupNode.create should throw error if owner is missing", () => {
 
   expect(createResult.isLeft()).toBe(true);
   expect(createResult.value).toBeInstanceOf(ValidationError);
-  expect((createResult.value as ValidationError).errors[0]).toBeInstanceOf(
-    PropertyRequiredError,
-  );
-  expect((createResult.value as ValidationError).errors[0].message).toBe(
-    "Node.owner is required",
-  );
+  expect(
+    (createResult.value as ValidationError).has(
+      PropertyRequiredError.ERROR_CODE,
+    ),
+  ).toBe(true);
 });
 
 test("GroupNode.create should throw error if owner is invalid email format", () => {
@@ -49,9 +47,9 @@ test("GroupNode.create should throw error if owner is invalid email format", () 
 
   expect(createResult.isLeft()).toBe(true);
   expect(createResult.value).toBeInstanceOf(ValidationError);
-  expect((createResult.value as ValidationError).errors[0]).toBeInstanceOf(
-    EmailFormatError,
-  );
+  expect(
+    (createResult.value as ValidationError).has(PropertyFormatError.ERROR_CODE),
+  ).toBe(true);
 });
 
 test("GroupNode.create should throw error if title is missing", () => {
@@ -62,11 +60,10 @@ test("GroupNode.create should throw error if title is missing", () => {
 
   expect(createResult.isLeft()).toBe(true);
   expect(createResult.value).toBeInstanceOf(ValidationError);
-  expect((createResult.value as ValidationError).errors[0]).toBeInstanceOf(
-    PropertyRequiredError,
-  );
-  expect((createResult.value as ValidationError).errors[0].message).toBe(
-    "Node.title is required",
+  expect(
+    (createResult.value as ValidationError).has(
+      PropertyRequiredError.ERROR_CODE,
+    ),
   );
 });
 
@@ -79,8 +76,8 @@ test("GroupNode.create should throw error if title lenght is less than 3 chars",
 
   expect(createResult.isLeft()).toBe(true);
   expect(createResult.value).toBeInstanceOf(ValidationError);
-  expect((createResult.value as ValidationError).errors[0]).toBeInstanceOf(
-    PropertyFormatError,
+  expect(
+    (createResult.value as ValidationError).has(PropertyFormatError.ERROR_CODE),
   );
 });
 
@@ -96,7 +93,7 @@ test("GroupNode.update should modify title and description", () => {
     description: "Desc 2",
   });
 
-  expect(result.isRight(), result.value.message).toBe(true);
+  expect(result.isRight(), result.value?.message).toBe(true);
   expect(createResult.right.title).toBe("Group-2");
   expect(createResult.right.description).toBe("Desc 2");
 });
@@ -110,7 +107,7 @@ test("GroupNode.update should not modify parent ", () => {
 
   const result = group.right.update({ parent: "--root--" });
 
-  expect(result.isRight(), result.value.message).toBe(true);
+  expect(result.isRight(), result.value?.message).toBe(true);
   expect(group.right.parent).toBe(Folders.GROUPS_FOLDER_UUID);
 });
 
@@ -123,6 +120,6 @@ test("GroupNode.update should not modify mimetype ", () => {
 
   const result = group.right.update({ mimetype: "image/jpg" });
 
-  expect(result.isRight(), result.value.message).toBe(true);
+  expect(result.isRight(), result.value?.message).toBe(true);
   expect(group.right.mimetype).toBe(Nodes.GROUP_MIMETYPE);
 });

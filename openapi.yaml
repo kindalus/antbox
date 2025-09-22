@@ -5,14 +5,14 @@ info:
     Antbox is a feature-centric platform that provides unified access to dynamic functionality through features.
     Features can be exposed as actions and extensions, providing a flexible architecture
     for content management and automation.
-  version: 1.0.0
+  version: 2.0.0
   contact:
     name: Antbox Team
   license:
     name: MIT
 
 servers:
-  - url: http://localhost:7180
+  - url: http://localhost:7180/v2
     description: Local development server
 
 security:
@@ -299,6 +299,86 @@ paths:
                     type: integer
                     description: Total number of nodes
 
+    post:
+      tags:
+        - Nodes
+      summary: Create node
+      description: Create a new node
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NodeCreate"
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: File content
+                title:
+                  type: string
+                  description: Node title
+                parent:
+                  type: string
+                  description: Parent folder UUID
+                mimetype:
+                  type: string
+                  description: MIME type
+      responses:
+        "201":
+          description: Node created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Node"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /nodes/-/upload:
+    post:
+      tags:
+        - Nodes
+      summary: Upload file
+      description: Upload a file as a new node
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: File content
+                title:
+                  type: string
+                  description: Node title
+                parent:
+                  type: string
+                  description: Parent folder UUID
+                mimetype:
+                  type: string
+                  description: MIME type
+              required:
+                - file
+      responses:
+        "201":
+          description: File uploaded successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Node"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
   /nodes/{uuid}:
     get:
       tags:
@@ -319,6 +399,33 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+    patch:
+      tags:
+        - Nodes
+      summary: Update node
+      description: Update a node by its UUID
+      parameters:
+        - $ref: "#/components/parameters/UuidPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NodeUpdate"
+      responses:
+        "200":
+          description: Node updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Node"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
     delete:
       tags:
         - Nodes
@@ -329,6 +436,203 @@ paths:
       responses:
         "200":
           description: Node deleted successfully
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /nodes/{uuid}/-/copy:
+    post:
+      tags:
+        - Nodes
+      summary: Copy node
+      description: Create a copy of a node
+      parameters:
+        - $ref: "#/components/parameters/UuidPath"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                parent:
+                  type: string
+                  description: Target parent folder UUID
+                title:
+                  type: string
+                  description: New title for the copy
+      responses:
+        "200":
+          description: Node copied successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Node"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /nodes/{uuid}/-/duplicate:
+    get:
+      tags:
+        - Nodes
+      summary: Duplicate node
+      description: Create a duplicate of a node in the same location
+      parameters:
+        - $ref: "#/components/parameters/UuidPath"
+      responses:
+        "200":
+          description: Node duplicated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Node"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /nodes/{uuid}/-/export:
+    get:
+      tags:
+        - Nodes
+      summary: Export node
+      description: Export a node in various formats
+      parameters:
+        - $ref: "#/components/parameters/UuidPath"
+        - name: format
+          in: query
+          description: Export format
+          schema:
+            type: string
+            enum: [json, xml, csv]
+            default: json
+      responses:
+        "200":
+          description: Exported node data
+          content:
+            application/json:
+              schema:
+                type: object
+            application/xml:
+              schema:
+                type: string
+            text/csv:
+              schema:
+                type: string
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /nodes/{uuid}/-/evaluate:
+    get:
+      tags:
+        - Nodes
+      summary: Evaluate node
+      description: Evaluate a node (for executable content)
+      parameters:
+        - $ref: "#/components/parameters/UuidPath"
+      responses:
+        "200":
+          description: Node evaluation result
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /nodes/-/find:
+    post:
+      tags:
+        - Nodes
+      summary: Find nodes with filters
+      description: Find nodes using filter criteria with pagination support
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                filters:
+                  $ref: "#/components/schemas/NodeFilters"
+                  description: Filter criteria to apply
+                pageSize:
+                  type: integer
+                  minimum: 1
+                  maximum: 1000
+                  default: 20
+                  description: Number of results per page
+                pageToken:
+                  type: integer
+                  minimum: 1
+                  default: 1
+                  description: Page number (1-based)
+              required:
+                - filters
+      responses:
+        "200":
+          description: Filter results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NodeFilterResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /nodes/{uuid}/-/upload:
+    put:
+      tags:
+        - Nodes
+      summary: Update node with file upload
+      description: Update an existing node by uploading a new file
+      parameters:
+        - $ref: "#/components/parameters/UuidPath"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: File content
+                title:
+                  type: string
+                  description: Node title
+                mimetype:
+                  type: string
+                  description: MIME type
+              required:
+                - file
+      responses:
+        "200":
+          description: Node updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Node"
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
@@ -351,6 +655,29 @@ paths:
                 items:
                   $ref: "#/components/schemas/Aspect"
 
+    post:
+      tags:
+        - Aspects
+      summary: Create or replace aspect
+      description: Create a new aspect or replace an existing one
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AspectCreate"
+      responses:
+        "200":
+          description: Aspect created or replaced successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Aspect"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
   /aspects/{uuid}:
     get:
       tags:
@@ -366,6 +693,53 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Aspect"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    delete:
+      tags:
+        - Aspects
+      summary: Delete aspect
+      description: Delete an aspect by its UUID
+      parameters:
+        - $ref: "#/components/parameters/UuidPath"
+      responses:
+        "200":
+          description: Aspect deleted successfully
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /aspects/{uuid}/-/export:
+    get:
+      tags:
+        - Aspects
+      summary: Export aspect
+      description: Export an aspect in various formats
+      parameters:
+        - $ref: "#/components/parameters/UuidPath"
+        - name: format
+          in: query
+          description: Export format
+          schema:
+            type: string
+            enum: [json, javascript]
+            default: json
+      responses:
+        "200":
+          description: Exported aspect data
+          content:
+            application/json:
+              schema:
+                type: object
+            application/javascript:
+              schema:
+                type: string
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
 
@@ -539,6 +913,44 @@ components:
           format: date-time
           description: Last modification timestamp
 
+    NodeCreate:
+      type: object
+      required:
+        - title
+      properties:
+        title:
+          type: string
+          description: Node title
+        mimetype:
+          type: string
+          description: MIME type
+        parent:
+          type: string
+          description: Parent folder UUID
+        content:
+          type: string
+          description: Node content (for text-based nodes)
+        permissions:
+          $ref: "#/components/schemas/Permissions"
+
+    NodeUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+          description: Node title
+        mimetype:
+          type: string
+          description: MIME type
+        parent:
+          type: string
+          description: Parent folder UUID
+        content:
+          type: string
+          description: Node content (for text-based nodes)
+        permissions:
+          $ref: "#/components/schemas/Permissions"
+
     Aspect:
       type: object
       properties:
@@ -561,6 +973,27 @@ components:
         owner:
           type: string
           description: Owner email
+        permissions:
+          $ref: "#/components/schemas/Permissions"
+
+    AspectCreate:
+      type: object
+      required:
+        - title
+        - name
+      properties:
+        title:
+          type: string
+          description: Aspect title
+        name:
+          type: string
+          description: Aspect name
+        description:
+          type: string
+          description: Aspect description
+        mimetype:
+          type: string
+          description: MIME type
         permissions:
           $ref: "#/components/schemas/Permissions"
 
@@ -589,6 +1022,56 @@ components:
           type: object
           additionalProperties: true
           description: Advanced permission settings
+
+    NodeFilters:
+      oneOf:
+        - $ref: "#/components/schemas/NodeFilters1D"
+        - $ref: "#/components/schemas/NodeFilters2D"
+      description: Filter criteria for nodes - can be 1D array of filters (AND) or 2D array of filter groups (OR)
+
+    NodeFilters1D:
+      type: array
+      description: Array of filters (all must match - AND logic)
+      items:
+        $ref: "#/components/schemas/NodeFilter"
+
+    NodeFilters2D:
+      type: array
+      description: Array of filter groups (any group can match - OR logic)
+      items:
+        $ref: "#/components/schemas/NodeFilters1D"
+
+    NodeFilter:
+      type: array
+      description: Single filter condition [field, operator, value]
+      minItems: 3
+      maxItems: 3
+      items:
+        oneOf:
+          - type: string
+          - type: number
+          - type: boolean
+          - type: array
+      example: ["title", "==", "My Document"]
+
+    NodeFilterResult:
+      type: object
+      properties:
+        nodes:
+          type: array
+          items:
+            $ref: "#/components/schemas/Node"
+          description: Array of matching nodes
+        pageSize:
+          type: integer
+          description: Number of results per page
+        pageToken:
+          type: integer
+          description: Current page number
+      required:
+        - nodes
+        - pageSize
+        - pageToken
 
     Error:
       type: object

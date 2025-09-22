@@ -12,7 +12,7 @@ export interface AspectDTO {
   properties: AspectProperties;
 }
 
-export function nodeToAspect(aspect: AspectNode): AspectDTO {
+export function toAspectDTO(aspect: AspectNode): AspectDTO {
   return {
     uuid: aspect.uuid,
     title: aspect.title,
@@ -22,7 +22,7 @@ export function nodeToAspect(aspect: AspectNode): AspectDTO {
   };
 }
 
-export function aspectToNode(aspect: AspectDTO): AspectNode {
+export function fromAspectDTO(aspect: AspectDTO): AspectNode {
   return AspectNode.create({
     uuid: aspect.uuid,
     title: aspect.title,

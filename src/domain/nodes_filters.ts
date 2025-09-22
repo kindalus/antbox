@@ -87,6 +87,7 @@ export class NodesFilters {
 type FilterFn = <T>(a: T, b: T) => boolean;
 
 const filterFns: Record<FilterOperator, FilterFn> = {
+  "~=": (_a, _b) => true,
   "==": (a, b) => a === b,
   "<=": (a, b) => a <= b,
   ">=": (a, b) => a >= b,

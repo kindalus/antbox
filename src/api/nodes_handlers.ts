@@ -1,3 +1,4 @@
+import { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { type AntboxTenant } from "./antbox_tenant.ts";
 import { defaultMiddlewareChain } from "./default_middleware_chain.ts";
 import { getAuthenticationContext } from "./get_authentication_context.ts";
@@ -6,7 +7,10 @@ import { getQuery } from "./get_query.ts";
 import { getTenant } from "./get_tenant.ts";
 import { type HttpHandler } from "./handler.ts";
 import { processError } from "./process_error.ts";
-import { processServiceResult } from "./process_service_result.ts";
+import {
+  processServiceCreateResult,
+  processServiceResult,
+} from "./process_service_result.ts";
 
 export function listHandler(tenants: AntboxTenant[]): HttpHandler {
   return defaultMiddlewareChain(
@@ -57,7 +61,34 @@ export function createHandler(tenants: AntboxTenant[]): HttpHandler {
 
       return service
         .create(getAuthenticationContext(req), metadata)
-        .then(processServiceResult)
+        .then(processServiceCreateResult)
+        .catch(processError);
+    },
+  );
+}
+
+export function createFileHandler(tenants: AntboxTenant[]): HttpHandler {
+  return defaultMiddlewareChain(
+    tenants,
+    async (req: Request): Promise<Response> => {
+      const service = getTenant(req, tenants).nodeService;
+      const formdata = await req.formData();
+
+      const metadataStr = formdata.get("metadata");
+      const file = formdata.get("file") as File;
+      let metadata: Partial<NodeMetadata>;
+
+      try {
+        metadata = JSON.parse(metadataStr as string);
+      } catch (_e) {
+        return Promise.resolve(
+          new Response("X-Metadata header is not valid JSON", { status: 400 }),
+        );
+      }
+
+      return service
+        .createFile(getAuthenticationContext(req), file, metadata)
+        .then(processServiceCreateResult)
         .catch(processError);
     },
   );
@@ -76,6 +107,30 @@ export function updateHandler(tenants: AntboxTenant[]): HttpHandler {
       const body = await req.json();
       return await service
         .update(getAuthenticationContext(req), params.uuid, body)
+        .then(processServiceResult)
+        .catch(processError);
+    },
+  );
+}
+
+export function updateFileHandler(tenants: AntboxTenant[]): HttpHandler {
+  return defaultMiddlewareChain(
+    tenants,
+    async (req: Request): Promise<Response> => {
+      const service = getTenant(req, tenants).nodeService;
+      const params = getParams(req);
+      if (!params.uuid) {
+        return new Response("{ uuid } not given", { status: 400 });
+      }
+
+      const formdata = await req.formData();
+      const file = formdata.get("file") as File;
+      if (!file) {
+        return new Response("{ file } not given", { status: 400 });
+      }
+
+      return await service
+        .updateFile(getAuthenticationContext(req), params.uuid, file)
         .then(processServiceResult)
         .catch(processError);
     },

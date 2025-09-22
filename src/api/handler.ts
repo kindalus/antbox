@@ -8,6 +8,11 @@ const enum STATUS_CODE {
   Forbidden = 403,
   Unauthorized = 401,
   Conflict = 409,
+  Created = 201,
+}
+
+export function sendCreated<T>(body?: T) {
+  return sendResponse(STATUS_CODE.Created, body);
 }
 
 export function sendOK<T>(body?: T) {

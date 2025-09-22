@@ -32,7 +32,6 @@ export default function (tenants: AntboxTenant[]): Router {
 
   // Search operations
   router.post("/-/find", adapt(findHandler(tenants)));
-  router.post("/-/query", adapt(findHandler(tenants))); // Alias for backward compatibility
 
   return router;
 }

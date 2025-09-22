@@ -5,7 +5,7 @@ import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import { AntboxError, BadRequestError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
-import { type AspectDTO, nodeToAspect } from "./aspect_dto.ts";
+import { type AspectDTO, toAspectDTO } from "./aspect_dto.ts";
 import type { AuthenticationContext } from "./authentication_context.ts";
 
 import { NodeService } from "./node_service.ts";
@@ -42,7 +42,7 @@ export class AspectService {
       return left(nodeOrErr.value);
     }
 
-    return right(nodeToAspect(nodeOrErr.value as AspectNode));
+    return right(toAspectDTO(nodeOrErr.value as AspectNode));
   }
 
   async #update(
@@ -86,7 +86,7 @@ export class AspectService {
       return left(new AspectNotFoundError(uuid));
     }
 
-    return right(nodeToAspect(nodeOrErr.value));
+    return right(toAspectDTO(nodeOrErr.value));
   }
 
   async list(ctx: AuthenticationContext): Promise<AspectDTO[]> {
@@ -104,7 +104,7 @@ export class AspectService {
     }
 
     const usersAspects = nodesOrErrs.value.nodes.map((n) =>
-      nodeToAspect(n as AspectNode)
+      toAspectDTO(n as AspectNode)
     )
       .sort((a, b) => a.title.localeCompare(b.title));
 

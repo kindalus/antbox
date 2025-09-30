@@ -11,6 +11,8 @@ import {
   specificationFn,
 } from "shared/specification.ts";
 import {
+  PropertyDoesNotMatchRegexError,
+  PropertyNotInListError,
   PropertyRequiredError,
   PropertyTypeError,
 } from "domain/nodes/property_errors.ts";
@@ -45,6 +47,8 @@ export class Aspects {
     return andSpecification(
       Aspects.#requiredSpecification(name, property),
       Aspects.#typeSpecification(name, property),
+      Aspects.#validationListSpecification(name, property),
+      Aspects.#validationRegexSpecification(name, property),
     );
   }
 
@@ -74,6 +78,7 @@ export class Aspects {
       const value = n.properties[propName];
       const vtype = typeof value;
       const ptype = property.type;
+      const atype = property.arrayType;
 
       if (!value && value !== false) {
         return right(true);
@@ -82,15 +87,91 @@ export class Aspects {
       if (["string", "boolean", "number"].includes(ptype)) {
         return ptype === vtype ? right(true) : left(
           ValidationError.from(
-            new PropertyTypeError(property.title, property.type, ptype),
+            new PropertyTypeError(property.title, property.type, vtype),
           ),
         );
       }
 
-      switch (property.type) {
-        case "string":
-        case "number":
-        case "boolean":
+      if (ptype === "array" && atype === "string" && Array.isArray(value)) {
+        return value.every((v) => typeof v === "string") ? right(true) : left(
+          ValidationError.from(
+            new PropertyTypeError(property.title, property.type, "string[]"),
+          ),
+        );
+      }
+
+      return right(true);
+    });
+  }
+
+  static #validationListSpecification(
+    propName: string,
+    property: AspectProperty,
+  ): Specification<AspectableNode> {
+    return specificationFn((n) => {
+      if (
+        !property.validationList ||
+        !(property.type === "string" ||
+          (property.type === "array" && property.arrayType === "string"))
+      ) {
+        return right(true);
+      }
+
+      const value = n.properties[propName];
+      if (!value) {
+        return right(true);
+      }
+
+      const list = property.validationList!;
+      const values = Array.isArray(value) ? value : [value];
+
+      for (const v of values) {
+        if (!list.includes(v)) {
+          return left(
+            ValidationError.from(
+              new PropertyNotInListError(property.title, list, v),
+            ),
+          );
+        }
+      }
+
+      return right(true);
+    });
+  }
+
+  static #validationRegexSpecification(
+    propName: string,
+    property: AspectProperty,
+  ): Specification<AspectableNode> {
+    return specificationFn((n) => {
+      if (
+        !property.validationRegex ||
+        !(property.type === "string" ||
+          (property.type === "array" && property.arrayType === "string"))
+      ) {
+        return right(true);
+      }
+
+      const value = n.properties[propName];
+      if (!value) {
+        return right(true);
+      }
+
+      const regex = new RegExp(property.validationRegex!);
+      const values = Array.isArray(value) ? value : [value];
+
+      for (const v of values) {
+        if (!regex.test(v)) {
+          return left(
+            ValidationError.from(
+              new PropertyDoesNotMatchRegexError(
+                property.title,
+                property.validationRegex!,
+                v,
+              ),
+            ),
+          );
+        }
       }
 
       return right(true);

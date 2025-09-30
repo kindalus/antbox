@@ -45,7 +45,7 @@ export class ApiKeyNode extends Node {
     this._group = metadata.group || "";
     this._secret = metadata.secret || "";
 
-    this._validateNode();
+    this._validateApiKeyNode();
   }
 
   override update(
@@ -64,7 +64,7 @@ export class ApiKeyNode extends Node {
     this._secret = metadata.secret ?? this._secret;
 
     try {
-      this._validateNode();
+      this._validateApiKeyNode();
     } catch (e) {
       return left(e as ValidationError);
     }
@@ -72,16 +72,33 @@ export class ApiKeyNode extends Node {
     return right(undefined);
   }
 
+  override get metadata(): Partial<NodeMetadata> {
+    return {
+      ...super.metadata,
+      group: this._group,
+      secret: this._secret,
+    };
+  }
+
   protected override _validateNode() {
+    // Override to prevent base class validation before properties are set
+    // Actual validation happens in _validateApiKeyNode
+  }
+
+  protected _validateApiKeyNode() {
+    const errors: AntboxError[] = [];
+
+    const nodeError = super._safeValidateNode();
+    if (nodeError) {
+      errors.push(...nodeError.errors);
+    }
+
     const result = ApiKeyValidationSchema.safeParse({
-      ...this.metadata,
       group: this._group,
       secret: this._secret,
     });
 
     if (!result.success) {
-      const errors: AntboxError[] = [];
-
       for (const issue of result.error.issues) {
         const fieldName = issue.path.length > 0
           ? String(issue.path[0])
@@ -99,7 +116,9 @@ export class ApiKeyNode extends Node {
           );
         }
       }
+    }
 
+    if (errors.length) {
       throw ValidationError.from(...errors);
     }
   }

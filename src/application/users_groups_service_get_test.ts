@@ -135,6 +135,38 @@ describe("UsersGroupsService.getUser", () => {
   });
 });
 
+describe("UsersGroupsService.getUserByCredentials", () => {
+  test("should return user from repository", async () => {
+    const service = usersGroupsService();
+
+    await service.createUser(authCtx, {
+      name: "The title",
+      email: "darling@gmail.com",
+      secret: "darling1234",
+      groups: ["--admins--", "--users--"],
+    });
+
+    const userOrErr = await service.getUserByCredentials(
+      "darling@gmail.com",
+      "darling1234",
+    );
+
+    expect(userOrErr.value, errToMsg(userOrErr.value)).toBeTruthy();
+  });
+
+  test("should return error if not found user", async () => {
+    const service = usersGroupsService();
+
+    const userOrErr = await service.getUserByCredentials(
+      "dande@gmail.com",
+      "dandeW1234",
+    );
+
+    expect(userOrErr.isLeft(), errToMsg(userOrErr.value)).toBeTruthy();
+    expect(userOrErr.value).toBeInstanceOf(InvalidCredentialsError);
+  });
+});
+
 describe("UsersGroupsService.getGroup", () => {
   test("should return group from repository", async () => {
     const service = usersGroupsService();

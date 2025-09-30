@@ -91,8 +91,19 @@ function getToken(req: Request) {
 }
 
 function getApiKey(req: Request) {
+  // Check Authorization header first (standard practice)
+  const authHeader = req.headers.get("authorization");
+  if (authHeader) {
+    // Match "ApiKey <key>" format (case-insensitive)
+    const match = authHeader.match(/^apikey\s+(.+)$/i);
+    if (match) {
+      return match[1];
+    }
+  }
+
+  // Fall back to query parameter
   const query = getQuery(req);
-  return query["x-api-key"] ?? req.headers.get("x-api-key");
+  return query["api_key"];
 }
 
 function storeAnonymous(req: Request) {

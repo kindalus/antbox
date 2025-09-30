@@ -29,7 +29,6 @@ const createService = (repository = new InMemoryNodeRepository()) => {
     uuid: "api-group",
     title: "API Group",
     owner: "owner@example.com",
-    mimetype: Nodes.API_KEY_MIMETYPE,
   }).right;
 
   repository.add(groupNode);

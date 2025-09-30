@@ -73,14 +73,18 @@ describe("NodeService.find", () => {
   });
 
   test("should find nodes with OPE aspect", async () => {
-    const filters: NodeFilters1D = [["aspects", "contains", "ope"]];
+    const filters: NodeFilters1D = [[
+      "aspects",
+      "contains",
+      "ope-aspect",
+    ]];
     const result = await service.find(authCtx, filters);
 
     expect(result.isRight(), errToMsg(result.value)).toBeTruthy();
     expect(result.right.nodes.length).toBe(5);
     expect(
       result.right.nodes.every((n) =>
-        (n as AspectableNode).aspects?.includes("ope")
+        (n as AspectableNode).aspects?.includes("ope-aspect")
       ),
     )
       .toBeTruthy();
@@ -173,6 +177,20 @@ describe("NodeService.list", () => {
     const listOrErr = await service.list(anonymousCtx, "vetify-logotipo-uuid");
     expect(listOrErr.isRight(), errToMsg(listOrErr.value)).toBeTruthy();
     expect(listOrErr.right.length).toBe(1);
+  });
+
+  test("should evaluate smartfolder when listing it", async () => {
+    const listOrErr = await service.list(
+      authCtx,
+      "posicao-financeira-2024-uuid",
+    );
+
+    expect(listOrErr.isRight(), errToMsg(listOrErr.value)).toBeTruthy();
+    expect(listOrErr.right.length).toBe(2);
+    expect(listOrErr.right.map((n) => n.title)).toEqual([
+      "Posição Financeira - 2024-09-29.pdf",
+      "Posição Financeira - 2024-12-08.pdf",
+    ]);
   });
 });
 
@@ -276,8 +294,8 @@ all 'Posição Financeira' files from 2024.
   */
 
   // Create OPE aspect
-  const opeAspect = await service.create(authCtx, {
-    uuid: "ope",
+  (await service.create(authCtx, {
+    uuid: "ope-aspect",
     title: "OPE",
     mimetype: Nodes.ASPECT_MIMETYPE,
     properties: [
@@ -285,7 +303,7 @@ all 'Posição Financeira' files from 2024.
       { name: "amount", title: "Amount", type: "number", required: true },
       { name: "company", title: "Company", type: "string", required: true },
     ] as AspectProperties,
-  });
+  })).right;
 
   // Create Posição Financeira aspect
   await service.create(authCtx, {
@@ -401,34 +419,34 @@ all 'Posição Financeira' files from 2024.
     parent: "importacao-uuid",
   });
 
-  const opeFolder = await service.create(authCtx, {
+  const opeFolder = (await service.create(authCtx, {
     uuid: "ope-uuid",
     title: "OPEs",
     mimetype: Nodes.FOLDER_MIMETYPE,
-  });
+  })).right;
 
-  await service.create(authCtx, {
+  (await service.create(authCtx, {
     title: "2022-09-07 - OPE NOVAVET.pdf",
     mimetype: "application/pdf",
-    parent: opeFolder.right.uuid,
-    aspects: ["ope"],
+    parent: opeFolder.uuid,
+    aspects: ["ope-aspect"],
     properties: {
-      "ope:date": "2022-09-07",
-      "ope:amount": 1500,
-      "ope:company": "NOVAVET",
+      "ope-aspect:date": "2022-09-07",
+      "ope-aspect:amount": 1500,
+      "ope-aspect:company": "NOVAVET",
     },
-  });
+  })).right;
 
   await service.create(authCtx, {
     title: "2022-12-06 - OPE WEPHARM.pdf",
     mimetype: "application/pdf",
-    parent: opeFolder.right.uuid,
-    aspects: ["ope"],
+    parent: opeFolder.uuid,
+    aspects: ["ope-aspect"],
     properties: {
-      "ope:date": "2022-12-06",
-      "ope:amount": 2300,
-      "ope:company": "WEPHARM",
-      "ope:xpto": "xpto",
+      "ope-aspect:date": "2022-12-06",
+      "ope-aspect:amount": 2300,
+      "ope-aspect:company": "WEPHARM",
+      "ope-aspect:xpto": "xpto",
       "other:xxx": "xxx",
     },
   });
@@ -436,36 +454,36 @@ all 'Posição Financeira' files from 2024.
   await service.create(authCtx, {
     title: "2023-01-12 - OPE GEOFRETE.pdf",
     mimetype: "application/pdf",
-    parent: opeFolder.right.uuid,
-    aspects: ["ope"],
+    parent: opeFolder.uuid,
+    aspects: ["ope-aspect"],
     properties: {
-      "ope:date": "2023-01-12",
-      "ope:amount": 3000,
-      "ope:company": "GEOFRETE",
+      "ope-aspect:date": "2023-01-12",
+      "ope-aspect:amount": 3000,
+      "ope-aspect:company": "GEOFRETE",
     },
   });
 
   await service.create(authCtx, {
     title: "2023-03-01- OPE ROYAL CANIN.pdf",
     mimetype: "application/pdf",
-    parent: opeFolder.right.uuid,
-    aspects: ["ope"],
+    parent: opeFolder.uuid,
+    aspects: ["ope-aspect"],
     properties: {
-      "ope:date": "2023-03-01",
-      "ope:amount": 4500,
-      "ope:company": "ROYAL CANIN",
+      "ope-aspect:date": "2023-03-01",
+      "ope-aspect:amount": 4500,
+      "ope-aspect:company": "ROYAL CANIN",
     },
   });
 
   await service.create(authCtx, {
     title: "2023-03-31 - OPE NOVAVET.pdf",
     mimetype: "application/pdf",
-    parent: opeFolder.right.uuid,
-    aspects: ["ope"],
+    parent: opeFolder.uuid,
+    aspects: ["ope-aspect"],
     properties: {
-      "ope:date": "2023-03-31",
-      "ope:amount": 5000,
-      "ope:company": "NOVAVET",
+      "ope-aspect:date": "2023-03-31",
+      "ope-aspect:amount": 5000,
+      "ope-aspect:company": "NOVAVET",
     },
   });
 

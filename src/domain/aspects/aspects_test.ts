@@ -404,3 +404,153 @@ test("Aspects class should not be instantiable", () => {
   expect(typeof Aspects.propertyName).toBe("function");
   expect(typeof Aspects.specificationFrom).toBe("function");
 });
+
+test("Aspects.specificationFrom should validate validationList for string properties", () => {
+  const property: AspectProperty = {
+    name: "list_prop",
+    title: "List Property",
+    type: "string",
+    validationList: ["apple", "banana", "cherry"],
+  };
+
+  const aspect = createMockAspectNode([property]);
+  const specification = Aspects.specificationFrom(aspect);
+  const propertyName = Aspects.propertyName(aspect, property);
+
+  // Test with a valid value
+  const nodeWithValidValue = createMockAspectableNode({
+    [propertyName]: "banana",
+  });
+  const validResult = specification.isSatisfiedBy(nodeWithValidValue);
+  expect(validResult.isRight(), (validResult.value as ValidationError)?.message)
+    .toBe(true);
+
+  // Test with an invalid value
+  const nodeWithInvalidValue = createMockAspectableNode({
+    [propertyName]: "grape",
+  });
+  const invalidResult = specification.isSatisfiedBy(nodeWithInvalidValue);
+  expect(invalidResult.isLeft()).toBe(true);
+  expect(invalidResult.value).toBeInstanceOf(ValidationError);
+});
+
+test("Aspects.specificationFrom should validate validationList for array of strings", () => {
+  const property: AspectProperty = {
+    name: "list_array_prop",
+    title: "List Array Property",
+    type: "array",
+    arrayType: "string",
+    validationList: ["apple", "banana", "cherry"],
+  };
+
+  const aspect = createMockAspectNode([property]);
+  const specification = Aspects.specificationFrom(aspect);
+  const propertyName = Aspects.propertyName(aspect, property);
+
+  // Test with a valid array
+  const nodeWithValidArray = createMockAspectableNode({
+    [propertyName]: ["apple", "cherry"],
+  });
+  const validResult = specification.isSatisfiedBy(nodeWithValidArray);
+  expect(validResult.isRight(), (validResult.value as ValidationError)?.message)
+    .toBe(true);
+
+  // Test with an array containing an invalid value
+  const nodeWithInvalidArray = createMockAspectableNode({
+    [propertyName]: ["apple", "grape"],
+  });
+  const invalidResult = specification.isSatisfiedBy(nodeWithInvalidArray);
+  expect(invalidResult.isLeft()).toBe(true);
+  expect(invalidResult.value).toBeInstanceOf(ValidationError);
+});
+
+test("Aspects.specificationFrom should validate validationRegex for string properties", () => {
+  const property: AspectProperty = {
+    name: "regex_prop",
+    title: "Regex Property",
+    type: "string",
+    validationRegex: "^[a-z]+$",
+  };
+
+  const aspect = createMockAspectNode([property]);
+  const specification = Aspects.specificationFrom(aspect);
+  const propertyName = Aspects.propertyName(aspect, property);
+
+  // Test with a valid value
+  const nodeWithValidValue = createMockAspectableNode({
+    [propertyName]: "abc",
+  });
+  const validResult = specification.isSatisfiedBy(nodeWithValidValue);
+  expect(validResult.isRight(), (validResult.value as ValidationError)?.message)
+    .toBe(true);
+
+  // Test with an invalid value
+  const nodeWithInvalidValue = createMockAspectableNode({
+    [propertyName]: "aBc",
+  });
+  const invalidResult = specification.isSatisfiedBy(nodeWithInvalidValue);
+  expect(invalidResult.isLeft()).toBe(true);
+  expect(invalidResult.value).toBeInstanceOf(ValidationError);
+});
+
+test("Aspects.specificationFrom should validate validationRegex for array of strings", () => {
+  const property: AspectProperty = {
+    name: "regex_array_prop",
+    title: "Regex Array Property",
+    type: "array",
+    arrayType: "string",
+    validationRegex: "^[a-z]+$",
+  };
+
+  const aspect = createMockAspectNode([property]);
+  const specification = Aspects.specificationFrom(aspect);
+  const propertyName = Aspects.propertyName(aspect, property);
+
+  // Test with a valid array
+  const nodeWithValidArray = createMockAspectableNode({
+    [propertyName]: ["abc", "xyz"],
+  });
+  const validResult = specification.isSatisfiedBy(nodeWithValidArray);
+  expect(validResult.isRight(), (validResult.value as ValidationError)?.message)
+    .toBe(true);
+
+  // Test with an array containing an invalid value
+  const nodeWithInvalidArray = createMockAspectableNode({
+    [propertyName]: ["abc", "xYz"],
+  });
+  const invalidResult = specification.isSatisfiedBy(nodeWithInvalidArray);
+  expect(invalidResult.isLeft()).toBe(true);
+  expect(invalidResult.value).toBeInstanceOf(ValidationError);
+});
+
+test("Aspects.specificationFrom should ignore validationList and validationRegex for non-string types", () => {
+  const properties: AspectProperty[] = [
+    {
+      name: "list_prop_number",
+      title: "List Property Number",
+      type: "number",
+      validationList: ["1", "2"],
+    },
+    {
+      name: "regex_prop_boolean",
+      title: "Regex Property Boolean",
+      type: "boolean",
+      validationRegex: "true",
+    },
+  ];
+
+  const aspect = createMockAspectNode(properties);
+  const specification = Aspects.specificationFrom(aspect);
+  const listPropName = Aspects.propertyName(aspect, properties[0]);
+  const regexPropName = Aspects.propertyName(aspect, properties[1]);
+
+  const node = createMockAspectableNode({
+    [listPropName]: 3,
+    [regexPropName]: false,
+  });
+
+  const result = specification.isSatisfiedBy(node);
+  expect(result.isRight(), (result.value as ValidationError)?.message).toBe(
+    true,
+  );
+});

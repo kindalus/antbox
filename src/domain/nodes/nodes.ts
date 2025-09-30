@@ -17,10 +17,8 @@ export class Nodes {
   static META_NODE_MIMETYPE = "application/vnd.antbox.metanode";
   static SMART_FOLDER_MIMETYPE = "application/vnd.antbox.smartfolder";
   static ASPECT_MIMETYPE = "application/vnd.antbox.aspect";
-  static ACTION_MIMETYPE = "application/vnd.antbox.action";
 
   static FEATURE_MIMETYPE = "application/vnd.antbox.feature";
-  static EXT_MIMETYPE = "application/vnd.antbox.extension";
   static USER_MIMETYPE = "application/vnd.antbox.user";
   static GROUP_MIMETYPE = "application/vnd.antbox.group";
   static API_KEY_MIMETYPE = "application/vnd.antbox.apikey";
@@ -28,9 +26,7 @@ export class Nodes {
 
   static SYSTEM_MIMETYPES = [
     Nodes.ASPECT_MIMETYPE,
-    Nodes.ACTION_MIMETYPE,
     Nodes.FEATURE_MIMETYPE,
-    Nodes.EXT_MIMETYPE,
     Nodes.USER_MIMETYPE,
     Nodes.GROUP_MIMETYPE,
     Nodes.API_KEY_MIMETYPE,
@@ -74,16 +70,23 @@ export class Nodes {
     return node.mimetype === Nodes.META_NODE_MIMETYPE;
   }
 
-  static isAction(node: NodeLike): node is FeatureNode {
-    return node.mimetype === Nodes.ACTION_MIMETYPE;
-  }
-
   static isFeature(node: NodeLike): node is FeatureNode {
     return node.mimetype === Nodes.FEATURE_MIMETYPE;
   }
 
+  static isAction(node: NodeLike): node is FeatureNode {
+    return node.mimetype === Nodes.FEATURE_MIMETYPE &&
+      (node as FeatureNode).exposeAction;
+  }
+
   static isExt(node: NodeLike): node is FeatureNode {
-    return node.mimetype === Nodes.EXT_MIMETYPE;
+    return node.mimetype === Nodes.FEATURE_MIMETYPE &&
+      (node as FeatureNode).exposeExtension;
+  }
+
+  static isAITool(node: NodeLike): node is FeatureNode {
+    return node.mimetype === Nodes.FEATURE_MIMETYPE &&
+      (node as FeatureNode).exposeAITool;
   }
 
   static isGroup(node: NodeLike): node is GroupNode {

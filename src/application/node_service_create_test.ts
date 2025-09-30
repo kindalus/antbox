@@ -77,9 +77,68 @@ describe("NodeService.create", () => {
 
   test("should ignore properties that are not defined in any node aspect", async () => {
     const service = nodeService();
+
+    const props: AspectProperties = [{
+      name: "amount",
+      title: "Amount",
+      type: "number",
+    }];
+
+    // Create aspect with number property
+    await service.create(authCtx, {
+      uuid: "invoice",
+      title: "Invoice",
+      mimetype: Nodes.ASPECT_MIMETYPE,
+      properties: props,
+    });
+
+    // Create node with valid aspect property and undefined properties
+    const nodeOrErr = await service.create(authCtx, {
+      title: "Test Node",
+      mimetype: Nodes.FOLDER_MIMETYPE,
+      aspects: ["invoice"],
+      properties: {
+        "invoice:amount": 1000, // valid property
+        "undefined:property": "should be ignored", // undefined aspect
+        "invoice:nonexistent": "should be ignored", // undefined property in existing aspect
+      },
+    });
+
+    expect(nodeOrErr.isRight(), errToMsg(nodeOrErr.value)).toBeTruthy();
+
+    // Verify the node was created successfully
+    const retrievedNodeOrErr = await service.get(authCtx, nodeOrErr.right.uuid);
+
+    expect(retrievedNodeOrErr.isRight(), errToMsg(retrievedNodeOrErr.value))
+      .toBeTruthy();
+
+    const retrievedNode = retrievedNodeOrErr.value as FolderNode;
+
+    // The node should have the valid property but undefined properties should be ignored
+    expect(retrievedNode.properties).toBeDefined();
+    expect(retrievedNode.properties["invoice:amount"]).toBe(1000);
+    expect(retrievedNode.properties["undefined:property"])
+      .toBeUndefined();
+    expect(retrievedNode.properties["invoice:nonexistent"])
+      .toBeUndefined();
   });
 
-  test("should return an error if a provided aspect does not exist", async () => {});
+  test("should return an error if a provided aspect does not exist", async () => {
+    const service = nodeService();
+
+    // Try to create node with non-existent aspect
+    const nodeOrErr = await service.create(authCtx, {
+      title: "Test Node",
+      mimetype: Nodes.FOLDER_MIMETYPE,
+      aspects: ["nonexistent-aspect"],
+      properties: {
+        "nonexistent-aspect:property": "value",
+      },
+    });
+
+    expect(nodeOrErr.isLeft()).toBeTruthy();
+    expect(nodeOrErr.value).toBeInstanceOf(ValidationError);
+  });
 
   test("should use give permissions", async () => {
     const permissions: Permissions = {
@@ -149,7 +208,7 @@ describe("NodeService.create", () => {
     expect(nodeOrErr.right.parent).toBe(Folders.ROOT_FOLDER_UUID);
   });
 
-  test("should convey to folder children restritions", async () => {
+  test("should convey to folder children restrictions", async () => {
     const nodeOrErr = await nodeService().createFile(authCtx, dummyFile, {
       parent: Folders.ROOT_FOLDER_UUID,
     });
@@ -255,11 +314,11 @@ describe("NodeService.createFile", () => {
 
     const nodeOrErr = await service.createFile(authCtx, dummyFile, {
       parent: "--parent--",
-      mimetype: Nodes.EXT_MIMETYPE,
+      mimetype: Nodes.FEATURE_MIMETYPE,
     });
 
     expect(nodeOrErr.isRight(), errToMsg(nodeOrErr.value)).toBeTruthy();
-    expect(nodeOrErr.right.mimetype).toBe(Nodes.EXT_MIMETYPE);
+    expect(nodeOrErr.right.mimetype).toBe(Nodes.FEATURE_MIMETYPE);
   });
 });
 

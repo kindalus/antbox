@@ -40,3 +40,27 @@ export class UnknownPropertyError extends AntboxError {
     );
   }
 }
+
+export class PropertyNotInListError extends AntboxError {
+  static ERROR_CODE = "PropertyNotInListError";
+
+  constructor(property: string, list: string[], value: string) {
+    super(
+      PropertyNotInListError.ERROR_CODE,
+      `Property ${property} has value '${value}' which is not in the allowed list: [${
+        list.join(", ")
+      }]`,
+    );
+  }
+}
+
+export class PropertyDoesNotMatchRegexError extends AntboxError {
+  static ERROR_CODE = "PropertyDoesNotMatchRegexError";
+
+  constructor(property: string, regex: string, value: string) {
+    super(
+      PropertyDoesNotMatchRegexError.ERROR_CODE,
+      `Property ${property} has value '${value}' which does not match the required pattern: ${regex}`,
+    );
+  }
+}

@@ -11,6 +11,9 @@ import type { NodeServiceContext } from "./node_service_context.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import type { FileNode } from "domain/nodes/file_node.ts";
 import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus.ts";
+import type { AspectProperties } from "domain/aspects/aspect_node.ts";
+import { ValidationError } from "shared/validation_error.ts";
+import { Folders } from "domain/nodes/folders.ts";
 
 describe("NodeService.update", () => {
   test("should update the node metadata", async () => {
@@ -102,6 +105,68 @@ describe("NodeService.update", () => {
       .toBeTruthy();
     expect(updatedNodeOrErr.right.title).toBe("Updated Title");
     expect(updatedNodeOrErr.right.mimetype).toBe(Nodes.META_NODE_MIMETYPE);
+  });
+
+  test("should return an error if edition is inconsistent with node aspects", async () => {
+    const service = nodeService();
+
+    const props: AspectProperties = [{
+      name: "amount",
+      title: "Amount",
+      type: "number",
+    }];
+
+    // Create aspect with number property type
+    const _aspectOrErr = await service.create(authCtx, {
+      uuid: "invoice",
+      title: "Invoice",
+      mimetype: Nodes.ASPECT_MIMETYPE,
+      properties: props,
+    });
+
+    // Create node with valid aspect
+    const nodeOrErr = await service.create(authCtx, {
+      title: "Test Node",
+      mimetype: Nodes.FOLDER_MIMETYPE,
+      aspects: ["invoice"],
+      properties: {
+        "invoice:amount": 1000,
+      },
+    });
+
+    // Try to update node with invalid property value type
+    const updateOrErr = await service.update(authCtx, nodeOrErr.right.uuid, {
+      properties: {
+        "invoice:amount": "Invalid value", // Should be number, not string
+      },
+    });
+
+    expect(updateOrErr.isLeft()).toBeTruthy();
+    expect(updateOrErr.value).toBeInstanceOf(ValidationError);
+  });
+
+  test("should return an error if edition turns node unacceptable to parent restrictions", async () => {
+    const service = nodeService();
+
+    // Create a file node in a regular folder first
+    const parentOrErr = await service.create(authCtx, {
+      title: "Parent Folder",
+      mimetype: Nodes.FOLDER_MIMETYPE,
+    });
+
+    const file = new File(["content"], "file.txt", { type: "text/plain" });
+    const nodeOrErr = await service.createFile(authCtx, file, {
+      parent: parentOrErr.right.uuid,
+    });
+
+    // Try to move the file node to root folder (which doesn't accept files)
+    // by updating its parent to root - this should violate parent restrictions
+    const updateOrErr = await service.update(authCtx, nodeOrErr.right.uuid, {
+      parent: Folders.ROOT_FOLDER_UUID, // Root folder restrictions should reject files
+    });
+
+    expect(updateOrErr.isLeft()).toBeTruthy();
+    expect(updateOrErr.value).toBeInstanceOf(BadRequestError);
   });
 });
 

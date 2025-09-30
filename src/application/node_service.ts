@@ -126,14 +126,6 @@ export class NodeService {
       return left(new ForbiddenError());
     }
 
-    const filtersSatisfied = NodesFilters.satisfiedBy(
-      parentOrErr.value.filters,
-      nodeOrErr.value,
-    ).isRight();
-    if (!filtersSatisfied) {
-      return left(new BadRequestError("Node does not satisfy parent filters"));
-    }
-
     if (Nodes.isFolder(nodeOrErr.value) && !metadata.permissions) {
       nodeOrErr.value.update({ permissions: parentOrErr.value.permissions });
     }
@@ -154,6 +146,14 @@ export class NodeService {
       }
     }
 
+    const filtersSatisfied = NodesFilters.satisfiedBy(
+      parentOrErr.value.filters,
+      nodeOrErr.value,
+    ).isRight();
+    if (!filtersSatisfied) {
+      return left(new BadRequestError("Node does not satisfy parent filters"));
+    }
+
     nodeOrErr.value.update({
       fulltext: await this.#calculateFulltext(ctx, nodeOrErr.value),
     });
@@ -172,8 +172,7 @@ export class NodeService {
     metadata: Partial<NodeMetadata>,
   ): Promise<Either<AntboxError, FileLikeNode>> {
     const useFileType = !metadata.mimetype ||
-      ![Nodes.EXT_MIMETYPE, Nodes.ACTION_MIMETYPE, Nodes.FEATURE_MIMETYPE]
-        .includes(metadata.mimetype);
+      metadata.mimetype !== Nodes.FEATURE_MIMETYPE;
 
     const nodeOrErr = await this.create(ctx, {
       ...metadata,
@@ -441,7 +440,18 @@ export class NodeService {
     ctx: AuthenticationContext,
     parent = Folders.ROOT_FOLDER_UUID,
   ): Promise<Either<FolderNotFoundError | ForbiddenError, NodeLike[]>> {
-    const parentOrErr = await this.#getBuiltinFolderOrFromRepository(parent);
+    const [parentOrErr, nodeOrErr] = await Promise.all([
+      this.#getBuiltinFolderOrFromRepository(parent),
+      this.#getFromRepository(parent),
+    ]);
+
+    if (
+      parentOrErr.isLeft() && nodeOrErr.isRight() &&
+      Nodes.isSmartFolder(nodeOrErr.value)
+    ) {
+      return this.evaluate(ctx, parent);
+    }
+
     if (parentOrErr.isLeft()) {
       return left(parentOrErr.value);
     }
@@ -533,6 +543,14 @@ export class NodeService {
       if (errs.isLeft()) {
         return left(errs.value);
       }
+    }
+
+    const filtersSatisfied = NodesFilters.satisfiedBy(
+      parentOrErr.value.filters,
+      nodeOrErr.value,
+    ).isRight();
+    if (!filtersSatisfied) {
+      return left(new BadRequestError("Node does not satisfy parent filters"));
     }
 
     nodeOrErr.value.update({
@@ -840,9 +858,6 @@ export class NodeService {
 
   #mapAntboxMimetypes(mimetype: string): string {
     const mimetypeMap = {
-      [Nodes.ACTION_MIMETYPE]: "application/javascript",
-      [Nodes.ASPECT_MIMETYPE]: "application/json",
-      [Nodes.EXT_MIMETYPE]: "application/javascript",
       [Nodes.FEATURE_MIMETYPE]: "application/javascript",
       [Nodes.SMART_FOLDER_MIMETYPE]: "application/json",
     };

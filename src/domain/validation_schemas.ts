@@ -10,7 +10,7 @@ import { $ZodIssue } from "zod/v4/core";
 
 export function uuid() {
   const uuidValidationSchema = z.string().regex(
-    /^(\w{6,}|--[\w-]+--)$/,
+    /^[\w-]{3,}$/,
     "Invalid UUID format",
   );
 

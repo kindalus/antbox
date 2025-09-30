@@ -20,23 +20,17 @@ export class NodeFactory {
   static from<T extends NodeLike>(
     metadata: Partial<NodeMetadata>,
   ): Either<ValidationError, T> {
-    let createFn: (metadata: any) => Either<ValidationError, NodeLike>;
+    let createFn: (
+      metadata: Partial<NodeMetadata>,
+    ) => Either<ValidationError, NodeLike>;
 
     switch (metadata.mimetype) {
-      case Nodes.ACTION_MIMETYPE:
-        createFn = FeatureNode.create;
-        break;
-
       case Nodes.API_KEY_MIMETYPE:
         createFn = ApiKeyNode.create;
         break;
 
       case Nodes.ASPECT_MIMETYPE:
         createFn = AspectNode.create;
-        break;
-
-      case Nodes.EXT_MIMETYPE:
-        createFn = FeatureNode.create;
         break;
 
       case Nodes.FOLDER_MIMETYPE:

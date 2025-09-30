@@ -27,17 +27,6 @@ function buildRootFolder(): FolderNode {
   }).right;
 }
 
-function buildActionsFolder(): FolderNode {
-  return FolderNode.create(
-    createSystemFolderMetadata(
-      Folders.ACTIONS_FOLDER_UUID,
-      Folders.ACTIONS_FOLDER_UUID,
-      "Actions",
-      Folders.SYSTEM_FOLDER_UUID,
-    ),
-  ).right;
-}
-
 function buildSystemFolder(): FolderNode {
   return FolderNode.create(
     createSystemFolderMetadata(
@@ -89,17 +78,6 @@ function buildGroupsFolder(): FolderNode {
   ).right;
 }
 
-function buildExtFolder(): FolderNode {
-  return FolderNode.create(
-    createSystemFolderMetadata(
-      Folders.EXT_FOLDER_UUID,
-      Folders.EXT_FOLDER_UUID,
-      "Extensions",
-      Folders.SYSTEM_FOLDER_UUID,
-    ),
-  ).right;
-}
-
 function buildApiKeysFolder(): FolderNode {
   return FolderNode.create(
     createSystemFolderMetadata(
@@ -143,12 +121,6 @@ function createSystemFolderMetadata(
     case Folders.GROUPS_FOLDER_UUID:
       filters.push(["mimetype", "==", Nodes.GROUP_MIMETYPE]);
       break;
-    case Folders.ACTIONS_FOLDER_UUID:
-      filters.push(["mimetype", "==", Nodes.ACTION_MIMETYPE]);
-      break;
-    case Folders.EXT_FOLDER_UUID:
-      filters.push(["mimetype", "==", Nodes.EXT_MIMETYPE]);
-      break;
     case Folders.API_KEYS_FOLDER_UUID:
       filters.push(["mimetype", "==", Nodes.API_KEY_MIMETYPE]);
       break;
@@ -178,8 +150,6 @@ const ASPECTS_FOLDER = buildAspectsFolder();
 const USERS_FOLDER = buildUsersFolder();
 const GROUPS_FOLDER = buildGroupsFolder();
 const SYSTEM_FOLDER = buildSystemFolder();
-const ACTIONS_FOLDER = buildActionsFolder();
-const EXT_FOLDER = buildExtFolder();
 const API_KEYS_FOLDER = buildApiKeysFolder();
 const FEATURES_FOLDER = buildFeaturesFolder();
 
@@ -189,17 +159,13 @@ const SYSTEM_FOLDERS = [
   ASPECTS_FOLDER,
   USERS_FOLDER,
   GROUPS_FOLDER,
-  ACTIONS_FOLDER,
-  EXT_FOLDER,
   API_KEYS_FOLDER,
   FEATURES_FOLDER,
 ];
 
 export {
-  ACTIONS_FOLDER,
   API_KEYS_FOLDER,
   ASPECTS_FOLDER,
-  EXT_FOLDER,
   FEATURES_FOLDER,
   GROUPS_FOLDER,
   ROOT_FOLDER,
@@ -209,10 +175,8 @@ export {
 };
 
 export const builtinFolders: FolderNode[] = [
-  ACTIONS_FOLDER,
   API_KEYS_FOLDER,
   ASPECTS_FOLDER,
-  EXT_FOLDER,
   FEATURES_FOLDER,
   GROUPS_FOLDER,
 

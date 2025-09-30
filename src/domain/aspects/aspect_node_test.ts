@@ -140,7 +140,6 @@ test("AspectNode.create should initialize with various property types", () => {
       name: "file_prop",
       title: "File Property",
       type: "file",
-      stringMimetype: "application/pdf",
     },
   ];
 
@@ -365,4 +364,358 @@ test("AspectNode should handle empty filters and properties gracefully", () => {
   const aspectNode = result.right;
   expect(aspectNode.properties).toEqual([]);
   expect(aspectNode.filters).toEqual([]);
+});
+
+test("ValidationList should only be used when type is 'string' or when type is 'array' and arrayType is 'string'", () => {
+  // Valid case: string type with validationList
+  const validStringResult = AspectNode.create({
+    title: "Test aspect",
+    owner: "user@domain.com",
+    properties: [{
+      name: "string_list_prop",
+      title: "String List Property",
+      type: "string",
+      validationList: ["option1", "option2", "option3"],
+    }],
+  });
+
+  expect(
+    validStringResult.isRight(),
+    (validStringResult.value as ValidationError).message,
+  ).toBe(true);
+
+  // Valid case: array type with string arrayType and validationList
+  const validArrayResult = AspectNode.create({
+    title: "Test aspect",
+    owner: "user@domain.com",
+    properties: [{
+      name: "array_list_prop",
+      title: "Array List Property",
+      type: "array",
+      arrayType: "string",
+      validationList: ["option1", "option2", "option3"],
+    }],
+  });
+
+  expect(
+    validArrayResult.isRight(),
+    (validArrayResult.value as ValidationError).message,
+  ).toBe(true);
+
+  // Invalid case: number type with validationList
+  const invalidNumberResult = AspectNode.create({
+    title: "Test aspect",
+    owner: "user@domain.com",
+    properties: [{
+      name: "number_list_prop",
+      title: "Number List Property",
+      type: "number",
+      validationList: ["1", "2", "3"],
+    }],
+  });
+
+  expect(invalidNumberResult.isLeft()).toBe(true);
+  expect(invalidNumberResult.value).toBeInstanceOf(ValidationError);
+
+  // Invalid case: array type with non-string arrayType and validationList
+  const invalidArrayResult = AspectNode.create({
+    title: "Test aspect",
+    owner: "user@domain.com",
+    properties: [{
+      name: "array_number_list_prop",
+      title: "Array Number List Property",
+      type: "array",
+      arrayType: "number",
+      validationList: ["1", "2", "3"],
+    }],
+  });
+
+  expect(invalidArrayResult.isLeft()).toBe(true);
+  expect(invalidArrayResult.value).toBeInstanceOf(ValidationError);
+});
+
+test("ValidationRegex should only be used when type is 'string' or when type is 'array' and arrayType is 'string'", () => {
+  // Valid case: string type with validationRegex
+  const validStringResult = AspectNode.create({
+    title: "Test aspect",
+    owner: "user@domain.com",
+    properties: [{
+      name: "string_regex_prop",
+      title: "String Regex Property",
+      type: "string",
+      validationRegex: "^[A-Z]+$",
+    }],
+  });
+
+  expect(
+    validStringResult.isRight(),
+    (validStringResult.value as ValidationError).message,
+  ).toBe(true);
+
+  // Valid case: array type with string arrayType and validationRegex
+  const validArrayResult = AspectNode.create({
+    title: "Test aspect",
+    owner: "user@domain.com",
+    properties: [{
+      name: "array_regex_prop",
+      title: "Array Regex Property",
+      type: "array",
+      arrayType: "string",
+      validationRegex: "^[A-Z]+$",
+    }],
+  });
+
+  expect(
+    validArrayResult.isRight(),
+    (validArrayResult.value as ValidationError).message,
+  ).toBe(true);
+
+  // Invalid case: number type with validationRegex
+  const invalidNumberResult = AspectNode.create({
+    title: "Test aspect",
+    owner: "user@domain.com",
+    properties: [{
+      name: "number_regex_prop",
+      title: "Number Regex Property",
+      type: "number",
+      validationRegex: "^[0-9]+$",
+    }],
+  });
+
+  expect(invalidNumberResult.isLeft()).toBe(true);
+  expect(invalidNumberResult.value).toBeInstanceOf(ValidationError);
+
+  // Invalid case: boolean type with validationRegex
+  const invalidBooleanResult = AspectNode.create({
+    title: "Test aspect",
+    owner: "user@domain.com",
+    properties: [{
+      name: "boolean_regex_prop",
+      title: "Boolean Regex Property",
+      type: "boolean",
+      validationRegex: "true|false",
+    }],
+  });
+
+  expect(invalidBooleanResult.isLeft()).toBe(true);
+  expect(invalidBooleanResult.value).toBeInstanceOf(ValidationError);
+});
+
+test("ValidationFilters should only be used when type is 'uuid' or when type is 'array' and arrayType is 'uuid'", () => {
+  // Valid case: uuid type with validationFilters
+  const validUuidResult = AspectNode.create({
+    title: "Test aspect",
+    owner: "user@domain.com",
+    properties: [{
+      name: "uuid_filter_prop",
+      title: "UUID Filter Property",
+      type: "uuid",
+      validationFilters: [["mimetype", "==", "application/vnd.antbox.folder"]],
+    }],
+  });
+
+  expect(
+    validUuidResult.isRight(),
+    (validUuidResult.value as ValidationError).message,
+  ).toBe(true);
+
+  // Valid case: array type with uuid arrayType and validationFilters
+  const validArrayResult = AspectNode.create({
+    title: "Test aspect",
+    owner: "user@domain.com",
+    properties: [{
+      name: "array_uuid_filter_prop",
+      title: "Array UUID Filter Property",
+      type: "array",
+      arrayType: "uuid",
+      validationFilters: [["mimetype", "==", "application/vnd.antbox.folder"]],
+    }],
+  });
+
+  expect(
+    validArrayResult.isRight(),
+    (validArrayResult.value as ValidationError).message,
+  ).toBe(true);
+
+  // Invalid case: string type with validationFilters
+  const invalidStringResult = AspectNode.create({
+    title: "Test aspect",
+    owner: "user@domain.com",
+    properties: [{
+      name: "string_filter_prop",
+      title: "String Filter Property",
+      type: "string",
+      validationFilters: [["mimetype", "==", "application/vnd.antbox.folder"]],
+    }],
+  });
+
+  expect(invalidStringResult.isLeft()).toBe(true);
+  expect(invalidStringResult.value).toBeInstanceOf(ValidationError);
+
+  // Invalid case: array type with non-uuid arrayType and validationFilters
+  const invalidArrayResult = AspectNode.create({
+    title: "Test aspect",
+    owner: "user@domain.com",
+    properties: [{
+      name: "array_string_filter_prop",
+      title: "Array String Filter Property",
+      type: "array",
+      arrayType: "string",
+      validationFilters: [["mimetype", "==", "application/vnd.antbox.folder"]],
+    }],
+  });
+
+  expect(invalidArrayResult.isLeft()).toBe(true);
+  expect(invalidArrayResult.value).toBeInstanceOf(ValidationError);
+});
+
+test("String mimetype should only be used when type is 'string'", () => {
+  // Valid case: string type with stringMimetype
+  const validStringResult = AspectNode.create({
+    title: "Test aspect",
+    owner: "user@domain.com",
+    properties: [{
+      name: "string_mimetype_prop",
+      title: "String Mimetype Property",
+      type: "string",
+      stringMimetype: "application/json",
+    }],
+  });
+
+  expect(
+    validStringResult.isRight(),
+    (validStringResult.value as ValidationError).message,
+  ).toBe(true);
+
+  // Invalid case: number type with stringMimetype
+  const invalidNumberResult = AspectNode.create({
+    title: "Test aspect",
+    owner: "user@domain.com",
+    properties: [{
+      name: "number_mimetype_prop",
+      title: "Number Mimetype Property",
+      type: "number",
+      stringMimetype: "application/json",
+    }],
+  });
+
+  expect(invalidNumberResult.isLeft()).toBe(true);
+  expect(invalidNumberResult.value).toBeInstanceOf(ValidationError);
+
+  // Invalid case: file type with stringMimetype (file should use its own mimetype handling)
+  const invalidFileResult = AspectNode.create({
+    title: "Test aspect",
+    owner: "user@domain.com",
+    properties: [{
+      name: "file_string_mimetype_prop",
+      title: "File String Mimetype Property",
+      type: "file",
+      stringMimetype: "application/json",
+    }],
+  });
+
+  expect(invalidFileResult.isLeft()).toBe(true);
+  expect(invalidFileResult.value).toBeInstanceOf(ValidationError);
+});
+
+test("Default value should be valid according to all property constraints", () => {
+  // Valid case: string default matching validationRegex
+  const validRegexResult = AspectNode.create({
+    title: "Test aspect",
+    owner: "user@domain.com",
+    properties: [{
+      name: "regex_prop",
+      title: "Regex Property",
+      type: "string",
+      validationRegex: "^[A-Z]+$",
+      default: "VALID",
+    }],
+  });
+
+  expect(
+    validRegexResult.isRight(),
+    (validRegexResult.value as ValidationError).message,
+  ).toBe(true);
+
+  // Invalid case: string default not matching validationRegex
+  const invalidRegexResult = AspectNode.create({
+    title: "Test aspect",
+    owner: "user@domain.com",
+    properties: [{
+      name: "invalid_regex_prop",
+      title: "Invalid Regex Property",
+      type: "string",
+      validationRegex: "^[A-Z]+$",
+      default: "invalid123",
+    }],
+  });
+
+  expect(invalidRegexResult.isLeft()).toBe(true);
+  expect(invalidRegexResult.value).toBeInstanceOf(ValidationError);
+
+  // Valid case: string default in validationList
+  const validListResult = AspectNode.create({
+    title: "Test aspect",
+    owner: "user@domain.com",
+    properties: [{
+      name: "list_prop",
+      title: "List Property",
+      type: "string",
+      validationList: ["option1", "option2", "option3"],
+      default: "option2",
+    }],
+  });
+
+  expect(
+    validListResult.isRight(),
+    (validListResult.value as ValidationError).message,
+  ).toBe(true);
+
+  // Invalid case: string default not in validationList
+  const invalidListResult = AspectNode.create({
+    title: "Test aspect",
+    owner: "user@domain.com",
+    properties: [{
+      name: "invalid_list_prop",
+      title: "Invalid List Property",
+      type: "string",
+      validationList: ["option1", "option2", "option3"],
+      default: "invalid_option",
+    }],
+  });
+
+  expect(invalidListResult.isLeft()).toBe(true);
+  expect(invalidListResult.value).toBeInstanceOf(ValidationError);
+
+  // Valid case: number default within expected range
+  const validNumberResult = AspectNode.create({
+    title: "Test aspect",
+    owner: "user@domain.com",
+    properties: [{
+      name: "number_prop",
+      title: "Number Property",
+      type: "number",
+      default: 42,
+    }],
+  });
+
+  expect(
+    validNumberResult.isRight(),
+    (validNumberResult.value as ValidationError).message,
+  ).toBe(true);
+
+  // Invalid case: wrong type for default value
+  const invalidTypeResult = AspectNode.create({
+    title: "Test aspect",
+    owner: "user@domain.com",
+    properties: [{
+      name: "type_mismatch_prop",
+      title: "Type Mismatch Property",
+      type: "number",
+      default: "not_a_number",
+    }],
+  });
+
+  expect(invalidTypeResult.isLeft()).toBe(true);
+  expect(invalidTypeResult.value).toBeInstanceOf(ValidationError);
 });

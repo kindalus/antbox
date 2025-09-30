@@ -135,10 +135,14 @@ export class NodeService {
       Nodes.isFolder(nodeOrErr.value) ||
       Nodes.isMetaNode(nodeOrErr.value)
     ) {
-      const aspects = await this.#getNodeAspects(ctx, nodeOrErr.value);
+      const aspectsOrErr = await this.#getNodeAspects(ctx, nodeOrErr.value);
+      if (aspectsOrErr.isLeft()) {
+        return left(aspectsOrErr.value);
+      }
+
       const errs = await this.#validateNodeAspectsThenUpdate(
         nodeOrErr.value,
-        aspects,
+        aspectsOrErr.value,
       );
 
       if (errs.isLeft()) {
@@ -495,17 +499,22 @@ export class NodeService {
       return left(nodeOrErr.value);
     }
 
-    const parentOrErr = Nodes.isFolder(nodeOrErr.value)
-      ? right<AntboxError, FolderNode>(nodeOrErr.value)
-      : await this.#getBuiltinFolderOrFromRepository(nodeOrErr.value.parent);
+    // Get current parent for permission check
+    const currentParentOrErr = await this.#getBuiltinFolderOrFromRepository(
+      nodeOrErr.value.parent,
+    );
 
-    if (parentOrErr.isLeft()) {
+    if (currentParentOrErr.isLeft()) {
       return left(
         new UnknownError(`Parent folder not found for node uuid='${uuid}'`),
       );
     }
 
-    const allowed = isPrincipalAllowedTo(ctx, parentOrErr.value, "Write");
+    const allowed = isPrincipalAllowedTo(
+      ctx,
+      currentParentOrErr.value,
+      "Write",
+    );
     if (!allowed) {
       return left(new ForbiddenError());
     }
@@ -534,10 +543,14 @@ export class NodeService {
       Nodes.isFolder(nodeOrErr.value) ||
       Nodes.isMetaNode(nodeOrErr.value)
     ) {
-      const aspects = await this.#getNodeAspects(ctx, nodeOrErr.value);
+      const aspectsOrErr = await this.#getNodeAspects(ctx, nodeOrErr.value);
+      if (aspectsOrErr.isLeft()) {
+        return left(aspectsOrErr.value);
+      }
+
       const errs = await this.#validateNodeAspectsThenUpdate(
         nodeOrErr.value,
-        aspects,
+        aspectsOrErr.value,
       );
 
       if (errs.isLeft()) {
@@ -545,8 +558,18 @@ export class NodeService {
       }
     }
 
+    // Get the actual parent (which might be different if parent was updated)
+    const actualParentOrErr = await this.#getBuiltinFolderOrFromRepository(
+      nodeOrErr.value.parent,
+    );
+    if (actualParentOrErr.isLeft()) {
+      return left(
+        new UnknownError(`Parent folder not found for node uuid='${uuid}'`),
+      );
+    }
+
     const filtersSatisfied = NodesFilters.satisfiedBy(
-      parentOrErr.value.filters,
+      actualParentOrErr.value.filters,
       nodeOrErr.value,
     ).isRight();
     if (!filtersSatisfied) {
@@ -601,16 +624,19 @@ export class NodeService {
     }
 
     if (Nodes.hasAspects(node)) {
-      const aspects = await this.#getNodeAspects(ctx, node);
+      const aspectsOrErr = await this.#getNodeAspects(ctx, node);
+      if (aspectsOrErr.isRight()) {
+        const aspects = aspectsOrErr.value;
 
-      const propertiesFulltext: string[] = aspects
-        .map((a) => this.#aspectToProperties(a))
-        .flat()
-        .filter((p) => p.searchable)
-        .map((p) => p.name)
-        .map((p) => node.properties[p] as string);
+        const propertiesFulltext: string[] = aspects
+          .map((a) => this.#aspectToProperties(a))
+          .flat()
+          .filter((p) => p.searchable)
+          .map((p) => p.name)
+          .map((p) => node.properties[p] as string);
 
-      fulltext.push(...propertiesFulltext);
+        fulltext.push(...propertiesFulltext);
+      }
     }
 
     const parts = fulltext
@@ -691,18 +717,38 @@ export class NodeService {
   async #getNodeAspects(
     ctx: AuthenticationContext,
     node: FileNode | FolderNode | MetaNode,
-  ): Promise<AspectNode[]> {
+  ): Promise<Either<ValidationError, AspectNode[]>> {
     if (!node.aspects || node.aspects.length === 0) {
-      return [];
+      return right([]);
     }
 
     const nodesOrErrs = await Promise.all(
       node.aspects.map((a) => this.get(ctx, a)),
     );
 
-    return nodesOrErrs
-      .filter((nodeOrErr) => nodeOrErr.isRight())
-      .map((nodeOrErr) => nodeOrErr.value as AspectNode);
+    // Check if any aspects were not found
+    const missingAspects: string[] = [];
+    const foundAspects: AspectNode[] = [];
+
+    for (let i = 0; i < nodesOrErrs.length; i++) {
+      const nodeOrErr = nodesOrErrs[i];
+      if (nodeOrErr.isLeft()) {
+        missingAspects.push(node.aspects![i]);
+      } else {
+        foundAspects.push(nodeOrErr.value as AspectNode);
+      }
+    }
+
+    if (missingAspects.length > 0) {
+      return left(
+        new ValidationError(
+          `Aspect(s) not found: ${missingAspects.join(", ")}`,
+          [],
+        ),
+      );
+    }
+
+    return right(foundAspects);
   }
 
   async #toFiltersWithAtResolved(f: NodeFilters1D): Promise<NodeFilters1D> {

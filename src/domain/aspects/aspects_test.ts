@@ -523,34 +523,34 @@ test("Aspects.specificationFrom should validate validationRegex for array of str
   expect(invalidResult.value).toBeInstanceOf(ValidationError);
 });
 
-test("Aspects.specificationFrom should ignore validationList and validationRegex for non-string types", () => {
-  const properties: AspectProperty[] = [
-    {
+test("AspectNode creation should fail for invalid property constraints", () => {
+  // Test that number type with validationList fails
+  const numberWithListResult = AspectNode.create({
+    title: "Test Aspect",
+    owner: "test@example.com",
+    properties: [{
       name: "list_prop_number",
       title: "List Property Number",
       type: "number",
       validationList: ["1", "2"],
-    },
-    {
+    }],
+  });
+
+  expect(numberWithListResult.isLeft()).toBe(true);
+  expect(numberWithListResult.value).toBeInstanceOf(ValidationError);
+
+  // Test that boolean type with validationRegex fails
+  const booleanWithRegexResult = AspectNode.create({
+    title: "Test Aspect",
+    owner: "test@example.com",
+    properties: [{
       name: "regex_prop_boolean",
       title: "Regex Property Boolean",
       type: "boolean",
       validationRegex: "true",
-    },
-  ];
-
-  const aspect = createMockAspectNode(properties);
-  const specification = Aspects.specificationFrom(aspect);
-  const listPropName = Aspects.propertyName(aspect, properties[0]);
-  const regexPropName = Aspects.propertyName(aspect, properties[1]);
-
-  const node = createMockAspectableNode({
-    [listPropName]: 3,
-    [regexPropName]: false,
+    }],
   });
 
-  const result = specification.isSatisfiedBy(node);
-  expect(result.isRight(), (result.value as ValidationError)?.message).toBe(
-    true,
-  );
+  expect(booleanWithRegexResult.isLeft()).toBe(true);
+  expect(booleanWithRegexResult.value).toBeInstanceOf(ValidationError);
 });

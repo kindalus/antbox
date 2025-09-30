@@ -9,6 +9,11 @@ import type { NodeFilters } from "domain/nodes/node_filter.ts";
 import z from "zod";
 import { AntboxError } from "shared/antbox_error.ts";
 import { toPropertyError } from "../validation_schemas.ts";
+import {
+  PropertyDoesNotMatchRegexError,
+  PropertyFormatError,
+  PropertyNotInListError,
+} from "../nodes/property_errors.ts";
 
 const AspectNodeValidationSchema = z.object({
   mimetype: z.literal(
@@ -45,6 +50,8 @@ export class AspectNode extends Node {
 
     this._filters = metadata.filters ?? [];
     this._properties = (metadata.properties as AspectProperty[]) ?? [];
+
+    this._validateAspectNode();
   }
 
   override update(
@@ -98,8 +105,160 @@ export class AspectNode extends Node {
       errors.push(...(result.error.issues.map(toPropertyError("AspectNode"))));
     }
 
+    // Validate properties
+    const propertyErrors = this._validateProperties();
+    if (propertyErrors.length > 0) {
+      errors.push(...propertyErrors);
+    }
+
     if (errors.length) {
       throw ValidationError.from(...errors);
+    }
+  }
+
+  private _validateProperties(): AntboxError[] {
+    const errors: AntboxError[] = [];
+
+    for (const property of this._properties) {
+      // Validate ValidationList constraints
+      if (property.validationList) {
+        if (
+          property.type !== "string" &&
+          !(property.type === "array" && property.arrayType === "string")
+        ) {
+          errors.push(
+            new PropertyFormatError(
+              `AspectProperty.${property.name}.validationList`,
+              "only allowed when type is 'string' or when type is 'array' and arrayType is 'string'",
+              `type: ${property.type}, arrayType: ${property.arrayType}`,
+            ),
+          );
+        }
+      }
+
+      // Validate ValidationRegex constraints
+      if (property.validationRegex) {
+        if (
+          property.type !== "string" &&
+          !(property.type === "array" && property.arrayType === "string")
+        ) {
+          errors.push(
+            new PropertyFormatError(
+              `AspectProperty.${property.name}.validationRegex`,
+              "only allowed when type is 'string' or when type is 'array' and arrayType is 'string'",
+              `type: ${property.type}, arrayType: ${property.arrayType}`,
+            ),
+          );
+        }
+      }
+
+      // Validate ValidationFilters constraints
+      if (property.validationFilters) {
+        if (
+          property.type !== "uuid" &&
+          !(property.type === "array" && property.arrayType === "uuid")
+        ) {
+          errors.push(
+            new PropertyFormatError(
+              `AspectProperty.${property.name}.validationFilters`,
+              "only allowed when type is 'uuid' or when type is 'array' and arrayType is 'uuid'",
+              `type: ${property.type}, arrayType: ${property.arrayType}`,
+            ),
+          );
+        }
+      }
+
+      // Validate stringMimetype constraints
+      if (property.stringMimetype) {
+        if (property.type !== "string") {
+          errors.push(
+            new PropertyFormatError(
+              `AspectProperty.${property.name}.stringMimetype`,
+              "only allowed when type is 'string'",
+              `type: ${property.type}`,
+            ),
+          );
+        }
+      }
+
+      // Validate default value constraints
+      if (property.default !== undefined) {
+        const defaultErrors = this._validateDefaultValue(property);
+        errors.push(...defaultErrors);
+      }
+    }
+
+    return errors;
+  }
+
+  private _validateDefaultValue(property: AspectProperty): AntboxError[] {
+    const errors: AntboxError[] = [];
+
+    // Type validation
+    if (!this._isValidTypeForDefault(property.default, property.type)) {
+      errors.push(
+        new PropertyFormatError(
+          `AspectProperty.${property.name}.default`,
+          `value of type ${property.type}`,
+          `${typeof property.default}: ${property.default}`,
+        ),
+      );
+      return errors; // Don't continue if type is wrong
+    }
+
+    // For string type, validate against regex and list
+    if (property.type === "string" && typeof property.default === "string") {
+      if (property.validationRegex) {
+        const regex = new RegExp(property.validationRegex);
+        if (!regex.test(property.default)) {
+          errors.push(
+            new PropertyDoesNotMatchRegexError(
+              `AspectProperty.${property.name}.default`,
+              property.validationRegex,
+              property.default,
+            ),
+          );
+        }
+      }
+
+      if (property.validationList) {
+        if (!property.validationList.includes(property.default)) {
+          errors.push(
+            new PropertyNotInListError(
+              `AspectProperty.${property.name}.default`,
+              property.validationList,
+              property.default,
+            ),
+          );
+        }
+      }
+    }
+
+    return errors;
+  }
+
+  private _isValidTypeForDefault(
+    value: unknown,
+    expectedType: string,
+  ): boolean {
+    switch (expectedType) {
+      case "string":
+        return typeof value === "string";
+      case "number":
+        return typeof value === "number";
+      case "boolean":
+        return typeof value === "boolean";
+      case "uuid":
+        return typeof value === "string"; // UUID is represented as string
+      case "array":
+        return Array.isArray(value);
+      case "object":
+        return typeof value === "object" && value !== null &&
+          !Array.isArray(value);
+      case "file":
+        return typeof value === "string"; // File references are typically strings
+      default:
+        return false;
     }
   }
 }

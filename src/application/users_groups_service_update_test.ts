@@ -27,14 +27,14 @@ describe("UsersGroupsService.updateUser", () => {
     const voidOrErr = await service.updateUser(
       authCtx,
       createdUserOrErr.right.email,
-      { name: "James" },
+      { name: "James Smith" },
     );
 
     expect(voidOrErr.isRight(), errToMsg(voidOrErr.value)).toBeTruthy();
 
     const updated =
       (await service.getUser(authCtx, createdUserOrErr.right.email!)).right;
-    expect(updated.name).toBe("James");
+    expect(updated.name).toBe("James Smith");
   });
 
   test("should not update email", async () => {
@@ -69,7 +69,7 @@ describe("UsersGroupsService.updateUser", () => {
     const service = usersGroupsService();
 
     const voidOrErr = await service.updateUser(authCtx, "any uuid", {
-      name: "James",
+      name: "James Smith",
     });
 
     expect(voidOrErr.isLeft()).toBeTruthy();
@@ -101,44 +101,6 @@ describe("UsersGroupsService.updateUser", () => {
 
     expect(voidOrErr.isLeft()).toBeTruthy();
     expect(voidOrErr.value).toBeInstanceOf(BadRequestError);
-  });
-});
-
-describe("UsersGroupsService.changePassword", () => {
-  test("should change user password", async () => {
-    const service = usersGroupsService();
-
-    const createdUserOrErr = await service.createUser(authCtx, {
-      name: "The Name",
-      email: "care@gmail.com",
-      secret: "care-secret",
-      groups: ["--users--"],
-    });
-    const sha = UserNode.shaSum("care@gmail.com", "the-new-password");
-
-    await service.changeSecret(authCtx, "care@gmail.com", "the-new-password");
-
-    const updatedUserOrErr = await service.getUser(
-      authCtx,
-      createdUserOrErr.right.email,
-    );
-    expect(updatedUserOrErr.isRight(), errToMsg(updatedUserOrErr.value))
-      .toBeTruthy();
-    expect(updatedUserOrErr.right.email).toBe(createdUserOrErr.right.email);
-    expect(updatedUserOrErr.right.secret).toBe(sha);
-  });
-
-  test("should return error if user not found", async () => {
-    const service = usersGroupsService();
-
-    const voidOrErr = await service.changeSecret(
-      authCtx,
-      "any-user-uuid",
-      "the-new-password",
-    );
-
-    expect(voidOrErr.isLeft(), errToMsg(voidOrErr.value)).toBeTruthy();
-    expect(voidOrErr.value).toBeInstanceOf(UserNotFoundError);
   });
 });
 

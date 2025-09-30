@@ -21,7 +21,6 @@ import {
   builtinUsers,
   ROOT_USER,
 } from "./builtin_users/index.ts";
-import { InvalidCredentialsError } from "./invalid_credentials_error.ts";
 import {
   type GroupDTO,
   groupToNode,
@@ -31,7 +30,7 @@ import {
   userToNode,
 } from "./users_groups_dto.ts";
 import type { UsersGroupsContext } from "./users_groups_service_context.ts";
-import { InvalidSecretFormatError as InvalidSecretFormatError } from "domain/users_groups/invalid_secret_format_error.ts";
+
 import { NodeMetadata } from "domain/nodes/node_metadata.ts";
 
 export class UsersGroupsService {
@@ -46,29 +45,10 @@ export class UsersGroupsService {
 
   constructor(private readonly context: UsersGroupsContext) {}
 
-  #validateSecretComplexity(
-    secret: string,
-  ): Either<InvalidSecretFormatError, void> {
-    if (secret.length < 8) {
-      return left(ValidationError.from(new InvalidSecretFormatError()));
-    }
-
-    return right(undefined);
-  }
-
   async createUser(
     ctx: AuthenticationContext,
     metadata: Partial<UserDTO>,
   ): Promise<Either<AntboxError, UserDTO>> {
-    const validSecretOrErr: Either<InvalidSecretFormatError, void> =
-      metadata.secret
-        ? this.#validateSecretComplexity(metadata.secret)
-        : right(undefined);
-
-    if (validSecretOrErr.isLeft()) {
-      return left(validSecretOrErr.value);
-    }
-
     const existingOrErr = await this.getUser(ctx, metadata.email!);
     if (existingOrErr.isRight()) {
       return left(ValidationError.from(new UserExistsError(metadata.email!)));
@@ -80,7 +60,6 @@ export class UsersGroupsService {
       ...metadata,
       title: metadata.name,
       owner: ctx.principal.email,
-      secret: UserNode.shaSum(metadata.email ?? "", metadata.secret ?? ""),
       group: Array.from(groups)[0],
       groups: Array.from(groups).slice(1),
     });
@@ -144,25 +123,6 @@ export class UsersGroupsService {
     return (await this.#hasAdminGroup(ctx))
       ? right(nodeToUser(node))
       : left(new ForbiddenError());
-  }
-
-  async getUserByCredentials(
-    email: string,
-    password: string,
-  ): Promise<Either<AntboxError, UserDTO>> {
-    const hash = UserNode.shaSum(email, password);
-
-    const result = await this.context.repository.filter([[
-      "secret",
-      "==",
-      hash,
-    ]]);
-
-    if (result.nodes.length === 0) {
-      return left(new InvalidCredentialsError());
-    }
-
-    return right(nodeToUser(result.nodes[0] as UserNode));
   }
 
   async updateUser(
@@ -250,42 +210,6 @@ export class UsersGroupsService {
     return Promise.resolve(
       ctx.principal.groups.includes(Groups.ADMINS_GROUP_UUID),
     );
-  }
-
-  async changeSecret(
-    ctx: AuthenticationContext,
-    email: string,
-    secret: string,
-  ): Promise<Either<AntboxError, void>> {
-    const validSecretOrErr = this.#validateSecretComplexity(secret);
-    if (validSecretOrErr.isLeft()) {
-      return left(validSecretOrErr.value);
-    }
-
-    if (validSecretOrErr.isLeft()) {
-      return left(validSecretOrErr.value);
-    }
-
-    const existingOrErr = await this.getUser(ctx, email);
-    if (existingOrErr.isLeft()) {
-      return left(existingOrErr.value);
-    }
-
-    const user = userToNode(ctx, existingOrErr.value);
-
-    const updateResult = user.update({
-      secret: secret,
-    });
-    if (updateResult.isLeft()) {
-      return left(updateResult.value);
-    }
-
-    const voidOrErr = await this.context.repository.update(user);
-    if (voidOrErr.isLeft()) {
-      return left(voidOrErr.value);
-    }
-
-    return right(voidOrErr.value);
   }
 
   async createGroup(

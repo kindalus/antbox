@@ -12,7 +12,6 @@ import { UserNode } from "domain/users_groups/user_node.ts";
 import { UserNotFoundError } from "domain/users_groups/user_not_found_error.ts";
 import { Users } from "domain/users_groups/users.ts";
 import type { AuthenticationContext } from "./authentication_context.ts";
-import { InvalidCredentialsError } from "./invalid_credentials_error.ts";
 import { UsersGroupsService } from "./users_groups_service.ts";
 import type { UsersGroupsContext } from "./users_groups_service_context.ts";
 
@@ -133,38 +132,6 @@ describe("UsersGroupsService.getUser", () => {
 
     expect(userOrErr.isLeft()).toBeTruthy();
     expect(userOrErr.value).toBeInstanceOf(UserNotFoundError);
-  });
-});
-
-describe("UsersGroupsService.getUserByCredentials", () => {
-  test("should return user from repository", async () => {
-    const service = usersGroupsService();
-
-    await service.createUser(authCtx, {
-      name: "The title",
-      email: "darling@gmail.com",
-      secret: "darling1234",
-      groups: ["--admins--", "--users--"],
-    });
-
-    const userOrErr = await service.getUserByCredentials(
-      "darling@gmail.com",
-      "darling1234",
-    );
-
-    expect(userOrErr.value, errToMsg(userOrErr.value)).toBeTruthy();
-  });
-
-  test("should return error if not found user", async () => {
-    const service = usersGroupsService();
-
-    const userOrErr = await service.getUserByCredentials(
-      "dande@gmail.com",
-      "dandeW1234",
-    );
-
-    expect(userOrErr.isLeft(), errToMsg(userOrErr.value)).toBeTruthy();
-    expect(userOrErr.value).toBeInstanceOf(InvalidCredentialsError);
   });
 });
 

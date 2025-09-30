@@ -7,7 +7,6 @@ export interface UserDTO {
   uuid?: string;
   name: string;
   email: string;
-  secret?: string;
   group: string;
   groups: string[];
 }
@@ -22,7 +21,6 @@ export function nodeToUser(metadata: UserNode): UserDTO {
     uuid: metadata.uuid,
     name: metadata.title,
     email: metadata.email,
-    secret: metadata.secret,
     group: metadata.group,
     groups: [...metadata.groups],
   };
@@ -39,7 +37,6 @@ export function userToNode(
     title: metadata.name,
     email: metadata.email,
     owner: ctx.principal.email,
-    secret: metadata.secret,
     group: metadata.group,
     groups: Array.from(groups),
   }).right;

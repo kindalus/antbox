@@ -7,6 +7,7 @@ import type { UsersGroupsContext } from "./users_groups_service_context.ts";
 import { ValidationError } from "shared/validation_error.ts";
 import { UserExistsError } from "domain/users_groups/user_exists_error.ts";
 import GroupNotFoundError from "domain/users_groups/group_not_found_error.ts";
+import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import { Users } from "domain/users_groups/users.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import { Folders } from "domain/nodes/folders.ts";
@@ -86,7 +87,7 @@ describe("UsersGroupsService.createUser", () => {
     expect(userOrErr.isLeft(), errToMsg(userOrErr.value)).toBeTruthy();
     expect(userOrErr.value).toBeInstanceOf(ValidationError);
     expect((userOrErr.value as ValidationError).errors[0]).toBeInstanceOf(
-      GroupNotFoundError,
+      NodeNotFoundError,
     );
   });
 });
@@ -118,8 +119,8 @@ const authCtx: AuthenticationContext = {
 };
 
 const userNode: UserNode = UserNode.create({
-  uuid: "--the user--",
-  title: "User",
+  uuid: "550e8400-e29b-41d4-a716-446655440000",
+  title: "James Smith",
   email: "james@gmail.com",
   group: "user group",
   owner: Users.ROOT_USER_EMAIL,

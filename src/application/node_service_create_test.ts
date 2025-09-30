@@ -489,3 +489,385 @@ const nodeService = (opts: Partial<NodeServiceContext> = {}) =>
   });
 
 const dummyFile = new File(["Ola"], "ola.txt", { type: "text/plain" });
+
+describe("NodeService.create - UUID property validation", () => {
+  test("should return error when uuid property references non-existing node", async () => {
+    const service = nodeService();
+
+    const props: AspectProperties = [{
+      name: "reference_prop",
+      title: "Reference Property",
+      type: "uuid",
+    }];
+
+    // Create aspect with uuid property
+    await service.create(authCtx, {
+      uuid: "reference-aspect",
+      title: "Reference Aspect",
+      mimetype: Nodes.ASPECT_MIMETYPE,
+      properties: props,
+    });
+
+    // Try to create node with non-existing uuid reference
+    const nodeOrErr = await service.create(authCtx, {
+      title: "Test Node",
+      mimetype: Nodes.FOLDER_MIMETYPE,
+      aspects: ["reference-aspect"],
+      properties: {
+        "reference-aspect:reference_prop": "non-existing-node-uuid",
+      },
+    });
+
+    expect(nodeOrErr.isLeft()).toBeTruthy();
+    expect(nodeOrErr.value).toBeInstanceOf(ValidationError);
+  });
+
+  test("should create node when uuid property references existing node", async () => {
+    const service = nodeService();
+
+    // Create a target node to reference
+    const _targetNodeOrErr = await service.create(authCtx, {
+      uuid: "target-node-uuid",
+      title: "Target Node",
+      mimetype: Nodes.FOLDER_MIMETYPE,
+    });
+
+    const props: AspectProperties = [{
+      name: "reference_prop",
+      title: "Reference Property",
+      type: "uuid",
+    }];
+
+    // Create aspect with uuid property
+    await service.create(authCtx, {
+      uuid: "reference-aspect",
+      title: "Reference Aspect",
+      mimetype: Nodes.ASPECT_MIMETYPE,
+      properties: props,
+    });
+
+    // Create node with existing uuid reference
+    const nodeOrErr = await service.create(authCtx, {
+      title: "Test Node",
+      mimetype: Nodes.FOLDER_MIMETYPE,
+      aspects: ["reference-aspect"],
+      properties: {
+        "reference-aspect:reference_prop": "target-node-uuid",
+      },
+    });
+
+    expect(nodeOrErr.isRight(), errToMsg(nodeOrErr.value)).toBeTruthy();
+  });
+
+  test("should return error when uuid array property has non-existing node references", async () => {
+    const service = nodeService();
+
+    // Create one existing target node
+    await service.create(authCtx, {
+      uuid: "existing-node-uuid",
+      title: "Existing Node",
+      mimetype: Nodes.FOLDER_MIMETYPE,
+    });
+
+    const props: AspectProperties = [{
+      name: "references_prop",
+      title: "References Property",
+      type: "array",
+      arrayType: "uuid",
+    }];
+
+    // Create aspect with uuid array property
+    await service.create(authCtx, {
+      uuid: "references-aspect",
+      title: "References Aspect",
+      mimetype: Nodes.ASPECT_MIMETYPE,
+      properties: props,
+    });
+
+    // Try to create node with mix of existing and non-existing uuid references
+    const nodeOrErr = await service.create(authCtx, {
+      title: "Test Node",
+      mimetype: Nodes.FOLDER_MIMETYPE,
+      aspects: ["references-aspect"],
+      properties: {
+        "references-aspect:references_prop": [
+          "existing-node-uuid",
+          "non-existing-node-uuid",
+        ],
+      },
+    });
+
+    expect(nodeOrErr.isLeft()).toBeTruthy();
+    expect(nodeOrErr.value).toBeInstanceOf(ValidationError);
+  });
+
+  test("should create node when uuid array property has all existing node references", async () => {
+    const service = nodeService();
+
+    // Create target nodes to reference
+    await service.create(authCtx, {
+      uuid: "target-node-1",
+      title: "Target Node 1",
+      mimetype: Nodes.FOLDER_MIMETYPE,
+    });
+
+    await service.create(authCtx, {
+      uuid: "target-node-2",
+      title: "Target Node 2",
+      mimetype: Nodes.FOLDER_MIMETYPE,
+    });
+
+    const props: AspectProperties = [{
+      name: "references_prop",
+      title: "References Property",
+      type: "array",
+      arrayType: "uuid",
+    }];
+
+    // Create aspect with uuid array property
+    await service.create(authCtx, {
+      uuid: "references-aspect",
+      title: "References Aspect",
+      mimetype: Nodes.ASPECT_MIMETYPE,
+      properties: props,
+    });
+
+    // Create node with all existing uuid references
+    const nodeOrErr = await service.create(authCtx, {
+      title: "Test Node",
+      mimetype: Nodes.FOLDER_MIMETYPE,
+      aspects: ["references-aspect"],
+      properties: {
+        "references-aspect:references_prop": ["target-node-1", "target-node-2"],
+      },
+    });
+
+    expect(nodeOrErr.isRight(), errToMsg(nodeOrErr.value)).toBeTruthy();
+  });
+
+  test("should return error when uuid property with validationFilters references non-complying node", async () => {
+    const service = nodeService();
+
+    // Create a file node (not a folder)
+    const file = new File(["content"], "test.txt", { type: "text/plain" });
+    const parent = await service.create(authCtx, {
+      title: "Parent Folder",
+      mimetype: Nodes.FOLDER_MIMETYPE,
+    });
+
+    const _fileNodeOrErr = await service.createFile(authCtx, file, {
+      uuid: "file-node-uuid",
+      parent: parent.right.uuid,
+    });
+
+    const props: AspectProperties = [{
+      name: "folder_reference_prop",
+      title: "Folder Reference Property",
+      type: "uuid",
+      validationFilters: [["mimetype", "==", Nodes.FOLDER_MIMETYPE]],
+    }];
+
+    // Create aspect with filtered uuid property
+    await service.create(authCtx, {
+      uuid: "filtered-aspect",
+      title: "Filtered Aspect",
+      mimetype: Nodes.ASPECT_MIMETYPE,
+      properties: props,
+    });
+
+    // Try to create node referencing file node when filter expects folder
+    const nodeOrErr = await service.create(authCtx, {
+      title: "Test Node",
+      mimetype: Nodes.FOLDER_MIMETYPE,
+      aspects: ["filtered-aspect"],
+      properties: {
+        "filtered-aspect:folder_reference_prop": "file-node-uuid",
+      },
+    });
+
+    expect(nodeOrErr.isLeft()).toBeTruthy();
+    expect(nodeOrErr.value).toBeInstanceOf(ValidationError);
+  });
+
+  test("should create node when uuid property with validationFilters references complying node", async () => {
+    const service = nodeService();
+
+    // Create a folder node
+    const _folderNodeOrErr = await service.create(authCtx, {
+      uuid: "folder-node-uuid",
+      title: "Target Folder",
+      mimetype: Nodes.FOLDER_MIMETYPE,
+    });
+
+    const props: AspectProperties = [{
+      name: "folder_reference_prop",
+      title: "Folder Reference Property",
+      type: "uuid",
+      validationFilters: [["mimetype", "==", Nodes.FOLDER_MIMETYPE]],
+    }];
+
+    // Create aspect with filtered uuid property
+    await service.create(authCtx, {
+      uuid: "filtered-aspect",
+      title: "Filtered Aspect",
+      mimetype: Nodes.ASPECT_MIMETYPE,
+      properties: props,
+    });
+
+    // Create node referencing folder node when filter expects folder
+    const nodeOrErr = await service.create(authCtx, {
+      title: "Test Node",
+      mimetype: Nodes.FOLDER_MIMETYPE,
+      aspects: ["filtered-aspect"],
+      properties: {
+        "filtered-aspect:folder_reference_prop": "folder-node-uuid",
+      },
+    });
+
+    expect(nodeOrErr.isRight(), errToMsg(nodeOrErr.value)).toBeTruthy();
+  });
+
+  test("should return error when uuid array property with validationFilters has non-complying nodes", async () => {
+    const service = nodeService();
+
+    // Create a folder node and a file node
+    const _folderNodeOrErr = await service.create(authCtx, {
+      uuid: "folder-node-uuid",
+      title: "Target Folder",
+      mimetype: Nodes.FOLDER_MIMETYPE,
+    });
+
+    const parent = await service.create(authCtx, {
+      title: "Parent Folder",
+      mimetype: Nodes.FOLDER_MIMETYPE,
+    });
+
+    const file = new File(["content"], "test.txt", { type: "text/plain" });
+    const _fileNodeOrErr = await service.createFile(authCtx, file, {
+      uuid: "file-node-uuid",
+      parent: parent.right.uuid,
+    });
+
+    const props: AspectProperties = [{
+      name: "folder_references_prop",
+      title: "Folder References Property",
+      type: "array",
+      arrayType: "uuid",
+      validationFilters: [["mimetype", "==", Nodes.FOLDER_MIMETYPE]],
+    }];
+
+    // Create aspect with filtered uuid array property
+    await service.create(authCtx, {
+      uuid: "filtered-references-aspect",
+      title: "Filtered References Aspect",
+      mimetype: Nodes.ASPECT_MIMETYPE,
+      properties: props,
+    });
+
+    // Try to create node with mix of complying and non-complying references
+    const nodeOrErr = await service.create(authCtx, {
+      title: "Test Node",
+      mimetype: Nodes.FOLDER_MIMETYPE,
+      aspects: ["filtered-references-aspect"],
+      properties: {
+        "filtered-references-aspect:folder_references_prop": [
+          "folder-node-uuid",
+          "file-node-uuid",
+        ],
+      },
+    });
+
+    expect(nodeOrErr.isLeft()).toBeTruthy();
+    expect(nodeOrErr.value).toBeInstanceOf(ValidationError);
+  });
+
+  test("should create node when uuid array property with validationFilters has all complying nodes", async () => {
+    const service = nodeService();
+
+    // Create two folder nodes
+    await service.create(authCtx, {
+      uuid: "folder-node-1",
+      title: "Target Folder 1",
+      mimetype: Nodes.FOLDER_MIMETYPE,
+    });
+
+    await service.create(authCtx, {
+      uuid: "folder-node-2",
+      title: "Target Folder 2",
+      mimetype: Nodes.FOLDER_MIMETYPE,
+    });
+
+    const props: AspectProperties = [{
+      name: "folder_references_prop",
+      title: "Folder References Property",
+      type: "array",
+      arrayType: "uuid",
+      validationFilters: [["mimetype", "==", Nodes.FOLDER_MIMETYPE]],
+    }];
+
+    // Create aspect with filtered uuid array property
+    await service.create(authCtx, {
+      uuid: "filtered-references-aspect",
+      title: "Filtered References Aspect",
+      mimetype: Nodes.ASPECT_MIMETYPE,
+      properties: props,
+    });
+
+    // Create node with all complying references
+    const nodeOrErr = await service.create(authCtx, {
+      title: "Test Node",
+      mimetype: Nodes.FOLDER_MIMETYPE,
+      aspects: ["filtered-references-aspect"],
+      properties: {
+        "filtered-references-aspect:folder_references_prop": [
+          "folder-node-1",
+          "folder-node-2",
+        ],
+      },
+    });
+
+    expect(nodeOrErr.isRight(), errToMsg(nodeOrErr.value)).toBeTruthy();
+  });
+
+  test("should return error when uuid property with complex validationFilters references non-complying node", async () => {
+    const service = nodeService();
+
+    // Create a folder node without "Project" in title
+    await service.create(authCtx, {
+      uuid: "regular-folder-uuid",
+      title: "Regular Folder",
+      mimetype: Nodes.FOLDER_MIMETYPE,
+    });
+
+    const props: AspectProperties = [{
+      name: "project_folder_prop",
+      title: "Project Folder Property",
+      type: "uuid",
+      validationFilters: [
+        ["mimetype", "==", Nodes.FOLDER_MIMETYPE],
+        ["title", "contains", "Project"],
+      ],
+    }];
+
+    // Create aspect with complex filtered uuid property
+    await service.create(authCtx, {
+      uuid: "complex-filtered-aspect",
+      title: "Complex Filtered Aspect",
+      mimetype: Nodes.ASPECT_MIMETYPE,
+      properties: props,
+    });
+
+    // Try to create node referencing folder that doesn't match title filter
+    const nodeOrErr = await service.create(authCtx, {
+      title: "Test Node",
+      mimetype: Nodes.FOLDER_MIMETYPE,
+      aspects: ["complex-filtered-aspect"],
+      properties: {
+        "complex-filtered-aspect:project_folder_prop": "regular-folder-uuid",
+      },
+    });
+
+    expect(nodeOrErr.isLeft()).toBeTruthy();
+    expect(nodeOrErr.value).toBeInstanceOf(ValidationError);
+  });
+});

@@ -44,6 +44,7 @@ import {
 } from "application/builtin_folders/index.ts";
 import { isPrincipalAllowedTo } from "application/is_principal_allowed_to.ts";
 import type { NodeServiceContext } from "application/node_service_context.ts";
+import { Specification, specificationFn } from "shared/specification.ts";
 
 // TODO: Implements throwing events
 
@@ -141,6 +142,7 @@ export class NodeService {
       }
 
       const errs = await this.#validateNodeAspectsThenUpdate(
+        ctx,
         nodeOrErr.value,
         aspectsOrErr.value,
       );
@@ -549,6 +551,7 @@ export class NodeService {
       }
 
       const errs = await this.#validateNodeAspectsThenUpdate(
+        ctx,
         nodeOrErr.value,
         aspectsOrErr.value,
       );
@@ -574,6 +577,29 @@ export class NodeService {
     ).isRight();
     if (!filtersSatisfied) {
       return left(new BadRequestError("Node does not satisfy parent filters"));
+    }
+
+    // If updating a folder's filters, validate all existing children against new filters
+    if (Nodes.isFolder(nodeOrErr.value) && metadata.filters !== undefined) {
+      const children = await this.context.repository.filter([[
+        "parent",
+        "==",
+        uuid,
+      ]]);
+
+      for (const child of children.nodes) {
+        const childFiltersSatisfied = NodesFilters.satisfiedBy(
+          nodeOrErr.value.filters,
+          child,
+        ).isRight();
+        if (!childFiltersSatisfied) {
+          return left(
+            new BadRequestError(
+              "Updated filters would make existing child node invalid",
+            ),
+          );
+        }
+      }
     }
 
     nodeOrErr.value.update({
@@ -800,7 +826,8 @@ export class NodeService {
     return [...cleanFilters, ["parent", "in", parentList]];
   }
 
-  #validateNodeAspectsThenUpdate(
+  async #validateNodeAspectsThenUpdate(
+    ctx: AuthenticationContext,
     node: FileNode | FolderNode | MetaNode,
     aspects: AspectNode[],
   ): Promise<Either<ValidationError, void>> {
@@ -822,6 +849,21 @@ export class NodeService {
           `${a.uuid}:${p.name}`,
         )
       );
+
+      const uuidProperties = a.properties.filter((f) =>
+        f.type === "uuid" || f.arrayType === "uuid"
+      );
+
+      if (!uuidProperties.length) continue;
+
+      const v = uuidProperties.map((p) => {
+        const value = (accProps[`${a.uuid}:${p.name}`] ?? p.default) as
+          | string
+          | string[];
+        return this.#validateUUIDProperty(ctx, p, value);
+      });
+
+      validators.push(...(await Promise.all(v)));
     }
 
     node.update({ properties: accProps });
@@ -837,6 +879,58 @@ export class NodeService {
     }
 
     return Promise.resolve(right(undefined));
+  }
+
+  async #validateUUIDProperty(
+    auth: AuthenticationContext,
+    property: AspectProperty,
+    values: string | string[],
+  ): Promise<Specification<NodeLike>> {
+    if (property.type !== "uuid" && property.arrayType !== "uuid") {
+      console.warn(
+        `Property ${property.name} is not of type 'uuid' or 'array of uuid'. Skipping UUID validation.`,
+      );
+      return specificationFn(() => right(true));
+    }
+
+    if (!values || !values.length) {
+      return specificationFn(() => right(true));
+    }
+
+    if (!Array.isArray(values)) {
+      values = [values];
+    }
+
+    // First, always validate that all referenced nodes exist
+    const nodesOrErrs = await Promise.all(
+      values.map((uuid) => this.get(auth, uuid)),
+    );
+
+    const notFound = nodesOrErrs.filter((n) => n.isLeft());
+    if (notFound.length) {
+      const errs = notFound.map((n) => n.value as AntboxError);
+      return specificationFn(() => left(ValidationError.from(...errs)));
+    }
+
+    // If validationFilters are defined, also check filter compliance
+    if (property.validationFilters && property.validationFilters.length > 0) {
+      const spec = NodesFilters.nodeSpecificationFrom(
+        property.validationFilters,
+      );
+
+      const results = nodesOrErrs.map((n) => spec.isSatisfiedBy(n.right));
+      const notComply = results.filter((r) => r.isLeft());
+
+      if (notComply.length) {
+        const errs = notComply
+          .map((r) => r.value as ValidationError)
+          .map((e) => e.errors)
+          .flat();
+        return specificationFn(() => left(ValidationError.from(...errs)));
+      }
+    }
+
+    return specificationFn(() => right(true));
   }
 
   #addAspectPropertyToNode(

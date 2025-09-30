@@ -535,7 +535,14 @@ export class NodeService {
       }
     }
 
-    const voidOrErr = nodeOrErr.value.update(metadata);
+    // Filter out readonly properties from metadata before updating
+    const filteredMetadata = await this.#filterReadonlyProperties(
+      ctx,
+      nodeOrErr.value,
+      metadata,
+    );
+
+    const voidOrErr = nodeOrErr.value.update(filteredMetadata);
     if (voidOrErr.isLeft()) {
       return left(voidOrErr.value);
     }
@@ -994,6 +1001,60 @@ export class NodeService {
 
   #listSystemRootFolder(): FolderNode[] {
     return SYSTEM_FOLDERS;
+  }
+
+  async #filterReadonlyProperties(
+    ctx: AuthenticationContext,
+    node: NodeLike,
+    metadata: Partial<NodeMetadata>,
+  ): Promise<Partial<NodeMetadata>> {
+    // If no properties are being updated, return metadata as-is
+    if (!metadata.properties) {
+      return metadata;
+    }
+
+    // If node doesn't have aspects, return metadata as-is
+    if (!Nodes.hasAspects(node)) {
+      return metadata;
+    }
+
+    // Get node aspects to check for readonly properties
+    const aspectsOrErr = await this.#getNodeAspects(ctx, node);
+    if (aspectsOrErr.isLeft()) {
+      return metadata;
+    }
+
+    const aspects = aspectsOrErr.value;
+
+    // Create a map of property names to their readonly status
+    const readonlyMap = new Map<string, boolean>();
+    for (const aspect of aspects) {
+      const aspectProperties = this.#aspectToProperties(aspect);
+      for (const prop of aspectProperties) {
+        // prop.name already includes the aspect prefix from #aspectToProperties
+        readonlyMap.set(prop.name, prop.readonly === true);
+      }
+    }
+
+    // Replace readonly property values with existing node values
+    const safeProperties: Record<string, unknown> = {};
+    const currentProperties = (node as any).properties || {};
+
+    for (const [key, value] of Object.entries(metadata.properties)) {
+      const isReadonly = readonlyMap.get(key);
+      if (isReadonly) {
+        // For readonly properties, use the existing value from the node
+        safeProperties[key] = currentProperties[key];
+      } else {
+        // For editable properties, use the new value
+        safeProperties[key] = value;
+      }
+    }
+
+    return {
+      ...metadata,
+      properties: safeProperties,
+    };
   }
 
   #mapAntboxMimetypes(mimetype: string): string {

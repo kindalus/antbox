@@ -14,6 +14,7 @@ import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus.ts";
 import type { AspectProperties } from "domain/aspects/aspect_node.ts";
 import { ValidationError } from "shared/validation_error.ts";
 import { Folders } from "domain/nodes/folders.ts";
+import type { FolderNode } from "domain/nodes/folder_node.ts";
 
 describe("NodeService.update", () => {
   test("should update the node metadata", async () => {
@@ -223,6 +224,185 @@ describe("NodeService.update", () => {
 
     // The update should succeed because existing child satisfies new filters
     expect(updateOrErr.isRight()).toBeTruthy();
+  });
+
+  test("should ignore readonly properties during node updates", async () => {
+    const service = nodeService();
+
+    const props: AspectProperties = [{
+      name: "readonly_field",
+      title: "Readonly Field",
+      type: "string",
+      readonly: true,
+      default: "initial_value",
+    }, {
+      name: "editable_field",
+      title: "Editable Field",
+      type: "string",
+    }];
+
+    // Create aspect with readonly property
+    const _aspectOrErr = await service.create(authCtx, {
+      uuid: "readonly-aspect",
+      title: "Readonly Aspect",
+      mimetype: Nodes.ASPECT_MIMETYPE,
+      properties: props,
+    });
+
+    // Create node with aspect
+    const nodeOrErr = await service.create(authCtx, {
+      title: "Test Node",
+      mimetype: Nodes.FOLDER_MIMETYPE,
+      aspects: ["readonly-aspect"],
+      properties: {
+        "readonly-aspect:readonly_field": "initial_value",
+        "readonly-aspect:editable_field": "initial_editable",
+      },
+    });
+
+    expect(nodeOrErr.isRight()).toBeTruthy();
+
+    // Try to update both readonly and editable properties
+    const updateOrErr = await service.update(authCtx, nodeOrErr.right.uuid, {
+      properties: {
+        "readonly-aspect:readonly_field": "attempted_change", // Should be ignored
+        "readonly-aspect:editable_field": "updated_editable", // Should be updated
+      },
+    });
+
+    expect(updateOrErr.isRight()).toBeTruthy();
+
+    // Verify the readonly property was not changed and editable property was updated
+    const updatedNodeOrErr = await service.get(authCtx, nodeOrErr.right.uuid);
+    expect(updatedNodeOrErr.isRight()).toBeTruthy();
+
+    const updatedNode = updatedNodeOrErr.right as FolderNode;
+
+    // Readonly property should keep original value
+    expect(updatedNode.properties["readonly-aspect:readonly_field"])
+      .toBe("initial_value");
+    // Editable property should have new value
+    expect(updatedNode.properties["readonly-aspect:editable_field"])
+      .toBe("updated_editable");
+  });
+
+  test("should ignore readonly properties when they are the only properties being updated", async () => {
+    const service = nodeService();
+
+    const props: AspectProperties = [{
+      name: "readonly_only",
+      title: "Readonly Only",
+      type: "number",
+      readonly: true,
+      default: 42,
+    }];
+
+    // Create aspect with only readonly property
+    const _aspectOrErr = await service.create(authCtx, {
+      uuid: "readonly-only-aspect",
+      title: "Readonly Only Aspect",
+      mimetype: Nodes.ASPECT_MIMETYPE,
+      properties: props,
+    });
+
+    // Create node with aspect
+    const nodeOrErr = await service.create(authCtx, {
+      title: "Test Node",
+      mimetype: Nodes.FOLDER_MIMETYPE,
+      aspects: ["readonly-only-aspect"],
+      properties: {
+        "readonly-only-aspect:readonly_only": 42,
+      },
+    });
+
+    expect(nodeOrErr.isRight()).toBeTruthy();
+
+    // Try to update only readonly property
+    const updateOrErr = await service.update(authCtx, nodeOrErr.right.uuid, {
+      properties: {
+        "readonly-only-aspect:readonly_only": 999, // Should be ignored
+      },
+    });
+
+    expect(updateOrErr.isRight()).toBeTruthy();
+
+    // Verify the readonly property was not changed
+    const updatedNodeOrErr = await service.get(authCtx, nodeOrErr.right.uuid);
+    expect(updatedNodeOrErr.isRight()).toBeTruthy();
+
+    const updatedNode = updatedNodeOrErr.right as FolderNode;
+    expect(
+      updatedNode.properties["readonly-only-aspect:readonly_only"],
+    ).toBe(42);
+  });
+
+  test("should handle mixed readonly and non-readonly properties across multiple aspects", async () => {
+    const service = nodeService();
+
+    const aspect1Props: AspectProperties = [{
+      name: "readonly_prop",
+      title: "Readonly Property",
+      type: "string",
+      readonly: true,
+      default: "readonly_default",
+    }];
+
+    const aspect2Props: AspectProperties = [{
+      name: "editable_prop",
+      title: "Editable Property",
+      type: "string",
+    }];
+
+    // Create two aspects
+    await service.create(authCtx, {
+      uuid: "aspect-with-readonly",
+      title: "Aspect With Readonly",
+      mimetype: Nodes.ASPECT_MIMETYPE,
+      properties: aspect1Props,
+    });
+
+    await service.create(authCtx, {
+      uuid: "aspect-with-editable",
+      title: "Aspect With Editable",
+      mimetype: Nodes.ASPECT_MIMETYPE,
+      properties: aspect2Props,
+    });
+
+    // Create node with both aspects
+    const nodeOrErr = await service.create(authCtx, {
+      title: "Test Node",
+      mimetype: Nodes.FOLDER_MIMETYPE,
+      aspects: ["aspect-with-readonly", "aspect-with-editable"],
+      properties: {
+        "aspect-with-readonly:readonly_prop": "readonly_default",
+        "aspect-with-editable:editable_prop": "initial_editable",
+      },
+    });
+
+    expect(nodeOrErr.isRight()).toBeTruthy();
+
+    // Try to update properties from both aspects
+    const updateOrErr = await service.update(authCtx, nodeOrErr.right.uuid, {
+      properties: {
+        "aspect-with-readonly:readonly_prop": "should_be_ignored",
+        "aspect-with-editable:editable_prop": "should_be_updated",
+      },
+    });
+
+    expect(updateOrErr.isRight()).toBeTruthy();
+
+    // Verify results
+    const updatedNodeOrErr = await service.get(authCtx, nodeOrErr.right.uuid);
+    expect(updatedNodeOrErr.isRight()).toBeTruthy();
+
+    const updatedNode = updatedNodeOrErr.right as FolderNode;
+
+    expect(
+      updatedNode.properties["aspect-with-readonly:readonly_prop"],
+    ).toBe("readonly_default");
+    expect(
+      updatedNode.properties["aspect-with-editable:editable_prop"],
+    ).toBe("should_be_updated");
   });
 });
 

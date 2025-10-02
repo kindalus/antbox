@@ -1119,31 +1119,6 @@ export class NodeService {
 			);
 		}
 
-		// Check for conflicting combinations
-		if (feature.exposeExtension && feature.exposeAITool) {
-			return left(
-				new BadRequestError(
-					"Feature cannot expose both Extension and AI Tool (conflicting run function signatures)",
-				),
-			);
-		}
-
-		if (feature.exposeAction && feature.exposeExtension) {
-			return left(
-				new BadRequestError(
-					"Feature cannot expose both Action and Extension (conflicting run function signatures)",
-				),
-			);
-		}
-
-		if (exposureCount > 2) {
-			return left(
-				new BadRequestError(
-					"Feature cannot expose multiple conflicting subtypes",
-				),
-			);
-		}
-
 		// Validate parameters structure if present
 		if (feature.parameters && Array.isArray(feature.parameters)) {
 			for (const param of feature.parameters) {

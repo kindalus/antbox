@@ -28,6 +28,7 @@ export class AspectNode extends Node {
 			),
 		});
 	}
+
 	static create(
 		metadata: Partial<NodeMetadata>,
 	): Either<ValidationError, AspectNode> {

@@ -23,6 +23,8 @@ export class NodesFilters {
 	}
 
 	static nodeSpecificationFrom(filters: NodeFilters): Specification<NodeLike> {
+		if (!filters || !filters.length) return specificationFn(() => right(true));
+
 		const isSatisfiedByFn = isNodeFilters2D(filters)
 			? NodesFilters.#processNodeFilters(filters)
 			: NodesFilters.#processNodeFilters([filters]);

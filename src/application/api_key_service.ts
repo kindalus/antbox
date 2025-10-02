@@ -13,114 +13,114 @@ import { UuidGenerator } from "shared/uuid_generator.ts";
 import { NodeMetadata } from "domain/nodes/node_metadata.ts";
 
 export class ApiKeyService {
-  readonly #nodeService: NodeService;
+	readonly #nodeService: NodeService;
 
-  constructor(
-    nodeService: NodeService,
-  ) {
-    this.#nodeService = nodeService;
-  }
+	constructor(
+		nodeService: NodeService,
+	) {
+		this.#nodeService = nodeService;
+	}
 
-  async create(
-    ctx: AuthenticationContext,
-    group: string,
-    description?: string,
-  ): Promise<Either<AntboxError, ApiKeyDTO>> {
-    const builtinGroup = builtinGroups.find((g) => g.uuid === group);
+	async create(
+		ctx: AuthenticationContext,
+		group: string,
+		description?: string,
+	): Promise<Either<AntboxError, ApiKeyDTO>> {
+		const builtinGroup = builtinGroups.find((g) => g.uuid === group);
 
-    const groupsOrErr = await this.#nodeService.get(ctx, group);
-    if (groupsOrErr.isLeft() && !builtinGroup) {
-      return left(groupsOrErr.value);
-    }
+		const groupsOrErr = await this.#nodeService.get(ctx, group);
+		if (groupsOrErr.isLeft() && !builtinGroup) {
+			return left(groupsOrErr.value);
+		}
 
-    const metadata: Partial<NodeMetadata> = {
-      secret: UuidGenerator.generate().concat(UuidGenerator.generate()),
-      group,
-      mimetype: Nodes.API_KEY_MIMETYPE,
-      parent: Folders.API_KEYS_FOLDER_UUID,
-    };
+		const metadata: Partial<NodeMetadata> = {
+			secret: UuidGenerator.generate().concat(UuidGenerator.generate()),
+			group,
+			mimetype: Nodes.API_KEY_MIMETYPE,
+			parent: Folders.API_KEYS_FOLDER_UUID,
+		};
 
-    if (description) {
-      metadata.description = description;
-    }
+		if (description) {
+			metadata.description = description;
+		}
 
-    const apiKeyOrErr = await this.#nodeService.create(ctx, metadata);
+		const apiKeyOrErr = await this.#nodeService.create(ctx, metadata);
 
-    if (apiKeyOrErr.isLeft()) {
-      return left(apiKeyOrErr.value);
-    }
+		if (apiKeyOrErr.isLeft()) {
+			return left(apiKeyOrErr.value);
+		}
 
-    return right(nodeToApiKey(apiKeyOrErr.value as ApiKeyNode));
-  }
+		return right(nodeToApiKey(apiKeyOrErr.value as ApiKeyNode));
+	}
 
-  async get(uuid: string): Promise<Either<AntboxError, ApiKeyDTO>> {
-    const nodeOrErr = await this.#nodeService.get(
-      UsersGroupsService.elevatedContext,
-      uuid,
-    );
+	async get(uuid: string): Promise<Either<AntboxError, ApiKeyDTO>> {
+		const nodeOrErr = await this.#nodeService.get(
+			UsersGroupsService.elevatedContext,
+			uuid,
+		);
 
-    if (nodeOrErr.isLeft()) {
-      return left(nodeOrErr.value);
-    }
+		if (nodeOrErr.isLeft()) {
+			return left(nodeOrErr.value);
+		}
 
-    if (!Nodes.isApikey(nodeOrErr.value)) {
-      return left(new ApiKeyNodeFoundError(uuid));
-    }
+		if (!Nodes.isApikey(nodeOrErr.value)) {
+			return left(new ApiKeyNodeFoundError(uuid));
+		}
 
-    const apiKey = nodeOrErr.value;
+		const apiKey = nodeOrErr.value;
 
-    return right(nodeToApiKey(apiKey));
-  }
+		return right(nodeToApiKey(apiKey));
+	}
 
-  async getBySecret(secret: string): Promise<Either<AntboxError, ApiKeyDTO>> {
-    const nodesOrErr = await this.#nodeService.find(
-      UsersGroupsService.elevatedContext,
-      [
-        ["secret", "==", secret],
-        ["mimetype", "==", Nodes.API_KEY_MIMETYPE],
-      ],
-      1,
-    );
+	async getBySecret(secret: string): Promise<Either<AntboxError, ApiKeyDTO>> {
+		const nodesOrErr = await this.#nodeService.find(
+			UsersGroupsService.elevatedContext,
+			[
+				["secret", "==", secret],
+				["mimetype", "==", Nodes.API_KEY_MIMETYPE],
+			],
+			1,
+		);
 
-    if (nodesOrErr.right.nodes.length === 0) {
-      return left(new ApiKeyNodeFoundError(secret));
-    }
+		if (nodesOrErr.right.nodes.length === 0) {
+			return left(new ApiKeyNodeFoundError(secret));
+		}
 
-    return this.get(nodesOrErr.right.nodes[0].uuid);
-  }
+		return this.get(nodesOrErr.right.nodes[0].uuid);
+	}
 
-  async list(ctx: AuthenticationContext): Promise<ApiKeyDTO[]> {
-    const nodesOrErrs = await this.#nodeService.find(
-      ctx,
-      [
-        ["mimetype", "==", Nodes.API_KEY_MIMETYPE],
-        ["parent", "==", Folders.API_KEYS_FOLDER_UUID],
-      ],
-      Number.MAX_SAFE_INTEGER,
-    );
+	async list(ctx: AuthenticationContext): Promise<ApiKeyDTO[]> {
+		const nodesOrErrs = await this.#nodeService.find(
+			ctx,
+			[
+				["mimetype", "==", Nodes.API_KEY_MIMETYPE],
+				["parent", "==", Folders.API_KEYS_FOLDER_UUID],
+			],
+			Number.MAX_SAFE_INTEGER,
+		);
 
-    if (nodesOrErrs.isLeft()) {
-      console.error(nodesOrErrs.value);
-      return [];
-    }
+		if (nodesOrErrs.isLeft()) {
+			console.error(nodesOrErrs.value);
+			return [];
+		}
 
-    const nodes = nodesOrErrs.value.nodes
-      .map((n) => (n as ApiKeyNode))
-      .sort((a, b) => a.title.localeCompare(b.title));
+		const nodes = nodesOrErrs.value.nodes
+			.map((n) => (n as ApiKeyNode))
+			.sort((a, b) => a.title.localeCompare(b.title));
 
-    return nodes.map((n) => nodeToApiKey(n));
-  }
+		return nodes.map((n) => nodeToApiKey(n));
+	}
 
-  async delete(
-    ctx: AuthenticationContext,
-    uuid: string,
-  ): Promise<Either<AntboxError, void>> {
-    const existingOrErr = await this.get(uuid);
+	async delete(
+		ctx: AuthenticationContext,
+		uuid: string,
+	): Promise<Either<AntboxError, void>> {
+		const existingOrErr = await this.get(uuid);
 
-    if (existingOrErr.isLeft()) {
-      return left(existingOrErr.value);
-    }
+		if (existingOrErr.isLeft()) {
+			return left(existingOrErr.value);
+		}
 
-    return this.#nodeService.delete(ctx, uuid);
-  }
+		return this.#nodeService.delete(ctx, uuid);
+	}
 }

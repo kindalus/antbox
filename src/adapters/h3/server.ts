@@ -7,24 +7,24 @@ import { App, createApp, createRouter, useBase } from "h3";
 
 // TODO: Should return a startServerFn
 export default function setupH3Server(tenants: AntboxTenant[]): App {
-  const app = createApp();
+	const app = createApp();
 
-  const nodes = nodesRouter(tenants);
-  const aspects = aspectsRouter(tenants);
-  const features = featuresRouter(tenants);
-  const login = loginRouter(tenants);
+	const nodes = nodesRouter(tenants);
+	const aspects = aspectsRouter(tenants);
+	const features = featuresRouter(tenants);
+	const login = loginRouter(tenants);
 
-  // Create v2 router
-  const v2Router = createRouter();
+	// Create v2 router
+	const v2Router = createRouter();
 
-  // Mount individual routers with proper prefixes
-  v2Router.use("/nodes/**", useBase("/nodes", nodes.handler));
-  v2Router.use("/aspects/**", useBase("/aspects", aspects.handler));
-  v2Router.use("/features/**", useBase("/features", features.handler));
-  v2Router.use("/login/**", useBase("/login", login.handler));
+	// Mount individual routers with proper prefixes
+	v2Router.use("/nodes/**", useBase("/nodes", nodes.handler));
+	v2Router.use("/aspects/**", useBase("/aspects", aspects.handler));
+	v2Router.use("/features/**", useBase("/features", features.handler));
+	v2Router.use("/login/**", useBase("/login", login.handler));
 
-  // Mount v2 router under /v2 prefix
-  app.use("/v2/**", useBase("/v2", v2Router.handler));
+	// Mount v2 router under /v2 prefix
+	app.use("/v2/**", useBase("/v2", v2Router.handler));
 
-  return app;
+	return app;
 }

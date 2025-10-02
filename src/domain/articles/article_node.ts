@@ -7,21 +7,21 @@ import { FileMixin } from "domain/nodes/file_mixin.ts";
 import { WithAspectMixin } from "domain/nodes/with_aspect_mixin.ts";
 
 export class ArticleNode extends FileMixin(WithAspectMixin(Node)) {
-  static create(
-    metadata: Partial<NodeMetadata>,
-  ): Either<ValidationError, ArticleNode> {
-    try {
-      const file = new ArticleNode(metadata);
-      return right(file);
-    } catch (e) {
-      return left(e as ValidationError);
-    }
-  }
+	static create(
+		metadata: Partial<NodeMetadata>,
+	): Either<ValidationError, ArticleNode> {
+		try {
+			const file = new ArticleNode(metadata);
+			return right(file);
+		} catch (e) {
+			return left(e as ValidationError);
+		}
+	}
 
-  constructor(metadata: Partial<NodeMetadata> = {}) {
-    super({
-      ...metadata,
-      mimetype: Nodes.ARTICLE_MIMETYPE,
-    });
-  }
+	constructor(metadata: Partial<NodeMetadata> = {}) {
+		super({
+			...metadata,
+			mimetype: Nodes.ARTICLE_MIMETYPE,
+		});
+	}
 }

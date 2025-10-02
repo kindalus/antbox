@@ -17,50 +17,50 @@ import { NodeLike } from "domain/node_like.ts";
 import { FeatureNode } from "domain/features/feature_node.ts";
 
 export class NodeFactory {
-  static from<T extends NodeLike>(
-    metadata: Partial<NodeMetadata>,
-  ): Either<ValidationError, T> {
-    let createFn: (
-      metadata: Partial<NodeMetadata>,
-    ) => Either<ValidationError, NodeLike>;
+	static from<T extends NodeLike>(
+		metadata: Partial<NodeMetadata>,
+	): Either<ValidationError, T> {
+		let createFn: (
+			metadata: Partial<NodeMetadata>,
+		) => Either<ValidationError, NodeLike>;
 
-    switch (metadata.mimetype) {
-      case Nodes.API_KEY_MIMETYPE:
-        createFn = ApiKeyNode.create;
-        break;
+		switch (metadata.mimetype) {
+			case Nodes.API_KEY_MIMETYPE:
+				createFn = ApiKeyNode.create;
+				break;
 
-      case Nodes.ASPECT_MIMETYPE:
-        createFn = AspectNode.create;
-        break;
+			case Nodes.ASPECT_MIMETYPE:
+				createFn = AspectNode.create;
+				break;
 
-      case Nodes.FOLDER_MIMETYPE:
-        createFn = FolderNode.create;
-        break;
+			case Nodes.FOLDER_MIMETYPE:
+				createFn = FolderNode.create;
+				break;
 
-      case Nodes.GROUP_MIMETYPE:
-        createFn = GroupNode.create;
-        break;
+			case Nodes.GROUP_MIMETYPE:
+				createFn = GroupNode.create;
+				break;
 
-      case Nodes.META_NODE_MIMETYPE:
-        createFn = MetaNode.create;
-        break;
+			case Nodes.META_NODE_MIMETYPE:
+				createFn = MetaNode.create;
+				break;
 
-      case Nodes.SMART_FOLDER_MIMETYPE:
-        createFn = SmartFolderNode.create;
-        break;
+			case Nodes.SMART_FOLDER_MIMETYPE:
+				createFn = SmartFolderNode.create;
+				break;
 
-      case Nodes.ARTICLE_MIMETYPE:
-        createFn = ArticleNode.create;
-        break;
+			case Nodes.ARTICLE_MIMETYPE:
+				createFn = ArticleNode.create;
+				break;
 
-      case Nodes.FEATURE_MIMETYPE:
-        createFn = FeatureNode.create;
-        break;
+			case Nodes.FEATURE_MIMETYPE:
+				createFn = FeatureNode.create;
+				break;
 
-      default:
-        createFn = FileNode.create;
-    }
+			default:
+				createFn = FileNode.create;
+		}
 
-    return createFn(metadata) as Either<ValidationError, T>;
-  }
+		return createFn(metadata) as Either<ValidationError, T>;
+	}
 }

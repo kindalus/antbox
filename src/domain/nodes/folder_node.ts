@@ -7,37 +7,37 @@ import { WithAspectMixin } from "domain/nodes/with_aspect_mixin.ts";
 import { AntboxError } from "shared/antbox_error.ts";
 
 export class FolderNode extends FolderMixin(WithAspectMixin(Node)) {
-  static create(
-    metadata: Partial<NodeMetadata>,
-  ): Either<ValidationError, FolderNode> {
-    try {
-      return right(new FolderNode(metadata));
-    } catch (err) {
-      return left(err as ValidationError);
-    }
-  }
+	static create(
+		metadata: Partial<NodeMetadata>,
+	): Either<ValidationError, FolderNode> {
+		try {
+			return right(new FolderNode(metadata));
+		} catch (err) {
+			return left(err as ValidationError);
+		}
+	}
 
-  private constructor(metadata: Partial<NodeMetadata>) {
-    super(metadata);
+	private constructor(metadata: Partial<NodeMetadata>) {
+		super(metadata);
 
-    this._validateFolderNode();
-  }
+		this._validateFolderNode();
+	}
 
-  protected _validateFolderNode(): void {
-    const errors: AntboxError[] = [];
-    const folderMixinError = super._safeValidateFolderMixin();
-    const nodeError = super._safeValidateNode();
+	protected _validateFolderNode(): void {
+		const errors: AntboxError[] = [];
+		const folderMixinError = super._safeValidateFolderMixin();
+		const nodeError = super._safeValidateNode();
 
-    if (nodeError) {
-      errors.push(...nodeError.errors);
-    }
+		if (nodeError) {
+			errors.push(...nodeError.errors);
+		}
 
-    if (folderMixinError) {
-      errors.push(...folderMixinError.errors);
-    }
+		if (folderMixinError) {
+			errors.push(...folderMixinError.errors);
+		}
 
-    if (errors.length) {
-      throw ValidationError.from(...errors);
-    }
-  }
+		if (errors.length) {
+			throw ValidationError.from(...errors);
+		}
+	}
 }

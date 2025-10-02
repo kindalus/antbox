@@ -11,7 +11,8 @@ API keys can be provided in two ways, following modern API design standards:
 
 ## Authorization Header (Recommended)
 
-The standard and recommended way to provide an API key is using the `Authorization` header with the `ApiKey` scheme:
+The standard and recommended way to provide an API key is using the `Authorization` header with the
+`ApiKey` scheme:
 
 ```
 Authorization: ApiKey <your-api-key>
@@ -84,7 +85,8 @@ curl "https://api.example.com/nodes?api_key=my-secret-key"
 
 ## Error Handling
 
-If no valid API key is provided or the API key is invalid, the request will be processed as an anonymous user with limited permissions.
+If no valid API key is provided or the API key is invalid, the request will be processed as an
+anonymous user with limited permissions.
 
 ## Implementation Details
 
@@ -94,4 +96,5 @@ The API key extraction follows this order:
 2. Check `api_key` query parameter
 3. If neither is found, treat as anonymous request
 
-This change ensures compliance with RFC 7235 and modern API design standards while maintaining a clear upgrade path from legacy implementations.
+This change ensures compliance with RFC 7235 and modern API design standards while maintaining a
+clear upgrade path from legacy implementations.

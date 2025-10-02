@@ -2,7 +2,7 @@ import type { Event } from "./event.ts";
 import type { EventHandler } from "./event_handler.ts";
 
 export interface EventBus {
-  publish(event: Event): Promise<void>;
-  subscribe(eventId: string, handler: EventHandler<Event>): void;
-  unsubscribe(eventId: string, handler: EventHandler<Event>): void;
+	publish(event: Event): Promise<void>;
+	subscribe(eventId: string, handler: EventHandler<Event>): void;
+	unsubscribe(eventId: string, handler: EventHandler<Event>): void;
 }

@@ -8,29 +8,29 @@ import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider.t
 import { builtinGroups } from "application/builtin_groups/index.ts";
 
 describe("UsersGroupsService.listUsers", () => {
-  test("should list the users", async () => {
-    const service = usersGroupsService();
+	test("should list the users", async () => {
+		const service = usersGroupsService();
 
-    const usersOrErr = await service.listUsers();
+		const usersOrErr = await service.listUsers();
 
-    expect(usersOrErr.isRight()).toBeTruthy();
-    expect(usersOrErr.right.length).toBe(2);
-  });
+		expect(usersOrErr.isRight()).toBeTruthy();
+		expect(usersOrErr.right.length).toBe(2);
+	});
 });
 
 describe("UsersGroupsService.listGroups", () => {
-  test("should list built-in groups", async () => {
-    const service = usersGroupsService();
+	test("should list built-in groups", async () => {
+		const service = usersGroupsService();
 
-    const groups = await service.listGroups();
+		const groups = await service.listGroups();
 
-    expect(groups.length).toBe(builtinGroups.length);
-  });
+		expect(groups.length).toBe(builtinGroups.length);
+	});
 });
 
 const usersGroupsService = (opts: Partial<UsersGroupsContext> = {}) =>
-  new UsersGroupsService({
-    storage: opts.storage ?? new InMemoryStorageProvider(),
-    repository: opts.repository ?? new InMemoryNodeRepository(),
-    bus: opts.bus ?? new InMemoryEventBus(),
-  });
+	new UsersGroupsService({
+		storage: opts.storage ?? new InMemoryStorageProvider(),
+		repository: opts.repository ?? new InMemoryNodeRepository(),
+		bus: opts.bus ?? new InMemoryEventBus(),
+	});

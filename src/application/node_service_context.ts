@@ -3,7 +3,7 @@ import type { StorageProvider } from "./storage_provider.ts";
 import type { EventBus } from "shared/event_bus.ts";
 
 export interface NodeServiceContext {
-  readonly storage: StorageProvider;
-  readonly repository: NodeRepository;
-  readonly bus: EventBus;
+	readonly storage: StorageProvider;
+	readonly repository: NodeRepository;
+	readonly bus: EventBus;
 }

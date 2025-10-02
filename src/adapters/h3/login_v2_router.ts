@@ -4,9 +4,9 @@ import { createRouter, type Router } from "h3";
 import { adapt } from "./adapt.ts";
 
 export default function (tenants: AntboxTenant[]): Router {
-  const router = createRouter();
+	const router = createRouter();
 
-  router.post("/root", adapt(rootHandler(tenants)));
+	router.post("/root", adapt(rootHandler(tenants)));
 
-  return router;
+	return router;
 }

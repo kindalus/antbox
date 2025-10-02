@@ -6,46 +6,46 @@ import { type NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 
 export class GroupNode extends Node {
-  static create(
-    metadata: Partial<NodeMetadata>,
-  ): Either<ValidationError, GroupNode> {
-    try {
-      const group = new GroupNode(metadata);
+	static create(
+		metadata: Partial<NodeMetadata>,
+	): Either<ValidationError, GroupNode> {
+		try {
+			const group = new GroupNode(metadata);
 
-      return right(group);
-    } catch (err) {
-      return left(err as ValidationError);
-    }
-  }
+			return right(group);
+		} catch (err) {
+			return left(err as ValidationError);
+		}
+	}
 
-  constructor(metadata: Partial<NodeMetadata> = {}) {
-    super({
-      ...metadata,
-      mimetype: Nodes.GROUP_MIMETYPE,
-      parent: Folders.GROUPS_FOLDER_UUID,
-    });
+	constructor(metadata: Partial<NodeMetadata> = {}) {
+		super({
+			...metadata,
+			mimetype: Nodes.GROUP_MIMETYPE,
+			parent: Folders.GROUPS_FOLDER_UUID,
+		});
 
-    this._validateNode();
-  }
+		this._validateNode();
+	}
 
-  override update(
-    metadata: Partial<NodeMetadata>,
-  ): Either<ValidationError, void> {
-    const superUpdateResult = super.update({
-      ...metadata,
-      parent: Folders.GROUPS_FOLDER_UUID,
-    });
+	override update(
+		metadata: Partial<NodeMetadata>,
+	): Either<ValidationError, void> {
+		const superUpdateResult = super.update({
+			...metadata,
+			parent: Folders.GROUPS_FOLDER_UUID,
+		});
 
-    if (superUpdateResult.isLeft()) {
-      return superUpdateResult;
-    }
+		if (superUpdateResult.isLeft()) {
+			return superUpdateResult;
+		}
 
-    try {
-      this._validateNode();
+		try {
+			this._validateNode();
 
-      return right(undefined);
-    } catch (e) {
-      return left(e as ValidationError);
-    }
-  }
+			return right(undefined);
+		} catch (e) {
+			return left(e as ValidationError);
+		}
+	}
 }

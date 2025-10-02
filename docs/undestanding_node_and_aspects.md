@@ -16,28 +16,32 @@
 
 ## Introduction
 
-Antbox ECM employs a sophisticated node-based architecture where everything is represented as a **Node** - the fundamental building block of the system. This approach, combined with **Aspects** for schema extension, creates a flexible and extensible content management foundation.
+Antbox ECM employs a sophisticated node-based architecture where everything is represented as a
+**Node** - the fundamental building block of the system. This approach, combined with **Aspects**
+for schema extension, creates a flexible and extensible content management foundation.
 
-This guide explains how nodes, aspects, and the overall architecture work together to provide powerful content management capabilities.
+This guide explains how nodes, aspects, and the overall architecture work together to provide
+powerful content management capabilities.
 
 ## Core Concepts
 
 ### 1. Node - The Foundation
 
-The `Node` class is the base class for all content in Antbox ECM. Every entity - whether it's a document, folder, user, or feature - is ultimately a node with common properties:
+The `Node` class is the base class for all content in Antbox ECM. Every entity - whether it's a
+document, folder, user, or feature - is ultimately a node with common properties:
 
 ```typescript
 class Node {
-  readonly uuid: string; // Unique identifier
-  protected _fid: string; // Friendly ID (human-readable)
-  protected _title: string; // Display title
-  protected _description?: string; // Optional description
-  protected _mimetype: string; // Content type
-  protected _parent: string; // Parent folder UUID
-  protected _owner: string; // Owner email
-  protected _createdTime: string; // Creation timestamp
-  protected _modifiedTime: string; // Last modification timestamp
-  protected _fulltext: string; // Searchable text content
+	readonly uuid: string; // Unique identifier
+	protected _fid: string; // Friendly ID (human-readable)
+	protected _title: string; // Display title
+	protected _description?: string; // Optional description
+	protected _mimetype: string; // Content type
+	protected _parent: string; // Parent folder UUID
+	protected _owner: string; // Owner email
+	protected _createdTime: string; // Creation timestamp
+	protected _modifiedTime: string; // Last modification timestamp
+	protected _fulltext: string; // Searchable text content
 }
 ```
 
@@ -107,8 +111,8 @@ Aspects provide a powerful mechanism for extending node capabilities without mod
 
 ```typescript
 class AspectNode extends Node {
-  protected _filters: NodeFilters; // When this aspect applies
-  protected _properties: AspectProperties; // Custom property definitions
+	protected _filters: NodeFilters; // When this aspect applies
+	protected _properties: AspectProperties; // Custom property definitions
 }
 ```
 
@@ -118,11 +122,11 @@ Each aspect defines a collection of properties that can be added to nodes:
 
 ```typescript
 interface AspectProperty {
-  name: string; // Property identifier
-  type: PropertyType; // Data type (string, number, date, etc.)
-  required: boolean; // Validation requirement
-  defaultValue?: any; // Default value
-  validation?: ValidationRules; // Custom validation logic
+	name: string; // Property identifier
+	type: PropertyType; // Data type (string, number, date, etc.)
+	required: boolean; // Validation requirement
+	defaultValue?: any; // Default value
+	validation?: ValidationRules; // Custom validation logic
 }
 ```
 
@@ -137,7 +141,9 @@ Aspects are applied to nodes based on filters:
 
 ### 4. NodeFilter - Query System
 
-NodeFilter is a fundamental concept that enables sophisticated querying and filtering of nodes throughout Antbox. It provides a unified way to express search criteria, apply business rules, and automate workflows.
+NodeFilter is a fundamental concept that enables sophisticated querying and filtering of nodes
+throughout Antbox. It provides a unified way to express search criteria, apply business rules, and
+automate workflows.
 
 #### Filter Structure
 
@@ -148,7 +154,7 @@ type NodeFilter = [field: string, operator: FilterOperator, value: unknown];
 
 // Examples:
 ["mimetype", "==", "application/pdf"][("size", ">", 1048576)][
-  ("aspects.document.category", "==", "report")
+	("aspects.document.category", "==", "report")
 ];
 ```
 
@@ -159,8 +165,8 @@ type NodeFilter = [field: string, operator: FilterOperator, value: unknown];
 ```typescript
 // Find PDF files larger than 1MB
 [
-  ["mimetype", "==", "application/pdf"],
-  ["size", ">", 1048576],
+	["mimetype", "==", "application/pdf"],
+	["size", ">", 1048576],
 ];
 ```
 
@@ -175,7 +181,8 @@ type NodeFilter = [field: string, operator: FilterOperator, value: unknown];
 
 - **Equality**: `==`, `!=`
 - **Comparison**: `<`, `<=`, `>`, `>=`
-- **Array operations**: `in`, `not-in`, `contains`, `contains-all`, `contains-any`, `not-contains`, `contains-none`
+- **Array operations**: `in`, `not-in`, `contains`, `contains-all`, `contains-any`, `not-contains`,
+  `contains-none`
 - **Text matching**: `match` (fuzzy regex-based matching)
 
 #### Deep Property Access
@@ -185,11 +192,11 @@ NodeFilter supports dot notation for accessing nested properties:
 ```typescript
 // Access node metadata
 ["metadata.name", "match", "document"][
-  // Access aspect properties
-  ("aspects.custom.category", "==", "important")
+	// Access aspect properties
+	("aspects.custom.category", "==", "important")
 ][
-  // Access array elements
-  ("tags", "contains", "urgent")
+	// Access array elements
+	("tags", "contains", "urgent")
 ];
 ```
 
@@ -233,10 +240,10 @@ Nodes can store content through the storage provider abstraction:
 
 ```typescript
 interface StorageProvider {
-  write(uuid: string, content: Uint8Array): Promise<void>;
-  read(uuid: string): Promise<Uint8Array>;
-  exists(uuid: string): Promise<boolean>;
-  delete(uuid: string): Promise<void>;
+	write(uuid: string, content: Uint8Array): Promise<void>;
+	read(uuid: string): Promise<Uint8Array>;
+	exists(uuid: string): Promise<boolean>;
+	delete(uuid: string): Promise<void>;
 }
 ```
 
@@ -247,34 +254,34 @@ interface StorageProvider {
 ```typescript
 // 1. Define an aspect for invoice properties
 const invoiceAspect = {
-  uuid: "invoice-aspect",
-  title: "Invoice Properties",
-  properties: [
-    { name: "invoiceNumber", type: "string", required: true },
-    { name: "amount", type: "number", required: true },
-    { name: "dueDate", type: "date", required: true },
-    { name: "vendor", type: "string", required: true },
-  ],
-  filters: [
-    { property: "mimetype", operator: "equals", value: "application/pdf" },
-    { property: "title", operator: "contains", value: "invoice" },
-  ],
+	uuid: "invoice-aspect",
+	title: "Invoice Properties",
+	properties: [
+		{ name: "invoiceNumber", type: "string", required: true },
+		{ name: "amount", type: "number", required: true },
+		{ name: "dueDate", type: "date", required: true },
+		{ name: "vendor", type: "string", required: true },
+	],
+	filters: [
+		{ property: "mimetype", operator: "equals", value: "application/pdf" },
+		{ property: "title", operator: "contains", value: "invoice" },
+	],
 };
 
 // 2. Create an invoice document
 const invoice = await nodeService.create({
-  mimetype: "application/pdf",
-  title: "Invoice-2024-001.pdf",
-  parent: "invoices-folder-uuid",
-  content: pdfContent,
-  aspects: {
-    "invoice-aspect": {
-      invoiceNumber: "INV-2024-001",
-      amount: 1250.0,
-      dueDate: "2024-02-15",
-      vendor: "Acme Corp",
-    },
-  },
+	mimetype: "application/pdf",
+	title: "Invoice-2024-001.pdf",
+	parent: "invoices-folder-uuid",
+	content: pdfContent,
+	aspects: {
+		"invoice-aspect": {
+			invoiceNumber: "INV-2024-001",
+			amount: 1250.0,
+			dueDate: "2024-02-15",
+			vendor: "Acme Corp",
+		},
+	},
 });
 ```
 
@@ -282,20 +289,20 @@ const invoice = await nodeService.create({
 
 ```typescript
 const overdueInvoicesFolder = await nodeService.create({
-  mimetype: "application/vnd.antbox.smartfolder",
-  title: "Overdue Invoices",
-  parent: "reports-folder-uuid",
-  filters: [
-    {
-      property: "aspects.invoice-aspect.dueDate",
-      operator: "<",
-      value: "NOW()",
-    },
-    { property: "aspects.invoice-aspect.amount", operator: ">", value: 0 },
-  ],
-  aggregations: [
-    { property: "aspects.invoice-aspect.amount", operation: "sum" },
-  ],
+	mimetype: "application/vnd.antbox.smartfolder",
+	title: "Overdue Invoices",
+	parent: "reports-folder-uuid",
+	filters: [
+		{
+			property: "aspects.invoice-aspect.dueDate",
+			operator: "<",
+			value: "NOW()",
+		},
+		{ property: "aspects.invoice-aspect.amount", operator: ">", value: 0 },
+	],
+	aggregations: [
+		{ property: "aspects.invoice-aspect.amount", operation: "sum" },
+	],
 });
 ```
 
@@ -304,30 +311,30 @@ const overdueInvoicesFolder = await nodeService.create({
 ```typescript
 // invoice-processor.ts
 export default async function (context, params) {
-  const { nodeService, uuids } = context;
+	const { nodeService, uuids } = context;
 
-  for (const uuid of uuids) {
-    const node = await nodeService.get(uuid);
+	for (const uuid of uuids) {
+		const node = await nodeService.get(uuid);
 
-    if (node.aspects?.["invoice-aspect"]) {
-      // Process invoice data
-      const content = await nodeService.getContent(uuid);
+		if (node.aspects?.["invoice-aspect"]) {
+			// Process invoice data
+			const content = await nodeService.getContent(uuid);
 
-      // Update processing status
-      await nodeService.update(uuid, {
-        processed: true,
-        processedTime: new Date().toISOString(),
-      });
+			// Update processing status
+			await nodeService.update(uuid, {
+				processed: true,
+				processedTime: new Date().toISOString(),
+			});
 
-      // Send notification
-      await sendNotification({
-        type: "invoice_processed",
-        invoice: node.aspects["invoice-aspect"].invoiceNumber,
-      });
-    }
-  }
+			// Send notification
+			await sendNotification({
+				type: "invoice_processed",
+				invoice: node.aspects["invoice-aspect"].invoiceNumber,
+			});
+		}
+	}
 
-  return { processed: uuids.length };
+	return { processed: uuids.length };
 }
 ```
 
@@ -353,7 +360,8 @@ export default async function (context, params) {
 
 ## Conclusion
 
-Antbox ECM's node and aspect architecture provides a powerful foundation for enterprise content management. The combination of:
+Antbox ECM's node and aspect architecture provides a powerful foundation for enterprise content
+management. The combination of:
 
 - **Nodes** as the universal building block
 - **Aspects** for flexible schema extension
@@ -361,4 +369,7 @@ Antbox ECM's node and aspect architecture provides a powerful foundation for ent
 - **Smart folders** for dynamic organization
 - **Features** for automation and extensibility
 
-Creates a system that is both powerful enough for complex enterprise needs and flexible enough to adapt to changing requirements. This architecture enables organizations to model their content and workflows naturally while maintaining the technical benefits of a well-structured, extensible system.
+Creates a system that is both powerful enough for complex enterprise needs and flexible enough to
+adapt to changing requirements. This architecture enables organizations to model their content and
+workflows naturally while maintaining the technical benefits of a well-structured, extensible
+system.

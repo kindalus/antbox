@@ -16,11 +16,12 @@
 
 ## Overview
 
-Antbox provides a comprehensive REST API that follows RESTful principles and supports the feature-centric architecture. The API enables complete management of nodes, features, aspects, and all other system entities.
+Antbox provides a comprehensive REST API that follows RESTful principles and supports the
+feature-centric architecture. The API enables complete management of nodes, features, aspects, and
+all other system entities.
 
-**Base URL**: `http://localhost:7180` (default)
-**API Version**: v1
-**Content Type**: `application/json` (unless specified otherwise)
+**Base URL**: `http://localhost:7180` (default) **API Version**: v1 **Content Type**:
+`application/json` (unless specified otherwise)
 
 ## Authentication
 
@@ -44,7 +45,7 @@ Response:
 
 ```json
 {
-  "jwt": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+	"jwt": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
 }
 ```
 
@@ -60,8 +61,7 @@ POST /login/root
 
 Authenticate as root user using SHA256 hashed password.
 
-**Request Body**: Plain text SHA256 hash of password
-**Response**: JWT token for subsequent requests
+**Request Body**: Plain text SHA256 hash of password **Response**: JWT token for subsequent requests
 
 ---
 
@@ -105,11 +105,11 @@ POST /nodes
 
 ```json
 {
-  "mimetype": "text/plain",
-  "title": "My Document",
-  "description": "Document description",
-  "parent": "folder-uuid",
-  "content": "File content here"
+	"mimetype": "text/plain",
+	"title": "My Document",
+	"description": "Document description",
+	"parent": "folder-uuid",
+	"content": "File content here"
 }
 ```
 
@@ -145,20 +145,20 @@ Advanced node searching with filters.
 
 ```json
 {
-  "filters": [
-    {
-      "property": "mimetype",
-      "operator": "equals",
-      "value": "text/plain"
-    },
-    {
-      "property": "createdTime",
-      "operator": ">=",
-      "value": "2024-01-01T00:00:00Z"
-    }
-  ],
-  "limit": 100,
-  "offset": 0
+	"filters": [
+		{
+			"property": "mimetype",
+			"operator": "equals",
+			"value": "text/plain"
+		},
+		{
+			"property": "createdTime",
+			"operator": ">=",
+			"value": "2024-01-01T00:00:00Z"
+		}
+	],
+	"limit": 100,
+	"offset": 0
 }
 ```
 
@@ -172,8 +172,8 @@ POST /nodes/{uuid}/-/copy
 
 ```json
 {
-  "parent": "destination-folder-uuid",
-  "title": "New Title (optional)"
+	"parent": "destination-folder-uuid",
+	"title": "New Title (optional)"
 }
 ```
 
@@ -363,23 +363,23 @@ Execute a feature as an extension using POST method.
 
 ```json
 {
-  "uuid": "123e4567-e89b-12d3-a456-426614174000",
-  "fid": "my-document",
-  "title": "My Document",
-  "description": "Document description",
-  "mimetype": "text/plain",
-  "parent": "parent-folder-uuid",
-  "owner": "user@example.com",
-  "createdTime": "2024-01-01T12:00:00Z",
-  "modifiedTime": "2024-01-01T12:00:00Z",
-  "size": 1024,
-  "fulltext": "Extracted text content",
-  "aspects": {
-    "custom-aspect": {
-      "property1": "value1",
-      "property2": "value2"
-    }
-  }
+	"uuid": "123e4567-e89b-12d3-a456-426614174000",
+	"fid": "my-document",
+	"title": "My Document",
+	"description": "Document description",
+	"mimetype": "text/plain",
+	"parent": "parent-folder-uuid",
+	"owner": "user@example.com",
+	"createdTime": "2024-01-01T12:00:00Z",
+	"modifiedTime": "2024-01-01T12:00:00Z",
+	"size": 1024,
+	"fulltext": "Extracted text content",
+	"aspects": {
+		"custom-aspect": {
+			"property1": "value1",
+			"property2": "value2"
+		}
+	}
 }
 ```
 
@@ -387,29 +387,30 @@ Execute a feature as an extension using POST method.
 
 ```json
 {
-  "uuid": "feature-uuid",
-  "name": "my-feature",
-  "title": "My Custom Feature",
-  "description": "Feature description",
-  "parameters": [
-    {
-      "name": "param1",
-      "type": "string",
-      "required": true,
-      "description": "Parameter description"
-    }
-  ],
-  "runOnCreates": false,
-  "runOnUpdates": false,
-  "runManually": true,
-  "filters": [],
-  "groupsAllowed": ["admins"]
+	"uuid": "feature-uuid",
+	"name": "my-feature",
+	"title": "My Custom Feature",
+	"description": "Feature description",
+	"parameters": [
+		{
+			"name": "param1",
+			"type": "string",
+			"required": true,
+			"description": "Parameter description"
+		}
+	],
+	"runOnCreates": false,
+	"runOnUpdates": false,
+	"runManually": true,
+	"filters": [],
+	"groupsAllowed": ["admins"]
 }
 ```
 
 ### NodeFilter Query System
 
-NodeFilter is the core query mechanism in Antbox, providing powerful and flexible content discovery capabilities. It uses a tuple-based format: `[field, operator, value]`.
+NodeFilter is the core query mechanism in Antbox, providing powerful and flexible content discovery
+capabilities. It uses a tuple-based format: `[field, operator, value]`.
 
 #### Supported Filter Operators
 
@@ -439,8 +440,8 @@ NodeFilter is the core query mechanism in Antbox, providing powerful and flexibl
 
 ```json
 [
-  ["mimetype", "==", "application/pdf"],
-  ["size", ">", 1048576]
+	["mimetype", "==", "application/pdf"],
+	["size", ">", 1048576]
 ]
 ```
 
@@ -448,14 +449,14 @@ NodeFilter is the core query mechanism in Antbox, providing powerful and flexibl
 
 ```json
 [
-  [
-    ["type", "==", "file"],
-    ["size", ">", 1000]
-  ],
-  [
-    ["type", "==", "folder"],
-    ["name", "match", "important"]
-  ]
+	[
+		["type", "==", "file"],
+		["size", ">", 1000]
+	],
+	[
+		["type", "==", "folder"],
+		["name", "match", "important"]
+	]
 ]
 ```
 
@@ -465,9 +466,9 @@ NodeFilter supports deep property access using dot notation:
 
 ```json
 [
-  ["metadata.name", "match", "document"],
-  ["aspects.custom.category", "==", "report"],
-  ["tags", "contains", "urgent"]
+	["metadata.name", "match", "document"],
+	["aspects.custom.category", "==", "report"],
+	["tags", "contains", "urgent"]
 ]
 ```
 
@@ -477,10 +478,10 @@ NodeFilter supports deep property access using dot notation:
 
 ```json
 {
-  "filters": [
-    ["mimetype", "==", "application/pdf"],
-    ["size", ">", 1048576]
-  ]
+	"filters": [
+		["mimetype", "==", "application/pdf"],
+		["size", ">", 1048576]
+	]
 }
 ```
 
@@ -488,10 +489,10 @@ NodeFilter supports deep property access using dot notation:
 
 ```json
 {
-  "filters": [
-    [["tags", "contains", "urgent"]],
-    [["parent", "==", "folder-uuid-here"]]
-  ]
+	"filters": [
+		[["tags", "contains", "urgent"]],
+		[["parent", "==", "folder-uuid-here"]]
+	]
 }
 ```
 
@@ -499,11 +500,11 @@ NodeFilter supports deep property access using dot notation:
 
 ```json
 {
-  "filters": [
-    ["aspects.document.category", "==", "report"],
-    ["metadata.name", "match", "2024"],
-    ["size", ">=", 500000]
-  ]
+	"filters": [
+		["aspects.document.category", "==", "report"],
+		["metadata.name", "match", "2024"],
+		["size", ">=", 500000]
+	]
 }
 ```
 
@@ -513,13 +514,13 @@ NodeFilter supports deep property access using dot notation:
 
 ```json
 {
-  "error": {
-    "code": "NODE_NOT_FOUND",
-    "message": "Node with UUID 'invalid-uuid' not found",
-    "details": {
-      "uuid": "invalid-uuid"
-    }
-  }
+	"error": {
+		"code": "NODE_NOT_FOUND",
+		"message": "Node with UUID 'invalid-uuid' not found",
+		"details": {
+			"uuid": "invalid-uuid"
+		}
+	}
 }
 ```
 
@@ -621,40 +622,41 @@ Create a custom feature that processes text files:
 ```javascript
 // text-processor-feature.js
 export default async function (context, params) {
-  const { nodeService, user } = context;
-  const { operation, targetUuids } = params;
+	const { nodeService, user } = context;
+	const { operation, targetUuids } = params;
 
-  const results = [];
+	const results = [];
 
-  for (const uuid of targetUuids) {
-    const node = await nodeService.get(uuid);
+	for (const uuid of targetUuids) {
+		const node = await nodeService.get(uuid);
 
-    if (node.mimetype === "text/plain") {
-      const content = await nodeService.getContent(uuid);
+		if (node.mimetype === "text/plain") {
+			const content = await nodeService.getContent(uuid);
 
-      let processedContent;
-      switch (operation) {
-        case "uppercase":
-          processedContent = content.toString().toUpperCase();
-          break;
-        case "lowercase":
-          processedContent = content.toString().toLowerCase();
-          break;
-        case "word_count":
-          const wordCount = content.toString().split(/\s+/).length;
-          results.push({ uuid, wordCount });
-          continue;
-      }
+			let processedContent;
+			switch (operation) {
+				case "uppercase":
+					processedContent = content.toString().toUpperCase();
+					break;
+				case "lowercase":
+					processedContent = content.toString().toLowerCase();
+					break;
+				case "word_count":
+					const wordCount = content.toString().split(/\s+/).length;
+					results.push({ uuid, wordCount });
+					continue;
+			}
 
-      if (processedContent) {
-        await nodeService.updateContent(uuid, processedContent);
-        results.push({ uuid, processed: true });
-      }
-    }
-  }
+			if (processedContent) {
+				await nodeService.updateContent(uuid, processedContent);
+				results.push({ uuid, processed: true });
+			}
+		}
+	}
 
-  return { results };
+	return { results };
 }
 ```
 
-This comprehensive API reference provides everything needed to integrate with and extend the Antbox ECM system through its feature-centric architecture.
+This comprehensive API reference provides everything needed to integrate with and extend the Antbox
+ECM system through its feature-centric architecture.

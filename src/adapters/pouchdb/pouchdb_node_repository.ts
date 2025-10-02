@@ -3,16 +3,13 @@ import PouchDbFind from "pouchdb-find";
 
 import { NodeFactory } from "domain/node_factory.ts";
 import {
-  type FilterOperator,
-  isNodeFilters2D as areOrNodeFilter,
-  type NodeFilter,
-  type NodeFilters,
+	type FilterOperator,
+	isNodeFilters2D as areOrNodeFilter,
+	type NodeFilter,
+	type NodeFilters,
 } from "domain/nodes/node_filter.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
-import type {
-  NodeFilterResult,
-  NodeRepository,
-} from "domain/nodes/node_repository.ts";
+import type { NodeFilterResult, NodeRepository } from "domain/nodes/node_repository.ts";
 import { type AntboxError, UnknownError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
 import type { NodeLike } from "domain/node_like.ts";
@@ -27,315 +24,311 @@ type Provider = "CouchDb" | "PouchDb";
 PouchDB.plugin(PouchDbFind);
 
 export default async function buildPouchdbNodeRepository(
-  dbpath: string,
+	dbpath: string,
 ): Promise<Either<AntboxError, NodeRepository>> {
-  if (!dbpath) {
-    return Promise.resolve(left(new UnknownError("No database path provided")));
-  }
+	if (!dbpath) {
+		return Promise.resolve(left(new UnknownError("No database path provided")));
+	}
 
-  if (dbpath.startsWith("http")) {
-    return Promise.resolve(
-      right(new PouchdbNodeRepository(new PouchDB(dbpath), "CouchDb")),
-    );
-  }
+	if (dbpath.startsWith("http")) {
+		return Promise.resolve(
+			right(new PouchdbNodeRepository(new PouchDB(dbpath), "CouchDb")),
+		);
+	}
 
-  const path = dbpath + "/nodes";
-  if (!directoryExists(path)) {
-    Deno.mkdirSync(path, { recursive: true });
-  }
+	const path = dbpath + "/nodes";
+	if (!directoryExists(path)) {
+		Deno.mkdirSync(path, { recursive: true });
+	}
 
-  const db = new PouchDB<NodeDbModel>("nodes", {
-    adapter: "leveldb",
-    prefix: dbpath + "/",
-  });
+	const db = new PouchDB<NodeDbModel>("nodes", {
+		adapter: "leveldb",
+		prefix: dbpath + "/",
+	});
 
-  await db
-    .createIndex({ index: { fields: ["title", "fid", "parent", "aspects"] } })
-    .catch((err: unknown) => {
-      console.error(err);
-      throw err;
-    });
+	await db
+		.createIndex({ index: { fields: ["title", "fid", "parent", "aspects"] } })
+		.catch((err: unknown) => {
+			console.error(err);
+			throw err;
+		});
 
-  return Promise.resolve(right(new PouchdbNodeRepository(db)));
+	return Promise.resolve(right(new PouchdbNodeRepository(db)));
 }
 
 function directoryExists(path: string): boolean {
-  try {
-    return Deno.statSync(path).isDirectory;
-  } catch (_error: unknown) {
-    return false;
-  }
+	try {
+		return Deno.statSync(path).isDirectory;
+	} catch (_error: unknown) {
+		return false;
+	}
 }
 
 interface NodeDbModel {
-  _id: string;
-  fid: string;
-  title: string;
-  description?: string;
-  mimetype: string;
-  size?: number;
-  parent: string;
-  createdTime: string;
-  modifiedTime: string;
-  owner: string;
-  aspects?: string[];
-  tags?: string[];
-  related?: string[];
-  properties?: NodeProperties | AspectProperty[];
-  fulltext: string;
+	_id: string;
+	fid: string;
+	title: string;
+	description?: string;
+	mimetype: string;
+	size?: number;
+	parent: string;
+	createdTime: string;
+	modifiedTime: string;
+	owner: string;
+	aspects?: string[];
+	tags?: string[];
+	related?: string[];
+	properties?: NodeProperties | AspectProperty[];
+	fulltext: string;
 
-  xfilters: NodeFilters;
+	xfilters: NodeFilters;
 
-  group: string;
-  groups?: string[];
-  email?: string;
-  secret?: string;
+	group: string;
+	groups?: string[];
+	email?: string;
+	secret?: string;
 
-  onCreate?: string[];
-  onUpdate?: string[];
-  permissions?: Permissions;
+	onCreate?: string[];
+	onUpdate?: string[];
+	permissions?: Permissions;
 
-  runManually?: boolean;
-  runAs?: string;
-  params?: string[];
-  groupsAllowed?: string[];
+	runManually?: boolean;
+	runAs?: string;
+	params?: string[];
+	groupsAllowed?: string[];
 
-  runOnCreates?: boolean;
-  runOnUpdates?: boolean;
+	runOnCreates?: boolean;
+	runOnUpdates?: boolean;
 }
 
 class PouchdbNodeRepository implements NodeRepository {
-  readonly #provider: Provider;
+	readonly #provider: Provider;
 
-  constructor(
-    private readonly db: PouchDB.Database<NodeDbModel>,
-    provider: Provider = "PouchDb",
-  ) {
-    this.#provider = provider;
-  }
+	constructor(
+		private readonly db: PouchDB.Database<NodeDbModel>,
+		provider: Provider = "PouchDb",
+	) {
+		this.#provider = provider;
+	}
 
-  async delete(uuid: string): Promise<Either<NodeNotFoundError, void>> {
-    const doc = await this.#readFromDb(uuid);
+	async delete(uuid: string): Promise<Either<NodeNotFoundError, void>> {
+		const doc = await this.#readFromDb(uuid);
 
-    if (doc.isLeft()) {
-      return left(doc.value);
-    }
+		if (doc.isLeft()) {
+			return left(doc.value);
+		}
 
-    this.db.remove({ _id: doc.value._id, _rev: doc.value._rev });
+		this.db.remove({ _id: doc.value._id, _rev: doc.value._rev });
 
-    return right(undefined);
-  }
+		return right(undefined);
+	}
 
-  async update(node: NodeLike): Promise<Either<NodeNotFoundError, void>> {
-    const doc = await this.#readFromDb(node.uuid);
+	async update(node: NodeLike): Promise<Either<NodeNotFoundError, void>> {
+		const doc = await this.#readFromDb(node.uuid);
 
-    if (doc.isLeft()) {
-      return left(doc.value);
-    }
+		if (doc.isLeft()) {
+			return left(doc.value);
+		}
 
-    const data = this.#toPutDocument(node);
+		const data = this.#toPutDocument(node);
 
-    return this.db
-      .put({
-        _rev: doc.value._rev,
-        ...data,
-      })
-      .then(() => right<NodeNotFoundError, void>(undefined))
-      .catch((err: unknown) => {
-        console.error(err);
-        return left(new NodeNotFoundError(node.uuid));
-      });
-  }
+		return this.db
+			.put({
+				_rev: doc.value._rev,
+				...data,
+			})
+			.then(() => right<NodeNotFoundError, void>(undefined))
+			.catch((err: unknown) => {
+				console.error(err);
+				return left(new NodeNotFoundError(node.uuid));
+			});
+	}
 
-  #toPutDocument(node: NodeLike): PouchDB.Core.PutDocument<NodeDbModel> {
-    const { uuid, filters, ...rest } = node.metadata;
-    return {
-      _id: uuid,
-      xfilters: filters,
-      ...rest,
-    } as unknown as PouchDB.Core.PutDocument<NodeDbModel>;
-  }
+	#toPutDocument(node: NodeLike): PouchDB.Core.PutDocument<NodeDbModel> {
+		const { uuid, filters, ...rest } = node.metadata;
+		return {
+			_id: uuid,
+			xfilters: filters,
+			...rest,
+		} as unknown as PouchDB.Core.PutDocument<NodeDbModel>;
+	}
 
-  #toNodeLike(doc: PouchDB.Core.PutDocument<NodeDbModel>): NodeLike {
-    const { _id, _rev, xfilters: xfilters, ...rest } = doc;
-    const metadata = {
-      uuid: _id,
-      filters: xfilters,
-      ...rest,
-    } as Partial<NodeMetadata>;
-    const node = NodeFactory.from(metadata);
+	#toNodeLike(doc: PouchDB.Core.PutDocument<NodeDbModel>): NodeLike {
+		const { _id, _rev, xfilters: xfilters, ...rest } = doc;
+		const metadata = {
+			uuid: _id,
+			filters: xfilters,
+			...rest,
+		} as Partial<NodeMetadata>;
+		const node = NodeFactory.from(metadata);
 
-    if (node.isLeft()) {
-      throw new Error(
-        `Node could not be created:\n ${JSON.stringify(metadata, null, 3)}`,
-      );
-    }
+		if (node.isLeft()) {
+			throw new Error(
+				`Node could not be created:\n ${JSON.stringify(metadata, null, 3)}`,
+			);
+		}
 
-    return node.right;
-  }
+		return node.right;
+	}
 
-  add(node: NodeLike): Promise<Either<DuplicatedNodeError, void>> {
-    const doc = this.#toPutDocument(node);
+	add(node: NodeLike): Promise<Either<DuplicatedNodeError, void>> {
+		const doc = this.#toPutDocument(node);
 
-    return this.db
-      .put(doc)
-      .then(() => right<DuplicatedNodeError, void>(undefined))
-      .catch((err: unknown) => {
-        console.error(err);
-        return left(new DuplicatedNodeError(node.uuid));
-      });
-  }
+		return this.db
+			.put(doc)
+			.then(() => right<DuplicatedNodeError, void>(undefined))
+			.catch((err: unknown) => {
+				console.error(err);
+				return left(new DuplicatedNodeError(node.uuid));
+			});
+	}
 
-  async getByFid(fid: string): Promise<Either<NodeNotFoundError, NodeLike>> {
-    const r = await this.db
-      .createIndex({ index: { fields: ["fid"] } })
-      .then(() => this.db.find({ selector: { fid: fid } }));
+	async getByFid(fid: string): Promise<Either<NodeNotFoundError, NodeLike>> {
+		const r = await this.db
+			.createIndex({ index: { fields: ["fid"] } })
+			.then(() => this.db.find({ selector: { fid: fid } }));
 
-    const nodes = r.docs.map((n: unknown) => this.#toNodeLike(n));
+		const nodes = r.docs.map((n: unknown) => this.#toNodeLike(n));
 
-    if (nodes.length === 0) {
-      return left(new NodeNotFoundError(Nodes.fidToUuid(fid)));
-    }
+		if (nodes.length === 0) {
+			return left(new NodeNotFoundError(Nodes.fidToUuid(fid)));
+		}
 
-    return right(nodes[0]);
-  }
+		return right(nodes[0]);
+	}
 
-  async getById(uuid: string): Promise<Either<NodeNotFoundError, NodeLike>> {
-    const doc = await this.#readFromDb(uuid);
+	async getById(uuid: string): Promise<Either<NodeNotFoundError, NodeLike>> {
+		const doc = await this.#readFromDb(uuid);
 
-    if (doc.isLeft()) {
-      return left(doc.value);
-    }
+		if (doc.isLeft()) {
+			return left(doc.value);
+		}
 
-    return right(this.#toNodeLike(doc.value));
-  }
+		return right(this.#toNodeLike(doc.value));
+	}
 
-  async #readFromDb(
-    _id: string,
-  ): Promise<
-    Either<NodeNotFoundError, PouchDB.Core.ExistingDocument<NodeDbModel>>
-  > {
-    return this.db
-      .get(_id)
-      .then(right)
-      .catch((err: unknown) => {
-        if ((err as Record<string, unknown>).status === 404) {
-          return left(new NodeNotFoundError(_id));
-        }
+	async #readFromDb(
+		_id: string,
+	): Promise<
+		Either<NodeNotFoundError, PouchDB.Core.ExistingDocument<NodeDbModel>>
+	> {
+		return this.db
+			.get(_id)
+			.then(right)
+			.catch((err: unknown) => {
+				if ((err as Record<string, unknown>).status === 404) {
+					return left(new NodeNotFoundError(_id));
+				}
 
-        throw err;
-      }) as Promise<
-        Either<NodeNotFoundError, PouchDB.Core.ExistingDocument<NodeDbModel>>
-      >;
-  }
+				throw err;
+			}) as Promise<
+				Either<NodeNotFoundError, PouchDB.Core.ExistingDocument<NodeDbModel>>
+			>;
+	}
 
-  async filter(
-    filters: NodeFilters,
-    pageSize = 20,
-    pageToken = 1,
-  ): Promise<NodeFilterResult> {
-    const limit = pageSize;
-    const skip = pageSize * (pageToken - 1);
+	async filter(
+		filters: NodeFilters,
+		pageSize = 20,
+		pageToken = 1,
+	): Promise<NodeFilterResult> {
+		const limit = pageSize;
+		const skip = pageSize * (pageToken - 1);
 
-    if (filters.length === 0) {
-      return this.#findAll(limit, skip);
-    }
+		if (filters.length === 0) {
+			return this.#findAll(limit, skip);
+		}
 
-    const f = areOrNodeFilter(filters) ? filters : [filters];
-    const selectors = f.map((ifs) => {
-      const mfs = ifs.map((s) => filterToMango(this.#provider, s));
+		const f = areOrNodeFilter(filters) ? filters : [filters];
+		const selectors = f.map((ifs) => {
+			const mfs = ifs.map((s) => filterToMango(this.#provider, s));
 
-      return composeMangoQuery(mfs);
-    });
+			return composeMangoQuery(mfs);
+		});
 
-    const selector = areOrNodeFilter(filters)
-      ? { $or: selectors }
-      : selectors[0];
+		const selector = areOrNodeFilter(filters) ? { $or: selectors } : selectors[0];
 
-    try {
-      const result = await this.db.find({
-        selector,
-        limit: pageSize * pageToken,
-      });
+		try {
+			const result = await this.db.find({
+				selector,
+				limit: pageSize * pageToken,
+			});
 
-      const nodes = result.docs.map((doc: unknown) => this.#toNodeLike(doc));
+			const nodes = result.docs.map((doc: unknown) => this.#toNodeLike(doc));
 
-      return {
-        nodes: nodes.slice(pageSize * (pageToken - 1), pageSize * pageToken),
-        pageSize,
-        pageToken,
-      };
-    } catch (err) {
-      console.log(err);
-    }
+			return {
+				nodes: nodes.slice(pageSize * (pageToken - 1), pageSize * pageToken),
+				pageSize,
+				pageToken,
+			};
+		} catch (err) {
+			console.log(err);
+		}
 
-    return {
-      nodes: [],
-      pageSize,
-      pageToken,
-    };
-  }
+		return {
+			nodes: [],
+			pageSize,
+			pageToken,
+		};
+	}
 
-  async #findAll(limit: number, skip: number) {
-    const result = await this.db.find({
-      selector: {},
-      limit,
-      skip,
-    });
+	async #findAll(limit: number, skip: number) {
+		const result = await this.db.find({
+			selector: {},
+			limit,
+			skip,
+		});
 
-    return {
-      nodes: result.docs.map((doc: unknown) => this.#toNodeLike(doc)),
-      pageSize: limit,
-      pageToken: skip / limit + 1,
-    };
-  }
+		return {
+			nodes: result.docs.map((doc: unknown) => this.#toNodeLike(doc)),
+			pageSize: limit,
+			pageToken: skip / limit + 1,
+		};
+	}
 }
 
 function composeMangoQuery(filters: MangoFilter[]): Record<string, unknown> {
-  if (filters.length === 0) {
-    return {};
-  }
+	if (filters.length === 0) {
+		return {};
+	}
 
-  if (filters.length === 1) {
-    return filters[0];
-  }
+	if (filters.length === 1) {
+		return filters[0];
+	}
 
-  return {
-    $and: filters,
-  };
+	return {
+		$and: filters,
+	};
 }
 
 function filterToMango(dbprovider: Provider, filter: NodeFilter): MangoFilter {
-  const [field, operator, value] = filter;
+	const [field, operator, value] = filter;
 
-  if (operator === "contains") {
-    return { [field]: { $all: [value] } };
-  }
+	if (operator === "contains") {
+		return { [field]: { $all: [value] } };
+	}
 
-  if (operator === "match" && typeof value === "string") {
-    return {
-      [field]: {
-        $regex: dbprovider === "CouchDb"
-          ? `(?i)${value}`
-          : new RegExp(value, "i"),
-      },
-    };
-  }
+	if (operator === "match" && typeof value === "string") {
+		return {
+			[field]: {
+				$regex: dbprovider === "CouchDb" ? `(?i)${value}` : new RegExp(value, "i"),
+			},
+		};
+	}
 
-  const o = operators[operator] as string;
-  return { [field]: { [o]: value } };
+	const o = operators[operator] as string;
+	return { [field]: { [o]: value } };
 }
 
 const operators: Partial<Record<FilterOperator, string>> = {
-  "==": "$eq",
-  "!=": "$ne",
-  ">": "$gt",
-  ">=": "$gte",
-  "<": "$lt",
-  "<=": "$lte",
-  in: "$in",
-  "not-in": "$nin",
-  "contains-all": "$all",
+	"==": "$eq",
+	"!=": "$ne",
+	">": "$gt",
+	">=": "$gte",
+	"<": "$lt",
+	"<=": "$lte",
+	in: "$in",
+	"not-in": "$nin",
+	"contains-all": "$all",
 };
 
 type MangoFilter = { [key: string]: { [key: string]: unknown } };

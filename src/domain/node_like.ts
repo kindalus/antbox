@@ -11,16 +11,16 @@ import type { SmartFolderNode } from "domain/nodes/smart_folder_node.ts";
 import { FeatureNode } from "domain/features/feature_node.ts";
 
 export type NodeLike =
-  | ApiKeyNode
-  | ArticleNode
-  | AspectNode
-  | FileNode
-  | FolderNode
-  | GroupNode
-  | MetaNode
-  | FeatureNode
-  | SmartFolderNode
-  | UserNode;
+	| ApiKeyNode
+	| ArticleNode
+	| AspectNode
+	| FileNode
+	| FolderNode
+	| GroupNode
+	| MetaNode
+	| FeatureNode
+	| SmartFolderNode
+	| UserNode;
 
 export type AspectableNode = ArticleNode | FileNode | FolderNode | MetaNode;
 

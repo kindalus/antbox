@@ -1,10 +1,12 @@
 # Antbox Architecture
 
-This document describes the overall architecture of Antbox ECM system, which follows clean architecture principles with clear separation of concerns.
+This document describes the overall architecture of Antbox ECM system, which follows clean
+architecture principles with clear separation of concerns.
 
 ## Architecture Overview
 
-Antbox is built using a layered architecture pattern that promotes maintainability, testability, and extensibility. The system is organized into distinct layers, each with specific responsibilities.
+Antbox is built using a layered architecture pattern that promotes maintainability, testability, and
+extensibility. The system is organized into distinct layers, each with specific responsibilities.
 
 ## Architecture Diagram
 
@@ -158,7 +160,9 @@ graph TB
 
 ## NodeFilter - A Key Architectural Concept
 
-**NodeFilter** is one of the most important concepts in Antbox, providing a powerful and flexible way to query, filter, and match nodes across the entire system. It serves as the foundation for content discovery, smart folders, feature targeting, and automated workflows.
+**NodeFilter** is one of the most important concepts in Antbox, providing a powerful and flexible
+way to query, filter, and match nodes across the entire system. It serves as the foundation for
+content discovery, smart folders, feature targeting, and automated workflows.
 
 ### NodeFilter Structure
 
@@ -172,7 +176,8 @@ type NodeFilter = [field: string, operator: FilterOperator, value: unknown];
 
 - **Equality**: `==`, `!=`
 - **Comparison**: `<`, `<=`, `>`, `>=`
-- **Array operations**: `in`, `not-in`, `contains`, `contains-all`, `contains-any`, `not-contains`, `contains-none`
+- **Array operations**: `in`, `not-in`, `contains`, `contains-all`, `contains-any`, `not-contains`,
+  `contains-none`
 - **Text matching**: `match` (regex-based fuzzy matching)
 
 ### NodeFilters Combinations
@@ -193,7 +198,8 @@ type NodeFilters2D = NodeFilters1D[];
 
 ### Core Use Cases
 
-1. **Content Discovery**: The `/nodes/-/find` API endpoint uses NodeFilter for powerful search capabilities
+1. **Content Discovery**: The `/nodes/-/find` API endpoint uses NodeFilter for powerful search
+   capabilities
 2. **Smart Folders**: Dynamic content aggregation based on filter criteria
 3. **Feature Targeting**: Actions and Extensions use filters to determine when they apply
 4. **Access Control**: Folder-based security leverages filters for permission evaluation
@@ -227,11 +233,11 @@ NodeFilter supports deep field access using dot notation:
 ```typescript
 // Access node metadata
 ["metadata.name", "match", "document"][
-  // Access aspect properties
-  ("aspects.custom.category", "==", "important")
+	// Access aspect properties
+	("aspects.custom.category", "==", "important")
 ][
-  // Access array elements
-  ("tags", "contains", "urgent")
+	// Access array elements
+	("tags", "contains", "urgent")
 ];
 ```
 

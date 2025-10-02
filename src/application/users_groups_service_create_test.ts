@@ -18,130 +18,130 @@ import { UserNode } from "domain/users_groups/user_node.ts";
 import { UsersGroupsService } from "application/users_groups_service.ts";
 
 describe("UsersGroupsService.createUser", () => {
-  test("should create the user", async () => {
-    const service = usersGroupsService();
+	test("should create the user", async () => {
+		const service = usersGroupsService();
 
-    await service.createUser(authCtx, {
-      name: "The title",
-      email: "joane@gmail.com",
-      groups: ["--admins--", "--users--"],
-    });
+		await service.createUser(authCtx, {
+			name: "The title",
+			email: "joane@gmail.com",
+			groups: ["--admins--", "--users--"],
+		});
 
-    const userOrErr = await service.getUser(authCtx, "joane@gmail.com");
+		const userOrErr = await service.getUser(authCtx, "joane@gmail.com");
 
-    expect(userOrErr.isRight(), errToMsg(userOrErr.value)).toBeTruthy();
-    expect(userOrErr.right.name).toBe("The title");
-    expect(userOrErr.right.email).toBe("joane@gmail.com");
-  });
+		expect(userOrErr.isRight(), errToMsg(userOrErr.value)).toBeTruthy();
+		expect(userOrErr.right.name).toBe("The title");
+		expect(userOrErr.right.email).toBe("joane@gmail.com");
+	});
 
-  test("should remove duplicated groups", async () => {
-    const service = usersGroupsService();
+	test("should remove duplicated groups", async () => {
+		const service = usersGroupsService();
 
-    await service.createUser(authCtx, {
-      name: "The title",
-      email: "duck@gmail.com",
-      groups: ["--users--", "--admins--", "--admins--", "--ultimate--"],
-    });
+		await service.createUser(authCtx, {
+			name: "The title",
+			email: "duck@gmail.com",
+			groups: ["--users--", "--admins--", "--admins--", "--ultimate--"],
+		});
 
-    const userOrErr = await service.getUser(authCtx, "duck@gmail.com");
+		const userOrErr = await service.getUser(authCtx, "duck@gmail.com");
 
-    expect(userOrErr.isRight(), errToMsg(userOrErr.value)).toBeTruthy();
-    expect(userOrErr.right.email).toBe("duck@gmail.com");
-    expect(userOrErr.right.groups).toEqual([
-      "--admins--",
-      "--ultimate--",
-    ]);
-  });
+		expect(userOrErr.isRight(), errToMsg(userOrErr.value)).toBeTruthy();
+		expect(userOrErr.right.email).toBe("duck@gmail.com");
+		expect(userOrErr.right.groups).toEqual([
+			"--admins--",
+			"--ultimate--",
+		]);
+	});
 
-  test("should return error if user already exists", async () => {
-    const service = usersGroupsService();
+	test("should return error if user already exists", async () => {
+		const service = usersGroupsService();
 
-    await service.createUser(authCtx, {
-      name: "The title",
-      email: "tyrion@gmail.com",
-      groups: ["--admins--", "--users--"],
-    });
+		await service.createUser(authCtx, {
+			name: "The title",
+			email: "tyrion@gmail.com",
+			groups: ["--admins--", "--users--"],
+		});
 
-    const userOrErr = await service.createUser(authCtx, {
-      name: "The title",
-      email: "tyrion@gmail.com",
-      groups: ["--admins--", "--users--"],
-    });
+		const userOrErr = await service.createUser(authCtx, {
+			name: "The title",
+			email: "tyrion@gmail.com",
+			groups: ["--admins--", "--users--"],
+		});
 
-    expect(userOrErr.isLeft(), errToMsg(userOrErr.value)).toBeTruthy();
-    expect(userOrErr.value).toBeInstanceOf(ValidationError);
-    expect((userOrErr.value as ValidationError).errors[0]).toBeInstanceOf(
-      UserExistsError,
-    );
-  });
+		expect(userOrErr.isLeft(), errToMsg(userOrErr.value)).toBeTruthy();
+		expect(userOrErr.value).toBeInstanceOf(ValidationError);
+		expect((userOrErr.value as ValidationError).errors[0]).toBeInstanceOf(
+			UserExistsError,
+		);
+	});
 
-  test("should return error if user group not found", async () => {
-    const service = usersGroupsService();
+	test("should return error if user group not found", async () => {
+		const service = usersGroupsService();
 
-    const userOrErr = await service.createUser(authCtx, {
-      name: "The title",
-      email: "kyle@gmail.com",
-      groups: ["--the user--"],
-    });
+		const userOrErr = await service.createUser(authCtx, {
+			name: "The title",
+			email: "kyle@gmail.com",
+			groups: ["--the user--"],
+		});
 
-    expect(userOrErr.isLeft(), errToMsg(userOrErr.value)).toBeTruthy();
-    expect(userOrErr.value).toBeInstanceOf(ValidationError);
-    expect((userOrErr.value as ValidationError).errors[0]).toBeInstanceOf(
-      NodeNotFoundError,
-    );
-  });
+		expect(userOrErr.isLeft(), errToMsg(userOrErr.value)).toBeTruthy();
+		expect(userOrErr.value).toBeInstanceOf(ValidationError);
+		expect((userOrErr.value as ValidationError).errors[0]).toBeInstanceOf(
+			NodeNotFoundError,
+		);
+	});
 });
 
 describe("UsersGroupsService.createGroup", () => {
-  test("should create group and persist metadata", async () => {
-    const service = usersGroupsService();
+	test("should create group and persist metadata", async () => {
+		const service = usersGroupsService();
 
-    await service.createGroup(authCtx, {
-      title: "The Title",
-      uuid: "--group-uuid--",
-    });
+		await service.createGroup(authCtx, {
+			title: "The Title",
+			uuid: "--group-uuid--",
+		});
 
-    const groupOrErr = await service.getGroup("--group-uuid--");
+		const groupOrErr = await service.getGroup("--group-uuid--");
 
-    expect(groupOrErr.isRight(), errToMsg(groupOrErr.value)).toBeTruthy();
-    expect(groupOrErr.right.mimetype).toBe(Nodes.GROUP_MIMETYPE);
-    expect(groupOrErr.right.parent).toBe(Folders.GROUPS_FOLDER_UUID);
-  });
+		expect(groupOrErr.isRight(), errToMsg(groupOrErr.value)).toBeTruthy();
+		expect(groupOrErr.right.mimetype).toBe(Nodes.GROUP_MIMETYPE);
+		expect(groupOrErr.right.parent).toBe(Folders.GROUPS_FOLDER_UUID);
+	});
 });
 
 const authCtx: AuthenticationContext = {
-  mode: "Direct",
-  tenant: "default",
-  principal: {
-    email: "user@dmain.com",
-    groups: ["group1", Groups.ADMINS_GROUP_UUID],
-  },
+	mode: "Direct",
+	tenant: "default",
+	principal: {
+		email: "user@dmain.com",
+		groups: ["group1", Groups.ADMINS_GROUP_UUID],
+	},
 };
 
 const userNode: UserNode = UserNode.create({
-  uuid: "550e8400-e29b-41d4-a716-446655440000",
-  title: "James Smith",
-  email: "james@gmail.com",
-  group: "user group",
-  owner: Users.ROOT_USER_EMAIL,
+	uuid: "550e8400-e29b-41d4-a716-446655440000",
+	title: "James Smith",
+	email: "james@gmail.com",
+	group: "user group",
+	owner: Users.ROOT_USER_EMAIL,
 }).right;
 
 const firstGoupNode: GroupNode = GroupNode.create({
-  uuid: "--admins--",
-  title: "The first title",
-  owner: Users.ROOT_USER_EMAIL,
+	uuid: "--admins--",
+	title: "The first title",
+	owner: Users.ROOT_USER_EMAIL,
 }).right;
 
 const secondGoupNode: GroupNode = GroupNode.create({
-  uuid: "--users--",
-  title: "The second title",
-  owner: Users.ROOT_USER_EMAIL,
+	uuid: "--users--",
+	title: "The second title",
+	owner: Users.ROOT_USER_EMAIL,
 }).right;
 
 const thirdGoupNode: GroupNode = GroupNode.create({
-  uuid: "--ultimate--",
-  title: "The third title",
-  owner: Users.ROOT_USER_EMAIL,
+	uuid: "--ultimate--",
+	title: "The third title",
+	owner: Users.ROOT_USER_EMAIL,
 }).right;
 
 const repository = new InMemoryNodeRepository();
@@ -151,15 +151,15 @@ repository.add(secondGoupNode);
 repository.add(thirdGoupNode);
 
 const usersGroupsService = (
-  opts: Partial<UsersGroupsContext> = { repository },
+	opts: Partial<UsersGroupsContext> = { repository },
 ) =>
-  new UsersGroupsService({
-    storage: opts.storage ?? new InMemoryStorageProvider(),
-    repository: opts.repository ?? new InMemoryNodeRepository(),
-    bus: opts.bus ?? new InMemoryEventBus(),
-  });
+	new UsersGroupsService({
+		storage: opts.storage ?? new InMemoryStorageProvider(),
+		repository: opts.repository ?? new InMemoryNodeRepository(),
+		bus: opts.bus ?? new InMemoryEventBus(),
+	});
 
 const errToMsg = (
-  // deno-lint-ignore no-explicit-any
-  err: any,
+	// deno-lint-ignore no-explicit-any
+	err: any,
 ) => (err.message ? err.message : JSON.stringify(err));

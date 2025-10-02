@@ -3,73 +3,74 @@ import { describe, test } from "bdd";
 import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus.ts";
 import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository.ts";
 import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider.ts";
-import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
+
 import { GroupNode } from "domain/users_groups/group_node.ts";
 import { Groups } from "domain/users_groups/groups.ts";
 import { BadRequestError } from "shared/antbox_error.ts";
+import { ValidationError } from "shared/validation_error.ts";
 import { FeatureService } from "application/feature_service.ts";
 import { FeatureNotFoundError } from "domain/features/feature_not_found_error.ts";
+import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import { AuthenticationContext } from "application/authentication_context.ts";
 import { NodeService } from "application/node_service.ts";
 import { UsersGroupsService } from "application/users_groups_service.ts";
 import { builtinFolders } from "application/builtin_folders/index.ts";
-import { Left, Right } from "shared/either.ts";
 
 const createService = async () => {
-  const firstGroupNode: GroupNode = GroupNode.create({
-    uuid: "--group-1--",
-    title: "The Group",
-    owner: "user@gmail.com",
-    description: "Group description",
-  }).right;
+	const firstGroupNode: GroupNode = GroupNode.create({
+		uuid: "--group-1--",
+		title: "The Group",
+		owner: "user@gmail.com",
+		description: "Group description",
+	}).right;
 
-  const secondGroupNode: GroupNode = GroupNode.create({
-    uuid: "--group-2--",
-    title: "The Group",
-    owner: "user@gmail.com",
-    description: "Group description",
-  }).right;
+	const secondGroupNode: GroupNode = GroupNode.create({
+		uuid: "--group-2--",
+		title: "The Group",
+		owner: "user@gmail.com",
+		description: "Group description",
+	}).right;
 
-  const repository = new InMemoryNodeRepository();
-  repository.add(firstGroupNode);
-  repository.add(secondGroupNode);
+	const repository = new InMemoryNodeRepository();
+	repository.add(firstGroupNode);
+	repository.add(secondGroupNode);
 
-  // Add builtin folders
-  builtinFolders.forEach((folder) => repository.add(folder));
+	// Add builtin folders
+	builtinFolders.forEach((folder) => repository.add(folder));
 
-  const storage = new InMemoryStorageProvider();
-  const eventBus = new InMemoryEventBus();
+	const storage = new InMemoryStorageProvider();
+	const eventBus = new InMemoryEventBus();
 
-  const nodeService = new NodeService({ repository, storage, bus: eventBus });
-  const usersGroupsService = new UsersGroupsService({
-    repository,
-    storage,
-    bus: eventBus,
-  });
+	const nodeService = new NodeService({ repository, storage, bus: eventBus });
+	const usersGroupsService = new UsersGroupsService({
+		repository,
+		storage,
+		bus: eventBus,
+	});
 
-  await usersGroupsService.createUser(adminAuthContext, {
-    email: "admin@example.com",
-    name: "Admin",
-    groups: [Groups.ADMINS_GROUP_UUID],
-  });
+	await usersGroupsService.createUser(adminAuthContext, {
+		email: "admin@example.com",
+		name: "Admin",
+		groups: [Groups.ADMINS_GROUP_UUID],
+	});
 
-  return new FeatureService(nodeService, usersGroupsService);
+	return new FeatureService(nodeService, usersGroupsService);
 };
 
 const adminAuthContext: AuthenticationContext = {
-  mode: "Direct",
-  tenant: "default",
-  principal: {
-    email: "admin@example.com",
-    groups: [Groups.ADMINS_GROUP_UUID],
-  },
+	tenant: "default",
+	principal: {
+		email: "admin@example.com",
+		groups: [Groups.ADMINS_GROUP_UUID],
+	},
+	mode: "Direct",
 };
 
-const testFunctionContent = `
+const testFeatureContent = `
   export default {
-    uuid: "test-function-uuid",
-    name: "Test Function",
-    description: "This is a test function.",
+    uuid: "test-feature-uuid",
+    name: "Test feature",
+    description: "This is a test feature.",
     exposeAction: true,
     runOnCreates: false,
     runOnUpdates: false,
@@ -79,6 +80,13 @@ const testFunctionContent = `
     exposeAITool: false,
     groupsAllowed: ["admins"],
     parameters: [
+      {
+        name: "uuids",
+        type: "array",
+        arrayType: "string",
+        required: true,
+        description: "Node UUIDs to process"
+      },
       {
         name: "param1",
         type: "string",
@@ -95,46 +103,545 @@ const testFunctionContent = `
   };
 `;
 
+const testMultiSubtypeContent = `
+  export default {
+    uuid: "multi-subtype-uuid",
+    name: "Multi Subtype Feature",
+    description: "A feature exposed as both action and extension.",
+    exposeAction: true,
+    exposeExtension: true,
+    exposeAITool: false,
+    runOnCreates: false,
+    runOnUpdates: false,
+    runManually: true,
+    filters: [],
+    groupsAllowed: ["admins"],
+    parameters: [
+      {
+        name: "uuids",
+        type: "array",
+        arrayType: "string",
+        required: true,
+        description: "Node UUIDs to process"
+      },
+      {
+        name: "message",
+        type: "string",
+        required: false,
+        description: "Optional message"
+      }
+    ],
+    returnType: "object",
+
+    run: async (ctx, args) => {
+      return { processed: args.uuids.length, message: args.message || "done" };
+    }
+  };
+`;
+
+const testAIToolContent = `
+  export default {
+    uuid: "test-ai-tool-uuid",
+    name: "Test AI Tool",
+    description: "A test AI tool for validation.",
+    exposeAction: false,
+    exposeExtension: false,
+    exposeAITool: true,
+    runOnCreates: false,
+    runOnUpdates: false,
+    runManually: true,
+    filters: [],
+    groupsAllowed: [],
+    parameters: [
+      {
+        name: "query",
+        type: "string",
+        required: true,
+        description: "Search query"
+      },
+      {
+        name: "limit",
+        type: "number",
+        required: false,
+        description: "Result limit"
+      }
+    ],
+    returnType: "array",
+
+    run: async (ctx, args) => {
+      return Array(args.limit || 5).fill({ result: args.query });
+    }
+  };
+`;
+
+interface TestResult {
+	hasNodeService: boolean;
+	hasAuthContext: boolean;
+	userEmail: string;
+	argsReceived: string[];
+}
+
 describe("FeatureService", () => {
-  test("create should create a new function", async () => {
-    const service = await createService();
-    const file = new File([testFunctionContent], "function.js", {
-      type: "application/javascript",
-    });
+	test("create should create a new feature", async () => {
+		const service = await createService();
+		const result = await service.createOrReplace(
+			adminAuthContext,
+			new File([testFeatureContent], "test-feature.js", {
+				type: "application/javascript",
+			}),
+		);
 
-    const functionOrErr = await service.create(adminAuthContext, file);
+		expect(result.isRight()).toBeTruthy();
+		if (result.isRight()) {
+			const node = result.value;
+			expect(node.uuid).toBe("test-feature-uuid");
+		}
+	});
 
-    expect(functionOrErr.isRight(), errToMsg(functionOrErr.value)).toBeTruthy();
-    expect(functionOrErr.right.id).toBe("test-function-uuid");
-    expect(functionOrErr.right.name).toBe("Test Function");
-    expect(functionOrErr.right.description).toBe("This is a test function.");
-    expect(functionOrErr.right.exposeAction).toBe(true);
-    expect(functionOrErr.right.returnType).toBe("string");
-    expect(functionOrErr.right.parameters.length).toBe(1);
-    expect(functionOrErr.right.parameters[0].name).toBe("param1");
-  });
+	test("update should replace existing feature", async () => {
+		const service = await createService();
+		const result = await service.createOrReplace(
+			adminAuthContext,
+			new File([testFeatureContent], "test-feature.js", {
+				type: "application/javascript",
+			}),
+		);
 
-  // TODO: Fix node update mechanism for FeatureNode properties
-  test.skip("update should replace existing function", async () => {
-    const service = await createService();
-    await service.create(
-      adminAuthContext,
-      new File([testFunctionContent], "function.js", {
-        type: "application/javascript",
-      }),
-    );
+		expect(result.isRight()).toBeTruthy();
 
-    const newFileContent = `
+		const updatedfeatureContent = `
       export default {
-        uuid: "test-function-uuid",
-        name: "Updated Function Name",
-        description: "Updated description",
-        exposeAction: false,
+        uuid: "test-feature-uuid",
+        name: "Updated Test feature",
+        description: "This is an updated test feature.",
+        exposeAction: true,
         runOnCreates: false,
         runOnUpdates: false,
         runManually: true,
         filters: [],
-        exposeExtension: true,
+        exposeExtension: false,
+        exposeAITool: false,
+        groupsAllowed: ["admins"],
+        parameters: [
+          {
+            name: "uuids",
+            type: "array",
+            arrayType: "string",
+            required: true,
+            description: "Node UUIDs to process"
+          },
+          {
+            name: "param1",
+            type: "string",
+            required: true,
+            description: "A new test parameter"
+          }
+        ],
+        returnType: "string",
+        returnDescription: "The returned string",
+
+        run: async (ctx, args) => {
+          return "Updated: " + args.param1;
+        }
+      };
+    `;
+
+		const updateResult = await service.createOrReplace(
+			adminAuthContext,
+			new File([updatedfeatureContent], "test-feature.js", {
+				type: "application/javascript",
+			}),
+		);
+
+		expect(updateResult.isRight()).toBeTruthy();
+
+		const getResult = await service.get(adminAuthContext, "test-feature-uuid");
+		expect(getResult.isRight()).toBeTruthy();
+
+		if (getResult.isRight()) {
+			const feature = getResult.value;
+			expect(feature.name).toBe("Updated Test feature");
+		}
+	});
+
+	test("get should return feature", async () => {
+		const service = await createService();
+		await service.createOrReplace(
+			adminAuthContext,
+			new File([testFeatureContent], "test-feature.js", {
+				type: "application/javascript",
+			}),
+		);
+
+		const result = await service.get(adminAuthContext, "test-feature-uuid");
+		expect(result.isRight()).toBeTruthy();
+
+		if (result.isRight()) {
+			const feature = result.value;
+			expect(feature.name).toBe("Test feature");
+		}
+	});
+
+	test("get should return error if feature does not exist", async () => {
+		const service = await createService();
+		const result = await service.get(adminAuthContext, "non-existent-uuid");
+
+		expect(result.isLeft()).toBeTruthy();
+		expect(result.value).toBeInstanceOf(FeatureNotFoundError);
+	});
+
+	test("get should return error if node is not a feature", async () => {
+		const service = await createService();
+		const result = await service.get(adminAuthContext, "--group-1--");
+
+		expect(result.isLeft()).toBeTruthy();
+		expect(result.value).toBeInstanceOf(FeatureNotFoundError);
+	});
+
+	test("delete should remove feature", async () => {
+		const service = await createService();
+		await service.createOrReplace(
+			adminAuthContext,
+			new File([testFeatureContent], "test-feature.js", {
+				type: "application/javascript",
+			}),
+		);
+
+		const deleteResult = await service.delete(
+			adminAuthContext,
+			"test-feature-uuid",
+		);
+
+		expect(deleteResult.isRight()).toBeTruthy();
+
+		const getResult = await service.get(adminAuthContext, "test-feature-uuid");
+		expect(getResult.isLeft()).toBeTruthy();
+		expect(getResult.value).toBeInstanceOf(FeatureNotFoundError);
+	});
+
+	test("list should return all features", async () => {
+		const service = await createService();
+		await service.createOrReplace(
+			adminAuthContext,
+			new File([testFeatureContent], "test-feature.js", {
+				type: "application/javascript",
+			}),
+		);
+
+		const result = await service.listFeatures(adminAuthContext);
+		expect(result.isRight()).toBeTruthy();
+
+		if (result.isRight()) {
+			const features = result.value;
+			expect(features.length).toBeGreaterThan(0);
+			const testFeature = features.find((f) => f.name === "Test feature");
+			expect(testFeature).toBeDefined();
+		}
+	});
+
+	test("export should create a JavaScript file containing feature", async () => {
+		const service = await createService();
+		await service.createOrReplace(
+			adminAuthContext,
+			new File([testFeatureContent], "test-feature.js", {
+				type: "application/javascript",
+			}),
+		);
+
+		const result = await service.export(adminAuthContext, "test-feature-uuid");
+		expect(result.isRight()).toBeTruthy();
+
+		if (result.isRight()) {
+			const file = result.value;
+			expect(file.type).toBe("application/javascript");
+			expect(file.name).toBe("test-feature-uuid.js");
+		}
+	});
+
+	test("runAction should execute the feature and return result", async () => {
+		const service = await createService();
+		await service.createOrReplace(
+			adminAuthContext,
+			new File([testFeatureContent], "test-feature.js", {
+				type: "application/javascript",
+			}),
+		);
+
+		const result = await service.runAction(
+			adminAuthContext,
+			"test-feature-uuid",
+			["--group-1--", "--group-2--"],
+			{ param1: "World" },
+		);
+
+		expect(result.isRight()).toBeTruthy();
+		if (result.isRight()) {
+			expect(result.value).toBe("Hello, World");
+		}
+	});
+
+	test("runAction should return error if parameter validation fails", async () => {
+		const service = await createService();
+		await service.createOrReplace(
+			adminAuthContext,
+			new File([testFeatureContent], "test-feature.js", {
+				type: "application/javascript",
+			}),
+		);
+
+		// Missing required parameter
+		const result = await service.runAction(
+			adminAuthContext,
+			"test-feature-uuid",
+			["--group-1--"],
+			{}, // Missing param1
+		);
+
+		expect(result.isLeft()).toBeTruthy();
+		if (result.isLeft()) {
+			expect(result.value).toBeInstanceOf(BadRequestError);
+			expect(result.value.message).toContain("param1");
+		}
+	});
+
+	test("runAction should return error if feature cannot be run manually", async () => {
+		const service = await createService();
+		const nonManualfeatureContent = `
+      export default {
+        uuid: "non-manual-feature-uuid",
+        name: "Non Manual feature",
+        description: "This feature cannot be run manually.",
+        exposeAction: true,
+        runOnCreates: true,
+        runOnUpdates: false,
+        runManually: false,
+        filters: [],
+        exposeExtension: false,
+        exposeAITool: false,
+        groupsAllowed: ["admins"],
+        parameters: [
+          {
+            name: "uuids",
+            type: "array",
+            arrayType: "string",
+            required: true,
+            description: "Node UUIDs to process"
+          }
+        ],
+        returnType: "void",
+
+        run: async (ctx, args) => {}
+      };
+    `;
+
+		await service.createOrReplace(
+			adminAuthContext,
+			new File([nonManualfeatureContent], "non-manual-feature.js", {
+				type: "application/javascript",
+			}),
+		);
+
+		const result = await service.runAction(
+			adminAuthContext,
+			"non-manual-feature-uuid",
+			["uuid1"],
+			{},
+		);
+
+		expect(result.isLeft()).toBeTruthy();
+		if (result.isLeft()) {
+			expect(result.value).toBeInstanceOf(BadRequestError);
+		}
+	});
+
+	// Validation tests
+	test("should validate Feature must have uuid", async () => {
+		const service = await createService();
+		const invalidfeatureContent = `
+      export default {
+        name: "Invalid feature",
+        description: "This feature has no UUID.",
+        exposeAction: true,
+        runOnCreates: false,
+        runOnUpdates: false,
+        runManually: true,
+        filters: [],
+        exposeExtension: false,
+        exposeAITool: false,
+        groupsAllowed: ["admins"],
+        parameters: [],
+        returnType: "void",
+
+        run: async (ctx, args) => {}
+      };
+    `;
+
+		const result = await service.createOrReplace(
+			adminAuthContext,
+			new File([invalidfeatureContent], "invalid-feature.js", {
+				type: "application/javascript",
+			}),
+		);
+
+		expect(result.isLeft()).toBeTruthy();
+		expect(result.value).toBeInstanceOf(BadRequestError);
+		expect((result.value as BadRequestError).message).toContain("uuid");
+	});
+
+	test("should validate Feature must have name", async () => {
+		const service = await createService();
+		const invalidfeatureContent = `
+      export default {
+        uuid: "invalid-feature-uuid",
+        description: "This feature has no name.",
+        exposeAction: true,
+        runOnCreates: false,
+        runOnUpdates: false,
+        runManually: true,
+        filters: [],
+        exposeExtension: false,
+        exposeAITool: false,
+        groupsAllowed: ["admins"],
+        parameters: [],
+        returnType: "void",
+
+        run: async (ctx, args) => {}
+      };
+    `;
+
+		const result = await service.createOrReplace(
+			adminAuthContext,
+			new File([invalidfeatureContent], "invalid-feature.js", {
+				type: "application/javascript",
+			}),
+		);
+
+		expect(result.isLeft()).toBeTruthy();
+		expect(result.value).toBeInstanceOf(BadRequestError);
+		expect((result.value as BadRequestError).message).toContain("name");
+	});
+
+	test("should validate Feature must have run method", async () => {
+		const service = await createService();
+		const invalidfeatureContent = `
+      export default {
+        uuid: "invalid-feature-uuid",
+        name: "Invalid feature",
+        description: "This feature has no run method.",
+        exposeAction: true,
+        runOnCreates: false,
+        runOnUpdates: false,
+        runManually: true,
+        filters: [],
+        exposeExtension: false,
+        exposeAITool: false,
+        groupsAllowed: ["admins"],
+        parameters: [],
+        returnType: "void"
+      };
+    `;
+
+		const result = await service.createOrReplace(
+			adminAuthContext,
+			new File([invalidfeatureContent], "invalid-feature.js", {
+				type: "application/javascript",
+			}),
+		);
+
+		expect(result.isLeft()).toBeTruthy();
+		expect(result.value).toBeInstanceOf(BadRequestError);
+		expect((result.value as BadRequestError).message).toContain("run");
+	});
+
+	test("should validate Feature must have default export", async () => {
+		const service = await createService();
+		const invalidfeatureContent = `
+      const myfeature = {
+        uuid: "invalid-feature-uuid",
+        name: "Invalid feature",
+        description: "This feature has no default export.",
+        exposeAction: true,
+        runOnCreates: false,
+        runOnUpdates: false,
+        runManually: true,
+        filters: [],
+        exposeExtension: false,
+        exposeAITool: false,
+        groupsAllowed: ["admins"],
+        parameters: [],
+        returnType: "void",
+
+        run: async (ctx, args) => {}
+      };
+
+      export { myfeature };
+    `;
+
+		const result = await service.createOrReplace(
+			adminAuthContext,
+			new File([invalidfeatureContent], "invalid-feature.js", {
+				type: "application/javascript",
+			}),
+		);
+
+		expect(result.isLeft()).toBeTruthy();
+		expect(result.value).toBeInstanceOf(BadRequestError);
+		expect((result.value as BadRequestError).message).toContain(
+			"default export",
+		);
+	});
+
+	test("should validate invalid file type", async () => {
+		const service = await createService();
+
+		const result = await service.createOrReplace(
+			adminAuthContext,
+			new File([testFeatureContent], "test-feature.txt", {
+				type: "text/plain",
+			}),
+		);
+
+		expect(result.isLeft()).toBeTruthy();
+		expect(result.value).toBeInstanceOf(BadRequestError);
+		expect((result.value as BadRequestError).message).toContain(
+			"Invalid file type",
+		);
+	});
+
+	test("should validate malformed JavaScript", async () => {
+		const service = await createService();
+		const malformedContent = `
+      export default {
+        uuid: "malformed-uuid"
+        name: "Malformed feature" // Missing comma
+        run: not_a_feature
+      }; // Missing closing brace
+    `;
+
+		const result = await service.createOrReplace(
+			adminAuthContext,
+			new File([malformedContent], "malformed.js", {
+				type: "application/javascript",
+			}),
+		);
+
+		expect(result.isLeft()).toBeTruthy();
+		expect(result.value).toBeInstanceOf(BadRequestError);
+	});
+
+	test("should validate Action must have uuids parameter when exposeAction is true", async () => {
+		const service = await createService();
+		const invalidActionContent = `
+      export default {
+        uuid: "invalid-action-uuid",
+        name: "Invalid Action",
+        description: "Action without required uuids parameter",
+        exposeAction: true,
+        runOnCreates: false,
+        runOnUpdates: false,
+        runManually: true,
+        filters: [],
+        exposeExtension: false,
         exposeAITool: false,
         groupsAllowed: ["admins"],
         parameters: [
@@ -142,275 +649,442 @@ describe("FeatureService", () => {
             name: "param1",
             type: "string",
             required: true,
-            description: "A test parameter"
-          },
-          {
-            name: "param2",
-            type: "number",
-            required: false,
-            description: "Another parameter"
+            description: "Some parameter"
           }
         ],
-        returnType: "object",
-        returnDescription: "A result object",
+        returnType: "void",
 
-        run: async (ctx, args) => {
-          return { message: "Hello, " + args.param1, value: args.param2 };
-        }
+        run: async (ctx, args) => {}
       };
     `;
-    const funcOrErr = await service.updateFile(
-      adminAuthContext,
-      "test-function-uuid",
-      new File([newFileContent], "function.js", {
-        type: "application/javascript",
-      }),
-    );
 
-    expect(funcOrErr.isRight(), errToMsg(funcOrErr.value)).toBeTruthy();
-    expect(funcOrErr.right.id).toBe("test-function-uuid");
-    expect(funcOrErr.right.name).toBe("Updated Function Name");
-    expect(funcOrErr.right.description).toBe("Updated description");
-    expect(funcOrErr.right.exposeAction).toBe(false);
-    expect(funcOrErr.right.exposeExtension).toBe(true);
-    expect(funcOrErr.right.returnType).toBe("object");
-    expect(funcOrErr.right.parameters.length).toBe(2);
-  });
+		const result = await service.createOrReplace(
+			adminAuthContext,
+			new File([invalidActionContent], "invalid-action.js", {
+				type: "application/javascript",
+			}),
+		);
 
-  test("get should return function", async () => {
-    const service = await createService();
-    await service.create(
-      adminAuthContext,
-      new File([testFunctionContent], "function.js", {
-        type: "application/javascript",
-      }),
-    );
+		expect(result.isLeft()).toBeTruthy();
+		expect(result.value).toBeInstanceOf(ValidationError);
+		expect((result.value as ValidationError).message).toContain("uuids");
+	});
 
-    const functionOrErr = await service.getFeature(
-      adminAuthContext,
-      "test-function-uuid",
-    );
-
-    expect(functionOrErr.isRight(), errToMsg(functionOrErr.value)).toBeTruthy();
-    expect(functionOrErr.right.id).toBe("test-function-uuid");
-    expect(functionOrErr.right.name).toBe("Test Function");
-    expect(functionOrErr.right.description).toBe("This is a test function.");
-  });
-
-  test("get should return error if function does not exist", async () => {
-    const service = await createService();
-
-    const functionOrErr = await service.get(
-      adminAuthContext,
-      "non-existing-function-uuid",
-    );
-
-    expect(functionOrErr.isLeft()).toBeTruthy();
-    expect(functionOrErr.value).toBeInstanceOf(NodeNotFoundError);
-  });
-
-  test("get should return error if node is not a function", async () => {
-    const service = await createService();
-
-    const functionOrErr = await service.getFeature(
-      adminAuthContext,
-      "--group-1--",
-    );
-
-    expect(functionOrErr.isLeft()).toBeTruthy();
-    expect(functionOrErr.value).toBeInstanceOf(FeatureNotFoundError);
-  });
-
-  // TODO: Fix test isolation issues
-  test.skip("delete should remove function", async () => {
-    const service = await createService();
-    await service.create(
-      adminAuthContext,
-      new File([testFunctionContent], "function.js", {
-        type: "application/javascript",
-      }),
-    );
-
-    const deleteOrErr = await service.delete(
-      adminAuthContext,
-      "test-function-uuid",
-    );
-
-    expect(deleteOrErr.isRight(), errToMsg(deleteOrErr.value)).toBeTruthy();
-
-    const getOrErr = await service.get(
-      adminAuthContext,
-      "test-function-uuid",
-    );
-    expect(getOrErr.isLeft()).toBeTruthy();
-  });
-
-  test("list should return all functions", async () => {
-    const service = await createService();
-    await service.create(
-      adminAuthContext,
-      new File([testFunctionContent], "function1.js", {
-        type: "application/javascript",
-      }),
-    );
-
-    const secondFunctionContent = testFunctionContent.replace(
-      "test-function-uuid",
-      "second-function-uuid",
-    ).replace(
-      "Test Function",
-      "Second Function",
-    );
-
-    await service.createFeature(
-      adminAuthContext,
-      new File([secondFunctionContent], "function2.js", {
-        type: "application/javascript",
-      }),
-    );
-
-    const functions = await service.listFeatures(adminAuthContext);
-
-    expect(functions.isRight(), errToMsg(functions.value)).toBeTruthy();
-    expect(functions.right.length).toBe(2);
-    expect(functions.right.some((f) => f.id === "test-function-uuid"))
-      .toBeTruthy();
-    expect(functions.right.some((f) => f.id === "second-function-uuid"))
-      .toBeTruthy();
-  });
-
-  // TODO: Fix test isolation issues
-  test.skip("export should create a JavaScript file containing function", async () => {
-    const service = await createService();
-    await service.create(
-      adminAuthContext,
-      new File([testFunctionContent], "function.js", {
-        type: "application/javascript",
-      }),
-    );
-
-    const exportOrErr = await service.export(
-      adminAuthContext,
-      "test-function-uuid",
-    );
-
-    expect(exportOrErr.isRight(), errToMsg(exportOrErr.value)).toBeTruthy();
-    expect(exportOrErr.right.type).toBe("application/javascript");
-  });
-
-  test("run should execute the function and return result", async () => {
-    const service = await createService();
-    await service.create(
-      adminAuthContext,
-      new File([testFunctionContent], "function.js", {
-        type: "application/javascript",
-      }),
-    );
-
-    const runResult = await service.run(
-      adminAuthContext,
-      "test-function-uuid",
-      { param1: "World" },
-    );
-
-    expect(runResult.isRight(), errToMsg(runResult.value)).toBeTruthy();
-    expect(runResult.value).toBe("Hello, World");
-  });
-
-  test("run should return error if parameter validation fails", async () => {
-    const service = await createService();
-    const functionWithValidationContent = `
+	test("should validate uuids parameter must be array of strings for Actions", async () => {
+		const service = await createService();
+		const invalidActionContent = `
       export default {
-        uuid: "validation-function-uuid",
-        name: "Validation Function",
-        description: "This function validates parameters",
+        uuid: "invalid-action-uuid",
+        name: "Invalid Action",
+        description: "Action with wrong uuids parameter type",
         exposeAction: true,
+        runOnCreates: false,
+        runOnUpdates: false,
         runManually: true,
         filters: [],
         exposeExtension: false,
-        exposeMCP: false,
+        exposeAITool: false,
         groupsAllowed: ["admins"],
         parameters: [
           {
-            name: "requiredParam",
-            type: "string",
+            name: "uuids",
+            type: "string", // Should be array
+            required: true,
+            description: "Node UUIDs"
+          }
+        ],
+        returnType: "void",
+
+        run: async (ctx, args) => {}
+      };
+    `;
+
+		const result = await service.createOrReplace(
+			adminAuthContext,
+			new File([invalidActionContent], "invalid-action.js", {
+				type: "application/javascript",
+			}),
+		);
+
+		expect(result.isLeft()).toBeTruthy();
+		expect(result.value).toBeInstanceOf(ValidationError);
+		expect((result.value as ValidationError).message).toContain("uuids");
+	});
+
+	test("should validate file parameters not allowed for Actions", async () => {
+		const service = await createService();
+		const invalidActionContent = `
+      export default {
+        uuid: "invalid-action-uuid",
+        name: "Invalid Action",
+        description: "Action with file parameter",
+        exposeAction: true,
+        runOnCreates: false,
+        runOnUpdates: false,
+        runManually: true,
+        filters: [],
+        exposeExtension: false,
+        exposeAITool: false,
+        groupsAllowed: ["admins"],
+        parameters: [
+          {
+            name: "uuids",
+            type: "array",
+            arrayType: "string",
+            required: true,
+            description: "Node UUIDs"
+          },
+          {
+            name: "file",
+            type: "file", // Not allowed for actions
+            required: false,
+            description: "File parameter"
+          }
+        ],
+        returnType: "void",
+
+        run: async (ctx, args) => {}
+      };
+    `;
+
+		const result = await service.createOrReplace(
+			adminAuthContext,
+			new File([invalidActionContent], "invalid-action.js", {
+				type: "application/javascript",
+			}),
+		);
+
+		expect(result.isLeft()).toBeTruthy();
+		expect(result.value).toBeInstanceOf(ValidationError);
+		expect((result.value as ValidationError).message).toContain("file");
+	});
+
+	test("should validate file parameters not allowed for AI Tools", async () => {
+		const service = await createService();
+		const invalidAIToolContent = `
+      export default {
+        uuid: "invalid-ai-tool-uuid",
+        name: "Invalid AI Tool",
+        description: "AI Tool with file parameter",
+        exposeAction: false,
+        exposeExtension: false,
+        exposeAITool: true,
+        groupsAllowed: [],
+        parameters: [
+          {
+            name: "file",
+            type: "file", // Not allowed for AI tools
+            required: false,
+            description: "File parameter"
+          }
+        ],
+        returnType: "void",
+
+        run: async (ctx, args) => {}
+      };
+    `;
+
+		const result = await service.createOrReplace(
+			adminAuthContext,
+			new File([invalidAIToolContent], "invalid-ai-tool.js", {
+				type: "application/javascript",
+			}),
+		);
+
+		expect(result.isLeft()).toBeTruthy();
+		expect(result.value).toBeInstanceOf(ValidationError);
+		expect((result.value as ValidationError).message).toContain("file");
+	});
+
+	test("should allow file parameters for Extensions", async () => {
+		const service = await createService();
+		const validExtensionContent = `
+      export default {
+        uuid: "valid-extension-uuid",
+        name: "Valid Extension",
+        description: "Extension with file parameter",
+        exposeAction: false,
+        exposeExtension: true,
+        exposeAITool: false,
+        groupsAllowed: [],
+        parameters: [
+          {
+            name: "file",
+            type: "file", // Allowed for extensions
+            required: false,
+            description: "File parameter"
+          }
+        ],
+        returnType: "void",
+
+        run: async (ctx, request) => {
+          return new Response("OK");
+        }
+      };
+    `;
+
+		const result = await service.createOrReplace(
+			adminAuthContext,
+			new File([validExtensionContent], "valid-extension.js", {
+				type: "application/javascript",
+			}),
+		);
+
+		expect(result.isRight()).toBeTruthy();
+	});
+
+	test("createOrReplaceFeature should create new feature", async () => {
+		const service = await createService();
+		const result = await service.createOrReplace(
+			adminAuthContext,
+			new File([testFeatureContent], "new-feature.js", {
+				type: "application/javascript",
+			}),
+		);
+
+		expect(result.isRight()).toBeTruthy();
+		if (result.isRight()) {
+			const node = result.value;
+			expect(node.uuid).toBe("test-feature-uuid");
+		}
+	});
+
+	test("createOrReplaceFeature should replace existing feature", async () => {
+		const service = await createService();
+
+		// Create initial feature
+		const createResult = await service.createOrReplace(
+			adminAuthContext,
+			new File([testFeatureContent], "feature.js", {
+				type: "application/javascript",
+			}),
+		);
+		expect(createResult.isRight()).toBeTruthy();
+
+		// Replace with updated feature
+		const updatedContent = testFeatureContent.replace(
+			'"Test feature"',
+			'"Updated Test feature"',
+		);
+
+		const replaceResult = await service.createOrReplace(
+			adminAuthContext,
+			new File([updatedContent], "feature.js", {
+				type: "application/javascript",
+			}),
+		);
+		expect(replaceResult.isRight()).toBeTruthy();
+		if (replaceResult.isRight()) {
+			const node = replaceResult.value;
+			expect(node.uuid).toBe("test-feature-uuid");
+		}
+	});
+
+	test("should handle feature metadata extraction correctly", async () => {
+		const service = await createService();
+		const complexFeatureContent = `
+      export default {
+        uuid: "complex-feature-uuid",
+        name: "Complex Feature",
+        description: "A feature with complex metadata",
+        exposeAction: true,
+        runOnCreates: true,
+        runOnUpdates: false,
+        runManually: true,
+        filters: [["mimetype", "==", "text/plain"]],
+        exposeExtension: false,
+        exposeAITool: false,
+        runAs: "system",
+        groupsAllowed: ["admins", "editors"],
+        parameters: [
+          {
+            name: "uuids",
+            type: "array",
+            arrayType: "string",
+            required: true,
+            description: "Node UUIDs to process"
+          },
+          {
+            name: "config",
+            type: "object",
+            required: false,
+            description: "Configuration object",
+            defaultValue: { enabled: true }
+          }
+        ],
+        returnType: "object",
+        returnDescription: "Processing result",
+        returnContentType: "application/json",
+
+        run: async (ctx, args) => {
+          return { processed: args.uuids.length, config: args.config };
+        }
+      };
+    `;
+
+		const result = await service.createOrReplace(
+			adminAuthContext,
+			new File([complexFeatureContent], "complex-feature.js", {
+				type: "application/javascript",
+			}),
+		);
+
+		expect(result.isRight()).toBeTruthy();
+
+		const getResult = await service.get(
+			adminAuthContext,
+			"complex-feature-uuid",
+		);
+		expect(getResult.isRight()).toBeTruthy();
+
+		if (getResult.isRight()) {
+			const feature = getResult.value;
+			expect(feature.name).toBe("Complex Feature");
+			expect(feature.runOnCreates).toBe(true);
+			expect(feature.runAs).toBe("system");
+			expect(feature.groupsAllowed).toEqual(["admins", "editors"]);
+			expect(feature.parameters).toHaveLength(2);
+			expect(feature.returnType).toBe("object");
+			expect(feature.returnDescription).toBe("Processing result");
+		}
+	});
+
+	// Tests for multiple subtype exposure
+	test("should handle features with multiple subtype exposure", async () => {
+		const service = await createService();
+
+		const result = await service.createOrReplace(
+			adminAuthContext,
+			new File([testMultiSubtypeContent], "multi-subtype.js", {
+				type: "application/javascript",
+			}),
+		);
+
+		expect(result.isRight()).toBeTruthy();
+
+		const getResult = await service.get(adminAuthContext, "multi-subtype-uuid");
+		expect(getResult.isRight()).toBeTruthy();
+
+		if (getResult.isRight()) {
+			const feature = getResult.value;
+			expect(feature.exposeAction).toBe(true);
+			expect(feature.exposeExtension).toBe(true);
+			expect(feature.exposeAITool).toBe(false);
+		}
+	});
+
+	// Tests for AI Tool specific featureality
+	test("should create and validate AI Tool features", async () => {
+		const service = await createService();
+
+		const result = await service.createOrReplace(
+			adminAuthContext,
+			new File([testAIToolContent], "ai-tool.js", {
+				type: "application/javascript",
+			}),
+		);
+
+		expect(result.isRight()).toBeTruthy();
+
+		const getResult = await service.get(adminAuthContext, "test-ai-tool-uuid");
+		expect(getResult.isRight()).toBeTruthy();
+
+		if (getResult.isRight()) {
+			const feature = getResult.value;
+			expect(feature.exposeAITool).toBe(true);
+			expect(feature.exposeAction).toBe(false);
+			expect(feature.exposeExtension).toBe(false);
+			expect(feature.parameters).toHaveLength(2);
+		}
+	});
+
+	// Test concurrent feature operations
+	test("should handle concurrent feature operations", async () => {
+		const service = await createService();
+
+		const promises = Array.from({ length: 5 }, (_, i) => {
+			const content = testFeatureContent.replace(
+				'"test-feature-uuid"',
+				`"concurrent-feature-${i}"`,
+			).replace(
+				'"Test feature"',
+				`"Concurrent Feature ${i}"`,
+			);
+
+			return service.createOrReplace(
+				adminAuthContext,
+				new File([content], `concurrent-${i}.js`, {
+					type: "application/javascript",
+				}),
+			);
+		});
+
+		const results = await Promise.all(promises);
+		results.forEach((result, index) => {
+			expect(result.isRight()).toBeTruthy();
+			if (result.isRight()) {
+				expect(result.value.uuid).toBe(`concurrent-feature-${index}`);
+			}
+		});
+	});
+
+	// Test feature with runtime context
+	test("should provide proper runtime context to features", async () => {
+		const service = await createService();
+
+		const contextTestContent = `
+      export default {
+        uuid: "context-test-uuid",
+        name: "Context Test Feature",
+        description: "Tests runtime context provision.",
+        exposeAction: true,
+        runManually: true,
+        filters: [],
+        parameters: [
+          {
+            name: "uuids",
+            type: "array",
+            arrayType: "string",
             required: true
           }
         ],
-        returnType: "string",
+        returnType: "object",
 
         run: async (ctx, args) => {
-          if (!args.requiredParam) {
-            throw new Error("Required parameter missing");
-          }
-          return "Success";
+          return {
+            hasNodeService: !!ctx.nodeService,
+            hasAuthContext: !!ctx.authenticationContext,
+            userEmail: ctx.authenticationContext.principal.email,
+            argsReceived: Object.keys(args)
+          };
         }
       };
     `;
 
-    await service.create(
-      adminAuthContext,
-      new File([functionWithValidationContent], "validation.js", {
-        type: "application/javascript",
-      }),
-    );
+		await service.createOrReplace(
+			adminAuthContext,
+			new File([contextTestContent], "context-test.js", {
+				type: "application/javascript",
+			}),
+		);
 
-    const runResult = await service.run(
-      adminAuthContext,
-      "validation-function-uuid",
-      {},
-    );
+		const runResult = await service.runAction(
+			adminAuthContext,
+			"context-test-uuid",
+			["--group-1--"],
+			{},
+		);
 
-    expect(runResult.isLeft()).toBeTruthy();
-  });
-
-  test("run should return error if function cannot be run manually", async () => {
-    const service = await createService();
-    const notManuallyRunnableFunction = `
-      export default {
-        uuid: "automatic-function-uuid",
-        name: "Automatic Function",
-        description: "This function can't be run manually",
-        exposeAction: false,
-        runOnCreates: true,
-        runOnUpdates: false,
-        runManually: false,
-        filters: [],
-        exposeExtension: false,
-        exposeMCP: false,
-        groupsAllowed: ["admins"],
-        parameters: [],
-        returnType: "void",
-
-        run: async (ctx, args) => {
-          console.log("Running automatically");
-        }
-      };
-    `;
-
-    await service.create(
-      adminAuthContext,
-      new File([notManuallyRunnableFunction], "automatic.js", {
-        type: "application/javascript",
-      }),
-    );
-
-    const runResult = await service.run(
-      adminAuthContext,
-      "automatic-function-uuid",
-      {},
-    );
-
-    expect(runResult.isLeft()).toBeTruthy();
-    expect(runResult.value).toBeInstanceOf(BadRequestError);
-  });
+		if (runResult.isLeft()) {
+			console.log("Runtime context test error:", runResult.value);
+		}
+		expect(runResult.isRight()).toBeTruthy();
+		if (runResult.isRight()) {
+			const result = runResult.value as TestResult;
+			expect(result.hasNodeService).toBe(true);
+			expect(result.hasAuthContext).toBe(true);
+			expect(result.userEmail).toBe("admin@example.com");
+			expect(result.argsReceived).toEqual(["uuids"]);
+		}
+	});
 });
-
-const errToMsg = (err: unknown) => {
-  const v = err instanceof Left || err instanceof Right ? err.value : err;
-  if (v instanceof Error) {
-    return v.message;
-  }
-
-  return JSON.stringify(v, null, 3);
-};

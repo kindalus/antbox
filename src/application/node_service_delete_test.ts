@@ -17,116 +17,116 @@ import { pid } from "node:process";
 import { Left, Right } from "shared/either.ts";
 
 describe("NodeService.delete", () => {
-  test("should delete a node and its metadata", async () => {
-    const node = FileNode.create({
-      title: "Node to delete",
-      mimetype: Nodes.SMART_FOLDER_MIMETYPE,
-      owner: "tester@domain.com",
-      parent: Folders.ROOT_FOLDER_UUID,
-    }).right;
+	test("should delete a node and its metadata", async () => {
+		const node = FileNode.create({
+			title: "Node to delete",
+			mimetype: Nodes.SMART_FOLDER_MIMETYPE,
+			owner: "tester@domain.com",
+			parent: Folders.ROOT_FOLDER_UUID,
+		}).right;
 
-    // const bus: EventBus = new InMemoryEventBus();
-    const bus: EventBus = {
-      publish: fn() as () => Promise<void>,
-      subscribe: () => undefined,
-      unsubscribe: () => undefined,
-    };
+		// const bus: EventBus = new InMemoryEventBus();
+		const bus: EventBus = {
+			publish: fn() as () => Promise<void>,
+			subscribe: () => undefined,
+			unsubscribe: () => undefined,
+		};
 
-    const repository = new InMemoryNodeRepository();
-    await repository.add(node);
+		const repository = new InMemoryNodeRepository();
+		await repository.add(node);
 
-    const service = nodeService({ repository, bus });
+		const service = nodeService({ repository, bus });
 
-    const deleteOrErr = await service.delete(authCtx, node.uuid);
+		const deleteOrErr = await service.delete(authCtx, node.uuid);
 
-    expect(deleteOrErr.isRight(), errToMsg(deleteOrErr.value)).toBeTruthy();
+		expect(deleteOrErr.isRight(), errToMsg(deleteOrErr.value)).toBeTruthy();
 
-    const getNodeOrErr = await service.get(authCtx, node.uuid);
-    expect(getNodeOrErr.isLeft(), errToMsg(getNodeOrErr.value)).toBeTruthy();
-    expect(getNodeOrErr.value).toBeInstanceOf(NodeNotFoundError);
-    expect(bus.publish).toHaveBeenCalled();
-  });
+		const getNodeOrErr = await service.get(authCtx, node.uuid);
+		expect(getNodeOrErr.isLeft(), errToMsg(getNodeOrErr.value)).toBeTruthy();
+		expect(getNodeOrErr.value).toBeInstanceOf(NodeNotFoundError);
+		expect(bus.publish).toHaveBeenCalled();
+	});
 
-  test("should return error if node is not found", async () => {
-    const service = nodeService();
+	test("should return error if node is not found", async () => {
+		const service = nodeService();
 
-    const deleteOrErr = await service.delete(authCtx, "not-found");
-    expect(deleteOrErr.isLeft()).toBeTruthy();
-    expect(deleteOrErr.value).toBeInstanceOf(NodeNotFoundError);
-  });
+		const deleteOrErr = await service.delete(authCtx, "not-found");
+		expect(deleteOrErr.isLeft()).toBeTruthy();
+		expect(deleteOrErr.value).toBeInstanceOf(NodeNotFoundError);
+	});
 
-  test("should remove all childs if node is a folder", async () => {
-    const service = nodeService();
+	test("should remove all childs if node is a folder", async () => {
+		const service = nodeService();
 
-    const folder = await service.create(authCtx, {
-      title: "Folder to delete",
-      mimetype: Nodes.FOLDER_MIMETYPE,
-    });
+		const folder = await service.create(authCtx, {
+			title: "Folder to delete",
+			mimetype: Nodes.FOLDER_MIMETYPE,
+		});
 
-    const child = await service.create(authCtx, {
-      title: "Child",
-      mimetype: Nodes.META_NODE_MIMETYPE,
-      parent: folder.right.uuid,
-    });
+		const child = await service.create(authCtx, {
+			title: "Child",
+			mimetype: Nodes.META_NODE_MIMETYPE,
+			parent: folder.right.uuid,
+		});
 
-    const deleteOrErr = await service.delete(authCtx, folder.right.uuid);
-    expect(deleteOrErr.isRight(), errToMsg(deleteOrErr.value)).toBeTruthy();
+		const deleteOrErr = await service.delete(authCtx, folder.right.uuid);
+		expect(deleteOrErr.isRight(), errToMsg(deleteOrErr.value)).toBeTruthy();
 
-    const getChildOrErr = await service.get(authCtx, child.right.uuid);
-    expect(getChildOrErr.isLeft()).toBeTruthy();
-    expect(getChildOrErr.value).toBeInstanceOf(NodeNotFoundError);
-  });
+		const getChildOrErr = await service.get(authCtx, child.right.uuid);
+		expect(getChildOrErr.isLeft()).toBeTruthy();
+		expect(getChildOrErr.value).toBeInstanceOf(NodeNotFoundError);
+	});
 
-  test("should return a error if principal is no allowed to write on parent folder", async () => {
-    const service = nodeService();
+	test("should return a error if principal is no allowed to write on parent folder", async () => {
+		const service = nodeService();
 
-    const parent = await service.create(authCtx, {
-      title: "Parent",
-      mimetype: "application/vnd.antbox.folder",
-    });
+		const parent = await service.create(authCtx, {
+			title: "Parent",
+			mimetype: "application/vnd.antbox.folder",
+		});
 
-    const node = await service.create(authCtx, {
-      title: "Node",
-      mimetype: "application/json",
-      parent: parent.right.uuid,
-    });
+		const node = await service.create(authCtx, {
+			title: "Node",
+			mimetype: "application/json",
+			parent: parent.right.uuid,
+		});
 
-    const ctx: AuthenticationContext = {
-      mode: "Direct",
-      tenant: "",
-      principal: {
-        email: "otheruser@domain.com",
-        groups: ["group-x"],
-      },
-    };
+		const ctx: AuthenticationContext = {
+			mode: "Direct",
+			tenant: "",
+			principal: {
+				email: "otheruser@domain.com",
+				groups: ["group-x"],
+			},
+		};
 
-    const deleteOrErr = await service.delete(ctx, node.right.uuid);
-    expect(deleteOrErr.isLeft()).toBeTruthy();
-    expect(deleteOrErr.value).toBeInstanceOf(ForbiddenError);
-  });
+		const deleteOrErr = await service.delete(ctx, node.right.uuid);
+		expect(deleteOrErr.isLeft()).toBeTruthy();
+		expect(deleteOrErr.value).toBeInstanceOf(ForbiddenError);
+	});
 });
 
 const authCtx: AuthenticationContext = {
-  mode: "Direct",
-  tenant: "",
-  principal: {
-    email: "user@domain.com",
-    groups: ["group-1", Groups.ADMINS_GROUP_UUID],
-  },
+	mode: "Direct",
+	tenant: "",
+	principal: {
+		email: "user@domain.com",
+		groups: ["group-1", Groups.ADMINS_GROUP_UUID],
+	},
 };
 
 const errToMsg = (err: unknown) => {
-  const v = err instanceof Left || err instanceof Right ? err.value : err;
-  if (v instanceof Error) {
-    return v.message;
-  }
+	const v = err instanceof Left || err instanceof Right ? err.value : err;
+	if (v instanceof Error) {
+		return v.message;
+	}
 
-  return JSON.stringify(v, null, 3);
+	return JSON.stringify(v, null, 3);
 };
 
 const nodeService = (opts: Partial<NodeServiceContext> = {}) =>
-  new NodeService({
-    storage: opts.storage ?? new InMemoryStorageProvider(),
-    repository: opts.repository ?? new InMemoryNodeRepository(),
-    bus: opts.bus ?? new InMemoryEventBus(),
-  });
+	new NodeService({
+		storage: opts.storage ?? new InMemoryStorageProvider(),
+		repository: opts.repository ?? new InMemoryNodeRepository(),
+		bus: opts.bus ?? new InMemoryEventBus(),
+	});

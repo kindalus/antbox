@@ -1,6 +1,9 @@
 # Antbox
 
-Antbox is a feature-centric ECM (Enterprise Content Management) platform designed to provide powerful solutions for content storage, retrieval, and dynamic functionality. Built with Deno and TypeScript, it offers a flexible architecture where **Features** serve as the core building blocks for automation, content processing, and system extensibility.
+Antbox is a feature-centric ECM (Enterprise Content Management) platform designed to provide
+powerful solutions for content storage, retrieval, and dynamic functionality. Built with Deno and
+TypeScript, it offers a flexible architecture where **Features** serve as the core building blocks
+for automation, content processing, and system extensibility.
 
 ## Core Concepts
 
@@ -27,28 +30,30 @@ Everything in Antbox is represented as a **Node** with rich metadata and extensi
 
 ### NodeFilter - Powerful Query System
 
-**NodeFilter** is a fundamental concept that enables sophisticated content discovery and automation throughout Antbox:
+**NodeFilter** is a fundamental concept that enables sophisticated content discovery and automation
+throughout Antbox:
 
 - **Tuple-based queries**: `[field, operator, value]` format for precise filtering
 - **Complex logic**: Support for AND/OR combinations across multiple criteria
-- **Deep field access**: Query nested properties using dot notation (`metadata.size`, `aspects.custom.category`)
+- **Deep field access**: Query nested properties using dot notation (`metadata.size`,
+  `aspects.custom.category`)
 - **Rich operators**: Equality, comparison, array operations, and fuzzy text matching
-- **Universal application**: Used in search APIs, smart folders, feature targeting, and access control
+- **Universal application**: Used in search APIs, smart folders, feature targeting, and access
+  control
 
 **Example NodeFilter queries:**
 
 ```javascript
 // Find all PDF files larger than 1MB
 [
-  ["mimetype", "==", "application/pdf"],
-  ["size", ">", 1048576],
+	["mimetype", "==", "application/pdf"],
+	["size", ">", 1048576],
 ][
-  // Find nodes with specific tags OR in certain folders
-  ([["tags", "contains", "urgent"]], [["parent", "==", "folder-uuid"]])
+	// Find nodes with specific tags OR in certain folders
+	([["tags", "contains", "urgent"]], [["parent", "==", "folder-uuid"]])
 ][
-  // Complex aspect-based filtering
-  (["aspects.document.category", "==", "report"],
-  ["metadata.name", "match", "2024"])
+	// Complex aspect-based filtering
+	(["aspects.document.category", "==", "report"], ["metadata.name", "match", "2024"])
 ];
 ```
 
@@ -147,17 +152,17 @@ For production deployments, you can configure Antbox with various storage and re
 import { setupTenants } from "setup/setup_tenants.ts";
 
 const tenants = await setupTenants({
-  tenants: [
-    {
-      name: "production",
-      rootPasswd: "secure_password",
-      storage: ["s3/s3_storage_provider.ts", "/path/to/s3_config.json"],
-      repository: [
-        "mongodb/mongodb_node_repository.ts",
-        "mongodb://localhost:27017/antbox",
-      ],
-    },
-  ],
+	tenants: [
+		{
+			name: "production",
+			rootPasswd: "secure_password",
+			storage: ["s3/s3_storage_provider.ts", "/path/to/s3_config.json"],
+			repository: [
+				"mongodb/mongodb_node_repository.ts",
+				"mongodb://localhost:27017/antbox",
+			],
+		},
+	],
 });
 ```
 
@@ -165,20 +170,21 @@ const tenants = await setupTenants({
 
 ### Creating a Custom Feature
 
-Features are JavaScript modules that can process content, integrate with external services, or provide custom business logic:
+Features are JavaScript modules that can process content, integrate with external services, or
+provide custom business logic:
 
 ```typescript
 // my-feature.ts
 export default async function (context, params) {
-  // Access node service for content operations
-  const { nodeService } = context;
+	// Access node service for content operations
+	const { nodeService } = context;
 
-  // Custom logic here
-  const result = await nodeService.find({
-    filters: [{ property: "mimetype", value: "text/plain" }],
-  });
+	// Custom logic here
+	const result = await nodeService.find({
+		filters: [{ property: "mimetype", value: "text/plain" }],
+	});
 
-  return { processed: result.length };
+	return { processed: result.length };
 }
 ```
 
@@ -241,7 +247,8 @@ For detailed information about specific topics:
 
 ## Contributing
 
-We welcome contributions to the Antbox project. Please read our contributing guidelines for information on how to get started.
+We welcome contributions to the Antbox project. Please read our contributing guidelines for
+information on how to get started.
 
 ## License
 

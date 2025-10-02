@@ -8,154 +8,154 @@ import { z } from "zod";
 import { toPropertyError, uuid } from "../validation_schemas.ts";
 
 const NodeValidationSchema = z.object({
-  uuid: uuid().min(1, "Node.uuid is required"),
-  title: z.string().min(1, "Node.title is required")
-    .min(3, "Node.title must be at least 3 characters"),
-  mimetype: z.string()
-    .regex(/^\w+\/[a-z0-9.-]+(;\w+=.+)?$/, "Invalid Mimetype"),
-  parent: z.string().min(1, "Node.parent is required"),
-  owner: z.email().min(1, "Node.owner is required"),
+	uuid: uuid().min(1, "Node.uuid is required"),
+	title: z.string().min(1, "Node.title is required")
+		.min(3, "Node.title must be at least 3 characters"),
+	mimetype: z.string()
+		.regex(/^\w+\/[a-z0-9.-]+(;\w+=.+)?$/, "Invalid Mimetype"),
+	parent: z.string().min(1, "Node.parent is required"),
+	owner: z.email().min(1, "Node.owner is required"),
 });
 
 export class Node {
-  readonly uuid: string;
-  protected readonly _mimetype: string;
-  protected readonly _owner: string;
-  protected readonly _createdTime: string;
+	readonly uuid: string;
+	protected readonly _mimetype: string;
+	protected readonly _owner: string;
+	protected readonly _createdTime: string;
 
-  protected _fid: string;
-  protected _title: string;
-  protected _description?: string;
-  protected _parent = Folders.ROOT_FOLDER_UUID;
-  protected _modifiedTime: string;
-  protected _fulltext: string;
+	protected _fid: string;
+	protected _title: string;
+	protected _description?: string;
+	protected _parent = Folders.ROOT_FOLDER_UUID;
+	protected _modifiedTime: string;
+	protected _fulltext: string;
 
-  constructor(metadata: Partial<NodeMetadata> = {}) {
-    this.uuid = metadata?.uuid ?? UuidGenerator.generate();
-    this._mimetype = metadata?.mimetype ?? "";
-    this._fid = metadata?.fid ?? "";
-    this._title = metadata?.title ?? "";
-    this._description = metadata?.description;
-    this._parent = metadata?.parent ?? Folders.ROOT_FOLDER_UUID;
-    this._createdTime = metadata?.createdTime ?? new Date().toISOString();
-    this._modifiedTime = metadata?.modifiedTime ?? new Date().toISOString();
+	constructor(metadata: Partial<NodeMetadata> = {}) {
+		this.uuid = metadata?.uuid ?? UuidGenerator.generate();
+		this._mimetype = metadata?.mimetype ?? "";
+		this._fid = metadata?.fid ?? "";
+		this._title = metadata?.title ?? "";
+		this._description = metadata?.description;
+		this._parent = metadata?.parent ?? Folders.ROOT_FOLDER_UUID;
+		this._createdTime = metadata?.createdTime ?? new Date().toISOString();
+		this._modifiedTime = metadata?.modifiedTime ?? new Date().toISOString();
 
-    this._owner = metadata.owner!;
+		this._owner = metadata.owner!;
 
-    this._fulltext = metadata?.fulltext ?? "";
+		this._fulltext = metadata?.fulltext ?? "";
 
-    this._validateNode();
+		this._validateNode();
 
-    if (!this._fid?.length) {
-      this._fid = FidGenerator.generate(this._title);
-    }
-  }
+		if (!this._fid?.length) {
+			this._fid = FidGenerator.generate(this._title);
+		}
+	}
 
-  isJson(): boolean {
-    return this._mimetype === "application/json";
-  }
+	isJson(): boolean {
+		return this._mimetype === "application/json";
+	}
 
-  protected _safeValidateNode(): ValidationError | undefined {
-    const result = NodeValidationSchema.safeParse(this.metadata);
+	protected _safeValidateNode(): ValidationError | undefined {
+		const result = NodeValidationSchema.safeParse(this.metadata);
 
-    if (!result.success) {
-      const errors = result.error.issues.map(toPropertyError("Node"));
-      return ValidationError.from(...errors);
-    }
+		if (!result.success) {
+			const errors = result.error.issues.map(toPropertyError("Node"));
+			return ValidationError.from(...errors);
+		}
 
-    return undefined;
-  }
+		return undefined;
+	}
 
-  protected _validateNode() {
-    const error = this._safeValidateNode();
+	protected _validateNode() {
+		const error = this._safeValidateNode();
 
-    if (error) {
-      throw error;
-    }
-  }
+		if (error) {
+			throw error;
+		}
+	}
 
-  update(metadata: Partial<NodeMetadata>): Either<ValidationError, void> {
-    this._title = metadata.title ?? this._title;
-    this._fid = metadata.fid ?? this._fid;
-    this._description = metadata.description ?? this._description;
-    this._parent = metadata.parent ?? this._parent;
-    this._modifiedTime = new Date().toISOString();
-    this._fulltext = metadata.fulltext ?? this._fulltext;
+	update(metadata: Partial<NodeMetadata>): Either<ValidationError, void> {
+		this._title = metadata.title ?? this._title;
+		this._fid = metadata.fid ?? this._fid;
+		this._description = metadata.description ?? this._description;
+		this._parent = metadata.parent ?? this._parent;
+		this._modifiedTime = new Date().toISOString();
+		this._fulltext = metadata.fulltext ?? this._fulltext;
 
-    if (!this._fid?.length) {
-      this._fid = FidGenerator.generate(this._title);
-    }
+		if (!this._fid?.length) {
+			this._fid = FidGenerator.generate(this._title);
+		}
 
-    try {
-      this._validateNode();
-    } catch (err) {
-      return left(err as ValidationError);
-    }
+		try {
+			this._validateNode();
+		} catch (err) {
+			return left(err as ValidationError);
+		}
 
-    return right(undefined);
-  }
+		return right(undefined);
+	}
 
-  get fid(): string {
-    return this._fid;
-  }
+	get fid(): string {
+		return this._fid;
+	}
 
-  get title(): string {
-    return this._title;
-  }
+	get title(): string {
+		return this._title;
+	}
 
-  get description(): string | undefined {
-    return this._description;
-  }
+	get description(): string | undefined {
+		return this._description;
+	}
 
-  get mimetype(): string {
-    return this._mimetype;
-  }
+	get mimetype(): string {
+		return this._mimetype;
+	}
 
-  get parent(): string {
-    return this._parent;
-  }
+	get parent(): string {
+		return this._parent;
+	}
 
-  get createdTime(): string {
-    return this._createdTime;
-  }
+	get createdTime(): string {
+		return this._createdTime;
+	}
 
-  get modifiedTime(): string {
-    return this._modifiedTime;
-  }
+	get modifiedTime(): string {
+		return this._modifiedTime;
+	}
 
-  get owner(): string {
-    return this._owner;
-  }
+	get owner(): string {
+		return this._owner;
+	}
 
-  get fulltext(): string {
-    return this._fulltext;
-  }
+	get fulltext(): string {
+		return this._fulltext;
+	}
 
-  get metadata(): Partial<NodeMetadata> {
-    return {
-      uuid: this.uuid,
-      fid: this.fid,
-      title: this.title,
-      description: this.description,
-      mimetype: this.mimetype,
-      parent: this.parent,
-      owner: this.owner,
-      createdTime: this.createdTime,
-      modifiedTime: this.modifiedTime,
-      fulltext: this.fulltext,
-    };
-  }
+	get metadata(): Partial<NodeMetadata> {
+		return {
+			uuid: this.uuid,
+			fid: this.fid,
+			title: this.title,
+			description: this.description,
+			mimetype: this.mimetype,
+			parent: this.parent,
+			owner: this.owner,
+			createdTime: this.createdTime,
+			modifiedTime: this.modifiedTime,
+			fulltext: this.fulltext,
+		};
+	}
 
-  toJSON() {
-    return this.metadata;
-  }
+	toJSON() {
+		return this.metadata;
+	}
 }
 
 export type Permission = "Read" | "Write" | "Export";
 
 export type Permissions = {
-  group: Permission[];
-  authenticated: Permission[];
-  anonymous: Permission[];
-  advanced: Record<string, Permission[]>;
+	group: Permission[];
+	authenticated: Permission[];
+	anonymous: Permission[];
+	advanced: Record<string, Permission[]>;
 };

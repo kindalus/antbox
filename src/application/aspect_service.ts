@@ -11,140 +11,138 @@ import type { AuthenticationContext } from "./authentication_context.ts";
 import { NodeService } from "./node_service.ts";
 
 export class AspectService {
-  constructor(private readonly nodeService: NodeService) {}
+	constructor(private readonly nodeService: NodeService) {}
 
-  async createOrReplace(
-    ctx: AuthenticationContext,
-    metadata: AspectDTO,
-  ): Promise<Either<AntboxError, AspectDTO>> {
-    if (!metadata.uuid) {
-      return left(new BadRequestError("Aspect UUID is required"));
-    }
+	async createOrReplace(
+		ctx: AuthenticationContext,
+		metadata: AspectDTO,
+	): Promise<Either<AntboxError, AspectDTO>> {
+		if (!metadata.uuid) {
+			return left(new BadRequestError("Aspect UUID is required"));
+		}
 
-    const nodeOrErr = await this.get(ctx, metadata.uuid);
-    if (nodeOrErr.isLeft()) {
-      return this.#create(ctx, metadata);
-    }
+		const nodeOrErr = await this.get(ctx, metadata.uuid);
+		if (nodeOrErr.isLeft()) {
+			return this.#create(ctx, metadata);
+		}
 
-    return this.#update(ctx, metadata.uuid, metadata);
-  }
+		return this.#update(ctx, metadata.uuid, metadata);
+	}
 
-  async #create(
-    ctx: AuthenticationContext,
-    metadata: AspectDTO,
-  ): Promise<Either<AntboxError, AspectDTO>> {
-    const nodeOrErr = await this.nodeService.create(ctx, {
-      ...metadata,
-      mimetype: Nodes.ASPECT_MIMETYPE,
-    });
+	async #create(
+		ctx: AuthenticationContext,
+		metadata: AspectDTO,
+	): Promise<Either<AntboxError, AspectDTO>> {
+		const nodeOrErr = await this.nodeService.create(ctx, {
+			...metadata,
+			mimetype: Nodes.ASPECT_MIMETYPE,
+		});
 
-    if (nodeOrErr.isLeft()) {
-      return left(nodeOrErr.value);
-    }
+		if (nodeOrErr.isLeft()) {
+			return left(nodeOrErr.value);
+		}
 
-    return right(toAspectDTO(nodeOrErr.value as AspectNode));
-  }
+		return right(toAspectDTO(nodeOrErr.value as AspectNode));
+	}
 
-  async #update(
-    ctx: AuthenticationContext,
-    uuid: string,
-    metadata: AspectDTO,
-  ): Promise<Either<AntboxError, AspectDTO>> {
-    const nodeOrErr = await this.nodeService.update(ctx, uuid, metadata);
-    if (nodeOrErr.isLeft()) {
-      return left(nodeOrErr.value);
-    }
+	async #update(
+		ctx: AuthenticationContext,
+		uuid: string,
+		metadata: AspectDTO,
+	): Promise<Either<AntboxError, AspectDTO>> {
+		const nodeOrErr = await this.nodeService.update(ctx, uuid, metadata);
+		if (nodeOrErr.isLeft()) {
+			return left(nodeOrErr.value);
+		}
 
-    const aspectOrErr = await this.get(ctx, uuid);
-    if (aspectOrErr.isLeft()) {
-      return left(aspectOrErr.value);
-    }
+		const aspectOrErr = await this.get(ctx, uuid);
+		if (aspectOrErr.isLeft()) {
+			return left(aspectOrErr.value);
+		}
 
-    return right(aspectOrErr.value);
-  }
+		return right(aspectOrErr.value);
+	}
 
-  async get(
-    ctx: AuthenticationContext,
-    uuid: string,
-  ): Promise<Either<NodeNotFoundError, AspectDTO>> {
-    // const builtin = builtinAspects.find((aspect) => aspect.uuid === uuid);
-    // if (builtin) {
-    //   return right(builtin);
-    // }
+	async get(
+		ctx: AuthenticationContext,
+		uuid: string,
+	): Promise<Either<NodeNotFoundError, AspectDTO>> {
+		// const builtin = builtinAspects.find((aspect) => aspect.uuid === uuid);
+		// if (builtin) {
+		//   return right(builtin);
+		// }
 
-    const nodeOrErr = await this.nodeService.get(ctx, uuid);
+		const nodeOrErr = await this.nodeService.get(ctx, uuid);
 
-    if (nodeOrErr.isLeft() && nodeOrErr.value instanceof NodeNotFoundError) {
-      return left(new AspectNotFoundError(uuid));
-    }
+		if (nodeOrErr.isLeft() && nodeOrErr.value instanceof NodeNotFoundError) {
+			return left(new AspectNotFoundError(uuid));
+		}
 
-    if (nodeOrErr.isLeft()) {
-      return left(nodeOrErr.value);
-    }
+		if (nodeOrErr.isLeft()) {
+			return left(nodeOrErr.value);
+		}
 
-    if (!Nodes.isAspect(nodeOrErr.value)) {
-      return left(new AspectNotFoundError(uuid));
-    }
+		if (!Nodes.isAspect(nodeOrErr.value)) {
+			return left(new AspectNotFoundError(uuid));
+		}
 
-    return right(toAspectDTO(nodeOrErr.value));
-  }
+		return right(toAspectDTO(nodeOrErr.value));
+	}
 
-  async list(ctx: AuthenticationContext): Promise<AspectDTO[]> {
-    const nodesOrErrs = await this.nodeService.find(
-      ctx,
-      [
-        ["mimetype", "==", Nodes.ASPECT_MIMETYPE],
-        ["parent", "==", Folders.ASPECTS_FOLDER_UUID],
-      ],
-      Number.MAX_SAFE_INTEGER,
-    );
-    if (nodesOrErrs.isLeft()) {
-      console.error(nodesOrErrs.value);
-      return [];
-    }
+	async list(ctx: AuthenticationContext): Promise<AspectDTO[]> {
+		const nodesOrErrs = await this.nodeService.find(
+			ctx,
+			[
+				["mimetype", "==", Nodes.ASPECT_MIMETYPE],
+				["parent", "==", Folders.ASPECTS_FOLDER_UUID],
+			],
+			Number.MAX_SAFE_INTEGER,
+		);
+		if (nodesOrErrs.isLeft()) {
+			console.error(nodesOrErrs.value);
+			return [];
+		}
 
-    const usersAspects = nodesOrErrs.value.nodes.map((n) =>
-      toAspectDTO(n as AspectNode)
-    )
-      .sort((a, b) => a.title.localeCompare(b.title));
+		const usersAspects = nodesOrErrs.value.nodes.map((n) => toAspectDTO(n as AspectNode))
+			.sort((a, b) => a.title.localeCompare(b.title));
 
-    // return [...usersAspects, ...builtinAspects].sort((a, b) =>
-    //   a.title.localeCompare(b.title)
-    // );
+		// return [...usersAspects, ...builtinAspects].sort((a, b) =>
+		//   a.title.localeCompare(b.title)
+		// );
 
-    return usersAspects;
-  }
+		return usersAspects;
+	}
 
-  async delete(
-    ctx: AuthenticationContext,
-    uuid: string,
-  ): Promise<Either<AntboxError, void>> {
-    const nodeOrErr = await this.get(ctx, uuid);
+	async delete(
+		ctx: AuthenticationContext,
+		uuid: string,
+	): Promise<Either<AntboxError, void>> {
+		const nodeOrErr = await this.get(ctx, uuid);
 
-    if (nodeOrErr.isLeft()) {
-      return left(nodeOrErr.value);
-    }
+		if (nodeOrErr.isLeft()) {
+			return left(nodeOrErr.value);
+		}
 
-    return this.nodeService.delete(ctx, uuid);
-  }
+		return this.nodeService.delete(ctx, uuid);
+	}
 
-  async export(
-    ctx: AuthenticationContext,
-    uuid: string,
-  ): Promise<Either<NodeNotFoundError, File>> {
-    const aspectOrErr = await this.get(ctx, uuid);
-    if (aspectOrErr.isLeft()) {
-      return left(aspectOrErr.value);
-    }
+	async export(
+		ctx: AuthenticationContext,
+		uuid: string,
+	): Promise<Either<NodeNotFoundError, File>> {
+		const aspectOrErr = await this.get(ctx, uuid);
+		if (aspectOrErr.isLeft()) {
+			return left(aspectOrErr.value);
+		}
 
-    const file = new File(
-      [JSON.stringify(aspectOrErr.value, null, 2)],
-      `${aspectOrErr.value?.uuid}.json`,
-      {
-        type: "application/json",
-      },
-    );
+		const file = new File(
+			[JSON.stringify(aspectOrErr.value, null, 2)],
+			`${aspectOrErr.value?.uuid}.json`,
+			{
+				type: "application/json",
+			},
+		);
 
-    return right(file);
-  }
+		return right(file);
+	}
 }

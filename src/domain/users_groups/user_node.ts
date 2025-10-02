@@ -9,107 +9,107 @@ import { z } from "zod";
 import { toPropertyError } from "../validation_schemas.ts";
 
 const UserValidationSchema = z.object({
-  // Title must have at least first name and last name
-  title: z.string().regex(
-    /^(\s*\S+(?:\s+\S+)+\s*|root|anonymous)$/,
-    "Full name must include at least first name and last name",
-  ),
-  group: z.string().min(1, "User must have at least one group"),
-  email: z.email().min(1, "User email is required"),
-  groups: z.array(z.string()),
+	// Title must have at least first name and last name
+	title: z.string().regex(
+		/^(\s*\S+(?:\s+\S+)+\s*|root|anonymous)$/,
+		"Full name must include at least first name and last name",
+	),
+	group: z.string().min(1, "User must have at least one group"),
+	email: z.email().min(1, "User email is required"),
+	groups: z.array(z.string()),
 });
 
 export class UserNode extends Node {
-  protected _email: string;
-  protected _group: string;
-  protected _groups: string[];
+	protected _email: string;
+	protected _group: string;
+	protected _groups: string[];
 
-  static create(
-    metadata: Partial<NodeMetadata> = {},
-  ): Either<ValidationError, UserNode> {
-    try {
-      const node = new UserNode(metadata);
-      return right(node);
-    } catch (err) {
-      return left(err as ValidationError);
-    }
-  }
+	static create(
+		metadata: Partial<NodeMetadata> = {},
+	): Either<ValidationError, UserNode> {
+		try {
+			const node = new UserNode(metadata);
+			return right(node);
+		} catch (err) {
+			return left(err as ValidationError);
+		}
+	}
 
-  private constructor(metadata: Partial<NodeMetadata> = {}) {
-    super({
-      ...metadata,
-      mimetype: Nodes.USER_MIMETYPE,
-      parent: Folders.USERS_FOLDER_UUID,
-    });
+	private constructor(metadata: Partial<NodeMetadata> = {}) {
+		super({
+			...metadata,
+			mimetype: Nodes.USER_MIMETYPE,
+			parent: Folders.USERS_FOLDER_UUID,
+		});
 
-    this._groups = metadata?.groups ?? [];
-    this._group = metadata?.group ?? this._groups[0];
-    this._email = metadata.email!;
+		this._groups = metadata?.groups ?? [];
+		this._group = metadata?.group ?? this._groups[0];
+		this._email = metadata.email!;
 
-    this._validateUserNode();
-  }
+		this._validateUserNode();
+	}
 
-  override get metadata(): Partial<NodeMetadata> {
-    return {
-      ...super.metadata,
-      email: this._email,
-      group: this._group,
-      groups: this._groups ?? [],
-    };
-  }
+	override get metadata(): Partial<NodeMetadata> {
+		return {
+			...super.metadata,
+			email: this._email,
+			group: this._group,
+			groups: this._groups ?? [],
+		};
+	}
 
-  override update(
-    metadata: Partial<NodeMetadata>,
-  ): Either<ValidationError, void> {
-    const superUpdateResult = super.update({
-      ...metadata,
-      parent: Folders.USERS_FOLDER_UUID,
-    });
+	override update(
+		metadata: Partial<NodeMetadata>,
+	): Either<ValidationError, void> {
+		const superUpdateResult = super.update({
+			...metadata,
+			parent: Folders.USERS_FOLDER_UUID,
+		});
 
-    if (superUpdateResult.isLeft()) {
-      return superUpdateResult;
-    }
+		if (superUpdateResult.isLeft()) {
+			return superUpdateResult;
+		}
 
-    this._group = metadata?.group ?? this._group;
-    this._groups = metadata?.groups ?? this._groups;
+		this._group = metadata?.group ?? this._group;
+		this._groups = metadata?.groups ?? this._groups;
 
-    try {
-      this._validateUserNode();
-    } catch (err) {
-      return left(err as ValidationError);
-    }
+		try {
+			this._validateUserNode();
+		} catch (err) {
+			return left(err as ValidationError);
+		}
 
-    return right(undefined);
-  }
+		return right(undefined);
+	}
 
-  protected _validateUserNode() {
-    const errors: AntboxError[] = [];
+	protected _validateUserNode() {
+		const errors: AntboxError[] = [];
 
-    const nodeError = super._safeValidateNode();
-    if (nodeError) {
-      errors.push(...nodeError.errors);
-    }
+		const nodeError = super._safeValidateNode();
+		if (nodeError) {
+			errors.push(...nodeError.errors);
+		}
 
-    const userValidation = UserValidationSchema.safeParse(this.metadata);
-    if (!userValidation.success) {
-      errors.push(
-        ...userValidation.error.issues.map(toPropertyError("UserNode")),
-      );
-    }
+		const userValidation = UserValidationSchema.safeParse(this.metadata);
+		if (!userValidation.success) {
+			errors.push(
+				...userValidation.error.issues.map(toPropertyError("UserNode")),
+			);
+		}
 
-    if (errors.length) {
-      throw ValidationError.from(...errors);
-    }
-  }
-  get email(): string {
-    return this._email;
-  }
+		if (errors.length) {
+			throw ValidationError.from(...errors);
+		}
+	}
+	get email(): string {
+		return this._email;
+	}
 
-  get group(): string {
-    return this._group;
-  }
+	get group(): string {
+		return this._group;
+	}
 
-  get groups(): string[] {
-    return this._groups;
-  }
+	get groups(): string[] {
+		return this._groups;
+	}
 }

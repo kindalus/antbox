@@ -4,21 +4,21 @@ import { sendCreated, sendOK } from "./handler.ts";
 import { processError } from "./process_error.ts";
 
 export function processServiceResult<T>(
-  resultOrErr: Either<AntboxError, T>,
+	resultOrErr: Either<AntboxError, T>,
 ): Response {
-  if (resultOrErr.isLeft()) {
-    return processError(resultOrErr.value);
-  }
+	if (resultOrErr.isLeft()) {
+		return processError(resultOrErr.value);
+	}
 
-  return sendOK(resultOrErr.value);
+	return sendOK(resultOrErr.value);
 }
 
 export function processServiceCreateResult<T>(
-  resultOrErr: Either<AntboxError, T>,
+	resultOrErr: Either<AntboxError, T>,
 ): Response {
-  if (resultOrErr.isLeft()) {
-    return processError(resultOrErr.value);
-  }
+	if (resultOrErr.isLeft()) {
+		return processError(resultOrErr.value);
+	}
 
-  return sendCreated(resultOrErr.value);
+	return sendCreated(resultOrErr.value);
 }

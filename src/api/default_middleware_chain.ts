@@ -4,13 +4,13 @@ import { type HttpHandler } from "./handler.ts";
 import { chain, corsMiddleware, logMiddleware } from "./middleware.ts";
 
 export function defaultMiddlewareChain(
-  tenants: AntboxTenant[],
-  h: HttpHandler,
+	tenants: AntboxTenant[],
+	h: HttpHandler,
 ): HttpHandler {
-  return chain(
-    h,
-    authenticationMiddleware(tenants),
-    corsMiddleware,
-    logMiddleware,
-  );
+	return chain(
+		h,
+		authenticationMiddleware(tenants),
+		corsMiddleware,
+		logMiddleware,
+	);
 }

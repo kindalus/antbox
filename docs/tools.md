@@ -1,6 +1,8 @@
 # Antbox Tools and Utilities
 
-Antbox provides a collection of command-line tools and utilities to help you manage your Antbox server, migrate data, and perform administrative tasks. These tools are designed to work with the pluggable provider architecture and support various deployment scenarios.
+Antbox provides a collection of command-line tools and utilities to help you manage your Antbox
+server, migrate data, and perform administrative tasks. These tools are designed to work with the
+pluggable provider architecture and support various deployment scenarios.
 
 ## Table of Contents
 
@@ -12,11 +14,14 @@ Antbox provides a collection of command-line tools and utilities to help you man
 
 ## Overview
 
-Antbox tools are built with Deno and follow the same architectural principles as the main system. They leverage the provider abstraction to work consistently across different storage backends and repository implementations.
+Antbox tools are built with Deno and follow the same architectural principles as the main system.
+They leverage the provider abstraction to work consistently across different storage backends and
+repository implementations.
 
 ## Data Migration Tool
 
-The Data Migration Tool allows you to migrate content and metadata between different Antbox configurations, enabling upgrades, backup restoration, and deployment changes.
+The Data Migration Tool allows you to migrate content and metadata between different Antbox
+configurations, enabling upgrades, backup restoration, and deployment changes.
 
 ### Usage
 
@@ -30,14 +35,14 @@ The migration tool uses a JSON configuration file that specifies source and dest
 
 ```json
 {
-  "src": {
-    "repository": ["provider_module", "config_param1", "config_param2"],
-    "storage": ["provider_module", "config_param1", "config_param2"]
-  },
-  "dst": {
-    "repository": ["provider_module", "config_param1", "config_param2"],
-    "storage": ["provider_module", "config_param1", "config_param2"]
-  }
+	"src": {
+		"repository": ["provider_module", "config_param1", "config_param2"],
+		"storage": ["provider_module", "config_param1", "config_param2"]
+	},
+	"dst": {
+		"repository": ["provider_module", "config_param1", "config_param2"],
+		"storage": ["provider_module", "config_param1", "config_param2"]
+	}
 }
 ```
 
@@ -57,23 +62,23 @@ The tool performs a complete migration including:
 
 ```json
 {
-  "src": {
-    "repository": [
-      "flat_file/flat_file_node_repository.ts",
-      "/local/data/repository"
-    ],
-    "storage": [
-      "flat_file/flat_file_storage_provider.ts",
-      "/local/data/storage"
-    ]
-  },
-  "dst": {
-    "repository": [
-      "mongodb/mongodb_node_repository.ts",
-      "mongodb://prod-cluster/antbox"
-    ],
-    "storage": ["s3/s3_storage_provider.ts", "/config/prod_s3_config.json"]
-  }
+	"src": {
+		"repository": [
+			"flat_file/flat_file_node_repository.ts",
+			"/local/data/repository"
+		],
+		"storage": [
+			"flat_file/flat_file_storage_provider.ts",
+			"/local/data/storage"
+		]
+	},
+	"dst": {
+		"repository": [
+			"mongodb/mongodb_node_repository.ts",
+			"mongodb://prod-cluster/antbox"
+		],
+		"storage": ["s3/s3_storage_provider.ts", "/config/prod_s3_config.json"]
+	}
 }
 ```
 
@@ -81,17 +86,17 @@ The tool performs a complete migration including:
 
 ```json
 {
-  "src": {
-    "repository": ["pouchdb/pouchdb_node_repository.ts", "/old/pouchdb"],
-    "storage": ["flat_file/flat_file_storage_provider.ts", "/data/storage"]
-  },
-  "dst": {
-    "repository": [
-      "mongodb/mongodb_node_repository.ts",
-      "mongodb://localhost:27017/antbox"
-    ],
-    "storage": ["flat_file/flat_file_storage_provider.ts", "/data/storage"]
-  }
+	"src": {
+		"repository": ["pouchdb/pouchdb_node_repository.ts", "/old/pouchdb"],
+		"storage": ["flat_file/flat_file_storage_provider.ts", "/data/storage"]
+	},
+	"dst": {
+		"repository": [
+			"mongodb/mongodb_node_repository.ts",
+			"mongodb://localhost:27017/antbox"
+		],
+		"storage": ["flat_file/flat_file_storage_provider.ts", "/data/storage"]
+	}
 }
 ```
 
@@ -99,20 +104,20 @@ The tool performs a complete migration including:
 
 ```json
 {
-  "src": {
-    "repository": [
-      "mongodb/mongodb_node_repository.ts",
-      "mongodb://prod/antbox"
-    ],
-    "storage": ["s3/s3_storage_provider.ts", "/config/prod_s3.json"]
-  },
-  "dst": {
-    "repository": [
-      "flat_file/flat_file_node_repository.ts",
-      "/backup/repository"
-    ],
-    "storage": ["flat_file/flat_file_storage_provider.ts", "/backup/storage"]
-  }
+	"src": {
+		"repository": [
+			"mongodb/mongodb_node_repository.ts",
+			"mongodb://prod/antbox"
+		],
+		"storage": ["s3/s3_storage_provider.ts", "/config/prod_s3.json"]
+	},
+	"dst": {
+		"repository": [
+			"flat_file/flat_file_node_repository.ts",
+			"/backup/repository"
+		],
+		"storage": ["flat_file/flat_file_storage_provider.ts", "/backup/storage"]
+	}
 }
 ```
 
@@ -230,17 +235,17 @@ deno run -A src/adapters/run_storage_provider_tests.ts s3
 
 ```json
 {
-  "src": {
-    "repository": ["flat_file/flat_file_node_repository.ts", "/current/repo"],
-    "storage": ["flat_file/flat_file_storage_provider.ts", "/current/storage"]
-  },
-  "dst": {
-    "repository": [
-      "mongodb/mongodb_node_repository.ts",
-      "mongodb://localhost/antbox_new"
-    ],
-    "storage": ["s3/s3_storage_provider.ts", "/config/s3_config.json"]
-  }
+	"src": {
+		"repository": ["flat_file/flat_file_node_repository.ts", "/current/repo"],
+		"storage": ["flat_file/flat_file_storage_provider.ts", "/current/storage"]
+	},
+	"dst": {
+		"repository": [
+			"mongodb/mongodb_node_repository.ts",
+			"mongodb://localhost/antbox_new"
+		],
+		"storage": ["s3/s3_storage_provider.ts", "/config/s3_config.json"]
+	}
 }
 ```
 
@@ -318,23 +323,23 @@ deno run --allow-read --allow-write tools/data_migration.ts dev_to_persistent.js
 
 ```json
 {
-  "src": {
-    "repository": [
-      "mongodb/mongodb_node_repository.ts",
-      "mongodb://prod/antbox"
-    ],
-    "storage": ["s3/s3_storage_provider.ts", "/config/prod_s3.json"]
-  },
-  "dst": {
-    "repository": [
-      "flat_file/flat_file_node_repository.ts",
-      "/backup/$(date +%Y%m%d)/repo"
-    ],
-    "storage": [
-      "flat_file/flat_file_storage_provider.ts",
-      "/backup/$(date +%Y%m%d)/storage"
-    ]
-  }
+	"src": {
+		"repository": [
+			"mongodb/mongodb_node_repository.ts",
+			"mongodb://prod/antbox"
+		],
+		"storage": ["s3/s3_storage_provider.ts", "/config/prod_s3.json"]
+	},
+	"dst": {
+		"repository": [
+			"flat_file/flat_file_node_repository.ts",
+			"/backup/$(date +%Y%m%d)/repo"
+		],
+		"storage": [
+			"flat_file/flat_file_storage_provider.ts",
+			"/backup/$(date +%Y%m%d)/storage"
+		]
+	}
 }
 ```
 
@@ -384,4 +389,5 @@ systemctl restart antbox
 
 ---
 
-These tools provide the foundation for managing Antbox deployments across different environments and scales, from development through production operations.
+These tools provide the foundation for managing Antbox deployments across different environments and
+scales, from development through production operations.

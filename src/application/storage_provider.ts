@@ -5,20 +5,20 @@ import { type Event } from "shared/event.ts";
 import { type EventHandler } from "shared/event_handler.ts";
 
 export interface WriteFileOpts {
-  title: string;
-  parent: string;
-  mimetype: string;
+	title: string;
+	parent: string;
+	mimetype: string;
 }
 
 export interface StorageProvider {
-  delete(uuid: string): Promise<Either<NodeNotFoundError, void>>;
-  write(
-    uuid: string,
-    file: File,
-    opts?: WriteFileOpts,
-  ): Promise<Either<DuplicatedNodeError, void>>;
-  read(uuid: string): Promise<Either<NodeNotFoundError, File>>;
-  startListeners(
-    bus: (eventId: string, handler: EventHandler<Event>) => void,
-  ): void;
+	delete(uuid: string): Promise<Either<NodeNotFoundError, void>>;
+	write(
+		uuid: string,
+		file: File,
+		opts?: WriteFileOpts,
+	): Promise<Either<DuplicatedNodeError, void>>;
+	read(uuid: string): Promise<Either<NodeNotFoundError, File>>;
+	startListeners(
+		bus: (eventId: string, handler: EventHandler<Event>) => void,
+	): void;
 }

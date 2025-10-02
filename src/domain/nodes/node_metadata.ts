@@ -6,54 +6,54 @@ import { type NodeProperties } from "domain/nodes/node_properties.ts";
 import { FeatureParameter } from "domain/features/feature_node.ts";
 
 export interface NodeMetadata {
-  uuid: string;
-  fid: string;
-  title: string;
-  name: string;
-  description: string;
-  mimetype: string;
-  size: number;
-  parent: string;
-  createdTime: string;
-  modifiedTime: string;
-  owner: string;
-  aspects: string[];
-  tags: string[];
-  related: string[];
-  properties: NodeProperties | AspectProperties;
-  fulltext: string;
+	uuid: string;
+	fid: string;
+	title: string;
+	name: string;
+	description: string;
+	mimetype: string;
+	size: number;
+	parent: string;
+	createdTime: string;
+	modifiedTime: string;
+	owner: string;
+	aspects: string[];
+	tags: string[];
+	related: string[];
+	properties: NodeProperties | AspectProperties;
+	fulltext: string;
 
-  filters: NodeFilters;
+	filters: NodeFilters;
 
-  group: string;
-  groups: string[];
-  email: string;
-  secret: string;
+	group: string;
+	groups: string[];
+	email: string;
+	secret: string;
 
-  onCreate: string[];
-  onUpdate: string[];
-  permissions: Permissions;
+	onCreate: string[];
+	onUpdate: string[];
+	permissions: Permissions;
 
-  runManually: boolean;
-  runAs?: string;
-  parameters: FeatureParameter[];
-  returnType:
-    | "string"
-    | "number"
-    | "boolean"
-    | "array"
-    | "object"
-    | "file"
-    | "void";
-  returnDescription: string;
-  returnContentType: string;
+	runManually: boolean;
+	runAs?: string;
+	parameters: FeatureParameter[];
+	returnType:
+		| "string"
+		| "number"
+		| "boolean"
+		| "array"
+		| "object"
+		| "file"
+		| "void";
+	returnDescription: string;
+	returnContentType: string;
 
-  groupsAllowed: string[];
+	groupsAllowed: string[];
 
-  runOnCreates: boolean;
-  runOnUpdates: boolean;
+	runOnCreates: boolean;
+	runOnUpdates: boolean;
 
-  exposeAction: boolean;
-  exposeExtension: boolean;
-  exposeAITool: boolean;
+	exposeAction: boolean;
+	exposeExtension: boolean;
+	exposeAITool: boolean;
 }

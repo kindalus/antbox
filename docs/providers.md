@@ -1,6 +1,9 @@
 # Antbox Storage and Persistence Providers
 
-Antbox is a flexible ECM system that separates content storage from metadata persistence through two key abstractions: **Storage Providers** (for binary content) and **Node Repositories** (for metadata and relationships). This pluggable architecture allows you to choose the best backend for your specific needs.
+Antbox is a flexible ECM system that separates content storage from metadata persistence through two
+key abstractions: **Storage Providers** (for binary content) and **Node Repositories** (for metadata
+and relationships). This pluggable architecture allows you to choose the best backend for your
+specific needs.
 
 ## Table of Contents
 
@@ -19,7 +22,8 @@ Antbox uses a dual-provider architecture:
 - **Storage Providers**: Handle binary content (files, documents, media)
 - **Node Repositories**: Handle metadata, relationships, and structured data
 
-This separation allows optimal storage choices - for example, using S3 for content with MongoDB for metadata, or local files with PouchDB for offline-first scenarios.
+This separation allows optimal storage choices - for example, using S3 for content with MongoDB for
+metadata, or local files with PouchDB for offline-first scenarios.
 
 ## Configuration
 
@@ -29,21 +33,22 @@ Providers are configured during server setup using the `setupTenants` function:
 import { setupTenants } from "setup/setup_tenants.ts";
 
 const tenants = await setupTenants({
-  tenants: [
-    {
-      name: "production",
-      rootPasswd: "secure_password",
-      storage: ["s3/s3_storage_provider.ts", "/path/to/s3_config.json"],
-      repository: [
-        "mongodb/mongodb_node_repository.ts",
-        "mongodb://localhost:27017/antbox",
-      ],
-    },
-  ],
+	tenants: [
+		{
+			name: "production",
+			rootPasswd: "secure_password",
+			storage: ["s3/s3_storage_provider.ts", "/path/to/s3_config.json"],
+			repository: [
+				"mongodb/mongodb_node_repository.ts",
+				"mongodb://localhost:27017/antbox",
+			],
+		},
+	],
 });
 ```
 
-Providers are referenced by their module path relative to `src/adapters/` or as fully qualified file paths.
+Providers are referenced by their module path relative to `src/adapters/` or as fully qualified file
+paths.
 
 ## Available Storage Providers
 
@@ -58,7 +63,7 @@ Storage providers handle binary content storage and retrieval.
 
 ```typescript
 {
-  storage: ["flat_file/flat_file_storage_provider.ts", "/data/storage"];
+	storage: ["flat_file/flat_file_storage_provider.ts", "/data/storage"];
 }
 ```
 
@@ -71,7 +76,7 @@ Storage providers handle binary content storage and retrieval.
 
 ```typescript
 {
-  storage: ["inmem/inmem_storage_provider.ts"];
+	storage: ["inmem/inmem_storage_provider.ts"];
 }
 ```
 
@@ -84,7 +89,7 @@ Storage providers handle binary content storage and retrieval.
 
 ```typescript
 {
-  storage: ["null/null_storage_provider.ts"];
+	storage: ["null/null_storage_provider.ts"];
 }
 ```
 
@@ -97,7 +102,7 @@ Storage providers handle binary content storage and retrieval.
 
 ```typescript
 {
-  storage: ["s3/s3_storage_provider.ts", "/path/to/s3_config.json"];
+	storage: ["s3/s3_storage_provider.ts", "/path/to/s3_config.json"];
 }
 ```
 
@@ -105,14 +110,14 @@ Storage providers handle binary content storage and retrieval.
 
 ```json
 {
-  "forcePathStyle": false,
-  "endpoint": "s3.amazonaws.com",
-  "region": "us-east-1",
-  "bucket": "antbox-storage",
-  "credentials": {
-    "accessKeyId": "AKIAIOSFODNN7EXAMPLE",
-    "secretAccessKey": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
-  }
+	"forcePathStyle": false,
+	"endpoint": "s3.amazonaws.com",
+	"region": "us-east-1",
+	"bucket": "antbox-storage",
+	"credentials": {
+		"accessKeyId": "AKIAIOSFODNN7EXAMPLE",
+		"secretAccessKey": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+	}
 }
 ```
 
@@ -125,15 +130,16 @@ Storage providers handle binary content storage and retrieval.
 
 ```typescript
 {
-  storage: [
-    "google_drive/google_drive_storage_provider.ts",
-    "/path/to/service_account.json",
-    "google_drive_folder_id",
-  ];
+	storage: [
+		"google_drive/google_drive_storage_provider.ts",
+		"/path/to/service_account.json",
+		"google_drive_folder_id",
+	];
 }
 ```
 
-⚠️ **Note**: Google Drive integration requires service account setup and may have compatibility issues with newer Deno versions.
+⚠️ **Note**: Google Drive integration requires service account setup and may have compatibility
+issues with newer Deno versions.
 
 ## Available Node Repositories
 
@@ -148,7 +154,7 @@ Node repositories handle metadata, relationships, and structured data persistenc
 
 ```typescript
 {
-  repository: ["inmem/inmem_node_repository.ts"];
+	repository: ["inmem/inmem_node_repository.ts"];
 }
 ```
 
@@ -161,7 +167,7 @@ Node repositories handle metadata, relationships, and structured data persistenc
 
 ```typescript
 {
-  repository: ["flat_file/flat_file_node_repository.ts", "/data/repository"];
+	repository: ["flat_file/flat_file_node_repository.ts", "/data/repository"];
 }
 ```
 
@@ -174,7 +180,7 @@ Node repositories handle metadata, relationships, and structured data persistenc
 
 ```typescript
 {
-  repository: ["pouchdb/pouchdb_node_repository.ts", "/data/pouchdb"];
+	repository: ["pouchdb/pouchdb_node_repository.ts", "/data/pouchdb"];
 }
 ```
 
@@ -189,10 +195,10 @@ Node repositories handle metadata, relationships, and structured data persistenc
 
 ```typescript
 {
-  repository: [
-    "mongodb/mongodb_node_repository.ts",
-    "mongodb://localhost:27017/antbox",
-  ];
+	repository: [
+		"mongodb/mongodb_node_repository.ts",
+		"mongodb://localhost:27017/antbox",
+	];
 }
 ```
 
@@ -204,10 +210,10 @@ Antbox defines clear interfaces for custom provider implementation:
 
 ```typescript
 interface StorageProvider {
-  write(uuid: string, content: Uint8Array): Promise<void>;
-  read(uuid: string): Promise<Uint8Array>;
-  exists(uuid: string): Promise<boolean>;
-  delete(uuid: string): Promise<void>;
+	write(uuid: string, content: Uint8Array): Promise<void>;
+	read(uuid: string): Promise<Uint8Array>;
+	exists(uuid: string): Promise<boolean>;
+	delete(uuid: string): Promise<void>;
 }
 ```
 
@@ -215,18 +221,18 @@ interface StorageProvider {
 
 ```typescript
 interface NodeRepository {
-  add(node: NodeLike): Promise<Either<AntboxError, void>>;
-  update(
-    uuid: string,
-    metadata: Partial<NodeMetadata>,
-  ): Promise<Either<AntboxError, void>>;
-  delete(uuid: string): Promise<Either<AntboxError, void>>;
-  get(uuid: string): Promise<Either<NodeNotFoundError, NodeLike>>;
-  find(
-    filters: NodeFilters, // Uses powerful NodeFilter system for querying
-    limit?: number,
-    offset?: number,
-  ): Promise<NodeFilterResult>;
+	add(node: NodeLike): Promise<Either<AntboxError, void>>;
+	update(
+		uuid: string,
+		metadata: Partial<NodeMetadata>,
+	): Promise<Either<AntboxError, void>>;
+	delete(uuid: string): Promise<Either<AntboxError, void>>;
+	get(uuid: string): Promise<Either<NodeNotFoundError, NodeLike>>;
+	find(
+		filters: NodeFilters, // Uses powerful NodeFilter system for querying
+		limit?: number,
+		offset?: number,
+	): Promise<NodeFilterResult>;
 }
 ```
 
@@ -242,19 +248,19 @@ The `find` method uses Antbox's powerful **NodeFilter** system for sophisticated
 // - Rich operators: equality, comparison, array ops, text matching
 
 interface NodeFilterResult {
-  nodes: NodeLike[];
-  pageToken: number;
-  pageSize: number;
+	nodes: NodeLike[];
+	pageToken: number;
+	pageSize: number;
 }
 
 // Example repository usage:
 const result = await repository.find(
-  [
-    ["mimetype", "==", "application/pdf"],
-    ["size", ">", 1048576],
-  ],
-  20,
-  1,
+	[
+		["mimetype", "==", "application/pdf"],
+		["size", ">", 1048576],
+	],
+	20,
+	1,
 );
 ```
 
@@ -265,7 +271,8 @@ const result = await repository.find(
 - **In-Memory**: Uses JavaScript predicates for filtering
 - **Flat File**: Delegates to in-memory implementation
 
-Each repository adapter must handle the full NodeFilter specification to ensure consistent behavior across storage backends.
+Each repository adapter must handle the full NodeFilter specification to ensure consistent behavior
+across storage backends.
 
 ## Configuration Examples
 
@@ -331,29 +338,29 @@ import { AntboxError } from "shared/antbox_error.ts";
 import { StorageProvider } from "application/storage_provider.ts";
 
 export default function buildMyCustomStorage(
-  config: string,
+	config: string,
 ): Promise<Either<AntboxError, StorageProvider>> {
-  return Promise.resolve(right(new MyCustomStorageProvider(config)));
+	return Promise.resolve(right(new MyCustomStorageProvider(config)));
 }
 
 class MyCustomStorageProvider implements StorageProvider {
-  constructor(private config: string) {}
+	constructor(private config: string) {}
 
-  async write(uuid: string, content: Uint8Array): Promise<void> {
-    // Custom implementation
-  }
+	async write(uuid: string, content: Uint8Array): Promise<void> {
+		// Custom implementation
+	}
 
-  async read(uuid: string): Promise<Uint8Array> {
-    // Custom implementation
-  }
+	async read(uuid: string): Promise<Uint8Array> {
+		// Custom implementation
+	}
 
-  async exists(uuid: string): Promise<boolean> {
-    // Custom implementation
-  }
+	async exists(uuid: string): Promise<boolean> {
+		// Custom implementation
+	}
 
-  async delete(uuid: string): Promise<void> {
-    // Custom implementation
-  }
+	async delete(uuid: string): Promise<void> {
+		// Custom implementation
+	}
 }
 ```
 
@@ -362,25 +369,22 @@ class MyCustomStorageProvider implements StorageProvider {
 ```typescript
 import { Either, left, right } from "shared/either.ts";
 import { AntboxError } from "shared/antbox_error.ts";
-import {
-  NodeRepository,
-  NodeFilterResult,
-} from "domain/nodes/node_repository.ts";
+import { NodeFilterResult, NodeRepository } from "domain/nodes/node_repository.ts";
 
 export default function buildMyCustomRepository(
-  connectionString: string,
+	connectionString: string,
 ): Promise<Either<AntboxError, NodeRepository>> {
-  return Promise.resolve(right(new MyCustomRepository(connectionString)));
+	return Promise.resolve(right(new MyCustomRepository(connectionString)));
 }
 
 class MyCustomRepository implements NodeRepository {
-  constructor(private connectionString: string) {}
+	constructor(private connectionString: string) {}
 
-  async add(node: NodeLike): Promise<Either<AntboxError, void>> {
-    // Custom implementation
-  }
+	async add(node: NodeLike): Promise<Either<AntboxError, void>> {
+		// Custom implementation
+	}
 
-  // ... implement other required methods
+	// ... implement other required methods
 }
 ```
 
@@ -396,4 +400,6 @@ class MyCustomRepository implements NodeRepository {
 
 ---
 
-Antbox's pluggable provider architecture ensures you can adapt the system to your specific infrastructure requirements while maintaining consistent functionality across different deployment scenarios.
+Antbox's pluggable provider architecture ensures you can adapt the system to your specific
+infrastructure requirements while maintaining consistent functionality across different deployment
+scenarios.

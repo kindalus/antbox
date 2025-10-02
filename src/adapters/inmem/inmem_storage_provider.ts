@@ -4,44 +4,44 @@ import { AntboxError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
 
 export default function buildInmemStorageProvider(): Promise<
-  Either<AntboxError, StorageProvider>
+	Either<AntboxError, StorageProvider>
 > {
-  return Promise.resolve(right(new InMemoryStorageProvider()));
+	return Promise.resolve(right(new InMemoryStorageProvider()));
 }
 
 export class InMemoryStorageProvider implements StorageProvider {
-  constructor(readonly fs: Record<string, File> = {}) {}
+	constructor(readonly fs: Record<string, File> = {}) {}
 
-  read(uuid: string): Promise<Either<AntboxError, File>> {
-    const file = this.fs[uuid];
+	read(uuid: string): Promise<Either<AntboxError, File>> {
+		const file = this.fs[uuid];
 
-    if (!file) {
-      const error = new NodeFileNotFoundError(uuid);
-      return Promise.resolve(left(error));
-    }
+		if (!file) {
+			const error = new NodeFileNotFoundError(uuid);
+			return Promise.resolve(left(error));
+		}
 
-    return Promise.resolve(right(file));
-  }
-  
-  delete(uuid: string): Promise<Either<AntboxError, void>> {
-    const file = this.fs[uuid]
-    
-    if(!file) {
-      const error = new NodeFileNotFoundError(uuid);
-      return Promise.resolve(left(error))
-    }
+		return Promise.resolve(right(file));
+	}
 
-    delete this.fs[uuid];
-    return Promise.resolve(right(undefined));
-  }
+	delete(uuid: string): Promise<Either<AntboxError, void>> {
+		const file = this.fs[uuid];
 
-  write(uuid: string, file: File): Promise<Either<AntboxError, void>> {
-    this.fs[uuid] = file;
+		if (!file) {
+			const error = new NodeFileNotFoundError(uuid);
+			return Promise.resolve(left(error));
+		}
 
-    return Promise.resolve(right(undefined));
-  }
+		delete this.fs[uuid];
+		return Promise.resolve(right(undefined));
+	}
 
-  startListeners(): void {
-    // Do nothing
-  }
+	write(uuid: string, file: File): Promise<Either<AntboxError, void>> {
+		this.fs[uuid] = file;
+
+		return Promise.resolve(right(undefined));
+	}
+
+	startListeners(): void {
+		// Do nothing
+	}
 }

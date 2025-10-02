@@ -960,7 +960,7 @@ describe("FeatureService", () => {
 			}),
 		);
 
-		expect(result.isRight()).toBeTruthy();
+		expect(result.isRight(), errToMsg(result.value)).toBeTruthy();
 
 		const getResult = await service.get(adminAuthContext, "multi-subtype-uuid");
 		expect(getResult.isRight()).toBeTruthy();
@@ -1088,3 +1088,7 @@ describe("FeatureService", () => {
 		}
 	});
 });
+
+const errToMsg = (
+	err: any,
+) => (err?.message ? err.message : JSON.stringify(err));

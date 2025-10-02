@@ -2,15 +2,14 @@ import { describe, test } from "bdd";
 import { expect } from "expect";
 import { FeatureService } from "./feature_service.ts";
 import { NodeService } from "./node_service.ts";
-import { InMemoryStorageProvider } from "../adapters/inmem/inmem_storage_provider.ts";
-import { InMemoryNodeRepository } from "../adapters/inmem/inmem_node_repository.ts";
+import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider.ts";
+import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository.ts";
 import type { AuthenticationContext } from "./authentication_context.ts";
-import { BadRequestError } from "../shared/antbox_error.ts";
-import { InMemoryEventBus } from "../adapters/inmem/inmem_event_bus.ts";
+import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus.ts";
 import { UsersGroupsService } from "./users_groups_service.ts";
-import { GroupNode } from "../domain/users_groups/group_node.ts";
+import { GroupNode } from "domain/users_groups/group_node.ts";
 import { builtinFolders } from "./builtin_folders/index.ts";
-import { Groups } from "../domain/users_groups/groups.ts";
+import { Groups } from "domain/users_groups/groups.ts";
 
 describe("Extension Service", () => {
 	test("should allow file parameters for Extensions", async () => {
@@ -261,7 +260,6 @@ describe("Extension Service", () => {
 			}),
 		);
 
-		// Test with editor (should fail - returns 404 since they can't see it)
 		const request1 = new Request("http://localhost/test");
 		const response1 = await service.runExtension(
 			editorAuthContext,
@@ -270,7 +268,6 @@ describe("Extension Service", () => {
 		);
 		expect(response1.status).toBe(404);
 
-		// Test with admin (should succeed)
 		const request2 = new Request("http://localhost/test");
 		const response2 = await service.runExtension(
 			adminAuthContext,
@@ -476,20 +473,8 @@ const testExtensionContent = `
     exposeAITool: false,
     groupsAllowed: [],
     parameters: [],
-    returnType: "void",
+    returnType: "string",
 
-    run: async (ctx, params) => {
-      return new Response("Hello from extension", {
-        status: 200,
-        headers: { "Content-Type": "text/plain" }
-      });
-    }
+    run: async (ctx, params) => "Hello from extension"
   };
 `;
-
-const errToMsg = (err: unknown): string => {
-	if (err instanceof Error) {
-		return err.message;
-	}
-	return JSON.stringify(err, null, 2);
-};

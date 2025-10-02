@@ -56,9 +56,9 @@ describe("Action Service Tests", () => {
 		expect(runResult.isRight()).toBeTruthy();
 
 		const result = runResult.right as any;
-		expect(result.processedCount).toBe(2);
 		expect(result.message).toBe("test message");
 		expect(result.hasNodeService).toBe(true);
+		expect(result.processedCount).toBe(2);
 	});
 
 	test("should return error if action is not found when running", async () => {
@@ -272,7 +272,7 @@ describe("Action Service Tests", () => {
         filters: [],
         exposeExtension: false,
         exposeAITool: false,
-        groupsAllowed: ["-admins-"],
+        groupsAllowed: ["--admins--"],
         parameters: [
           {
             name: "uuids",
@@ -423,12 +423,12 @@ describe("Action Service Tests", () => {
 
 		expect(runResult.isRight()).toBeTruthy();
 		const result = runResult.right as any;
-		expect(result.processedCount).toBe(2);
 		expect(result.message).toBe("test message");
 		expect(result.hasNodeService).toBe(true);
 		expect(result.hasAuthContext).toBe(true);
 		expect(result.userEmail).toBe("admin@example.com");
 		expect(result.argsReceived).toContain("uuids");
+		expect(result.processedCount).toBe(2);
 	});
 
 	// Test for handling batch operations
@@ -666,3 +666,7 @@ const testActionContent = `
     }
   };
 `;
+
+const errToMsg = (
+	err: any,
+) => (err?.message ? err.message : JSON.stringify(err));

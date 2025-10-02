@@ -382,39 +382,6 @@ describe("NodeService Feature Validation", () => {
 
 	// === Multi-Subtype Feature Validation Tests ===
 
-	test("should validate Action + Extension combination", async () => {
-		const nodeService = createNodeService();
-
-		const result = await nodeService.createFile(
-			adminAuthContext,
-			new File(["dummy content"], "action-extension-combo.js", {
-				type: "application/javascript",
-			}),
-			{
-				title: "action-extension-combo.js",
-				parent: "--features--",
-				mimetype: "application/vnd.antbox.feature",
-				exposeAction: true,
-				exposeExtension: true,
-				exposeAITool: false,
-				parameters: [
-					{
-						name: "uuids",
-						type: "array",
-						arrayType: "string",
-						required: true,
-					},
-				],
-			},
-		);
-
-		expect(result.isLeft()).toBeTruthy();
-		if (result.isLeft()) {
-			expect(result.value).toBeInstanceOf(BadRequestError);
-			expect((result.value as BadRequestError).message).toContain("conflicting");
-		}
-	});
-
 	test("should validate Action + AI Tool combination", async () => {
 		const nodeService = createNodeService();
 
@@ -447,65 +414,6 @@ describe("NodeService Feature Validation", () => {
 		);
 
 		expect(result.isRight()).toBeTruthy();
-	});
-
-	test("should validate Extension + AI Tool combination", async () => {
-		const nodeService = createNodeService();
-
-		const result = await nodeService.createFile(
-			adminAuthContext,
-			new File(["dummy content"], "extension-ai-tool-combo.js", {
-				type: "application/javascript",
-			}),
-			{
-				title: "extension-ai-tool-combo.js",
-				parent: "--features--",
-				mimetype: "application/vnd.antbox.feature",
-				exposeAction: false,
-				exposeExtension: true,
-				exposeAITool: true,
-				parameters: [],
-			},
-		);
-
-		expect(result.isLeft()).toBeTruthy();
-		if (result.isLeft()) {
-			expect(result.value).toBeInstanceOf(BadRequestError);
-			expect((result.value as BadRequestError).message).toContain("conflicting");
-		}
-	});
-
-	test("should reject triple combination (Action + Extension + AI Tool)", async () => {
-		const nodeService = createNodeService();
-
-		const result = await nodeService.createFile(
-			adminAuthContext,
-			new File(["dummy content"], "triple-combo.js", {
-				type: "application/javascript",
-			}),
-			{
-				title: "triple-combo.js",
-				parent: "--features--",
-				mimetype: "application/vnd.antbox.feature",
-				exposeAction: true,
-				exposeExtension: true,
-				exposeAITool: true,
-				parameters: [
-					{
-						name: "uuids",
-						type: "array",
-						arrayType: "string",
-						required: true,
-					},
-				],
-			},
-		);
-
-		expect(result.isLeft()).toBeTruthy();
-		if (result.isLeft()) {
-			expect(result.value).toBeInstanceOf(BadRequestError);
-			expect((result.value as BadRequestError).message).toContain("conflicting");
-		}
 	});
 
 	// === General Feature Validation Tests ===

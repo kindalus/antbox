@@ -254,8 +254,8 @@ describe("ArticleService", () => {
 			parent: "--parent--",
 		});
 
-		const artticles = await service.list(adminAuthContext);
-		expect(artticles.length).toBe(2);
+		const articles = await service.list(adminAuthContext);
+		expect(articles.length).toBe(2);
 	});
 
 	test("export should create a JSON file for article", async () => {

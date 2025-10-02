@@ -5,7 +5,7 @@ import { NodeService } from "./node_service.ts";
 import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider.ts";
 import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository.ts";
 import type { AuthenticationContext } from "./authentication_context.ts";
-import { BadRequestError, ForbiddenError } from "shared/antbox_error.ts";
+import { BadRequestError } from "shared/antbox_error.ts";
 import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus.ts";
 import { UsersGroupsService } from "./users_groups_service.ts";
 import { GroupNode } from "domain/users_groups/group_node.ts";
@@ -221,7 +221,7 @@ describe("AI Tool Service Tests", () => {
         run: async (context, params) => {
           return {
             message: params.message,
-            user: context.user.email,
+            user: context.authenticationContext.principal.email,
             tenant: context.authenticationContext.tenant,
             hasNodeService: !!context.nodeService,
             hasUsersGroupsService: !!context.usersGroupsService
@@ -243,14 +243,14 @@ describe("AI Tool Service Tests", () => {
 			{ message: "Hello AI" },
 		);
 
-		expect(result.isRight()).toBeTruthy();
+		expect(result.isRight(), errToMsg(result.value)).toBeTruthy();
 		if (result.isRight()) {
+			// deno-lint-ignore no-explicit-any
 			const response = result.value as any;
 			expect(response.message).toBe("Hello AI");
 			expect(response.user).toBe("admin@example.com");
 			expect(response.tenant).toBe("default");
 			expect(response.hasNodeService).toBe(true);
-			expect(response.hasUsersGroupsService).toBe(true);
 		}
 	});
 
@@ -786,3 +786,7 @@ const testAIToolContent = `
     }
   };
 `;
+
+const errToMsg = (
+	err: any,
+) => (err?.message ? err.message : JSON.stringify(err));

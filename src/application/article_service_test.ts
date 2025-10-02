@@ -11,7 +11,7 @@ import { BadRequestError } from "shared/antbox_error.ts";
 import { FileNode } from "domain/nodes/file_node.ts";
 import { parse } from "marked";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
-import type { ArticleDTO } from "application/article_dto.ts";
+
 import { Groups } from "domain/users_groups/groups.ts";
 
 describe("ArticleService", () => {
@@ -72,7 +72,6 @@ describe("ArticleService", () => {
 			uuid: "",
 			title: "Title",
 			parent: "--parent--",
-			size: file.size,
 		});
 
 		expect(articleOrErr.isLeft(), errMsg(articleOrErr.value)).toBeTruthy();
@@ -90,14 +89,13 @@ describe("ArticleService", () => {
 			uuid: "--uuid--",
 			title: "Title",
 			parent: "--parent--",
-			size: file.size,
 		});
 
 		expect(articleOrErr.isLeft(), errMsg(articleOrErr.value)).toBeTruthy();
 		expect(articleOrErr.value).toBeInstanceOf(BadRequestError);
 	});
 
-	test("get should return an article", async () => {
+	test("get should return HTML content", async () => {
 		const service = createService();
 
 		const file = new File(["<p>Content</p>"], "javascript", {
@@ -111,28 +109,22 @@ describe("ArticleService", () => {
 			parent: "--parent--",
 		});
 
-		const articleOrErr = await service.get(adminAuthContext, "--uuid--");
+		const htmlOrErr = await service.get(adminAuthContext, "--uuid--");
 
-		expect(articleOrErr.isRight(), errMsg(articleOrErr.value)).toBeTruthy();
-		expect(articleOrErr.right.title).toBe("javascript");
-		expect(articleOrErr.right.parent).toBe("--parent--");
-		expect(articleOrErr.right.description).toBe("The description");
-		expect(articleOrErr.right.size).toBe(file.size);
+		expect(htmlOrErr.isRight(), errMsg(htmlOrErr.value)).toBeTruthy();
+		expect(htmlOrErr.right).toBe("<p>Content</p>");
 	});
 
-	test("get should return an article if mimetype is 'text/html' ", async () => {
+	test("get should return HTML content if mimetype is 'text/html' ", async () => {
 		const service = createService();
 
-		const articleOrErr = await service.get(adminAuthContext, "--html--");
+		const htmlOrErr = await service.get(adminAuthContext, "--html--");
 
-		expect(articleOrErr.isRight(), errMsg(articleOrErr.value)).toBeTruthy();
-		expect(articleOrErr.right.title).toBe("Html File");
-		expect(articleOrErr.right.parent).toBe("--parent--");
-		expect(articleOrErr.right.description).toBe("An html file");
-		expect(articleOrErr.right.size).toBe(20);
+		expect(htmlOrErr.isRight(), errMsg(htmlOrErr.value)).toBeTruthy();
+		expect(htmlOrErr.right).toContain("<h1>The Title</h1>");
 	});
 
-	test("get should return an article if mimetype is 'text/markdown' and parse content to html", async () => {
+	test("get should convert markdown to HTML", async () => {
 		const service = createService();
 
 		const markdownFile = new File(
@@ -149,39 +141,34 @@ describe("ArticleService", () => {
 				type: "text/markdown",
 			},
 		);
-		const contentText = await parse(await markdownFile.text());
+		const expectedHtml = await parse(await markdownFile.text());
 
-		const articleOrErr = await service.get(adminAuthContext, "--markdown--");
+		const htmlOrErr = await service.get(adminAuthContext, "--markdown--");
 
-		expect(articleOrErr.isRight(), errMsg(articleOrErr.value)).toBeTruthy();
-		expect(articleOrErr.right.title).toBe("Markdown File");
-		expect(articleOrErr.right.parent).toBe("--parent--");
-		expect(articleOrErr.right.description).toBe("An markdown file");
-		expect(articleOrErr.right.content).toEqual(contentText);
+		expect(htmlOrErr.isRight(), errMsg(htmlOrErr.value)).toBeTruthy();
+		expect(htmlOrErr.right).toEqual(expectedHtml);
 	});
 
-	test("get should return an article if mimetype is 'text/plain' and add content to paragraphs", async () => {
+	test("get should convert text/plain to HTML paragraphs", async () => {
 		const service = createService();
 
-		const articleOrErr = await service.get(adminAuthContext, "--txt--");
+		const htmlOrErr = await service.get(adminAuthContext, "--txt--");
 
-		expect(articleOrErr.isRight(), errMsg(articleOrErr.value)).toBeTruthy();
-		expect(articleOrErr.right.title).toBe("Txt File");
-		expect(articleOrErr.right.parent).toBe("--parent--");
-		expect(articleOrErr.right.description).toBe("Text plain file");
-		expect(articleOrErr.right.content?.startsWith("<p>")).toBeTruthy();
+		expect(htmlOrErr.isRight(), errMsg(htmlOrErr.value)).toBeTruthy();
+		expect(htmlOrErr.right.startsWith("<p>")).toBeTruthy();
+		expect(htmlOrErr.right).toContain("The Title");
 	});
 
 	test("get should return error if node is not article", async () => {
 		const service = createService();
 
-		const articleOrErr = await service.get(adminAuthContext, "--json--");
+		const htmlOrErr = await service.get(adminAuthContext, "--json--");
 
-		expect(articleOrErr.isLeft(), errMsg(articleOrErr.value)).toBeTruthy();
-		expect(articleOrErr.value).toBeInstanceOf(NodeNotFoundError);
+		expect(htmlOrErr.isLeft(), errMsg(htmlOrErr.value)).toBeTruthy();
+		expect(htmlOrErr.value).toBeInstanceOf(NodeNotFoundError);
 	});
 
-	test("getByLang should return an article according language", async () => {
+	test("get with lang parameter should return HTML filtered by language", async () => {
 		const service = createService();
 
 		const file = new File([html], "filename", {
@@ -195,18 +182,14 @@ describe("ArticleService", () => {
 			parent: "--parent--",
 		});
 
-		const articleOrErr = await service.getByLang(
+		const htmlOrErr = await service.get(
 			adminAuthContext,
 			"--unique--",
 			"en",
 		);
 
-		expect(articleOrErr.isRight(), errMsg(articleOrErr.value)).toBeTruthy();
-		expect(articleOrErr.right.title).toBe("Title");
-		expect(articleOrErr.right.parent).toBe("--parent--");
-		expect(articleOrErr.right.size).toBe(file.size);
-		expect(articleOrErr.right.content?.includes("Article Title (EN)"))
-			.toBeTruthy();
+		expect(htmlOrErr.isRight(), errMsg(htmlOrErr.value)).toBeTruthy();
+		expect(htmlOrErr.right.includes("Article Title (EN)")).toBeTruthy();
 	});
 
 	test("delete should remove an article", async () => {
@@ -259,20 +242,69 @@ describe("ArticleService", () => {
 		expect(articles.length).toBe(2);
 	});
 
-	test("export should create a JSON file for article", async () => {
+	test("get should return HTML string for HTML article", async () => {
 		const service = createService();
 
 		await service.createOrReplace(adminAuthContext, file, articleDummy);
 
-		const fileOrErr = await service.export(adminAuthContext, articleDummy.uuid);
+		const htmlOrErr = await service.get(adminAuthContext, articleDummy.uuid);
 
-		expect(fileOrErr.isRight(), errMsg(fileOrErr.value)).toBeTruthy();
-		expect(fileOrErr.right.type).toBe("application/json");
-		expect(fileOrErr.right.name).toBe(`${articleDummy.uuid}.json`);
+		expect(htmlOrErr.isRight(), errMsg(htmlOrErr.value)).toBeTruthy();
+		expect(htmlOrErr.right).toBe("<p>Content</p>");
+	});
 
-		const content = JSON.parse(await fileOrErr.right.text());
-		expect(content.uuid).toBe(articleDummy.uuid);
-		expect(content.title).toBe(articleDummy.title);
+	test("get should convert markdown article to HTML string", async () => {
+		const service = createService();
+
+		const markdownFile = new File(
+			["# Hello World\n\nThis is **bold** text."],
+			"article.md",
+			{ type: "text/markdown" },
+		);
+
+		await service.createOrReplace(adminAuthContext, markdownFile, {
+			uuid: "--markdown-export--",
+			title: "Markdown Article",
+			description: "A markdown article",
+			parent: "--parent--",
+		});
+
+		const htmlOrErr = await service.get(
+			adminAuthContext,
+			"--markdown-export--",
+		);
+
+		expect(htmlOrErr.isRight(), errMsg(htmlOrErr.value)).toBeTruthy();
+		expect(htmlOrErr.right).toContain("<h1>");
+		expect(htmlOrErr.right).toContain("Hello World");
+		expect(htmlOrErr.right).toContain("<strong>bold</strong>");
+	});
+
+	test("get should convert plain text article to HTML string", async () => {
+		const service = createService();
+
+		const textFile = new File(
+			["First paragraph\n\nSecond paragraph\n\nThird paragraph"],
+			"article.txt",
+			{ type: "text/plain" },
+		);
+
+		await service.createOrReplace(adminAuthContext, textFile, {
+			uuid: "--text-export--",
+			title: "Text Article",
+			description: "A plain text article",
+			parent: "--parent--",
+		});
+
+		const htmlOrErr = await service.get(
+			adminAuthContext,
+			"--text-export--",
+		);
+
+		expect(htmlOrErr.isRight(), errMsg(htmlOrErr.value)).toBeTruthy();
+		expect(htmlOrErr.right).toContain("<p>First paragraph</p>");
+		expect(htmlOrErr.right).toContain("<p>Second paragraph</p>");
+		expect(htmlOrErr.right).toContain("<p>Third paragraph</p>");
 	});
 });
 
@@ -285,7 +317,7 @@ const adminAuthContext: AuthenticationContext = {
 	},
 };
 
-const articleDummy: ArticleDTO = {
+const articleDummy = {
 	uuid: "--the--uuid--",
 	title: "javascript",
 	description: "The description",

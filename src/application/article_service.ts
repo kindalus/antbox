@@ -6,16 +6,20 @@ import { Nodes } from "domain/nodes/nodes.ts";
 import type { ArticleServiceContext } from "application/article_service_context.ts";
 import { parse } from "marked";
 import { JSDOM } from "jsdom";
-import { type ArticleDTO, articleToNode, nodeToArticle } from "application/article_dto.ts";
+
 import { ARTICLE_ASPECT } from "./builtin_aspects/index.ts";
 import { FileNode } from "domain/nodes/file_node.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 
 /**
- * Articles are documents that have the mimetype "text/html" | "text/plain" | "text/markdown"
- * and have the builtin aspect --article--
+ * ArticleService manages documents with mimetypes "text/html", "text/plain", or "text/markdown"
+ * that have the builtin aspect --article--.
  *
- * The export method should always return text/html
+ * Key features:
+ * - get() method returns HTML string (text/html), converting from source format if needed
+ * - Automatically converts markdown and text/plain to HTML
+ * - Supports multilingual content via HTML templates with lang attributes
+ * - Optional lang parameter in get() filters content by language template
  */
 export class ArticleService {
 	constructor(
@@ -26,8 +30,8 @@ export class ArticleService {
 	async createOrReplace(
 		ctx: AuthenticationContext,
 		file: File,
-		metadata: ArticleDTO,
-	): Promise<Either<AntboxError, ArticleDTO>> {
+		metadata: { uuid: string; title: string; description?: string; parent: string },
+	): Promise<Either<AntboxError, FileNode>> {
 		if (!["text/html", "text/plain", "text/markdown"].includes(file.type)) {
 			return left(new BadRequestError(`Invalid file mimetype: : ${file.type}`));
 		}
@@ -36,9 +40,17 @@ export class ArticleService {
 			return left(new BadRequestError("Article UUID is required"));
 		}
 
-		const articleOrErr = await this.get(ctx, metadata.uuid);
-		if (articleOrErr.isLeft()) {
-			return await this.#create(ctx, file, metadata);
+		const nodeOrErr = await this.nodeService.get(ctx, metadata.uuid);
+		if (nodeOrErr.isLeft()) {
+			// Create new article
+			const aspects = [ARTICLE_ASPECT.uuid];
+			const createOrErr = await this.nodeService.createFile(ctx, file, { ...metadata, aspects });
+
+			if (createOrErr.isLeft()) {
+				return left(createOrErr.value);
+			}
+
+			return right(createOrErr.value as FileNode);
 		}
 
 		return this.#update(ctx, file, metadata);
@@ -47,7 +59,12 @@ export class ArticleService {
 	async get(
 		ctx: AuthenticationContext,
 		uuid: string,
-	): Promise<Either<AntboxError, ArticleDTO>> {
+		lang?: "pt" | "en" | "fr" | "es",
+	): Promise<Either<AntboxError, string>> {
+		if (lang) {
+			return this.#getByLang(ctx, uuid, lang);
+		}
+
 		const nodeOrErr = await this.nodeService.get(ctx, uuid);
 		if (nodeOrErr.isLeft()) {
 			return left(nodeOrErr.value);
@@ -64,41 +81,40 @@ export class ArticleService {
 
 		if (Nodes.isMarkdown(node)) {
 			const html = await this.#markdownToHtml(fileText);
-			return right(nodeToArticle(node, html));
+			return right(html);
 		}
 
 		if (Nodes.isHtml(node)) {
-			return right(nodeToArticle(node, fileText));
+			return right(fileText);
 		}
 
 		if (Nodes.isTextPlain(node)) {
-			const html = this.#textPlainToHtml(fileText);
-			return right(nodeToArticle(node, html));
+			const html = await this.#textPlainToHtml(fileText);
+			return right(html);
 		}
 
 		if (!Nodes.isArticle(node)) {
 			return left(new NodeNotFoundError(uuid));
 		}
 
-		return right(nodeToArticle(node, fileText));
+		return right(fileText);
 	}
 
-	async getByLang(
+	async #getByLang(
 		ctx: AuthenticationContext,
 		uuid: string,
 		lang: "pt" | "en" | "fr" | "es",
-	): Promise<Either<AntboxError, ArticleDTO>> {
-		const articleOrErr = await this.get(ctx, uuid);
-		if (articleOrErr.isLeft()) {
-			return left(articleOrErr.value);
+	): Promise<Either<AntboxError, string>> {
+		const htmlOrErr = await this.get(ctx, uuid);
+		if (htmlOrErr.isLeft()) {
+			return left(htmlOrErr.value);
 		}
 
 		if (!["pt", "en", "es", "fr"].includes(lang)) {
 			return left(new NodeNotFoundError(uuid));
 		}
 
-		const article = articleOrErr.value;
-		const html = article.content;
+		const html = htmlOrErr.value;
 
 		try {
 			const dom = new JSDOM(html);
@@ -106,16 +122,14 @@ export class ArticleService {
 
 			if (!document) {
 				console.error("Error parsing file text to DOM");
-				return right(article);
+				return right(html);
 			}
 
 			const contentElement = document.querySelector(`template[lang='${lang}']`)?.innerHTML ??
 				document.querySelector("template:not([lang])")?.innerHTML ??
 				document.querySelector("body")?.innerHTML;
 
-			const newArticle = articleToNode(ctx, article);
-
-			return right(nodeToArticle(newArticle, contentElement));
+			return right(contentElement ?? html);
 		} catch (e) {
 			console.error("Error parsing file text to DOM: ", e);
 			return left(new UnknownError("Error parsing file text to DOM"));
@@ -126,36 +140,21 @@ export class ArticleService {
 		ctx: AuthenticationContext,
 		uuid: string,
 	): Promise<Either<AntboxError, void>> {
-		const nodeOrErr = await this.get(ctx, uuid);
+		const nodeOrErr = await this.nodeService.get(ctx, uuid);
 
 		if (nodeOrErr.isLeft()) {
 			return left(nodeOrErr.value);
 		}
 
+		const node = nodeOrErr.value;
+		if (!Nodes.isArticle(node)) {
+			return left(new NodeNotFoundError(uuid));
+		}
+
 		return this.nodeService.delete(ctx, uuid);
 	}
 
-	async export(
-		ctx: AuthenticationContext,
-		uuid: string,
-	): Promise<Either<AntboxError, File>> {
-		const articleOrErr = await this.get(ctx, uuid);
-		if (articleOrErr.isLeft()) {
-			return left(articleOrErr.value);
-		}
-
-		const file = new File(
-			[JSON.stringify(articleOrErr.value, null, 2)],
-			`${articleOrErr.value?.uuid}.json`,
-			{
-				type: "application/json",
-			},
-		);
-
-		return right(file);
-	}
-
-	async list(ctx: AuthenticationContext): Promise<ArticleDTO[]> {
+	async list(ctx: AuthenticationContext): Promise<FileNode[]> {
 		const nodesOrErrs = await this.nodeService.find(
 			ctx,
 			[
@@ -169,24 +168,7 @@ export class ArticleService {
 			return [];
 		}
 
-		const articles = nodesOrErrs.value.nodes.map((n) => nodeToArticle(n as FileNode));
-		return articles;
-	}
-
-	async #create(
-		ctx: AuthenticationContext,
-		file: File,
-		metadata: ArticleDTO,
-	): Promise<Either<AntboxError, ArticleDTO>> {
-		const aspects = [ARTICLE_ASPECT.uuid];
-
-		const nodeOrErr = await this.nodeService.createFile(ctx, file, { ...metadata, aspects });
-
-		if (nodeOrErr.isLeft()) {
-			return left(nodeOrErr.value);
-		}
-
-		return right(nodeToArticle(nodeOrErr.value as FileNode));
+		return nodesOrErrs.value.nodes as FileNode[];
 	}
 
 	async #markdownToHtml(value: string): Promise<string> {
@@ -201,34 +183,16 @@ export class ArticleService {
 		}
 	}
 
-	#textPlainToHtml(value: string): string {
+	async #textPlainToHtml(value: string): Promise<string> {
 		try {
-			const paragraphs = value
-				.split(/\r?\n\s*/)
-				.filter((p) => p.length > 0);
-
-			const htmlParagraphs = paragraphs
-				.map((p) => `<p>${this.#escapeSpecialCharacterHtml(p)}</p>`)
-				.join("");
-
-			return htmlParagraphs;
+			const html = await parse(value);
+			return html;
 		} catch (error) {
 			console.error(
-				new UnknownError(
-					`Error in parsing text plain to html: ${JSON.stringify(error)}`,
-				),
+				`Error in parsing text plain to html: ${JSON.stringify(error)}`,
 			);
 			return "";
 		}
-	}
-
-	#escapeSpecialCharacterHtml(text: string): string {
-		return text
-			.replace(/&/g, "&amp;")
-			.replace(/</g, "&lt;")
-			.replace(/>/g, "&gt;")
-			.replace(/"/g, "&quot;")
-			.replace(/'/g, "&#039;");
 	}
 
 	async #getFileText(
@@ -248,15 +212,15 @@ export class ArticleService {
 	async #update(
 		ctx: AuthenticationContext,
 		file: File,
-		meatadata: ArticleDTO,
-	): Promise<Either<AntboxError, ArticleDTO>> {
-		const nodeOrErr = await this.get(ctx, meatadata.uuid);
+		metadata: { uuid: string; title: string; description?: string; parent: string },
+	): Promise<Either<AntboxError, FileNode>> {
+		const nodeOrErr = await this.nodeService.get(ctx, metadata.uuid);
 		if (nodeOrErr.isLeft()) {
 			return left(nodeOrErr.value);
 		}
 
 		const createOrErr = FileNode.create({
-			...meatadata,
+			...metadata,
 			owner: ctx.principal.email,
 			size: file.size,
 		});
@@ -267,21 +231,13 @@ export class ArticleService {
 
 		const article = createOrErr.value;
 
-		return await this.#updateFile(ctx, file, article);
-	}
-
-	async #updateFile(
-		ctx: AuthenticationContext,
-		file: File,
-		metadata: FileNode,
-	): Promise<Either<AntboxError, ArticleDTO>> {
 		const updateFileOrErr = await this.context.storage.write(
-			metadata.uuid,
+			article.uuid,
 			file,
 			{
-				title: metadata.title,
-				mimetype: metadata.mimetype,
-				parent: metadata.parent,
+				title: article.title,
+				mimetype: article.mimetype,
+				parent: article.parent,
 			},
 		);
 
@@ -289,16 +245,11 @@ export class ArticleService {
 			return left(updateFileOrErr.value);
 		}
 
-		const voidOrErr = await this.context.repository.add(metadata);
+		const voidOrErr = await this.context.repository.add(article);
 		if (voidOrErr.isLeft()) {
 			return left(voidOrErr.value);
 		}
 
-		const nodeOrErr = await this.get(ctx, metadata.uuid);
-		if (nodeOrErr.isLeft()) {
-			return left(nodeOrErr.value);
-		}
-
-		return right(nodeOrErr.value);
+		return right(article);
 	}
 }

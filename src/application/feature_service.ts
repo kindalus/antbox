@@ -22,6 +22,7 @@ import { FeatureDTO } from "application/feature_dto.ts";
 import { RunContext } from "domain/features/feature_run_context.ts";
 import { builtinActions } from "application/builtin_features/index.ts";
 import { ValidationError } from "shared/validation_error.ts";
+import { Groups } from "domain/users_groups/groups.ts";
 
 type RecordKey = [string, string];
 interface RunnableRecord {
@@ -361,9 +362,9 @@ export class FeatureService {
 
 		// Filter uuids to can be exposed to action
 		const spec = NodesFilters.nodeSpecificationFrom(feature.filters);
-		const nodesOrErrs = await Promise.all(uuids.map((uuid) => this.get(ctx, uuid)));
+		const nodesOrErrs = await Promise.all(uuids.map((uuid) => this._nodeService.get(ctx, uuid)));
 
-		const filterAndLog = (nodeOrErr: Either<AntboxError, FeatureDTO>) => {
+		const filterAndLog = (nodeOrErr: Either<AntboxError, NodeLike>) => {
 			if (nodeOrErr.isLeft()) {
 				console.warn("Error retrieving the node", nodeOrErr.value.message);
 			}
@@ -704,11 +705,21 @@ export class FeatureService {
 			UsersGroupsService.elevatedContext,
 			uuid,
 		);
+
 		if (featureOrErr.isLeft()) {
 			return left(featureOrErr.value);
 		}
 
 		const feature = featureOrErr.value;
+
+		if (
+			feature.groupsAllowed &&
+			feature.groupsAllowed.length &&
+			!ctx.principal.groups.includes(Groups.ADMINS_GROUP_UUID) &&
+			!ctx.principal.groups.some((group) => feature.groupsAllowed.includes(group))
+		) {
+			return left(new ForbiddenError());
+		}
 
 		const runContext: RunContext = {
 			authenticationContext: ctx,

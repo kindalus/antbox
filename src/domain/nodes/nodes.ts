@@ -6,9 +6,9 @@ import { FolderNode } from "./folder_node.ts";
 import { MetaNode } from "./meta_node.ts";
 import { SmartFolderNode } from "./smart_folder_node.ts";
 import type { NodeLike } from "domain/node_like.ts";
-import { ArticleNode } from "domain/articles/article_node.ts";
 import { ApiKeyNode } from "domain/api_keys/api_key_node.ts";
 import { FeatureNode } from "domain/features/feature_node.ts";
+import { ARTICLE_ASPECT } from "application/builtin_aspects/index.ts";
 
 export class Nodes {
 	static FID_PREFIX = "--fid--";
@@ -22,7 +22,6 @@ export class Nodes {
 	static USER_MIMETYPE = "application/vnd.antbox.user";
 	static GROUP_MIMETYPE = "application/vnd.antbox.group";
 	static API_KEY_MIMETYPE = "application/vnd.antbox.apikey";
-	static ARTICLE_MIMETYPE = "application/vnd.antbox.article";
 
 	static SYSTEM_MIMETYPES = [
 		Nodes.ASPECT_MIMETYPE,
@@ -91,8 +90,8 @@ export class Nodes {
 		return node.mimetype === Nodes.GROUP_MIMETYPE;
 	}
 
-	static isArticle(node: NodeLike): node is ArticleNode {
-		return node.mimetype === Nodes.ARTICLE_MIMETYPE;
+	static isArticle(node: NodeLike): node is FileNode {
+		return Nodes.hasAspects(node) && node.aspects?.includes(ARTICLE_ASPECT.uuid);
 	}
 
 	static isJavascript(file: File) {
@@ -112,7 +111,7 @@ export class Nodes {
 
 	static isFileLike(
 		node: NodeLike,
-	): node is FileNode | FeatureNode | ArticleNode {
+	): node is FileNode | FeatureNode {
 		return (
 			Nodes.isFile(node) ||
 			Nodes.isExt(node) ||

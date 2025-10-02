@@ -6,12 +6,10 @@ import { expect } from "expect";
 import { NodeService } from "application/node_service.ts";
 import { ArticleService } from "application/article_service.ts";
 import type { AuthenticationContext } from "application/authentication_context.ts";
-import { Nodes } from "domain/nodes/nodes.ts";
 import { FolderNode } from "domain/nodes/folder_node.ts";
 import { BadRequestError } from "shared/antbox_error.ts";
 import { FileNode } from "domain/nodes/file_node.ts";
 import { parse } from "marked";
-import { ArticleNotFound } from "domain/articles/article_not_found_error.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import type { ArticleDTO } from "application/article_dto.ts";
 import { Groups } from "domain/users_groups/groups.ts";
@@ -21,7 +19,7 @@ describe("ArticleService", () => {
 		const service = createService();
 
 		const file = new File(["<p>Content</p>"], "javascript", {
-			type: Nodes.ARTICLE_MIMETYPE,
+			type: "text/html",
 		});
 
 		const articleOrErr = await service.createOrReplace(adminAuthContext, file, {
@@ -42,13 +40,13 @@ describe("ArticleService", () => {
 		const service = createService();
 
 		const file = new File(["<p>Content</p>"], "javascript", {
-			type: Nodes.ARTICLE_MIMETYPE,
+			type: "text/html",
 		});
 
 		await service.createOrReplace(adminAuthContext, file, articleDummy);
 
 		const newFile = new File(["<p>There is more things here</p>"], "python", {
-			type: Nodes.ARTICLE_MIMETYPE,
+			type: "text/html",
 		});
 
 		const articleOrErr = await service.createOrReplace(
@@ -103,7 +101,7 @@ describe("ArticleService", () => {
 		const service = createService();
 
 		const file = new File(["<p>Content</p>"], "javascript", {
-			type: Nodes.ARTICLE_MIMETYPE,
+			type: "text/html",
 		});
 
 		await service.createOrReplace(adminAuthContext, file, {
@@ -180,14 +178,14 @@ describe("ArticleService", () => {
 		const articleOrErr = await service.get(adminAuthContext, "--json--");
 
 		expect(articleOrErr.isLeft(), errMsg(articleOrErr.value)).toBeTruthy();
-		expect(articleOrErr.value).toBeInstanceOf(ArticleNotFound);
+		expect(articleOrErr.value).toBeInstanceOf(NodeNotFoundError);
 	});
 
 	test("getByLang should return an article according language", async () => {
 		const service = createService();
 
 		const file = new File([html], "filename", {
-			type: Nodes.ARTICLE_MIMETYPE,
+			type: "text/html",
 		});
 
 		await service.createOrReplace(adminAuthContext, file, {
@@ -237,7 +235,7 @@ describe("ArticleService", () => {
 		const service = createService();
 
 		const file = new File(["<p>Content</p>"], "javascript", {
-			type: Nodes.ARTICLE_MIMETYPE,
+			type: "text/html",
 		});
 
 		await service.createOrReplace(adminAuthContext, file, {
@@ -255,6 +253,9 @@ describe("ArticleService", () => {
 		});
 
 		const articles = await service.list(adminAuthContext);
+
+		console.debug(articles);
+
 		expect(articles.length).toBe(2);
 	});
 
@@ -425,7 +426,7 @@ function errMsg(err: unknown): string {
 }
 
 const file = new File(["<p>Content</p>"], "javascript", {
-	type: Nodes.ARTICLE_MIMETYPE,
+	type: "text/html",
 });
 
 const html = `<!DOCTYPE html>

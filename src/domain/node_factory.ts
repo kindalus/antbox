@@ -2,7 +2,6 @@ import { type Either } from "shared/either.ts";
 import { ValidationError } from "shared/validation_error.ts";
 
 import { ApiKeyNode } from "./api_keys/api_key_node.ts";
-import { ArticleNode } from "./articles/article_node.ts";
 import { AspectNode } from "./aspects/aspect_node.ts";
 import { GroupNode } from "./users_groups/group_node.ts";
 
@@ -47,10 +46,6 @@ export class NodeFactory {
 
 			case Nodes.SMART_FOLDER_MIMETYPE:
 				createFn = SmartFolderNode.create;
-				break;
-
-			case Nodes.ARTICLE_MIMETYPE:
-				createFn = ArticleNode.create;
 				break;
 
 			case Nodes.FEATURE_MIMETYPE:

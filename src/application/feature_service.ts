@@ -20,7 +20,7 @@ import { NodeService } from "application/node_service.ts";
 import { UsersGroupsService } from "application/users_groups_service.ts";
 import { FeatureDTO } from "application/feature_dto.ts";
 import { RunContext } from "domain/features/feature_run_context.ts";
-import { builtinActions } from "application/builtin_features/index.ts";
+import { builtinFeatures } from "application/builtin_features/index.ts";
 import { ValidationError } from "shared/validation_error.ts";
 import { Groups } from "domain/users_groups/groups.ts";
 
@@ -129,7 +129,7 @@ export class FeatureService {
 		ctx: AuthenticationContext,
 		uuid: string,
 	): Promise<Either<NodeNotFoundError | FeatureNotFoundError, FeatureDTO>> {
-		const found = builtinActions.find((a) => a.uuid === uuid);
+		const found = builtinFeatures.find((a) => a.uuid === uuid);
 
 		if (found) {
 			const featureNode = FeatureNode.create({
@@ -294,7 +294,7 @@ export class FeatureService {
 			: [];
 		const actionNodes = actionsOrErrs.isRight() ? actionsOrErrs.value.nodes as FeatureNode[] : [];
 
-		const builtinFeatureNodes = builtinActions
+		const builtinFeatureNodes = builtinFeatures
 			.map((a) => {
 				try {
 					const result = FeatureNode.create({
@@ -593,7 +593,7 @@ export class FeatureService {
 		criteria: NodeFilter,
 	): Promise<Feature[]> {
 		// Get builtin actions that match criteria
-		const builtinMatches = builtinActions.filter((a) => {
+		const builtinMatches = builtinFeatures.filter((a) => {
 			const [key, op, value] = criteria;
 			const propertyValue = (a as unknown as Record<string, unknown>)[key];
 			return op === "==" ? propertyValue === value : propertyValue !== value;
@@ -633,8 +633,8 @@ export class FeatureService {
 		ctx: AuthenticationContext,
 		uuid: string,
 	): Promise<Either<AntboxError, Feature>> {
-		if (builtinActions.some((a) => a.uuid === uuid)) {
-			return right(builtinActions.find((a) => a.uuid === uuid)!);
+		if (builtinFeatures.some((a) => a.uuid === uuid)) {
+			return right(builtinFeatures.find((a) => a.uuid === uuid)!);
 		}
 
 		const nodeOrErr = await this._nodeService.get(ctx, uuid);

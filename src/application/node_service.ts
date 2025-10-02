@@ -40,6 +40,10 @@ import {
 import { isPrincipalAllowedTo } from "application/is_principal_allowed_to.ts";
 import type { NodeServiceContext } from "application/node_service_context.ts";
 import { Specification, specificationFn } from "shared/specification.ts";
+import { builtinAspects } from "./builtin_aspects/index.ts";
+import { builtinFeatures } from "./builtin_features/index.ts";
+import { builtinGroups } from "./builtin_groups/index.ts";
+import { builtinUsers } from "./builtin_users/index.ts";
 
 // TODO: Implements throwing events
 
@@ -731,7 +735,15 @@ export class NodeService {
 		const predicate = Nodes.isFid(uuid)
 			? (f: NodeLike) => f.fid === key
 			: (f: NodeLike) => f.uuid === key;
-		const builtinNode = builtinFolders.find(predicate);
+
+		const builtinNodes: NodeLike[] = [
+			...builtinFolders,
+			...builtinAspects,
+			...builtinGroups,
+			...builtinUsers,
+			//...builtinFeatures,
+		];
+		const builtinNode = builtinNodes.find(predicate);
 
 		if (builtinNode) {
 			return Promise.resolve(right(builtinNode));

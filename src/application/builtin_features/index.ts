@@ -10,6 +10,3 @@ export const builtinFeatures: Feature[] = [
 	delete_all,
 	move_up,
 ];
-
-// Legacy export for backward compatibility
-export const builtinActions = builtinFeatures;

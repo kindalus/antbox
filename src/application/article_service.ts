@@ -2,14 +2,21 @@ import { type AntboxError, BadRequestError, UnknownError } from "shared/antbox_e
 import { type Either, left, right } from "shared/either.ts";
 import type { AuthenticationContext } from "application/authentication_context.ts";
 import type { NodeService } from "application/node_service.ts";
-import { ArticleNode } from "domain/articles/article_node.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import type { ArticleServiceContext } from "application/article_service_context.ts";
 import { parse } from "marked";
-import { ArticleNotFound } from "domain/articles/article_not_found_error.ts";
 import { JSDOM } from "jsdom";
 import { type ArticleDTO, articleToNode, nodeToArticle } from "application/article_dto.ts";
+import { ARTICLE_ASPECT } from "./builtin_aspects/index.ts";
+import { FileNode } from "domain/nodes/file_node.ts";
+import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 
+/**
+ * Articles are documents that have the mimetype "text/html" | "text/plain" | "text/markdown"
+ * and have the builtin aspect --article--
+ *
+ * The export method should always return text/html
+ */
 export class ArticleService {
 	constructor(
 		private readonly context: ArticleServiceContext,
@@ -21,7 +28,7 @@ export class ArticleService {
 		file: File,
 		metadata: ArticleDTO,
 	): Promise<Either<AntboxError, ArticleDTO>> {
-		if (file.type !== Nodes.ARTICLE_MIMETYPE) {
+		if (!["text/html", "text/plain", "text/markdown"].includes(file.type)) {
 			return left(new BadRequestError(`Invalid file mimetype: : ${file.type}`));
 		}
 
@@ -46,7 +53,7 @@ export class ArticleService {
 			return left(nodeOrErr.value);
 		}
 
-		const node = nodeOrErr.value as ArticleNode;
+		const node = nodeOrErr.value as FileNode;
 
 		const fileTextOrErr = await this.#getFileText(ctx, uuid);
 		if (fileTextOrErr.isLeft()) {
@@ -70,7 +77,7 @@ export class ArticleService {
 		}
 
 		if (!Nodes.isArticle(node)) {
-			return left(new ArticleNotFound(uuid));
+			return left(new NodeNotFoundError(uuid));
 		}
 
 		return right(nodeToArticle(node, fileText));
@@ -87,7 +94,7 @@ export class ArticleService {
 		}
 
 		if (!["pt", "en", "es", "fr"].includes(lang)) {
-			return left(new ArticleNotFound(uuid));
+			return left(new NodeNotFoundError(uuid));
 		}
 
 		const article = articleOrErr.value;
@@ -152,7 +159,7 @@ export class ArticleService {
 		const nodesOrErrs = await this.nodeService.find(
 			ctx,
 			[
-				["mimetype", "==", Nodes.ARTICLE_MIMETYPE],
+				["aspects", "contains", ARTICLE_ASPECT.uuid],
 			],
 			Number.MAX_SAFE_INTEGER,
 		);
@@ -162,7 +169,7 @@ export class ArticleService {
 			return [];
 		}
 
-		const articles = nodesOrErrs.value.nodes.map((n) => nodeToArticle(n as ArticleNode));
+		const articles = nodesOrErrs.value.nodes.map((n) => nodeToArticle(n as FileNode));
 		return articles;
 	}
 
@@ -171,13 +178,15 @@ export class ArticleService {
 		file: File,
 		metadata: ArticleDTO,
 	): Promise<Either<AntboxError, ArticleDTO>> {
-		const nodeOrErr = await this.nodeService.createFile(ctx, file, metadata);
+		const aspects = [ARTICLE_ASPECT.uuid];
+
+		const nodeOrErr = await this.nodeService.createFile(ctx, file, { ...metadata, aspects });
 
 		if (nodeOrErr.isLeft()) {
 			return left(nodeOrErr.value);
 		}
 
-		return right(nodeToArticle(nodeOrErr.value as ArticleNode));
+		return right(nodeToArticle(nodeOrErr.value as FileNode));
 	}
 
 	async #markdownToHtml(value: string): Promise<string> {
@@ -246,7 +255,7 @@ export class ArticleService {
 			return left(nodeOrErr.value);
 		}
 
-		const createOrErr = ArticleNode.create({
+		const createOrErr = FileNode.create({
 			...meatadata,
 			owner: ctx.principal.email,
 			size: file.size,
@@ -264,7 +273,7 @@ export class ArticleService {
 	async #updateFile(
 		ctx: AuthenticationContext,
 		file: File,
-		metadata: ArticleNode,
+		metadata: FileNode,
 	): Promise<Either<AntboxError, ArticleDTO>> {
 		const updateFileOrErr = await this.context.storage.write(
 			metadata.uuid,

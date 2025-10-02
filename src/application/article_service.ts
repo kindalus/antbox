@@ -219,10 +219,14 @@ export class ArticleService {
 			return left(nodeOrErr.value);
 		}
 
+		const existingNode = nodeOrErr.value as FileNode;
+
 		const createOrErr = FileNode.create({
 			...metadata,
 			owner: ctx.principal.email,
 			size: file.size,
+			mimetype: file.type,
+			aspects: existingNode.aspects,
 		});
 
 		if (createOrErr.isLeft()) {

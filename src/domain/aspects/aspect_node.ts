@@ -15,18 +15,19 @@ import {
 	PropertyNotInListError,
 } from "../nodes/property_errors.ts";
 
-const AspectNodeValidationSchema = z.object({
-	mimetype: z.literal(
-		Nodes.ASPECT_MIMETYPE,
-		"AspectNode.mimetype must be aspect",
-	),
-	parent: z.literal(
-		Folders.ASPECTS_FOLDER_UUID,
-		"AspectNode.parent must be aspects folder",
-	),
-});
-
 export class AspectNode extends Node {
+	private static get validationSchema() {
+		return z.object({
+			mimetype: z.literal(
+				Nodes.ASPECT_MIMETYPE,
+				"AspectNode.mimetype must be aspect",
+			),
+			parent: z.literal(
+				Folders.ASPECTS_FOLDER_UUID,
+				"AspectNode.parent must be aspects folder",
+			),
+		});
+	}
 	static create(
 		metadata: Partial<NodeMetadata>,
 	): Either<ValidationError, AspectNode> {
@@ -100,7 +101,7 @@ export class AspectNode extends Node {
 			errors.push(...nodeErrors.errors);
 		}
 
-		const result = AspectNodeValidationSchema.safeParse(this.metadata);
+		const result = AspectNode.validationSchema.safeParse(this.metadata);
 		if (!result.success) {
 			errors.push(...(result.error.issues.map(toPropertyError("AspectNode"))));
 		}

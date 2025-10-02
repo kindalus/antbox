@@ -221,23 +221,21 @@ describe("ArticleService", () => {
 			type: "text/html",
 		});
 
-		await service.createOrReplace(adminAuthContext, file, {
+		const first = await service.createOrReplace(adminAuthContext, file, {
 			uuid: "--uuid--",
 			title: "javascript",
 			description: "The description",
 			parent: "--parent--",
 		});
 
-		await service.createOrReplace(adminAuthContext, file, {
-			uuid: "--new uuid--",
+		const second = await service.createOrReplace(adminAuthContext, file, {
+			uuid: "--new-uuid--",
 			title: "python",
 			description: "The description",
 			parent: "--parent--",
 		});
 
 		const articles = await service.list(adminAuthContext);
-
-		console.debug(articles);
 
 		expect(articles.length).toBe(2);
 	});

@@ -1,5 +1,4 @@
 import { ApiKeyNode } from "domain/api_keys/api_key_node.ts";
-import { ArticleNode } from "domain/articles/article_node.ts";
 import { AspectNode } from "domain/aspects/aspect_node.ts";
 import { GroupNode } from "domain/users_groups/group_node.ts";
 import { UserNode } from "domain/users_groups/user_node.ts";
@@ -12,7 +11,6 @@ import { FeatureNode } from "domain/features/feature_node.ts";
 
 export type NodeLike =
 	| ApiKeyNode
-	| ArticleNode
 	| AspectNode
 	| FileNode
 	| FolderNode
@@ -22,6 +20,6 @@ export type NodeLike =
 	| SmartFolderNode
 	| UserNode;
 
-export type AspectableNode = ArticleNode | FileNode | FolderNode | MetaNode;
+export type AspectableNode = FileNode | FolderNode | MetaNode;
 
-export type FileLikeNode = ArticleNode | FileNode | FeatureNode;
+export type FileLikeNode = FileNode | FeatureNode;

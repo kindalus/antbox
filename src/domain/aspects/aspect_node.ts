@@ -4,7 +4,6 @@ import { Folders } from "domain/nodes/folders.ts";
 import { Node } from "domain/nodes/node.ts";
 
 import { type NodeMetadata } from "domain/nodes/node_metadata.ts";
-import { Nodes } from "domain/nodes/nodes.ts";
 import type { NodeFilters } from "domain/nodes/node_filter.ts";
 import z from "zod";
 import { AntboxError } from "shared/antbox_error.ts";
@@ -15,20 +14,19 @@ import {
 	PropertyNotInListError,
 } from "../nodes/property_errors.ts";
 
-export class AspectNode extends Node {
-	private static get validationSchema() {
-		return z.object({
-			mimetype: z.literal(
-				Nodes.ASPECT_MIMETYPE,
-				"AspectNode.mimetype must be aspect",
-			),
-			parent: z.literal(
-				Folders.ASPECTS_FOLDER_UUID,
-				"AspectNode.parent must be aspects folder",
-			),
-		});
-	}
+const ASPECT_MIMETYPE = "application/vnd.antbox.aspect";
+const AspectNodeValidationSchema = z.object({
+	mimetype: z.literal(
+		ASPECT_MIMETYPE,
+		"AspectNode.mimetype must be aspect",
+	),
+	parent: z.literal(
+		Folders.ASPECTS_FOLDER_UUID,
+		"AspectNode.parent must be aspects folder",
+	),
+});
 
+export class AspectNode extends Node {
 	static create(
 		metadata: Partial<NodeMetadata>,
 	): Either<ValidationError, AspectNode> {
@@ -46,7 +44,7 @@ export class AspectNode extends Node {
 	private constructor(metadata: Partial<NodeMetadata> = {}) {
 		super({
 			...metadata,
-			mimetype: Nodes.ASPECT_MIMETYPE,
+			mimetype: ASPECT_MIMETYPE,
 			parent: Folders.ASPECTS_FOLDER_UUID,
 		});
 
@@ -69,7 +67,7 @@ export class AspectNode extends Node {
 
 		const result = super.update({
 			...metadata,
-			mimetype: Nodes.ASPECT_MIMETYPE,
+			mimetype: ASPECT_MIMETYPE,
 			parent: Folders.ASPECTS_FOLDER_UUID,
 		});
 		if (result.isLeft()) {
@@ -102,7 +100,7 @@ export class AspectNode extends Node {
 			errors.push(...nodeErrors.errors);
 		}
 
-		const result = AspectNode.validationSchema.safeParse(this.metadata);
+		const result = AspectNodeValidationSchema.safeParse(this.metadata);
 		if (!result.success) {
 			errors.push(...(result.error.issues.map(toPropertyError("AspectNode"))));
 		}

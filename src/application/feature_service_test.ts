@@ -10,176 +10,10 @@ import { BadRequestError } from "shared/antbox_error.ts";
 import { ValidationError } from "shared/validation_error.ts";
 import { FeatureService } from "application/feature_service.ts";
 import { FeatureNotFoundError } from "domain/features/feature_not_found_error.ts";
-import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import { AuthenticationContext } from "application/authentication_context.ts";
 import { NodeService } from "application/node_service.ts";
 import { UsersGroupsService } from "application/users_groups_service.ts";
 import { builtinFolders } from "application/builtin_folders/index.ts";
-
-const createService = async () => {
-	const firstGroupNode: GroupNode = GroupNode.create({
-		uuid: "--group-1--",
-		title: "The Group",
-		owner: "user@gmail.com",
-		description: "Group description",
-	}).right;
-
-	const secondGroupNode: GroupNode = GroupNode.create({
-		uuid: "--group-2--",
-		title: "The Group",
-		owner: "user@gmail.com",
-		description: "Group description",
-	}).right;
-
-	const repository = new InMemoryNodeRepository();
-	repository.add(firstGroupNode);
-	repository.add(secondGroupNode);
-
-	// Add builtin folders
-	builtinFolders.forEach((folder) => repository.add(folder));
-
-	const storage = new InMemoryStorageProvider();
-	const eventBus = new InMemoryEventBus();
-
-	const nodeService = new NodeService({ repository, storage, bus: eventBus });
-	const usersGroupsService = new UsersGroupsService({
-		repository,
-		storage,
-		bus: eventBus,
-	});
-
-	await usersGroupsService.createUser(adminAuthContext, {
-		email: "admin@example.com",
-		name: "Admin",
-		groups: [Groups.ADMINS_GROUP_UUID],
-	});
-
-	return new FeatureService(nodeService, usersGroupsService);
-};
-
-const adminAuthContext: AuthenticationContext = {
-	tenant: "default",
-	principal: {
-		email: "admin@example.com",
-		groups: [Groups.ADMINS_GROUP_UUID],
-	},
-	mode: "Direct",
-};
-
-const testFeatureContent = `
-  export default {
-    uuid: "test-feature-uuid",
-    name: "Test feature",
-    description: "This is a test feature.",
-    exposeAction: true,
-    runOnCreates: false,
-    runOnUpdates: false,
-    runManually: true,
-    filters: [],
-    exposeExtension: false,
-    exposeAITool: false,
-    groupsAllowed: ["admins"],
-    parameters: [
-      {
-        name: "uuids",
-        type: "array",
-        arrayType: "string",
-        required: true,
-        description: "Node UUIDs to process"
-      },
-      {
-        name: "param1",
-        type: "string",
-        required: true,
-        description: "A test parameter"
-      }
-    ],
-    returnType: "string",
-    returnDescription: "The returned string",
-
-    run: async (ctx, args) => {
-      return "Hello, " + args.param1;
-    }
-  };
-`;
-
-const testMultiSubtypeContent = `
-  export default {
-    uuid: "multi-subtype-uuid",
-    name: "Multi Subtype Feature",
-    description: "A feature exposed as both action and extension.",
-    exposeAction: true,
-    exposeExtension: true,
-    exposeAITool: false,
-    runOnCreates: false,
-    runOnUpdates: false,
-    runManually: true,
-    filters: [],
-    groupsAllowed: ["admins"],
-    parameters: [
-      {
-        name: "uuids",
-        type: "array",
-        arrayType: "string",
-        required: true,
-        description: "Node UUIDs to process"
-      },
-      {
-        name: "message",
-        type: "string",
-        required: false,
-        description: "Optional message"
-      }
-    ],
-    returnType: "object",
-
-    run: async (ctx, args) => {
-      return { processed: args.uuids.length, message: args.message || "done" };
-    }
-  };
-`;
-
-const testAIToolContent = `
-  export default {
-    uuid: "test-ai-tool-uuid",
-    name: "Test AI Tool",
-    description: "A test AI tool for validation.",
-    exposeAction: false,
-    exposeExtension: false,
-    exposeAITool: true,
-    runOnCreates: false,
-    runOnUpdates: false,
-    runManually: true,
-    filters: [],
-    groupsAllowed: [],
-    parameters: [
-      {
-        name: "query",
-        type: "string",
-        required: true,
-        description: "Search query"
-      },
-      {
-        name: "limit",
-        type: "number",
-        required: false,
-        description: "Result limit"
-      }
-    ],
-    returnType: "array",
-
-    run: async (ctx, args) => {
-      return Array(args.limit || 5).fill({ result: args.query });
-    }
-  };
-`;
-
-interface TestResult {
-	hasNodeService: boolean;
-	hasAuthContext: boolean;
-	userEmail: string;
-	argsReceived: string[];
-}
 
 describe("FeatureService", () => {
 	test("create should create a new feature", async () => {
@@ -266,20 +100,16 @@ describe("FeatureService", () => {
 
 	test("get should return feature", async () => {
 		const service = await createService();
-		await service.createOrReplace(
+		(await service.createOrReplace(
 			adminAuthContext,
 			new File([testFeatureContent], "test-feature.js", {
 				type: "application/javascript",
 			}),
-		);
+		)).right;
 
 		const result = await service.get(adminAuthContext, "test-feature-uuid");
 		expect(result.isRight()).toBeTruthy();
-
-		if (result.isRight()) {
-			const feature = result.value;
-			expect(feature.name).toBe("Test feature");
-		}
+		expect(result.right.name).toBe("Test feature");
 	});
 
 	test("get should return error if feature does not exist", async () => {
@@ -1092,3 +922,168 @@ describe("FeatureService", () => {
 const errToMsg = (
 	err: any,
 ) => (err?.message ? err.message : JSON.stringify(err));
+
+const createService = async () => {
+	const firstGroupNode: GroupNode = GroupNode.create({
+		uuid: "--group-1--",
+		title: "The Group",
+		owner: "user@gmail.com",
+		description: "Group description",
+	}).right;
+
+	const secondGroupNode: GroupNode = GroupNode.create({
+		uuid: "--group-2--",
+		title: "The Group",
+		owner: "user@gmail.com",
+		description: "Group description",
+	}).right;
+
+	const repository = new InMemoryNodeRepository();
+	repository.add(firstGroupNode);
+	repository.add(secondGroupNode);
+
+	// Add builtin folders
+	builtinFolders.forEach((folder) => repository.add(folder));
+
+	const storage = new InMemoryStorageProvider();
+	const eventBus = new InMemoryEventBus();
+
+	const nodeService = new NodeService({ repository, storage, bus: eventBus });
+	const usersGroupsService = new UsersGroupsService({
+		repository,
+		storage,
+		bus: eventBus,
+	});
+
+	await usersGroupsService.createUser(adminAuthContext, {
+		email: "admin@example.com",
+		name: "Admin",
+		groups: [Groups.ADMINS_GROUP_UUID],
+	});
+
+	return new FeatureService(nodeService, usersGroupsService);
+};
+
+interface TestResult {
+	hasNodeService: boolean;
+	hasAuthContext: boolean;
+	userEmail: string;
+	argsReceived: string[];
+}
+
+const adminAuthContext: AuthenticationContext = {
+	tenant: "default",
+	principal: {
+		email: "admin@example.com",
+		groups: [Groups.ADMINS_GROUP_UUID],
+	},
+	mode: "Direct",
+};
+
+const testFeatureContent = `
+  export default {
+    uuid: "test-feature-uuid",
+    name: "Test feature",
+    description: "This is a test feature.",
+    exposeAction: true,
+    runOnCreates: false,
+    runOnUpdates: false,
+    runManually: true,
+    filters: [],
+    exposeExtension: false,
+    exposeAITool: false,
+    groupsAllowed: ["admins"],
+    parameters: [
+      {
+        name: "uuids",
+        type: "array",
+        arrayType: "string",
+        required: true,
+        description: "Node UUIDs to process"
+      },
+      {
+        name: "param1",
+        type: "string",
+        required: true,
+        description: "A test parameter"
+      }
+    ],
+    returnType: "string",
+    returnDescription: "The returned string",
+
+    run: async (ctx, args) => {
+      return "Hello, " + args.param1;
+    }
+  };
+`;
+
+const testMultiSubtypeContent = `
+  export default {
+    uuid: "multi-subtype-uuid",
+    name: "Multi Subtype Feature",
+    description: "A feature exposed as both action and extension.",
+    exposeAction: true,
+    exposeExtension: true,
+    exposeAITool: false,
+    runOnCreates: false,
+    runOnUpdates: false,
+    runManually: true,
+    filters: [],
+    groupsAllowed: ["admins"],
+    parameters: [
+      {
+        name: "uuids",
+        type: "array",
+        arrayType: "string",
+        required: true,
+        description: "Node UUIDs to process"
+      },
+      {
+        name: "message",
+        type: "string",
+        required: false,
+        description: "Optional message"
+      }
+    ],
+    returnType: "object",
+
+    run: async (ctx, args) => {
+      return { processed: args.uuids.length, message: args.message || "done" };
+    }
+  };
+`;
+
+const testAIToolContent = `
+  export default {
+    uuid: "test-ai-tool-uuid",
+    name: "Test AI Tool",
+    description: "A test AI tool for validation.",
+    exposeAction: false,
+    exposeExtension: false,
+    exposeAITool: true,
+    runOnCreates: false,
+    runOnUpdates: false,
+    runManually: true,
+    filters: [],
+    groupsAllowed: [],
+    parameters: [
+      {
+        name: "query",
+        type: "string",
+        required: true,
+        description: "Search query"
+      },
+      {
+        name: "limit",
+        type: "number",
+        required: false,
+        description: "Result limit"
+      }
+    ],
+    returnType: "array",
+
+    run: async (ctx, args) => {
+      return Array(args.limit || 5).fill({ result: args.query });
+    }
+  };
+`;

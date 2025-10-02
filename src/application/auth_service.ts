@@ -153,33 +153,6 @@ export class AuthService {
 			: left(new ForbiddenError());
 	}
 
-	async getUserByCredentials(
-		email: string,
-		password: string,
-	): Promise<Either<AntboxError, UserNode>> {
-		const hash = await UserNode.shaSum(email, password);
-
-		const result = await this.nodeService.find(AuthService.elevatedContext(), [
-			["secret", "==", hash],
-		]);
-
-		if (result.isLeft()) {
-			return left(result.value);
-		}
-
-		if (result.value.nodes.length === 0) {
-			return left(new InvalidCredentialsError());
-		}
-
-		const node = result.value.nodes[0];
-
-		if (!Nodes.isUser(node)) {
-			return left(new InvalidCredentialsError());
-		}
-
-		return right(node);
-	}
-
 	async listUsers(
 		ctx: AuthenticationContext,
 	): Promise<Either<ForbiddenError, UserNode[]>> {

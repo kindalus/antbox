@@ -1,45 +1,53 @@
 {
-	"imports": {
-		"adapters/": "./src/adapters/",
-		"api/": "./src/api/",
-		"application/": "./src/application/",
-		"domain/": "./src/domain/",
-		"setup/": "./src/setup/",
-		"shared/": "./src/shared/",
+  "imports": {
+    "adapters/": "./src/adapters/",
+    "api/": "./src/api/",
+    "application/": "./src/application/",
+    "domain/": "./src/domain/",
+    "setup/": "./src/setup/",
+    "shared/": "./src/shared/",
 
-		"bdd": "jsr:@std/testing/bdd",
+    "bdd": "jsr:@std/testing/bdd",
 
-		"expect": "jsr:@std/expect",
-		"fs": "jsr:@std/fs",
+    "expect": "jsr:@std/expect",
+    "fs": "jsr:@std/fs",
 
-		"path": "jsr:@std/path",
-		"mock": "jsr:@std/testing/mock",
-		"toml": "jsr:@std/toml",
+    "path": "jsr:@std/path",
+    "mock": "jsr:@std/testing/mock",
+    "toml": "jsr:@std/toml",
 
-		"@googleapis/drive": "npm:@googleapis/drive",
-		"@oak/oak": "jsr:@oak/oak@^17.1.6",
-		"commander": "npm:commander",
-		"crypto": "node:crypto",
-		"h3": "npm:h3",
-		"jose": "npm:jose",
-		"jsdom": "npm:jsdom",
-		"marked": "npm:marked",
-		"mongodb": "npm:mongodb",
-		"pouchdb": "npm:pouchdb",
-		"pouchdb-find": "npm:pouchdb-find",
-		"s3": "jsr:@hk/s3",
-		"zod": "npm:zod"
-	},
-	"tasks": {
-		"test-node-repository": "deno run -A ./src/adapters/run_node_repository_tests.ts",
-		"test-storage-provider": "deno run -A ./src/adapters/run_storage_provider_tests.ts"
-	},
-	"nodeModulesDir": "auto",
-	"fmt": {
-		"useTabs": true,
-		"lineWidth": 100,
-		"indentWidth": 3,
-		"semiColons": true,
-		"singleQuote": false
-	}
+    "@googleapis/drive": "npm:@googleapis/drive",
+    "@oak/oak": "jsr:@oak/oak@^17.1.6",
+    "commander": "npm:commander",
+    "crypto": "node:crypto",
+    "h3": "npm:h3",
+    "jose": "npm:jose",
+    "jsdom": "npm:jsdom",
+    "marked": "npm:marked",
+    "mongodb": "npm:mongodb",
+    "pouchdb": "npm:pouchdb",
+    "pouchdb-find": "npm:pouchdb-find",
+    "s3": "jsr:@hk/s3",
+    "zod": "npm:zod"
+  },
+  "tasks": {
+    "test": "deno test --allow-all --reporter=tap",
+    "test:pretty": "COLUMNS=300 deno test --allow-all --reporter=pretty",
+    "test:full": "COLUMNS=300 deno test --allow-all --reporter=pretty",
+    "test:verbose": "deno test --allow-all --reporter=tap --parallel=false",
+    "test:watch": "deno test --allow-all --reporter=tap --watch",
+    "test:coverage": "deno test --allow-all --reporter=tap --coverage",
+    "test:services": "deno test --allow-all --reporter=tap src/application/action_service_test.ts src/application/feature_service_test.ts src/application/extension_service_test.ts",
+    "test:services:pretty": "COLUMNS=300 deno test --allow-all --reporter=pretty src/application/action_service_test.ts src/application/feature_service_test.ts src/application/extension_service_test.ts",
+    "test-node-repository": "deno run -A ./src/adapters/run_node_repository_tests.ts",
+    "test-storage-provider": "deno run -A ./src/adapters/run_storage_provider_tests.ts"
+  },
+  "nodeModulesDir": "auto",
+  "fmt": {
+    "useTabs": true,
+    "lineWidth": 100,
+    "indentWidth": 3,
+    "semiColons": true,
+    "singleQuote": false
+  }
 }

@@ -6,7 +6,6 @@ import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider.t
 import { ApiKeyNode } from "domain/api_keys/api_key_node.ts";
 import { ApiKeyNodeFoundError } from "domain/api_keys/api_key_node_found_error.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
-import { Nodes } from "domain/nodes/nodes.ts";
 import { GroupNode } from "domain/users_groups/group_node.ts";
 import { Groups } from "domain/users_groups/groups.ts";
 import { ApiKeyService } from "application/api_key_service.ts";

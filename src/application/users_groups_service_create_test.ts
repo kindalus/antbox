@@ -6,7 +6,6 @@ import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus.ts";
 import type { UsersGroupsContext } from "./users_groups_service_context.ts";
 import { ValidationError } from "shared/validation_error.ts";
 import { UserExistsError } from "domain/users_groups/user_exists_error.ts";
-import GroupNotFoundError from "domain/users_groups/group_not_found_error.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import { Users } from "domain/users_groups/users.ts";
 import { Nodes } from "domain/nodes/nodes.ts";

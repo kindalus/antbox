@@ -4,7 +4,6 @@ import { AntboxError, BadRequestError, ForbiddenError } from "shared/antbox_erro
 import { type Either, left, right } from "shared/either.ts";
 import { ValidationError } from "shared/validation_error.ts";
 import type { AuthenticationContext } from "./authentication_context.ts";
-import { InvalidCredentialsError } from "./invalid_credentials_error.ts";
 import { NodeService } from "./node_service.ts";
 import { ADMINS_GROUP, builtinGroups } from "./builtin_groups/index.ts";
 import { ANONYMOUS_USER, builtinUsers, ROOT_USER } from "./builtin_users/index.ts";

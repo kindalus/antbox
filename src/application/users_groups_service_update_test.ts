@@ -7,7 +7,6 @@ import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider.t
 import { UsersGroupsService } from "./users_groups_service.ts";
 import type { AuthenticationContext } from "./authentication_context.ts";
 import { Groups } from "domain/users_groups/groups.ts";
-import { UserNode } from "domain/users_groups/user_node.ts";
 import { GroupNode } from "domain/users_groups/group_node.ts";
 import { Users } from "domain/users_groups/users.ts";
 import { UserNotFoundError } from "domain/users_groups/user_not_found_error.ts";

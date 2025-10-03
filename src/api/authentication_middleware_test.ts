@@ -1,16 +1,6 @@
 import { describe, test } from "bdd";
 import { expect } from "expect";
-import { authenticationMiddleware } from "./authentication_middleware.ts";
 import { getQuery } from "./get_query.ts";
-
-// Mock dependencies
-const mockTenants = [
-	{
-		name: "test",
-		rawJwk: {},
-		symmetricKey: "test-key",
-	},
-];
 
 // Helper function to create a mock request
 function createMockRequest(options: {

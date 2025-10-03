@@ -1,7 +1,6 @@
 import { UserNode } from "domain/users_groups/user_node.ts";
 import type { AuthenticationContext } from "./authentication_context.ts";
 import { GroupNode } from "domain/users_groups/group_node.ts";
-import { log } from "node:console";
 
 export interface UserDTO {
 	uuid?: string;

@@ -918,6 +918,283 @@ describe("FeatureService", () => {
 			expect(result.argsReceived).toEqual(["uuids"]);
 		}
 	});
+
+	it("should trigger onCreate action when node is created in folder", async () => {
+		const service = await createService();
+
+		// Create action that logs node creation
+		const onCreateActionContent = `
+      export default {
+        uuid: "on-create-action-uuid",
+        name: "On Create Action",
+        description: "Action triggered on node creation.",
+        exposeAction: true,
+        runManually: true,
+        filters: [],
+        parameters: [
+          {
+            name: "uuids",
+            type: "array",
+            arrayType: "string",
+            required: true
+          }
+        ],
+        returnType: "object",
+
+        run: async (ctx, args) => {
+          return { triggered: true, uuids: args.uuids };
+        }
+      };
+    `;
+
+		await service.createOrReplace(
+			adminAuthContext,
+			new File([onCreateActionContent], "on-create-action.js", {
+				type: "application/javascript",
+			}),
+		);
+
+		// Create folder with onCreate action
+		const folderResult = await service.nodeService.create(adminAuthContext, {
+			title: "Test Folder",
+			mimetype: "application/vnd.antbox.folder",
+			onCreate: ["on-create-action-uuid"],
+		});
+
+		expect(folderResult.isRight()).toBeTruthy();
+		const folder = folderResult.right;
+
+		// Create a node in the folder - should trigger onCreate action
+		const nodeResult = await service.nodeService.create(adminAuthContext, {
+			title: "Test Node",
+			mimetype: "text/plain",
+			parent: folder.uuid,
+		});
+
+		expect(nodeResult.isRight()).toBeTruthy();
+	});
+
+	it("should trigger onUpdate action when node is updated in folder", async () => {
+		const service = await createService();
+
+		// Create action that logs node update
+		const onUpdateActionContent = `
+      export default {
+        uuid: "on-update-action-uuid",
+        name: "On Update Action",
+        description: "Action triggered on node update.",
+        exposeAction: true,
+        runManually: true,
+        filters: [],
+        parameters: [
+          {
+            name: "uuids",
+            type: "array",
+            arrayType: "string",
+            required: true
+          }
+        ],
+        returnType: "object",
+
+        run: async (ctx, args) => {
+          return { triggered: true, uuids: args.uuids };
+        }
+      };
+    `;
+
+		await service.createOrReplace(
+			adminAuthContext,
+			new File([onUpdateActionContent], "on-update-action.js", {
+				type: "application/javascript",
+			}),
+		);
+
+		// Create folder with onUpdate action
+		const folderResult = await service.nodeService.create(adminAuthContext, {
+			title: "Test Folder",
+			mimetype: "application/vnd.antbox.folder",
+			onUpdate: ["on-update-action-uuid"],
+		});
+
+		expect(folderResult.isRight()).toBeTruthy();
+		const folder = folderResult.right;
+
+		// Create a node in the folder
+		const nodeResult = await service.nodeService.create(adminAuthContext, {
+			title: "Test Node",
+			mimetype: "text/plain",
+			parent: folder.uuid,
+		});
+
+		expect(nodeResult.isRight()).toBeTruthy();
+		const node = nodeResult.right;
+
+		// Update the node - should trigger onUpdate action
+		const updateResult = await service.nodeService.update(
+			adminAuthContext,
+			node.uuid,
+			{ title: "Updated Node" },
+		);
+
+		expect(updateResult.isRight()).toBeTruthy();
+	});
+
+	it("should pass additional parameters to onCreate action", async () => {
+		const service = await createService();
+
+		// Create action that receives custom parameters
+		const paramActionContent = `
+      export default {
+        uuid: "param-action-uuid",
+        name: "Param Action",
+        description: "Action with parameters.",
+        exposeAction: true,
+        runManually: true,
+        filters: [],
+        parameters: [
+          {
+            name: "uuids",
+            type: "array",
+            arrayType: "string",
+            required: true
+          },
+          {
+            name: "category",
+            type: "string",
+            required: false
+          },
+          {
+            name: "priority",
+            type: "string",
+            required: false
+          }
+        ],
+        returnType: "object",
+
+        run: async (ctx, args) => {
+          return {
+            triggered: true,
+            uuids: args.uuids,
+            category: args.category,
+            priority: args.priority
+          };
+        }
+      };
+    `;
+
+		await service.createOrReplace(
+			adminAuthContext,
+			new File([paramActionContent], "param-action.js", {
+				type: "application/javascript",
+			}),
+		);
+
+		// Create folder with onCreate action with parameters
+		const folderResult = await service.nodeService.create(adminAuthContext, {
+			title: "Test Folder",
+			mimetype: "application/vnd.antbox.folder",
+			onCreate: ["param-action-uuid category=docs priority=high"],
+		});
+
+		expect(folderResult.isRight()).toBeTruthy();
+		const folder = folderResult.right;
+
+		// Create a node in the folder - should trigger onCreate action with parameters
+		const nodeResult = await service.nodeService.create(adminAuthContext, {
+			title: "Test Node",
+			mimetype: "text/plain",
+			parent: folder.uuid,
+		});
+
+		expect(nodeResult.isRight()).toBeTruthy();
+	});
+
+	it("should handle multiple onCreate actions", async () => {
+		const service = await createService();
+
+		// Create first action
+		const action1Content = `
+      export default {
+        uuid: "action-1-uuid",
+        name: "Action 1",
+        description: "First action.",
+        exposeAction: true,
+        runManually: true,
+        filters: [],
+        parameters: [
+          {
+            name: "uuids",
+            type: "array",
+            arrayType: "string",
+            required: true
+          }
+        ],
+        returnType: "object",
+
+        run: async (ctx, args) => {
+          return { action: 1, uuids: args.uuids };
+        }
+      };
+    `;
+
+		// Create second action
+		const action2Content = `
+      export default {
+        uuid: "action-2-uuid",
+        name: "Action 2",
+        description: "Second action.",
+        exposeAction: true,
+        runManually: true,
+        filters: [],
+        parameters: [
+          {
+            name: "uuids",
+            type: "array",
+            arrayType: "string",
+            required: true
+          }
+        ],
+        returnType: "object",
+
+        run: async (ctx, args) => {
+          return { action: 2, uuids: args.uuids };
+        }
+      };
+    `;
+
+		await service.createOrReplace(
+			adminAuthContext,
+			new File([action1Content], "action-1.js", {
+				type: "application/javascript",
+			}),
+		);
+
+		await service.createOrReplace(
+			adminAuthContext,
+			new File([action2Content], "action-2.js", {
+				type: "application/javascript",
+			}),
+		);
+
+		// Create folder with multiple onCreate actions
+		const folderResult = await service.nodeService.create(adminAuthContext, {
+			title: "Test Folder",
+			mimetype: "application/vnd.antbox.folder",
+			onCreate: ["action-1-uuid", "action-2-uuid"],
+		});
+
+		expect(folderResult.isRight()).toBeTruthy();
+		const folder = folderResult.right;
+
+		// Create a node in the folder - should trigger both actions
+		const nodeResult = await service.nodeService.create(adminAuthContext, {
+			title: "Test Node",
+			mimetype: "text/plain",
+			parent: folder.uuid,
+		});
+
+		expect(nodeResult.isRight()).toBeTruthy();
+	});
 });
 
 const createService = async () => {

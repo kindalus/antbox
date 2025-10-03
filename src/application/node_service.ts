@@ -8,7 +8,9 @@ import { FolderNotFoundError } from "domain/nodes/folder_not_found_error.ts";
 import { Folders } from "domain/nodes/folders.ts";
 import { MetaNode } from "domain/nodes/meta_node.ts";
 import { Node, type Permission } from "domain/nodes/node.ts";
+import { NodeCreatedEvent } from "domain/nodes/node_created_event.ts";
 import { NodeDeletedEvent } from "domain/nodes/node_deleted_event.ts";
+import { NodeUpdatedEvent } from "domain/nodes/node_updated_event.ts";
 import {
 	isNodeFilters2D,
 	type NodeFilter,
@@ -173,6 +175,10 @@ export class NodeService {
 			return left(voidOrErr.value);
 		}
 
+		// Publish NodeCreatedEvent
+		const evt = new NodeCreatedEvent(ctx.principal.email, ctx.tenant, nodeOrErr.value);
+		this.context.bus.publish(evt);
+
 		return right(nodeOrErr.value);
 	}
 
@@ -212,6 +218,10 @@ export class NodeService {
 			return left(voidOrErr.value);
 		}
 
+		// Publish NodeCreatedEvent
+		const evt = new NodeCreatedEvent(ctx.principal.email, ctx.tenant, node);
+		this.context.bus.publish(evt);
+
 		return right(node);
 	}
 
@@ -248,7 +258,7 @@ export class NodeService {
 		if (!Nodes.isFolder(nodeOrErr.value)) {
 			const v = await this.context.repository.delete(uuid);
 			if (v.isRight()) {
-				const evt = new NodeDeletedEvent(ctx.principal.email, nodeOrErr.value);
+				const evt = new NodeDeletedEvent(ctx.principal.email, ctx.tenant, nodeOrErr.value);
 				this.context.bus.publish(evt);
 			}
 			return v;
@@ -274,7 +284,7 @@ export class NodeService {
 		const v = await this.context.repository.delete(uuid);
 
 		if (v.isRight()) {
-			const evt = new NodeDeletedEvent(ctx.principal.email, nodeOrErr.value);
+			const evt = new NodeDeletedEvent(ctx.principal.email, ctx.tenant, nodeOrErr.value);
 			this.context.bus.publish(evt);
 		}
 
@@ -620,7 +630,20 @@ export class NodeService {
 			fulltext: await this.#calculateFulltext(ctx, nodeOrErr.value),
 		});
 
-		return this.context.repository.update(nodeOrErr.value);
+		const updateResult = await this.context.repository.update(nodeOrErr.value);
+
+		if (updateResult.isRight()) {
+			// Publish NodeUpdatedEvent
+			const evt = new NodeUpdatedEvent(
+				ctx.principal.email,
+				ctx.tenant,
+				nodeOrErr.value.uuid,
+				metadata,
+			);
+			this.context.bus.publish(evt);
+		}
+
+		return updateResult;
 	}
 
 	async updateFile(

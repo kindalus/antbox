@@ -6,6 +6,7 @@ import { Folders } from "domain/nodes/folders.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import { NodeCreatedEvent } from "domain/nodes/node_created_event.ts";
 import { NodeUpdatedEvent } from "domain/nodes/node_updated_event.ts";
+import { NodeDeletedEvent } from "domain/nodes/node_deleted_event.ts";
 import { NodesFilters } from "domain/nodes_filters.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import { Node } from "domain/nodes/node.ts";
@@ -36,7 +37,38 @@ export class FeatureService {
 	constructor(
 		private readonly _nodeService: NodeService,
 		private readonly authService: UsersGroupsService,
-	) {}
+	) {
+		// Register event handlers for domain-wide triggers
+		this._nodeService["context"].bus.subscribe(NodeCreatedEvent.EVENT_ID, {
+			handle: (evt: NodeCreatedEvent) => this.#runAutomaticFeaturesForCreates(evt),
+		});
+
+		this._nodeService["context"].bus.subscribe(NodeUpdatedEvent.EVENT_ID, {
+			handle: (evt: NodeUpdatedEvent) =>
+				this.#runAutomaticFeaturesForUpdates(UsersGroupsService.elevatedContext, evt),
+		});
+
+		// Register event handlers for folder-triggered actions
+		this._nodeService["context"].bus.subscribe(NodeCreatedEvent.EVENT_ID, {
+			handle: (evt: NodeCreatedEvent) =>
+				this.#runOnCreateScripts(UsersGroupsService.elevatedContext, evt),
+		});
+
+		this._nodeService["context"].bus.subscribe(NodeUpdatedEvent.EVENT_ID, {
+			handle: (evt: NodeUpdatedEvent) =>
+				this.#runOnUpdatedScripts(UsersGroupsService.elevatedContext, evt),
+		});
+
+		this._nodeService["context"].bus.subscribe(NodeDeletedEvent.EVENT_ID, {
+			handle: (evt: NodeDeletedEvent) =>
+				this.#runOnDeleteScripts(UsersGroupsService.elevatedContext, evt),
+		});
+
+		// Register event handler for domain-wide delete triggers
+		this._nodeService["context"].bus.subscribe(NodeDeletedEvent.EVENT_ID, {
+			handle: (evt: NodeDeletedEvent) => this.#runAutomaticFeaturesForDeletes(evt),
+		});
+	}
 
 	async createOrReplace(
 		ctx: AuthenticationContext,
@@ -50,6 +82,21 @@ export class FeatureService {
 
 		const feature = featureOrErr.value;
 		const metadata = featureToNodeMetadata(feature);
+
+		// Validate that runAs group exists if specified
+		if (feature.runAs) {
+			const groupOrErr = await this.authService.getGroup(
+				UsersGroupsService.elevatedContext,
+				feature.runAs,
+			);
+			if (groupOrErr.isLeft()) {
+				return left(
+					new BadRequestError(
+						`runAs group '${feature.runAs}' does not exist`,
+					),
+				);
+			}
+		}
 
 		const nodeOrErr = await this._nodeService.get(ctx, feature.uuid);
 
@@ -721,8 +768,20 @@ export class FeatureService {
 			return left(new ForbiddenError());
 		}
 
+		// Create authentication context with runAs group if specified
+		let authContext = ctx;
+		if (feature.runAs && !ctx.principal.groups.includes(feature.runAs)) {
+			authContext = {
+				...ctx,
+				principal: {
+					...ctx.principal,
+					groups: [...ctx.principal.groups, feature.runAs],
+				},
+			};
+		}
+
 		const runContext: RunContext = {
-			authenticationContext: ctx,
+			authenticationContext: authContext,
 			nodeService: this._nodeService,
 		};
 
@@ -750,6 +809,16 @@ export class FeatureService {
 
 		const actions = await this.#getAutomaticActions(runCriteria);
 
+		// Build authentication context for action execution
+		const actionContext: AuthenticationContext = {
+			mode: "Action",
+			principal: {
+				email: evt.userEmail,
+				groups: [Groups.ADMINS_GROUP_UUID],
+			},
+			tenant: evt.tenant,
+		};
+
 		for (const feature of actions) {
 			const filterOrErr = NodesFilters.satisfiedBy(
 				feature.filters,
@@ -765,7 +834,7 @@ export class FeatureService {
 			}
 
 			const runContext: RunContext = {
-				authenticationContext: UsersGroupsService.elevatedContext,
+				authenticationContext: actionContext,
 				nodeService: this._nodeService,
 			};
 
@@ -785,6 +854,16 @@ export class FeatureService {
 
 		const actions = await this.#getAutomaticActions(runCriteria);
 
+		// Build authentication context for action execution
+		const actionContext: AuthenticationContext = {
+			mode: "Action",
+			principal: {
+				email: evt.userEmail,
+				groups: [Groups.ADMINS_GROUP_UUID],
+			},
+			tenant: evt.tenant,
+		};
+
 		for (const feature of actions) {
 			const filterOrErr = NodesFilters.satisfiedBy(
 				feature.filters,
@@ -800,7 +879,7 @@ export class FeatureService {
 			}
 
 			const runContext: RunContext = {
-				authenticationContext: ctx,
+				authenticationContext: actionContext,
 				nodeService: this._nodeService,
 			};
 
@@ -812,34 +891,156 @@ export class FeatureService {
 		}
 	}
 
+	async #runAutomaticFeaturesForDeletes(evt: NodeDeletedEvent) {
+		const runCriteria: NodeFilter = ["runOnDeletes", "==", true];
+
+		const actions = await this.#getAutomaticActions(runCriteria);
+
+		// Build authentication context for action execution
+		const actionContext: AuthenticationContext = {
+			mode: "Action",
+			principal: {
+				email: evt.userEmail,
+				groups: [Groups.ADMINS_GROUP_UUID],
+			},
+			tenant: evt.tenant,
+		};
+
+		for (const feature of actions) {
+			const filterOrErr = NodesFilters.satisfiedBy(
+				feature.filters,
+				evt.payload,
+			);
+
+			if (filterOrErr.isLeft()) {
+				continue;
+			}
+
+			if (!filterOrErr.value) {
+				continue;
+			}
+
+			const runContext: RunContext = {
+				authenticationContext: actionContext,
+				nodeService: this._nodeService,
+			};
+
+			try {
+				await feature.run(runContext, { uuids: [evt.payload.uuid] });
+			} catch (error) {
+				console.error(`Error running feature ${feature.uuid}:`, error);
+			}
+		}
+	}
+
+	async #runOnDeleteScripts(ctx: AuthenticationContext, evt: NodeDeletedEvent) {
+		if (evt.payload.parent === Folders.ROOT_FOLDER_UUID) {
+			return;
+		}
+
+		// Get the parent folder
+		const folderOrErr = await this._nodeService.get(
+			UsersGroupsService.elevatedContext,
+			evt.payload.parent,
+		);
+
+		if (folderOrErr.isLeft()) {
+			return;
+		}
+
+		const folder = folderOrErr.value;
+
+		// Check if folder has onDelete actions
+		if (!Nodes.isFolder(folder) || !folder.onDelete || folder.onDelete.length === 0) {
+			return;
+		}
+
+		// Build authentication context for action execution
+		const actionContext: AuthenticationContext = {
+			mode: "Action",
+			principal: {
+				email: evt.userEmail,
+				groups: [Groups.ADMINS_GROUP_UUID],
+			},
+			tenant: evt.tenant,
+		};
+
+		// Execute each onDelete action
+		for (const actionString of folder.onDelete) {
+			const { featureUuid, parameters } = this.#parseActionString(actionString);
+
+			const params: Record<string, unknown> = {
+				uuids: [evt.payload.uuid],
+				...parameters,
+			};
+
+			try {
+				await this.#run(actionContext, featureUuid, params);
+			} catch (error) {
+				console.error(
+					`Error running onDelete action ${featureUuid} for node ${evt.payload.uuid}:`,
+					error,
+				);
+			}
+		}
+	}
+
 	async #runOnCreateScripts(ctx: AuthenticationContext, evt: NodeCreatedEvent) {
 		if (evt.payload.parent === Folders.ROOT_FOLDER_UUID) {
 			return;
 		}
 
-		const onCreateTasksOrErr = await this._nodeService.find(
-			ctx,
-			[
-				["parent", "==", evt.payload.parent],
-				["onCreate", "!=", ""],
-			],
-			Number.MAX_SAFE_INTEGER,
+		// Get the parent folder
+		const folderOrErr = await this._nodeService.get(
+			UsersGroupsService.elevatedContext,
+			evt.payload.parent,
 		);
 
-		if (onCreateTasksOrErr.isLeft()) {
+		if (folderOrErr.isLeft()) {
 			return;
 		}
 
-		if (onCreateTasksOrErr.value.nodes.length === 0) {
+		const folder = folderOrErr.value;
+
+		// Check if folder has onCreate actions
+		if (!Nodes.isFolder(folder) || !folder.onCreate || folder.onCreate.length === 0) {
 			return;
 		}
 
-		const onCreateTasks = onCreateTasksOrErr.value.nodes.filter((task: Node) =>
-			task.metadata.onCreate &&
-			task.metadata.onCreate.includes(evt.payload.uuid)
-		);
+		// Build authentication context for action execution
+		const actionContext: AuthenticationContext = {
+			mode: "Action",
+			principal: {
+				email: evt.userEmail,
+				groups: [Groups.ADMINS_GROUP_UUID],
+			},
+			tenant: evt.tenant,
+		};
 
-		console.log("Running onCreate tasks", onCreateTasks.length);
+		// Execute each onCreate action
+		for (const actionString of folder.onCreate) {
+			const { featureUuid, parameters } = this.#parseActionString(actionString);
+
+			// Build parameters with uuids and additional parameters
+			const params: Record<string, unknown> = {
+				uuids: [evt.payload.uuid],
+				...parameters,
+			};
+
+			// Run the action with action context
+			try {
+				await this.#run(
+					actionContext,
+					featureUuid,
+					params,
+				);
+			} catch (error) {
+				console.error(
+					`Error running onCreate action ${featureUuid} for node ${evt.payload.uuid}:`,
+					error,
+				);
+			}
+		}
 	}
 
 	async #runOnUpdatedScripts(
@@ -851,29 +1052,80 @@ export class FeatureService {
 			return;
 		}
 
-		const featuresOrErr = await this._nodeService.find(
-			ctx,
-			[
-				["parent", "==", node.value.parent],
-				["onUpdate", "!=", ""],
-			],
-			Number.MAX_SAFE_INTEGER,
+		// Get the parent folder
+		const folderOrErr = await this._nodeService.get(
+			UsersGroupsService.elevatedContext,
+			node.value.parent,
 		);
 
-		if (featuresOrErr.isLeft()) {
+		if (folderOrErr.isLeft()) {
 			return;
 		}
 
-		if (featuresOrErr.value.nodes.length === 0) {
+		const folder = folderOrErr.value;
+
+		// Check if folder has onUpdate actions
+		if (!Nodes.isFolder(folder) || !folder.onUpdate || folder.onUpdate.length === 0) {
 			return;
 		}
 
-		const onUpdateTasks = featuresOrErr.value.nodes.filter((task: Node) =>
-			task.metadata.onUpdate &&
-			task.metadata.onUpdate.includes(evt.payload.uuid)
-		);
+		// Build authentication context for action execution
+		const actionContext: AuthenticationContext = {
+			mode: "Action",
+			principal: {
+				email: evt.userEmail,
+				groups: [Groups.ADMINS_GROUP_UUID],
+			},
+			tenant: evt.tenant,
+		};
 
-		console.log("Running onUpdate tasks", onUpdateTasks.length);
+		// Execute each onUpdate action
+		for (const actionString of folder.onUpdate) {
+			const { featureUuid, parameters } = this.#parseActionString(actionString);
+
+			// Build parameters with uuids and additional parameters
+			const params: Record<string, unknown> = {
+				uuids: [evt.payload.uuid],
+				...parameters,
+			};
+
+			// Run the action with action context
+			try {
+				await this.#run(
+					actionContext,
+					featureUuid,
+					params,
+				);
+			} catch (error) {
+				console.error(
+					`Error running onUpdate action ${featureUuid} for node ${evt.payload.uuid}:`,
+					error,
+				);
+			}
+		}
+	}
+
+	#parseActionString(actionString: string): {
+		featureUuid: string;
+		parameters: Record<string, string>;
+	} {
+		const parts = actionString.trim().split(/\s+/);
+		const featureUuid = parts[0];
+		const parameters: Record<string, string> = {};
+
+		// Parse key=value parameters
+		for (let i = 1; i < parts.length; i++) {
+			const paramPart = parts[i];
+			const equalIndex = paramPart.indexOf("=");
+
+			if (equalIndex > 0) {
+				const key = paramPart.substring(0, equalIndex);
+				const value = paramPart.substring(equalIndex + 1);
+				parameters[key] = value;
+			}
+		}
+
+		return { featureUuid, parameters };
 	}
 
 	#validateParameters(

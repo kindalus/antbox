@@ -326,7 +326,7 @@ describe("Action Service Tests", () => {
         runOnCreates: true,
         runOnUpdates: false,
         runManually: false,
-        filters: [],
+        filters: [["mimetype", "==", "text/plain"]],
         exposeExtension: false,
         exposeAITool: false,
         groupsAllowed: [],
@@ -344,12 +344,14 @@ describe("Action Service Tests", () => {
       };
     `;
 
-		await service.createOrReplace(
+		const createResult = await service.createOrReplace(
 			adminAuthContext,
 			new File([nonManualActionContent], "non-manual-action.js", {
 				type: "application/javascript",
 			}),
 		);
+
+		expect(createResult.isRight()).toBeTruthy();
 
 		// Try to run action manually (should fail)
 		const runResult = await service.runAction(
@@ -557,6 +559,488 @@ describe("Action Service Tests", () => {
 			const response = runResult.value as any;
 			expect(response.success).toBe(true);
 		}
+	});
+
+	it("should trigger action from folder onCreate with correct uuids", async () => {
+		const service = await createService();
+
+		// Create action to track execution
+		const trackingActionContent = `
+      export default {
+        uuid: "tracking-action-uuid",
+        name: "Tracking Action",
+        description: "Tracks execution from folder triggers",
+        exposeAction: true,
+        runManually: true,
+        filters: [],
+        parameters: [
+          {
+            name: "uuids",
+            type: "array",
+            arrayType: "string",
+            required: true
+          }
+        ],
+        returnType: "object",
+        run: async (ctx, args) => {
+          return { receivedUuids: args.uuids };
+        }
+      };
+    `;
+
+		await service.createOrReplace(
+			adminAuthContext,
+			new File([trackingActionContent], "tracking-action.js", {
+				type: "application/javascript",
+			}),
+		);
+
+		// Create folder with onCreate trigger
+		const folderResult = await service.nodeService.create(adminAuthContext, {
+			title: "Trigger Folder",
+			mimetype: "application/vnd.antbox.folder",
+			onCreate: ["tracking-action-uuid"],
+		});
+
+		expect(folderResult.isRight()).toBeTruthy();
+		const folder = folderResult.right;
+
+		// Create a node - should trigger action with node's uuid
+		const nodeResult = await service.nodeService.create(adminAuthContext, {
+			title: "Test Node",
+			mimetype: "text/plain",
+			parent: folder.uuid,
+		});
+
+		expect(nodeResult.isRight()).toBeTruthy();
+	});
+
+	it("should trigger action from folder onUpdate with correct uuids", async () => {
+		const service = await createService();
+
+		// Create action to track execution
+		const updateTrackingActionContent = `
+      export default {
+        uuid: "update-tracking-action-uuid",
+        name: "Update Tracking Action",
+        description: "Tracks execution from folder update triggers",
+        exposeAction: true,
+        runManually: true,
+        filters: [],
+        parameters: [
+          {
+            name: "uuids",
+            type: "array",
+            arrayType: "string",
+            required: true
+          }
+        ],
+        returnType: "object",
+        run: async (ctx, args) => {
+          return { receivedUuids: args.uuids };
+        }
+      };
+    `;
+
+		await service.createOrReplace(
+			adminAuthContext,
+			new File([updateTrackingActionContent], "update-tracking-action.js", {
+				type: "application/javascript",
+			}),
+		);
+
+		// Create folder with onUpdate trigger
+		const folderResult = await service.nodeService.create(adminAuthContext, {
+			title: "Update Trigger Folder",
+			mimetype: "application/vnd.antbox.folder",
+			onUpdate: ["update-tracking-action-uuid"],
+		});
+
+		expect(folderResult.isRight()).toBeTruthy();
+		const folder = folderResult.right;
+
+		// Create a node
+		const nodeResult = await service.nodeService.create(adminAuthContext, {
+			title: "Test Node",
+			mimetype: "text/plain",
+			parent: folder.uuid,
+		});
+
+		expect(nodeResult.isRight()).toBeTruthy();
+		const node = nodeResult.right;
+
+		// Update the node - should trigger action with node's uuid
+		const updateResult = await service.nodeService.update(
+			adminAuthContext,
+			node.uuid,
+			{ title: "Updated Node" },
+		);
+
+		expect(updateResult.isRight()).toBeTruthy();
+	});
+
+	it("should trigger action from folder onDelete with correct uuids", async () => {
+		const service = await createService();
+
+		// Create action to track execution
+		const deleteTrackingActionContent = `
+      export default {
+        uuid: "delete-tracking-action-uuid",
+        name: "Delete Tracking Action",
+        description: "Tracks execution from folder delete triggers",
+        exposeAction: true,
+        runManually: true,
+        filters: [],
+        parameters: [
+          {
+            name: "uuids",
+            type: "array",
+            arrayType: "string",
+            required: true
+          }
+        ],
+        returnType: "object",
+        run: async (ctx, args) => {
+          return { receivedUuids: args.uuids };
+        }
+      };
+    `;
+
+		await service.createOrReplace(
+			adminAuthContext,
+			new File([deleteTrackingActionContent], "delete-tracking-action.js", {
+				type: "application/javascript",
+			}),
+		);
+
+		// Create folder with onDelete trigger
+		const folderResult = await service.nodeService.create(adminAuthContext, {
+			title: "Delete Trigger Folder",
+			mimetype: "application/vnd.antbox.folder",
+			onDelete: ["delete-tracking-action-uuid"],
+		});
+
+		expect(folderResult.isRight()).toBeTruthy();
+		const folder = folderResult.right;
+
+		// Create a file
+		const nodeResult = await service.nodeService.createFile(
+			adminAuthContext,
+			new File(["test content"], "test.txt", { type: "text/plain" }),
+			{
+				title: "Test Node",
+				parent: folder.uuid,
+			},
+		);
+
+		expect(nodeResult.isRight()).toBeTruthy();
+		const node = nodeResult.right;
+
+		// Delete the node - should trigger action with node's uuid
+		const deleteResult = await service.nodeService.delete(
+			adminAuthContext,
+			node.uuid,
+		);
+
+		expect(deleteResult.isRight()).toBeTruthy();
+	});
+
+	it("should pass additional parameters to folder-triggered actions", async () => {
+		const service = await createService();
+
+		// Create action with additional parameters
+		const paramActionContent = `
+      export default {
+        uuid: "folder-param-action-uuid",
+        name: "Folder Param Action",
+        description: "Action with parameters from folder trigger",
+        exposeAction: true,
+        runManually: true,
+        filters: [],
+        parameters: [
+          {
+            name: "uuids",
+            type: "array",
+            arrayType: "string",
+            required: true
+          },
+          {
+            name: "workflow",
+            type: "string",
+            required: false
+          },
+          {
+            name: "stage",
+            type: "string",
+            required: false
+          }
+        ],
+        returnType: "object",
+        run: async (ctx, args) => {
+          return {
+            uuids: args.uuids,
+            workflow: args.workflow,
+            stage: args.stage
+          };
+        }
+      };
+    `;
+
+		await service.createOrReplace(
+			adminAuthContext,
+			new File([paramActionContent], "folder-param-action.js", {
+				type: "application/javascript",
+			}),
+		);
+
+		// Create folder with onCreate action with parameters
+		const folderResult = await service.nodeService.create(adminAuthContext, {
+			title: "Param Folder",
+			mimetype: "application/vnd.antbox.folder",
+			onCreate: ["folder-param-action-uuid workflow=approval stage=initial"],
+		});
+
+		expect(folderResult.isRight()).toBeTruthy();
+		const folder = folderResult.right;
+
+		// Create a node - should trigger action with parameters
+		const nodeResult = await service.nodeService.create(adminAuthContext, {
+			title: "Test Node",
+			mimetype: "text/plain",
+			parent: folder.uuid,
+		});
+
+		expect(nodeResult.isRight()).toBeTruthy();
+	});
+
+	it("should trigger domain-wide action with runOnCreates on matching nodes", async () => {
+		const service = await createService();
+
+		// Create domain-wide action that triggers on text/plain creation
+		const domainActionContent = `
+      export default {
+        uuid: "domain-action-uuid",
+        name: "Domain Action",
+        description: "Domain-wide action",
+        exposeAction: true,
+        runOnCreates: true,
+        runManually: false,
+        filters: [["mimetype", "==", "text/plain"]],
+        parameters: [
+          {
+            name: "uuids",
+            type: "array",
+            arrayType: "string",
+            required: true
+          }
+        ],
+        returnType: "object",
+        run: async (ctx, args) => {
+          return { domainTriggered: true, uuids: args.uuids };
+        }
+      };
+    `;
+
+		await service.createOrReplace(
+			adminAuthContext,
+			new File([domainActionContent], "domain-action.js", {
+				type: "application/javascript",
+			}),
+		);
+
+		// Create a folder first (root only allows folders)
+		const folderResult = await service.nodeService.create(adminAuthContext, {
+			title: "Test Folder",
+			mimetype: "application/vnd.antbox.folder",
+		});
+		expect(folderResult.isRight()).toBeTruthy();
+
+		// Create a text/plain node - should trigger domain-wide action
+		const nodeResult = await service.nodeService.create(adminAuthContext, {
+			title: "Domain Test",
+			mimetype: "text/plain",
+			parent: folderResult.right.uuid,
+		});
+
+		expect(nodeResult.isRight()).toBeTruthy();
+	});
+
+	it("should trigger domain-wide action with runOnUpdates on matching nodes", async () => {
+		const service = await createService();
+
+		// Create domain-wide action that triggers on text/plain updates
+		const domainUpdateActionContent = `
+      export default {
+        uuid: "domain-update-action-uuid",
+        name: "Domain Update Action",
+        description: "Domain-wide update action",
+        exposeAction: true,
+        runOnUpdates: true,
+        runManually: false,
+        filters: [["mimetype", "==", "text/plain"]],
+        parameters: [
+          {
+            name: "uuids",
+            type: "array",
+            arrayType: "string",
+            required: true
+          }
+        ],
+        returnType: "object",
+        run: async (ctx, args) => {
+          return { domainUpdateTriggered: true, uuids: args.uuids };
+        }
+      };
+    `;
+
+		await service.createOrReplace(
+			adminAuthContext,
+			new File([domainUpdateActionContent], "domain-update-action.js", {
+				type: "application/javascript",
+			}),
+		);
+
+		// Create a folder first (root only allows folders)
+		const folderResult = await service.nodeService.create(adminAuthContext, {
+			title: "Test Folder",
+			mimetype: "application/vnd.antbox.folder",
+		});
+		expect(folderResult.isRight()).toBeTruthy();
+
+		// Create a text/plain node
+		const nodeResult = await service.nodeService.create(adminAuthContext, {
+			title: "Domain Test",
+			mimetype: "text/plain",
+			parent: folderResult.right.uuid,
+		});
+
+		expect(nodeResult.isRight()).toBeTruthy();
+		const node = nodeResult.right;
+
+		// Update the node - should trigger domain-wide action
+		const updateResult = await service.nodeService.update(
+			adminAuthContext,
+			node.uuid,
+			{ title: "Updated Domain Test" },
+		);
+
+		expect(updateResult.isRight()).toBeTruthy();
+	});
+
+	it("should trigger domain-wide action with runOnDeletes on matching nodes", async () => {
+		const service = await createService();
+
+		// Create domain-wide action that triggers on text/plain deletes
+		const domainDeleteActionContent = `
+      export default {
+        uuid: "domain-delete-action-uuid",
+        name: "Domain Delete Action",
+        description: "Domain-wide delete action",
+        exposeAction: true,
+        runOnDeletes: true,
+        runManually: false,
+        filters: [["mimetype", "==", "text/plain"]],
+        parameters: [
+          {
+            name: "uuids",
+            type: "array",
+            arrayType: "string",
+            required: true
+          }
+        ],
+        returnType: "object",
+        run: async (ctx, args) => {
+          return { domainDeleteTriggered: true, uuids: args.uuids };
+        }
+      };
+    `;
+
+		await service.createOrReplace(
+			adminAuthContext,
+			new File([domainDeleteActionContent], "domain-delete-action.js", {
+				type: "application/javascript",
+			}),
+		);
+
+		// Create a folder first (root only allows folders)
+		const folderResult = await service.nodeService.create(adminAuthContext, {
+			title: "Test Folder",
+			mimetype: "application/vnd.antbox.folder",
+		});
+		expect(folderResult.isRight()).toBeTruthy();
+
+		// Create a text/plain file
+		const nodeResult = await service.nodeService.createFile(
+			adminAuthContext,
+			new File(["test content"], "test.txt", { type: "text/plain" }),
+			{
+				title: "Domain Test",
+				parent: folderResult.right.uuid,
+			},
+		);
+
+		expect(nodeResult.isRight()).toBeTruthy();
+		const node = nodeResult.right;
+
+		// Delete the node - should trigger domain-wide action
+		const deleteResult = await service.nodeService.delete(
+			adminAuthContext,
+			node.uuid,
+		);
+
+		expect(deleteResult.isRight()).toBeTruthy();
+	});
+
+	it("should not trigger domain-wide action when filters do not match", async () => {
+		const service = await createService();
+
+		// Create domain-wide action that only triggers on application/pdf
+		const selectiveDomainActionContent = `
+      export default {
+        uuid: "selective-domain-action-uuid",
+        name: "Selective Domain Action",
+        description: "Selective domain-wide action",
+        exposeAction: true,
+        runOnCreates: true,
+        runManually: false,
+        filters: [["mimetype", "==", "application/pdf"]],
+        parameters: [
+          {
+            name: "uuids",
+            type: "array",
+            arrayType: "string",
+            required: true
+          }
+        ],
+        returnType: "object",
+        run: async (ctx, args) => {
+          return { selectiveTriggered: true, uuids: args.uuids };
+        }
+      };
+    `;
+
+		await service.createOrReplace(
+			adminAuthContext,
+			new File([selectiveDomainActionContent], "selective-domain-action.js", {
+				type: "application/javascript",
+			}),
+		);
+
+		// Create a folder first (root only allows folders)
+		const folderResult = await service.nodeService.create(adminAuthContext, {
+			title: "Test Folder",
+			mimetype: "application/vnd.antbox.folder",
+		});
+		expect(folderResult.isRight()).toBeTruthy();
+
+		// Create a text/plain node - should NOT trigger (filters don't match)
+		const nodeResult = await service.nodeService.create(adminAuthContext, {
+			title: "Domain Test",
+			mimetype: "text/plain",
+			parent: folderResult.right.uuid,
+		});
+
+		expect(nodeResult.isRight()).toBeTruthy();
 	});
 });
 

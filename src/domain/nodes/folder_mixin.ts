@@ -25,6 +25,7 @@ export function FolderMixin<TBase extends Constructor>(Base: TBase) {
 	return class extends Base {
 		protected _onCreate: string[] = [];
 		protected _onUpdate: string[] = [];
+		protected _onDelete: string[] = [];
 		protected _group = undefined as unknown as string;
 
 		protected _permissions: Permissions = {
@@ -43,6 +44,7 @@ export function FolderMixin<TBase extends Constructor>(Base: TBase) {
 
 			this._onCreate = metadata.onCreate ?? [];
 			this._onUpdate = metadata.onUpdate ?? [];
+			this._onDelete = metadata.onDelete ?? [];
 
 			if (metadata.group) {
 				this._group = metadata.group;
@@ -77,9 +79,14 @@ export function FolderMixin<TBase extends Constructor>(Base: TBase) {
 			return this._onUpdate;
 		}
 
+		get onDelete(): string[] {
+			return this._onDelete;
+		}
+
 		update(metadata: Partial<NodeMetadata>): Either<ValidationError, void> {
 			this._onCreate = metadata.onCreate ?? this._onCreate;
 			this._onUpdate = metadata.onUpdate ?? this._onUpdate;
+			this._onDelete = metadata.onDelete ?? this._onDelete;
 			this._filters = metadata.filters ?? this._filters;
 			this._permissions = metadata.permissions ?? this._permissions;
 
@@ -101,6 +108,7 @@ export function FolderMixin<TBase extends Constructor>(Base: TBase) {
 				...super.metadata,
 				onCreate: this._onCreate,
 				onUpdate: this._onUpdate,
+				onDelete: this._onDelete,
 				group: this._group,
 				filters: this._filters,
 				permissions: this._permissions,

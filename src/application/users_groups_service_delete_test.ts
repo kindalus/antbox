@@ -78,11 +78,11 @@ describe("UsersGroupsService.deleteGroup", () => {
 			title: "The title",
 		});
 
-		const voidOrErr = await service.deleteGroup(createdGroupOrErr.right.uuid);
+		const voidOrErr = await service.deleteGroup(authCtx, createdGroupOrErr.right.uuid);
 
 		expect(voidOrErr.isRight(), errToMsg(voidOrErr.value)).toBeTruthy();
 
-		const deletedGroup = await service.getGroup(createdGroupOrErr.right.uuid);
+		const deletedGroup = await service.getGroup(authCtx, createdGroupOrErr.right.uuid);
 		expect(deletedGroup.isLeft(), errToMsg(deletedGroup.value)).toBeTruthy();
 		expect(deletedGroup.value).toBeInstanceOf(NodeNotFoundError);
 	});
@@ -90,7 +90,7 @@ describe("UsersGroupsService.deleteGroup", () => {
 	it("should return error if group not found", async () => {
 		const service = usersGroupsService();
 
-		const deletedGroup = await service.deleteGroup("any-detele-group-uuid");
+		const deletedGroup = await service.deleteGroup(authCtx, "any-detele-group-uuid");
 
 		expect(deletedGroup.isLeft(), errToMsg(deletedGroup.value)).toBeTruthy();
 		expect(deletedGroup.value).toBeInstanceOf(NodeNotFoundError);
@@ -99,7 +99,7 @@ describe("UsersGroupsService.deleteGroup", () => {
 	it("should not delete builtin admins group", async () => {
 		const service = usersGroupsService();
 
-		const deletedGroup = await service.deleteGroup(Groups.ADMINS_GROUP_UUID);
+		const deletedGroup = await service.deleteGroup(authCtx, Groups.ADMINS_GROUP_UUID);
 
 		expect(deletedGroup.isLeft(), errToMsg(deletedGroup.value)).toBeTruthy();
 		expect(deletedGroup.value).toBeInstanceOf(BadRequestError);

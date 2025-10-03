@@ -145,7 +145,7 @@ describe("UsersGroupsService.getGroup", () => {
 			title: "The title",
 		});
 
-		const groupOrErr = await service.getGroup("gp-uuid");
+		const groupOrErr = await service.getGroup(authCtx, "gp-uuid");
 
 		expect(groupOrErr.value, errToMsg(groupOrErr.value)).toBeTruthy();
 		expect(groupOrErr.right.owner).toBe(authCtx.principal.email);
@@ -155,7 +155,7 @@ describe("UsersGroupsService.getGroup", () => {
 	it("should return builtin admins group", async () => {
 		const service = usersGroupsService();
 
-		const groupOrErr = await service.getGroup(Groups.ADMINS_GROUP_UUID);
+		const groupOrErr = await service.getGroup(authCtx, Groups.ADMINS_GROUP_UUID);
 
 		expect(groupOrErr.isRight(), errToMsg(groupOrErr.value)).toBeTruthy();
 		expect(groupOrErr.right.uuid).toBe(Groups.ADMINS_GROUP_UUID);
@@ -166,7 +166,7 @@ describe("UsersGroupsService.getGroup", () => {
 	it("should return error if group is not found", async () => {
 		const service = usersGroupsService();
 
-		const groupOrErr = await service.getGroup("--any group uuid--");
+		const groupOrErr = await service.getGroup(authCtx, "--any group uuid--");
 
 		expect(groupOrErr.isLeft(), errToMsg(groupOrErr.value)).toBeTruthy();
 		expect(groupOrErr.value).toBeInstanceOf(NodeNotFoundError);
@@ -175,7 +175,7 @@ describe("UsersGroupsService.getGroup", () => {
 	it("should return error if node is not group", async () => {
 		const service = usersGroupsService();
 
-		const groupOrErr = await service.getGroup("doily-uuid");
+		const groupOrErr = await service.getGroup(authCtx, "doily-uuid");
 
 		expect(groupOrErr.isLeft(), errToMsg(groupOrErr.value)).toBeTruthy();
 		expect(groupOrErr.value).toBeInstanceOf(GroupNotFoundError);

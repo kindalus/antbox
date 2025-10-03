@@ -61,7 +61,7 @@ export class UsersGroupsService {
 		}
 
 		if (groups.size > 0) {
-			const batch = metadata.groups?.map((group) => this.getGroup(group));
+			const batch = metadata.groups?.map((group) => this.getGroup(ctx, group));
 
 			const groupsOrErr = await Promise.all(batch!);
 
@@ -227,7 +227,10 @@ export class UsersGroupsService {
 		return right(nodeToGroup(group));
 	}
 
-	async getGroup(uuid: string): Promise<Either<AntboxError, GroupNode>> {
+	async getGroup(
+		ctx: AuthenticationContext,
+		uuid: string,
+	): Promise<Either<AntboxError, GroupNode>> {
 		if (uuid === Groups.ADMINS_GROUP_UUID) {
 			return right(ADMINS_GROUP);
 		}
@@ -256,7 +259,7 @@ export class UsersGroupsService {
 			return left(new BadRequestError("Cannot update built-in group"));
 		}
 
-		const existingOrErr = await this.getGroup(uuid);
+		const existingOrErr = await this.getGroup(ctx, uuid);
 		if (existingOrErr.isLeft()) {
 			return left(existingOrErr.value);
 		}
@@ -276,12 +279,15 @@ export class UsersGroupsService {
 		return right(voidOrErr.value);
 	}
 
-	async deleteGroup(uuid: string): Promise<Either<AntboxError, void>> {
+	async deleteGroup(
+		ctx: AuthenticationContext,
+		uuid: string,
+	): Promise<Either<AntboxError, void>> {
 		if (uuid === Groups.ADMINS_GROUP_UUID) {
 			return left(new BadRequestError("Cannot delete admins group"));
 		}
 
-		const existingOrErr = await this.getGroup(uuid);
+		const existingOrErr = await this.getGroup(ctx, uuid);
 		if (existingOrErr.isLeft()) {
 			return left(existingOrErr.value);
 		}

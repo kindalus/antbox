@@ -57,6 +57,7 @@ export class FeatureNode extends FileMixin(Node) {
 	readonly exposeAction: boolean;
 	readonly filters: NodeFilters;
 	readonly runOnUpdates: boolean;
+	readonly runOnDeletes: boolean;
 	readonly runManually: boolean;
 	readonly runOnCreates: boolean;
 
@@ -82,6 +83,7 @@ export class FeatureNode extends FileMixin(Node) {
 		this.exposeAction = metadata.exposeAction ?? false;
 		this.runOnCreates = this.exposeAction ? metadata.runOnCreates ?? false : false;
 		this.runOnUpdates = metadata.exposeAction ? metadata.runOnUpdates ?? false : false;
+		this.runOnDeletes = this.exposeAction ? metadata.runOnDeletes ?? false : false;
 		this.runManually = metadata.exposeAction ? metadata.runManually ?? true : true;
 
 		this.exposeExtension = metadata.exposeExtension ?? false;
@@ -117,6 +119,7 @@ export class FeatureNode extends FileMixin(Node) {
 			exposeAction: this.exposeAction,
 			runOnCreates: this.runOnCreates,
 			runOnUpdates: this.runOnUpdates,
+			runOnDeletes: this.runOnDeletes,
 			runManually: this.runManually,
 			filters: this.filters,
 			exposeExtension: this.exposeExtension,
@@ -192,6 +195,29 @@ export class FeatureNode extends FileMixin(Node) {
 				new AntboxError(
 					"ValidationError",
 					'Parameters of type "file" or arrayType "file" are not allowed when "exposeAction" or "exposeAITool" is true',
+				),
+			);
+		}
+
+		// Validate that runOnCreates, runOnUpdates, and runOnDeletes require filters
+		if (
+			(this.runOnCreates || this.runOnUpdates || this.runOnDeletes) &&
+			(!this.filters || this.filters.length === 0)
+		) {
+			errors.push(
+				new AntboxError(
+					"ValidationError",
+					'When "runOnCreates", "runOnUpdates", or "runOnDeletes" is true, "filters" must be defined and non-empty',
+				),
+			);
+		}
+
+		// Validate that runOnCreates, runOnUpdates, and runOnDeletes require exposeAction
+		if ((this.runOnCreates || this.runOnUpdates || this.runOnDeletes) && !this.exposeAction) {
+			errors.push(
+				new AntboxError(
+					"ValidationError",
+					'When "runOnCreates", "runOnUpdates", or "runOnDeletes" is true, "exposeAction" must also be true',
 				),
 			);
 		}

@@ -32,6 +32,7 @@ export interface NodeMetadata {
 
 	onCreate: string[];
 	onUpdate: string[];
+	onDelete: string[];
 	permissions: Permissions;
 
 	runManually: boolean;
@@ -52,6 +53,7 @@ export interface NodeMetadata {
 
 	runOnCreates: boolean;
 	runOnUpdates: boolean;
+	runOnDeletes: boolean;
 
 	exposeAction: boolean;
 	exposeExtension: boolean;

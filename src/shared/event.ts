@@ -3,4 +3,5 @@ export interface Event {
 	readonly occurredOn: Date;
 	readonly payload: unknown;
 	readonly userEmail: string;
+	readonly tenant: string;
 }

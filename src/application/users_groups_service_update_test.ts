@@ -123,6 +123,7 @@ describe("UsersGroupsService.updateGroup", () => {
 		expect(voidOrErr.isRight()).toBeTruthy();
 
 		const updatedGroupOrErr = await service.getGroup(
+			authCtx,
 			createdGroupOrErr.right.uuid,
 		);
 		expect(updatedGroupOrErr.isRight(), errToMsg(updatedGroupOrErr.value))

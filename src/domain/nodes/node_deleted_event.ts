@@ -7,13 +7,16 @@ export class NodeDeletedEvent implements Event {
 	readonly eventId: string;
 	readonly occurredOn: Date;
 	readonly payload: NodeLike;
+	readonly tenant: string;
 
 	constructor(
 		readonly userEmail: string,
+		tenant: string,
 		node: NodeLike,
 	) {
 		this.eventId = NodeDeletedEvent.EVENT_ID;
 		this.occurredOn = new Date();
+		this.tenant = tenant;
 		this.payload = node;
 	}
 }

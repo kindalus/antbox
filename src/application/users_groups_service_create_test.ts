@@ -100,7 +100,7 @@ describe("UsersGroupsService.createGroup", () => {
 			uuid: "--group-uuid--",
 		});
 
-		const groupOrErr = await service.getGroup("--group-uuid--");
+		const groupOrErr = await service.getGroup(authCtx, "--group-uuid--");
 
 		expect(groupOrErr.isRight(), errToMsg(groupOrErr.value)).toBeTruthy();
 		expect(groupOrErr.right.mimetype).toBe(Nodes.GROUP_MIMETYPE);

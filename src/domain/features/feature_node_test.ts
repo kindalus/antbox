@@ -441,6 +441,7 @@ it("FeatureNode should handle security and execution configurations", () => {
 		runManually: false,
 		runAs: "service@domain.com",
 		groupsAllowed: ["admin", "editor", "viewer"],
+		filters: [["mimetype", "==", "text/plain"]],
 	});
 
 	expect(result.isRight(), result.value.message).toBe(true);

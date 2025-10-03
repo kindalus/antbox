@@ -1,5 +1,5 @@
 import { expect } from "expect/expect";
-import { describe, test } from "bdd";
+import { describe, it } from "bdd";
 import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus.ts";
 import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository.ts";
 import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider.ts";
@@ -14,9 +14,10 @@ import { AuthenticationContext } from "application/authentication_context.ts";
 import { NodeService } from "application/node_service.ts";
 import { UsersGroupsService } from "application/users_groups_service.ts";
 import { builtinFolders } from "application/builtin_folders/index.ts";
+import { errToMsg } from "shared/test_helpers.ts";
 
 describe("FeatureService", () => {
-	test("create should create a new feature", async () => {
+	it("create should create a new feature", async () => {
 		const service = await createService();
 		const result = await service.createOrReplace(
 			adminAuthContext,
@@ -32,7 +33,7 @@ describe("FeatureService", () => {
 		}
 	});
 
-	test("update should replace existing feature", async () => {
+	it("update should replace existing feature", async () => {
 		const service = await createService();
 		const result = await service.createOrReplace(
 			adminAuthContext,
@@ -98,7 +99,7 @@ describe("FeatureService", () => {
 		}
 	});
 
-	test("get should return feature", async () => {
+	it("get should return feature", async () => {
 		const service = await createService();
 		(await service.createOrReplace(
 			adminAuthContext,
@@ -112,7 +113,7 @@ describe("FeatureService", () => {
 		expect(result.right.name).toBe("Test feature");
 	});
 
-	test("get should return error if feature does not exist", async () => {
+	it("get should return error if feature does not exist", async () => {
 		const service = await createService();
 		const result = await service.get(adminAuthContext, "non-existent-uuid");
 
@@ -120,7 +121,7 @@ describe("FeatureService", () => {
 		expect(result.value).toBeInstanceOf(FeatureNotFoundError);
 	});
 
-	test("get should return error if node is not a feature", async () => {
+	it("get should return error if node is not a feature", async () => {
 		const service = await createService();
 		const result = await service.get(adminAuthContext, "--group-1--");
 
@@ -128,7 +129,7 @@ describe("FeatureService", () => {
 		expect(result.value).toBeInstanceOf(FeatureNotFoundError);
 	});
 
-	test("delete should remove feature", async () => {
+	it("delete should remove feature", async () => {
 		const service = await createService();
 		await service.createOrReplace(
 			adminAuthContext,
@@ -149,7 +150,7 @@ describe("FeatureService", () => {
 		expect(getResult.value).toBeInstanceOf(FeatureNotFoundError);
 	});
 
-	test("list should return all features", async () => {
+	it("list should return all features", async () => {
 		const service = await createService();
 		await service.createOrReplace(
 			adminAuthContext,
@@ -169,7 +170,7 @@ describe("FeatureService", () => {
 		}
 	});
 
-	test("export should create a JavaScript file containing feature", async () => {
+	it("export should create a JavaScript file containing feature", async () => {
 		const service = await createService();
 		await service.createOrReplace(
 			adminAuthContext,
@@ -188,7 +189,7 @@ describe("FeatureService", () => {
 		}
 	});
 
-	test("runAction should execute the feature and return result", async () => {
+	it("runAction should execute the feature and return result", async () => {
 		const service = await createService();
 		await service.createOrReplace(
 			adminAuthContext,
@@ -210,7 +211,7 @@ describe("FeatureService", () => {
 		}
 	});
 
-	test("runAction should return error if parameter validation fails", async () => {
+	it("runAction should return error if parameter validation fails", async () => {
 		const service = await createService();
 		await service.createOrReplace(
 			adminAuthContext,
@@ -234,7 +235,7 @@ describe("FeatureService", () => {
 		}
 	});
 
-	test("runAction should return error if feature cannot be run manually", async () => {
+	it("runAction should return error if feature cannot be run manually", async () => {
 		const service = await createService();
 		const nonManualfeatureContent = `
       export default {
@@ -285,7 +286,7 @@ describe("FeatureService", () => {
 	});
 
 	// Validation tests
-	test("should validate Feature must have uuid", async () => {
+	it("should validate Feature must have uuid", async () => {
 		const service = await createService();
 		const invalidfeatureContent = `
       export default {
@@ -318,7 +319,7 @@ describe("FeatureService", () => {
 		expect((result.value as BadRequestError).message).toContain("uuid");
 	});
 
-	test("should validate Feature must have name", async () => {
+	it("should validate Feature must have name", async () => {
 		const service = await createService();
 		const invalidfeatureContent = `
       export default {
@@ -351,7 +352,7 @@ describe("FeatureService", () => {
 		expect((result.value as BadRequestError).message).toContain("name");
 	});
 
-	test("should validate Feature must have run method", async () => {
+	it("should validate Feature must have run method", async () => {
 		const service = await createService();
 		const invalidfeatureContent = `
       export default {
@@ -383,7 +384,7 @@ describe("FeatureService", () => {
 		expect((result.value as BadRequestError).message).toContain("run");
 	});
 
-	test("should validate Feature must have default export", async () => {
+	it("should validate Feature must have default export", async () => {
 		const service = await createService();
 		const invalidfeatureContent = `
       const myfeature = {
@@ -421,7 +422,7 @@ describe("FeatureService", () => {
 		);
 	});
 
-	test("should validate invalid file type", async () => {
+	it("should validate invalid file type", async () => {
 		const service = await createService();
 
 		const result = await service.createOrReplace(
@@ -438,7 +439,7 @@ describe("FeatureService", () => {
 		);
 	});
 
-	test("should validate malformed JavaScript", async () => {
+	it("should validate malformed JavaScript", async () => {
 		const service = await createService();
 		const malformedContent = `
       export default {
@@ -459,7 +460,7 @@ describe("FeatureService", () => {
 		expect(result.value).toBeInstanceOf(BadRequestError);
 	});
 
-	test("should validate Action must have uuids parameter when exposeAction is true", async () => {
+	it("should validate Action must have uuids parameter when exposeAction is true", async () => {
 		const service = await createService();
 		const invalidActionContent = `
       export default {
@@ -500,7 +501,7 @@ describe("FeatureService", () => {
 		expect((result.value as ValidationError).message).toContain("uuids");
 	});
 
-	test("should validate uuids parameter must be array of strings for Actions", async () => {
+	it("should validate uuids parameter must be array of strings for Actions", async () => {
 		const service = await createService();
 		const invalidActionContent = `
       export default {
@@ -541,7 +542,7 @@ describe("FeatureService", () => {
 		expect((result.value as ValidationError).message).toContain("uuids");
 	});
 
-	test("should validate file parameters not allowed for Actions", async () => {
+	it("should validate file parameters not allowed for Actions", async () => {
 		const service = await createService();
 		const invalidActionContent = `
       export default {
@@ -589,7 +590,7 @@ describe("FeatureService", () => {
 		expect((result.value as ValidationError).message).toContain("file");
 	});
 
-	test("should validate file parameters not allowed for AI Tools", async () => {
+	it("should validate file parameters not allowed for AI Tools", async () => {
 		const service = await createService();
 		const invalidAIToolContent = `
       export default {
@@ -626,7 +627,7 @@ describe("FeatureService", () => {
 		expect((result.value as ValidationError).message).toContain("file");
 	});
 
-	test("should allow file parameters for Extensions", async () => {
+	it("should allow file parameters for Extensions", async () => {
 		const service = await createService();
 		const validExtensionContent = `
       export default {
@@ -663,7 +664,7 @@ describe("FeatureService", () => {
 		expect(result.isRight()).toBeTruthy();
 	});
 
-	test("createOrReplaceFeature should create new feature", async () => {
+	it("createOrReplaceFeature should create new feature", async () => {
 		const service = await createService();
 		const result = await service.createOrReplace(
 			adminAuthContext,
@@ -679,7 +680,7 @@ describe("FeatureService", () => {
 		}
 	});
 
-	test("createOrReplaceFeature should replace existing feature", async () => {
+	it("createOrReplaceFeature should replace existing feature", async () => {
 		const service = await createService();
 
 		// Create initial feature
@@ -710,7 +711,7 @@ describe("FeatureService", () => {
 		}
 	});
 
-	test("should handle feature metadata extraction correctly", async () => {
+	it("should handle feature metadata extraction correctly", async () => {
 		const service = await createService();
 		const complexFeatureContent = `
       export default {
@@ -780,7 +781,7 @@ describe("FeatureService", () => {
 	});
 
 	// Tests for multiple subtype exposure
-	test("should handle features with multiple subtype exposure", async () => {
+	it("should handle features with multiple subtype exposure", async () => {
 		const service = await createService();
 
 		const result = await service.createOrReplace(
@@ -804,7 +805,7 @@ describe("FeatureService", () => {
 	});
 
 	// Tests for AI Tool specific featureality
-	test("should create and validate AI Tool features", async () => {
+	it("should create and validate AI Tool features", async () => {
 		const service = await createService();
 
 		const result = await service.createOrReplace(
@@ -829,7 +830,7 @@ describe("FeatureService", () => {
 	});
 
 	// Test concurrent feature operations
-	test("should handle concurrent feature operations", async () => {
+	it("should handle concurrent feature operations", async () => {
 		const service = await createService();
 
 		const promises = Array.from({ length: 5 }, (_, i) => {
@@ -859,7 +860,7 @@ describe("FeatureService", () => {
 	});
 
 	// Test feature with runtime context
-	test("should provide proper runtime context to features", async () => {
+	it("should provide proper runtime context to features", async () => {
 		const service = await createService();
 
 		const contextTestContent = `
@@ -918,10 +919,6 @@ describe("FeatureService", () => {
 		}
 	});
 });
-
-const errToMsg = (
-	err: any,
-) => (err?.message ? err.message : JSON.stringify(err));
 
 const createService = async () => {
 	const firstGroupNode: GroupNode = GroupNode.create({

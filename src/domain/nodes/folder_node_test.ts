@@ -1,4 +1,4 @@
-import { test } from "bdd";
+import { it } from "bdd";
 import { expect } from "expect";
 import { ValidationError } from "shared/validation_error.ts";
 import { FolderNode } from "./folder_node.ts";
@@ -7,7 +7,7 @@ import { Nodes } from "./nodes.ts";
 import type { Permission } from "./node.ts";
 import type { NodeMetadata } from "./node_metadata.ts";
 
-test("FolderNode.create should initialize", () => {
+it("FolderNode.create should initialize", () => {
 	const result = FolderNode.create({
 		title: "New folder",
 		parent: Folders.ROOT_FOLDER_UUID,
@@ -24,7 +24,7 @@ test("FolderNode.create should initialize", () => {
 	expect(folderNode.group).toBe("group-1");
 });
 
-test("FolderNode.create should return error if group is missing", () => {
+it("FolderNode.create should return error if group is missing", () => {
 	const result = FolderNode.create({
 		title: "New folder",
 		parent: Folders.ROOT_FOLDER_UUID,
@@ -34,7 +34,7 @@ test("FolderNode.create should return error if group is missing", () => {
 	expect(result.value).toBeInstanceOf(ValidationError);
 });
 
-test("FolderNode.create should always have application/vnd.antbox.folder mimetype", () => {
+it("FolderNode.create should always have application/vnd.antbox.folder mimetype", () => {
 	const result = FolderNode.create({
 		title: "Title",
 		mimetype: "application/json",
@@ -47,7 +47,7 @@ test("FolderNode.create should always have application/vnd.antbox.folder mimetyp
 	expect(result.right.mimetype).toBe(Nodes.FOLDER_MIMETYPE);
 });
 
-test("FolderNode.create should always have valid values for 'anonymous', 'group', 'authenticated', 'advanced' in permissions", () => {
+it("FolderNode.create should always have valid values for 'anonymous', 'group', 'authenticated', 'advanced' in permissions", () => {
 	const metadatas = [
 		{
 			title: "Title",
@@ -86,7 +86,7 @@ test("FolderNode.create should always have valid values for 'anonymous', 'group'
 	});
 });
 
-test("FolderNode.update should modify the title, fid, description, permissions and parent ", async () => {
+it("FolderNode.update should modify the title, fid, description, permissions and parent ", async () => {
 	const createResult = FolderNode.create({
 		title: "Initial Folder",
 		parent: Folders.ROOT_FOLDER_UUID,
@@ -129,7 +129,7 @@ test("FolderNode.update should modify the title, fid, description, permissions a
 	expect(folderNode.modifiedTime !== initialModifiedTime).toBe(true);
 });
 
-test("FolderNode.update should not change createdTime", () => {
+it("FolderNode.update should not change createdTime", () => {
 	const createResult = FolderNode.create({
 		title: "Initial Folder",
 		parent: Folders.ROOT_FOLDER_UUID,
@@ -144,7 +144,7 @@ test("FolderNode.update should not change createdTime", () => {
 	expect(folderNode.createdTime).toBe(createdTime);
 });
 
-test("FolderNode.update should return error if update results in invalid title", () => {
+it("FolderNode.update should return error if update results in invalid title", () => {
 	const createResult = FolderNode.create({
 		title: "Valid title",
 		parent: Folders.ROOT_FOLDER_UUID,
@@ -158,7 +158,7 @@ test("FolderNode.update should return error if update results in invalid title",
 	expect(updateResult.value).toBeInstanceOf(ValidationError);
 });
 
-test("FolderNode.update should not update group", () => {
+it("FolderNode.update should not update group", () => {
 	const createResult = FolderNode.create({
 		title: "Valid Folder",
 		parent: Folders.ROOT_FOLDER_UUID,

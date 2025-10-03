@@ -1,4 +1,4 @@
-import { test } from "bdd";
+import { it } from "bdd";
 import { expect } from "expect";
 import { ValidationError } from "shared/validation_error.ts";
 import { AspectNode, type AspectProperty } from "./aspect_node.ts";
@@ -6,7 +6,7 @@ import { Folders } from "domain/nodes/folders.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import { NodeFilters } from "../nodes/node_filter.ts";
 
-test("AspectNode.create should initialize", () => {
+it("AspectNode.create should initialize", () => {
 	const result = AspectNode.create({
 		title: "New aspect",
 		owner: "user@domain.com",
@@ -25,7 +25,7 @@ test("AspectNode.create should initialize", () => {
 	expect(aspectNode.filters).toEqual([]);
 });
 
-test("AspectNode.create should initialize with properties and filters", () => {
+it("AspectNode.create should initialize with properties and filters", () => {
 	const properties: AspectProperty[] = [
 		{
 			name: "test_property",
@@ -58,7 +58,7 @@ test("AspectNode.create should initialize with properties and filters", () => {
 	expect(aspectNode.filters).toEqual(filters);
 });
 
-test("AspectNode.create should always have aspect mimetype", () => {
+it("AspectNode.create should always have aspect mimetype", () => {
 	const result = AspectNode.create({
 		title: "Test aspect",
 		mimetype: "application/json",
@@ -71,7 +71,7 @@ test("AspectNode.create should always have aspect mimetype", () => {
 	expect(result.right.mimetype).toBe(Nodes.ASPECT_MIMETYPE);
 });
 
-test("AspectNode.create should always have aspects folder as parent", () => {
+it("AspectNode.create should always have aspects folder as parent", () => {
 	const result = AspectNode.create({
 		title: "Test aspect",
 		parent: "custom-parent",
@@ -84,7 +84,7 @@ test("AspectNode.create should always have aspects folder as parent", () => {
 	expect(result.right.parent).toBe(Folders.ASPECTS_FOLDER_UUID);
 });
 
-test("AspectNode.create should return error if title is missing", () => {
+it("AspectNode.create should return error if title is missing", () => {
 	const result = AspectNode.create({
 		title: "",
 		owner: "user@domain.com",
@@ -94,7 +94,7 @@ test("AspectNode.create should return error if title is missing", () => {
 	expect(result.value).toBeInstanceOf(ValidationError);
 });
 
-test("AspectNode.create should return error if owner is missing", () => {
+it("AspectNode.create should return error if owner is missing", () => {
 	const result = AspectNode.create({
 		title: "Test aspect",
 		owner: "",
@@ -104,7 +104,7 @@ test("AspectNode.create should return error if owner is missing", () => {
 	expect(result.value).toBeInstanceOf(ValidationError);
 });
 
-test("AspectNode.create should initialize with various property types", () => {
+it("AspectNode.create should initialize with various property types", () => {
 	const properties: AspectProperty[] = [
 		{
 			name: "string_prop",
@@ -156,7 +156,7 @@ test("AspectNode.create should initialize with various property types", () => {
 	expect(aspectNode.properties).toEqual(properties);
 });
 
-test("AspectNode.update should modify title, fid, description and filters", async () => {
+it("AspectNode.update should modify title, fid, description and filters", async () => {
 	const createResult = AspectNode.create({
 		title: "Initial aspect",
 		owner: "user@domain.com",
@@ -185,7 +185,7 @@ test("AspectNode.update should modify title, fid, description and filters", asyn
 	expect(aspectNode.modifiedTime > initialModifiedTime).toBe(true);
 });
 
-test("AspectNode.update should modify properties", () => {
+it("AspectNode.update should modify properties", () => {
 	const initialProperties: AspectProperty[] = [
 		{
 			name: "initial_prop",
@@ -225,7 +225,7 @@ test("AspectNode.update should modify properties", () => {
 	expect(aspectNode.properties).toEqual(newProperties);
 });
 
-test("AspectNode.update should not change createdTime", () => {
+it("AspectNode.update should not change createdTime", () => {
 	const createResult = AspectNode.create({
 		title: "Test aspect",
 		owner: "user@domain.com",
@@ -238,7 +238,7 @@ test("AspectNode.update should not change createdTime", () => {
 	expect(aspectNode.createdTime).toBe(createdTime);
 });
 
-test("AspectNode.update should return error if title is missing", () => {
+it("AspectNode.update should return error if title is missing", () => {
 	const aspectNodeOrErr = AspectNode.create({
 		title: "Initial aspect",
 		owner: "user@domain.com",
@@ -252,7 +252,7 @@ test("AspectNode.update should return error if title is missing", () => {
 	expect(result.value).toBeInstanceOf(ValidationError);
 });
 
-test("AspectNode.update should not modify parent", () => {
+it("AspectNode.update should not modify parent", () => {
 	const createResult = AspectNode.create({
 		title: "Test aspect",
 		owner: "user@domain.com",
@@ -264,7 +264,7 @@ test("AspectNode.update should not modify parent", () => {
 	expect(aspectNode.parent).toBe(Folders.ASPECTS_FOLDER_UUID);
 });
 
-test("AspectNode.update should not modify mimetype", () => {
+it("AspectNode.update should not modify mimetype", () => {
 	const createResult = AspectNode.create({
 		title: "Test aspect",
 		owner: "user@domain.com",
@@ -276,7 +276,7 @@ test("AspectNode.update should not modify mimetype", () => {
 	expect(aspectNode.mimetype).toBe(Nodes.ASPECT_MIMETYPE);
 });
 
-test("AspectNode properties should support validation configuration", () => {
+it("AspectNode properties should support validation configuration", () => {
 	const properties: AspectProperty[] = [
 		{
 			name: "validated_string",
@@ -341,7 +341,7 @@ test("AspectNode properties should support validation configuration", () => {
 	expect(readonlyProperty?.default).toBe("readonly_value");
 });
 
-test("AspectNode should handle empty filters and properties gracefully", () => {
+it("AspectNode should handle empty filters and properties gracefully", () => {
 	const result = AspectNode.create({
 		title: "Empty aspect",
 		owner: "user@domain.com",
@@ -357,7 +357,7 @@ test("AspectNode should handle empty filters and properties gracefully", () => {
 	expect(aspectNode.filters).toEqual([]);
 });
 
-test("ValidationList should only be used when type is 'string' or when type is 'array' and arrayType is 'string'", () => {
+it("ValidationList should only be used when type is 'string' or when type is 'array' and arrayType is 'string'", () => {
 	// Valid case: string type with validationList
 	const validStringResult = AspectNode.create({
 		title: "Test aspect",
@@ -425,7 +425,7 @@ test("ValidationList should only be used when type is 'string' or when type is '
 	expect(invalidArrayResult.value).toBeInstanceOf(ValidationError);
 });
 
-test("ValidationRegex should only be used when type is 'string' or when type is 'array' and arrayType is 'string'", () => {
+it("ValidationRegex should only be used when type is 'string' or when type is 'array' and arrayType is 'string'", () => {
 	// Valid case: string type with validationRegex
 	const validStringResult = AspectNode.create({
 		title: "Test aspect",
@@ -492,7 +492,7 @@ test("ValidationRegex should only be used when type is 'string' or when type is 
 	expect(invalidBooleanResult.value).toBeInstanceOf(ValidationError);
 });
 
-test("ValidationFilters should only be used when type is 'uuid' or when type is 'array' and arrayType is 'uuid'", () => {
+it("ValidationFilters should only be used when type is 'uuid' or when type is 'array' and arrayType is 'uuid'", () => {
 	// Valid case: uuid type with validationFilters
 	const validUuidResult = AspectNode.create({
 		title: "Test aspect",
@@ -560,7 +560,7 @@ test("ValidationFilters should only be used when type is 'uuid' or when type is 
 	expect(invalidArrayResult.value).toBeInstanceOf(ValidationError);
 });
 
-test("String mimetype should only be used when type is 'string'", () => {
+it("String mimetype should only be used when type is 'string'", () => {
 	// Valid case: string type with stringMimetype
 	const validStringResult = AspectNode.create({
 		title: "Test aspect",
@@ -609,7 +609,7 @@ test("String mimetype should only be used when type is 'string'", () => {
 	expect(invalidFileResult.value).toBeInstanceOf(ValidationError);
 });
 
-test("Default value should be valid according to all property constraints", () => {
+it("Default value should be valid according to all property constraints", () => {
 	// Valid case: string default matching validationRegex
 	const validRegexResult = AspectNode.create({
 		title: "Test aspect",

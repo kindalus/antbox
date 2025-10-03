@@ -1,4 +1,4 @@
-import { describe, test } from "bdd";
+import { describe, it } from "bdd";
 import { expect } from "expect";
 import { NodeService } from "./node_service.ts";
 import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository.ts";
@@ -17,7 +17,7 @@ import { Folders } from "domain/nodes/folders.ts";
 import type { FolderNode } from "domain/nodes/folder_node.ts";
 
 describe("NodeService.update", () => {
-	test("should update the node metadata", async () => {
+	it("should update the node metadata", async () => {
 		const service = nodeService();
 		const nodeOrErr = await service.create(authCtx, {
 			title: "Initial Title",
@@ -38,7 +38,7 @@ describe("NodeService.update", () => {
 		expect(updatedNodeOrErr.right.description).toBe("Updated Description");
 	});
 
-	test("should return error if node is not found", async () => {
+	it("should return error if node is not found", async () => {
 		const service = nodeService();
 		const updateOrErr = await service.update(authCtx, "not-found", {
 			title: "Updated Title",
@@ -48,7 +48,7 @@ describe("NodeService.update", () => {
 		expect(updateOrErr.value).toBeInstanceOf(NodeNotFoundError);
 	});
 
-	test("should return error if user doesn't have 'Write' permission on parent", async () => {
+	it("should return error if user doesn't have 'Write' permission on parent", async () => {
 		const service = nodeService();
 		const parent = await service.create(authCtx, {
 			title: "Parent Folder",
@@ -81,7 +81,7 @@ describe("NodeService.update", () => {
 		expect(updateOrErr.value).toBeInstanceOf(ForbiddenError);
 	});
 
-	test("should not update mimetype", async () => {
+	it("should not update mimetype", async () => {
 		const service = nodeService();
 		const parentOrErr = await service.create(authCtx, {
 			title: "Parent Folder",
@@ -108,7 +108,7 @@ describe("NodeService.update", () => {
 		expect(updatedNodeOrErr.right.mimetype).toBe(Nodes.META_NODE_MIMETYPE);
 	});
 
-	test("should return an error if edition is inconsistent with node aspects", async () => {
+	it("should return an error if edition is inconsistent with node aspects", async () => {
 		const service = nodeService();
 
 		const props: AspectProperties = [{
@@ -146,7 +146,7 @@ describe("NodeService.update", () => {
 		expect(updateOrErr.value).toBeInstanceOf(ValidationError);
 	});
 
-	test("should return an error if edition turns node unacceptable to parent restrictions", async () => {
+	it("should return an error if edition turns node unacceptable to parent restrictions", async () => {
 		const service = nodeService();
 
 		// Create a file node in a regular folder first
@@ -170,7 +170,7 @@ describe("NodeService.update", () => {
 		expect(updateOrErr.value).toBeInstanceOf(BadRequestError);
 	});
 
-	test("should fail if updated childFilters make any existing child node invalid", async () => {
+	it("should fail if updated childFilters make any existing child node invalid", async () => {
 		const service = nodeService();
 
 		// Create a folder without any filters
@@ -199,7 +199,7 @@ describe("NodeService.update", () => {
 		expect(updateOrErr.value).toBeInstanceOf(BadRequestError);
 	});
 
-	test("should succeed if updated childFilters are satisfied by all existing children", async () => {
+	it("should succeed if updated childFilters are satisfied by all existing children", async () => {
 		const service = nodeService();
 
 		// Create a folder without any filters
@@ -226,7 +226,7 @@ describe("NodeService.update", () => {
 		expect(updateOrErr.isRight()).toBeTruthy();
 	});
 
-	test("should ignore readonly properties during node updates", async () => {
+	it("should ignore readonly properties during node updates", async () => {
 		const service = nodeService();
 
 		const props: AspectProperties = [{
@@ -286,7 +286,7 @@ describe("NodeService.update", () => {
 			.toBe("updated_editable");
 	});
 
-	test("should ignore readonly properties when they are the only properties being updated", async () => {
+	it("should ignore readonly properties when they are the only properties being updated", async () => {
 		const service = nodeService();
 
 		const props: AspectProperties = [{
@@ -336,7 +336,7 @@ describe("NodeService.update", () => {
 		).toBe(42);
 	});
 
-	test("should handle mixed readonly and non-readonly properties across multiple aspects", async () => {
+	it("should handle mixed readonly and non-readonly properties across multiple aspects", async () => {
 		const service = nodeService();
 
 		const aspect1Props: AspectProperties = [{
@@ -407,7 +407,7 @@ describe("NodeService.update", () => {
 });
 
 describe("NodeService.updateFile", () => {
-	test("should update file content and metadata", async () => {
+	it("should update file content and metadata", async () => {
 		const service = nodeService();
 		const parent = await service.create(authCtx, {
 			title: "Parent Folder",
@@ -445,7 +445,7 @@ describe("NodeService.updateFile", () => {
 		expect(updatedFileOrErr.right.size).toBe(updatedFile.size);
 	});
 
-	test("should return error if node is not found", async () => {
+	it("should return error if node is not found", async () => {
 		const service = nodeService();
 		const file = new File(["content"], "file.txt", { type: "text/plain" });
 		const updateOrErr = await service.updateFile(authCtx, "not-found", file);
@@ -454,7 +454,7 @@ describe("NodeService.updateFile", () => {
 		expect(updateOrErr.value).toBeInstanceOf(NodeNotFoundError);
 	});
 
-	test("should return error if node is not a file", async () => {
+	it("should return error if node is not a file", async () => {
 		const service = nodeService();
 		const parent = await service.create(authCtx, {
 			title: "Parent Folder",
@@ -478,7 +478,7 @@ describe("NodeService.updateFile", () => {
 		expect(updateOrErr.value).toBeInstanceOf(NodeNotFoundError);
 	});
 
-	test("should return error if user doesn't have 'Write' permission on parent", async () => {
+	it("should return error if user doesn't have 'Write' permission on parent", async () => {
 		const service = nodeService();
 		const parent = await service.create(authCtx, {
 			title: "Parent Folder",
@@ -515,7 +515,7 @@ describe("NodeService.updateFile", () => {
 		expect(updateOrErr.value).toBeInstanceOf(ForbiddenError);
 	});
 
-	test("should return an error files have different mimetypes", async () => {
+	it("should return an error files have different mimetypes", async () => {
 		const service = nodeService();
 		const parent = await service.create(authCtx, {
 			title: "Parent Folder",
@@ -563,7 +563,7 @@ const nodeService = (opts: Partial<NodeServiceContext> = {}) =>
 	});
 
 describe("NodeService.update - UUID property validation", () => {
-	test("should return error when updating uuid property to non-existing node", async () => {
+	it("should return error when updating uuid property to non-existing node", async () => {
 		const service = nodeService();
 
 		// Create existing target node
@@ -608,7 +608,7 @@ describe("NodeService.update - UUID property validation", () => {
 		expect(updateOrErr.value).toBeInstanceOf(ValidationError);
 	});
 
-	test("should update node when uuid property references existing node", async () => {
+	it("should update node when uuid property references existing node", async () => {
 		const service = nodeService();
 
 		// Create two target nodes
@@ -658,7 +658,7 @@ describe("NodeService.update - UUID property validation", () => {
 		expect(updateOrErr.isRight(), errToMsg(updateOrErr.value)).toBeTruthy();
 	});
 
-	test("should return error when updating uuid array property with non-existing nodes", async () => {
+	it("should return error when updating uuid array property with non-existing nodes", async () => {
 		const service = nodeService();
 
 		// Create existing target nodes
@@ -713,7 +713,7 @@ describe("NodeService.update - UUID property validation", () => {
 		expect(updateOrErr.value).toBeInstanceOf(ValidationError);
 	});
 
-	test("should return error when updating uuid property with validationFilters to non-complying node", async () => {
+	it("should return error when updating uuid property with validationFilters to non-complying node", async () => {
 		const service = nodeService();
 
 		// Create folder and file nodes
@@ -770,7 +770,7 @@ describe("NodeService.update - UUID property validation", () => {
 		expect(updateOrErr.value).toBeInstanceOf(ValidationError);
 	});
 
-	test("should update node when uuid array property with validationFilters has all complying nodes", async () => {
+	it("should update node when uuid array property with validationFilters has all complying nodes", async () => {
 		const service = nodeService();
 
 		// Create three folder nodes
@@ -834,7 +834,7 @@ describe("NodeService.update - UUID property validation", () => {
 		expect(updateOrErr.isRight(), errToMsg(updateOrErr.value)).toBeTruthy();
 	});
 
-	test("should return error when updating uuid property with complex validationFilters to non-complying node", async () => {
+	it("should return error when updating uuid property with complex validationFilters to non-complying node", async () => {
 		const service = nodeService();
 
 		// Create project folder and regular folder

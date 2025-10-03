@@ -1,4 +1,4 @@
-import { describe, test } from "bdd";
+import { describe, it } from "bdd";
 import { expect } from "expect";
 import { getQuery } from "./get_query.ts";
 
@@ -35,7 +35,7 @@ function createMockRequest(options: {
 
 describe("Authentication Middleware - Acceptance Criteria", () => {
 	describe("AC1: Authorization header with valid API key", () => {
-		test("GIVEN a valid API key 'my-secret-key' WHEN a request is sent with the header 'Authorization: ApiKey my-secret-key' THEN the request should be successfully authenticated", () => {
+		it("GIVEN a valid API key 'my-secret-key' WHEN a request is sent with the header 'Authorization: ApiKey my-secret-key' THEN the request should be successfully authenticated", () => {
 			// Given
 			const validApiKey = "my-secret-key";
 
@@ -53,7 +53,7 @@ describe("Authentication Middleware - Acceptance Criteria", () => {
 	});
 
 	describe("AC2: Query parameter with valid API key", () => {
-		test("GIVEN a valid API key 'my-secret-key' WHEN a request is sent with the query parameter '?api_key=my-secret-key' THEN the request should be successfully authenticated", () => {
+		it("GIVEN a valid API key 'my-secret-key' WHEN a request is sent with the query parameter '?api_key=my-secret-key' THEN the request should be successfully authenticated", () => {
 			// Given
 			const validApiKey = "my-secret-key";
 
@@ -69,7 +69,7 @@ describe("Authentication Middleware - Acceptance Criteria", () => {
 	});
 
 	describe("AC3: Legacy x-api-key header should fail", () => {
-		test("GIVEN a valid API key 'my-secret-key' WHEN a request is sent using the old header 'x-api-key: my-secret-key' THEN the request should fail authentication", () => {
+		it("GIVEN a valid API key 'my-secret-key' WHEN a request is sent using the old header 'x-api-key: my-secret-key' THEN the request should fail authentication", () => {
 			// Given
 			const validApiKey = "my-secret-key";
 
@@ -87,7 +87,7 @@ describe("Authentication Middleware - Acceptance Criteria", () => {
 	});
 
 	describe("AC4: Legacy x-api-key query parameter should fail", () => {
-		test("GIVEN a valid API key 'my-secret-key' WHEN a request is sent using the old query parameter '?x-api-key=my-secret-key' THEN the request should fail authentication", () => {
+		it("GIVEN a valid API key 'my-secret-key' WHEN a request is sent using the old query parameter '?x-api-key=my-secret-key' THEN the request should fail authentication", () => {
 			// Given
 			const validApiKey = "my-secret-key";
 
@@ -103,7 +103,7 @@ describe("Authentication Middleware - Acceptance Criteria", () => {
 	});
 
 	describe("Edge cases and comprehensive scenarios", () => {
-		test("should maintain case-insensitive behavior for ApiKey scheme", () => {
+		it("should maintain case-insensitive behavior for ApiKey scheme", () => {
 			const testCases = [
 				"ApiKey my-secret-key",
 				"APIKEY my-secret-key",
@@ -123,7 +123,7 @@ describe("Authentication Middleware - Acceptance Criteria", () => {
 			});
 		});
 
-		test("should handle complex API keys with special characters", () => {
+		it("should handle complex API keys with special characters", () => {
 			const complexApiKey = "my-secret_key.with-dashes_and.dots123";
 
 			const req = createMockRequest({
@@ -136,7 +136,7 @@ describe("Authentication Middleware - Acceptance Criteria", () => {
 			expect(extractedKey).toBe(complexApiKey);
 		});
 
-		test("should maintain precedence: Authorization header over query parameter", () => {
+		it("should maintain precedence: Authorization header over query parameter", () => {
 			const headerKey = "header-api-key";
 			const queryKey = "query-api-key";
 
@@ -151,7 +151,7 @@ describe("Authentication Middleware - Acceptance Criteria", () => {
 			expect(extractedKey).toBe(headerKey);
 		});
 
-		test("should not interfere with other Authorization schemes", () => {
+		it("should not interfere with other Authorization schemes", () => {
 			const req = createMockRequest({
 				headers: {
 					"Authorization": "Bearer jwt-token-here",
@@ -162,7 +162,7 @@ describe("Authentication Middleware - Acceptance Criteria", () => {
 			expect(extractedKey).toBe(undefined);
 		});
 
-		test("should handle URL-encoded query parameters correctly", () => {
+		it("should handle URL-encoded query parameters correctly", () => {
 			const apiKey = "my-secret-key";
 			const encodedApiKey = "my%2Dsecret%2Dkey";
 
@@ -174,7 +174,7 @@ describe("Authentication Middleware - Acceptance Criteria", () => {
 			expect(extractedKey).toBe(apiKey);
 		});
 
-		test("should handle empty or malformed Authorization headers", () => {
+		it("should handle empty or malformed Authorization headers", () => {
 			const testCases = [
 				"ApiKey", // Missing key
 				"ApiKey ", // Only space after ApiKey
@@ -194,7 +194,7 @@ describe("Authentication Middleware - Acceptance Criteria", () => {
 			});
 		});
 
-		test("should handle requests with no authentication", () => {
+		it("should handle requests with no authentication", () => {
 			const req = createMockRequest({
 				url: "http://localhost:3000",
 			});
@@ -203,7 +203,7 @@ describe("Authentication Middleware - Acceptance Criteria", () => {
 			expect(extractedKey).toBe(undefined);
 		});
 
-		test("should ignore legacy authentication alongside new authentication", () => {
+		it("should ignore legacy authentication alongside new authentication", () => {
 			const validApiKey = "new-format-key";
 			const legacyApiKey = "legacy-format-key";
 

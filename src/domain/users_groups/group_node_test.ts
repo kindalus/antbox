@@ -1,4 +1,4 @@
-import { test } from "bdd";
+import { it } from "bdd";
 import { expect } from "expect";
 import { ValidationError } from "shared/validation_error.ts";
 import { Folders } from "domain/nodes/folders.ts";
@@ -6,7 +6,7 @@ import { Nodes } from "domain/nodes/nodes.ts";
 import { GroupNode } from "./group_node.ts";
 import { PropertyFormatError, PropertyRequiredError } from "domain/nodes/property_errors.ts";
 
-test("GroupNode.create should initialize", () => {
+it("GroupNode.create should initialize", () => {
 	const createResult = GroupNode.create({
 		owner: "root@antbox.io",
 		title: "Group Test",
@@ -20,7 +20,7 @@ test("GroupNode.create should initialize", () => {
 	expect(group.parent).toBe(Folders.GROUPS_FOLDER_UUID);
 });
 
-test("GroupNode.create should throw error if owner is missing", () => {
+it("GroupNode.create should throw error if owner is missing", () => {
 	const createResult = GroupNode.create({
 		title: "Group Test",
 		description: "Test Group",
@@ -35,7 +35,7 @@ test("GroupNode.create should throw error if owner is missing", () => {
 	).toBe(true);
 });
 
-test("GroupNode.create should throw error if owner is invalid email format", () => {
+it("GroupNode.create should throw error if owner is invalid email format", () => {
 	const createResult = GroupNode.create({
 		owner: "user@examplecom",
 		title: "Group Test",
@@ -49,7 +49,7 @@ test("GroupNode.create should throw error if owner is invalid email format", () 
 	).toBe(true);
 });
 
-test("GroupNode.create should throw error if title is missing", () => {
+it("GroupNode.create should throw error if title is missing", () => {
 	const createResult = GroupNode.create({
 		owner: "root@antbox.io",
 		description: "Test Group",
@@ -64,7 +64,7 @@ test("GroupNode.create should throw error if title is missing", () => {
 	);
 });
 
-test("GroupNode.create should throw error if title lenght is less than 3 chars", () => {
+it("GroupNode.create should throw error if title lenght is less than 3 chars", () => {
 	const createResult = GroupNode.create({
 		title: "Gr",
 		owner: "root@antbox.io",
@@ -78,7 +78,7 @@ test("GroupNode.create should throw error if title lenght is less than 3 chars",
 	);
 });
 
-test("GroupNode.update should modify title and description", () => {
+it("GroupNode.update should modify title and description", () => {
 	const createResult = GroupNode.create({
 		owner: "root@antbox.io",
 		title: "Group",
@@ -95,7 +95,7 @@ test("GroupNode.update should modify title and description", () => {
 	expect(createResult.right.description).toBe("Desc 2");
 });
 
-test("GroupNode.update should not modify parent ", () => {
+it("GroupNode.update should not modify parent ", () => {
 	const group = GroupNode.create({
 		owner: "root@antbox.io",
 		title: "Group",
@@ -108,7 +108,7 @@ test("GroupNode.update should not modify parent ", () => {
 	expect(group.right.parent).toBe(Folders.GROUPS_FOLDER_UUID);
 });
 
-test("GroupNode.update should not modify mimetype ", () => {
+it("GroupNode.update should not modify mimetype ", () => {
 	const group = GroupNode.create({
 		owner: "root@antbox.io",
 		title: "Group",

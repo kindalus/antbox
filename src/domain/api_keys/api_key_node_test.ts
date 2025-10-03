@@ -2,10 +2,10 @@ import { ValidationError } from "shared/validation_error.ts";
 import { Folders } from "domain/nodes/folders.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import { ApiKeyNode } from "./api_key_node.ts";
-import { test } from "bdd";
+import { it } from "bdd";
 import { expect } from "expect";
 
-test("ApiKeyNode.create should initialize", () => {
+it("ApiKeyNode.create should initialize", () => {
 	const apiKey = ApiKeyNode.create({
 		group: "admin",
 		secret: "secret-pasword",
@@ -21,7 +21,7 @@ test("ApiKeyNode.create should initialize", () => {
 	expect(apiKey.right.parent).toBe(Folders.API_KEYS_FOLDER_UUID);
 });
 
-test("ApiKeyNode.create should throw error if owner is missing", () => {
+it("ApiKeyNode.create should throw error if owner is missing", () => {
 	const apiKey = ApiKeyNode.create({
 		title: "Api key title",
 		secret: "secret",
@@ -34,7 +34,7 @@ test("ApiKeyNode.create should throw error if owner is missing", () => {
 	);
 });
 
-test("ApiKeyNode.create should throw error if secret is missing", () => {
+it("ApiKeyNode.create should throw error if secret is missing", () => {
 	const apiKey = ApiKeyNode.create({
 		title: "Api key title",
 		secret: "",
@@ -48,7 +48,7 @@ test("ApiKeyNode.create should throw error if secret is missing", () => {
 	);
 });
 
-test("ApiKeyNode.create should throw error if group is missing", () => {
+it("ApiKeyNode.create should throw error if group is missing", () => {
 	const apiKey = ApiKeyNode.create({
 		title: "Api key title",
 		secret: "secret",
@@ -62,7 +62,7 @@ test("ApiKeyNode.create should throw error if group is missing", () => {
 	);
 });
 
-test("ApiKeyNode update should modify group", () => {
+it("ApiKeyNode update should modify group", () => {
 	const apiKey = ApiKeyNode.create({
 		title: "Api key title",
 		owner: "user@domain.com",
@@ -75,7 +75,7 @@ test("ApiKeyNode update should modify group", () => {
 	expect(apiKey.right.group).toBe("users");
 });
 
-test("ApiKeyNode update should modify description", () => {
+it("ApiKeyNode update should modify description", () => {
 	const apiKey = ApiKeyNode.create({
 		title: "Api key title",
 		owner: "user@domain.com",
@@ -89,7 +89,7 @@ test("ApiKeyNode update should modify description", () => {
 	expect(apiKey.right.description).toBe("api key");
 });
 
-test("ApiKeyNode update should throw error if secret is missing", () => {
+it("ApiKeyNode update should throw error if secret is missing", () => {
 	const apiKey = ApiKeyNode.create({
 		title: "Api key title",
 		owner: "user@domain.com",
@@ -106,7 +106,7 @@ test("ApiKeyNode update should throw error if secret is missing", () => {
 	);
 });
 
-test("ApiKeyNode update should throw error if group is missing", () => {
+it("ApiKeyNode update should throw error if group is missing", () => {
 	const apiKey = ApiKeyNode.create({
 		title: "Api key title",
 		owner: "user@domain.com",
@@ -123,7 +123,7 @@ test("ApiKeyNode update should throw error if group is missing", () => {
 	);
 });
 
-test("ApiKeyNode update should not modify parent", () => {
+it("ApiKeyNode update should not modify parent", () => {
 	const apiKey = ApiKeyNode.create({
 		title: "Api key title",
 		owner: "user@domain.com",

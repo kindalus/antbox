@@ -1,4 +1,4 @@
-import { describe, test } from "bdd";
+import { describe, it } from "bdd";
 import { expect } from "expect";
 import { NodeService } from "./node_service.ts";
 import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider.ts";
@@ -18,7 +18,7 @@ import { ADMINS_GROUP } from "application/builtin_groups/index.ts";
 import { Left, Right } from "shared/either.ts";
 
 describe("NodeService.create", () => {
-	test("should create a node and persist the metadata", async () => {
+	it("should create a node and persist the metadata", async () => {
 		const service = nodeService();
 
 		await service.create(authCtx, {
@@ -42,7 +42,7 @@ describe("NodeService.create", () => {
 		expect(nodeOrErr.right.mimetype).toBe(Nodes.META_NODE_MIMETYPE);
 	});
 
-	test("should return an error when properties are inconsistent with aspect specifications", async () => {
+	it("should return an error when properties are inconsistent with aspect specifications", async () => {
 		const service = nodeService();
 
 		const props: AspectProperties = [{
@@ -75,7 +75,7 @@ describe("NodeService.create", () => {
 		expect(nodeOrErr.value).toBeInstanceOf(ValidationError);
 	});
 
-	test("should ignore properties that are not defined in any node aspect", async () => {
+	it("should ignore properties that are not defined in any node aspect", async () => {
 		const service = nodeService();
 
 		const props: AspectProperties = [{
@@ -123,7 +123,7 @@ describe("NodeService.create", () => {
 			.toBeUndefined();
 	});
 
-	test("should return an error if a provided aspect does not exist", async () => {
+	it("should return an error if a provided aspect does not exist", async () => {
 		const service = nodeService();
 
 		// Try to create node with non-existent aspect
@@ -140,7 +140,7 @@ describe("NodeService.create", () => {
 		expect(nodeOrErr.value).toBeInstanceOf(ValidationError);
 	});
 
-	test("should use give permissions", async () => {
+	it("should use give permissions", async () => {
 		const permissions: Permissions = {
 			anonymous: [],
 			group: ["Read", "Export"],
@@ -158,7 +158,7 @@ describe("NodeService.create", () => {
 		expect((node.right as FolderNode).permissions).toEqual(permissions);
 	});
 
-	test("should have the same permissions (folder) as parent's if no permissions given", async () => {
+	it("should have the same permissions (folder) as parent's if no permissions given", async () => {
 		const permissions: Permissions = {
 			anonymous: ["Read"],
 			group: ["Read", "Write"],
@@ -185,7 +185,7 @@ describe("NodeService.create", () => {
 		expect((node.right as FolderNode).permissions).toEqual(permissions);
 	});
 
-	test("should use title to generate fid if not given", async () => {
+	it("should use title to generate fid if not given", async () => {
 		const service = nodeService();
 
 		const nodeOrErr = await service.create(authCtx, {
@@ -198,7 +198,7 @@ describe("NodeService.create", () => {
 		expect(nodeOrErr.right.fid).toBe("unique-title");
 	});
 
-	test("should store in root folder if no parent given", async () => {
+	it("should store in root folder if no parent given", async () => {
 		const nodeOrErr = await nodeService().create(authCtx, {
 			title: "Folder 1",
 			mimetype: Nodes.FOLDER_MIMETYPE,
@@ -208,7 +208,7 @@ describe("NodeService.create", () => {
 		expect(nodeOrErr.right.parent).toBe(Folders.ROOT_FOLDER_UUID);
 	});
 
-	test("should convey to folder children restrictions", async () => {
+	it("should convey to folder children restrictions", async () => {
 		const nodeOrErr = await nodeService().createFile(authCtx, dummyFile, {
 			parent: Folders.ROOT_FOLDER_UUID,
 		});
@@ -219,7 +219,7 @@ describe("NodeService.create", () => {
 });
 
 describe("NodeService.createFile", () => {
-	test("should create a file and persist the metadata", async () => {
+	it("should create a file and persist the metadata", async () => {
 		const repository = new InMemoryNodeRepository();
 		const service = nodeService({ repository });
 
@@ -251,7 +251,7 @@ describe("NodeService.createFile", () => {
 		expect(node.fid).toBeDefined();
 	});
 
-	test("should use filename as title if not given", async () => {
+	it("should use filename as title if not given", async () => {
 		const service = nodeService();
 		await service.create(authCtx, {
 			uuid: "--parent--",
@@ -267,7 +267,7 @@ describe("NodeService.createFile", () => {
 		expect(nodeOrErr.right.title).toBe(dummyFile.name);
 	});
 
-	test("should store the file", async () => {
+	it("should store the file", async () => {
 		const storage = new InMemoryStorageProvider();
 		const service = nodeService({ storage });
 
@@ -285,7 +285,7 @@ describe("NodeService.createFile", () => {
 		expect(fileOrErr.right.size).toBe(dummyFile.size);
 	});
 
-	test("should use file mimetype", async () => {
+	it("should use file mimetype", async () => {
 		const service = nodeService();
 		await service.create(authCtx, {
 			uuid: "--parent--",
@@ -302,7 +302,7 @@ describe("NodeService.createFile", () => {
 		expect(nodeOrErr.right.mimetype).toBe(dummyFile.type);
 	});
 
-	test("should use node mimetype if given action or ext mimetype", async () => {
+	it("should use node mimetype if given action or ext mimetype", async () => {
 		const service = nodeService();
 
 		// Create parent folder first
@@ -324,7 +324,7 @@ describe("NodeService.createFile", () => {
 });
 
 describe("NodeService.duplicate", () => {
-	test("should create the same node in the same directory with diferent uuid, fid and a title with '2' as suffix", async () => {
+	it("should create the same node in the same directory with diferent uuid, fid and a title with '2' as suffix", async () => {
 		const service = nodeService();
 		const parent = await service.create(authCtx, {
 			title: "Folder",
@@ -346,7 +346,7 @@ describe("NodeService.duplicate", () => {
 		expect(duplicate.right.mimetype).toBe(node.right.mimetype);
 	});
 
-	test("should create a copy of the file if node is a file like node", async () => {
+	it("should create a copy of the file if node is a file like node", async () => {
 		const service = nodeService();
 		const parent = await service.create(authCtx, {
 			title: "Folder",
@@ -367,7 +367,7 @@ describe("NodeService.duplicate", () => {
 		expect(duplicatedFileOrErr.right.size).toBe(dummyFile.size);
 	});
 
-	test("should return a error if node to duplicate is a folder node", async () => {
+	it("should return a error if node to duplicate is a folder node", async () => {
 		const service = nodeService();
 		const parent = await service.create(authCtx, {
 			title: "Folder",
@@ -387,7 +387,7 @@ describe("NodeService.duplicate", () => {
 });
 
 describe("NodeService.copy", () => {
-	test("should copy a node to a new parent folder", async () => {
+	it("should copy a node to a new parent folder", async () => {
 		const service = nodeService();
 		const parent1 = await service.create(authCtx, {
 			title: "Parent Folder 1",
@@ -416,7 +416,7 @@ describe("NodeService.copy", () => {
 		expect(copyOrErr.right.mimetype).toBe(node.right.mimetype);
 	});
 
-	test("should return error if node to copy is a folder", async () => {
+	it("should return error if node to copy is a folder", async () => {
 		const service = nodeService();
 		const parent = await service.create(authCtx, {
 			title: "Parent Folder",
@@ -438,7 +438,7 @@ describe("NodeService.copy", () => {
 		expect(copyOrErr.value).toBeInstanceOf(BadRequestError);
 	});
 
-	test("should create a copy of the file if node is a file like node", async () => {
+	it("should create a copy of the file if node is a file like node", async () => {
 		const service = nodeService();
 		const parent1 = await service.create(authCtx, {
 			title: "Parent Folder 1",
@@ -492,7 +492,7 @@ const nodeService = (opts: Partial<NodeServiceContext> = {}) =>
 const dummyFile = new File(["Ola"], "ola.txt", { type: "text/plain" });
 
 describe("NodeService.create - UUID property validation", () => {
-	test("should return error when uuid property references non-existing node", async () => {
+	it("should return error when uuid property references non-existing node", async () => {
 		const service = nodeService();
 
 		const props: AspectProperties = [{
@@ -523,7 +523,7 @@ describe("NodeService.create - UUID property validation", () => {
 		expect(nodeOrErr.value).toBeInstanceOf(ValidationError);
 	});
 
-	test("should create node when uuid property references existing node", async () => {
+	it("should create node when uuid property references existing node", async () => {
 		const service = nodeService();
 
 		// Create a target node to reference
@@ -560,7 +560,7 @@ describe("NodeService.create - UUID property validation", () => {
 		expect(nodeOrErr.isRight(), errToMsg(nodeOrErr.value)).toBeTruthy();
 	});
 
-	test("should return error when uuid array property has non-existing node references", async () => {
+	it("should return error when uuid array property has non-existing node references", async () => {
 		const service = nodeService();
 
 		// Create one existing target node
@@ -602,7 +602,7 @@ describe("NodeService.create - UUID property validation", () => {
 		expect(nodeOrErr.value).toBeInstanceOf(ValidationError);
 	});
 
-	test("should create node when uuid array property has all existing node references", async () => {
+	it("should create node when uuid array property has all existing node references", async () => {
 		const service = nodeService();
 
 		// Create target nodes to reference
@@ -646,7 +646,7 @@ describe("NodeService.create - UUID property validation", () => {
 		expect(nodeOrErr.isRight(), errToMsg(nodeOrErr.value)).toBeTruthy();
 	});
 
-	test("should return error when uuid property with validationFilters references non-complying node", async () => {
+	it("should return error when uuid property with validationFilters references non-complying node", async () => {
 		const service = nodeService();
 
 		// Create a file node (not a folder)
@@ -690,7 +690,7 @@ describe("NodeService.create - UUID property validation", () => {
 		expect(nodeOrErr.value).toBeInstanceOf(ValidationError);
 	});
 
-	test("should create node when uuid property with validationFilters references complying node", async () => {
+	it("should create node when uuid property with validationFilters references complying node", async () => {
 		const service = nodeService();
 
 		// Create a folder node
@@ -728,7 +728,7 @@ describe("NodeService.create - UUID property validation", () => {
 		expect(nodeOrErr.isRight(), errToMsg(nodeOrErr.value)).toBeTruthy();
 	});
 
-	test("should return error when uuid array property with validationFilters has non-complying nodes", async () => {
+	it("should return error when uuid array property with validationFilters has non-complying nodes", async () => {
 		const service = nodeService();
 
 		// Create a folder node and a file node
@@ -782,7 +782,7 @@ describe("NodeService.create - UUID property validation", () => {
 		expect(nodeOrErr.value).toBeInstanceOf(ValidationError);
 	});
 
-	test("should create node when uuid array property with validationFilters has all complying nodes", async () => {
+	it("should create node when uuid array property with validationFilters has all complying nodes", async () => {
 		const service = nodeService();
 
 		// Create two folder nodes
@@ -830,7 +830,7 @@ describe("NodeService.create - UUID property validation", () => {
 		expect(nodeOrErr.isRight(), errToMsg(nodeOrErr.value)).toBeTruthy();
 	});
 
-	test("should return error when uuid property with complex validationFilters references non-complying node", async () => {
+	it("should return error when uuid property with complex validationFilters references non-complying node", async () => {
 		const service = nodeService();
 
 		// Create a folder node without "Project" in title

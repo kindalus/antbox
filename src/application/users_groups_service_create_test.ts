@@ -1,4 +1,4 @@
-import { describe, test } from "bdd";
+import { describe, it } from "bdd";
 import { expect } from "expect";
 import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider.ts";
 import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository.ts";
@@ -17,7 +17,7 @@ import { UserNode } from "domain/users_groups/user_node.ts";
 import { UsersGroupsService } from "application/users_groups_service.ts";
 
 describe("UsersGroupsService.createUser", () => {
-	test("should create the user", async () => {
+	it("should create the user", async () => {
 		const service = usersGroupsService();
 
 		await service.createUser(authCtx, {
@@ -33,7 +33,7 @@ describe("UsersGroupsService.createUser", () => {
 		expect(userOrErr.right.email).toBe("joane@gmail.com");
 	});
 
-	test("should remove duplicated groups", async () => {
+	it("should remove duplicated groups", async () => {
 		const service = usersGroupsService();
 
 		await service.createUser(authCtx, {
@@ -52,7 +52,7 @@ describe("UsersGroupsService.createUser", () => {
 		]);
 	});
 
-	test("should return error if user already exists", async () => {
+	it("should return error if user already exists", async () => {
 		const service = usersGroupsService();
 
 		await service.createUser(authCtx, {
@@ -74,7 +74,7 @@ describe("UsersGroupsService.createUser", () => {
 		);
 	});
 
-	test("should return error if user group not found", async () => {
+	it("should return error if user group not found", async () => {
 		const service = usersGroupsService();
 
 		const userOrErr = await service.createUser(authCtx, {
@@ -92,7 +92,7 @@ describe("UsersGroupsService.createUser", () => {
 });
 
 describe("UsersGroupsService.createGroup", () => {
-	test("should create group and persist metadata", async () => {
+	it("should create group and persist metadata", async () => {
 		const service = usersGroupsService();
 
 		await service.createGroup(authCtx, {

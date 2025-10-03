@@ -1,11 +1,11 @@
-import { test } from "bdd";
+import { it } from "bdd";
 import { expect } from "expect";
 import { Node } from "./node.ts";
 import { Folders } from "./folders.ts";
 import { ValidationError } from "shared/validation_error.ts";
 import { FidGenerator } from "shared/fid_generator.ts";
 
-test("Node constructor should initialize", () => {
+it("Node constructor should initialize", () => {
 	const node = new Node({
 		title: "New node",
 		mimetype: "application/json",
@@ -19,7 +19,7 @@ test("Node constructor should initialize", () => {
 	expect(node.owner).toBe("user@domain.com");
 });
 
-test("Node constructor should generate fid with title if not provided", () => {
+it("Node constructor should generate fid with title if not provided", () => {
 	const node = new Node({
 		title: "Node with generated fid",
 		mimetype: "application/json",
@@ -31,7 +31,7 @@ test("Node constructor should generate fid with title if not provided", () => {
 	expect(FidGenerator.generate(node.title)).toBe(node.fid);
 });
 
-test("Node constructor should throw error if title is missing", () => {
+it("Node constructor should throw error if title is missing", () => {
 	expect(() => {
 		new Node({
 			title: "",
@@ -42,7 +42,7 @@ test("Node constructor should throw error if title is missing", () => {
 	}).toThrow();
 });
 
-test("Node constructor should throw error if mimetype is missing", () => {
+it("Node constructor should throw error if mimetype is missing", () => {
 	expect(() => {
 		new Node({
 			title: "Title",
@@ -53,7 +53,7 @@ test("Node constructor should throw error if mimetype is missing", () => {
 	}).toThrow();
 });
 
-test("Node constructor should throw error if parent is missing", () => {
+it("Node constructor should throw error if parent is missing", () => {
 	expect(() => {
 		new Node({
 			title: "Title",
@@ -64,7 +64,7 @@ test("Node constructor should throw error if parent is missing", () => {
 	}).toThrow();
 });
 
-test("Node constructor should throw error if owner is missing", () => {
+it("Node constructor should throw error if owner is missing", () => {
 	expect(() => {
 		new Node({
 			title: "Title",
@@ -75,7 +75,7 @@ test("Node constructor should throw error if owner is missing", () => {
 	}).toThrow();
 });
 
-test("Node update should modify the title, fid and description", () => {
+it("Node update should modify the title, fid and description", () => {
 	const node = new Node({
 		title: "Initial Title",
 		description: "Initial Description",
@@ -95,7 +95,7 @@ test("Node update should modify the title, fid and description", () => {
 	expect(node.description).toBe("Updated Description");
 });
 
-test("Node update should not modify the createdTime", () => {
+it("Node update should not modify the createdTime", () => {
 	const node = new Node({
 		title: "Initial Title",
 		mimetype: "text/plain",
@@ -106,7 +106,7 @@ test("Node update should not modify the createdTime", () => {
 	expect(node.createdTime).toBe(createdTime);
 });
 
-test("Node update should throw error if title is missing", () => {
+it("Node update should throw error if title is missing", () => {
 	const node = new Node({
 		title: "Initial Title",
 		mimetype: "application/javascript",
@@ -119,7 +119,7 @@ test("Node update should throw error if title is missing", () => {
 	expect(result.value).toBeInstanceOf(ValidationError);
 });
 
-test("Node update should throw error if parent is missing", () => {
+it("Node update should throw error if parent is missing", () => {
 	const node = new Node({
 		title: "Initial Title",
 		mimetype: "application/javascript",
@@ -132,7 +132,7 @@ test("Node update should throw error if parent is missing", () => {
 	expect(result.value).toBeInstanceOf(ValidationError);
 });
 
-test("Node update should modify the modifiedTime", async () => {
+it("Node update should modify the modifiedTime", async () => {
 	const node = new Node({
 		title: "Initial Title",
 		mimetype: "application/pdf",
@@ -147,7 +147,7 @@ test("Node update should modify the modifiedTime", async () => {
 	expect(node.modifiedTime !== initialModifiedTime).toBeTruthy();
 });
 
-test("Node.update should generate fid if empty", () => {
+it("Node.update should generate fid if empty", () => {
 	const node = new Node({
 		title: "Initial File",
 		parent: Folders.ROOT_FOLDER_UUID,
@@ -161,7 +161,7 @@ test("Node.update should generate fid if empty", () => {
 	expect(node.fid !== "", "Fid should not be empty").toBe(true);
 });
 
-test("Node.update should not modify the mimetype", () => {
+it("Node.update should not modify the mimetype", () => {
 	const node = new Node({
 		title: "Initial File",
 		mimetype: "text/plain",

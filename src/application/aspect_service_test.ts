@@ -1,4 +1,4 @@
-import { describe, test } from "bdd";
+import { describe, it } from "bdd";
 import { expect } from "expect";
 import { AspectService } from "./aspect_service.ts";
 import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository.ts";
@@ -43,7 +43,7 @@ describe("AspectService", () => {
 		return new AspectService(nodeService);
 	}
 
-	test("createOrReplace should create a new aspect", async () => {
+	it("createOrReplace should create a new aspect", async () => {
 		const service = createService();
 
 		const aspectOrErr = await service.createOrReplace(
@@ -57,7 +57,7 @@ describe("AspectService", () => {
 		expect(aspectOrErr.right.filters).toEqual(testAspect.filters);
 	});
 
-	test("createOrReplace should replace existing aspect", async () => {
+	it("createOrReplace should replace existing aspect", async () => {
 		const service = createService();
 
 		// Create initial aspect
@@ -80,7 +80,7 @@ describe("AspectService", () => {
 		expect(aspectOrErr.right.filters).toEqual(updatedAspect.filters);
 	});
 
-	test("get should return an aspect", async () => {
+	it("get should return an aspect", async () => {
 		const service = createService();
 
 		await service.createOrReplace(adminAuthContext, testAspect);
@@ -92,7 +92,7 @@ describe("AspectService", () => {
 		expect(aspectOrErr.right.title).toBe(testAspect.title);
 	});
 
-	test("get should return error if aspect not found", async () => {
+	it("get should return error if aspect not found", async () => {
 		const service = createService();
 
 		const aspectOrErr = await service.get(
@@ -104,7 +104,7 @@ describe("AspectService", () => {
 		expect(aspectOrErr.value).toBeInstanceOf(AspectNotFoundError);
 	});
 
-	test("list should return all aspects including built-ins", async () => {
+	it("list should return all aspects including built-ins", async () => {
 		const service = createService();
 
 		await service.createOrReplace(adminAuthContext, testAspect);
@@ -121,7 +121,7 @@ describe("AspectService", () => {
 		expect(aspects.some((a) => a.uuid === "another-aspect")).toBeTruthy();
 	});
 
-	test("delete should remove an aspect", async () => {
+	it("delete should remove an aspect", async () => {
 		const service = createService();
 
 		await service.createOrReplace(adminAuthContext, testAspect);
@@ -137,7 +137,7 @@ describe("AspectService", () => {
 		expect(aspectOrErr.value).toBeInstanceOf(AspectNotFoundError);
 	});
 
-	test("export should create a JSON file for the aspect", async () => {
+	it("export should create a JSON file for the aspect", async () => {
 		const service = createService();
 
 		await service.createOrReplace(adminAuthContext, testAspect);

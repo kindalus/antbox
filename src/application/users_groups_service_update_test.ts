@@ -1,4 +1,4 @@
-import { describe, test } from "bdd";
+import { describe, it } from "bdd";
 import { expect } from "expect";
 import type { UsersGroupsContext } from "./users_groups_service_context.ts";
 import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus.ts";
@@ -12,9 +12,10 @@ import { Users } from "domain/users_groups/users.ts";
 import { UserNotFoundError } from "domain/users_groups/user_not_found_error.ts";
 import GroupNotFoundError from "domain/users_groups/group_not_found_error.ts";
 import { BadRequestError } from "shared/antbox_error.ts";
+import { errToMsg } from "shared/test_helpers.ts";
 
 describe("UsersGroupsService.updateUser", () => {
-	test("should update the user", async () => {
+	it("should update the user", async () => {
 		const service = usersGroupsService();
 
 		const createdUserOrErr = await service.createUser(authCtx, {
@@ -35,7 +36,7 @@ describe("UsersGroupsService.updateUser", () => {
 		expect(updated.name).toBe("James Smith");
 	});
 
-	test("should not update email", async () => {
+	it("should not update email", async () => {
 		const service = usersGroupsService();
 
 		const createdUserOrErr = await service.createUser(authCtx, {
@@ -63,7 +64,7 @@ describe("UsersGroupsService.updateUser", () => {
 		expect(updatedUserOrErr.right.email).toBe("bale@gmail.com");
 	});
 
-	test("should return error if user not found", async () => {
+	it("should return error if user not found", async () => {
 		const service = usersGroupsService();
 
 		const voidOrErr = await service.updateUser(authCtx, "any uuid", {
@@ -74,7 +75,7 @@ describe("UsersGroupsService.updateUser", () => {
 		expect(voidOrErr.value).toBeInstanceOf(UserNotFoundError);
 	});
 
-	test("should not udpdate builtin root user", async () => {
+	it("should not udpdate builtin root user", async () => {
 		const service = usersGroupsService();
 
 		const voidOrErr = await service.updateUser(authCtx, Users.ROOT_USER_EMAIL, {
@@ -86,7 +87,7 @@ describe("UsersGroupsService.updateUser", () => {
 		expect(voidOrErr.value).toBeInstanceOf(BadRequestError);
 	});
 
-	test("should not udpdate builtin anonymous user", async () => {
+	it("should not udpdate builtin anonymous user", async () => {
 		const service = usersGroupsService();
 
 		const voidOrErr = await service.updateUser(
@@ -103,7 +104,7 @@ describe("UsersGroupsService.updateUser", () => {
 });
 
 describe("UsersGroupsService.updateGroup", () => {
-	test("should update the group", async () => {
+	it("should update the group", async () => {
 		const service = usersGroupsService();
 
 		const createdGroupOrErr = await service.createGroup(authCtx, {
@@ -129,7 +130,7 @@ describe("UsersGroupsService.updateGroup", () => {
 		expect(updatedGroupOrErr.right.title).toBe("Updated title");
 	});
 
-	test("should return error if group not found", async () => {
+	it("should return error if group not found", async () => {
 		const service = usersGroupsService();
 
 		(await service.createUser(authCtx, {
@@ -147,7 +148,7 @@ describe("UsersGroupsService.updateGroup", () => {
 		expect(voidOrErr.value).toBeInstanceOf(GroupNotFoundError);
 	});
 
-	test("should not update builtin group", async () => {
+	it("should not update builtin group", async () => {
 		const service = usersGroupsService();
 
 		const voidOrErr = await service.updateGroup(
@@ -187,7 +188,3 @@ const usersGroupsService = (
 		repository: opts.repository ?? new InMemoryNodeRepository(),
 		bus: opts.bus ?? new InMemoryEventBus(),
 	});
-
-const errToMsg = (
-	err: any,
-) => (err?.message ? err.message : JSON.stringify(err));

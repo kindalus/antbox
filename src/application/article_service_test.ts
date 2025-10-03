@@ -1,7 +1,7 @@
 import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus.ts";
 import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository.ts";
 import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider.ts";
-import { describe, test } from "bdd";
+import { describe, it } from "bdd";
 import { expect } from "expect";
 import { NodeService } from "application/node_service.ts";
 import { ArticleService } from "application/article_service.ts";
@@ -15,7 +15,7 @@ import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import { Groups } from "domain/users_groups/groups.ts";
 
 describe("ArticleService", () => {
-	test("createOrReplace should create a article", async () => {
+	it("createOrReplace should create a article", async () => {
 		const service = createService();
 
 		const file = new File(["<p>Content</p>"], "javascript", {
@@ -36,7 +36,7 @@ describe("ArticleService", () => {
 		expect(articleOrErr.right.size).toBe(file.size);
 	});
 
-	test("createOrReplace should replace existing article", async () => {
+	it("createOrReplace should replace existing article", async () => {
 		const service = createService();
 
 		const file = new File(["<p>Content</p>"], "javascript", {
@@ -65,7 +65,7 @@ describe("ArticleService", () => {
 		expect(articleOrErr.right.size).toBe(newFile.size);
 	});
 
-	test("createOrReplace should return error if uuid not provided", async () => {
+	it("createOrReplace should return error if uuid not provided", async () => {
 		const service = createService();
 
 		const articleOrErr = await service.createOrReplace(adminAuthContext, file, {
@@ -78,7 +78,7 @@ describe("ArticleService", () => {
 		expect(articleOrErr.value).toBeInstanceOf(BadRequestError);
 	});
 
-	test("createOrReplace should return error if file mimetype is invalid", async () => {
+	it("createOrReplace should return error if file mimetype is invalid", async () => {
 		const service = createService();
 
 		const file = new File(["<p>Content</p>"], "javascript", {
@@ -95,7 +95,7 @@ describe("ArticleService", () => {
 		expect(articleOrErr.value).toBeInstanceOf(BadRequestError);
 	});
 
-	test("get should return HTML content", async () => {
+	it("get should return HTML content", async () => {
 		const service = createService();
 
 		const file = new File(["<p>Content</p>"], "javascript", {
@@ -115,7 +115,7 @@ describe("ArticleService", () => {
 		expect(htmlOrErr.right).toBe("<p>Content</p>");
 	});
 
-	test("get should return HTML content if mimetype is 'text/html' ", async () => {
+	it("get should return HTML content if mimetype is 'text/html' ", async () => {
 		const service = createService();
 
 		const htmlOrErr = await service.get(adminAuthContext, "--html--");
@@ -124,7 +124,7 @@ describe("ArticleService", () => {
 		expect(htmlOrErr.right).toContain("<h1>The Title</h1>");
 	});
 
-	test("get should convert markdown to HTML", async () => {
+	it("get should convert markdown to HTML", async () => {
 		const service = createService();
 
 		const markdownFile = new File(
@@ -149,7 +149,7 @@ describe("ArticleService", () => {
 		expect(htmlOrErr.right).toEqual(expectedHtml);
 	});
 
-	test("get should convert text/plain to HTML paragraphs", async () => {
+	it("get should convert text/plain to HTML paragraphs", async () => {
 		const service = createService();
 
 		const htmlOrErr = await service.get(adminAuthContext, "--txt--");
@@ -159,7 +159,7 @@ describe("ArticleService", () => {
 		expect(htmlOrErr.right).toContain("The Title");
 	});
 
-	test("get should return error if node is not article", async () => {
+	it("get should return error if node is not article", async () => {
 		const service = createService();
 
 		const htmlOrErr = await service.get(adminAuthContext, "--json--");
@@ -168,7 +168,7 @@ describe("ArticleService", () => {
 		expect(htmlOrErr.value).toBeInstanceOf(NodeNotFoundError);
 	});
 
-	test("get with lang parameter should return HTML filtered by language", async () => {
+	it("get with lang parameter should return HTML filtered by language", async () => {
 		const service = createService();
 
 		const file = new File([html], "filename", {
@@ -192,7 +192,7 @@ describe("ArticleService", () => {
 		expect(htmlOrErr.right.includes("Article Title (EN)")).toBeTruthy();
 	});
 
-	test("delete should remove an article", async () => {
+	it("delete should remove an article", async () => {
 		const service = createService();
 
 		await service.createOrReplace(adminAuthContext, file, articleDummy);
@@ -204,7 +204,7 @@ describe("ArticleService", () => {
 		expect(deleteOrErr.isRight(), errMsg(deleteOrErr.value)).toBeTruthy();
 	});
 
-	test("delete should return error if node not found", async () => {
+	it("delete should return error if node not found", async () => {
 		const service = createService();
 
 		await service.createOrReplace(adminAuthContext, file, articleDummy);
@@ -214,33 +214,33 @@ describe("ArticleService", () => {
 		expect(deleteOrErr.value).toBeInstanceOf(NodeNotFoundError);
 	});
 
-	test("list should list all articles", async () => {
+	it("list should list all articles", async () => {
 		const service = createService();
 
 		const file = new File(["<p>Content</p>"], "javascript", {
 			type: "text/html",
 		});
 
-		const first = await service.createOrReplace(adminAuthContext, file, {
+		(await service.createOrReplace(adminAuthContext, file, {
 			uuid: "--uuid--",
 			title: "javascript",
 			description: "The description",
 			parent: "--parent--",
-		});
+		})).right;
 
-		const second = await service.createOrReplace(adminAuthContext, file, {
+		(await service.createOrReplace(adminAuthContext, file, {
 			uuid: "--new-uuid--",
 			title: "python",
 			description: "The description",
 			parent: "--parent--",
-		});
+		})).right;
 
 		const articles = await service.list(adminAuthContext);
 
 		expect(articles.length).toBe(2);
 	});
 
-	test("get should return HTML string for HTML article", async () => {
+	it("get should return HTML string for HTML article", async () => {
 		const service = createService();
 
 		await service.createOrReplace(adminAuthContext, file, articleDummy);
@@ -251,7 +251,7 @@ describe("ArticleService", () => {
 		expect(htmlOrErr.right).toBe("<p>Content</p>");
 	});
 
-	test("get should convert markdown article to HTML string", async () => {
+	it("get should convert markdown article to HTML string", async () => {
 		const service = createService();
 
 		const markdownFile = new File(
@@ -278,7 +278,7 @@ describe("ArticleService", () => {
 		expect(htmlOrErr.right).toContain("<strong>bold</strong>");
 	});
 
-	test("get should convert plain text article to HTML string", async () => {
+	it("get should convert plain text article to HTML string", async () => {
 		const service = createService();
 
 		const textFile = new File(

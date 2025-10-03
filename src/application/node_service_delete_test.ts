@@ -1,4 +1,4 @@
-import { describe, test } from "bdd";
+import { describe, it } from "bdd";
 import { expect, fn } from "expect";
 import { NodeService } from "./node_service.ts";
 import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository.ts";
@@ -17,7 +17,7 @@ import { pid } from "node:process";
 import { Left, Right } from "shared/either.ts";
 
 describe("NodeService.delete", () => {
-	test("should delete a node and its metadata", async () => {
+	it("should delete a node and its metadata", async () => {
 		const node = FileNode.create({
 			title: "Node to delete",
 			mimetype: Nodes.SMART_FOLDER_MIMETYPE,
@@ -47,7 +47,7 @@ describe("NodeService.delete", () => {
 		expect(bus.publish).toHaveBeenCalled();
 	});
 
-	test("should return error if node is not found", async () => {
+	it("should return error if node is not found", async () => {
 		const service = nodeService();
 
 		const deleteOrErr = await service.delete(authCtx, "not-found");
@@ -55,7 +55,7 @@ describe("NodeService.delete", () => {
 		expect(deleteOrErr.value).toBeInstanceOf(NodeNotFoundError);
 	});
 
-	test("should remove all childs if node is a folder", async () => {
+	it("should remove all childs if node is a folder", async () => {
 		const service = nodeService();
 
 		const folder = await service.create(authCtx, {
@@ -77,7 +77,7 @@ describe("NodeService.delete", () => {
 		expect(getChildOrErr.value).toBeInstanceOf(NodeNotFoundError);
 	});
 
-	test("should return a error if principal is no allowed to write on parent folder", async () => {
+	it("should return a error if principal is no allowed to write on parent folder", async () => {
 		const service = nodeService();
 
 		const parent = await service.create(authCtx, {

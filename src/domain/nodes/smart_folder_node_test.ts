@@ -1,11 +1,11 @@
-import { test } from "bdd";
+import { it } from "bdd";
 import { expect } from "expect";
 import { ValidationError } from "shared/validation_error.ts";
 import { Folders } from "./folders.ts";
 import { Nodes } from "./nodes.ts";
 import { SmartFolderNode } from "./smart_folder_node.ts";
 
-test("SmartFolderNode.create should initialize", () => {
+it("SmartFolderNode.create should initialize", () => {
 	const result = SmartFolderNode.create({
 		title: "New smart folder",
 		parent: Folders.ROOT_FOLDER_UUID,
@@ -21,7 +21,7 @@ test("SmartFolderNode.create should initialize", () => {
 	expect(smartFolderNode.filters).toEqual([["title", "==", "example"]]);
 });
 
-test("SmartFolderNode.create should return error if filters is missing", () => {
+it("SmartFolderNode.create should return error if filters is missing", () => {
 	const result = SmartFolderNode.create({
 		title: "New smart folder",
 		parent: Folders.ROOT_FOLDER_UUID,
@@ -32,7 +32,7 @@ test("SmartFolderNode.create should return error if filters is missing", () => {
 	expect(result.value).toBeInstanceOf(ValidationError);
 });
 
-test("SmartFolderNode.update should modify the title, fid, parent and filters", async () => {
+it("SmartFolderNode.update should modify the title, fid, parent and filters", async () => {
 	const createResult = SmartFolderNode.create({
 		title: "Initial smart folder",
 		parent: Folders.ROOT_FOLDER_UUID,
@@ -60,7 +60,7 @@ test("SmartFolderNode.update should modify the title, fid, parent and filters", 
 	expect(smartFolderNode.modifiedTime > initialModifiedTime).toBe(true);
 });
 
-test("SmartFolderNode.update should not change createdTime", () => {
+it("SmartFolderNode.update should not change createdTime", () => {
 	const createResult = SmartFolderNode.create({
 		title: "Initial smart folder",
 		parent: Folders.ROOT_FOLDER_UUID,
@@ -78,7 +78,7 @@ test("SmartFolderNode.update should not change createdTime", () => {
 	expect(smartFolderNode.createdTime).toBe(createdTime);
 });
 
-test("SmartFolderNode.update should return error if title is missing", () => {
+it("SmartFolderNode.update should return error if title is missing", () => {
 	const smartFolderNodeOrErr = SmartFolderNode.create({
 		title: "Initial smart folder",
 		parent: Folders.ROOT_FOLDER_UUID,
@@ -93,7 +93,7 @@ test("SmartFolderNode.update should return error if title is missing", () => {
 	expect(result.value).toBeInstanceOf(ValidationError);
 });
 
-test("SmartFolderNode.update should not update filters", () => {
+it("SmartFolderNode.update should not update filters", () => {
 	const createResult = SmartFolderNode.create({
 		title: "Initial Smart Folder",
 		parent: Folders.ROOT_FOLDER_UUID,

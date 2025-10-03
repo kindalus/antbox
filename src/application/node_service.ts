@@ -1,7 +1,7 @@
 import { AspectNode, type AspectProperty } from "domain/aspects/aspect_node.ts";
 import { Aspects } from "domain/aspects/aspects.ts";
 import { NodeFactory } from "domain/node_factory.ts";
-import type { FileLikeNode, NodeLike } from "domain/node_like.ts";
+import type { AspectableNode, FileLikeNode, NodeLike } from "domain/node_like.ts";
 import { FileNode } from "domain/nodes/file_node.ts";
 import { FolderNode } from "domain/nodes/folder_node.ts";
 import { FolderNotFoundError } from "domain/nodes/folder_not_found_error.ts";
@@ -43,6 +43,7 @@ import { Specification, specificationFn } from "shared/specification.ts";
 import { builtinAspects } from "./builtin_aspects/index.ts";
 import { builtinGroups } from "./builtin_groups/index.ts";
 import { builtinUsers } from "./builtin_users/index.ts";
+import { FeatureNode, FeatureParameter } from "domain/features/feature_node.ts";
 
 // TODO: Implements throwing events
 
@@ -657,9 +658,9 @@ export class NodeService {
 
 		if (
 			(Nodes.isFileLike(node) || Nodes.isFolder(node)) &&
-			(node as any).tags?.length
+			node.tags?.length
 		) {
-			fulltext.push(...(node as any).tags);
+			fulltext.push(...node.tags);
 		}
 
 		if (Nodes.hasAspects(node)) {
@@ -1050,7 +1051,7 @@ export class NodeService {
 
 		// Replace readonly property values with existing node values
 		const safeProperties: Record<string, unknown> = {};
-		const currentProperties = (node as any).properties || {};
+		const currentProperties = (node as AspectableNode).properties || {};
 
 		for (const [key, value] of Object.entries(metadata.properties)) {
 			const isReadonly = readonlyMap.get(key);
@@ -1114,7 +1115,7 @@ export class NodeService {
 			return right(undefined);
 		}
 
-		const feature = node as any; // Cast to access feature properties
+		const feature = node as FeatureNode; // Cast to access feature properties
 		const exposureCount = [
 			feature.exposeAction,
 			feature.exposeExtension,
@@ -1171,7 +1172,7 @@ export class NodeService {
 		return right(undefined);
 	}
 
-	#validateActionFeature(feature: any): BadRequestError | null {
+	#validateActionFeature(feature: FeatureNode): BadRequestError | null {
 		// Actions must have parameters
 		if (!feature.parameters || !Array.isArray(feature.parameters)) {
 			return new BadRequestError(
@@ -1180,7 +1181,7 @@ export class NodeService {
 		}
 
 		// Actions must have uuids parameter
-		const uuidsParam = feature.parameters.find((p: any) => p.name === "uuids");
+		const uuidsParam = feature.parameters.find((p: FeatureParameter) => p.name === "uuids");
 		if (!uuidsParam) {
 			return new BadRequestError(
 				"Feature with exposeAction=true must have a uuids parameter",
@@ -1201,7 +1202,7 @@ export class NodeService {
 		}
 
 		// Actions cannot have file parameters
-		const hasFileParam = feature.parameters.some((p: any) => p.type === "file");
+		const hasFileParam = feature.parameters.some((p: FeatureParameter) => p.type === "file");
 		if (hasFileParam) {
 			return new BadRequestError(
 				"Actions cannot have file parameters",
@@ -1211,10 +1212,10 @@ export class NodeService {
 		return null;
 	}
 
-	#validateExtensionFeature(feature: any): BadRequestError | null {
+	#validateExtensionFeature(feature: FeatureNode): BadRequestError | null {
 		// Extensions cannot have uuids parameter unless they're also Actions
 		if (feature.parameters && Array.isArray(feature.parameters)) {
-			const hasUuidsParam = feature.parameters.some((p: any) => p.name === "uuids");
+			const hasUuidsParam = feature.parameters.some((p: FeatureParameter) => p.name === "uuids");
 			if (hasUuidsParam && !feature.exposeAction) {
 				return new BadRequestError(
 					"Extensions cannot have uuids parameter (Action-specific)",
@@ -1229,10 +1230,10 @@ export class NodeService {
 		return null;
 	}
 
-	#validateAIToolFeature(feature: any): BadRequestError | null {
+	#validateAIToolFeature(feature: FeatureNode): BadRequestError | null {
 		// AI Tools cannot have uuids parameter unless they're also Actions
 		if (feature.parameters && Array.isArray(feature.parameters)) {
-			const hasUuidsParam = feature.parameters.some((p: any) => p.name === "uuids");
+			const hasUuidsParam = feature.parameters.some((p: FeatureParameter) => p.name === "uuids");
 			if (hasUuidsParam && !feature.exposeAction) {
 				return new BadRequestError(
 					"AI Tools cannot have uuids parameter (Action-specific)",
@@ -1240,7 +1241,7 @@ export class NodeService {
 			}
 
 			// AI Tools cannot have file parameters
-			const hasFileParam = feature.parameters.some((p: any) => p.type === "file");
+			const hasFileParam = feature.parameters.some((p: FeatureParameter) => p.type === "file");
 			if (hasFileParam) {
 				return new BadRequestError(
 					"AI Tools cannot have file parameters",

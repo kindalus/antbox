@@ -1,7 +1,7 @@
 import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus.ts";
 import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository.ts";
 import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider.ts";
-import { describe, test } from "bdd";
+import { describe, it } from "bdd";
 import { expect } from "expect";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
@@ -14,9 +14,10 @@ import { Users } from "domain/users_groups/users.ts";
 import type { AuthenticationContext } from "./authentication_context.ts";
 import { UsersGroupsService } from "./users_groups_service.ts";
 import type { UsersGroupsContext } from "./users_groups_service_context.ts";
+import { errToMsg } from "shared/test_helpers.ts";
 
 describe("UsersGroupsService.getUser", () => {
-	test("should return user from repository", async () => {
+	it("should return user from repository", async () => {
 		const service = usersGroupsService();
 
 		const authCtx: AuthenticationContext = {
@@ -39,7 +40,7 @@ describe("UsersGroupsService.getUser", () => {
 		expect(userOrErr.value, errToMsg(userOrErr.value)).toBeTruthy();
 	});
 
-	test("should return authenticated user", async () => {
+	it("should return authenticated user", async () => {
 		const service = usersGroupsService();
 
 		const authCtx: AuthenticationContext = {
@@ -62,7 +63,7 @@ describe("UsersGroupsService.getUser", () => {
 		expect(userOrErr.value, errToMsg(userOrErr.value)).toBeTruthy();
 	});
 
-	test("should return builtin user root", async () => {
+	it("should return builtin user root", async () => {
 		const service = usersGroupsService();
 
 		const authCtx: AuthenticationContext = {
@@ -80,7 +81,7 @@ describe("UsersGroupsService.getUser", () => {
 		expect(userOrErr.right.email).toBe(Users.ROOT_USER_EMAIL);
 	});
 
-	test("should return builtin user anonymous", async () => {
+	it("should return builtin user anonymous", async () => {
 		const service = usersGroupsService();
 
 		const authCtx: AuthenticationContext = {
@@ -101,7 +102,7 @@ describe("UsersGroupsService.getUser", () => {
 		expect(userOrErr.right.email).toBe(Users.ANONYMOUS_USER_EMAIL);
 	});
 
-	test("should return user if autenticated user is an admin", async () => {
+	it("should return user if autenticated user is an admin", async () => {
 		const service = usersGroupsService();
 
 		const authCtx: AuthenticationContext = {
@@ -125,7 +126,7 @@ describe("UsersGroupsService.getUser", () => {
 		expect(userOrErr.right.email).toBe("steven@gmail.com");
 	});
 
-	test("should return error if user is not found", async () => {
+	it("should return error if user is not found", async () => {
 		const service = usersGroupsService();
 
 		const userOrErr = await service.getUser(authCtx, "juddy@gmail.com");
@@ -136,7 +137,7 @@ describe("UsersGroupsService.getUser", () => {
 });
 
 describe("UsersGroupsService.getGroup", () => {
-	test("should return group from repository", async () => {
+	it("should return group from repository", async () => {
 		const service = usersGroupsService();
 
 		await service.createGroup(authCtx, {
@@ -151,7 +152,7 @@ describe("UsersGroupsService.getGroup", () => {
 		expect(groupOrErr.right.mimetype).toBe(Nodes.GROUP_MIMETYPE);
 	});
 
-	test("should return builtin admins group", async () => {
+	it("should return builtin admins group", async () => {
 		const service = usersGroupsService();
 
 		const groupOrErr = await service.getGroup(Groups.ADMINS_GROUP_UUID);
@@ -162,7 +163,7 @@ describe("UsersGroupsService.getGroup", () => {
 		expect(groupOrErr.right.description).toBe("Admins");
 	});
 
-	test("should return error if group is not found", async () => {
+	it("should return error if group is not found", async () => {
 		const service = usersGroupsService();
 
 		const groupOrErr = await service.getGroup("--any group uuid--");
@@ -171,7 +172,7 @@ describe("UsersGroupsService.getGroup", () => {
 		expect(groupOrErr.value).toBeInstanceOf(NodeNotFoundError);
 	});
 
-	test("should return error if node is not group", async () => {
+	it("should return error if node is not group", async () => {
 		const service = usersGroupsService();
 
 		const groupOrErr = await service.getGroup("doily-uuid");
@@ -223,7 +224,3 @@ const usersGroupsService = (
 		repository: opts.repository ?? new InMemoryNodeRepository(),
 		bus: opts.bus ?? new InMemoryEventBus(),
 	});
-
-const errToMsg = (
-	err: any,
-) => (err.message ? err.message : JSON.stringify(err));

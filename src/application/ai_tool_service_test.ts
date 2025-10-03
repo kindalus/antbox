@@ -1,4 +1,4 @@
-import { describe, test } from "bdd";
+import { describe, it } from "bdd";
 import { expect } from "expect";
 import { FeatureService } from "./feature_service.ts";
 import { NodeService } from "./node_service.ts";
@@ -11,9 +11,10 @@ import { UsersGroupsService } from "./users_groups_service.ts";
 import { GroupNode } from "domain/users_groups/group_node.ts";
 import { builtinFolders } from "application/builtin_folders/index.ts";
 import { Groups } from "domain/users_groups/groups.ts";
+import { errToMsg } from "shared/test_helpers.ts";
 
 describe("AI Tool Service Tests", () => {
-	test("should list features including AI tools", async () => {
+	it("should list features including AI tools", async () => {
 		const service = await createService();
 
 		await service.createOrReplace(
@@ -34,7 +35,7 @@ describe("AI Tool Service Tests", () => {
 		}
 	});
 
-	test("should run AI tool with proper parameters", async () => {
+	it("should run AI tool with proper parameters", async () => {
 		const service = await createService();
 
 		await service.createOrReplace(
@@ -66,7 +67,7 @@ describe("AI Tool Service Tests", () => {
 		}
 	});
 
-	test("should return error if AI tool is not found when running", async () => {
+	it("should return error if AI tool is not found when running", async () => {
 		const service = await createService();
 
 		const result = await service.runAITool(
@@ -78,7 +79,7 @@ describe("AI Tool Service Tests", () => {
 		expect(result.isLeft()).toBeTruthy();
 	});
 
-	test("should run AI Tool with valid parameters", async () => {
+	it("should run AI Tool with valid parameters", async () => {
 		const service = await createService();
 
 		await service.createOrReplace(
@@ -107,7 +108,7 @@ describe("AI Tool Service Tests", () => {
 		}
 	});
 
-	test("should create AI Tool with valid parameters", async () => {
+	it("should create AI Tool with valid parameters", async () => {
 		const service = await createService();
 
 		const validAIToolContent = `
@@ -145,7 +146,7 @@ describe("AI Tool Service Tests", () => {
 		expect(result.isRight()).toBeTruthy();
 	});
 
-	test("should create AI Tool with group restrictions", async () => {
+	it("should create AI Tool with group restrictions", async () => {
 		const service = await createService();
 
 		const restrictedAIToolContent = `
@@ -196,7 +197,7 @@ describe("AI Tool Service Tests", () => {
 		}
 	});
 
-	test("should execute AI Tool with proper context and parameters", async () => {
+	it("should execute AI Tool with proper context and parameters", async () => {
 		const service = await createService();
 
 		const contextAwareAIToolContent = `
@@ -254,7 +255,7 @@ describe("AI Tool Service Tests", () => {
 		}
 	});
 
-	test("should handle AI Tool with complex parameter validation", async () => {
+	it("should handle AI Tool with complex parameter validation", async () => {
 		const service = await createService();
 
 		const complexAIToolContent = `
@@ -343,7 +344,7 @@ describe("AI Tool Service Tests", () => {
 		}
 	});
 
-	test("should handle AI Tool runtime errors gracefully", async () => {
+	it("should handle AI Tool runtime errors gracefully", async () => {
 		const service = await createService();
 
 		const errorAIToolContent = `
@@ -405,7 +406,7 @@ describe("AI Tool Service Tests", () => {
 		}
 	});
 
-	test("should return error for non-existent AI Tool", async () => {
+	it("should return error for non-existent AI Tool", async () => {
 		const service = await createService();
 
 		const result = await service.runAITool(
@@ -417,7 +418,7 @@ describe("AI Tool Service Tests", () => {
 		expect(result.isLeft()).toBeTruthy();
 	});
 
-	test("should return error for non-AI Tool Feature", async () => {
+	it("should return error for non-AI Tool Feature", async () => {
 		const service = await createService();
 
 		const actionContent = `
@@ -465,7 +466,7 @@ describe("AI Tool Service Tests", () => {
 		expect((result.value as BadRequestError).message).toContain("not exposed as AI tool");
 	});
 
-	test("should allow AI Tools with empty groupsAllowed (public access)", async () => {
+	it("should allow AI Tools with empty groupsAllowed (public access)", async () => {
 		const service = await createService();
 
 		const publicAIToolContent = `
@@ -514,7 +515,7 @@ describe("AI Tool Service Tests", () => {
 		}
 	});
 
-	test("listAITools should return only AI Tools", async () => {
+	it("listAITools should return only AI Tools", async () => {
 		const service = await createService();
 
 		// Create an AI Tool
@@ -610,7 +611,7 @@ describe("AI Tool Service Tests", () => {
 		}
 	});
 
-	test("should handle AI Tool execution with all parameters", async () => {
+	it("should handle AI Tool execution with all parameters", async () => {
 		const service = await createService();
 
 		await service.createOrReplace(
@@ -640,7 +641,7 @@ describe("AI Tool Service Tests", () => {
 		}
 	});
 
-	test("should handle AI Tool with no parameters", async () => {
+	it("should handle AI Tool with no parameters", async () => {
 		const service = await createService();
 
 		const noParamsAIToolContent = `
@@ -786,7 +787,3 @@ const testAIToolContent = `
     }
   };
 `;
-
-const errToMsg = (
-	err: any,
-) => (err?.message ? err.message : JSON.stringify(err));

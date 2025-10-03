@@ -1,4 +1,4 @@
-import { test } from "bdd";
+import { it } from "bdd";
 import { expect } from "expect";
 import { Folders } from "domain/nodes/folders.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
@@ -8,7 +8,7 @@ import { UserNode } from "./user_node.ts";
 
 const timeout = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-test("UserNode.create should initialize", () => {
+it("UserNode.create should initialize", () => {
 	const createResult = UserNode.create({
 		owner: "root@antbox.io",
 		email: "user@domain.com",
@@ -24,7 +24,7 @@ test("UserNode.create should initialize", () => {
 	expect(user.parent).toBe(Folders.USERS_FOLDER_UUID);
 });
 
-test("UserNode.create should throw error if group is missing", () => {
+it("UserNode.create should throw error if group is missing", () => {
 	const result = UserNode.create({
 		owner: "root@antbox.io",
 		email: "user@domain.com",
@@ -39,7 +39,7 @@ test("UserNode.create should throw error if group is missing", () => {
 	).toBeTruthy();
 });
 
-test("UserNode.create should throw error if owner is missing", () => {
+it("UserNode.create should throw error if owner is missing", () => {
 	const result = UserNode.create({
 		owner: "",
 		email: "user@domain.com",
@@ -53,7 +53,7 @@ test("UserNode.create should throw error if owner is missing", () => {
 		.toBeTruthy();
 });
 
-test("UserNode.create should throw error if title length less than 3 chars", () => {
+it("UserNode.create should throw error if title length less than 3 chars", () => {
 	const result = UserNode.create({
 		owner: "root@antbox.io",
 		email: "user@domain.com",
@@ -67,7 +67,7 @@ test("UserNode.create should throw error if title length less than 3 chars", () 
 		.toBeTruthy();
 });
 
-test("UserNode.update should modify group, groups, title and description", () => {
+it("UserNode.update should modify group, groups, title and description", () => {
 	const createResult = UserNode.create({
 		owner: "root@antbox.io",
 		email: "user@domain.com",
@@ -91,7 +91,7 @@ test("UserNode.update should modify group, groups, title and description", () =>
 	expect(user.groups).toStrictEqual([]);
 });
 
-test("UserNode.update should not modify parent", () => {
+it("UserNode.update should not modify parent", () => {
 	const createResult = UserNode.create({
 		owner: "root@antbox.io",
 		email: "user@domain.com",
@@ -105,7 +105,7 @@ test("UserNode.update should not modify parent", () => {
 	expect(createResult.right.parent).toBe(Folders.USERS_FOLDER_UUID);
 });
 
-test("UserNode.update should not modify mimetype", () => {
+it("UserNode.update should not modify mimetype", () => {
 	const createResult = UserNode.create({
 		owner: "root@antbox.io",
 		email: "user@domain.com",
@@ -120,7 +120,7 @@ test("UserNode.update should not modify mimetype", () => {
 	expect(user.mimetype).toBe(Nodes.USER_MIMETYPE);
 });
 
-test("UserNode.update should not modify email", async () => {
+it("UserNode.update should not modify email", async () => {
 	const createResult = UserNode.create({
 		owner: "root@antbox.io",
 		email: "user@domain.com",

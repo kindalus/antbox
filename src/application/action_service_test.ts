@@ -1,6 +1,6 @@
 // deno-lint-ignore-file no-explicit-any
 import { expect } from "expect";
-import { describe, test } from "bdd";
+import { describe, it } from "bdd";
 import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus.ts";
 import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository.ts";
 import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider.ts";
@@ -15,7 +15,7 @@ import { UsersGroupsService } from "application/users_groups_service.ts";
 import { builtinFolders } from "application/builtin_folders/index.ts";
 
 describe("Action Service Tests", () => {
-	test("should list features including actions", async () => {
+	it("should list features including actions", async () => {
 		const service = await createService();
 		await service.createOrReplace(
 			adminAuthContext,
@@ -37,7 +37,7 @@ describe("Action Service Tests", () => {
 		}
 	});
 
-	test("should run action", async () => {
+	it("should run action", async () => {
 		const service = await createService();
 		await service.createOrReplace(
 			adminAuthContext,
@@ -61,7 +61,7 @@ describe("Action Service Tests", () => {
 		expect(result.processedCount).toBe(2);
 	});
 
-	test("should return error if action is not found when running", async () => {
+	it("should return error if action is not found when running", async () => {
 		const service = await createService();
 
 		const runResult = await service.runAction(
@@ -74,7 +74,7 @@ describe("Action Service Tests", () => {
 	});
 
 	// Validation tests
-	test("should validate Action must have uuids parameter", async () => {
+	it("should validate Action must have uuids parameter", async () => {
 		const service = await createService();
 
 		const invalidActionContent = `
@@ -118,7 +118,7 @@ describe("Action Service Tests", () => {
 		}
 	});
 
-	test("should validate uuids parameter must be array of strings", async () => {
+	it("should validate uuids parameter must be array of strings", async () => {
 		const service = await createService();
 
 		const invalidActionContent = `
@@ -159,7 +159,7 @@ describe("Action Service Tests", () => {
 		expect(result.value).toBeInstanceOf(ValidationError);
 	});
 
-	test("should validate Action cannot have file parameters", async () => {
+	it("should validate Action cannot have file parameters", async () => {
 		const service = await createService();
 
 		const invalidActionContent = `
@@ -207,7 +207,7 @@ describe("Action Service Tests", () => {
 		expect(result.value).toBeInstanceOf(ValidationError);
 	});
 
-	test("should validate Action filter compliance during execution", async () => {
+	it("should validate Action filter compliance during execution", async () => {
 		const service = await createService();
 
 		const filterActionContent = `
@@ -257,7 +257,7 @@ describe("Action Service Tests", () => {
 		expect(result.isRight()).toBeTruthy();
 	});
 
-	test("should validate Action permissions with groupsAllowed", async () => {
+	it("should validate Action permissions with groupsAllowed", async () => {
 		const service = await createService();
 
 		const restrictedActionContent = `
@@ -314,7 +314,7 @@ describe("Action Service Tests", () => {
 		expect(runResult.isLeft()).toBeTruthy();
 	});
 
-	test("should validate runManually false prevents manual execution", async () => {
+	it("should validate runManually false prevents manual execution", async () => {
 		const service = await createService();
 
 		const nonManualActionContent = `
@@ -364,7 +364,7 @@ describe("Action Service Tests", () => {
 		}
 	});
 
-	test("should execute Action with proper context and parameters", async () => {
+	it("should execute Action with proper context and parameters", async () => {
 		const service = await createService();
 
 		const contextTestContent = `
@@ -432,7 +432,7 @@ describe("Action Service Tests", () => {
 	});
 
 	// Test for handling batch operations
-	test("should handle batch execution on multiple nodes", async () => {
+	it("should handle batch execution on multiple nodes", async () => {
 		const service = await createService();
 
 		const batchActionContent = `
@@ -475,8 +475,6 @@ describe("Action Service Tests", () => {
 			}),
 		);
 
-		const largeBatch = Array.from({ length: 10 }, (_, i) => `uuid-${i}`);
-
 		const result = await service.runAction(
 			adminAuthContext,
 			"batch-action-uuid",
@@ -493,7 +491,7 @@ describe("Action Service Tests", () => {
 	});
 
 	// Test error handling
-	test("should handle action runtime errors gracefully", async () => {
+	it("should handle action runtime errors gracefully", async () => {
 		const service = await createService();
 
 		const errorActionContent = `
@@ -666,7 +664,3 @@ const testActionContent = `
     }
   };
 `;
-
-const errToMsg = (
-	err: any,
-) => (err?.message ? err.message : JSON.stringify(err));

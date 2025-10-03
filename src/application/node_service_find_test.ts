@@ -1,4 +1,4 @@
-import { beforeAll, describe, test } from "bdd";
+import { beforeAll, describe, it } from "bdd";
 import { expect } from "expect";
 import { Users } from "domain/users_groups/users.ts";
 import { Groups } from "domain/users_groups/groups.ts";
@@ -60,7 +60,7 @@ beforeAll(async () => {
 });
 
 describe("NodeService.find", () => {
-	test("should find all jpg files", async () => {
+	it("should find all jpg files", async () => {
 		const filters: NodeFilters1D = [["mimetype", "==", "image/jpeg"]];
 		const result = await service.find(authCtx, filters);
 
@@ -72,7 +72,7 @@ describe("NodeService.find", () => {
 		]);
 	});
 
-	test("should find nodes with OPE aspect", async () => {
+	it("should find nodes with OPE aspect", async () => {
 		const filters: NodeFilters1D = [[
 			"aspects",
 			"contains",
@@ -88,7 +88,7 @@ describe("NodeService.find", () => {
 			.toBeTruthy();
 	});
 
-	test("should find posicao-financeira aspect OR contabilidade folder nodes", async () => {
+	it("should find posicao-financeira aspect OR contabilidade folder nodes", async () => {
 		const filters: NodeFilters2D = [
 			[["aspects", "contains", "posicao-financeira"]],
 			[["parent", "==", "contabilidade-uuid"]],
@@ -107,7 +107,7 @@ describe("NodeService.find", () => {
 			.toBeTruthy();
 	});
 
-	test("should not return files without read permission", async () => {
+	it("should not return files without read permission", async () => {
 		const filters: NodeFilters1D = [["parent", "==", Folders.ROOT_FOLDER_UUID]];
 		const result = await service.find(financeCtx, filters);
 
@@ -117,14 +117,14 @@ describe("NodeService.find", () => {
 });
 
 describe("NodeService.list", () => {
-	test("should list all nodes in the root folder", async () => {
+	it("should list all nodes in the root folder", async () => {
 		const listOrErr = await service.list(authCtx, Folders.ROOT_FOLDER_UUID);
 
 		expect(listOrErr.isRight(), errToMsg(listOrErr.value)).toBeTruthy();
 		expect(listOrErr.right.length).toBeGreaterThan(0);
 	});
 
-	test("should list nodes in 'Data Warehouse' folder", async () => {
+	it("should list nodes in 'Data Warehouse' folder", async () => {
 		const listOrErr = await service.list(authCtx, "data-warehouse-uuid");
 
 		expect(listOrErr.isRight(), errToMsg(listOrErr.value)).toBeTruthy();
@@ -138,21 +138,21 @@ describe("NodeService.list", () => {
 		]);
 	});
 
-	test("should not list nodes in 'Data Warehouse' folder for anonymous user", async () => {
+	it("should not list nodes in 'Data Warehouse' folder for anonymous user", async () => {
 		const listOrErr = await service.list(anonymousCtx, "data-warehouse-uuid");
 
 		expect(listOrErr.isLeft()).toBeTruthy();
 		expect(listOrErr.value).toBeInstanceOf(ForbiddenError);
 	});
 
-	test("should list public nodes in 'Marca' folder for anonymous user", async () => {
+	it("should list public nodes in 'Marca' folder for anonymous user", async () => {
 		const listOrErr = await service.list(anonymousCtx, "marca-uuid");
 
 		expect(listOrErr.isRight(), errToMsg(listOrErr.value)).toBeTruthy();
 		expect(listOrErr.right.length).toBe(6);
 	});
 
-	test("should include system root folder when listing root folder", async () => {
+	it("should include system root folder when listing root folder", async () => {
 		const listOrErr = await service.list(authCtx, Folders.ROOT_FOLDER_UUID);
 
 		expect(listOrErr.isRight(), errToMsg(listOrErr.value)).toBeTruthy();
@@ -160,7 +160,7 @@ describe("NodeService.list", () => {
 			.toBeTruthy();
 	});
 
-	test("should list all system folders when listing system root folder", async () => {
+	it("should list all system folders when listing system root folder", async () => {
 		const listOrErr = await service.list(authCtx, Folders.SYSTEM_FOLDER_UUID);
 
 		expect(listOrErr.isRight(), errToMsg(listOrErr.value)).toBeTruthy();
@@ -169,13 +169,13 @@ describe("NodeService.list", () => {
 		);
 	});
 
-	test("should not show nodes that the user cannot read", async () => {
+	it("should not show nodes that the user cannot read", async () => {
 		const listOrErr = await service.list(anonymousCtx, "vetify-logotipo-uuid");
 		expect(listOrErr.isRight(), errToMsg(listOrErr.value)).toBeTruthy();
 		expect(listOrErr.right.length).toBe(1);
 	});
 
-	test("should evaluate smartfolder when listing it", async () => {
+	it("should evaluate smartfolder when listing it", async () => {
 		const listOrErr = await service.list(
 			authCtx,
 			"posicao-financeira-2024-uuid",
@@ -191,7 +191,7 @@ describe("NodeService.list", () => {
 });
 
 describe("NodeService.evaluate", () => {
-	test("should return filtered nodes", async () => {
+	it("should return filtered nodes", async () => {
 		const evaluationOrErr = await service.evaluate(
 			authCtx,
 			"posicao-financeira-2024-uuid",
@@ -206,7 +206,7 @@ describe("NodeService.evaluate", () => {
 		]);
 	});
 
-	test("should return error if node is not a smartfolder node", async () => {
+	it("should return error if node is not a smartfolder node", async () => {
 		const evaluationOrErr = await service.evaluate(
 			authCtx,
 			"data-warehouse-uuid",

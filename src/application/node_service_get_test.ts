@@ -1,4 +1,4 @@
-import { describe, test } from "bdd";
+import { describe, it } from "bdd";
 import { expect } from "expect";
 
 import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository.ts";
@@ -17,7 +17,7 @@ import { NodeFileNotFoundError } from "domain/nodes/node_file_not_found_error.ts
 import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus.ts";
 
 describe("NodeService.get", () => {
-	test("should return node information from repository", async () => {
+	it("should return node information from repository", async () => {
 		const node = FileNode.create({
 			uuid: "uuid",
 			title: "title",
@@ -42,7 +42,7 @@ describe("NodeService.get", () => {
 		expect(nodeOrErr.right).toEqual(node);
 	});
 
-	test("should return if uuid is in fid format", async () => {
+	it("should return if uuid is in fid format", async () => {
 		const service = nodeService();
 		await service.create(authCtx, {
 			title: "Folder 1",
@@ -56,7 +56,7 @@ describe("NodeService.get", () => {
 		expect(nodeOrErr.right.mimetype).toEqual(Nodes.FOLDER_MIMETYPE);
 	});
 
-	test("should return error if node is not found", async () => {
+	it("should return error if node is not found", async () => {
 		const repository = new InMemoryNodeRepository();
 		const service = new NodeService({
 			storage: new InMemoryStorageProvider(),
@@ -70,7 +70,7 @@ describe("NodeService.get", () => {
 		expect(nodeOrErr.value).toBeInstanceOf(NodeNotFoundError);
 	});
 
-	test("should return an error if user doesn't have 'Read' permission on parent", async () => {
+	it("should return an error if user doesn't have 'Read' permission on parent", async () => {
 		const parent = FolderNode.create({
 			uuid: "parent",
 			title: "title",
@@ -121,7 +121,7 @@ describe("NodeService.get", () => {
 });
 
 describe("NodeService.export", () => {
-	test("should return the file", async () => {
+	it("should return the file", async () => {
 		const service = nodeService();
 		await service.create(authCtx, {
 			uuid: "parent-uuid",
@@ -141,7 +141,7 @@ describe("NodeService.export", () => {
 		expect(fileOrErr.right.type).toEqual(file.type);
 	});
 
-	test("should return error if file is not found", async () => {
+	it("should return error if file is not found", async () => {
 		const service = nodeService();
 		const fileOrErr = await service.export(authCtx, "not-found");
 
@@ -149,7 +149,7 @@ describe("NodeService.export", () => {
 		expect(fileOrErr.value).toBeInstanceOf(NodeNotFoundError);
 	});
 
-	test("should return error if user doesn't have 'Export' permission on parent", async () => {
+	it("should return error if user doesn't have 'Export' permission on parent", async () => {
 		const service = nodeService();
 		await service.create(authCtx, {
 			uuid: "parent-uuid",
@@ -179,7 +179,7 @@ describe("NodeService.export", () => {
 		expect(fileOrErr.value).toBeInstanceOf(ForbiddenError);
 	});
 
-	test("should return an error if node is not a file", async () => {
+	it("should return an error if node is not a file", async () => {
 		const repository = new InMemoryNodeRepository();
 		const service = new NodeService({
 			storage: new InMemoryStorageProvider(),

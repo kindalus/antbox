@@ -1,4 +1,4 @@
-import { test } from "bdd";
+import { it } from "bdd";
 import { expect } from "expect";
 import { ValidationError } from "shared/validation_error.ts";
 import { FeatureNode, type FeatureParameter } from "./feature_node.ts";
@@ -6,7 +6,7 @@ import { Folders } from "domain/nodes/folders.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import type { NodeFilters } from "domain/nodes/node_filter.ts";
 
-test("FeatureNode.create should initialize with minimal metadata", () => {
+it("FeatureNode.create should initialize with minimal metadata", () => {
 	const result = FeatureNode.create({
 		title: "Test Feature",
 		parent: Folders.FEATURES_FOLDER_UUID,
@@ -24,7 +24,7 @@ test("FeatureNode.create should initialize with minimal metadata", () => {
 	expect(featureNode.mimetype).toBe(Nodes.FEATURE_MIMETYPE);
 });
 
-test("FeatureNode.create should initialize with name override", () => {
+it("FeatureNode.create should initialize with name override", () => {
 	const result = FeatureNode.create({
 		title: "Test Feature Title",
 		name: "custom_feature_name",
@@ -39,7 +39,7 @@ test("FeatureNode.create should initialize with name override", () => {
 	expect(featureNode.name).toBe("custom_feature_name");
 });
 
-test("FeatureNode.create should set default boolean values", () => {
+it("FeatureNode.create should set default boolean values", () => {
 	const result = FeatureNode.create({
 		title: "Test Feature",
 		parent: Folders.FEATURES_FOLDER_UUID,
@@ -57,7 +57,7 @@ test("FeatureNode.create should set default boolean values", () => {
 	expect(featureNode.exposeAITool).toBe(false);
 });
 
-test("FeatureNode.create should set default array and object values", () => {
+it("FeatureNode.create should set default array and object values", () => {
 	const result = FeatureNode.create({
 		title: "Test Feature",
 		parent: Folders.FEATURES_FOLDER_UUID,
@@ -72,7 +72,7 @@ test("FeatureNode.create should set default array and object values", () => {
 	expect(featureNode.parameters).toEqual([]);
 });
 
-test("FeatureNode.create should set default return type to void", () => {
+it("FeatureNode.create should set default return type to void", () => {
 	const result = FeatureNode.create({
 		title: "Test Feature",
 		parent: Folders.FEATURES_FOLDER_UUID,
@@ -87,7 +87,7 @@ test("FeatureNode.create should set default return type to void", () => {
 	expect(featureNode.returnContentType).toBeUndefined();
 });
 
-test("FeatureNode.create should initialize with full metadata", () => {
+it("FeatureNode.create should initialize with full metadata", () => {
 	const parameters: FeatureParameter[] = [
 		{
 			name: "input",
@@ -145,7 +145,7 @@ test("FeatureNode.create should initialize with full metadata", () => {
 	expect(featureNode.returnContentType).toBe("text/plain");
 });
 
-test("FeatureNode.create should always have FEATURE_MIMETYPE", () => {
+it("FeatureNode.create should always have FEATURE_MIMETYPE", () => {
 	const result = FeatureNode.create({
 		title: "Test Feature",
 		mimetype: "application/json", // Different mimetype
@@ -157,7 +157,7 @@ test("FeatureNode.create should always have FEATURE_MIMETYPE", () => {
 	expect(result.right.mimetype).toBe(Nodes.FEATURE_MIMETYPE);
 });
 
-test("FeatureNode.create should return error if name and title are missing", () => {
+it("FeatureNode.create should return error if name and title are missing", () => {
 	const result = FeatureNode.create({
 		parent: Folders.FEATURES_FOLDER_UUID,
 		owner: "user@domain.com",
@@ -168,7 +168,7 @@ test("FeatureNode.create should return error if name and title are missing", () 
 	expect(result.value).toBeInstanceOf(ValidationError);
 });
 
-test("FeatureNode.create should return error if title is empty", () => {
+it("FeatureNode.create should return error if title is empty", () => {
 	const result = FeatureNode.create({
 		title: "",
 		parent: Folders.FEATURES_FOLDER_UUID,
@@ -180,7 +180,7 @@ test("FeatureNode.create should return error if title is empty", () => {
 	expect(result.value).toBeInstanceOf(ValidationError);
 });
 
-test("FeatureNode.create should return error if owner is missing", () => {
+it("FeatureNode.create should return error if owner is missing", () => {
 	const result = FeatureNode.create({
 		title: "Test Feature",
 		parent: Folders.FEATURES_FOLDER_UUID,
@@ -191,7 +191,7 @@ test("FeatureNode.create should return error if owner is missing", () => {
 	expect(result.value).toBeInstanceOf(ValidationError);
 });
 
-test("FeatureNode.create should handle various parameter types", () => {
+it("FeatureNode.create should handle various parameter types", () => {
 	const parameters: FeatureParameter[] = [
 		{
 			name: "stringParam",
@@ -251,7 +251,7 @@ test("FeatureNode.create should handle various parameter types", () => {
 	expect(featureNode.parameters).toEqual(parameters);
 });
 
-test("FeatureNode.create should handle various return types", () => {
+it("FeatureNode.create should handle various return types", () => {
 	const returnTypes = [
 		"string",
 		"number",
@@ -276,7 +276,7 @@ test("FeatureNode.create should handle various return types", () => {
 	});
 });
 
-test("FeatureNode should include all properties in metadata", () => {
+it("FeatureNode should include all properties in metadata", () => {
 	const parameters: FeatureParameter[] = [
 		{
 			name: "uuids",
@@ -338,7 +338,7 @@ test("FeatureNode should include all properties in metadata", () => {
 	expect(metadata.size).toBe(1024);
 });
 
-test("FeatureNode should handle complex filter configurations", () => {
+it("FeatureNode should handle complex filter configurations", () => {
 	const filters1D: NodeFilters = [
 		["mimetype", "==", "text/plain"],
 		["parent", "!=", Folders.ROOT_FOLDER_UUID],
@@ -374,7 +374,7 @@ test("FeatureNode should handle complex filter configurations", () => {
 	expect(result2D.right.filters).toEqual(filters2D);
 });
 
-test("FeatureNode should inherit from FileMixin", () => {
+it("FeatureNode should inherit from FileMixin", () => {
 	const result = FeatureNode.create({
 		title: "File Mixin Test",
 		parent: Folders.FEATURES_FOLDER_UUID,
@@ -389,7 +389,7 @@ test("FeatureNode should inherit from FileMixin", () => {
 	expect(typeof featureNode.update).toBe("function");
 });
 
-test("FeatureNode should handle empty parameters gracefully", () => {
+it("FeatureNode should handle empty parameters gracefully", () => {
 	const result = FeatureNode.create({
 		title: "Empty Parameters Feature",
 		parent: Folders.FEATURES_FOLDER_UUID,
@@ -402,7 +402,7 @@ test("FeatureNode should handle empty parameters gracefully", () => {
 	expect(result.right.parameters).toEqual([]);
 });
 
-test("FeatureNode should handle undefined optional properties", () => {
+it("FeatureNode should handle undefined optional properties", () => {
 	const result = FeatureNode.create({
 		title: "Minimal Feature",
 		parent: Folders.FEATURES_FOLDER_UUID,
@@ -420,7 +420,7 @@ test("FeatureNode should handle undefined optional properties", () => {
 	expect(featureNode.returnContentType).toBeUndefined();
 });
 
-test("FeatureNode should handle security and execution configurations", () => {
+it("FeatureNode should handle security and execution configurations", () => {
 	const result = FeatureNode.create({
 		title: "Secure Feature",
 		parent: Folders.FEATURES_FOLDER_UUID,
@@ -453,7 +453,7 @@ test("FeatureNode should handle security and execution configurations", () => {
 	expect(featureNode.groupsAllowed).toEqual(["admin", "editor", "viewer"]);
 });
 
-test("FeatureNode should handle exposure configurations", () => {
+it("FeatureNode should handle exposure configurations", () => {
 	const parameters: FeatureParameter[] = [
 		{
 			name: "uuids",
@@ -489,7 +489,7 @@ test("FeatureNode should handle exposure configurations", () => {
 	});
 });
 
-test("FeatureNode should require 'uuids' parameter when exposed as action", () => {
+it("FeatureNode should require 'uuids' parameter when exposed as action", () => {
 	const parametersWithUuids: FeatureParameter[] = [
 		{
 			name: "uuids",
@@ -525,7 +525,7 @@ test("FeatureNode should require 'uuids' parameter when exposed as action", () =
 	expect(uuidsParam?.arrayType).toBe("string");
 });
 
-test("FeatureNode should validate uuids parameter type for actions", () => {
+it("FeatureNode should validate uuids parameter type for actions", () => {
 	const parametersWithInvalidUuids: FeatureParameter[] = [
 		{
 			name: "uuids",
@@ -548,7 +548,7 @@ test("FeatureNode should validate uuids parameter type for actions", () => {
 	expect(result.value).toBeInstanceOf(ValidationError);
 });
 
-test("FeatureNode with file parameter should be exposed as extension only", () => {
+it("FeatureNode with file parameter should be exposed as extension only", () => {
 	const parametersWithFile: FeatureParameter[] = [
 		{
 			name: "inputFile",
@@ -585,7 +585,7 @@ test("FeatureNode with file parameter should be exposed as extension only", () =
 	expect(fileParam?.contentType).toBe("application/pdf");
 });
 
-test("FeatureNode with array of files parameter should be exposed as extension only", () => {
+it("FeatureNode with array of files parameter should be exposed as extension only", () => {
 	const parametersWithFileArray: FeatureParameter[] = [
 		{
 			name: "inputFiles",
@@ -624,7 +624,7 @@ test("FeatureNode with array of files parameter should be exposed as extension o
 	expect(fileArrayParam?.name).toBe("inputFiles");
 });
 
-test("FeatureNode should handle mixed parameter types correctly", () => {
+it("FeatureNode should handle mixed parameter types correctly", () => {
 	const mixedParameters: FeatureParameter[] = [
 		{
 			name: "text",
@@ -675,7 +675,7 @@ test("FeatureNode should handle mixed parameter types correctly", () => {
 	expect(fileArrayParam).toBeDefined();
 });
 
-test("FeatureNode should fail if file parameter is exposed as action", () => {
+it("FeatureNode should fail if file parameter is exposed as action", () => {
 	const parametersWithFile: FeatureParameter[] = [
 		{
 			name: "inputFile",
@@ -700,7 +700,7 @@ test("FeatureNode should fail if file parameter is exposed as action", () => {
 	expect(result.value).toBeInstanceOf(ValidationError);
 });
 
-test("FeatureNode should fail if file parameter is exposed as AI tool only", () => {
+it("FeatureNode should fail if file parameter is exposed as AI tool only", () => {
 	const parametersWithFile: FeatureParameter[] = [
 		{
 			name: "inputFile",
@@ -726,7 +726,7 @@ test("FeatureNode should fail if file parameter is exposed as AI tool only", () 
 	expect(result.value).toBeInstanceOf(ValidationError);
 });
 
-test("FeatureNode should fail if array of files parameter is exposed as action", () => {
+it("FeatureNode should fail if array of files parameter is exposed as action", () => {
 	const parametersWithFileArray: FeatureParameter[] = [
 		{
 			name: "inputFiles",
@@ -751,7 +751,7 @@ test("FeatureNode should fail if array of files parameter is exposed as action",
 	expect(result.value).toBeInstanceOf(ValidationError);
 });
 
-test("FeatureNode should fail if array of files parameter is exposed as AI tool only", () => {
+it("FeatureNode should fail if array of files parameter is exposed as AI tool only", () => {
 	const parametersWithFileArray: FeatureParameter[] = [
 		{
 			name: "inputFiles",

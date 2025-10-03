@@ -1,4 +1,4 @@
-import { test } from "bdd";
+import { it } from "bdd";
 import { expect } from "expect";
 import { Aspects } from "./aspects.ts";
 import { AspectNode, type AspectProperty } from "./aspect_node.ts";
@@ -41,7 +41,7 @@ function createMockAspectableNode(
 	return result.right;
 }
 
-test("Aspects.propertyName should generate correct property name format", () => {
+it("Aspects.propertyName should generate correct property name format", () => {
 	const property: AspectProperty = {
 		name: "test_property",
 		title: "Test Property",
@@ -54,7 +54,7 @@ test("Aspects.propertyName should generate correct property name format", () => 
 	expect(propertyName).toBe(`${aspect.uuid}:test_property`);
 });
 
-test("Aspects.propertyName should handle different property names", () => {
+it("Aspects.propertyName should handle different property names", () => {
 	const properties: AspectProperty[] = [
 		{ name: "simple_name", title: "Simple", type: "string" },
 		{ name: "complex_property_name", title: "Complex", type: "number" },
@@ -74,7 +74,7 @@ test("Aspects.propertyName should handle different property names", () => {
 	);
 });
 
-test("Aspects.specificationFrom should return always-true specification for aspect with no properties", () => {
+it("Aspects.specificationFrom should return always-true specification for aspect with no properties", () => {
 	const aspect = createMockAspectNode([]);
 	const specification = Aspects.specificationFrom(aspect);
 
@@ -86,7 +86,7 @@ test("Aspects.specificationFrom should return always-true specification for aspe
 	);
 });
 
-test("Aspects.specificationFrom should create specification for single property", () => {
+it("Aspects.specificationFrom should create specification for single property", () => {
 	const property: AspectProperty = {
 		name: "test_prop",
 		title: "Test Property",
@@ -105,7 +105,7 @@ test("Aspects.specificationFrom should create specification for single property"
 	);
 });
 
-test("Aspects.specificationFrom should create specification for multiple properties", () => {
+it("Aspects.specificationFrom should create specification for multiple properties", () => {
 	const properties: AspectProperty[] = [
 		{ name: "prop1", title: "Property 1", type: "string", required: false },
 		{ name: "prop2", title: "Property 2", type: "number", required: false },
@@ -122,7 +122,7 @@ test("Aspects.specificationFrom should create specification for multiple propert
 	);
 });
 
-test("Aspects.specificationFrom should validate required properties", () => {
+it("Aspects.specificationFrom should validate required properties", () => {
 	const property: AspectProperty = {
 		name: "required_prop",
 		title: "Required Property",
@@ -152,7 +152,7 @@ test("Aspects.specificationFrom should validate required properties", () => {
 	expect(resultWithProperty.isRight()).toBe(true);
 });
 
-test("Aspects.specificationFrom should handle false boolean values for required properties", () => {
+it("Aspects.specificationFrom should handle false boolean values for required properties", () => {
 	const property: AspectProperty = {
 		name: "bool_prop",
 		title: "Boolean Property",
@@ -175,7 +175,7 @@ test("Aspects.specificationFrom should handle false boolean values for required 
 	);
 });
 
-test("Aspects.specificationFrom should validate string property types", () => {
+it("Aspects.specificationFrom should validate string property types", () => {
 	const property: AspectProperty = {
 		name: "string_prop",
 		title: "String Property",
@@ -205,7 +205,7 @@ test("Aspects.specificationFrom should validate string property types", () => {
 	expect(numberResult.value).toBeInstanceOf(ValidationError);
 });
 
-test("Aspects.specificationFrom should validate number property types", () => {
+it("Aspects.specificationFrom should validate number property types", () => {
 	const property: AspectProperty = {
 		name: "number_prop",
 		title: "Number Property",
@@ -235,7 +235,7 @@ test("Aspects.specificationFrom should validate number property types", () => {
 	expect(stringResult.value).toBeInstanceOf(ValidationError);
 });
 
-test("Aspects.specificationFrom should validate boolean property types", () => {
+it("Aspects.specificationFrom should validate boolean property types", () => {
 	const property: AspectProperty = {
 		name: "bool_prop",
 		title: "Boolean Property",
@@ -273,7 +273,7 @@ test("Aspects.specificationFrom should validate boolean property types", () => {
 	expect(stringResult.value).toBeInstanceOf(ValidationError);
 });
 
-test("Aspects.specificationFrom should skip type validation for undefined/null values", () => {
+it("Aspects.specificationFrom should skip type validation for undefined/null values", () => {
 	const property: AspectProperty = {
 		name: "optional_prop",
 		title: "Optional Property",
@@ -310,7 +310,7 @@ test("Aspects.specificationFrom should skip type validation for undefined/null v
 	expect(emptyResult.isRight()).toBe(true);
 });
 
-test("Aspects.specificationFrom should handle non-primitive types gracefully", () => {
+it("Aspects.specificationFrom should handle non-primitive types gracefully", () => {
 	const properties: AspectProperty[] = [
 		{ name: "uuid_prop", title: "UUID Property", type: "uuid" },
 		{ name: "object_prop", title: "Object Property", type: "object" },
@@ -336,7 +336,7 @@ test("Aspects.specificationFrom should handle non-primitive types gracefully", (
 	);
 });
 
-test("Aspects.specificationFrom should combine multiple property validations", () => {
+it("Aspects.specificationFrom should combine multiple property validations", () => {
 	const properties: AspectProperty[] = [
 		{
 			name: "required_string",
@@ -384,7 +384,7 @@ test("Aspects.specificationFrom should combine multiple property validations", (
 	expect(typeMismatchResult.value).toBeInstanceOf(ValidationError);
 });
 
-test("Aspects.specificationFrom should handle empty property name", () => {
+it("Aspects.specificationFrom should handle empty property name", () => {
 	const property: AspectProperty = {
 		name: "",
 		title: "Empty Name Property",
@@ -397,7 +397,7 @@ test("Aspects.specificationFrom should handle empty property name", () => {
 	expect(propertyName).toBe(`${aspect.uuid}:`);
 });
 
-test("Aspects class should not be instantiable", () => {
+it("Aspects class should not be instantiable", () => {
 	// The constructor is private, so this should cause a TypeScript error
 	// but we can test that the class behaves as a utility class
 	expect(typeof Aspects).toBe("function");
@@ -405,7 +405,7 @@ test("Aspects class should not be instantiable", () => {
 	expect(typeof Aspects.specificationFrom).toBe("function");
 });
 
-test("Aspects.specificationFrom should validate validationList for string properties", () => {
+it("Aspects.specificationFrom should validate validationList for string properties", () => {
 	const property: AspectProperty = {
 		name: "list_prop",
 		title: "List Property",
@@ -434,7 +434,7 @@ test("Aspects.specificationFrom should validate validationList for string proper
 	expect(invalidResult.value).toBeInstanceOf(ValidationError);
 });
 
-test("Aspects.specificationFrom should validate validationList for array of strings", () => {
+it("Aspects.specificationFrom should validate validationList for array of strings", () => {
 	const property: AspectProperty = {
 		name: "list_array_prop",
 		title: "List Array Property",
@@ -464,7 +464,7 @@ test("Aspects.specificationFrom should validate validationList for array of stri
 	expect(invalidResult.value).toBeInstanceOf(ValidationError);
 });
 
-test("Aspects.specificationFrom should validate validationRegex for string properties", () => {
+it("Aspects.specificationFrom should validate validationRegex for string properties", () => {
 	const property: AspectProperty = {
 		name: "regex_prop",
 		title: "Regex Property",
@@ -493,7 +493,7 @@ test("Aspects.specificationFrom should validate validationRegex for string prope
 	expect(invalidResult.value).toBeInstanceOf(ValidationError);
 });
 
-test("Aspects.specificationFrom should validate validationRegex for array of strings", () => {
+it("Aspects.specificationFrom should validate validationRegex for array of strings", () => {
 	const property: AspectProperty = {
 		name: "regex_array_prop",
 		title: "Regex Array Property",
@@ -523,7 +523,7 @@ test("Aspects.specificationFrom should validate validationRegex for array of str
 	expect(invalidResult.value).toBeInstanceOf(ValidationError);
 });
 
-test("AspectNode creation should fail for invalid property constraints", () => {
+it("AspectNode creation should fail for invalid property constraints", () => {
 	// Test that number type with validationList fails
 	const numberWithListResult = AspectNode.create({
 		title: "Test Aspect",

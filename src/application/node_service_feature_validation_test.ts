@@ -1,4 +1,4 @@
-import { describe, test } from "bdd";
+import { describe, it } from "bdd";
 import { expect } from "expect";
 import { NodeService } from "./node_service.ts";
 import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider.ts";
@@ -34,7 +34,7 @@ const adminAuthContext: AuthenticationContext = {
 describe("NodeService Feature Validation", () => {
 	// === Action Feature Validation Tests ===
 
-	test("should validate Action must have uuids parameter", async () => {
+	it("should validate Action must have uuids parameter", async () => {
 		const nodeService = createNodeService();
 
 		const result = await nodeService.createFile(
@@ -66,7 +66,7 @@ describe("NodeService Feature Validation", () => {
 		}
 	});
 
-	test("should validate Action uuids parameter must be array of strings", async () => {
+	it("should validate Action uuids parameter must be array of strings", async () => {
 		const nodeService = createNodeService();
 
 		const result = await nodeService.createFile(
@@ -98,7 +98,7 @@ describe("NodeService Feature Validation", () => {
 		}
 	});
 
-	test("should validate Action uuids array must contain strings", async () => {
+	it("should validate Action uuids array must contain strings", async () => {
 		const nodeService = createNodeService();
 
 		const result = await nodeService.createFile(
@@ -131,7 +131,7 @@ describe("NodeService Feature Validation", () => {
 		}
 	});
 
-	test("should validate Action cannot have file parameters", async () => {
+	it("should validate Action cannot have file parameters", async () => {
 		const nodeService = createNodeService();
 
 		const result = await nodeService.createFile(
@@ -169,7 +169,7 @@ describe("NodeService Feature Validation", () => {
 		}
 	});
 
-	test("should allow valid Action", async () => {
+	it("should allow valid Action", async () => {
 		const nodeService = createNodeService();
 
 		const result = await nodeService.createFile(
@@ -200,7 +200,7 @@ describe("NodeService Feature Validation", () => {
 
 	// === Extension Feature Validation Tests ===
 
-	test("should validate Extension cannot have uuids parameter (unless also Action)", async () => {
+	it("should validate Extension cannot have uuids parameter (unless also Action)", async () => {
 		const nodeService = createNodeService();
 
 		// Test Extension-only with uuids (should fail)
@@ -234,7 +234,7 @@ describe("NodeService Feature Validation", () => {
 		}
 	});
 
-	test("should allow Extension with file parameters", async () => {
+	it("should allow Extension with file parameters", async () => {
 		const nodeService = createNodeService();
 
 		const result = await nodeService.createFile(
@@ -262,7 +262,7 @@ describe("NodeService Feature Validation", () => {
 		expect(result.isRight()).toBeTruthy();
 	});
 
-	test("should allow valid Extension", async () => {
+	it("should allow valid Extension", async () => {
 		const nodeService = createNodeService();
 
 		const result = await nodeService.createFile(
@@ -286,7 +286,7 @@ describe("NodeService Feature Validation", () => {
 
 	// === AI Tool Feature Validation Tests ===
 
-	test("should validate AI Tool cannot have uuids parameter (unless also Action)", async () => {
+	it("should validate AI Tool cannot have uuids parameter (unless also Action)", async () => {
 		const nodeService = createNodeService();
 
 		// Test AI Tool-only with uuids (should fail)
@@ -320,7 +320,7 @@ describe("NodeService Feature Validation", () => {
 		}
 	});
 
-	test("should validate AI Tool cannot have file parameters", async () => {
+	it("should validate AI Tool cannot have file parameters", async () => {
 		const nodeService = createNodeService();
 
 		const result = await nodeService.createFile(
@@ -352,7 +352,7 @@ describe("NodeService Feature Validation", () => {
 		}
 	});
 
-	test("should allow valid AI Tool", async () => {
+	it("should allow valid AI Tool", async () => {
 		const nodeService = createNodeService();
 
 		const result = await nodeService.createFile(
@@ -382,7 +382,7 @@ describe("NodeService Feature Validation", () => {
 
 	// === Multi-Subtype Feature Validation Tests ===
 
-	test("should validate Action + AI Tool combination", async () => {
+	it("should validate Action + AI Tool combination", async () => {
 		const nodeService = createNodeService();
 
 		const result = await nodeService.createFile(
@@ -418,7 +418,7 @@ describe("NodeService Feature Validation", () => {
 
 	// === General Feature Validation Tests ===
 
-	test("should validate Feature must have at least one subtype exposure", async () => {
+	it("should validate Feature must have at least one subtype exposure", async () => {
 		const nodeService = createNodeService();
 
 		const result = await nodeService.createFile(
@@ -444,7 +444,7 @@ describe("NodeService Feature Validation", () => {
 		}
 	});
 
-	test("should validate Feature parameters array structure", async () => {
+	it("should validate Feature parameters array structure", async () => {
 		const nodeService = createNodeService();
 
 		const result = await nodeService.createFile(

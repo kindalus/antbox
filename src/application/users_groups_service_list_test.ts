@@ -1,4 +1,4 @@
-import { describe, test } from "bdd";
+import { describe, it } from "bdd";
 import { expect } from "expect";
 import type { UsersGroupsContext } from "./users_groups_service_context.ts";
 import { UsersGroupsService } from "./users_groups_service.ts";
@@ -8,7 +8,7 @@ import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider.t
 import { builtinGroups } from "application/builtin_groups/index.ts";
 
 describe("UsersGroupsService.listUsers", () => {
-	test("should list the users", async () => {
+	it("should list the users", async () => {
 		const service = usersGroupsService();
 
 		const usersOrErr = await service.listUsers();
@@ -19,7 +19,7 @@ describe("UsersGroupsService.listUsers", () => {
 });
 
 describe("UsersGroupsService.listGroups", () => {
-	test("should list built-in groups", async () => {
+	it("should list built-in groups", async () => {
 		const service = usersGroupsService();
 
 		const groups = await service.listGroups();

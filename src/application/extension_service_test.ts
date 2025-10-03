@@ -1,4 +1,4 @@
-import { describe, test } from "bdd";
+import { describe, it } from "bdd";
 import { expect } from "expect";
 import { FeatureService } from "./feature_service.ts";
 import { NodeService } from "./node_service.ts";
@@ -12,7 +12,7 @@ import { builtinFolders } from "./builtin_folders/index.ts";
 import { Groups } from "domain/users_groups/groups.ts";
 
 describe("Extension Service", () => {
-	test("should allow file parameters for Extensions", async () => {
+	it("should allow file parameters for Extensions", async () => {
 		const service = await createService();
 		const fileExtensionContent = `
       export default {
@@ -52,7 +52,7 @@ describe("Extension Service", () => {
 		expect(result.isRight()).toBeTruthy();
 	});
 
-	test("listExtensions should return only Extensions", async () => {
+	it("listExtensions should return only Extensions", async () => {
 		const service = await createService();
 
 		(await service.createOrReplace(
@@ -107,7 +107,7 @@ describe("Extension Service", () => {
 		}
 	});
 
-	test("runExtension should execute Extension with Request and return Response", async () => {
+	it("runExtension should execute Extension with Request and return Response", async () => {
 		const service = await createService();
 
 		(await service.createOrReplace(
@@ -126,7 +126,7 @@ describe("Extension Service", () => {
 		expect(text).toBe("Hello from extension");
 	});
 
-	test("runExtension should handle POST requests with body", async () => {
+	it("runExtension should handle POST requests with body", async () => {
 		const service = await createService();
 		const postExtensionContent = `
       export default {
@@ -175,7 +175,7 @@ describe("Extension Service", () => {
 		expect(result.method).toBe("POST");
 	});
 
-	test("runExtension should return error for non-existent Extension", async () => {
+	it("runExtension should return error for non-existent Extension", async () => {
 		const service = await createService();
 
 		const request = new Request("http://localhost/test");
@@ -184,7 +184,7 @@ describe("Extension Service", () => {
 		expect(response.status).toBe(404);
 	});
 
-	test("runExtension should return error for non-Extension Feature", async () => {
+	it("runExtension should return error for non-Extension Feature", async () => {
 		const service = await createService();
 
 		const actionContent = `
@@ -233,7 +233,7 @@ describe("Extension Service", () => {
 		expect(text).toContain("not exposed as extension");
 	});
 
-	test("runExtension should enforce groupsAllowed permissions", async () => {
+	it("runExtension should enforce groupsAllowed permissions", async () => {
 		const service = await createService();
 		const restrictedExtensionContent = `
       export default {
@@ -279,7 +279,7 @@ describe("Extension Service", () => {
 		expect(text).toBe("Admin only content");
 	});
 
-	test("should allow Extensions with empty groupsAllowed (public access)", async () => {
+	it("should allow Extensions with empty groupsAllowed (public access)", async () => {
 		const service = await createService();
 		const publicExtensionContent = `
       export default {
@@ -319,7 +319,7 @@ describe("Extension Service", () => {
 		expect(response.status).toBe(404);
 	});
 
-	test("runExtension should handle Extension runtime errors gracefully", async () => {
+	it("runExtension should handle Extension runtime errors gracefully", async () => {
 		const service = await createService();
 		const errorExtensionContent = `
       export default {
@@ -358,7 +358,7 @@ describe("Extension Service", () => {
 		expect(text).toContain("Something went wrong in extension");
 	});
 
-	test("should handle Extension that returns object with correct returnType", async () => {
+	it("should handle Extension that returns object with correct returnType", async () => {
 		const service = await createService();
 		const validResponseContent = `
       export default {

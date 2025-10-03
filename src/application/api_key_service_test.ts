@@ -1,5 +1,5 @@
 import { expect } from "expect/expect";
-import { describe, test } from "bdd";
+import { describe, it } from "bdd";
 import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus.ts";
 import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository.ts";
 import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider.ts";
@@ -49,7 +49,7 @@ const authContext: AuthenticationContext = {
 };
 
 describe("ApiKeyService", () => {
-	test("create should create an API key", async () => {
+	it("create should create an API key", async () => {
 		const service = createService();
 
 		const apiKeyOrErr = await service.create(authContext, "api-group");
@@ -58,7 +58,7 @@ describe("ApiKeyService", () => {
 		expect(apiKeyOrErr.right.group).toBe("api-group");
 	});
 
-	test("create should return error if group does not exists", async () => {
+	it("create should return error if group does not exists", async () => {
 		const service = createService();
 
 		const apiKeyOrErr = await service.create(authContext, "non-existing-group");
@@ -67,7 +67,7 @@ describe("ApiKeyService", () => {
 		expect(apiKeyOrErr.value).toBeInstanceOf(NodeNotFoundError);
 	});
 
-	test("get should return the API key", async () => {
+	it("get should return the API key", async () => {
 		const node = ApiKeyNode.create({
 			title: "Test API Key",
 			secret: "api-key-secret",
@@ -86,7 +86,7 @@ describe("ApiKeyService", () => {
 		expect(apiKeyOrErr.right.group).toBe("some-api-group");
 	});
 
-	test("get should return error if node not found", async () => {
+	it("get should return error if node not found", async () => {
 		const service = createService();
 
 		const apiKeyOrErr = await service.get("--non-existing-uuid--");
@@ -95,7 +95,7 @@ describe("ApiKeyService", () => {
 		expect(apiKeyOrErr.value).toBeInstanceOf(NodeNotFoundError);
 	});
 
-	test("get should return error if node found is not API key node ", async () => {
+	it("get should return error if node found is not API key node ", async () => {
 		const service = createService();
 
 		const apiKeyOrErr = await service.get("api-group");
@@ -104,7 +104,7 @@ describe("ApiKeyService", () => {
 		expect(apiKeyOrErr.value).toBeInstanceOf(ApiKeyNodeFoundError);
 	});
 
-	test("getBySecret should return the API key", async () => {
+	it("getBySecret should return the API key", async () => {
 		const repo = new InMemoryNodeRepository();
 		repo.add(
 			ApiKeyNode.create({
@@ -123,7 +123,7 @@ describe("ApiKeyService", () => {
 		expect(dto.right.group).toBe("api-group");
 	});
 
-	test("getBySecret should return error if node not found", async () => {
+	it("getBySecret should return error if node not found", async () => {
 		const service = createService();
 
 		const apiKeyOrErr = await service.getBySecret("--any-secret--");
@@ -132,7 +132,7 @@ describe("ApiKeyService", () => {
 		expect(apiKeyOrErr.value).toBeInstanceOf(ApiKeyNodeFoundError);
 	});
 
-	test("list should return all Api Keys", async () => {
+	it("list should return all Api Keys", async () => {
 		const service = createService();
 
 		(await service.create(authContext, Groups.ANONYMOUS_GROUP_UUID)).right;
@@ -149,7 +149,7 @@ describe("ApiKeyService", () => {
 			.toBeTruthy();
 	});
 
-	test("delete should remove the api key", async () => {
+	it("delete should remove the api key", async () => {
 		const repo = new InMemoryNodeRepository();
 
 		repo.add(
@@ -170,7 +170,7 @@ describe("ApiKeyService", () => {
 		expect((await repo.getById("api-key-uuid")).isLeft()).toBeTruthy();
 	});
 
-	test("delete should return error if api key not exists", async () => {
+	it("delete should return error if api key not exists", async () => {
 		const service = createService();
 
 		const voidOrErr = await service.delete(authContext, "--any-uuid--");

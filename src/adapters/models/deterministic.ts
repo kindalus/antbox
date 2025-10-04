@@ -35,6 +35,12 @@ export default function buildDeterministicModel(
  */
 export class DeterministicModel implements AIModel {
 	readonly name: string;
+	readonly embeddings = true;
+	readonly llm = false;
+	readonly tools = false;
+	readonly files = true;
+	readonly reasoning = false;
+
 	private readonly dimensions: number;
 
 	/**
@@ -53,41 +59,6 @@ export class DeterministicModel implements AIModel {
 	embed(texts: string[]): Promise<Either<AntboxError, Embedding[]>> {
 		const embeddings = texts.map((text) => this.#createDeterministicEmbedding(text));
 		return Promise.resolve(right(embeddings));
-	}
-
-	/**
-	 * Check if this model provides embedding functionality
-	 */
-	provideEmbeddings(): boolean {
-		return true;
-	}
-
-	/**
-	 * Check if this model provides LLM functionality
-	 */
-	provideLLM(): boolean {
-		return false;
-	}
-
-	/**
-	 * Check if this model supports tools
-	 */
-	supportTools(): boolean {
-		return false;
-	}
-
-	/**
-	 * Check if this model supports file inputs
-	 */
-	supportFiles(): boolean {
-		return true;
-	}
-
-	/**
-	 * Check if this model supports reasoning
-	 */
-	supportReasoning(): boolean {
-		return false;
 	}
 
 	/**

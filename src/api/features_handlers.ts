@@ -6,12 +6,143 @@ import { getQuery } from "api/get_query.ts";
 import { getTenant } from "api/get_tenant.ts";
 import { type HttpHandler } from "api/handler.ts";
 import { processError } from "api/process_error.ts";
-import { processServiceResult } from "api/process_service_result.ts";
+import { processServiceCreateResult, processServiceResult } from "api/process_service_result.ts";
 
-export function getHandler(tenants: AntboxTenant[]): HttpHandler {
+// ============================================================================
+// CRUD HANDLERS
+// ============================================================================
+
+export function createFeatureHandler(tenants: AntboxTenant[]): HttpHandler {
+	return defaultMiddlewareChain(
+		tenants,
+		async (req: Request): Promise<Response> => {
+			const tenant = getTenant(req, tenants);
+			const service = tenant.featureService;
+
+			if (!service) {
+				return new Response(
+					JSON.stringify({ error: "Feature service not available" }),
+					{ status: 503, headers: { "Content-Type": "application/json" } },
+				);
+			}
+
+			const formData = await req.formData();
+			const file = formData.get("file") as File;
+			if (!file) {
+				return new Response(
+					JSON.stringify({ error: "{ file } not given" }),
+					{ status: 400, headers: { "Content-Type": "application/json" } },
+				);
+			}
+
+			return service
+				.createOrReplace(getAuthenticationContext(req), file)
+				.then(processServiceCreateResult)
+				.catch(processError);
+		},
+	);
+}
+
+export function getFeatureHandler(tenants: AntboxTenant[]): HttpHandler {
+	return defaultMiddlewareChain(
+		tenants,
+		async (req: Request): Promise<Response> => {
+			const tenant = getTenant(req, tenants);
+			const service = tenant.featureService;
+
+			if (!service) {
+				return new Response(
+					JSON.stringify({ error: "Feature service not available" }),
+					{ status: 503, headers: { "Content-Type": "application/json" } },
+				);
+			}
+
+			const params = getParams(req);
+			if (!params.uuid) {
+				return new Response(
+					JSON.stringify({ error: "{ uuid } not given" }),
+					{ status: 400, headers: { "Content-Type": "application/json" } },
+				);
+			}
+
+			return service
+				.get(getAuthenticationContext(req), params.uuid)
+				.then(processServiceResult)
+				.catch(processError);
+		},
+	);
+}
+
+export function updateFeatureHandler(tenants: AntboxTenant[]): HttpHandler {
+	return defaultMiddlewareChain(
+		tenants,
+		async (req: Request): Promise<Response> => {
+			const tenant = getTenant(req, tenants);
+			const service = tenant.featureService;
+
+			if (!service) {
+				return new Response(
+					JSON.stringify({ error: "Feature service not available" }),
+					{ status: 503, headers: { "Content-Type": "application/json" } },
+				);
+			}
+
+			const formData = await req.formData();
+			const file = formData.get("file") as File;
+			if (!file) {
+				return new Response(
+					JSON.stringify({ error: "{ file } not given" }),
+					{ status: 400, headers: { "Content-Type": "application/json" } },
+				);
+			}
+
+			return service
+				.createOrReplace(getAuthenticationContext(req), file)
+				.then(processServiceResult)
+				.catch(processError);
+		},
+	);
+}
+
+export function listFeaturesHandler(tenants: AntboxTenant[]): HttpHandler {
+	return defaultMiddlewareChain(
+		tenants,
+		(req: Request): Promise<Response> => {
+			const service = getTenant(req, tenants).featureService;
+
+			return service
+				.listFeatures(getAuthenticationContext(req))
+				.then(processServiceResult)
+				.catch(processError);
+		},
+	);
+}
+
+export function deleteFeatureHandler(tenants: AntboxTenant[]): HttpHandler {
+	return defaultMiddlewareChain(
+		tenants,
+		(req: Request): Promise<Response> => {
+			const service = getTenant(req, tenants).featureService;
+			const params = getParams(req);
+			if (!params.uuid) {
+				return Promise.resolve(
+					new Response("{ uuid } not given", { status: 400 }),
+				);
+			}
+
+			return service
+				.delete(getAuthenticationContext(req), params.uuid)
+				.then(processServiceResult)
+				.catch(processError);
+		},
+	);
+}
+
+export function exportFeatureHandler(tenants: AntboxTenant[]): HttpHandler {
 	return defaultMiddlewareChain(tenants, (req: Request): Promise<Response> => {
 		const service = getTenant(req, tenants).featureService;
 		const params = getParams(req);
+
 		if (!params.uuid) {
 			return Promise.resolve(
 				new Response("{ uuid } not given", { status: 400 }),
@@ -25,19 +156,9 @@ export function getHandler(tenants: AntboxTenant[]): HttpHandler {
 	});
 }
 
-export function listHandler(tenants: AntboxTenant[]): HttpHandler {
-	return defaultMiddlewareChain(
-		tenants,
-		(req: Request): Promise<Response> => {
-			const service = getTenant(req, tenants).featureService;
-
-			return service
-				.listFeatures(getAuthenticationContext(req))
-				.then(processServiceResult)
-				.catch(processError);
-		},
-	);
-}
+// ============================================================================
+// ACTIONS HANDLERS
+// ============================================================================
 
 export function listActionsHandler(tenants: AntboxTenant[]): HttpHandler {
 	return defaultMiddlewareChain(
@@ -53,7 +174,40 @@ export function listActionsHandler(tenants: AntboxTenant[]): HttpHandler {
 	);
 }
 
-export function listExtsHandler(tenants: AntboxTenant[]): HttpHandler {
+export function runActionHandler(tenants: AntboxTenant[]): HttpHandler {
+	return defaultMiddlewareChain(
+		tenants,
+		(req: Request): Promise<Response> => {
+			const service = getTenant(req, tenants).featureService;
+			const params = getParams(req);
+			const query = getQuery(req);
+
+			if (!params.uuid) {
+				return Promise.reject(new Error("{ uuid } not given"));
+			}
+
+			const body = await req.json();
+			const uuids = body?.uuids || [];
+			const parameters = body?.parameters || {};
+
+			return service
+				.runAction(
+					getAuthenticationContext(req),
+					params.uuid,
+					uuids,
+					parameters,
+				)
+				.then(processServiceResult)
+				.catch(processError);
+		},
+	);
+}
+
+// ============================================================================
+// EXTENSIONS HANDLERS
+// ============================================================================
+
+export function listExtensionsHandler(tenants: AntboxTenant[]): HttpHandler {
 	return defaultMiddlewareChain(
 		tenants,
 		(req: Request): Promise<Response> => {
@@ -67,86 +221,7 @@ export function listExtsHandler(tenants: AntboxTenant[]): HttpHandler {
 	);
 }
 
-export function deleteHandler(tenants: AntboxTenant[]): HttpHandler {
-	return defaultMiddlewareChain(
-		tenants,
-		(req: Request): Promise<Response> => {
-			const service = getTenant(req, tenants).featureService;
-			const params = getParams(req);
-			if (!params.uuid) {
-				return Promise.resolve(
-					new Response("{ uuid } not given", { status: 400 }),
-				);
-			}
-			return service
-				.delete(getAuthenticationContext(req), params.uuid)
-				.then(processServiceResult)
-				.catch(processError);
-		},
-	);
-}
-
-export function exportHandler(tenants: AntboxTenant[]): HttpHandler {
-	return defaultMiddlewareChain(tenants, (req: Request): Promise<Response> => {
-		const service = getTenant(req, tenants).featureService;
-		const params = getParams(req);
-
-		if (!params.uuid) {
-			return Promise.resolve(
-				new Response("{ uuid } not given", { status: 400 }),
-			);
-		}
-
-		return service
-			.export(
-				getAuthenticationContext(req),
-				params.uuid,
-			)
-			.then((result) => {
-				if (result.isLeft()) {
-					return processError(result.value);
-				}
-
-				const file = result.value;
-				const response = new Response(file);
-				response.headers.set("Content-Type", "application/javascript");
-				response.headers.set("Content-Length", file.size.toString());
-				response.headers.set(
-					"Content-Disposition",
-					`attachment; filename="${params.uuid}.js"`,
-				);
-				return response;
-			})
-			.catch(processError);
-	});
-}
-
-export function runActionHandler(tenants: AntboxTenant[]): HttpHandler {
-	return defaultMiddlewareChain(
-		tenants,
-		(req: Request): Promise<Response> => {
-			const service = getTenant(req, tenants).featureService;
-			const params = getParams(req);
-			const query = getQuery(req);
-
-			if (!params.uuid) {
-				return Promise.reject(new Error("{ uuid } not given"));
-			}
-
-			if (!query.uuids) {
-				return Promise.reject(new Error("Missing uuids query parameter"));
-			}
-
-			const uuids = query.uuids.split(",");
-			return service
-				.runAction(getAuthenticationContext(req), params.uuid, uuids, query)
-				.then(processServiceResult)
-				.catch(processError);
-		},
-	);
-}
-
-export function runExtHandler(tenants: AntboxTenant[]): HttpHandler {
+export function runExtensionHandler(tenants: AntboxTenant[]): HttpHandler {
 	return defaultMiddlewareChain(
 		tenants,
 		async (req: Request): Promise<Response> => {
@@ -157,11 +232,46 @@ export function runExtHandler(tenants: AntboxTenant[]): HttpHandler {
 				return Promise.reject(new Error("{ uuid } not given"));
 			}
 
-			return service.runExtension(
-				getAuthenticationContext(req),
-				params.uuid,
-				req,
-			);
+			return service
+				.runExtension(getAuthenticationContext(req), params.uuid, req);
+		},
+	);
+}
+
+// ============================================================================
+// AI TOOLS HANDLERS
+// ============================================================================
+
+export function listAIToolsHandler(tenants: AntboxTenant[]): HttpHandler {
+	return defaultMiddlewareChain(
+		tenants,
+		(req: Request): Promise<Response> => {
+			const service = getTenant(req, tenants).featureService;
+
+			return service
+				.listAITools(getAuthenticationContext(req))
+				.then(processServiceResult)
+				.catch(processError);
+		},
+	);
+}
+
+export function runAIToolHandler(tenants: AntboxTenant[]): HttpHandler {
+	return defaultMiddlewareChain(
+		tenants,
+		async (req: Request): Promise<Response> => {
+			const service = getTenant(req, tenants).featureService;
+			const params = getParams(req);
+
+			if (!params.uuid) {
+				return Promise.reject(new Error("{ uuid } not given"));
+			}
+
+			const body = await req.json();
+			return service
+				.runAITool(getAuthenticationContext(req), params.uuid, body)
+				.then(processServiceResult)
+				.catch(processError);
 		},
 	);
 }

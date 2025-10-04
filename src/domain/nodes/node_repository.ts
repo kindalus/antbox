@@ -8,6 +8,7 @@ export interface NodeFilterResult {
 	pageToken: number;
 	pageSize: number;
 	nodes: NodeLike[];
+	scores?: Record<string, number>;
 }
 
 export interface NodeRepository {

@@ -18,6 +18,7 @@ import {
 	type NodeFilters1D,
 	type NodeFilters2D,
 } from "domain/nodes/node_filter.ts";
+
 import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import type { NodeProperties } from "domain/nodes/node_properties.ts";
@@ -405,7 +406,19 @@ export class NodeService {
 	): Promise<Either<AntboxError, NodeFilterResult>> {
 		const f = isNodeFilters2D(filters) ? filters : [filters];
 
-		const stage1 = f.reduce(
+		// Check for semantic search operator (~= on :content field)
+		const semanticSearchResult = await this.#extractAndPerformSemanticSearch(f, ctx.tenant);
+		let filtersWithSemanticResults = f;
+
+		if (semanticSearchResult) {
+			// Remove semantic search filter and add UUID filter from results
+			filtersWithSemanticResults = this.#addUuidFilterToFilters(
+				this.#removeSemanticSearchFilter(f),
+				semanticSearchResult.uuids,
+			);
+		}
+
+		const stage1 = filtersWithSemanticResults.reduce(
 			this.#toFiltersWithPermissionsResolved(ctx, "Read"),
 			[],
 		);
@@ -420,6 +433,12 @@ export class NodeService {
 			pageSize,
 			pageToken,
 		);
+
+		// Add scores if semantic search was performed
+		if (semanticSearchResult) {
+			r.scores = semanticSearchResult.scores;
+		}
+
 		return right(r);
 	}
 
@@ -1276,5 +1295,86 @@ export class NodeService {
 		// This validation would need runtime checking, but we document the expectation
 
 		return null;
+	}
+
+	async #extractAndPerformSemanticSearch(
+		filters: NodeFilters2D,
+		tenant: string,
+	): Promise<{ uuids: string[]; scores: Record<string, number>; query: string } | null> {
+		// Check if AI features are available
+		if (!this.context.vectorDatabase || !this.context.embeddingModel) {
+			return null;
+		}
+
+		// Look for semantic search filter: [":content", "~=", "query text"]
+		let semanticQuery: string | null = null;
+
+		for (const filterGroup of filters) {
+			for (const filter of filterGroup) {
+				if (filter[0] === ":content" && filter[1] === "~=") {
+					semanticQuery = String(filter[2]);
+					break;
+				}
+			}
+			if (semanticQuery) break;
+		}
+
+		if (!semanticQuery) {
+			return null;
+		}
+
+		try {
+			// Generate embedding for query using embedding model
+			const embeddingsOrErr = await this.context.embeddingModel.embed([semanticQuery]);
+			if (embeddingsOrErr.isLeft()) {
+				console.error("Failed to generate embedding for query:", embeddingsOrErr.value);
+				return null;
+			}
+
+			const queryEmbedding = embeddingsOrErr.value[0];
+
+			// Search vector database
+			const searchOrErr = await this.context.vectorDatabase.search(
+				queryEmbedding,
+				tenant,
+				100, // topK - return top 100 results
+			);
+
+			if (searchOrErr.isLeft()) {
+				console.error("Vector database search failed:", searchOrErr.value);
+				return null;
+			}
+
+			const results = searchOrErr.value;
+			const uuids = results.map((r) => r.nodeUuid);
+			const scores: Record<string, number> = {};
+			for (const result of results) {
+				scores[result.nodeUuid] = result.score;
+			}
+
+			return { uuids, scores, query: semanticQuery };
+		} catch (error) {
+			console.error("Semantic search failed:", error);
+			return null;
+		}
+	}
+
+	#removeSemanticSearchFilter(filters: NodeFilters2D): NodeFilters2D {
+		return filters.map((filterGroup) =>
+			filterGroup.filter((filter) => !(filter[0] === ":content" && filter[1] === "~="))
+		).filter((filterGroup) => filterGroup.length > 0);
+	}
+
+	#addUuidFilterToFilters(filters: NodeFilters2D, uuids: string[]): NodeFilters2D {
+		if (uuids.length === 0) {
+			// No results from semantic search, return filter that matches nothing
+			return [[["uuid", "==", "@@semantic-search-no-results@@"]]];
+		}
+
+		// Add UUID filter to each filter group (AND condition)
+		return filters.map((filterGroup) => [
+			...filterGroup,
+			["uuid", "in", uuids] as NodeFilter,
+		]);
 	}
 }

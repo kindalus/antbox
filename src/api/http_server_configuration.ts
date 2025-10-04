@@ -6,6 +6,15 @@ export interface ServerConfiguration {
 
 export type ModuleConfiguration = [modulePath: string, ...params: string[]];
 
+export type ModelConfiguration = [modelPath: string, ...params: string[]];
+
+export interface AIConfiguration {
+	enabled: boolean;
+	embeddingModel?: ModelConfiguration;
+	ocrModel?: ModelConfiguration;
+	vectorDatabase?: ModuleConfiguration;
+}
+
 export interface TenantConfiguration {
 	name: string;
 	rootPasswd?: string;
@@ -13,4 +22,5 @@ export interface TenantConfiguration {
 	jwk?: string;
 	storage?: ModuleConfiguration;
 	repository?: ModuleConfiguration;
+	ai?: AIConfiguration;
 }

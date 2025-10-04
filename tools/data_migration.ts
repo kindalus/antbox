@@ -1,4 +1,4 @@
-import { providerFrom } from "adapters/parse_module_configuration.ts";
+import { providerFrom } from "adapters/module_configuration_parser.ts";
 import type { StorageProvider } from "application/storage_provider.ts";
 import { Folders } from "domain/nodes/folders.ts";
 import type { NodeLike } from "domain/node_like.ts";

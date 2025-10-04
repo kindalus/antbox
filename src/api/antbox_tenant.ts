@@ -3,6 +3,8 @@ import type { AspectService } from "application/aspect_service.ts";
 import type { AuthService } from "application/auth_service.ts";
 import type { FeatureService } from "application/feature_service.ts";
 import { NodeService } from "application/node_service.ts";
+import type { EmbeddingService } from "application/ai/embedding_service.ts";
+import type { VectorDatabase } from "application/ai/vector_database.ts";
 
 export interface AntboxTenant {
 	name: string;
@@ -14,4 +16,6 @@ export interface AntboxTenant {
 	featureService: FeatureService;
 	authService: AuthService;
 	apiKeyService: ApiKeyService;
+	embeddingService?: EmbeddingService;
+	vectorDatabase?: VectorDatabase;
 }

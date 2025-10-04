@@ -1,6 +1,6 @@
 import { beforeAll, describe, test } from "bdd";
 import { expect } from "expect";
-import { providerFrom } from "./parse_module_configuration.ts";
+import { providerFrom } from "./module_configuration_parser.ts";
 import { type NodeRepository } from "domain/nodes/node_repository.ts";
 import { FolderNode } from "domain/nodes/folder_node.ts";
 import { FileNode } from "domain/nodes/file_node.ts";

@@ -13,14 +13,14 @@ export async function providerFrom<T>(
 	const mod = await loadModule<T>(modulePath);
 	if (!mod) {
 		console.error("could not load module");
-		process.exit(-1);
+		Deno.exit(-1);
 	}
 
 	const providerOrErr = await mod(...params);
 	if (providerOrErr.isLeft()) {
 		console.error("could not load provider");
 		console.error(providerOrErr.value);
-		process.exit(-1);
+		Deno.exit(-1);
 	}
 
 	return providerOrErr.value;
@@ -36,13 +36,13 @@ async function loadModule<T>(
 
 		if (!m.default) {
 			console.error(`module [${path}] has no default export`);
-			process.exit(-1);
+			Deno.exit(-1);
 		}
 
 		return m.default;
 	} catch (e) {
 		console.error("could not load module");
 		console.error(e);
-		process.exit(-1);
+		Deno.exit(-1);
 	}
 }

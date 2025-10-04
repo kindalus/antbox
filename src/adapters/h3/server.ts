@@ -1,6 +1,7 @@
 import aspectsRouter from "adapters/h3/aspects_v2_router.ts";
 import nodesRouter from "adapters/h3/nodes_v2_router.ts";
 import featuresRouter from "adapters/h3/features_v2_router.ts";
+import agentsRouter from "adapters/h3/agents_v2_router.ts";
 import loginRouter from "adapters/h3/login_v2_router.ts";
 import type { AntboxTenant } from "api/antbox_tenant.ts";
 import { App, createApp, createRouter, useBase } from "h3";
@@ -12,6 +13,7 @@ export default function setupH3Server(tenants: AntboxTenant[]): App {
 	const nodes = nodesRouter(tenants);
 	const aspects = aspectsRouter(tenants);
 	const features = featuresRouter(tenants);
+	const agents = agentsRouter(tenants);
 	const login = loginRouter(tenants);
 
 	// Create v2 router
@@ -21,6 +23,7 @@ export default function setupH3Server(tenants: AntboxTenant[]): App {
 	v2Router.use("/nodes/**", useBase("/nodes", nodes.handler));
 	v2Router.use("/aspects/**", useBase("/aspects", aspects.handler));
 	v2Router.use("/features/**", useBase("/features", features.handler));
+	v2Router.use("/agents/**", useBase("/agents", agents.handler));
 	v2Router.use("/login/**", useBase("/login", login.handler));
 
 	// Mount v2 router under /v2 prefix

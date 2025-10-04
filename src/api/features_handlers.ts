@@ -90,7 +90,6 @@ export function exportHandler(tenants: AntboxTenant[]): HttpHandler {
 	return defaultMiddlewareChain(tenants, (req: Request): Promise<Response> => {
 		const service = getTenant(req, tenants).featureService;
 		const params = getParams(req);
-		const query = getQuery(req);
 
 		if (!params.uuid) {
 			return Promise.resolve(
@@ -98,15 +97,12 @@ export function exportHandler(tenants: AntboxTenant[]): HttpHandler {
 			);
 		}
 
-		const exportType = query.type || "feature"; // Default to full feature export
-
 		return service
-			.exportFeatureForType(
+			.export(
 				getAuthenticationContext(req),
 				params.uuid,
-				exportType,
 			)
-			.then((result: any) => {
+			.then((result) => {
 				if (result.isLeft()) {
 					return processError(result.value);
 				}
@@ -117,7 +113,7 @@ export function exportHandler(tenants: AntboxTenant[]): HttpHandler {
 				response.headers.set("Content-Length", file.size.toString());
 				response.headers.set(
 					"Content-Disposition",
-					`attachment; filename="${params.uuid}_${exportType}.js"`,
+					`attachment; filename="${params.uuid}.js"`,
 				);
 				return response;
 			})
@@ -161,45 +157,11 @@ export function runExtHandler(tenants: AntboxTenant[]): HttpHandler {
 				return Promise.reject(new Error("{ uuid } not given"));
 			}
 
-			let parameters: Record<string, unknown> = {};
-
-			if (req.method === "GET") {
-				// Extract parameters from query string
-				parameters = getQuery(req);
-			} else if (req.method === "POST") {
-				// Extract parameters from form URL encoded body
-				try {
-					const contentType = req.headers.get("content-type") || "";
-					if (contentType.includes("application/x-www-form-urlencoded")) {
-						const formData = await req.formData();
-						for (const [key, value] of formData.entries()) {
-							parameters[key] = value;
-						}
-					} else if (contentType.includes("application/json")) {
-						parameters = await req.json();
-					} else {
-						return new Response("Unsupported content type", { status: 400 });
-					}
-				} catch (_error) {
-					return new Response("Invalid request body", { status: 400 });
-				}
-			} else {
-				return new Response("Method not allowed", { status: 405 });
-			}
-
-			return service
-				.runExtension(params.uuid, req, parameters)
-				.then((result) => {
-					if (result.isLeft()) {
-						const error = result.value;
-						if (error instanceof Error && !("errorCode" in error)) {
-							return new Response(error.message, { status: 500 });
-						}
-						return processError(error as any);
-					}
-					return result.value;
-				})
-				.catch(processError);
+			return service.runExtension(
+				getAuthenticationContext(req),
+				params.uuid,
+				req,
+			);
 		},
 	);
 }

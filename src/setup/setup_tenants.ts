@@ -17,6 +17,11 @@ import { ApiKeyService } from "application/api_key_service.ts";
 import type { VectorDatabase } from "application/ai/vector_database.ts";
 import type { AIModel } from "application/ai/ai_model.ts";
 import { EmbeddingService } from "application/ai/embedding_service.ts";
+import { AgentService } from "application/agent_service.ts";
+import { RAGService } from "application/rag_service.ts";
+import { builtinAgents } from "application/builtin_agents/index.ts";
+import { AuthenticationContext } from "application/authentication_context.ts";
+import { Users } from "domain/users_groups/users.ts";
 
 import {} from "path";
 import { resolve } from "path";
@@ -36,28 +41,64 @@ async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
 	const storage = await providerFrom<StorageProvider>(cfg?.storage);
 	const eventBus = new InMemoryEventBus();
 
-	// Load AI components if enabled
+	// Validate and load AI components FIRST if AI is enabled
 	let vectorDatabase: VectorDatabase | undefined;
 	let embeddingModel: AIModel | undefined;
-	let embeddingService: EmbeddingService | undefined;
+	let ocrModel: AIModel | undefined;
+	let defaultModel: AIModel | undefined;
 
 	if (cfg.ai?.enabled) {
-		// Load vector database
-		vectorDatabase = await providerFrom<VectorDatabase>(cfg.ai.vectorDatabase);
-
-		// Load embedding model
-		embeddingModel = await modelFrom(cfg.ai.embeddingModel);
-
-		// Load OCR model (can be same as embedding or different)
-		const ocrModel = await modelFrom(cfg.ai.ocrModel) ?? embeddingModel;
-
-		// If we have all required AI components, set up embedding service
-		if (vectorDatabase && embeddingModel && ocrModel) {
-			// NodeService needs to be created first, then we'll create EmbeddingService
-			// We'll do this after NodeService is created
+		// Validate all required AI configuration
+		if (!cfg.ai.defaultModel) {
+			console.error(`Tenant ${cfg.name}: AI is enabled but defaultModel is not configured`);
+			Deno.exit(1);
 		}
+
+		if (!cfg.ai.embeddingModel) {
+			console.error(`Tenant ${cfg.name}: AI is enabled but embeddingModel is not configured`);
+			Deno.exit(1);
+		}
+
+		if (!cfg.ai.ocrModel) {
+			console.error(`Tenant ${cfg.name}: AI is enabled but ocrModel is not configured`);
+			Deno.exit(1);
+		}
+
+		if (!cfg.ai.vectorDatabase) {
+			console.error(`Tenant ${cfg.name}: AI is enabled but vectorDatabase is not configured`);
+			Deno.exit(1);
+		}
+
+		// Load all AI components
+		defaultModel = await modelFrom(cfg.ai.defaultModel);
+		if (!defaultModel) {
+			console.error(`Tenant ${cfg.name}: Failed to load default model`);
+			Deno.exit(1);
+		}
+
+		embeddingModel = await modelFrom(cfg.ai.embeddingModel);
+		if (!embeddingModel) {
+			console.error(`Tenant ${cfg.name}: Failed to load embedding model`);
+			Deno.exit(1);
+		}
+
+		ocrModel = await modelFrom(cfg.ai.ocrModel);
+		if (!ocrModel) {
+			console.error(`Tenant ${cfg.name}: Failed to load OCR model`);
+			Deno.exit(1);
+		}
+
+		vectorDatabase = await providerFrom<VectorDatabase>(cfg.ai.vectorDatabase);
+		if (!vectorDatabase) {
+			console.error(`Tenant ${cfg.name}: Failed to load vector database`);
+			Deno.exit(1);
+		}
+
+		// Validate default model capabilities
+		await validateModelCapabilities(cfg.name, defaultModel);
 	}
 
+	// Create NodeService
 	const nodeService = new NodeService({
 		repository: repository ?? new InMemoryNodeRepository(),
 		storage: storage ?? new InMemoryStorageProvider(),
@@ -66,19 +107,7 @@ async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
 		embeddingModel,
 	});
 
-	// Create EmbeddingService if AI is enabled
-	if (cfg.ai?.enabled && vectorDatabase && embeddingModel) {
-		const ocrModel = await modelFrom(cfg.ai.ocrModel) ?? embeddingModel;
-
-		embeddingService = new EmbeddingService({
-			embeddingModel,
-			ocrModel,
-			nodeService,
-			vectorDatabase,
-			bus: eventBus,
-		});
-	}
-
+	// Create other core services
 	const aspectService = new AspectService(nodeService);
 	const usersGroupsService = new UsersGroupsService({
 		repository: repository ?? new InMemoryNodeRepository(),
@@ -88,6 +117,31 @@ async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
 	const featureService = new FeatureService(nodeService, usersGroupsService);
 	const authService = new AuthService(nodeService);
 	const apiKeyService = new ApiKeyService(nodeService);
+
+	// Build AI-related services AFTER NodeService and core services
+	let embeddingService: EmbeddingService | undefined;
+	let agentService: AgentService | undefined;
+	let ragService: RAGService | undefined;
+
+	if (cfg.ai?.enabled && vectorDatabase && embeddingModel && ocrModel && defaultModel) {
+		// Create EmbeddingService
+		embeddingService = new EmbeddingService({
+			embeddingModel,
+			ocrModel,
+			nodeService,
+			vectorDatabase,
+			bus: eventBus,
+		});
+
+		// Create AgentService
+		agentService = new AgentService(nodeService, featureService, defaultModel);
+
+		// Create RAGService
+		ragService = new RAGService(nodeService, agentService);
+
+		// Seed built-in agents
+		await seedBuiltinAgents(cfg.name, agentService);
+	}
 
 	return {
 		name: cfg.name,
@@ -101,6 +155,9 @@ async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
 		rawJwk,
 		embeddingService,
 		vectorDatabase,
+		agentService,
+		ragService,
+		defaultModel,
 	};
 }
 
@@ -154,5 +211,75 @@ async function loadSymmetricKey(keyPath?: string): Promise<string> {
 			}`,
 		);
 		Deno.exit(-1);
+	}
+}
+
+/**
+ * Validate that the default model has required capabilities for AI agents
+ */
+async function validateModelCapabilities(
+	tenantName: string,
+	model: AIModel,
+): Promise<void> {
+	// REQUIRED capabilities
+	if (!model.tools) {
+		console.error(
+			`Tenant ${tenantName}: Default model ${model.name} does not support tools (required for AI agents)`,
+		);
+		Deno.exit(1);
+	}
+
+	if (!model.files) {
+		console.error(
+			`Tenant ${tenantName}: Default model ${model.name} does not support file inputs (required for AI agents)`,
+		);
+		Deno.exit(1);
+	}
+
+	if (!model.llm) {
+		console.error(
+			`Tenant ${tenantName}: Default model ${model.name} is not a valid LLM (required for AI agents)`,
+		);
+		Deno.exit(1);
+	}
+
+	// OPTIONAL capabilities (warn only)
+	if (!model.reasoning) {
+		console.warn(
+			`Tenant ${tenantName}: Default model ${model.name} does not support reasoning - agents with reasoning flag will ignore it`,
+		);
+	}
+}
+
+/**
+ * Seed built-in agents into the tenant's node repository
+ */
+async function seedBuiltinAgents(
+	tenantName: string,
+	agentService: AgentService,
+): Promise<void> {
+	// Create root authentication context for seeding
+	const rootAuthContext: AuthenticationContext = {
+		tenant: tenantName,
+		principal: { email: Users.ROOT_USER_EMAIL, groups: [] },
+		mode: "Direct",
+	};
+
+	// Seed each built-in agent
+	for (const agent of builtinAgents) {
+		const result = await agentService.createOrReplace(
+			rootAuthContext,
+			agent.metadata,
+		);
+
+		if (result.isLeft()) {
+			console.error(
+				`Tenant ${tenantName}: Failed to seed built-in agent ${agent.title}: ${result.value.message}`,
+			);
+		} else {
+			console.log(
+				`Tenant ${tenantName}: Seeded built-in agent: ${agent.title} (${agent.uuid})`,
+			);
+		}
 	}
 }

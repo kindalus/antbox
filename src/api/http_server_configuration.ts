@@ -10,6 +10,7 @@ export type ModelConfiguration = [modelPath: string, ...params: string[]];
 
 export interface AIConfiguration {
 	enabled: boolean;
+	defaultModel?: ModelConfiguration;
 	embeddingModel?: ModelConfiguration;
 	ocrModel?: ModelConfiguration;
 	vectorDatabase?: ModuleConfiguration;

@@ -10,3 +10,6 @@ export const builtinFeatures: Feature[] = [
 	delete_all,
 	move_up,
 ];
+
+// Export agent tools for use in AgentService
+export { BUILTIN_AGENT_TOOLS } from "./agent_tools.ts";

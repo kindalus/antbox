@@ -46,6 +46,7 @@ import { Specification, specificationFn } from "shared/specification.ts";
 import { builtinAspects } from "./builtin_aspects/index.ts";
 import { builtinGroups } from "./builtin_groups/index.ts";
 import { builtinUsers } from "./builtin_users/index.ts";
+import { builtinAgents } from "./builtin_agents/index.ts";
 import { FeatureNode, FeatureParameter } from "domain/features/feature_node.ts";
 
 // TODO: Implements throwing events
@@ -783,6 +784,7 @@ export class NodeService {
 			...builtinAspects,
 			...builtinGroups,
 			...builtinUsers,
+			...builtinAgents,
 			//...builtinFeatures,
 		];
 		const builtinNode = builtinNodes.find(predicate);

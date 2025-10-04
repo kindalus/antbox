@@ -6,5 +6,5 @@ export interface Principal {
 export interface AuthenticationContext {
 	readonly tenant: string;
 	readonly principal: Principal;
-	readonly mode: "Direct" | "Action";
+	readonly mode: "Direct" | "Action" | "AI";
 }

@@ -58,4 +58,13 @@ export interface NodeMetadata {
 	exposeAction: boolean;
 	exposeExtension: boolean;
 	exposeAITool: boolean;
+
+	// Agent properties
+	model: string;
+	temperature: number;
+	maxTokens: number;
+	reasoning: boolean;
+	useTools: boolean;
+	systemInstructions: string;
+	structuredAnswer?: string;
 }

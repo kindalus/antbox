@@ -8,6 +8,7 @@ import { SmartFolderNode } from "./smart_folder_node.ts";
 import type { NodeLike } from "domain/node_like.ts";
 import { ApiKeyNode } from "domain/api_keys/api_key_node.ts";
 import { FeatureNode } from "domain/features/feature_node.ts";
+import { AgentNode } from "domain/ai/agent_node.ts";
 import { ARTICLE_ASPECT } from "application/builtin_aspects/index.ts";
 
 export class Nodes {
@@ -22,6 +23,7 @@ export class Nodes {
 	static USER_MIMETYPE = "application/vnd.antbox.user";
 	static GROUP_MIMETYPE = "application/vnd.antbox.group";
 	static API_KEY_MIMETYPE = "application/vnd.antbox.apikey";
+	static AGENT_MIMETYPE = "application/vnd.antbox.agent";
 
 	static SYSTEM_MIMETYPES = [
 		Nodes.ASPECT_MIMETYPE,
@@ -29,6 +31,7 @@ export class Nodes {
 		Nodes.USER_MIMETYPE,
 		Nodes.GROUP_MIMETYPE,
 		Nodes.API_KEY_MIMETYPE,
+		Nodes.AGENT_MIMETYPE,
 	];
 
 	static fidToUuid(fid: string): string {
@@ -84,6 +87,10 @@ export class Nodes {
 	static isAITool(node: NodeLike): node is FeatureNode {
 		return node.mimetype === Nodes.FEATURE_MIMETYPE &&
 			(node as FeatureNode).exposeAITool;
+	}
+
+	static isAgent(node: NodeLike): node is AgentNode {
+		return node.mimetype === Nodes.AGENT_MIMETYPE;
 	}
 
 	static isGroup(node: NodeLike): node is GroupNode {

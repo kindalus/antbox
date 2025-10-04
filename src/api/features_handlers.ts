@@ -177,7 +177,7 @@ export function listActionsHandler(tenants: AntboxTenant[]): HttpHandler {
 export function runActionHandler(tenants: AntboxTenant[]): HttpHandler {
 	return defaultMiddlewareChain(
 		tenants,
-		(req: Request): Promise<Response> => {
+		async (req: Request): Promise<Response> => {
 			const service = getTenant(req, tenants).featureService;
 			const params = getParams(req);
 			const query = getQuery(req);

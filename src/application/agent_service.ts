@@ -10,14 +10,48 @@ import { ChatHistory, ChatMessage } from "domain/ai/chat_message.ts";
 import { NodeFilter } from "domain/nodes/node_filter.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import { Folders } from "domain/nodes/folders.ts";
-import { AIModel } from "application/ai/ai_model.ts";
+import { AIModel } from "application/ai_model.ts";
 import { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import { AgentDTO, nodeMetadataToAgentDTO } from "application/agent_dto.ts";
 import { BUILTIN_AGENT_TOOLS } from "application/builtin_features/index.ts";
 import { modelFrom } from "adapters/model_configuration_parser.ts";
-import chatSystemPrompt from "./prompts/agent_chat_system.md" with { type: "text" };
-import answerSystemPrompt from "./prompts/agent_answer_system.md" with { type: "text" };
+const chatSystemPrompt =
+	`You are an AI agent running inside Antbox, an ECM (Enterprise Content Management) platform.
+
+Key concepts:
+- Nodes: Everything is a node (files, folders, documents, users, groups, etc.)
+- Aspects: Schema definitions that extend node properties with custom metadata
+- NodeFilter: Powerful query system using [field, operator, value] tuples
+
+You have access to these tools:
+- find(filters): Search nodes using NodeFilter queries
+- get(uuid): Retrieve a specific node by UUID
+- export(uuid): Export node content
+
+IMPORTANT:
+- Always detect and respond in the same language as the user
+- Only answer questions related to content and data within the Antbox platform
+- If a question is outside the scope of the platform, respond: "I don't know how to answer that as it's outside the scope of this ECM platform"
+- Many questions can be answered by querying node metadata and aspects using the find tool`;
+
+const answerSystemPrompt =
+	`You are an AI agent running inside Antbox, an ECM (Enterprise Content Management) platform.
+
+Key concepts:
+- Nodes: Everything is a node (files, folders, documents, users, groups, etc.)
+- Aspects: Schema definitions that extend node properties with custom metadata
+- NodeFilter: Powerful query system using [field, operator, value] tuples
+
+You have access to these tools:
+- find(filters): Search nodes using NodeFilter queries
+- get(uuid): Retrieve a specific node by UUID
+- export(uuid): Export node content
+
+IMPORTANT:
+- Only answer questions related to content and data within the Antbox platform
+- If a question is outside the scope of the platform, respond: "I don't know how to answer that as it's outside the scope of this ECM platform"
+- Many questions can be answered by querying node metadata and aspects using the find tool`;
 import { NodeLike } from "domain/node_like.ts";
 
 // ============================================================================
@@ -339,7 +373,9 @@ export class AgentService {
 				currentHistory = [...currentHistory, chatResult.value];
 
 				// Check if response has text - if so, return early
-				const hasText = chatResult.value.parts.some((part) => part.text && part.text.trim());
+				const hasText = chatResult.value.parts.some((part: any) =>
+					part.text && part.text.trim()
+				);
 				if (hasText) {
 					return right(currentHistory);
 				}
@@ -447,7 +483,7 @@ export class AgentService {
 				const currentMessage = result.value;
 
 				// Check if response has text - if so, return early
-				const hasText = currentMessage.parts.some((part) => part.text && part.text.trim());
+				const hasText = currentMessage.parts.some((part: any) => part.text && part.text.trim());
 				if (hasText) {
 					return right(currentMessage);
 				}

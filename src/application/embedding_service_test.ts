@@ -1,18 +1,18 @@
 import { describe, it } from "jsr:@std/testing/bdd";
 import { expect } from "jsr:@std/expect";
 import { EmbeddingService, type EmbeddingServiceContext } from "./embedding_service.ts";
-import { InMemoryVectorDatabase } from "../../adapters/inmem/inmem_vector_database.ts";
-import { DeterministicModel } from "../../adapters/models/deterministic.ts";
-import { NodeCreatedEvent } from "../../domain/nodes/node_created_event.ts";
-import { NodeUpdatedEvent } from "../../domain/nodes/node_updated_event.ts";
-import { NodeDeletedEvent } from "../../domain/nodes/node_deleted_event.ts";
-import { FileNode } from "../../domain/nodes/file_node.ts";
-import { FolderNode } from "../../domain/nodes/folder_node.ts";
-import { right } from "../../shared/either.ts";
-import type { NodeService } from "../node_service.ts";
-import type { AntboxError } from "../../shared/antbox_error.ts";
-import type { Node } from "../../domain/nodes/node.ts";
-import type { EventBus } from "../../shared/event_bus.ts";
+import { InMemoryVectorDatabase } from "adapters/inmem/inmem_vector_database.ts";
+import { DeterministicModel } from "adapters/models/deterministic.ts";
+import { NodeCreatedEvent } from "domain/nodes/node_created_event.ts";
+import { NodeUpdatedEvent } from "domain/nodes/node_updated_event.ts";
+import { NodeDeletedEvent } from "domain/nodes/node_deleted_event.ts";
+import { FileNode } from "domain/nodes/file_node.ts";
+import { FolderNode } from "domain/nodes/folder_node.ts";
+import { right } from "shared/either.ts";
+import type { NodeService } from "application/node_service.ts";
+import type { AntboxError } from "shared/antbox_error.ts";
+import type { Node } from "domain/nodes/node.ts";
+import type { EventBus } from "shared/event_bus.ts";
 
 // Mock EventBus
 class MockEventBus implements EventBus {

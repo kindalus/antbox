@@ -1348,7 +1348,7 @@ export class NodeService {
 			}
 
 			const results = searchOrErr.value;
-			const uuids = results.map((r) => r.nodeUuid);
+			const uuids = results.map((r: any) => r.nodeUuid);
 			const scores: Record<string, number> = {};
 			for (const result of results) {
 				scores[result.nodeUuid] = result.score;

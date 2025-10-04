@@ -4,8 +4,8 @@ import type {
 	VectorDatabase,
 	VectorEntry,
 	VectorSearchResult,
-} from "application/ai/vector_database.ts";
-import type { Embedding } from "application/ai/ai_model.ts";
+} from "application/vector_database.ts";
+import type { Embedding } from "application/ai_model.ts";
 
 /**
  * In-memory implementation of VectorDatabase for development and testing

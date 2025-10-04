@@ -1,7 +1,7 @@
 import { Either, left, right } from "shared/either.ts";
 import { AntboxError } from "shared/antbox_error.ts";
-import type { AIModel, Embedding } from "application/ai/ai_model.ts";
-import { isEmbeddingsSupportedMimetype } from "application/ai/embeddings_supported_mimetypes.ts";
+import type { AIModel, Embedding } from "application/ai_model.ts";
+import { isEmbeddingsSupportedMimetype } from "application/embeddings_supported_mimetypes.ts";
 
 export class UnsupportedMimetypeError extends AntboxError {
 	constructor(mimetype: string) {

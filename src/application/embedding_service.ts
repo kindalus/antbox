@@ -1,16 +1,16 @@
-import { NodeCreatedEvent } from "../../domain/nodes/node_created_event.ts";
-import { NodeUpdatedEvent } from "../../domain/nodes/node_updated_event.ts";
-import { NodeDeletedEvent } from "../../domain/nodes/node_deleted_event.ts";
-import type { FileNode } from "../../domain/nodes/file_node.ts";
+import { NodeCreatedEvent } from "domain/nodes/node_created_event.ts";
+import { NodeUpdatedEvent } from "domain/nodes/node_updated_event.ts";
+import { NodeDeletedEvent } from "domain/nodes/node_deleted_event.ts";
+import type { FileNode } from "domain/nodes/file_node.ts";
 import type { VectorDatabase } from "./vector_database.ts";
 import type { VectorEntry } from "./vector_database.ts";
 import type { AIModel } from "./ai_model.ts";
 import { isEmbeddingsSupportedMimetype } from "./embeddings_supported_mimetypes.ts";
-import { AntboxError } from "../../shared/antbox_error.ts";
-import { Nodes } from "../../domain/nodes/nodes.ts";
-import type { NodeService } from "../node_service.ts";
-import { UsersGroupsService } from "../users_groups_service.ts";
-import type { EventBus } from "../../shared/event_bus.ts";
+import { AntboxError } from "shared/antbox_error.ts";
+import { Nodes } from "domain/nodes/nodes.ts";
+import type { NodeService } from "application/node_service.ts";
+import { UsersGroupsService } from "application/users_groups_service.ts";
+import type { EventBus } from "shared/event_bus.ts";
 
 export interface EmbeddingServiceContext {
 	embeddingModel: AIModel;

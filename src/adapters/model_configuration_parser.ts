@@ -1,7 +1,7 @@
 import type { ModelConfiguration } from "api/http_server_configuration.ts";
 import type { AntboxError } from "shared/antbox_error.ts";
 import type { Either } from "shared/either.ts";
-import type { AIModel } from "application/ai/ai_model.ts";
+import type { AIModel } from "application/ai_model.ts";
 
 export async function modelFrom(
 	cfg?: ModelConfiguration,

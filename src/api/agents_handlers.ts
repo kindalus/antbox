@@ -322,7 +322,7 @@ export function ragChatHandler(tenants: AntboxTenant[]): HttpHandler {
 			}
 
 			return tenant.ragService
-				.chat(getAuthenticationContext(req), chatInput)
+				.chat(getAuthenticationContext(req), chatInput, {})
 				.then(processServiceResult)
 				.catch(processError);
 		},

@@ -6,14 +6,14 @@ import { FeatureService } from "./feature_service.ts";
 import { AuthenticationContext } from "./authentication_context.ts";
 import { AgentNode } from "domain/ai/agent_node.ts";
 import { AgentNotFoundError } from "domain/ai/agent_not_found_error.ts";
-import { AIModel } from "./ai/ai_model.ts";
+import { AIModel } from "./ai_model.ts";
 import { ChatHistory, ChatMessage } from "domain/ai/chat_message.ts";
 import { FeatureDTO } from "./feature_dto.ts";
 import { Either, left, right } from "shared/either.ts";
 import { AntboxError } from "shared/antbox_error.ts";
 import { ValidationError } from "shared/validation_error.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
-import { Embedding } from "./ai/ai_model.ts";
+import { Embedding } from "./ai_model.ts";
 import { AnswerOptions, ChatOptions } from "./agent_service.ts";
 
 // ============================================================================

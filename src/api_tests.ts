@@ -1,4 +1,4 @@
-import { setupOakServer } from "adapters/oak/setup_oak_server.ts";
+import setupOakServer from "adapters/oak/server.ts";
 import { PORT, ROOT_PASSWD } from "setup/server_defaults.ts";
 import { setupTenants } from "setup/setup_tenants.ts";
 import { NodeService } from "application/node_service.ts";

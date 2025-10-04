@@ -11,7 +11,7 @@ import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider.t
 import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus.ts";
 import { InMemoryVectorDatabase } from "adapters/inmem/inmem_vector_database.ts";
 import { DeterministicModel } from "adapters/models/deterministic.ts";
-import { EmbeddingService } from "./ai/embedding_service.ts";
+import { EmbeddingService } from "./embedding_service.ts";
 import type { NodeFilters1D } from "domain/nodes/node_filter.ts";
 
 const authCtx: AuthenticationContext = {

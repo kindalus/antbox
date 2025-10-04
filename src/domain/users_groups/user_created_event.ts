@@ -9,6 +9,7 @@ export class UserCreatedEvent implements Event {
 
 	constructor(
 		readonly userEmail: string,
+		readonly tenant: string,
 		email: string,
 		fullname: string,
 	) {

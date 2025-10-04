@@ -9,8 +9,9 @@ export class GroupUpdatedEvent implements Event {
 
 	constructor(
 		readonly userEmail: string,
-		readonly uuid: string,
-		title: string,
+		readonly tenant: string,
+		uuid: string,
+		title?: string,
 	) {
 		this.eventId = GroupUpdatedEvent.EVENT_ID;
 		this.occurredOn = new Date();

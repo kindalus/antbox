@@ -9,6 +9,7 @@ export class GroupDeletedEvent implements Event {
 
 	constructor(
 		readonly userEmail: string,
+		readonly tenant: string,
 		uuid: string,
 	) {
 		this.eventId = GroupDeletedEvent.EVENT_ID;

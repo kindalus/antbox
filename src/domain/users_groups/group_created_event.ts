@@ -9,6 +9,7 @@ export class GroupCreatedEvent implements Event {
 
 	constructor(
 		readonly userEmail: string,
+		readonly tenant: string,
 		uuid: string,
 		title: string,
 	) {

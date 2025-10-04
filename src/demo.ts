@@ -1,7 +1,7 @@
 import { Command } from "commander";
 import { printServerKeys } from "./print_server_keys.ts";
 import { setupTenants } from "setup/setup_tenants.ts";
-import { setupOakServer } from "adapters/oak/setup_oak_server.ts";
+import setupOakServer from "adapters/oak/server.ts";
 import { PORT } from "setup/server_defaults.ts";
 import process from "node:process";
 
@@ -29,8 +29,8 @@ async function startDemoServer(opts: CommandOpts) {
 			{
 				name: "demo",
 				rootPasswd: opts.passwd || "demo",
-				symmetricKey: "ui2tPcQZvN+IxXsEW6KQOOFROS6zXB1pZdotBR3Ot8o=",
-				jwkPath: ".config/antbox.jwk",
+				key: "ui2tPcQZvN+IxXsEW6KQOOFROS6zXB1pZdotBR3Ot8o=",
+				jwk: ".config/antbox.jwk",
 				storage: [
 					"flat_file/flat_file_storage_provider.ts",
 					"./data/storage",

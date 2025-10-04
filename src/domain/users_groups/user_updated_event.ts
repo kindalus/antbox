@@ -9,8 +9,10 @@ export class UserUpdatedEvent implements Event {
 
 	constructor(
 		readonly userEmail: string,
-		email: string,
-		fullname: string,
+		readonly tenant: string,
+		readonly uuid: string,
+		email?: string,
+		fullname?: string,
 	) {
 		this.eventId = UserUpdatedEvent.EVENT_ID;
 		this.occurredOn = new Date();

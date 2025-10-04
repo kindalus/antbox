@@ -9,6 +9,7 @@ export class UserDeletedEvent implements Event {
 
 	constructor(
 		readonly userEmail: string,
+		readonly tenant: string,
 		uuid: string,
 	) {
 		this.eventId = UserDeletedEvent.EVENT_ID;

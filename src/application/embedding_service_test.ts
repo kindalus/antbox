@@ -37,7 +37,7 @@ class MockNodeService {
 	async export(
 		ctx: any,
 		uuid: string,
-	): Promise<import("../../shared/either.ts").Either<AntboxError, File>> {
+	): Promise<import("shared/either.ts").Either<AntboxError, File>> {
 		const file = this.files.get(uuid);
 		if (!file) {
 			return right(new File([], "not-found"));
@@ -48,7 +48,7 @@ class MockNodeService {
 	async get(
 		ctx: any,
 		uuid: string,
-	): Promise<import("../../shared/either.ts").Either<AntboxError, Node>> {
+	): Promise<import("shared/either.ts").Either<AntboxError, Node>> {
 		// Return a mock FileNode for testing
 		const file = this.files.get(uuid);
 		if (!file) {

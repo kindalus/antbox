@@ -2,7 +2,7 @@ import { describe, it } from "jsr:@std/testing/bdd";
 import { expect } from "jsr:@std/expect";
 import { EmbeddingService, type EmbeddingServiceContext } from "./embedding_service.ts";
 import { InMemoryVectorDatabase } from "../../adapters/inmem/inmem_vector_database.ts";
-import { DeterministicModel } from "../../adapters/models/deterministic_model.ts";
+import { DeterministicModel } from "../../adapters/models/deterministic.ts";
 import { NodeCreatedEvent } from "../../domain/nodes/node_created_event.ts";
 import { NodeUpdatedEvent } from "../../domain/nodes/node_updated_event.ts";
 import { NodeDeletedEvent } from "../../domain/nodes/node_deleted_event.ts";

@@ -10,7 +10,7 @@ import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository.ts"
 import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider.ts";
 import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus.ts";
 import { InMemoryVectorDatabase } from "adapters/inmem/inmem_vector_database.ts";
-import { DeterministicModel } from "adapters/models/deterministic_model.ts";
+import { DeterministicModel } from "adapters/models/deterministic.ts";
 import { EmbeddingService } from "./ai/embedding_service.ts";
 import type { NodeFilters1D } from "domain/nodes/node_filter.ts";
 

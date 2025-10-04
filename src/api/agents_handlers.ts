@@ -12,7 +12,7 @@ import { processServiceCreateResult, processServiceResult } from "./process_serv
 // CRUD HANDLERS
 // ============================================================================
 
-export function createAgentHandler(tenants: AntboxTenant[]): HttpHandler {
+export function createOrReplaceAgentHandler(tenants: AntboxTenant[]): HttpHandler {
 	return defaultMiddlewareChain(
 		tenants,
 		async (req: Request): Promise<Response> => {
@@ -62,35 +62,6 @@ export function getAgentHandler(tenants: AntboxTenant[]): HttpHandler {
 
 			return tenant.agentService
 				.get(getAuthenticationContext(req), params.uuid)
-				.then(processServiceResult)
-				.catch(processError);
-		},
-	);
-}
-
-export function updateAgentHandler(tenants: AntboxTenant[]): HttpHandler {
-	return defaultMiddlewareChain(
-		tenants,
-		async (req: Request): Promise<Response> => {
-			const tenant = getTenant(req, tenants);
-			if (!tenant.agentService) {
-				return new Response(
-					JSON.stringify({ error: "AI agents not enabled for this tenant" }),
-					{ status: 503, headers: { "Content-Type": "application/json" } },
-				);
-			}
-
-			const params = getParams(req);
-			if (!params.uuid) {
-				return new Response(
-					JSON.stringify({ error: "{ uuid } not given" }),
-					{ status: 400, headers: { "Content-Type": "application/json" } },
-				);
-			}
-
-			const metadata = await req.json();
-			return tenant.agentService
-				.createOrReplace(getAuthenticationContext(req), { ...metadata, uuid: params.uuid })
 				.then(processServiceResult)
 				.catch(processError);
 		},

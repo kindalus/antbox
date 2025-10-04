@@ -100,6 +100,17 @@ function buildFeaturesFolder(): FolderNode {
 	).right;
 }
 
+function buildAgentsFolder(): FolderNode {
+	return FolderNode.create(
+		createSystemFolderMetadata(
+			Folders.AGENTS_FOLDER_UUID,
+			Folders.AGENTS_FOLDER_UUID,
+			"Agents",
+			Folders.SYSTEM_FOLDER_UUID,
+		),
+	).right;
+}
+
 function createSystemFolderMetadata(
 	uuid: string,
 	fid: string,
@@ -152,6 +163,7 @@ const GROUPS_FOLDER = buildGroupsFolder();
 const SYSTEM_FOLDER = buildSystemFolder();
 const API_KEYS_FOLDER = buildApiKeysFolder();
 const FEATURES_FOLDER = buildFeaturesFolder();
+const AGENTS_FOLDER = buildAgentsFolder();
 
 const ROOT_FOLDER = buildRootFolder();
 
@@ -161,9 +173,11 @@ const SYSTEM_FOLDERS = [
 	GROUPS_FOLDER,
 	API_KEYS_FOLDER,
 	FEATURES_FOLDER,
+	AGENTS_FOLDER,
 ];
 
 export {
+	AGENTS_FOLDER,
 	API_KEYS_FOLDER,
 	ASPECTS_FOLDER,
 	FEATURES_FOLDER,
@@ -175,6 +189,7 @@ export {
 };
 
 export const builtinFolders: FolderNode[] = [
+	AGENTS_FOLDER,
 	API_KEYS_FOLDER,
 	ASPECTS_FOLDER,
 	FEATURES_FOLDER,

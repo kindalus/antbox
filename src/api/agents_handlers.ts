@@ -149,18 +149,18 @@ export function chatHandler(tenants: AntboxTenant[]): HttpHandler {
 				chatInput = await req.json();
 			}
 
-			if (!chatInput?.message) {
-				return sendBadRequest({ error: "{ message } not given" });
+			if (!chatInput?.text) {
+				return sendBadRequest({ error: "{ text } not given" });
 			}
 
-			// Extract message and build options
-			const { message, ...options } = chatInput;
+			// Extract text and options
+			const { text, options = {} } = chatInput;
 			if (files) {
 				options.files = files;
 			}
 
 			return tenant.agentService!
-				.chat(getAuthenticationContext(req), params.uuid, message, options)
+				.chat(getAuthenticationContext(req), params.uuid, text, options)
 				.then(processServiceResult)
 				.catch(processError);
 		},
@@ -212,18 +212,18 @@ export function answerHandler(tenants: AntboxTenant[]): HttpHandler {
 				answerInput = await req.json();
 			}
 
-			if (!answerInput?.query) {
-				return sendBadRequest({ error: "{ query } not given" });
+			if (!answerInput?.text) {
+				return sendBadRequest({ error: "{ text } not given" });
 			}
 
-			// Extract query and build options
-			const { query, ...options } = answerInput;
+			// Extract text and options
+			const { text, options = {} } = answerInput;
 			if (files) {
 				options.files = files;
 			}
 
 			return tenant.agentService!
-				.answer(getAuthenticationContext(req), params.uuid, query, options)
+				.answer(getAuthenticationContext(req), params.uuid, text, options)
 				.then(processServiceResult)
 				.catch(processError);
 		},
@@ -245,15 +245,15 @@ export function ragChatHandler(tenants: AntboxTenant[]): HttpHandler {
 			}
 
 			const chatInput = await req.json();
-			if (!chatInput?.message) {
-				return sendBadRequest({ error: "{ message } not given" });
+			if (!chatInput?.text) {
+				return sendBadRequest({ error: "{ text } not given" });
 			}
 
-			// Extract message and build options
-			const { message, ...options } = chatInput;
+			// Extract text and options
+			const { text, options = {} } = chatInput;
 
 			return tenant.ragService!
-				.chat(getAuthenticationContext(req), message, options)
+				.chat(getAuthenticationContext(req), text, options)
 				.then(processServiceResult)
 				.catch(processError);
 		},

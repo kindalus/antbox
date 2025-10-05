@@ -6,7 +6,7 @@ import { FeatureDTO } from "application/feature_dto.ts";
  */
 export const BUILTIN_AGENT_TOOLS: Partial<FeatureDTO>[] = [
 	{
-		id: "builtin:node-service:find",
+		uuid: "NodeService:find",
 		name: "find",
 		description: "Search nodes using NodeFilter queries",
 		parameters: [
@@ -22,7 +22,7 @@ export const BUILTIN_AGENT_TOOLS: Partial<FeatureDTO>[] = [
 		returnDescription: "Array of matching nodes",
 	},
 	{
-		id: "builtin:node-service:get",
+		uuid: "NodeService:get",
 		name: "get",
 		description: "Retrieve a specific node by UUID",
 		parameters: [
@@ -37,7 +37,7 @@ export const BUILTIN_AGENT_TOOLS: Partial<FeatureDTO>[] = [
 		returnDescription: "Node metadata and content",
 	},
 	{
-		id: "builtin:node-service:export",
+		uuid: "NodeService:export",
 		name: "export",
 		description: "Export node content as file",
 		parameters: [
@@ -52,7 +52,7 @@ export const BUILTIN_AGENT_TOOLS: Partial<FeatureDTO>[] = [
 		returnDescription: "Node file content",
 	},
 	{
-		id: "builtin:ai-model:ocr",
+		uuid: "OcrModel:ocr",
 		name: "ocr",
 		description:
 			"Extract text from images and documents using OCR (Optical Character Recognition)",

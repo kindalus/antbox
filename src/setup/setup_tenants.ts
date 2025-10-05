@@ -224,21 +224,21 @@ async function validateModelCapabilities(
 	// REQUIRED capabilities
 	if (!model.tools) {
 		console.error(
-			`Tenant ${tenantName}: Default model ${model.name} does not support tools (required for AI agents)`,
+			`Tenant ${tenantName}: Default model ${model.modelName} does not support tools (required for AI agents)`,
 		);
 		Deno.exit(1);
 	}
 
 	if (!model.files) {
 		console.error(
-			`Tenant ${tenantName}: Default model ${model.name} does not support file inputs (required for AI agents)`,
+			`Tenant ${tenantName}: Default model ${model.modelName} does not support file inputs (required for AI agents)`,
 		);
 		Deno.exit(1);
 	}
 
 	if (!model.llm) {
 		console.error(
-			`Tenant ${tenantName}: Default model ${model.name} is not a valid LLM (required for AI agents)`,
+			`Tenant ${tenantName}: Default model ${model.modelName} is not a valid LLM (required for AI agents)`,
 		);
 		Deno.exit(1);
 	}
@@ -246,7 +246,7 @@ async function validateModelCapabilities(
 	// OPTIONAL capabilities (warn only)
 	if (!model.reasoning) {
 		console.warn(
-			`Tenant ${tenantName}: Default model ${model.name} does not support reasoning - agents with reasoning flag will ignore it`,
+			`Tenant ${tenantName}: Default model ${model.modelName} does not support reasoning - agents with reasoning flag will ignore it`,
 		);
 	}
 }

@@ -158,7 +158,7 @@ export class EmbeddingService {
 				tenant: tenant,
 				mimetype: node.mimetype!,
 				title: node.title,
-				model: this.context.embeddingModel.name,
+				model: this.context.embeddingModel.modelName,
 			},
 		};
 

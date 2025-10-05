@@ -17,7 +17,7 @@ export interface AIModel {
 	/**
 	 * Model name identifier
 	 */
-	name: string;
+	modelName: string;
 
 	/**
 	 * True if this model provides embedding functionality
@@ -61,12 +61,12 @@ export interface AIModel {
 	/**
 	 * Interactive chat with history and tool support
 	 * Only available if llm is true
-	 * @param text User message text to send
+	 * @param input User message text to send
 	 * @param options Optional configuration (system prompt, history, tools, files, temperature, etc.)
 	 * @returns Either an error or ChatMessage response with complete history (may include tool calls to be executed by caller)
 	 */
 	chat?(
-		text: string,
+		input: string | ChatMessage,
 		options?: {
 			systemPrompt?: string;
 			history?: ChatHistory;
@@ -84,12 +84,12 @@ export interface AIModel {
 	/**
 	 * One-shot question answering
 	 * Only available if llm is true
-	 * @param text Question text to answer
+	 * @param input Question text to answer
 	 * @param options Optional configuration (system prompt, tools, files, temperature, etc.)
 	 * @returns Either an error or ChatMessage response (may include tool calls)
 	 */
 	answer?(
-		text: string,
+		input: string | ChatMessage,
 		options?: {
 			systemPrompt?: string;
 			tools?: Partial<FeatureDTO>[];

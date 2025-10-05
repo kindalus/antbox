@@ -78,7 +78,6 @@ function getToken(req: Request) {
 	if (bearer && /Bearer\s.*/.test(bearer)) {
 		return bearer.split(" ")[1];
 	}
-	return req.headers.get("x-access-token");
 }
 
 function getApiKey(req: Request) {

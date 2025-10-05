@@ -192,7 +192,7 @@ RESPONSE GUIDELINES:
 			}
 
 			context +=
-				"\n**Note:** When referencing these nodes, use their UUIDs. You can use the get() or export() tools to retrieve more details about specific nodes.";
+				"\n**Note:** When referencing these nodes, use their UUIDs. You can use the get() or ocr() (if text file) tools to retrieve more details about specific nodes.";
 
 			return right(context);
 		} catch (error) {

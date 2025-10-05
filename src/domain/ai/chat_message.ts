@@ -12,11 +12,13 @@ export interface ToolResponse {
 
 export interface ChatMessage {
 	role: ChatMessageRole;
-	parts: {
-		text?: string;
-		toolCall?: ToolCall;
-		toolResponse?: ToolResponse;
-	}[];
+	parts: Array<ChatMessagePart>;
+}
+
+export interface ChatMessagePart {
+	text?: string;
+	toolCall?: ToolCall;
+	toolResponse?: ToolResponse;
 }
 
 export type ChatHistory = ChatMessage[];

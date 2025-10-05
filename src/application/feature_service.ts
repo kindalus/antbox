@@ -19,9 +19,9 @@ import { type Either, left, right } from "shared/either.ts";
 import { type AuthenticationContext } from "./authentication_context.ts";
 import { NodeService } from "application/node_service.ts";
 import { UsersGroupsService } from "application/users_groups_service.ts";
-import { FeatureDTO } from "application/feature_dto.ts";
+import { FeatureDTO, toFeatureDTO } from "application/feature_dto.ts";
 import { RunContext } from "domain/features/feature_run_context.ts";
-import { builtinFeatures } from "application/builtin_features/index.ts";
+import { BUILTIN_AGENT_TOOLS, builtinFeatures } from "application/builtin_features/index.ts";
 import { ValidationError } from "shared/validation_error.ts";
 import { Groups } from "domain/users_groups/groups.ts";
 
@@ -166,7 +166,7 @@ export class FeatureService {
 
 		// Create a new file with the modified content
 		return right(
-			new File([exportContent], `${feature.id}.js`, {
+			new File([exportContent], `${feature.uuid}.js`, {
 				type: "application/javascript",
 			}),
 		);
@@ -201,7 +201,7 @@ export class FeatureService {
 				owner: Users.ROOT_USER_EMAIL,
 			})
 				.right;
-			return right(this.#nodeToFeatureDTO(featureNode));
+			return right(toFeatureDTO(featureNode));
 		}
 
 		const nodeOrErr = await this._nodeService.get(ctx, uuid);
@@ -218,7 +218,7 @@ export class FeatureService {
 			return left(new FeatureNotFoundError(uuid));
 		}
 
-		return right(this.#nodeToFeatureDTO(nodeOrErr.value as FeatureNode));
+		return right(toFeatureDTO(nodeOrErr.value as FeatureNode));
 	}
 
 	async getAITool(
@@ -275,7 +275,7 @@ export class FeatureService {
 
 	async listAITools(
 		ctx: AuthenticationContext,
-	): Promise<Either<AntboxError, NodeLike[]>> {
+	): Promise<Either<AntboxError, FeatureDTO[]>> {
 		// Get features that are exposed as AI tools
 		const featuresOrErrs = await this._nodeService.find(
 			ctx,
@@ -291,7 +291,14 @@ export class FeatureService {
 			return left(featuresOrErrs.value);
 		}
 
-		return right(featuresOrErrs.value.nodes);
+		const nodes = [
+			...featuresOrErrs.value.nodes.filter(Nodes.isAITool),
+			...builtinFeatures.filter((f) => f.exposeAITool),
+		].map(toFeatureDTO);
+
+		nodes.push(...(BUILTIN_AGENT_TOOLS as FeatureDTO[]));
+
+		return right(nodes);
 	}
 
 	async listExtensions(): Promise<Either<AntboxError, NodeLike[]>> {
@@ -378,7 +385,7 @@ export class FeatureService {
 			...builtinFeatureNodes,
 		].sort((a, b) => a.title.localeCompare(b.title));
 
-		const dtos = allNodes.map((n) => this.#nodeToFeatureDTO(n));
+		const dtos = allNodes.map(toFeatureDTO);
 		return right(dtos);
 	}
 
@@ -566,7 +573,7 @@ export class FeatureService {
 		if (nodeOrErr.isLeft()) {
 			return left(nodeOrErr.value);
 		}
-		return right(this.#nodeToFeatureDTO(nodeOrErr.value as FeatureNode));
+		return right(toFeatureDTO(nodeOrErr.value as FeatureNode));
 	}
 
 	async #extractParametersFromRequest(
@@ -703,27 +710,6 @@ export class FeatureService {
 		const module = await import(URL.createObjectURL(fileOrErr.value));
 
 		return right(module.default);
-	}
-
-	#nodeToFeatureDTO(node: FeatureNode): FeatureDTO {
-		return {
-			id: node.uuid,
-			name: node.title,
-			description: node.description || "",
-			exposeAction: node.exposeAction || false,
-			runOnCreates: node.runOnCreates || false,
-			runOnUpdates: node.runOnUpdates || false,
-			runManually: node.runManually || false,
-			filters: node.filters || [],
-			exposeExtension: node.exposeExtension || false,
-			exposeAITool: node.exposeAITool || false,
-			runAs: node.runAs,
-			groupsAllowed: node.groupsAllowed || [],
-			parameters: node.parameters || [],
-			returnType: node.returnType,
-			returnDescription: node.returnDescription,
-			returnContentType: node.returnContentType,
-		};
 	}
 
 	#respondeWithFile(file: File): Response {

@@ -10,14 +10,23 @@ export async function modelFrom(
 		return;
 	}
 
-	const [modelPath, ...params] = cfg;
-	const mod = await loadModel(modelPath);
+	let [path, ...params] = cfg;
+	let model: string | undefined;
+
+	const parts = path.split("/");
+
+	if (parts.length >= 2) {
+		model = parts.pop();
+		path = parts.join("/").concat(".ts");
+	}
+
+	const mod = await loadModel(path);
 	if (!mod) {
 		console.error("could not load model");
 		Deno.exit(-1);
 	}
 
-	const modelOrErr = await mod(...params);
+	const modelOrErr = await (model ? mod(model, ...params) : mod());
 	if (modelOrErr.isLeft()) {
 		console.error("could not load model");
 		console.error(modelOrErr.value);
@@ -28,11 +37,9 @@ export async function modelFrom(
 }
 
 async function loadModel(
-	modelPath: string,
+	path: string,
 ): Promise<(...p: string[]) => Promise<Either<AntboxError, AIModel>>> {
-	const path = modelPath.match(/^(\.?\/|https?:\/\/)/)
-		? modelPath
-		: `adapters/models/${modelPath}`;
+	path = path.match(/^\.?\//) ? path : `adapters/models/${path}`;
 
 	try {
 		const m = await import(path);

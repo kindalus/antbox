@@ -32,7 +32,7 @@ describe("buildGoogleModel factory", () => {
 			"test-api-key",
 		);
 		expect(result.isRight()).toBeTruthy();
-		expect(result.right.name).toBe("gemini-2.0-flash");
+		expect(result.right.modelName).toBe("gemini-2.0-flash");
 	});
 
 	it("should create model with provided API key", async () => {
@@ -41,11 +41,11 @@ describe("buildGoogleModel factory", () => {
 			"test-api-key",
 		);
 		expect(result.isRight()).toBeTruthy();
-		expect(result.right.name).toBe("gemini-2.0-flash");
+		expect(result.right.modelName).toBe("gemini-2.0-flash");
 	});
 
-	it("should use GEMINI_API_KEY environment variable", () => {
-		const existingKey = Deno.env.get("GEMINI_API_KEY");
+	it("should use GOOGLE_API_KEY environment variable", () => {
+		const existingKey = Deno.env.get("GOOGLE_API_KEY");
 		if (!existingKey) {
 			// Skip if no key is set
 			return;

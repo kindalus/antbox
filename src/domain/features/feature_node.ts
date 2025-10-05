@@ -22,12 +22,15 @@ const FeatureNodeValidationSchema = z.object({
 	),
 });
 
+export type FeatureParameterType = "string" | "number" | "boolean" | "object" | "array" | "file";
+export type FeatureParameterArrayType = "string" | "number" | "file" | "object";
+
 export interface FeatureParameter {
 	name: string;
 	// Type file and array of files are allowed when the feature
 	// is exposed as extension only
-	type: "string" | "number" | "boolean" | "object" | "array" | "file";
-	arrayType?: "string" | "number" | "file" | "object";
+	type: FeatureParameterType;
+	arrayType?: FeatureParameterArrayType;
 	contentType?: string;
 	required: boolean;
 	description?: string;

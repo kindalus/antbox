@@ -2,9 +2,25 @@ openapi: 3.1.0
 info:
   title: Antbox API
   description: |
-    Antbox is a feature-centric platform that provides unified access to dynamic functionality through features.
-    Features can be exposed as actions and extensions, providing a flexible architecture
-    for content management and automation.
+    Antbox API provides access to the complete Antbox platform functionality including
+    node management, feature execution, AI agents, and user management.
+
+    ## Authentication
+
+    The API supports multiple authentication methods:
+
+    1. **JWT Bearer Token**: Use `Authorization: Bearer <token>` header
+       - User tokens: Obtained through external OAuth/OIDC providers
+       - Root token: Obtained via `/login/root` endpoint
+
+    2. **API Key**: Use `Authorization: ApiKey <key>` header or `api_key` query parameter
+       - API keys are associated with groups and inherit group permissions
+       - Create API keys via the `/api-keys` endpoint
+
+    3. **Anonymous Access**: No authentication required for public endpoints
+       - Limited permissions apply to anonymous users
+
+    Most endpoints require authentication, but some allow anonymous access with restricted permissions.
   version: 2.0.0
   contact:
     name: Antbox Team
@@ -17,15 +33,20 @@ servers:
 
 security:
   - BearerAuth: []
+  - ApiKeyAuth: []
+  - ApiKeyQuery: []
+  - {} # Anonymous access allowed
 
 paths:
-  # Authentication endpoints
+  # Authentication
   /login/root:
     post:
       tags:
         - Authentication
       summary: Root user login
-      description: Authenticate as root user using password
+      description: |
+        Authenticate as root user using SHA256 hashed password.
+        Returns a JWT token that can be used for subsequent API calls as root user.
       security: []
       requestBody:
         required: true
@@ -45,20 +66,22 @@ paths:
                   jwt:
                     type: string
                     description: JWT token for authentication
-        "401":
-          $ref: "#/components/responses/Unauthorized"
+        "400":
+          $ref: "#/components/responses/BadRequest"
 
-  # Features endpoints (primary API)
+  # Features
   /features:
     get:
       tags:
         - Features
       summary: List all features
       description: |
-        Retrieve a comprehensive list of all features available in the system. Features are the core building blocks
-        of Antbox functionality and can be exposed as actions, extensions, or AI tools. This endpoint returns all
-        features regardless of their exposure settings, allowing administrators and developers to see the complete
-        feature catalog.
+        Retrieve a list of all features that are exposed as features.
+        Features are executable code units that can perform various operations.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+        - ApiKeyQuery: []
       responses:
         "200":
           description: List of features
@@ -70,23 +93,98 @@ paths:
                   $ref: "#/components/schemas/Feature"
         "401":
           $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/ServiceUnavailable"
+
+    post:
+      tags:
+        - Features
+      summary: Create or replace feature
+      description: Create a new feature or replace an existing one by uploading a file
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+        - ApiKeyQuery: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Feature file (JavaScript/TypeScript)
+              required:
+                - file
+      responses:
+        "201":
+          description: Feature created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Feature"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/ServiceUnavailable"
 
   /features/{uuid}:
     get:
       tags:
         - Features
       summary: Get feature by UUID
-      description: |
-        Retrieve detailed information about a specific feature using its unique identifier (UUID). This endpoint
-        returns the complete feature definition including metadata, parameters, exposure settings, and permissions.
-        Use this to inspect feature configuration before execution or modification.
+      description: Retrieve a specific feature by its UUID
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+        - ApiKeyQuery: []
       parameters:
         - $ref: "#/components/parameters/UuidPath"
       responses:
         "200":
           description: Feature details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Feature"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServiceUnavailable"
+
+    put:
+      tags:
+        - Features
+      summary: Update feature
+      description: Update an existing feature by uploading a new file
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+        - ApiKeyQuery: []
+      parameters:
+        - $ref: "#/components/parameters/UuidPath"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Feature file (JavaScript/TypeScript)
+              required:
+                - file
+      responses:
+        "200":
+          description: Feature updated successfully
           content:
             application/json:
               schema:
@@ -97,45 +195,42 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServiceUnavailable"
 
     delete:
       tags:
         - Features
       summary: Delete feature
-      description: |
-        Permanently delete a feature from the system using its UUID. This operation removes the feature and all
-        its associated metadata. Note that this does not affect nodes created using the feature, but the feature
-        will no longer be available for new operations or executions.
+      description: Delete a feature by its UUID
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+        - ApiKeyQuery: []
       parameters:
         - $ref: "#/components/parameters/UuidPath"
       responses:
-        "200":
+        "204":
           description: Feature deleted successfully
-        "400":
-          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServiceUnavailable"
 
   /features/{uuid}/export:
     get:
       tags:
         - Features
       summary: Export feature
-      description: |
-        Export a feature as executable JavaScript code. This endpoint generates the complete feature implementation
-        including its runtime dependencies and configuration. The export type parameter determines how the feature
-        is packaged: as a standalone feature, an action wrapper, or an extension wrapper.
+      description: Export feature code
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+        - ApiKeyQuery: []
       parameters:
         - $ref: "#/components/parameters/UuidPath"
-        - name: type
-          in: query
-          description: Export type (feature, action, extension)
-          schema:
-            type: string
-            enum: [feature, action, extension]
-            default: feature
       responses:
         "200":
           description: Exported feature code
@@ -144,142 +239,26 @@ paths:
               schema:
                 type: string
                 description: JavaScript code for the feature
-        "400":
-          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServiceUnavailable"
 
-  /features/-/actions:
-    get:
-      tags:
-        - Features
-      summary: List action-exposed features
-      description: Retrieve features that are exposed as actions
-      responses:
-        "200":
-          description: List of action-exposed features
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Feature"
-
-  /features/-/extensions:
-    get:
-      tags:
-        - Features
-      summary: List extension-exposed features
-      description: Retrieve features that are exposed as extensions
-      responses:
-        "200":
-          description: List of extension-exposed features
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Feature"
-
-  /features/{uuid}/-/run-action:
-    get:
-      tags:
-        - Features
-      summary: Run feature as action
-      description: Execute a feature as an action with query parameters
-      parameters:
-        - $ref: "#/components/parameters/UuidPath"
-        - name: uuids
-          in: query
-          required: true
-          description: Comma-separated list of node UUIDs to process
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Action execution result
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
-
-  /features/{uuid}/-/run-ext:
-    get:
-      tags:
-        - Features
-      summary: Run feature as extension (GET)
-      description: Execute a feature as an extension using query parameters
-      parameters:
-        - $ref: "#/components/parameters/UuidPath"
-      responses:
-        "200":
-          description: Extension execution result
-          content:
-            text/html:
-              schema:
-                type: string
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "405":
-          $ref: "#/components/responses/MethodNotAllowed"
-
-    post:
-      tags:
-        - Features
-      summary: Run feature as extension (POST)
-      description: Execute a feature as an extension with form data or JSON
-      parameters:
-        - $ref: "#/components/parameters/UuidPath"
-      requestBody:
-        required: false
-        content:
-          application/x-www-form-urlencoded:
-            schema:
-              type: object
-              additionalProperties: true
-          application/json:
-            schema:
-              type: object
-              additionalProperties: true
-      responses:
-        "200":
-          description: Extension execution result
-          content:
-            text/html:
-              schema:
-                type: string
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "405":
-          $ref: "#/components/responses/MethodNotAllowed"
-
-  # Actions router endpoints
+  # Actions
   /actions:
     get:
       tags:
         - Actions
       summary: List all actions
       description: |
-        Retrieve all features that are exposed as actions (where exposeAction=true). Actions are features designed
-        to operate on one or more nodes, typically performing transformations, validations, or batch operations.
-        This endpoint returns only the subset of features configured for action-based execution.
+        Retrieve a list of all features that are exposed as actions.
+        Actions are features that can be executed on selected nodes.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+        - ApiKeyQuery: []
       responses:
         "200":
           description: List of action-exposed features
@@ -291,7 +270,7 @@ paths:
                   $ref: "#/components/schemas/Feature"
         "401":
           $ref: "#/components/responses/Unauthorized"
-        "503":
+        "500":
           $ref: "#/components/responses/ServiceUnavailable"
 
   /actions/{uuid}/run:
@@ -300,9 +279,12 @@ paths:
         - Actions
       summary: Run an action
       description: |
-        Execute a feature as an action on one or more nodes. The request body must include an array of node UUIDs
-        to process, and may optionally include additional parameters defined by the feature. The action will be
-        executed against each specified node, with results aggregated and returned in the response.
+        Execute a feature as an action on the specified nodes.
+        Actions operate on a collection of node UUIDs.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+        - ApiKeyQuery: []
       parameters:
         - $ref: "#/components/parameters/UuidPath"
       requestBody:
@@ -325,19 +307,22 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
-        "503":
+        "500":
           $ref: "#/components/responses/ServiceUnavailable"
 
-  # Extensions router endpoints
+  # Extensions
   /extensions:
     get:
       tags:
         - Extensions
       summary: List all extensions
       description: |
-        Retrieve all features that are exposed as extensions (where exposeExtension=true). Extensions are features
-        that provide custom UI, API endpoints, or interactive functionality. They receive the full HTTP Request
-        object and can return custom responses including HTML, JSON, or other content types.
+        Retrieve a list of all features that are exposed as extensions.
+        Extensions are features that can be executed via HTTP requests.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+        - ApiKeyQuery: []
       responses:
         "200":
           description: List of extension-exposed features
@@ -349,7 +334,7 @@ paths:
                   $ref: "#/components/schemas/Feature"
         "401":
           $ref: "#/components/responses/Unauthorized"
-        "503":
+        "500":
           $ref: "#/components/responses/ServiceUnavailable"
 
   /extensions/{uuid}/run:
@@ -358,9 +343,12 @@ paths:
         - Extensions
       summary: Run an extension
       description: |
-        Execute a feature as an extension by passing the complete HTTP Request object to the feature function.
-        Extensions have full access to request headers, body, query parameters, and can return any type of response.
-        This makes them ideal for creating custom APIs, webhooks, or interactive web interfaces.
+        Execute a feature as an extension with the full HTTP request context.
+        Extensions have access to the complete request object.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+        - ApiKeyQuery: []
       parameters:
         - $ref: "#/components/parameters/UuidPath"
       requestBody:
@@ -393,19 +381,22 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
-        "503":
+        "500":
           $ref: "#/components/responses/ServiceUnavailable"
 
-  # AI Tools router endpoints
+  # AI Tools
   /ai-tools:
     get:
       tags:
         - AI Tools
       summary: List all AI tools
       description: |
-        Retrieve all features that are exposed as AI tools (where exposeAITool=true). AI tools are features that
-        can be called by AI agents to perform specific tasks or retrieve information. They are designed to be
-        discoverable and callable by language models through function calling mechanisms.
+        Retrieve a list of all features that are exposed as AI tools.
+        AI tools are features that can be used by AI agents.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+        - ApiKeyQuery: []
       responses:
         "200":
           description: List of AI tool-exposed features
@@ -417,7 +408,7 @@ paths:
                   $ref: "#/components/schemas/Feature"
         "401":
           $ref: "#/components/responses/Unauthorized"
-        "503":
+        "500":
           $ref: "#/components/responses/ServiceUnavailable"
 
   /ai-tools/{uuid}/run:
@@ -426,13 +417,16 @@ paths:
         - AI Tools
       summary: Run an AI tool
       description: |
-        Execute a feature as an AI tool with the provided parameters. AI tools are typically invoked by AI agents
-        during conversations to perform specific operations like data retrieval, calculations, or system interactions.
-        The parameters are defined by the feature's schema and validated before execution.
+        Execute a feature as an AI tool with the provided parameters.
+        AI tools are designed to be called by AI agents.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+        - ApiKeyQuery: []
       parameters:
         - $ref: "#/components/parameters/UuidPath"
       requestBody:
-        required: false
+        required: true
         content:
           application/json:
             schema:
@@ -453,19 +447,22 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
-        "503":
+        "500":
           $ref: "#/components/responses/ServiceUnavailable"
 
-  # Agents router endpoints
+  # Agents
   /agents:
     get:
       tags:
         - Agents
       summary: List agents
       description: |
-        Retrieve a list of all AI agents configured in the system. Agents are AI-powered assistants with specific
-        system instructions, capabilities, and configurations. Each agent can be customized with different models,
-        personalities, and access to specific AI tools for specialized tasks.
+        Retrieve a list of all AI agents configured in the system.
+        Agents are AI assistants that can chat and answer questions.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+        - ApiKeyQuery: []
       responses:
         "200":
           description: List of agents
@@ -477,7 +474,7 @@ paths:
                   $ref: "#/components/schemas/Agent"
         "401":
           $ref: "#/components/responses/Unauthorized"
-        "503":
+        "500":
           $ref: "#/components/responses/ServiceUnavailable"
 
     post:
@@ -485,9 +482,12 @@ paths:
         - Agents
       summary: Create or replace agent
       description: |
-        Create a new AI agent or replace an existing one with the same UUID. Agents are configured with system
-        instructions that define their behavior, personality, and capabilities. You can specify the AI model to use
-        and provide metadata like title and description for organizational purposes.
+        Create a new AI agent or replace an existing one.
+        Agents require system instructions and can use various AI models.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+        - ApiKeyQuery: []
       requestBody:
         required: true
         content:
@@ -505,7 +505,7 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
-        "503":
+        "500":
           $ref: "#/components/responses/ServiceUnavailable"
 
   /agents/{uuid}:
@@ -514,6 +514,10 @@ paths:
         - Agents
       summary: Get agent by UUID
       description: Retrieve a specific AI agent by its UUID
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+        - ApiKeyQuery: []
       parameters:
         - $ref: "#/components/parameters/UuidPath"
       responses:
@@ -523,13 +527,11 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Agent"
-        "400":
-          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
-        "503":
+        "500":
           $ref: "#/components/responses/ServiceUnavailable"
 
     delete:
@@ -537,18 +539,20 @@ paths:
         - Agents
       summary: Delete agent
       description: Delete an AI agent by its UUID
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+        - ApiKeyQuery: []
       parameters:
         - $ref: "#/components/parameters/UuidPath"
       responses:
-        "200":
+        "204":
           description: Agent deleted successfully
-        "400":
-          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
-        "503":
+        "500":
           $ref: "#/components/responses/ServiceUnavailable"
 
   /agents/{uuid}/-/chat:
@@ -557,10 +561,12 @@ paths:
         - Agents
       summary: Chat with agent
       description: |
-        Send a chat message to an AI agent and receive a conversational response. This endpoint supports both
-        single messages and ongoing conversations using a conversation ID. You can attach files via multipart/form-data
-        for document analysis or context. The agent will respond according to its system instructions and may use
-        available AI tools to fulfill requests.
+        Send a message to an AI agent and receive a conversational response.
+        Supports file attachments and conversation history.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+        - ApiKeyQuery: []
       parameters:
         - $ref: "#/components/parameters/UuidPath"
       requestBody:
@@ -596,7 +602,7 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
-        "503":
+        "500":
           $ref: "#/components/responses/ServiceUnavailable"
 
   /agents/{uuid}/-/answer:
@@ -605,9 +611,12 @@ paths:
         - Agents
       summary: Get answer from agent
       description: |
-        Send a query to an AI agent and receive a direct, focused answer. Unlike chat, which maintains conversation
-        context, this endpoint is optimized for one-off questions requiring immediate responses. Supports file
-        attachments for context and can leverage AI tools for comprehensive answers.
+        Ask a question to an AI agent and receive a direct answer.
+        Similar to chat but focused on question-answering scenarios.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+        - ApiKeyQuery: []
       parameters:
         - $ref: "#/components/parameters/UuidPath"
       requestBody:
@@ -643,7 +652,7 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
-        "503":
+        "500":
           $ref: "#/components/responses/ServiceUnavailable"
 
   /agents/rag/-/chat:
@@ -652,9 +661,12 @@ paths:
         - Agents
       summary: RAG chat
       description: |
-        Perform a RAG (Retrieval-Augmented Generation) chat operation that combines document retrieval with AI
-        generation. The system searches through indexed documents using the provided filters, retrieves relevant
-        context, and generates responses grounded in the retrieved information for accurate, source-based answers.
+        Perform Retrieval-Augmented Generation (RAG) chat using the knowledge base.
+        This searches relevant documents and generates responses based on them.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+        - ApiKeyQuery: []
       requestBody:
         required: true
         content:
@@ -673,19 +685,20 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
-        "503":
+        "500":
           $ref: "#/components/responses/ServiceUnavailable"
 
-  # API Keys router endpoints
+  # API Keys
   /api-keys:
     get:
       tags:
         - API Keys
       summary: List API keys
       description: |
-        Retrieve a list of all API keys in the system. API keys provide programmatic access to the Antbox API
-        and are associated with specific groups for access control. Use this endpoint to manage and audit API
-        key usage across your organization.
+        Retrieve a list of all API keys.
+        API keys provide programmatic access to the Antbox API.
+      security:
+        - BearerAuth: []
       responses:
         "200":
           description: List of API keys
@@ -697,7 +710,7 @@ paths:
                   $ref: "#/components/schemas/ApiKey"
         "401":
           $ref: "#/components/responses/Unauthorized"
-        "503":
+        "500":
           $ref: "#/components/responses/ServiceUnavailable"
 
     post:
@@ -705,9 +718,10 @@ paths:
         - API Keys
       summary: Create API key
       description: |
-        Create a new API key for programmatic access to the Antbox API. Each API key is associated with a specific
-        group, inheriting that group's permissions and access rights. Include an optional description to help
-        identify the key's purpose or usage context.
+        Create a new API key for programmatic access.
+        API keys are associated with groups for permission management.
+      security:
+        - BearerAuth: []
       requestBody:
         required: true
         content:
@@ -725,7 +739,7 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
-        "503":
+        "500":
           $ref: "#/components/responses/ServiceUnavailable"
 
   /api-keys/{uuid}:
@@ -734,6 +748,8 @@ paths:
         - API Keys
       summary: Get API key by UUID
       description: Retrieve a specific API key by its UUID
+      security:
+        - BearerAuth: []
       parameters:
         - $ref: "#/components/parameters/UuidPath"
       responses:
@@ -743,13 +759,11 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiKey"
-        "400":
-          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
-        "503":
+        "500":
           $ref: "#/components/responses/ServiceUnavailable"
 
     delete:
@@ -757,27 +771,29 @@ paths:
         - API Keys
       summary: Delete API key
       description: Delete an API key by its UUID
+      security:
+        - BearerAuth: []
       parameters:
         - $ref: "#/components/parameters/UuidPath"
       responses:
-        "200":
+        "204":
           description: API key deleted successfully
-        "400":
-          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
-        "503":
+        "500":
           $ref: "#/components/responses/ServiceUnavailable"
 
-  # Users router endpoints
+  # Users
   /users:
     get:
       tags:
         - Users
       summary: List users
       description: Retrieve a list of all users
+      security:
+        - BearerAuth: []
       responses:
         "200":
           description: List of users
@@ -789,7 +805,7 @@ paths:
                   $ref: "#/components/schemas/User"
         "401":
           $ref: "#/components/responses/Unauthorized"
-        "503":
+        "500":
           $ref: "#/components/responses/ServiceUnavailable"
 
     post:
@@ -797,6 +813,8 @@ paths:
         - Users
       summary: Create user
       description: Create a new user account
+      security:
+        - BearerAuth: []
       requestBody:
         required: true
         content:
@@ -814,7 +832,7 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
-        "503":
+        "500":
           $ref: "#/components/responses/ServiceUnavailable"
 
   /users/{email}:
@@ -823,6 +841,8 @@ paths:
         - Users
       summary: Get user by email
       description: Retrieve a specific user by their email address
+      security:
+        - BearerAuth: []
       parameters:
         - name: email
           in: path
@@ -842,7 +862,7 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
-        "503":
+        "500":
           $ref: "#/components/responses/ServiceUnavailable"
 
     put:
@@ -850,6 +870,8 @@ paths:
         - Users
       summary: Update user
       description: Update an existing user's information
+      security:
+        - BearerAuth: []
       parameters:
         - name: email
           in: path
@@ -877,7 +899,7 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
-        "503":
+        "500":
           $ref: "#/components/responses/ServiceUnavailable"
 
   /users/{uuid}:
@@ -886,25 +908,29 @@ paths:
         - Users
       summary: Delete user
       description: Delete a user by their UUID
+      security:
+        - BearerAuth: []
       parameters:
         - $ref: "#/components/parameters/UuidPath"
       responses:
-        "200":
+        "204":
           description: User deleted successfully
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
-        "503":
+        "500":
           $ref: "#/components/responses/ServiceUnavailable"
 
-  # Groups router endpoints
+  # Groups
   /groups:
     get:
       tags:
         - Groups
       summary: List groups
       description: Retrieve a list of all groups
+      security:
+        - BearerAuth: []
       responses:
         "200":
           description: List of groups
@@ -916,7 +942,7 @@ paths:
                   $ref: "#/components/schemas/Group"
         "401":
           $ref: "#/components/responses/Unauthorized"
-        "503":
+        "500":
           $ref: "#/components/responses/ServiceUnavailable"
 
     post:
@@ -924,6 +950,8 @@ paths:
         - Groups
       summary: Create group
       description: Create a new group
+      security:
+        - BearerAuth: []
       requestBody:
         required: true
         content:
@@ -941,7 +969,7 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
-        "503":
+        "500":
           $ref: "#/components/responses/ServiceUnavailable"
 
   /groups/{uuid}:
@@ -950,6 +978,8 @@ paths:
         - Groups
       summary: Get group by UUID
       description: Retrieve a specific group by its UUID
+      security:
+        - BearerAuth: []
       parameters:
         - $ref: "#/components/parameters/UuidPath"
       responses:
@@ -963,7 +993,7 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
-        "503":
+        "500":
           $ref: "#/components/responses/ServiceUnavailable"
 
     put:
@@ -971,6 +1001,8 @@ paths:
         - Groups
       summary: Update group
       description: Update an existing group's information
+      security:
+        - BearerAuth: []
       parameters:
         - $ref: "#/components/parameters/UuidPath"
       requestBody:
@@ -992,7 +1024,7 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
-        "503":
+        "500":
           $ref: "#/components/responses/ServiceUnavailable"
 
     delete:
@@ -1000,94 +1032,73 @@ paths:
         - Groups
       summary: Delete group
       description: Delete a group by its UUID
+      security:
+        - BearerAuth: []
       parameters:
         - $ref: "#/components/parameters/UuidPath"
       responses:
-        "200":
+        "204":
           description: Group deleted successfully
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
-        "503":
+        "500":
           $ref: "#/components/responses/ServiceUnavailable"
 
-  # Node management endpoints
+  # Nodes
   /nodes:
     get:
       tags:
         - Nodes
       summary: List nodes
       description: |
-        Retrieve a list of nodes with optional filtering by parent folder, MIME type, or result limit. Nodes are
-        the fundamental data structures in Antbox, representing files, folders, and other content types. Use this
-        endpoint to browse the node hierarchy or find nodes matching specific criteria.
+        Retrieve a list of nodes, optionally filtered by parent folder.
+        If no parent is specified, returns nodes in the root folder.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+        - ApiKeyQuery: []
+        - {} # Anonymous access with limited permissions
       parameters:
         - name: parent
           in: query
           description: Parent folder UUID to filter by
           schema:
             type: string
-        - name: mimetype
-          in: query
-          description: MIME type to filter by
-          schema:
-            type: string
-        - name: limit
-          in: query
-          description: Maximum number of results
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 1000
-            default: 100
       responses:
         "200":
           description: List of nodes
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  nodes:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/Node"
-                  total:
-                    type: integer
-                    description: Total number of nodes
+                type: array
+                items:
+                  $ref: "#/components/schemas/Node"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/ServiceUnavailable"
 
     post:
       tags:
         - Nodes
       summary: Create node
       description: |
-        Create a new node in the system. Nodes can be created with JSON data or file uploads via multipart/form-data.
-        Specify the parent folder UUID to place the node in the hierarchy, and set the appropriate MIME type to
-        define how the node should be handled and displayed.
+        Create a new node (file or folder) with metadata.
+        For files, use the upload endpoint instead.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+        - ApiKeyQuery: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
               $ref: "#/components/schemas/NodeCreate"
-          multipart/form-data:
-            schema:
-              type: object
-              properties:
-                file:
-                  type: string
-                  format: binary
-                  description: File content
-                title:
-                  type: string
-                  description: Node title
-                parent:
-                  type: string
-                  description: Parent folder UUID
-                mimetype:
-                  type: string
-                  description: MIME type
       responses:
         "201":
           description: Node created successfully
@@ -1099,6 +1110,8 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/ServiceUnavailable"
 
   /nodes/-/upload:
     post:
@@ -1106,9 +1119,12 @@ paths:
         - Nodes
       summary: Upload file
       description: |
-        Upload a file as a new node using multipart/form-data. This endpoint is optimized for file uploads and
-        automatically sets the MIME type based on the file content. Ideal for integrating file upload functionality
-        in web applications or CLI tools.
+        Upload a file and create a new node. This is the preferred method
+        for creating nodes with file content.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+        - ApiKeyQuery: []
       requestBody:
         required: true
         content:
@@ -1120,15 +1136,9 @@ paths:
                   type: string
                   format: binary
                   description: File content
-                title:
+                metadata:
                   type: string
-                  description: Node title
-                parent:
-                  type: string
-                  description: Parent folder UUID
-                mimetype:
-                  type: string
-                  description: MIME type
+                  description: JSON metadata for the node
               required:
                 - file
       responses:
@@ -1142,6 +1152,8 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/ServiceUnavailable"
 
   /nodes/{uuid}:
     get:
@@ -1149,6 +1161,11 @@ paths:
         - Nodes
       summary: Get node by UUID
       description: Retrieve a specific node by its UUID
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+        - ApiKeyQuery: []
+        - {} # Anonymous access with limited permissions
       parameters:
         - $ref: "#/components/parameters/UuidPath"
       responses:
@@ -1162,12 +1179,18 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServiceUnavailable"
 
     patch:
       tags:
         - Nodes
       summary: Update node
-      description: Update a node by its UUID
+      description: Update a node's metadata by its UUID
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+        - ApiKeyQuery: []
       parameters:
         - $ref: "#/components/parameters/UuidPath"
       requestBody:
@@ -1189,21 +1212,29 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServiceUnavailable"
 
     delete:
       tags:
         - Nodes
       summary: Delete node
       description: Delete a node by its UUID
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+        - ApiKeyQuery: []
       parameters:
         - $ref: "#/components/parameters/UuidPath"
       responses:
-        "200":
+        "204":
           description: Node deleted successfully
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServiceUnavailable"
 
   /nodes/{uuid}/-/copy:
     post:
@@ -1211,23 +1242,26 @@ paths:
         - Nodes
       summary: Copy node
       description: Create a copy of a node
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+        - ApiKeyQuery: []
       parameters:
         - $ref: "#/components/parameters/UuidPath"
       requestBody:
-        required: false
+        required: true
         content:
           application/json:
             schema:
               type: object
               properties:
-                parent:
+                to:
                   type: string
                   description: Target parent folder UUID
-                title:
-                  type: string
-                  description: New title for the copy
+              required:
+                - to
       responses:
-        "200":
+        "201":
           description: Node copied successfully
           content:
             application/json:
@@ -1239,6 +1273,8 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServiceUnavailable"
 
   /nodes/{uuid}/-/duplicate:
     get:
@@ -1246,56 +1282,52 @@ paths:
         - Nodes
       summary: Duplicate node
       description: Create a duplicate of a node in the same location
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+        - ApiKeyQuery: []
       parameters:
         - $ref: "#/components/parameters/UuidPath"
       responses:
-        "200":
+        "201":
           description: Node duplicated successfully
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Node"
-        "400":
-          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServiceUnavailable"
 
   /nodes/{uuid}/-/export:
     get:
       tags:
         - Nodes
       summary: Export node
-      description: Export a node in various formats
+      description: Export a node's content
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+        - ApiKeyQuery: []
       parameters:
         - $ref: "#/components/parameters/UuidPath"
-        - name: format
-          in: query
-          description: Export format
-          schema:
-            type: string
-            enum: [json, xml, csv]
-            default: json
       responses:
         "200":
-          description: Exported node data
+          description: Exported node content
           content:
-            application/json:
-              schema:
-                type: object
-            application/xml:
+            application/octet-stream:
               schema:
                 type: string
-            text/csv:
-              schema:
-                type: string
-        "400":
-          $ref: "#/components/responses/BadRequest"
+                format: binary
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServiceUnavailable"
 
   /nodes/{uuid}/-/evaluate:
     get:
@@ -1303,6 +1335,10 @@ paths:
         - Nodes
       summary: Evaluate node
       description: Evaluate a node (for executable content)
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+        - ApiKeyQuery: []
       parameters:
         - $ref: "#/components/parameters/UuidPath"
       responses:
@@ -1313,12 +1349,12 @@ paths:
               schema:
                 type: object
                 additionalProperties: true
-        "400":
-          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServiceUnavailable"
 
   /nodes/-/find:
     post:
@@ -1326,9 +1362,12 @@ paths:
         - Nodes
       summary: Find nodes with filters
       description: |
-        Find nodes using advanced filter criteria with pagination support. Supports both simple (1D) filters with
-        AND logic and complex (2D) filter groups with OR logic. Filter tuples use [field, operator, value] format
-        for precise querying across node properties like title, MIME type, owner, dates, and custom metadata.
+        Search for nodes using advanced filter criteria.
+        Supports complex queries with multiple conditions.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+        - ApiKeyQuery: []
       requestBody:
         required: true
         content:
@@ -1343,7 +1382,7 @@ paths:
                   type: integer
                   minimum: 1
                   maximum: 1000
-                  default: 20
+                  default: 50
                   description: Number of results per page
                 pageToken:
                   type: integer
@@ -1363,6 +1402,8 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/ServiceUnavailable"
 
   /nodes/{uuid}/-/upload:
     put:
@@ -1370,9 +1411,12 @@ paths:
         - Nodes
       summary: Update node with file upload
       description: |
-        Update an existing node by uploading a new file using multipart/form-data. This replaces the node's content
-        with the uploaded file while preserving the node's UUID and other metadata. Optionally update the title
-        and MIME type along with the file content.
+        Update an existing node's file content and optionally its metadata.
+        This replaces the node's content with the uploaded file.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+        - ApiKeyQuery: []
       parameters:
         - $ref: "#/components/parameters/UuidPath"
       requestBody:
@@ -1385,13 +1429,7 @@ paths:
                 file:
                   type: string
                   format: binary
-                  description: File content
-                title:
-                  type: string
-                  description: Node title
-                mimetype:
-                  type: string
-                  description: MIME type
+                  description: New file content
               required:
                 - file
       responses:
@@ -1407,6 +1445,8 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServiceUnavailable"
 
   /nodes/{uuid}/-/breadcrumbs:
     get:
@@ -1414,6 +1454,11 @@ paths:
         - Nodes
       summary: Get folder breadcrumb trail
       description: Retrieve the breadcrumb trail for a folder node, showing the path from root to the current folder. Only works for folder nodes.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+        - ApiKeyQuery: []
+        - {} # Anonymous access with limited permissions
       parameters:
         - $ref: "#/components/parameters/UuidPath"
       responses:
@@ -1436,18 +1481,22 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServiceUnavailable"
 
-  # Templates endpoints
+  # Templates
   /templates/{uuid}:
     get:
       tags:
         - Templates
       summary: Get template content by UUID
       description: |
-        Retrieve the raw content of a specific template file by its UUID. Templates are code files (TypeScript,
-        JavaScript, or JSON) stored in the templates directory and loaded dynamically at runtime. Use this endpoint
-        to fetch template content for features, actions, or configuration files. The response Content-Type matches
-        the template file type.
+        Retrieve template content by UUID. Templates are pre-defined
+        code structures for creating new features or nodes.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+        - ApiKeyQuery: []
       parameters:
         - $ref: "#/components/parameters/UuidPath"
       responses:
@@ -1470,17 +1519,22 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServiceUnavailable"
 
-  # Aspect endpoints
+  # Aspects
   /aspects:
     get:
       tags:
         - Aspects
       summary: List aspects
       description: |
-        Retrieve a list of all aspects in the system. Aspects are reusable metadata schemas that can be attached
-        to nodes to extend their properties and behavior. Use aspects to define custom fields, validation rules,
-        or business logic that can be applied consistently across multiple nodes.
+        Retrieve a list of all aspects. Aspects define additional
+        properties and behaviors for nodes.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+        - ApiKeyQuery: []
       responses:
         "200":
           description: List of aspects
@@ -1490,15 +1544,22 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Aspect"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/ServiceUnavailable"
 
     post:
       tags:
         - Aspects
       summary: Create or replace aspect
       description: |
-        Create a new aspect or replace an existing one with the same UUID. Aspects define reusable metadata schemas
-        that extend node capabilities. They can include custom properties, validation logic, and behavior definitions
-        that are applied to nodes when the aspect is attached.
+        Create a new aspect or replace an existing one.
+        Aspects extend the functionality of nodes.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+        - ApiKeyQuery: []
       requestBody:
         required: true
         content:
@@ -1506,7 +1567,7 @@ paths:
             schema:
               $ref: "#/components/schemas/AspectCreate"
       responses:
-        "200":
+        "201":
           description: Aspect created or replaced successfully
           content:
             application/json:
@@ -1516,6 +1577,8 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/ServiceUnavailable"
 
   /aspects/{uuid}:
     get:
@@ -1523,6 +1586,10 @@ paths:
         - Aspects
       summary: Get aspect by UUID
       description: Retrieve a specific aspect by its UUID
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+        - ApiKeyQuery: []
       parameters:
         - $ref: "#/components/parameters/UuidPath"
       responses:
@@ -1532,23 +1599,33 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Aspect"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServiceUnavailable"
 
     delete:
       tags:
         - Aspects
       summary: Delete aspect
       description: Delete an aspect by its UUID
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+        - ApiKeyQuery: []
       parameters:
         - $ref: "#/components/parameters/UuidPath"
       responses:
-        "200":
+        "204":
           description: Aspect deleted successfully
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServiceUnavailable"
 
   /aspects/{uuid}/-/export:
     get:
@@ -1556,6 +1633,10 @@ paths:
         - Aspects
       summary: Export aspect
       description: Export an aspect in various formats
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+        - ApiKeyQuery: []
       parameters:
         - $ref: "#/components/parameters/UuidPath"
         - name: format
@@ -1575,12 +1656,12 @@ paths:
             application/javascript:
               schema:
                 type: string
-        "400":
-          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServiceUnavailable"
 
 components:
   securitySchemes:
@@ -1588,6 +1669,24 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+      description: |
+        JWT Bearer token authentication. Supports both user JWT tokens and root user tokens.
+        Root tokens are issued by the `/login/root` endpoint.
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: |
+        API Key authentication using the format "ApiKey <key>" in the Authorization header.
+        Example: `Authorization: ApiKey abc123def456`
+        API keys inherit the permissions of their associated group.
+    ApiKeyQuery:
+      type: apiKey
+      in: query
+      name: api_key
+      description: |
+        API Key authentication via query parameter. Use this as an alternative to the Authorization header.
+        Example: `?api_key=abc123def456`
 
   parameters:
     UuidPath:
@@ -1763,6 +1862,7 @@ components:
       type: object
       required:
         - title
+        - mimetype
       properties:
         title:
           type: string
@@ -1827,6 +1927,7 @@ components:
       required:
         - title
         - name
+        - mimetype
       properties:
         title:
           type: string
@@ -1850,19 +1951,19 @@ components:
           type: array
           items:
             type: string
-            enum: [Read, Write, Export]
+            enum: [Read, Write, Execute]
           description: Permissions for group members
         authenticated:
           type: array
           items:
             type: string
-            enum: [Read, Write, Export]
+            enum: [Read, Write, Execute]
           description: Permissions for authenticated users
         anonymous:
           type: array
           items:
             type: string
-            enum: [Read, Write, Export]
+            enum: [Read, Write, Execute]
           description: Permissions for anonymous users
         advanced:
           type: object
@@ -1898,7 +1999,7 @@ components:
           - type: number
           - type: boolean
           - type: array
-      example: ["title", "==", "My Document"]
+      example: ["title", "contains", "test"]
 
     NodeFilterResult:
       type: object
@@ -1987,6 +2088,7 @@ components:
       type: object
       required:
         - systemInstructions
+        - title
       properties:
         systemInstructions:
           type: string
@@ -2026,7 +2128,7 @@ components:
             temperature:
               type: number
               minimum: 0
-              maximum: 1
+              maximum: 2
               description: Temperature for response generation
             maxTokens:
               type: integer
@@ -2055,7 +2157,7 @@ components:
             temperature:
               type: number
               minimum: 0
-              maximum: 1
+              maximum: 2
               description: Temperature for response generation
             maxTokens:
               type: integer
@@ -2087,7 +2189,7 @@ components:
             temperature:
               type: number
               minimum: 0
-              maximum: 1
+              maximum: 2
               description: Temperature for response generation
             maxTokens:
               type: integer
@@ -2161,6 +2263,7 @@ components:
       type: object
       required:
         - email
+        - name
       properties:
         email:
           type: string

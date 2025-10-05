@@ -349,7 +349,7 @@ export class AgentService {
 					text,
 					{
 						systemPrompt,
-						history: currentHistory.slice(0, -1), // Exclude user message for API call
+						history: currentHistory,
 						tools,
 						files: options?.files,
 						temperature: options?.temperature ?? agent.temperature,
@@ -373,9 +373,7 @@ export class AgentService {
 				currentHistory = [...currentHistory, chatResult.value];
 
 				// Check if response has text - if so, return early
-				const hasText = chatResult.value.parts.some((part: any) =>
-					part.text && part.text.trim()
-				);
+				const hasText = chatResult.value.parts.some((part) => part.text && part.text.trim());
 				if (hasText) {
 					return right(currentHistory);
 				}
@@ -570,15 +568,14 @@ export class AgentService {
 			return undefined;
 		}
 
-		const tools: Partial<FeatureDTO>[] = [...BUILTIN_AGENT_TOOLS];
-
 		// Add all available custom tools
-		const allToolsResult = await this.#getAllAvailableTools(authContext);
-		if (allToolsResult.isRight()) {
-			tools.push(...allToolsResult.value);
+		const result = await this.#getAllAvailableTools(authContext);
+
+		if (result.isLeft()) {
+			return undefined;
 		}
 
-		return tools;
+		return result.value;
 	}
 
 	#extractToolCalls(message: ChatMessage): Array<{ name: string; args: Record<string, unknown> }> {
@@ -595,7 +592,7 @@ export class AgentService {
 		for (const toolCall of toolCalls) {
 			// Find the tool in available tools
 			const tool = availableTools.find((t) => t.name === toolCall.name);
-			const toolId = tool?.id;
+			const toolId = tool?.uuid;
 
 			if (!tool || !toolId) {
 				messages.push({
@@ -692,32 +689,15 @@ export class AgentService {
 	/**
 	 * Get all available AI tools for the authenticated user
 	 */
-	async #getAllAvailableTools(
+	#getAllAvailableTools(
 		authContext: AuthenticationContext,
 	): Promise<Either<AntboxError, Partial<FeatureDTO>[]>> {
 		try {
-			const toolsResult = await this.featureService.listAITools(authContext);
-			if (toolsResult.isLeft()) {
-				return left(toolsResult.value);
-			}
-			return right(toolsResult.value.map(this.#toAITool));
+			return this.featureService.listAITools(authContext);
 		} catch (error) {
-			return left(
+			return Promise.resolve(left(
 				new AntboxError("ToolRetrievalError", `Failed to get available tools: ${error}`),
-			);
+			));
 		}
 	}
-
-	/**
-	 * Filter FeatureDTO for AI usage (remove internal properties)
-	 */
-	#toAITool = (feature: NodeLike): Partial<FeatureDTO> => {
-		const filtered: Partial<FeatureDTO & Record<string, unknown>> = { ...feature };
-
-		for (const prop of EXCLUDED_FEATURE_PROPERTIES) {
-			delete filtered[prop];
-		}
-
-		return filtered;
-	};
 }

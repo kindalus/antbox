@@ -34,7 +34,7 @@ export default function buildDeterministicModel(
  * The same text will always produce the same embedding vector
  */
 export class DeterministicModel implements AIModel {
-	readonly name: string;
+	readonly modelName: string;
 	readonly embeddings = true;
 	readonly llm = false;
 	readonly tools = false;
@@ -49,7 +49,7 @@ export class DeterministicModel implements AIModel {
 	 * @param dimensions The dimension size for generated embeddings (default: 1536 to match OpenAI)
 	 */
 	constructor(name: string, dimensions = 1536) {
-		this.name = name;
+		this.modelName = name;
 		this.dimensions = dimensions;
 	}
 

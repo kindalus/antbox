@@ -76,7 +76,7 @@ class MockFeatureService {
 	constructor() {
 		// Add some test features
 		this.features.set("feature-1", {
-			id: "feature-1",
+			uuid: "feature-1",
 			name: "search",
 			description: "Search for content",
 			exposeAction: false,
@@ -113,7 +113,7 @@ class MockFeatureService {
 		const aiToolNodes = Array.from(this.features.values())
 			.filter((feature) => feature.exposeAITool)
 			.map((feature) => ({
-				uuid: feature.id,
+				uuid: feature.uuid,
 				title: feature.name,
 				mimetype: "application/vnd.antbox.feature",
 			}));
@@ -123,7 +123,7 @@ class MockFeatureService {
 }
 
 class MockAIModel implements AIModel {
-	name = "mock-model";
+	modelName = "mock-model";
 	embeddings = false;
 	llm = true;
 	tools = true;

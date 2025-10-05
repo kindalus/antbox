@@ -523,6 +523,50 @@ export class NodeService {
 		return right(nodes);
 	}
 
+	async breadcrumbs(
+		ctx: AuthenticationContext,
+		uuid: string,
+	): Promise<Either<AntboxError, Array<{ uuid: string; title: string }>>> {
+		const nodeOrErr = await this.get(ctx, uuid);
+		if (nodeOrErr.isLeft()) {
+			return left(nodeOrErr.value);
+		}
+
+		if (!Nodes.isFolder(nodeOrErr.value)) {
+			return left(new BadRequestError("Node is not a folder"));
+		}
+
+		const breadcrumbs: Array<{ uuid: string; title: string }> = [];
+		let currentUuid = uuid;
+
+		// Traverse up the folder hierarchy
+		while (currentUuid && currentUuid !== Folders.ROOT_FOLDER_UUID) {
+			const currentNodeOrErr = await this.#getBuiltinFolderOrFromRepository(currentUuid);
+
+			if (currentNodeOrErr.isLeft()) {
+				break;
+			}
+
+			const currentNode = currentNodeOrErr.value;
+			breadcrumbs.unshift({
+				uuid: currentNode.uuid,
+				title: currentNode.title,
+			});
+
+			currentUuid = currentNode.parent;
+		}
+
+		// Add root folder at the beginning if not already there
+		if (breadcrumbs.length === 0 || breadcrumbs[0].uuid !== Folders.ROOT_FOLDER_UUID) {
+			breadcrumbs.unshift({
+				uuid: Folders.ROOT_FOLDER_UUID,
+				title: "Root",
+			});
+		}
+
+		return right(breadcrumbs);
+	}
+
 	async update(
 		ctx: AuthenticationContext,
 		uuid: string,

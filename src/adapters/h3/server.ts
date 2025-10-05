@@ -8,6 +8,7 @@ import groupsRouter from "adapters/h3/groups_router.ts";
 import actionsRouter from "adapters/h3/actions_router.ts";
 import extensionsRouter from "adapters/h3/extensions_router.ts";
 import aiToolsRouter from "adapters/h3/ai_tools_router.ts";
+import templatesRouter from "adapters/h3/templates_router.ts";
 import loginRouter from "adapters/h3/login_v2_router.ts";
 import type { AntboxTenant } from "api/antbox_tenant.ts";
 import { App, createApp, createRouter, useBase } from "h3";
@@ -26,6 +27,7 @@ export default function setupH3Server(tenants: AntboxTenant[]): App {
 	const actions = actionsRouter(tenants);
 	const extensions = extensionsRouter(tenants);
 	const aiTools = aiToolsRouter(tenants);
+	const templates = templatesRouter(tenants);
 	const login = loginRouter(tenants);
 
 	// Create v2 router
@@ -42,6 +44,7 @@ export default function setupH3Server(tenants: AntboxTenant[]): App {
 	v2Router.use("/actions/**", useBase("/actions", actions.handler));
 	v2Router.use("/extensions/**", useBase("/extensions", extensions.handler));
 	v2Router.use("/ai-tools/**", useBase("/ai-tools", aiTools.handler));
+	v2Router.use("/templates/**", useBase("/templates", templates.handler));
 	v2Router.use("/login/**", useBase("/login", login.handler));
 
 	// Mount v2 router under /v2 prefix

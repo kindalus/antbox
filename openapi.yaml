@@ -1340,6 +1340,83 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  /nodes/{uuid}/-/breadcrumbs:
+    get:
+      tags:
+        - Nodes
+      summary: Get folder breadcrumb trail
+      description: Retrieve the breadcrumb trail for a folder node, showing the path from root to the current folder. Only works for folder nodes.
+      parameters:
+        - $ref: "#/components/parameters/UuidPath"
+      responses:
+        "200":
+          description: Breadcrumb trail for the folder
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Breadcrumb"
+                description: Array of breadcrumb items from root to current folder
+        "400":
+          description: Bad request - node is not a folder
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # Templates endpoints
+  /templates:
+    get:
+      tags:
+        - Templates
+      summary: List all available templates
+      description: Retrieve a list of all templates in the system
+      responses:
+        "200":
+          description: List of templates
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Template"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /templates/{uuid}:
+    get:
+      tags:
+        - Templates
+      summary: Get template content by UUID
+      description: Retrieve the content of a specific template by its UUID. Returns the template file as text (TypeScript, JavaScript, or JSON).
+      parameters:
+        - $ref: "#/components/parameters/UuidPath"
+      responses:
+        "200":
+          description: Template content
+          content:
+            text/typescript:
+              schema:
+                type: string
+                description: TypeScript template content
+            text/javascript:
+              schema:
+                type: string
+                description: JavaScript template content
+            application/json:
+              schema:
+                type: object
+                description: JSON template content
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
   # Aspect endpoints
   /aspects:
     get:
@@ -2066,6 +2143,38 @@ components:
           type: string
           description: Group description
 
+    Template:
+      type: object
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          description: Unique identifier for the template
+        mimetype:
+          type: string
+          description: MIME type of the template (e.g., text/typescript, text/javascript, application/json)
+        size:
+          type: integer
+          description: Size of the template file in bytes
+      required:
+        - uuid
+        - mimetype
+        - size
+
+    Breadcrumb:
+      type: object
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          description: UUID of the folder in the breadcrumb trail
+        title:
+          type: string
+          description: Title of the folder
+      required:
+        - uuid
+        - title
+
 tags:
   - name: Authentication
     description: Authentication and authorization endpoints
@@ -2087,5 +2196,7 @@ tags:
     description: Group management endpoints
   - name: Nodes
     description: Node management operations
+  - name: Templates
+    description: Template management operations
   - name: Aspects
     description: Aspect management operations

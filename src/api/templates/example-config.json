@@ -1,0 +1,10 @@
+{
+	"name": "example-config",
+	"version": "1.0.0",
+	"description": "Example configuration template for Antbox",
+	"settings": {
+		"enableLogging": true,
+		"maxRetries": 3,
+		"timeout": 5000
+	}
+}

@@ -1,6 +1,7 @@
 import { Router } from "@oak/oak";
 import type { AntboxTenant } from "api/antbox_tenant.ts";
 import {
+	breadcrumbsHandler,
 	copyHandler,
 	createFileHandler,
 	createHandler,
@@ -34,6 +35,7 @@ export default function (tenants: AntboxTenant[]): Router {
 	router.get("/:uuid/-/duplicate", adapt(duplicateHandler(tenants)));
 	router.get("/:uuid/-/export", adapt(exportHandler(tenants)));
 	router.get("/:uuid/-/evaluate", adapt(evaluateHandler(tenants)));
+	router.get("/:uuid/-/breadcrumbs", adapt(breadcrumbsHandler(tenants)));
 
 	// Search operations
 	router.post("/-/find", adapt(findHandler(tenants)));

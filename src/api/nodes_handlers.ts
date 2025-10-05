@@ -5,7 +5,7 @@ import { getAuthenticationContext } from "./get_authentication_context.ts";
 import { getParams } from "./get_params.ts";
 import { getQuery } from "./get_query.ts";
 import { getTenant } from "./get_tenant.ts";
-import { type HttpHandler } from "./handler.ts";
+import { type HttpHandler, sendBadRequest } from "./handler.ts";
 import { processError } from "./process_error.ts";
 import { processServiceCreateResult, processServiceResult } from "./process_service_result.ts";
 
@@ -257,6 +257,24 @@ export function exportHandler(tenants: AntboxTenant[]): HttpHandler {
 					response.headers.set("Content-length", blob.value.size.toString());
 					return response;
 				})
+				.catch(processError);
+		},
+	);
+}
+
+export function breadcrumbsHandler(tenants: AntboxTenant[]): HttpHandler {
+	return defaultMiddlewareChain(
+		tenants,
+		async (req: Request): Promise<Response> => {
+			const service = getTenant(req, tenants).nodeService;
+			const params = getParams(req);
+			if (!params.uuid) {
+				return sendBadRequest({ error: "{ uuid } not given" });
+			}
+
+			return await service
+				.breadcrumbs(getAuthenticationContext(req), params.uuid)
+				.then(processServiceResult)
 				.catch(processError);
 		},
 	);

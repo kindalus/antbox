@@ -54,7 +54,11 @@ paths:
       tags:
         - Features
       summary: List all features
-      description: Retrieve a list of all features in the system
+      description: |
+        Retrieve a comprehensive list of all features available in the system. Features are the core building blocks
+        of Antbox functionality and can be exposed as actions, extensions, or AI tools. This endpoint returns all
+        features regardless of their exposure settings, allowing administrators and developers to see the complete
+        feature catalog.
       responses:
         "200":
           description: List of features
@@ -74,7 +78,10 @@ paths:
       tags:
         - Features
       summary: Get feature by UUID
-      description: Retrieve a specific feature by its UUID
+      description: |
+        Retrieve detailed information about a specific feature using its unique identifier (UUID). This endpoint
+        returns the complete feature definition including metadata, parameters, exposure settings, and permissions.
+        Use this to inspect feature configuration before execution or modification.
       parameters:
         - $ref: "#/components/parameters/UuidPath"
       responses:
@@ -95,7 +102,10 @@ paths:
       tags:
         - Features
       summary: Delete feature
-      description: Delete a feature by its UUID
+      description: |
+        Permanently delete a feature from the system using its UUID. This operation removes the feature and all
+        its associated metadata. Note that this does not affect nodes created using the feature, but the feature
+        will no longer be available for new operations or executions.
       parameters:
         - $ref: "#/components/parameters/UuidPath"
       responses:
@@ -108,12 +118,15 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
-  /features/{uuid}/-/export:
+  /features/{uuid}/export:
     get:
       tags:
         - Features
       summary: Export feature
-      description: Export a feature in various formats
+      description: |
+        Export a feature as executable JavaScript code. This endpoint generates the complete feature implementation
+        including its runtime dependencies and configuration. The export type parameter determines how the feature
+        is packaged: as a standalone feature, an action wrapper, or an extension wrapper.
       parameters:
         - $ref: "#/components/parameters/UuidPath"
         - name: type
@@ -263,7 +276,10 @@ paths:
       tags:
         - Actions
       summary: List all actions
-      description: Retrieve all features that are exposed as actions (exposeAction=true)
+      description: |
+        Retrieve all features that are exposed as actions (where exposeAction=true). Actions are features designed
+        to operate on one or more nodes, typically performing transformations, validations, or batch operations.
+        This endpoint returns only the subset of features configured for action-based execution.
       responses:
         "200":
           description: List of action-exposed features
@@ -283,7 +299,10 @@ paths:
       tags:
         - Actions
       summary: Run an action
-      description: Execute a feature as an action with node UUIDs and optional parameters
+      description: |
+        Execute a feature as an action on one or more nodes. The request body must include an array of node UUIDs
+        to process, and may optionally include additional parameters defined by the feature. The action will be
+        executed against each specified node, with results aggregated and returned in the response.
       parameters:
         - $ref: "#/components/parameters/UuidPath"
       requestBody:
@@ -315,7 +334,10 @@ paths:
       tags:
         - Extensions
       summary: List all extensions
-      description: Retrieve all features that are exposed as extensions (exposeExtension=true)
+      description: |
+        Retrieve all features that are exposed as extensions (where exposeExtension=true). Extensions are features
+        that provide custom UI, API endpoints, or interactive functionality. They receive the full HTTP Request
+        object and can return custom responses including HTML, JSON, or other content types.
       responses:
         "200":
           description: List of extension-exposed features
@@ -335,7 +357,10 @@ paths:
       tags:
         - Extensions
       summary: Run an extension
-      description: Execute a feature as an extension, passing the full Request object to the feature
+      description: |
+        Execute a feature as an extension by passing the complete HTTP Request object to the feature function.
+        Extensions have full access to request headers, body, query parameters, and can return any type of response.
+        This makes them ideal for creating custom APIs, webhooks, or interactive web interfaces.
       parameters:
         - $ref: "#/components/parameters/UuidPath"
       requestBody:
@@ -377,7 +402,10 @@ paths:
       tags:
         - AI Tools
       summary: List all AI tools
-      description: Retrieve all features that are exposed as AI tools (exposeAITool=true)
+      description: |
+        Retrieve all features that are exposed as AI tools (where exposeAITool=true). AI tools are features that
+        can be called by AI agents to perform specific tasks or retrieve information. They are designed to be
+        discoverable and callable by language models through function calling mechanisms.
       responses:
         "200":
           description: List of AI tool-exposed features
@@ -397,7 +425,10 @@ paths:
       tags:
         - AI Tools
       summary: Run an AI tool
-      description: Execute a feature as an AI tool with provided parameters
+      description: |
+        Execute a feature as an AI tool with the provided parameters. AI tools are typically invoked by AI agents
+        during conversations to perform specific operations like data retrieval, calculations, or system interactions.
+        The parameters are defined by the feature's schema and validated before execution.
       parameters:
         - $ref: "#/components/parameters/UuidPath"
       requestBody:
@@ -431,7 +462,10 @@ paths:
       tags:
         - Agents
       summary: List agents
-      description: Retrieve a list of all AI agents
+      description: |
+        Retrieve a list of all AI agents configured in the system. Agents are AI-powered assistants with specific
+        system instructions, capabilities, and configurations. Each agent can be customized with different models,
+        personalities, and access to specific AI tools for specialized tasks.
       responses:
         "200":
           description: List of agents
@@ -450,7 +484,10 @@ paths:
       tags:
         - Agents
       summary: Create or replace agent
-      description: Create a new AI agent or replace an existing one
+      description: |
+        Create a new AI agent or replace an existing one with the same UUID. Agents are configured with system
+        instructions that define their behavior, personality, and capabilities. You can specify the AI model to use
+        and provide metadata like title and description for organizational purposes.
       requestBody:
         required: true
         content:
@@ -519,7 +556,11 @@ paths:
       tags:
         - Agents
       summary: Chat with agent
-      description: Send a chat message to an AI agent and receive a conversational response
+      description: |
+        Send a chat message to an AI agent and receive a conversational response. This endpoint supports both
+        single messages and ongoing conversations using a conversation ID. You can attach files via multipart/form-data
+        for document analysis or context. The agent will respond according to its system instructions and may use
+        available AI tools to fulfill requests.
       parameters:
         - $ref: "#/components/parameters/UuidPath"
       requestBody:
@@ -563,7 +604,10 @@ paths:
       tags:
         - Agents
       summary: Get answer from agent
-      description: Send a query to an AI agent and receive a direct answer
+      description: |
+        Send a query to an AI agent and receive a direct, focused answer. Unlike chat, which maintains conversation
+        context, this endpoint is optimized for one-off questions requiring immediate responses. Supports file
+        attachments for context and can leverage AI tools for comprehensive answers.
       parameters:
         - $ref: "#/components/parameters/UuidPath"
       requestBody:
@@ -607,7 +651,10 @@ paths:
       tags:
         - Agents
       summary: RAG chat
-      description: Perform a RAG (Retrieval-Augmented Generation) chat operation
+      description: |
+        Perform a RAG (Retrieval-Augmented Generation) chat operation that combines document retrieval with AI
+        generation. The system searches through indexed documents using the provided filters, retrieves relevant
+        context, and generates responses grounded in the retrieved information for accurate, source-based answers.
       requestBody:
         required: true
         content:
@@ -635,7 +682,10 @@ paths:
       tags:
         - API Keys
       summary: List API keys
-      description: Retrieve a list of all API keys
+      description: |
+        Retrieve a list of all API keys in the system. API keys provide programmatic access to the Antbox API
+        and are associated with specific groups for access control. Use this endpoint to manage and audit API
+        key usage across your organization.
       responses:
         "200":
           description: List of API keys
@@ -654,7 +704,10 @@ paths:
       tags:
         - API Keys
       summary: Create API key
-      description: Create a new API key for a group
+      description: |
+        Create a new API key for programmatic access to the Antbox API. Each API key is associated with a specific
+        group, inheriting that group's permissions and access rights. Include an optional description to help
+        identify the key's purpose or usage context.
       requestBody:
         required: true
         content:
@@ -965,7 +1018,10 @@ paths:
       tags:
         - Nodes
       summary: List nodes
-      description: Retrieve a list of nodes with optional filtering
+      description: |
+        Retrieve a list of nodes with optional filtering by parent folder, MIME type, or result limit. Nodes are
+        the fundamental data structures in Antbox, representing files, folders, and other content types. Use this
+        endpoint to browse the node hierarchy or find nodes matching specific criteria.
       parameters:
         - name: parent
           in: query
@@ -1005,7 +1061,10 @@ paths:
       tags:
         - Nodes
       summary: Create node
-      description: Create a new node
+      description: |
+        Create a new node in the system. Nodes can be created with JSON data or file uploads via multipart/form-data.
+        Specify the parent folder UUID to place the node in the hierarchy, and set the appropriate MIME type to
+        define how the node should be handled and displayed.
       requestBody:
         required: true
         content:
@@ -1046,7 +1105,10 @@ paths:
       tags:
         - Nodes
       summary: Upload file
-      description: Upload a file as a new node
+      description: |
+        Upload a file as a new node using multipart/form-data. This endpoint is optimized for file uploads and
+        automatically sets the MIME type based on the file content. Ideal for integrating file upload functionality
+        in web applications or CLI tools.
       requestBody:
         required: true
         content:
@@ -1263,7 +1325,10 @@ paths:
       tags:
         - Nodes
       summary: Find nodes with filters
-      description: Find nodes using filter criteria with pagination support
+      description: |
+        Find nodes using advanced filter criteria with pagination support. Supports both simple (1D) filters with
+        AND logic and complex (2D) filter groups with OR logic. Filter tuples use [field, operator, value] format
+        for precise querying across node properties like title, MIME type, owner, dates, and custom metadata.
       requestBody:
         required: true
         content:
@@ -1304,7 +1369,10 @@ paths:
       tags:
         - Nodes
       summary: Update node with file upload
-      description: Update an existing node by uploading a new file
+      description: |
+        Update an existing node by uploading a new file using multipart/form-data. This replaces the node's content
+        with the uploaded file while preserving the node's UUID and other metadata. Optionally update the title
+        and MIME type along with the file content.
       parameters:
         - $ref: "#/components/parameters/UuidPath"
       requestBody:
@@ -1370,30 +1438,16 @@ paths:
           $ref: "#/components/responses/NotFound"
 
   # Templates endpoints
-  /templates:
-    get:
-      tags:
-        - Templates
-      summary: List all available templates
-      description: Retrieve a list of all templates in the system
-      responses:
-        "200":
-          description: List of templates
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Template"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-
   /templates/{uuid}:
     get:
       tags:
         - Templates
       summary: Get template content by UUID
-      description: Retrieve the content of a specific template by its UUID. Returns the template file as text (TypeScript, JavaScript, or JSON).
+      description: |
+        Retrieve the raw content of a specific template file by its UUID. Templates are code files (TypeScript,
+        JavaScript, or JSON) stored in the templates directory and loaded dynamically at runtime. Use this endpoint
+        to fetch template content for features, actions, or configuration files. The response Content-Type matches
+        the template file type.
       parameters:
         - $ref: "#/components/parameters/UuidPath"
       responses:
@@ -1423,7 +1477,10 @@ paths:
       tags:
         - Aspects
       summary: List aspects
-      description: Retrieve a list of all aspects
+      description: |
+        Retrieve a list of all aspects in the system. Aspects are reusable metadata schemas that can be attached
+        to nodes to extend their properties and behavior. Use aspects to define custom fields, validation rules,
+        or business logic that can be applied consistently across multiple nodes.
       responses:
         "200":
           description: List of aspects
@@ -1438,7 +1495,10 @@ paths:
       tags:
         - Aspects
       summary: Create or replace aspect
-      description: Create a new aspect or replace an existing one
+      description: |
+        Create a new aspect or replace an existing one with the same UUID. Aspects define reusable metadata schemas
+        that extend node capabilities. They can include custom properties, validation logic, and behavior definitions
+        that are applied to nodes when the aspect is attached.
       requestBody:
         required: true
         content:

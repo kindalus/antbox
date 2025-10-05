@@ -6,7 +6,7 @@ import buildGoogleModel, {
 	GoogleModel,
 	GoogleModelNotFoundError,
 } from "./google.ts";
-import { ChatHistory } from "domain/ai/chat_message.ts";
+import { ChatHistory, ChatMessage } from "domain/ai/chat_message.ts";
 import { FeatureService } from "application/feature_service.ts";
 import { AuthenticationContext } from "application/authentication_context.ts";
 import { left, right } from "shared/either.ts";
@@ -301,21 +301,13 @@ describe("GoogleModel chat", () => {
 
 		// Mock the entire client to avoid network calls
 		const mockResponse = {
-			text: () => "Hello! How can I help you?",
-			candidates: [{
-				content: {
-					parts: [{ text: "Hello! How can I help you?" }],
-				},
-			}],
-		};
-
-		const mockChat = {
-			sendMessage: () => Promise.resolve(mockResponse),
+			text: "Hello! How can I help you?",
+			functionCalls: undefined,
 		};
 
 		const mockClient = {
-			chats: {
-				create: () => mockChat,
+			models: {
+				generateContent: () => Promise.resolve(mockResponse),
 			},
 		};
 
@@ -343,32 +335,23 @@ describe("GoogleModel chat", () => {
 
 		// Mock response with function call
 		const mockResponse = {
-			text: () => "",
-			candidates: [{
-				content: {
-					parts: [{
-						functionCall: {
-							name: "search",
-							args: { query: "test" },
-						},
-					}],
-				},
+			text: "",
+			functionCalls: [{
+				name: "search",
+				args: { query: "test" },
 			}],
 		};
 
-		const mockChat = {
-			sendMessage: () => Promise.resolve(mockResponse),
-		};
-
 		const mockClient = {
-			chats: {
-				create: () => mockChat,
+			models: {
+				generateContent: () => Promise.resolve(mockResponse),
 			},
 		};
 
 		(testModel as any).client = mockClient;
 
 		const tools = [{
+			uuid: "tool-1",
 			name: "search",
 			description: "Search for items",
 			parameters: [],
@@ -396,21 +379,13 @@ describe("GoogleModel chat", () => {
 		}
 
 		const mockResponse = {
-			text: () => "I can see the file content.",
-			candidates: [{
-				content: {
-					parts: [{ text: "I can see the file content." }],
-				},
-			}],
-		};
-
-		const mockChat = {
-			sendMessage: () => Promise.resolve(mockResponse),
+			text: "I can see the file content.",
+			functionCalls: undefined,
 		};
 
 		const mockClient = {
-			chats: {
-				create: () => mockChat,
+			models: {
+				generateContent: () => Promise.resolve(mockResponse),
 			},
 		};
 
@@ -437,21 +412,13 @@ describe("GoogleModel chat", () => {
 		}
 
 		const mockResponse = {
-			text: () => '{"name": "John", "age": 30}',
-			candidates: [{
-				content: {
-					parts: [{ text: '{"name": "John", "age": 30}' }],
-				},
-			}],
-		};
-
-		const mockChat = {
-			sendMessage: () => Promise.resolve(mockResponse),
+			text: '{"name": "John", "age": 30}',
+			functionCalls: undefined,
 		};
 
 		const mockClient = {
-			chats: {
-				create: () => mockChat,
+			models: {
+				generateContent: () => Promise.resolve(mockResponse),
 			},
 		};
 
@@ -498,7 +465,7 @@ describe("GoogleModel answer", () => {
 		expect(answerResult.isLeft()).toBeTruthy();
 		expect(answerResult.value).toBeInstanceOf(GoogleAPIError);
 		expect((answerResult.value as GoogleAPIError).message).toContain(
-			"does not support LLM",
+			"Answer failed",
 		);
 	});
 
@@ -515,16 +482,11 @@ describe("GoogleModel answer", () => {
 			() =>
 				Promise.resolve({
 					text: "The answer is 4.",
-					candidates: [{
-						content: {
-							parts: [{ text: "The answer is 4." }],
-						},
-					}],
+					functionCalls: undefined,
 					data: "",
-					functionCalls: [],
 					executableCode: "",
 					codeExecutionResult: "",
-				}),
+				} as any),
 		);
 
 		const answerResult = await model.answer("What is 2+2?", {
@@ -553,16 +515,11 @@ describe("GoogleModel answer", () => {
 			() =>
 				Promise.resolve({
 					text: '{"result": 4, "explanation": "2 plus 2 equals 4"}',
-					candidates: [{
-						content: {
-							parts: [{ text: '{"result": 4, "explanation": "2 plus 2 equals 4"}' }],
-						},
-					}],
+					functionCalls: undefined,
 					data: "",
-					functionCalls: [],
 					executableCode: "",
 					codeExecutionResult: "",
-				}),
+				} as any),
 		);
 
 		const schema = JSON.stringify({
@@ -660,106 +617,65 @@ describe("GoogleModel history conversion", () => {
 		}
 	});
 
-	it("should convert user message to Google format", () => {
+	it("should handle chat with history", async () => {
+		const mockResponse = {
+			text: "Got it!",
+			functionCalls: undefined,
+		};
+
+		const mockClient = {
+			models: {
+				generateContent: () => Promise.resolve(mockResponse),
+			},
+		};
+
+		(model as any).client = mockClient;
+
 		const history: ChatHistory = [
 			{ role: "user", parts: [{ text: "Hello" }] },
-		];
-
-		const googleHistory = (model as any).convertHistoryToGoogle(history);
-		expect(googleHistory).toHaveLength(1);
-		expect(googleHistory[0].role).toBe("user");
-		expect(googleHistory[0].parts[0].text).toBe("Hello");
-	});
-
-	it("should convert model message to Google format", () => {
-		const history: ChatHistory = [
 			{ role: "model", parts: [{ text: "Hi there!" }] },
 		];
 
-		const googleHistory = (model as any).convertHistoryToGoogle(history);
-		expect(googleHistory).toHaveLength(1);
-		expect(googleHistory[0].role).toBe("model");
-		expect(googleHistory[0].parts[0].text).toBe("Hi there!");
-	});
+		const chatResult = await model.chat("How are you?", {
+			systemPrompt: "You are helpful",
+			history,
+		});
 
-	it("should handle tool messages in history", () => {
-		const history: ChatHistory = [
-			{ role: "user", parts: [{ text: "Search for cats" }] },
-			{
-				role: "tool",
-				parts: [{ toolResponse: { name: "search", text: '{"results": ["cat1"]}' } }],
-			},
-			{ role: "model", parts: [{ text: "I found one cat" }] },
-		];
-
-		const googleHistory = (model as any).convertHistoryToGoogle(history);
-		// Tool messages are handled separately, so only user and model messages
-		expect(googleHistory).toHaveLength(2);
-		expect(googleHistory[0].role).toBe("user");
-		expect(googleHistory[1].role).toBe("model");
-	});
-
-	it("should filter out messages without text", () => {
-		const history: ChatHistory = [
-			{ role: "user", parts: [{ text: "Hello" }] },
-			{ role: "model", parts: [] }, // No text
-			{ role: "user", parts: [{ text: "Are you there?" }] },
-		];
-
-		const googleHistory = (model as any).convertHistoryToGoogle(history);
-		expect(googleHistory).toHaveLength(2);
-		expect(googleHistory[0].parts[0].text).toBe("Hello");
-		expect(googleHistory[1].parts[0].text).toBe("Are you there?");
+		expect(chatResult.isRight()).toBeTruthy();
+		if (chatResult.isRight()) {
+			expect(chatResult.value.role).toBe("model");
+			expect(chatResult.value.parts[0].text).toBe("Got it!");
+		}
 	});
 });
 
 describe("GoogleModel text extraction", () => {
-	let model: GoogleModel;
+	it("should extract text in answer responses", async () => {
+		const model = new GoogleModel("gemini-2.0-flash", "test-key");
+		const validationResult = model.validateModel();
+		if (validationResult.isLeft()) {
+			throw new Error(`Failed to validate model: ${validationResult.value.message}`);
+		}
 
-	beforeEach(async () => {
-		model = new GoogleModel("gemini-2.0-flash-exp", "test-key");
-		await model.validateModel();
-	});
-
-	it("should extract text from function response", () => {
-		const response = {
-			text: () => "Hello world",
-		};
-
-		const text = (model as any).extractTextFromResponse(response);
-		expect(text).toBe("Hello world");
-	});
-
-	it("should extract text from string property", () => {
-		const response = {
+		const mockResponse = {
 			text: "Hello world",
+			functionCalls: undefined,
 		};
 
-		const text = (model as any).extractTextFromResponse(response);
-		expect(text).toBe("Hello world");
-	});
-
-	it("should extract text from candidates", () => {
-		const response = {
-			candidates: [{
-				content: {
-					parts: [
-						{ text: "Hello " },
-						{ text: "world" },
-					],
-				},
-			}],
+		const mockClient = {
+			models: {
+				generateContent: () => Promise.resolve(mockResponse),
+			},
 		};
 
-		const text = (model as any).extractTextFromResponse(response);
-		expect(text).toBe("Hello world");
-	});
+		(model as any).client = mockClient;
 
-	it("should return empty string for empty response", () => {
-		const response = {};
+		const result = await model.answer("Test question");
 
-		const text = (model as any).extractTextFromResponse(response);
-		expect(text).toBe("");
+		expect(result.isRight()).toBeTruthy();
+		if (result.isRight()) {
+			expect(result.value.parts[0].text).toBe("Hello world");
+		}
 	});
 });
 

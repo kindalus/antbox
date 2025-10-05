@@ -2,10 +2,7 @@ import { describe, it } from "bdd";
 import { expect } from "expect";
 
 import buildFlatFileVectorDatabase from "./flat_file_vector_database.ts";
-import type {
-	VectorDatabase,
-	VectorEntry,
-} from "application/ai/vector_database.ts";
+import type { VectorDatabase, VectorEntry } from "application/vector_database.ts";
 
 async function createDb(baseDir: string): Promise<VectorDatabase> {
 	const maybeDb = await buildFlatFileVectorDatabase(baseDir);
@@ -148,7 +145,8 @@ describe("FlatFileVectorDatabase", () => {
 			const searchAll = await reloadedDb.search([1, 0, 0], "tenant-a", 10);
 			expect(searchAll.isRight()).toBe(true);
 			if (searchAll.isRight()) {
-				expect(searchAll.value.find((entry) => entry.id === "delete-1")).toBeUndefined();
+				expect(searchAll.value.find((entry: { id: string }) => entry.id === "delete-1"))
+					.toBeUndefined();
 			}
 
 			const deleteByNodeResult = await reloadedDb.deleteByNodeUuid("node-2");

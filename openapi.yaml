@@ -575,7 +575,7 @@ paths:
               properties:
                 input:
                   type: string
-                  description: JSON string containing message and options
+                  description: JSON string containing {text, options} structure
                 file0:
                   type: string
                   format: binary
@@ -622,7 +622,7 @@ paths:
               properties:
                 input:
                   type: string
-                  description: JSON string containing query and options
+                  description: JSON string containing {text, options} structure
                 file0:
                   type: string
                   format: binary
@@ -2004,55 +2004,94 @@ components:
     AgentChatRequest:
       type: object
       required:
-        - message
+        - text
       properties:
-        message:
+        text:
           type: string
           description: Chat message to send to the agent
-        conversationId:
-          type: string
-          description: Optional conversation ID to continue a previous conversation
-        temperature:
-          type: number
-          minimum: 0
-          maximum: 1
-          description: Temperature for response generation
-        maxTokens:
-          type: integer
-          description: Maximum tokens in the response
+        options:
+          type: object
+          description: Optional chat options
+          properties:
+            history:
+              type: array
+              description: Conversation history
+              items:
+                type: object
+            files:
+              type: array
+              description: File attachments
+              items:
+                type: object
+            temperature:
+              type: number
+              minimum: 0
+              maximum: 1
+              description: Temperature for response generation
+            maxTokens:
+              type: integer
+              description: Maximum tokens in the response
+            instructions:
+              type: string
+              description: Additional system instructions
 
     AgentAnswerRequest:
       type: object
       required:
-        - query
+        - text
       properties:
-        query:
+        text:
           type: string
           description: Query to send to the agent
-        temperature:
-          type: number
-          minimum: 0
-          maximum: 1
-          description: Temperature for response generation
-        maxTokens:
-          type: integer
-          description: Maximum tokens in the response
+        options:
+          type: object
+          description: Optional answer options
+          properties:
+            files:
+              type: array
+              description: File attachments
+              items:
+                type: object
+            temperature:
+              type: number
+              minimum: 0
+              maximum: 1
+              description: Temperature for response generation
+            maxTokens:
+              type: integer
+              description: Maximum tokens in the response
+            instructions:
+              type: string
+              description: Additional system instructions
 
     RagChatRequest:
       type: object
       required:
-        - message
+        - text
       properties:
-        message:
+        text:
           type: string
           description: Message for RAG chat
-        conversationId:
-          type: string
-          description: Optional conversation ID
-        filters:
+        options:
           type: object
-          additionalProperties: true
-          description: Optional filters for document retrieval
+          description: Optional RAG chat options
+          properties:
+            parent:
+              type: string
+              description: Folder UUID for scoped context search
+            history:
+              type: array
+              description: Conversation history
+              items:
+                type: object
+            temperature:
+              type: number
+              minimum: 0
+              maximum: 1
+              description: Temperature for response generation
+            maxTokens:
+              type: integer
+              description: Maximum tokens in the response
 
     ApiKey:
       type: object

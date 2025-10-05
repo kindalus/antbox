@@ -28,7 +28,7 @@ export function createOrReplaceAgentHandler(tenants: AntboxTenant[]): HttpHandle
 				return sendBadRequest({ error: "{ systemInstructions } not given" });
 			}
 
-			return tenant.agentService
+			return tenant.agentService!
 				.createOrReplace(getAuthenticationContext(req), metadata)
 				.then(processServiceCreateResult)
 				.catch(processError);
@@ -51,7 +51,7 @@ export function getAgentHandler(tenants: AntboxTenant[]): HttpHandler {
 				return sendBadRequest({ error: "{ uuid } not given" });
 			}
 
-			return tenant.agentService
+			return tenant.agentService!
 				.get(getAuthenticationContext(req), params.uuid)
 				.then(processServiceResult)
 				.catch(processError);
@@ -74,7 +74,7 @@ export function deleteAgentHandler(tenants: AntboxTenant[]): HttpHandler {
 				return sendBadRequest({ error: "{ uuid } not given" });
 			}
 
-			return tenant.agentService
+			return tenant.agentService!
 				.delete(getAuthenticationContext(req), params.uuid)
 				.then(processServiceResult)
 				.catch(processError);
@@ -92,7 +92,7 @@ export function listAgentsHandler(tenants: AntboxTenant[]): HttpHandler {
 				return unavailableResponse;
 			}
 
-			return tenant.agentService
+			return tenant.agentService!
 				.list(getAuthenticationContext(req))
 				.then(processServiceResult)
 				.catch(processError);
@@ -159,7 +159,7 @@ export function chatHandler(tenants: AntboxTenant[]): HttpHandler {
 				options.files = files;
 			}
 
-			return tenant.agentService
+			return tenant.agentService!
 				.chat(getAuthenticationContext(req), params.uuid, message, options)
 				.then(processServiceResult)
 				.catch(processError);
@@ -222,7 +222,7 @@ export function answerHandler(tenants: AntboxTenant[]): HttpHandler {
 				options.files = files;
 			}
 
-			return tenant.agentService
+			return tenant.agentService!
 				.answer(getAuthenticationContext(req), params.uuid, query, options)
 				.then(processServiceResult)
 				.catch(processError);
@@ -249,8 +249,11 @@ export function ragChatHandler(tenants: AntboxTenant[]): HttpHandler {
 				return sendBadRequest({ error: "{ message } not given" });
 			}
 
-			return tenant.ragService
-				.chat(getAuthenticationContext(req), chatInput, {})
+			// Extract message and build options
+			const { message, ...options } = chatInput;
+
+			return tenant.ragService!
+				.chat(getAuthenticationContext(req), message, options)
 				.then(processServiceResult)
 				.catch(processError);
 		},

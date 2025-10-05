@@ -18,7 +18,8 @@ const TEMPLATES_DIR = "./templates";
  * Load template file content
  */
 async function loadTemplate(uuid: string): Promise<{ content: string; mimetype: string } | null> {
-	let content, mimetype: string = "";
+	// deno-lint-ignore no-explicit-any
+	let content: any, mimetype: string = "";
 
 	for (const [ext, mime] of Object.entries(MIMETYPES)) {
 		try {

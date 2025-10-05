@@ -8,7 +8,7 @@ CONFIG_FILE=""
 KEYS_FLAG=""
 DEMO_FLAG=""
 SANDBOX_FLAG=""
-DENO_ARGS="--allow-net --allow-read --allow-write --allow-env --allow-sys"
+DENO_ARGS="--unstable-raw-imports --allow-net --allow-read --allow-write --allow-env --allow-sys"
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do

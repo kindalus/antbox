@@ -3,9 +3,10 @@ import { defaultMiddlewareChain } from "./default_middleware_chain.ts";
 import { getAuthenticationContext } from "./get_authentication_context.ts";
 import { getParams } from "./get_params.ts";
 import { getTenant } from "./get_tenant.ts";
-import { type HttpHandler } from "./handler.ts";
+import { type HttpHandler, sendBadRequest } from "./handler.ts";
 import { processError } from "./process_error.ts";
 import { processServiceCreateResult, processServiceResult } from "./process_service_result.ts";
+import { checkServiceAvailability } from "./service_availability.ts";
 
 // ============================================================================
 // CRUD HANDLERS
@@ -18,19 +19,14 @@ export function createUserHandler(tenants: AntboxTenant[]): HttpHandler {
 			const tenant = getTenant(req, tenants);
 			const service = tenant.authService;
 
-			if (!service) {
-				return new Response(
-					JSON.stringify({ error: "Users service not available" }),
-					{ status: 503, headers: { "Content-Type": "application/json" } },
-				);
+			const unavailableResponse = checkServiceAvailability(service, "Users service");
+			if (unavailableResponse) {
+				return unavailableResponse;
 			}
 
 			const metadata = await req.json();
 			if (!metadata?.email) {
-				return new Response(
-					JSON.stringify({ error: "{ email } not given" }),
-					{ status: 400, headers: { "Content-Type": "application/json" } },
-				);
+				return sendBadRequest({ error: "{ email } not given" });
 			}
 
 			return service
@@ -48,19 +44,14 @@ export function getUserHandler(tenants: AntboxTenant[]): HttpHandler {
 			const tenant = getTenant(req, tenants);
 			const service = tenant.authService;
 
-			if (!service) {
-				return new Response(
-					JSON.stringify({ error: "Users service not available" }),
-					{ status: 503, headers: { "Content-Type": "application/json" } },
-				);
+			const unavailableResponse = checkServiceAvailability(service, "Users service");
+			if (unavailableResponse) {
+				return unavailableResponse;
 			}
 
 			const params = getParams(req);
 			if (!params.email) {
-				return new Response(
-					JSON.stringify({ error: "{ email } not given" }),
-					{ status: 400, headers: { "Content-Type": "application/json" } },
-				);
+				return sendBadRequest({ error: "{ email } not given" });
 			}
 
 			return service
@@ -78,19 +69,14 @@ export function updateUserHandler(tenants: AntboxTenant[]): HttpHandler {
 			const tenant = getTenant(req, tenants);
 			const service = tenant.authService;
 
-			if (!service) {
-				return new Response(
-					JSON.stringify({ error: "Users service not available" }),
-					{ status: 503, headers: { "Content-Type": "application/json" } },
-				);
+			const unavailableResponse = checkServiceAvailability(service, "Users service");
+			if (unavailableResponse) {
+				return unavailableResponse;
 			}
 
 			const params = getParams(req);
 			if (!params.email) {
-				return new Response(
-					JSON.stringify({ error: "{ email } not given" }),
-					{ status: 400, headers: { "Content-Type": "application/json" } },
-				);
+				return sendBadRequest({ error: "{ email } not given" });
 			}
 
 			const metadata = await req.json();
@@ -109,19 +95,14 @@ export function deleteUserHandler(tenants: AntboxTenant[]): HttpHandler {
 			const tenant = getTenant(req, tenants);
 			const service = tenant.authService;
 
-			if (!service) {
-				return new Response(
-					JSON.stringify({ error: "Users service not available" }),
-					{ status: 503, headers: { "Content-Type": "application/json" } },
-				);
+			const unavailableResponse = checkServiceAvailability(service, "Users service");
+			if (unavailableResponse) {
+				return unavailableResponse;
 			}
 
 			const params = getParams(req);
 			if (!params.uuid) {
-				return new Response(
-					JSON.stringify({ error: "{ uuid } not given" }),
-					{ status: 400, headers: { "Content-Type": "application/json" } },
-				);
+				return sendBadRequest({ error: "{ uuid } not given" });
 			}
 
 			return service
@@ -139,11 +120,9 @@ export function listUsersHandler(tenants: AntboxTenant[]): HttpHandler {
 			const tenant = getTenant(req, tenants);
 			const service = tenant.authService;
 
-			if (!service) {
-				return new Response(
-					JSON.stringify({ error: "Users service not available" }),
-					{ status: 503, headers: { "Content-Type": "application/json" } },
-				);
+			const unavailableResponse = checkServiceAvailability(service, "Users service");
+			if (unavailableResponse) {
+				return unavailableResponse;
 			}
 
 			return service

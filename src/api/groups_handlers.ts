@@ -3,9 +3,10 @@ import { defaultMiddlewareChain } from "./default_middleware_chain.ts";
 import { getAuthenticationContext } from "./get_authentication_context.ts";
 import { getParams } from "./get_params.ts";
 import { getTenant } from "./get_tenant.ts";
-import { type HttpHandler } from "./handler.ts";
+import { type HttpHandler, sendBadRequest } from "./handler.ts";
 import { processError } from "./process_error.ts";
 import { processServiceCreateResult, processServiceResult } from "./process_service_result.ts";
+import { checkServiceAvailability } from "./service_availability.ts";
 
 // ============================================================================
 // CRUD HANDLERS
@@ -18,19 +19,14 @@ export function createGroupHandler(tenants: AntboxTenant[]): HttpHandler {
 			const tenant = getTenant(req, tenants);
 			const service = tenant.authService;
 
-			if (!service) {
-				return new Response(
-					JSON.stringify({ error: "Groups service not available" }),
-					{ status: 503, headers: { "Content-Type": "application/json" } },
-				);
+			const unavailableResponse = checkServiceAvailability(service, "Groups service");
+			if (unavailableResponse) {
+				return unavailableResponse;
 			}
 
 			const metadata = await req.json();
 			if (!metadata?.title) {
-				return new Response(
-					JSON.stringify({ error: "{ title } not given" }),
-					{ status: 400, headers: { "Content-Type": "application/json" } },
-				);
+				return sendBadRequest({ error: "{ title } not given" });
 			}
 
 			return service
@@ -48,19 +44,14 @@ export function getGroupHandler(tenants: AntboxTenant[]): HttpHandler {
 			const tenant = getTenant(req, tenants);
 			const service = tenant.authService;
 
-			if (!service) {
-				return new Response(
-					JSON.stringify({ error: "Groups service not available" }),
-					{ status: 503, headers: { "Content-Type": "application/json" } },
-				);
+			const unavailableResponse = checkServiceAvailability(service, "Groups service");
+			if (unavailableResponse) {
+				return unavailableResponse;
 			}
 
 			const params = getParams(req);
 			if (!params.uuid) {
-				return new Response(
-					JSON.stringify({ error: "{ uuid } not given" }),
-					{ status: 400, headers: { "Content-Type": "application/json" } },
-				);
+				return sendBadRequest({ error: "{ uuid } not given" });
 			}
 
 			return service
@@ -78,19 +69,14 @@ export function updateGroupHandler(tenants: AntboxTenant[]): HttpHandler {
 			const tenant = getTenant(req, tenants);
 			const service = tenant.authService;
 
-			if (!service) {
-				return new Response(
-					JSON.stringify({ error: "Groups service not available" }),
-					{ status: 503, headers: { "Content-Type": "application/json" } },
-				);
+			const unavailableResponse = checkServiceAvailability(service, "Groups service");
+			if (unavailableResponse) {
+				return unavailableResponse;
 			}
 
 			const params = getParams(req);
 			if (!params.uuid) {
-				return new Response(
-					JSON.stringify({ error: "{ uuid } not given" }),
-					{ status: 400, headers: { "Content-Type": "application/json" } },
-				);
+				return sendBadRequest({ error: "{ uuid } not given" });
 			}
 
 			const metadata = await req.json();
@@ -109,19 +95,14 @@ export function deleteGroupHandler(tenants: AntboxTenant[]): HttpHandler {
 			const tenant = getTenant(req, tenants);
 			const service = tenant.authService;
 
-			if (!service) {
-				return new Response(
-					JSON.stringify({ error: "Groups service not available" }),
-					{ status: 503, headers: { "Content-Type": "application/json" } },
-				);
+			const unavailableResponse = checkServiceAvailability(service, "Groups service");
+			if (unavailableResponse) {
+				return unavailableResponse;
 			}
 
 			const params = getParams(req);
 			if (!params.uuid) {
-				return new Response(
-					JSON.stringify({ error: "{ uuid } not given" }),
-					{ status: 400, headers: { "Content-Type": "application/json" } },
-				);
+				return sendBadRequest({ error: "{ uuid } not given" });
 			}
 
 			return service
@@ -139,11 +120,9 @@ export function listGroupsHandler(tenants: AntboxTenant[]): HttpHandler {
 			const tenant = getTenant(req, tenants);
 			const service = tenant.authService;
 
-			if (!service) {
-				return new Response(
-					JSON.stringify({ error: "Groups service not available" }),
-					{ status: 503, headers: { "Content-Type": "application/json" } },
-				);
+			const unavailableResponse = checkServiceAvailability(service, "Groups service");
+			if (unavailableResponse) {
+				return unavailableResponse;
 			}
 
 			const groups = await service.listGroups(getAuthenticationContext(req));

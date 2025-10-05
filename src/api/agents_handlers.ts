@@ -4,9 +4,10 @@ import { getAuthenticationContext } from "./get_authentication_context.ts";
 import { getParams } from "./get_params.ts";
 import { getQuery } from "./get_query.ts";
 import { getTenant } from "./get_tenant.ts";
-import { type HttpHandler } from "./handler.ts";
+import { type HttpHandler, sendBadRequest } from "./handler.ts";
 import { processError } from "./process_error.ts";
 import { processServiceCreateResult, processServiceResult } from "./process_service_result.ts";
+import { checkServiceAvailability } from "./service_availability.ts";
 
 // ============================================================================
 // CRUD HANDLERS
@@ -17,19 +18,14 @@ export function createOrReplaceAgentHandler(tenants: AntboxTenant[]): HttpHandle
 		tenants,
 		async (req: Request): Promise<Response> => {
 			const tenant = getTenant(req, tenants);
-			if (!tenant.agentService) {
-				return new Response(
-					JSON.stringify({ error: "AI agents not enabled for this tenant" }),
-					{ status: 503, headers: { "Content-Type": "application/json" } },
-				);
+			const unavailableResponse = checkServiceAvailability(tenant.agentService, "AI agents");
+			if (unavailableResponse) {
+				return unavailableResponse;
 			}
 
 			const metadata = await req.json();
 			if (!metadata?.systemInstructions) {
-				return new Response(
-					JSON.stringify({ error: "{ systemInstructions } not given" }),
-					{ status: 400, headers: { "Content-Type": "application/json" } },
-				);
+				return sendBadRequest({ error: "{ systemInstructions } not given" });
 			}
 
 			return tenant.agentService
@@ -45,19 +41,14 @@ export function getAgentHandler(tenants: AntboxTenant[]): HttpHandler {
 		tenants,
 		async (req: Request): Promise<Response> => {
 			const tenant = getTenant(req, tenants);
-			if (!tenant.agentService) {
-				return new Response(
-					JSON.stringify({ error: "AI agents not enabled for this tenant" }),
-					{ status: 503, headers: { "Content-Type": "application/json" } },
-				);
+			const unavailableResponse = checkServiceAvailability(tenant.agentService, "AI agents");
+			if (unavailableResponse) {
+				return unavailableResponse;
 			}
 
 			const params = getParams(req);
 			if (!params.uuid) {
-				return new Response(
-					JSON.stringify({ error: "{ uuid } not given" }),
-					{ status: 400, headers: { "Content-Type": "application/json" } },
-				);
+				return sendBadRequest({ error: "{ uuid } not given" });
 			}
 
 			return tenant.agentService
@@ -73,19 +64,14 @@ export function deleteAgentHandler(tenants: AntboxTenant[]): HttpHandler {
 		tenants,
 		async (req: Request): Promise<Response> => {
 			const tenant = getTenant(req, tenants);
-			if (!tenant.agentService) {
-				return new Response(
-					JSON.stringify({ error: "AI agents not enabled for this tenant" }),
-					{ status: 503, headers: { "Content-Type": "application/json" } },
-				);
+			const unavailableResponse = checkServiceAvailability(tenant.agentService, "AI agents");
+			if (unavailableResponse) {
+				return unavailableResponse;
 			}
 
 			const params = getParams(req);
 			if (!params.uuid) {
-				return new Response(
-					JSON.stringify({ error: "{ uuid } not given" }),
-					{ status: 400, headers: { "Content-Type": "application/json" } },
-				);
+				return sendBadRequest({ error: "{ uuid } not given" });
 			}
 
 			return tenant.agentService
@@ -101,11 +87,9 @@ export function listAgentsHandler(tenants: AntboxTenant[]): HttpHandler {
 		tenants,
 		async (req: Request): Promise<Response> => {
 			const tenant = getTenant(req, tenants);
-			if (!tenant.agentService) {
-				return new Response(
-					JSON.stringify({ error: "AI agents not enabled for this tenant" }),
-					{ status: 503, headers: { "Content-Type": "application/json" } },
-				);
+			const unavailableResponse = checkServiceAvailability(tenant.agentService, "AI agents");
+			if (unavailableResponse) {
+				return unavailableResponse;
 			}
 
 			return tenant.agentService
@@ -125,19 +109,14 @@ export function chatHandler(tenants: AntboxTenant[]): HttpHandler {
 		tenants,
 		async (req: Request): Promise<Response> => {
 			const tenant = getTenant(req, tenants);
-			if (!tenant.agentService) {
-				return new Response(
-					JSON.stringify({ error: "AI agents not enabled for this tenant" }),
-					{ status: 503, headers: { "Content-Type": "application/json" } },
-				);
+			const unavailableResponse = checkServiceAvailability(tenant.agentService, "AI agents");
+			if (unavailableResponse) {
+				return unavailableResponse;
 			}
 
 			const params = getParams(req);
 			if (!params.uuid) {
-				return new Response(
-					JSON.stringify({ error: "{ uuid } not given" }),
-					{ status: 400, headers: { "Content-Type": "application/json" } },
-				);
+				return sendBadRequest({ error: "{ uuid } not given" });
 			}
 
 			// Check if this is multipart/form-data (with files) or JSON
@@ -152,10 +131,7 @@ export function chatHandler(tenants: AntboxTenant[]): HttpHandler {
 				try {
 					chatInput = JSON.parse(inputStr as string);
 				} catch (_e) {
-					return new Response(
-						JSON.stringify({ error: "{ input } field must be valid JSON" }),
-						{ status: 400, headers: { "Content-Type": "application/json" } },
-					);
+					return sendBadRequest({ error: "{ input } field must be valid JSON" });
 				}
 
 				// Collect all files from form data
@@ -174,10 +150,7 @@ export function chatHandler(tenants: AntboxTenant[]): HttpHandler {
 			}
 
 			if (!chatInput?.message) {
-				return new Response(
-					JSON.stringify({ error: "{ message } not given" }),
-					{ status: 400, headers: { "Content-Type": "application/json" } },
-				);
+				return sendBadRequest({ error: "{ message } not given" });
 			}
 
 			// Extract message and build options
@@ -199,19 +172,14 @@ export function answerHandler(tenants: AntboxTenant[]): HttpHandler {
 		tenants,
 		async (req: Request): Promise<Response> => {
 			const tenant = getTenant(req, tenants);
-			if (!tenant.agentService) {
-				return new Response(
-					JSON.stringify({ error: "AI agents not enabled for this tenant" }),
-					{ status: 503, headers: { "Content-Type": "application/json" } },
-				);
+			const unavailableResponse = checkServiceAvailability(tenant.agentService, "AI agents");
+			if (unavailableResponse) {
+				return unavailableResponse;
 			}
 
 			const params = getParams(req);
 			if (!params.uuid) {
-				return new Response(
-					JSON.stringify({ error: "{ uuid } not given" }),
-					{ status: 400, headers: { "Content-Type": "application/json" } },
-				);
+				return sendBadRequest({ error: "{ uuid } not given" });
 			}
 
 			// Check if this is multipart/form-data (with files) or JSON
@@ -226,10 +194,7 @@ export function answerHandler(tenants: AntboxTenant[]): HttpHandler {
 				try {
 					answerInput = JSON.parse(inputStr as string);
 				} catch (_e) {
-					return new Response(
-						JSON.stringify({ error: "{ input } field must be valid JSON" }),
-						{ status: 400, headers: { "Content-Type": "application/json" } },
-					);
+					return sendBadRequest({ error: "{ input } field must be valid JSON" });
 				}
 
 				// Collect all files from form data
@@ -248,10 +213,7 @@ export function answerHandler(tenants: AntboxTenant[]): HttpHandler {
 			}
 
 			if (!answerInput?.query) {
-				return new Response(
-					JSON.stringify({ error: "{ query } not given" }),
-					{ status: 400, headers: { "Content-Type": "application/json" } },
-				);
+				return sendBadRequest({ error: "{ query } not given" });
 			}
 
 			// Extract query and build options
@@ -277,19 +239,14 @@ export function ragChatHandler(tenants: AntboxTenant[]): HttpHandler {
 		tenants,
 		async (req: Request): Promise<Response> => {
 			const tenant = getTenant(req, tenants);
-			if (!tenant.ragService) {
-				return new Response(
-					JSON.stringify({ error: "RAG service not enabled for this tenant" }),
-					{ status: 503, headers: { "Content-Type": "application/json" } },
-				);
+			const unavailableResponse = checkServiceAvailability(tenant.ragService, "RAG service");
+			if (unavailableResponse) {
+				return unavailableResponse;
 			}
 
 			const chatInput = await req.json();
 			if (!chatInput?.message) {
-				return new Response(
-					JSON.stringify({ error: "{ message } not given" }),
-					{ status: 400, headers: { "Content-Type": "application/json" } },
-				);
+				return sendBadRequest({ error: "{ message } not given" });
 			}
 
 			return tenant.ragService

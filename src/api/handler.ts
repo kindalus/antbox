@@ -2,13 +2,14 @@ export type HttpHandler = (req: Request) => Promise<Response>;
 
 const enum STATUS_CODE {
 	OK = 200,
-	NotFound = 404,
-	InternalServerError = 500,
-	BadRequest = 400,
-	Forbidden = 403,
-	Unauthorized = 401,
-	Conflict = 409,
 	Created = 201,
+	BadRequest = 400,
+	Unauthorized = 401,
+	Forbidden = 403,
+	NotFound = 404,
+	Conflict = 409,
+	InternalServerError = 500,
+	ServiceUnavailable = 503,
 }
 
 export function sendCreated<T>(body?: T) {
@@ -41,6 +42,10 @@ export function sendUnauthorized() {
 
 export function sendConflict<T>(body?: T) {
 	return sendResponse(STATUS_CODE.Conflict, body);
+}
+
+export function sendServiceUnavailable<T>(body?: T) {
+	return sendResponse(STATUS_CODE.ServiceUnavailable, body);
 }
 
 function sendResponse<T>(status: number, body?: T): Response {

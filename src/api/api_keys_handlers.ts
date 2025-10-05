@@ -4,9 +4,10 @@ import { getAuthenticationContext } from "./get_authentication_context.ts";
 import { getParams } from "./get_params.ts";
 import { getQuery } from "./get_query.ts";
 import { getTenant } from "./get_tenant.ts";
-import { type HttpHandler } from "./handler.ts";
+import { type HttpHandler, sendBadRequest } from "./handler.ts";
 import { processError } from "./process_error.ts";
 import { processServiceCreateResult, processServiceResult } from "./process_service_result.ts";
+import { checkServiceAvailability } from "./service_availability.ts";
 
 // ============================================================================
 // CRUD HANDLERS
@@ -19,19 +20,14 @@ export function createApiKeyHandler(tenants: AntboxTenant[]): HttpHandler {
 			const tenant = getTenant(req, tenants);
 			const service = tenant.apiKeyService;
 
-			if (!service) {
-				return new Response(
-					JSON.stringify({ error: "API Key service not available" }),
-					{ status: 503, headers: { "Content-Type": "application/json" } },
-				);
+			const unavailableResponse = checkServiceAvailability(service, "API Key service");
+			if (unavailableResponse) {
+				return unavailableResponse;
 			}
 
 			const body = await req.json();
 			if (!body?.group) {
-				return new Response(
-					JSON.stringify({ error: "{ group } not given" }),
-					{ status: 400, headers: { "Content-Type": "application/json" } },
-				);
+				return sendBadRequest({ error: "{ group } not given" });
 			}
 
 			return service
@@ -49,19 +45,14 @@ export function getApiKeyHandler(tenants: AntboxTenant[]): HttpHandler {
 			const tenant = getTenant(req, tenants);
 			const service = tenant.apiKeyService;
 
-			if (!service) {
-				return new Response(
-					JSON.stringify({ error: "API Key service not available" }),
-					{ status: 503, headers: { "Content-Type": "application/json" } },
-				);
+			const unavailableResponse = checkServiceAvailability(service, "API Key service");
+			if (unavailableResponse) {
+				return unavailableResponse;
 			}
 
 			const params = getParams(req);
 			if (!params.uuid) {
-				return new Response(
-					JSON.stringify({ error: "{ uuid } not given" }),
-					{ status: 400, headers: { "Content-Type": "application/json" } },
-				);
+				return sendBadRequest({ error: "{ uuid } not given" });
 			}
 
 			return service
@@ -79,11 +70,9 @@ export function listApiKeysHandler(tenants: AntboxTenant[]): HttpHandler {
 			const tenant = getTenant(req, tenants);
 			const service = tenant.apiKeyService;
 
-			if (!service) {
-				return new Response(
-					JSON.stringify({ error: "API Key service not available" }),
-					{ status: 503, headers: { "Content-Type": "application/json" } },
-				);
+			const unavailableResponse = checkServiceAvailability(service, "API Key service");
+			if (unavailableResponse) {
+				return unavailableResponse;
 			}
 
 			const apiKeys = await service.list(getAuthenticationContext(req));
@@ -102,19 +91,14 @@ export function deleteApiKeyHandler(tenants: AntboxTenant[]): HttpHandler {
 			const tenant = getTenant(req, tenants);
 			const service = tenant.apiKeyService;
 
-			if (!service) {
-				return new Response(
-					JSON.stringify({ error: "API Key service not available" }),
-					{ status: 503, headers: { "Content-Type": "application/json" } },
-				);
+			const unavailableResponse = checkServiceAvailability(service, "API Key service");
+			if (unavailableResponse) {
+				return unavailableResponse;
 			}
 
 			const params = getParams(req);
 			if (!params.uuid) {
-				return new Response(
-					JSON.stringify({ error: "{ uuid } not given" }),
-					{ status: 400, headers: { "Content-Type": "application/json" } },
-				);
+				return sendBadRequest({ error: "{ uuid } not given" });
 			}
 
 			return service

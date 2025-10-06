@@ -316,7 +316,7 @@ export class GoogleModel implements AIModel {
 				}],
 			});
 
-			return right(this.#extractTextFromResponse(response));
+			return right(response.text!);
 		} catch (error) {
 			return left(new GoogleAPIError(`OCR failed: ${error}`));
 		}
@@ -363,32 +363,6 @@ export class GoogleModel implements AIModel {
 	// ============================================================================
 	// PRIVATE HELPER METHODS
 	// ============================================================================
-
-	/**
-	 * Extract text from Google response
-	 */
-	#extractTextFromResponse(response: any): string {
-		if (typeof response.text === "function") {
-			return response.text() || "";
-		}
-
-		if (typeof response.text === "string") {
-			return response.text;
-		}
-
-		if (response.candidates && response.candidates.length > 0) {
-			const candidate = response.candidates[0];
-
-			if (candidate.content?.parts) {
-				return candidate.content.parts
-					.filter((part: any) => part.text)
-					.map((part: any) => part.text)
-					.join("");
-			}
-		}
-
-		return "";
-	}
 
 	/**
 	 * Extract function calls from Google model response
@@ -547,7 +521,6 @@ const VALID_MODELS = [
 	"gemini-2.5-flash-lite",
 	"gemini-2.0-pro",
 	"gemini-2.5-pro",
-
 	// Embedding models
 	"text-embedding-004",
 	"text-embedding-preview-0815",

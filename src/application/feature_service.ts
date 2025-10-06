@@ -11,7 +11,7 @@ import { NodesFilters } from "domain/nodes_filters.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import { Node } from "domain/nodes/node.ts";
 import { NodeLike } from "domain/node_like.ts";
-import type { NodeFilter } from "domain/nodes/node_filter.ts";
+import type { NodeFilter, NodeFilters } from "domain/nodes/node_filter.ts";
 import { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { Users } from "domain/users_groups/users.ts";
 import { AntboxError, BadRequestError, ForbiddenError, UnknownError } from "shared/antbox_error.ts";
@@ -24,6 +24,7 @@ import { RunContext } from "domain/features/feature_run_context.ts";
 import { BUILTIN_AGENT_TOOLS, builtinFeatures } from "application/builtin_features/index.ts";
 import { ValidationError } from "shared/validation_error.ts";
 import { Groups } from "domain/users_groups/groups.ts";
+import { AIModel } from "./ai_model.ts";
 
 type RecordKey = [string, string];
 interface RunnableRecord {
@@ -37,6 +38,7 @@ export class FeatureService {
 	constructor(
 		private readonly _nodeService: NodeService,
 		private readonly authService: UsersGroupsService,
+		private readonly ocrModel: AIModel,
 	) {
 		// Register event handlers for domain-wide triggers
 		this._nodeService["context"].bus.subscribe(NodeCreatedEvent.EVENT_ID, {
@@ -44,29 +46,22 @@ export class FeatureService {
 		});
 
 		this._nodeService["context"].bus.subscribe(NodeUpdatedEvent.EVENT_ID, {
-			handle: (evt: NodeUpdatedEvent) =>
-				this.#runAutomaticFeaturesForUpdates(UsersGroupsService.elevatedContext, evt),
+			handle: (evt: NodeUpdatedEvent) => this.#runAutomaticFeaturesForUpdates(evt),
 		});
 
-		// Register event handlers for folder-triggered actions
+		this._nodeService["context"].bus.subscribe(NodeDeletedEvent.EVENT_ID, {
+			handle: (evt: NodeDeletedEvent) => this.#runAutomaticFeaturesForDeletes(evt),
+		});
 		this._nodeService["context"].bus.subscribe(NodeCreatedEvent.EVENT_ID, {
-			handle: (evt: NodeCreatedEvent) =>
-				this.#runOnCreateScripts(UsersGroupsService.elevatedContext, evt),
+			handle: (evt: NodeCreatedEvent) => this.#runOnCreateScripts(evt),
 		});
 
 		this._nodeService["context"].bus.subscribe(NodeUpdatedEvent.EVENT_ID, {
-			handle: (evt: NodeUpdatedEvent) =>
-				this.#runOnUpdatedScripts(UsersGroupsService.elevatedContext, evt),
+			handle: (evt: NodeUpdatedEvent) => this.#runOnUpdatedScripts(evt),
 		});
 
 		this._nodeService["context"].bus.subscribe(NodeDeletedEvent.EVENT_ID, {
-			handle: (evt: NodeDeletedEvent) =>
-				this.#runOnDeleteScripts(UsersGroupsService.elevatedContext, evt),
-		});
-
-		// Register event handler for domain-wide delete triggers
-		this._nodeService["context"].bus.subscribe(NodeDeletedEvent.EVENT_ID, {
-			handle: (evt: NodeDeletedEvent) => this.#runAutomaticFeaturesForDeletes(evt),
+			handle: (evt: NodeDeletedEvent) => this.#runOnDeleteScripts(evt),
 		});
 	}
 
@@ -444,6 +439,10 @@ export class FeatureService {
 		uuid: string,
 		parameters: Record<string, unknown>,
 	): Promise<Either<AntboxError, T>> {
+		if (uuid.includes(":")) {
+			return this.#runNodeServiceMethodAsTool(ctx, uuid, parameters);
+		}
+
 		// First check if the feature exists and is exposed as AI tool
 		// Use elevated context first to get the feature metadata
 		const featureOrErr = await this.get(UsersGroupsService.elevatedContext, uuid);
@@ -457,6 +456,64 @@ export class FeatureService {
 		}
 
 		return this.#run(ctx, uuid, parameters);
+	}
+
+	async #runNodeServiceMethodAsTool<T>(
+		ctx: AuthenticationContext,
+		name: string,
+		args: Record<string, unknown>,
+	): Promise<Either<AntboxError, T>> {
+		// deno-lint-ignore no-explicit-any
+		let result: any;
+		let fileOrErr: Either<AntboxError, File>;
+		try {
+			switch (name) {
+				case "NodeService:find":
+					result = this._nodeService.find(
+						ctx,
+						args.filters as NodeFilters,
+						args.pageSize as number ?? 20,
+						args.pageToken as number ?? 1,
+					);
+					break;
+				case "NodeService:get":
+					result = this._nodeService.get(ctx, args.uuid as string);
+					break;
+				case "NodeService:create":
+					result = this._nodeService.create(ctx, args.metadata as NodeMetadata);
+					break;
+				case "NodeService:duplicate":
+					result = this._nodeService.duplicate(ctx, args.uuid as string);
+					break;
+				case "NodeService:copy":
+					result = this._nodeService.copy(ctx, args.uuid as string, args.parent as string);
+					break;
+				case "NodeService:breadcrumbs":
+					result = this._nodeService.breadcrumbs(ctx, args.uuid as string);
+					break;
+				case "NodeService:delete":
+					result = this._nodeService.delete(ctx, args.uuid as string);
+					break;
+				case "NodeService:update":
+					result = this._nodeService.update(
+						ctx,
+						args.uuid as string,
+						args.metadata as NodeMetadata,
+					);
+					break;
+				case "OcrModel:ocr":
+					fileOrErr = await this._nodeService.export(ctx, args.uuid as string);
+					result = this.ocrModel.ocr(fileOrErr.right);
+			}
+		} catch (err: unknown) {
+			return left(new BadRequestError("Unknown error: ".concat((err as Error).message)));
+		}
+
+		if (!result) {
+			return left(new BadRequestError("Unknown tool"));
+		}
+
+		return result;
 	}
 
 	async runExtension(
@@ -833,7 +890,6 @@ export class FeatureService {
 	}
 
 	async #runAutomaticFeaturesForUpdates(
-		ctx: AuthenticationContext,
 		evt: NodeUpdatedEvent,
 	) {
 		const runCriteria: NodeFilter = ["runOnUpdates", "==", true];
@@ -919,7 +975,7 @@ export class FeatureService {
 		}
 	}
 
-	async #runOnDeleteScripts(ctx: AuthenticationContext, evt: NodeDeletedEvent) {
+	async #runOnDeleteScripts(evt: NodeDeletedEvent) {
 		if (evt.payload.parent === Folders.ROOT_FOLDER_UUID) {
 			return;
 		}
@@ -971,7 +1027,7 @@ export class FeatureService {
 		}
 	}
 
-	async #runOnCreateScripts(ctx: AuthenticationContext, evt: NodeCreatedEvent) {
+	async #runOnCreateScripts(evt: NodeCreatedEvent) {
 		if (evt.payload.parent === Folders.ROOT_FOLDER_UUID) {
 			return;
 		}
@@ -1030,10 +1086,12 @@ export class FeatureService {
 	}
 
 	async #runOnUpdatedScripts(
-		ctx: AuthenticationContext,
 		evt: NodeUpdatedEvent,
 	) {
-		const node = await this._nodeService.get(ctx, evt.payload.uuid);
+		const node = await this._nodeService.get(
+			UsersGroupsService.elevatedContext,
+			evt.payload.uuid,
+		);
 		if (node.isLeft() || node.value.parent === Folders.ROOT_FOLDER_UUID) {
 			return;
 		}

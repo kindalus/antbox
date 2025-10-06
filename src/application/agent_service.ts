@@ -14,7 +14,6 @@ import { AIModel } from "application/ai_model.ts";
 import { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import { AgentDTO, nodeMetadataToAgentDTO } from "application/agent_dto.ts";
-import { BUILTIN_AGENT_TOOLS } from "application/builtin_features/index.ts";
 import { modelFrom } from "adapters/model_configuration_parser.ts";
 const chatSystemPrompt =
 	`You are an AI agent running inside Antbox, an ECM (Enterprise Content Management) platform.
@@ -52,7 +51,6 @@ IMPORTANT:
 - Only answer questions related to content and data within the Antbox platform
 - If a question is outside the scope of the platform, respond: "I don't know how to answer that as it's outside the scope of this ECM platform"
 - Many questions can be answered by querying node metadata and aspects using the find tool`;
-import { NodeLike } from "domain/node_like.ts";
 
 // ============================================================================
 // INPUT TYPES
@@ -78,26 +76,6 @@ export interface AnswerOptions {
 	readonly maxTokens?: number; // Override agent's default
 	readonly instructions?: string; // Additional system instructions
 }
-
-// ============================================================================
-// CONSTANTS
-// ============================================================================
-
-/**
- * FeatureDTO properties to exclude when converting to AI tools
- */
-const EXCLUDED_FEATURE_PROPERTIES = [
-	"exposeAction",
-	"runOnCreates",
-	"runOnUpdates",
-	"runOnDeletes",
-	"runManually",
-	"filters",
-	"exposeExtension",
-	"exposeAITool",
-	"runAs",
-	"groupsAllowed",
-];
 
 // ============================================================================
 // AGENT SERVICE CLASS
@@ -481,7 +459,9 @@ export class AgentService {
 				const currentMessage = result.value;
 
 				// Check if response has text - if so, return early
-				const hasText = currentMessage.parts.some((part: any) => part.text && part.text.trim());
+				const hasText = currentMessage.parts
+					.some((part) => part.text && part.text.trim());
+
 				if (hasText) {
 					return right(currentMessage);
 				}

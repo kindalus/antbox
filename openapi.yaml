@@ -2418,18 +2418,55 @@ components:
       properties:
         role:
           type: string
-          enum: [user, assistant, system]
+          enum: [user, model, tool]
           description: Role of the message sender
-        content:
-          type: string
-          description: Content of the chat message
-        timestamp:
-          type: string
-          format: date-time
-          description: Timestamp of the message
+        parts:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChatMessagePart"
+          description: Array of message parts
       required:
         - role
-        - content
+        - parts
+
+    ChatMessagePart:
+      type: object
+      properties:
+        text:
+          type: string
+          description: Text content of the message part
+        toolCall:
+          $ref: "#/components/schemas/ToolCall"
+        toolResponse:
+          $ref: "#/components/schemas/ToolResponse"
+      description: Individual part of a chat message
+
+    ToolCall:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Name of the tool being called
+        args:
+          type: object
+          additionalProperties: true
+          description: Arguments passed to the tool
+      required:
+        - name
+        - args
+
+    ToolResponse:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Name of the tool that generated the response
+        text:
+          type: string
+          description: Response text from the tool
+      required:
+        - name
+        - text
 
 tags:
   - name: Authentication

@@ -6,14 +6,13 @@ import buildGoogleModel, {
 	GoogleModel,
 	GoogleModelNotFoundError,
 } from "./google.ts";
-import { ChatHistory, ChatMessage } from "domain/ai/chat_message.ts";
-import { FeatureService } from "application/feature_service.ts";
+import { ChatHistory } from "domain/ai/chat_message.ts";
 import { AuthenticationContext } from "application/authentication_context.ts";
-import { left, right } from "shared/either.ts";
+import { right } from "shared/either.ts";
 
 // Mock FeatureService for testing
 class MockFeatureService {
-	async runAITool(authContext: AuthenticationContext, featureId: string, parameters: any) {
+	async runAITool(_authContext: AuthenticationContext, featureId: string, parameters: any) {
 		// Mock successful tool execution
 		if (featureId === "builtin:node-service:find") {
 			return right({ results: [{ uuid: "test-node", title: "Test Node" }] });
@@ -240,13 +239,6 @@ describe("GoogleModel embed", () => {
 		}
 
 		// Mock the embedContent method
-		const mockEmbedContent = stub(model["client"]["models"], "embedContent", () => {
-			return Promise.resolve({
-				embeddings: [{
-					values: [0.1, 0.2, 0.3, 0.4, 0.5],
-				}],
-			});
-		});
 
 		const embedResult = await model.embed(["text1", "text2"]);
 
@@ -263,15 +255,9 @@ describe("GoogleModel embed", () => {
 
 describe("GoogleModel chat", () => {
 	let featureService: MockFeatureService;
-	let authContext: AuthenticationContext;
 
 	beforeEach(() => {
 		featureService = new MockFeatureService();
-		authContext = {
-			tenant: "test",
-			principal: { email: "test@example.com", groups: [] },
-			mode: "Direct",
-		};
 	});
 
 	it("should handle basic chat without tools", async () => {
@@ -459,19 +445,6 @@ describe("GoogleModel answer", () => {
 			throw new Error(`Failed to validate model: ${validationResult.value.message}`);
 		}
 
-		const mockGenerateContent = stub(
-			model["client"]["models"],
-			"generateContent",
-			() =>
-				Promise.resolve({
-					text: "The answer is 4.",
-					functionCalls: undefined,
-					data: "",
-					executableCode: "",
-					codeExecutionResult: "",
-				} as any),
-		);
-
 		const answerResult = await model.answer("What is 2+2?", {
 			systemPrompt: "You are a math tutor",
 		});
@@ -491,19 +464,6 @@ describe("GoogleModel answer", () => {
 		if (validationResult.isLeft()) {
 			throw new Error(`Failed to validate model: ${validationResult.value.message}`);
 		}
-
-		const mockGenerateContent = stub(
-			model["client"]["models"],
-			"generateContent",
-			() =>
-				Promise.resolve({
-					text: '{"result": 4, "explanation": "2 plus 2 equals 4"}',
-					functionCalls: undefined,
-					data: "",
-					executableCode: "",
-					codeExecutionResult: "",
-				} as any),
-		);
 
 		const schema = JSON.stringify({
 			type: "object",
@@ -559,24 +519,6 @@ describe("GoogleModel OCR", () => {
 	});
 
 	it("should extract text from image", async () => {
-		const mockGenerateContent = stub(
-			model["client"]["models"],
-			"generateContent",
-			() =>
-				Promise.resolve({
-					text: "Extracted text from image",
-					candidates: [{
-						content: {
-							parts: [{ text: "Extracted text from image" }],
-						},
-					}],
-					data: "",
-					functionCalls: [],
-					executableCode: "",
-					codeExecutionResult: "",
-				}),
-		);
-
 		const mockFile = new File(["test image data"], "test.jpg", { type: "image/jpeg" });
 		const result = await model.ocr(mockFile);
 
@@ -668,21 +610,6 @@ describe("Tool conversion utilities", () => {
 		// We'll test it indirectly through the chat method
 		const model = new GoogleModel("gemini-2.0-flash-exp", "test-key");
 
-		const features = [
-			{
-				name: "search",
-				description: "Search for items",
-				parameters: [
-					{
-						name: "query",
-						type: "string" as const,
-						required: true,
-						description: "Search query",
-					},
-				],
-			},
-		];
-
 		// The converter is called internally when chat/answer is used with tools
 		// We verify it doesn't throw during model creation and validation
 		expect(() => {
@@ -691,22 +618,6 @@ describe("Tool conversion utilities", () => {
 	});
 
 	it("should handle array parameters correctly", () => {
-		const features = [
-			{
-				name: "process",
-				description: "Process items",
-				parameters: [
-					{
-						name: "items",
-						type: "array" as const,
-						arrayType: "string" as const,
-						required: true,
-						description: "Items to process",
-					},
-				],
-			},
-		];
-
 		// Verify through model creation that it doesn't throw
 		expect(() => {
 			new GoogleModel("gemini-2.0-flash-exp", "test-key");
@@ -714,25 +625,6 @@ describe("Tool conversion utilities", () => {
 	});
 
 	it("should handle optional parameters", () => {
-		const features = [
-			{
-				name: "test",
-				description: "Test function",
-				parameters: [
-					{
-						name: "required",
-						type: "string" as const,
-						required: true,
-					},
-					{
-						name: "optional",
-						type: "string" as const,
-						required: false,
-					},
-				],
-			},
-		];
-
 		expect(() => {
 			new GoogleModel("gemini-2.0-flash-exp", "test-key");
 		}).not.toThrow();

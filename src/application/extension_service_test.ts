@@ -97,7 +97,7 @@ describe("Extension Service", () => {
 			}),
 		)).right;
 
-		const extensionsResult = await service.listExtensions();
+		const extensionsResult = await service.listExtensions(adminAuthContext);
 
 		expect(extensionsResult.isRight()).toBeTruthy();
 		if (extensionsResult.isRight()) {

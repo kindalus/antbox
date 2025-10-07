@@ -25,6 +25,8 @@ import { BUILTIN_AGENT_TOOLS, builtinFeatures } from "application/builtin_featur
 import { ValidationError } from "shared/validation_error.ts";
 import { Groups } from "domain/users_groups/groups.ts";
 import { AIModel } from "./ai_model.ts";
+import { loadTemplate, TEMPLATES } from "api/templates/index.ts";
+import { DOCS, loadDoc } from "../../docs/index.ts";
 
 type RecordKey = [string, string];
 interface RunnableRecord {
@@ -504,6 +506,27 @@ export class FeatureService {
 				case "OcrModel:ocr":
 					fileOrErr = await this._nodeService.export(ctx, args.uuid as string);
 					result = this.ocrModel.ocr(fileOrErr.right);
+					break;
+				case "Templates:list":
+					result = right(TEMPLATES);
+					break;
+				case "Templates:get":
+					const template = await loadTemplate(args.uuid as string);
+					if (!template) {
+						return left(new NodeNotFoundError(`Template '${args.uuid}' not found`));
+					}
+					result = right(template.content);
+					break;
+				case "Docs:list":
+					result = right(DOCS);
+					break;
+				case "Docs:get":
+					const doc = await loadDoc(args.uuid as string);
+					if (!doc) {
+						return left(new NodeNotFoundError(`Documentation '${args.uuid}' not found`));
+					}
+					result = right(doc.content);
+					break;
 			}
 		} catch (err: unknown) {
 			return left(new BadRequestError("Unknown error: ".concat((err as Error).message)));

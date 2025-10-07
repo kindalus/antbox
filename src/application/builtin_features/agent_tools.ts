@@ -1,8 +1,8 @@
 import { FeatureDTO } from "application/feature_dto.ts";
 
 /**
- * Built-in Node Service tools (always available when useTools: true)
- * These tools provide agents with access to the core Antbox node operations
+ * Built-in tools (always available when useTools: true)
+ * These tools provide agents with access to core Antbox operations, templates, and documentation
  */
 export const BUILTIN_AGENT_TOOLS: Partial<FeatureDTO>[] = [
 	{
@@ -479,5 +479,149 @@ Publishes NodeUpdatedEvent with change details for integration and audit purpose
 		returnType: "void",
 		returnDescription:
 			"No return value on successful update. The node is updated in the repository with the new metadata and triggers validation and events.",
+	},
+	{
+		uuid: "Templates:list",
+		name: "listTemplates",
+		description: `List all available code and configuration templates.
+
+This tool returns a list of all available templates that can be used to bootstrap new features,
+actions, and configurations in Antbox. Templates provide starting points for common development tasks.
+
+**Available template types:**
+- Feature templates: TypeScript templates for creating custom features
+- Action templates: JavaScript templates for node processing actions
+- Configuration templates: JSON configuration examples
+
+**Use cases:**
+- Discover available templates for development
+- Find the right template for a specific task
+- Get template UUIDs to fetch specific template content
+- Understand what templates are available in the system
+
+**Template information includes:**
+- uuid: Unique identifier for fetching the template
+- description: What the template is for and how to use it
+
+Use the Templates:get tool with the template UUID to retrieve the actual template content.`,
+		parameters: [],
+		returnType: "array",
+		returnDescription:
+			"Array of template objects, each containing {uuid: string, description: string} describing available templates in the system.",
+	},
+	{
+		uuid: "Templates:get",
+		name: "getTemplate",
+		description: `Retrieve a specific code or configuration template by its UUID.
+
+This tool fetches the complete content of a template file that can be used as a starting point
+for creating new features, actions, or configurations in Antbox.
+
+**Supported template formats:**
+- TypeScript (.ts): Feature and component templates
+- JavaScript (.js): Action and script templates
+- JSON (.json): Configuration templates
+
+**Common templates:**
+- example-feature: Template for creating custom Antbox features
+- example-action: JavaScript template for processing nodes
+- example-config: JSON configuration example
+
+**Use cases:**
+- Get template code to create new features
+- Copy template content as a starting point
+- Study example implementations
+- Bootstrap new development tasks
+
+**Response includes:**
+- Full template source code
+- Proper MIME type for the template format
+
+Use Templates:list to discover available template UUIDs.`,
+		parameters: [
+			{
+				name: "uuid",
+				type: "string",
+				required: true,
+				description:
+					"UUID of the template to retrieve (e.g., 'example-feature', 'example-action', 'example-config'). Use Templates:list to discover available UUIDs.",
+			},
+		],
+		returnType: "string",
+		returnDescription:
+			"Complete template file content as a string, ready to be used as a starting point for development.",
+	},
+	{
+		uuid: "Docs:list",
+		name: "listDocs",
+		description: `List all available Antbox documentation.
+
+This tool returns a comprehensive list of all available documentation resources in the Antbox system.
+Documentation covers architecture, features, guides, and best practices.
+
+**Available documentation topics:**
+- AI Agents: Guide to creating and using AI agents
+- Architecture: System architecture and design overview
+- Features: Detailed feature documentation
+- Getting Started: Beginner's guide to Antbox
+- Nodes and Aspects: Core concepts explanation
+- Storage Providers: Storage configuration and options
+
+**Use cases:**
+- Discover available documentation
+- Find documentation for specific topics
+- Get documentation UUIDs to fetch full content
+- Understand what areas are documented
+
+**Documentation information includes:**
+- uuid: Unique identifier for fetching the documentation
+- description: Brief summary of what the documentation covers
+
+Use the Docs:get tool with the documentation UUID to retrieve the full documentation content.`,
+		parameters: [],
+		returnType: "array",
+		returnDescription:
+			"Array of documentation objects, each containing {uuid: string, description: string} describing available documentation in the system.",
+	},
+	{
+		uuid: "Docs:get",
+		name: "getDoc",
+		description: `Retrieve specific Antbox documentation by its UUID.
+
+This tool fetches the complete content of a documentation file in Markdown format.
+Documentation provides detailed information about Antbox features, architecture, and usage.
+
+**Available documentation:**
+- ai-agents: Guide to AI agents in Antbox
+- architecture: System architecture overview
+- features: Available features documentation
+- getting-started: Getting started guide
+- nodes-and-aspects: Nodes and aspects explained
+- storage-providers: Storage providers documentation
+
+**Use cases:**
+- Read detailed documentation on specific topics
+- Learn about Antbox features and capabilities
+- Understand system architecture
+- Get implementation guidance
+- Access reference materials
+
+**Response format:**
+- Full documentation content in Markdown format
+- Ready to be parsed, displayed, or processed
+
+Use Docs:list to discover available documentation UUIDs.`,
+		parameters: [
+			{
+				name: "uuid",
+				type: "string",
+				required: true,
+				description:
+					"UUID of the documentation to retrieve (e.g., 'ai-agents', 'architecture', 'getting-started'). Use Docs:list to discover available UUIDs.",
+			},
+		],
+		returnType: "string",
+		returnDescription:
+			"Complete documentation content in Markdown format, containing detailed information about the requested topic.",
 	},
 ];

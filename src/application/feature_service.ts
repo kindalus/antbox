@@ -37,32 +37,40 @@ interface RunnableRecord {
 export class FeatureService {
 	static #runnable: Map<RecordKey, RunnableRecord> = new Map();
 
+	readonly #nodeService: NodeService;
+	readonly #authService: UsersGroupsService;
+	readonly #ocrModel: AIModel;
+
 	constructor(
-		private readonly _nodeService: NodeService,
-		private readonly authService: UsersGroupsService,
-		private readonly ocrModel: AIModel,
+		nodeService: NodeService,
+		authService: UsersGroupsService,
+		ocrModel: AIModel,
 	) {
+		this.#nodeService = nodeService;
+		this.#authService = authService;
+		this.#ocrModel = ocrModel;
+
 		// Register event handlers for domain-wide triggers
-		this._nodeService["context"].bus.subscribe(NodeCreatedEvent.EVENT_ID, {
+		this.#nodeService["context"].bus.subscribe(NodeCreatedEvent.EVENT_ID, {
 			handle: (evt: NodeCreatedEvent) => this.#runAutomaticFeaturesForCreates(evt),
 		});
 
-		this._nodeService["context"].bus.subscribe(NodeUpdatedEvent.EVENT_ID, {
+		this.#nodeService["context"].bus.subscribe(NodeUpdatedEvent.EVENT_ID, {
 			handle: (evt: NodeUpdatedEvent) => this.#runAutomaticFeaturesForUpdates(evt),
 		});
 
-		this._nodeService["context"].bus.subscribe(NodeDeletedEvent.EVENT_ID, {
+		this.#nodeService["context"].bus.subscribe(NodeDeletedEvent.EVENT_ID, {
 			handle: (evt: NodeDeletedEvent) => this.#runAutomaticFeaturesForDeletes(evt),
 		});
-		this._nodeService["context"].bus.subscribe(NodeCreatedEvent.EVENT_ID, {
+		this.#nodeService["context"].bus.subscribe(NodeCreatedEvent.EVENT_ID, {
 			handle: (evt: NodeCreatedEvent) => this.#runOnCreateScripts(evt),
 		});
 
-		this._nodeService["context"].bus.subscribe(NodeUpdatedEvent.EVENT_ID, {
+		this.#nodeService["context"].bus.subscribe(NodeUpdatedEvent.EVENT_ID, {
 			handle: (evt: NodeUpdatedEvent) => this.#runOnUpdatedScripts(evt),
 		});
 
-		this._nodeService["context"].bus.subscribe(NodeDeletedEvent.EVENT_ID, {
+		this.#nodeService["context"].bus.subscribe(NodeDeletedEvent.EVENT_ID, {
 			handle: (evt: NodeDeletedEvent) => this.#runOnDeleteScripts(evt),
 		});
 	}
@@ -82,7 +90,7 @@ export class FeatureService {
 
 		// Validate that runAs group exists if specified
 		if (feature.runAs) {
-			const groupOrErr = await this.authService.getGroup(
+			const groupOrErr = await this.#authService.getGroup(
 				UsersGroupsService.elevatedContext,
 				feature.runAs,
 			);
@@ -95,20 +103,20 @@ export class FeatureService {
 			}
 		}
 
-		const nodeOrErr = await this._nodeService.get(ctx, feature.uuid);
+		const nodeOrErr = await this.#nodeService.get(ctx, feature.uuid);
 
 		if (nodeOrErr.isLeft()) {
-			return this._nodeService.createFile(ctx, file, {
+			return this.#nodeService.createFile(ctx, file, {
 				...metadata,
 				uuid: feature.uuid,
 				parent: Folders.FEATURES_FOLDER_UUID,
 			});
 		}
 
-		await this._nodeService.updateFile(ctx, feature.uuid, file);
+		await this.#nodeService.updateFile(ctx, feature.uuid, file);
 
 		// Update the node metadata with new action properties
-		const updateResult = await this._nodeService.update(
+		const updateResult = await this.#nodeService.update(
 			ctx,
 			feature.uuid,
 			metadata,
@@ -117,7 +125,7 @@ export class FeatureService {
 			return left(updateResult.value);
 		}
 
-		const updatedNodeOrErr = await this._nodeService.get(ctx, feature.uuid);
+		const updatedNodeOrErr = await this.#nodeService.get(ctx, feature.uuid);
 
 		if (updatedNodeOrErr.isLeft()) {
 			return left(updatedNodeOrErr.value);
@@ -136,7 +144,7 @@ export class FeatureService {
 			return left(featureOrErr.value);
 		}
 
-		return this._nodeService.delete(ctx, uuid);
+		return this.#nodeService.delete(ctx, uuid);
 	}
 
 	async export(
@@ -150,7 +158,7 @@ export class FeatureService {
 		}
 
 		// Get the original file content
-		const fileOrErr = await this._nodeService.export(ctx, uuid);
+		const fileOrErr = await this.#nodeService.export(ctx, uuid);
 		if (fileOrErr.isLeft()) {
 			return left(fileOrErr.value);
 		}
@@ -201,7 +209,7 @@ export class FeatureService {
 			return right(toFeatureDTO(featureNode));
 		}
 
-		const nodeOrErr = await this._nodeService.get(ctx, uuid);
+		const nodeOrErr = await this.#nodeService.get(ctx, uuid);
 
 		if (nodeOrErr.isLeft() && nodeOrErr.value instanceof NodeNotFoundError) {
 			return left(new FeatureNotFoundError(uuid));
@@ -235,8 +243,11 @@ export class FeatureService {
 		return right(feature);
 	}
 
-	async getExtension(uuid: string): Promise<Either<AntboxError, FeatureDTO>> {
-		const featureOrErr = await this.get(UsersGroupsService.elevatedContext, uuid);
+	async getExtension(
+		ctx: AuthenticationContext,
+		uuid: string,
+	): Promise<Either<AntboxError, FeatureDTO>> {
+		const featureOrErr = await this.get(ctx, uuid);
 		if (featureOrErr.isLeft()) {
 			return left(featureOrErr.value);
 		}
@@ -249,11 +260,28 @@ export class FeatureService {
 		return right(feature);
 	}
 
+	async getAction(
+		ctx: AuthenticationContext,
+		uuid: string,
+	): Promise<Either<AntboxError, FeatureDTO>> {
+		const featureOrErr = await this.get(ctx, uuid);
+		if (featureOrErr.isLeft()) {
+			return left(featureOrErr.value);
+		}
+
+		const feature = featureOrErr.value;
+		if (!feature.exposeAction) {
+			return left(new BadRequestError("Feature is not exposed as action"));
+		}
+
+		return right(feature);
+	}
+
 	async listActions(
 		ctx: AuthenticationContext,
 	): Promise<Either<AntboxError, NodeLike[]>> {
 		// Get features that are exposed as actions
-		const featuresOrErrs = await this._nodeService.find(
+		const featuresOrErrs = await this.#nodeService.find(
 			ctx,
 			[
 				["mimetype", "==", Nodes.FEATURE_MIMETYPE],
@@ -274,7 +302,7 @@ export class FeatureService {
 		ctx: AuthenticationContext,
 	): Promise<Either<AntboxError, FeatureDTO[]>> {
 		// Get features that are exposed as AI tools
-		const featuresOrErrs = await this._nodeService.find(
+		const featuresOrErrs = await this.#nodeService.find(
 			ctx,
 			[
 				["mimetype", "==", Nodes.FEATURE_MIMETYPE],
@@ -298,10 +326,12 @@ export class FeatureService {
 		return right(nodes);
 	}
 
-	async listExtensions(): Promise<Either<AntboxError, NodeLike[]>> {
+	async listExtensions(
+		ctx: AuthenticationContext,
+	): Promise<Either<AntboxError, NodeLike[]>> {
 		// Get features that are exposed as extensions
-		const featuresOrErrs = await this._nodeService.find(
-			UsersGroupsService.elevatedContext,
+		const featuresOrErrs = await this.#nodeService.find(
+			ctx,
 			[
 				["mimetype", "==", Nodes.FEATURE_MIMETYPE],
 				["parent", "==", Folders.FEATURES_FOLDER_UUID],
@@ -321,7 +351,7 @@ export class FeatureService {
 		ctx: AuthenticationContext,
 	): Promise<Either<AntboxError, FeatureDTO[]>> {
 		// Get features that are exposed as actions
-		const featuresOrErrs = await this._nodeService.find(
+		const featuresOrErrs = await this.#nodeService.find(
 			ctx,
 			[
 				["mimetype", "==", Nodes.FEATURE_MIMETYPE],
@@ -331,7 +361,7 @@ export class FeatureService {
 			Number.MAX_SAFE_INTEGER,
 		);
 
-		const actionsOrErrs = await this._nodeService.find(
+		const actionsOrErrs = await this.#nodeService.find(
 			ctx,
 			[
 				["mimetype", "==", Nodes.FEATURE_MIMETYPE],
@@ -387,7 +417,7 @@ export class FeatureService {
 	}
 
 	get nodeService(): NodeService {
-		return this._nodeService;
+		return this.#nodeService;
 	}
 
 	async runAction<T>(
@@ -397,7 +427,7 @@ export class FeatureService {
 		params?: Record<string, unknown>,
 	): Promise<Either<AntboxError, T>> {
 		// First check if the feature exists and is exposed as action
-		const featureOrErr = await this.get(UsersGroupsService.elevatedContext, uuid);
+		const featureOrErr = await this.get(ctx, uuid);
 		if (featureOrErr.isLeft()) {
 			return left(featureOrErr.value);
 		}
@@ -413,7 +443,7 @@ export class FeatureService {
 
 		// Filter uuids to can be exposed to action
 		const spec = NodesFilters.nodeSpecificationFrom(feature.filters);
-		const nodesOrErrs = await Promise.all(uuids.map((uuid) => this._nodeService.get(ctx, uuid)));
+		const nodesOrErrs = await Promise.all(uuids.map((uuid) => this.#nodeService.get(ctx, uuid)));
 
 		const filterAndLog = (nodeOrErr: Either<AntboxError, NodeLike>) => {
 			if (nodeOrErr.isLeft()) {
@@ -447,7 +477,7 @@ export class FeatureService {
 
 		// First check if the feature exists and is exposed as AI tool
 		// Use elevated context first to get the feature metadata
-		const featureOrErr = await this.get(UsersGroupsService.elevatedContext, uuid);
+		const featureOrErr = await this.get(ctx, uuid);
 		if (featureOrErr.isLeft()) {
 			return left(featureOrErr.value);
 		}
@@ -471,7 +501,7 @@ export class FeatureService {
 		try {
 			switch (name) {
 				case "NodeService:find":
-					result = this._nodeService.find(
+					result = this.#nodeService.find(
 						ctx,
 						args.filters as NodeFilters,
 						args.pageSize as number ?? 20,
@@ -479,33 +509,33 @@ export class FeatureService {
 					);
 					break;
 				case "NodeService:get":
-					result = this._nodeService.get(ctx, args.uuid as string);
+					result = this.#nodeService.get(ctx, args.uuid as string);
 					break;
 				case "NodeService:create":
-					result = this._nodeService.create(ctx, args.metadata as NodeMetadata);
+					result = this.#nodeService.create(ctx, args.metadata as NodeMetadata);
 					break;
 				case "NodeService:duplicate":
-					result = this._nodeService.duplicate(ctx, args.uuid as string);
+					result = this.#nodeService.duplicate(ctx, args.uuid as string);
 					break;
 				case "NodeService:copy":
-					result = this._nodeService.copy(ctx, args.uuid as string, args.parent as string);
+					result = this.#nodeService.copy(ctx, args.uuid as string, args.parent as string);
 					break;
 				case "NodeService:breadcrumbs":
-					result = this._nodeService.breadcrumbs(ctx, args.uuid as string);
+					result = this.#nodeService.breadcrumbs(ctx, args.uuid as string);
 					break;
 				case "NodeService:delete":
-					result = this._nodeService.delete(ctx, args.uuid as string);
+					result = this.#nodeService.delete(ctx, args.uuid as string);
 					break;
 				case "NodeService:update":
-					result = this._nodeService.update(
+					result = this.#nodeService.update(
 						ctx,
 						args.uuid as string,
 						args.metadata as NodeMetadata,
 					);
 					break;
 				case "OcrModel:ocr":
-					fileOrErr = await this._nodeService.export(ctx, args.uuid as string);
-					result = this.ocrModel.ocr(fileOrErr.right);
+					fileOrErr = await this.#nodeService.export(ctx, args.uuid as string);
+					result = this.#ocrModel.ocr(fileOrErr.right);
 					break;
 				case "Templates:list":
 					result = right(TEMPLATES);
@@ -645,7 +675,7 @@ export class FeatureService {
 		const featureMetadata = featureToNodeMetadata(feature, ctx.principal.email);
 		const combinedMetadata = metadata ? { ...featureMetadata, ...metadata } : featureMetadata;
 
-		const nodeOrErr = await this._nodeService.createFile(
+		const nodeOrErr = await this.#nodeService.createFile(
 			ctx,
 			file,
 			combinedMetadata as NodeMetadata,
@@ -702,7 +732,7 @@ export class FeatureService {
 		uuids: string[],
 	): Promise<Array<{ uuid: string; passed: boolean }>> {
 		const promises = uuids.map(async (uuid) => {
-			const nodeOrErr = await this._nodeService.get(ctx, uuid);
+			const nodeOrErr = await this.#nodeService.get(ctx, uuid);
 
 			if (nodeOrErr.isLeft()) {
 				return { uuid, passed: false };
@@ -734,7 +764,7 @@ export class FeatureService {
 		});
 
 		// Get action nodes from the repository
-		const actionsOrErrs = await this._nodeService.find(
+		const actionsOrErrs = await this.#nodeService.find(
 			UsersGroupsService.elevatedContext,
 			[
 				["mimetype", "==", Nodes.FEATURE_MIMETYPE],
@@ -771,7 +801,7 @@ export class FeatureService {
 			return right(builtinFeatures.find((a) => a.uuid === uuid)!);
 		}
 
-		const nodeOrErr = await this._nodeService.get(ctx, uuid);
+		const nodeOrErr = await this.#nodeService.get(ctx, uuid);
 
 		if (nodeOrErr.isLeft()) {
 			return left(nodeOrErr.value);
@@ -781,7 +811,7 @@ export class FeatureService {
 			return left(new NodeNotFoundError(uuid));
 		}
 
-		const fileOrErr = await this._nodeService.export(ctx, uuid);
+		const fileOrErr = await this.#nodeService.export(ctx, uuid);
 
 		if (fileOrErr.isLeft()) {
 			return left(fileOrErr.value);
@@ -815,7 +845,7 @@ export class FeatureService {
 		params: Record<string, unknown>,
 	): Promise<Either<AntboxError, T>> {
 		const featureOrErr = await this.#getNodeAsRunnableFeature(
-			UsersGroupsService.elevatedContext,
+			ctx,
 			uuid,
 		);
 
@@ -848,7 +878,7 @@ export class FeatureService {
 
 		const runContext: RunContext = {
 			authenticationContext: authContext,
-			nodeService: this._nodeService,
+			nodeService: this.#nodeService,
 		};
 
 		// Validate parameters
@@ -901,7 +931,7 @@ export class FeatureService {
 
 			const runContext: RunContext = {
 				authenticationContext: actionContext,
-				nodeService: this._nodeService,
+				nodeService: this.#nodeService,
 			};
 
 			try {
@@ -945,7 +975,7 @@ export class FeatureService {
 
 			const runContext: RunContext = {
 				authenticationContext: actionContext,
-				nodeService: this._nodeService,
+				nodeService: this.#nodeService,
 			};
 
 			try {
@@ -987,7 +1017,7 @@ export class FeatureService {
 
 			const runContext: RunContext = {
 				authenticationContext: actionContext,
-				nodeService: this._nodeService,
+				nodeService: this.#nodeService,
 			};
 
 			try {
@@ -1004,7 +1034,7 @@ export class FeatureService {
 		}
 
 		// Get the parent folder
-		const folderOrErr = await this._nodeService.get(
+		const folderOrErr = await this.#nodeService.get(
 			UsersGroupsService.elevatedContext,
 			evt.payload.parent,
 		);
@@ -1056,7 +1086,7 @@ export class FeatureService {
 		}
 
 		// Get the parent folder
-		const folderOrErr = await this._nodeService.get(
+		const folderOrErr = await this.#nodeService.get(
 			UsersGroupsService.elevatedContext,
 			evt.payload.parent,
 		);
@@ -1111,7 +1141,7 @@ export class FeatureService {
 	async #runOnUpdatedScripts(
 		evt: NodeUpdatedEvent,
 	) {
-		const node = await this._nodeService.get(
+		const node = await this.#nodeService.get(
 			UsersGroupsService.elevatedContext,
 			evt.payload.uuid,
 		);
@@ -1120,7 +1150,7 @@ export class FeatureService {
 		}
 
 		// Get the parent folder
-		const folderOrErr = await this._nodeService.get(
+		const folderOrErr = await this.#nodeService.get(
 			UsersGroupsService.elevatedContext,
 			node.value.parent,
 		);

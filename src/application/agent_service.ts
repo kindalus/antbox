@@ -97,7 +97,7 @@ export class AgentService {
 	 */
 	async createOrReplace(
 		authContext: AuthenticationContext,
-		metadata: Partial<NodeMetadata>,
+		metadata: AgentDTO,
 	): Promise<Either<AntboxError, AgentDTO>> {
 		if (metadata.uuid) {
 			// If UUID is provided, check if agent exists

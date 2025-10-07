@@ -96,6 +96,7 @@ paths:
         "500":
           $ref: "#/components/responses/ServiceUnavailable"
 
+  /features/-/upload:
     post:
       tags:
         - Features
@@ -129,6 +130,8 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "500":
           $ref: "#/components/responses/ServiceUnavailable"
 
@@ -158,46 +161,6 @@ paths:
         "500":
           $ref: "#/components/responses/ServiceUnavailable"
 
-    put:
-      tags:
-        - Features
-      summary: Update feature
-      description: Update an existing feature by uploading a new file
-      security:
-        - BearerAuth: []
-        - ApiKeyAuth: []
-        - ApiKeyQuery: []
-      parameters:
-        - $ref: "#/components/parameters/UuidPath"
-      requestBody:
-        required: true
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              properties:
-                file:
-                  type: string
-                  format: binary
-                  description: Feature file (JavaScript/TypeScript)
-              required:
-                - file
-      responses:
-        "200":
-          description: Feature updated successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Feature"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "500":
-          $ref: "#/components/responses/ServiceUnavailable"
-
     delete:
       tags:
         - Features
@@ -219,7 +182,7 @@ paths:
         "500":
           $ref: "#/components/responses/ServiceUnavailable"
 
-  /features/{uuid}/export:
+  /features/{uuid}/-/export:
     get:
       tags:
         - Features
@@ -337,7 +300,7 @@ paths:
         "500":
           $ref: "#/components/responses/ServiceUnavailable"
 
-  /extensions/{uuid}/run:
+  /extensions/{uuid}/-/exec:
     post:
       tags:
         - Extensions
@@ -411,7 +374,7 @@ paths:
         "500":
           $ref: "#/components/responses/ServiceUnavailable"
 
-  /ai-tools/{uuid}/run:
+  /ai-tools/{uuid}/-/run:
     post:
       tags:
         - AI Tools
@@ -477,13 +440,12 @@ paths:
         "500":
           $ref: "#/components/responses/ServiceUnavailable"
 
+  /agents/-/upload:
     post:
       tags:
         - Agents
       summary: Create or replace agent
-      description: |
-        Create a new AI agent or replace an existing one.
-        Agents require system instructions and can use various AI models.
+      description: Create a new agent or replace an existing one by uploading metadata
       security:
         - BearerAuth: []
         - ApiKeyAuth: []
@@ -491,9 +453,16 @@ paths:
       requestBody:
         required: true
         content:
-          application/json:
+          multipart/form-data:
             schema:
-              $ref: "#/components/schemas/AgentCreate"
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Agent metadata file (JSON)
+              required:
+                - file
       responses:
         "201":
           description: Agent created successfully
@@ -505,6 +474,8 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "500":
           $ref: "#/components/responses/ServiceUnavailable"
 
@@ -1549,13 +1520,12 @@ paths:
         "500":
           $ref: "#/components/responses/ServiceUnavailable"
 
+  /aspects/-/upload:
     post:
       tags:
         - Aspects
       summary: Create or replace aspect
-      description: |
-        Create a new aspect or replace an existing one.
-        Aspects extend the functionality of nodes.
+      description: Create a new aspect or replace an existing one by uploading a file
       security:
         - BearerAuth: []
         - ApiKeyAuth: []
@@ -1563,9 +1533,16 @@ paths:
       requestBody:
         required: true
         content:
-          application/json:
+          multipart/form-data:
             schema:
-              $ref: "#/components/schemas/AspectCreate"
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Aspect file (JavaScript/TypeScript)
+              required:
+                - file
       responses:
         "201":
           description: Aspect created or replaced successfully
@@ -1577,6 +1554,8 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "500":
           $ref: "#/components/responses/ServiceUnavailable"
 
@@ -1749,36 +1728,41 @@ components:
           type: string
           format: uuid
           description: Unique identifier for the feature
-        fid:
-          type: string
-          description: File identifier
-        title:
-          type: string
-          description: Feature title
         name:
           type: string
           description: Feature name
         description:
           type: string
           description: Feature description
-        mimetype:
-          type: string
-          description: MIME type of the feature
-        parent:
-          type: string
-          description: Parent folder UUID
-        owner:
-          type: string
-          description: Owner email
-        group:
-          type: string
-          description: Group UUID
-        exposeAsAction:
+        exposeAction:
           type: boolean
           description: Whether feature is exposed as an action
-        exposeAsExtension:
+        runOnCreates:
+          type: boolean
+          description: Whether feature runs automatically on node creation
+        runOnUpdates:
+          type: boolean
+          description: Whether feature runs automatically on node updates
+        runManually:
+          type: boolean
+          description: Whether feature can be run manually
+        filters:
+          $ref: "#/components/schemas/NodeFilters"
+          description: Node filters that determine when the feature runs
+        exposeExtension:
           type: boolean
           description: Whether feature is exposed as an extension
+        exposeAITool:
+          type: boolean
+          description: Whether feature is exposed as an AI tool
+        runAs:
+          type: string
+          description: Email of user to run the feature as
+        groupsAllowed:
+          type: array
+          items:
+            type: string
+          description: Groups allowed to execute this feature
         parameters:
           type: array
           items:
@@ -1786,20 +1770,15 @@ components:
           description: Feature parameters
         returnType:
           type: string
+          enum:
+            ["string", "number", "boolean", "array", "object", "file", "void"]
           description: Return type of the feature
         returnDescription:
           type: string
           description: Description of the return value
-        permissions:
-          $ref: "#/components/schemas/Permissions"
-        createdAt:
+        returnContentType:
           type: string
-          format: date-time
-          description: Creation timestamp
-        modifiedAt:
-          type: string
-          format: date-time
-          description: Last modification timestamp
+          description: Content type of the return value (for file returns)
 
     Parameter:
       type: object
@@ -1907,42 +1886,35 @@ components:
         title:
           type: string
           description: Aspect title
-        name:
-          type: string
-          description: Aspect name
         description:
           type: string
           description: Aspect description
-        mimetype:
-          type: string
-          description: MIME type
-        owner:
-          type: string
-          description: Owner email
-        permissions:
-          $ref: "#/components/schemas/Permissions"
+        filters:
+          $ref: "#/components/schemas/NodeFilters"
+          description: Node filters for aspect application
+        properties:
+          type: object
+          additionalProperties: true
+          description: Aspect properties configuration
 
     AspectCreate:
       type: object
       required:
         - title
-        - name
-        - mimetype
       properties:
         title:
           type: string
           description: Aspect title
-        name:
-          type: string
-          description: Aspect name
         description:
           type: string
           description: Aspect description
-        mimetype:
-          type: string
-          description: MIME type
-        permissions:
-          $ref: "#/components/schemas/Permissions"
+        filters:
+          $ref: "#/components/schemas/NodeFilters"
+          description: Node filters for aspect application
+        properties:
+          type: object
+          additionalProperties: true
+          description: Aspect properties configuration
 
     Permissions:
       type: object
@@ -2057,32 +2029,46 @@ components:
           type: string
           format: uuid
           description: Unique identifier for the agent
-        systemInstructions:
-          type: string
-          description: System instructions for the AI agent
         title:
           type: string
           description: Agent title
         description:
           type: string
           description: Agent description
-        model:
-          type: string
-          description: AI model to use
         owner:
           type: string
           description: Owner email
-        group:
-          type: string
-          description: Group UUID
-        createdAt:
+        created:
           type: string
           format: date-time
           description: Creation timestamp
-        modifiedAt:
+        updated:
           type: string
           format: date-time
           description: Last modification timestamp
+        model:
+          type: string
+          description: AI model to use
+        temperature:
+          type: number
+          minimum: 0
+          maximum: 2
+          description: Temperature for response generation
+        maxTokens:
+          type: integer
+          description: Maximum tokens in the response
+        reasoning:
+          type: boolean
+          description: Whether the agent uses reasoning
+        useTools:
+          type: boolean
+          description: Whether the agent can use tools
+        systemInstructions:
+          type: string
+          description: System instructions for the AI agent
+        structuredAnswer:
+          type: string
+          description: Structured answer format (optional)
 
     AgentCreate:
       type: object
@@ -2090,9 +2076,6 @@ components:
         - systemInstructions
         - title
       properties:
-        systemInstructions:
-          type: string
-          description: System instructions for the AI agent
         title:
           type: string
           description: Agent title
@@ -2102,6 +2085,26 @@ components:
         model:
           type: string
           description: AI model to use
+        temperature:
+          type: number
+          minimum: 0
+          maximum: 2
+          description: Temperature for response generation
+        maxTokens:
+          type: integer
+          description: Maximum tokens in the response
+        reasoning:
+          type: boolean
+          description: Whether the agent uses reasoning
+        useTools:
+          type: boolean
+          description: Whether the agent can use tools
+        systemInstructions:
+          type: string
+          description: System instructions for the AI agent
+        structuredAnswer:
+          type: string
+          description: Structured answer format (optional)
 
     AgentChatRequest:
       type: object

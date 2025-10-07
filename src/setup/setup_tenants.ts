@@ -229,13 +229,6 @@ async function validateModelCapabilities(
 		Deno.exit(1);
 	}
 
-	if (!model.files) {
-		console.error(
-			`Tenant ${tenantName}: Default model ${model.modelName} does not support file inputs (required for AI agents)`,
-		);
-		Deno.exit(1);
-	}
-
 	if (!model.llm) {
 		console.error(
 			`Tenant ${tenantName}: Default model ${model.modelName} is not a valid LLM (required for AI agents)`,

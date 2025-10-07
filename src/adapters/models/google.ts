@@ -69,12 +69,10 @@ export class GoogleModel implements AIModel {
 	files: boolean = false;
 	reasoning: boolean = false;
 
-	private readonly apiKey: string;
 	private readonly client: GoogleGenAI;
 
 	constructor(name: string, apiKey: string) {
 		this.modelName = name;
-		this.apiKey = apiKey;
 		this.client = new GoogleGenAI({ apiKey });
 	}
 
@@ -521,6 +519,7 @@ const VALID_MODELS = [
 	"gemini-2.5-flash-lite",
 	"gemini-2.0-pro",
 	"gemini-2.5-pro",
+	"gemma-3-12b-it",
 	// Embedding models
 	"text-embedding-004",
 	"text-embedding-preview-0815",
@@ -536,6 +535,7 @@ const MODELS_WITH_TOOLS = [
 	"gemini-2.5-flash-lite",
 	"gemini-2.0-pro",
 	"gemini-2.5-pro",
+	"gemma-3-12b-it",
 ];
 
 /**
@@ -569,6 +569,7 @@ const MODELS_WITH_LLM = [
 	"gemini-2.5-flash-lite",
 	"gemini-2.0-pro",
 	"gemini-2.5-pro",
+	"gemma-3-12b-it",
 ];
 
 /**

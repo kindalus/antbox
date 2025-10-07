@@ -15,6 +15,7 @@ import { NodeService } from "application/node_service.ts";
 import { UsersGroupsService } from "application/users_groups_service.ts";
 import { builtinFolders } from "application/builtin_folders/index.ts";
 import { errToMsg } from "shared/test_helpers.ts";
+import { DeterministicModel } from "adapters/models/deterministic.ts";
 
 describe("FeatureService", () => {
 	it("create should create a new feature", async () => {
@@ -1620,6 +1621,7 @@ const createService = async () => {
 		storage,
 		bus: eventBus,
 	});
+	const ocrModel = new DeterministicModel("");
 
 	await usersGroupsService.createUser(adminAuthContext, {
 		email: "admin@example.com",
@@ -1627,7 +1629,7 @@ const createService = async () => {
 		groups: [Groups.ADMINS_GROUP_UUID],
 	});
 
-	return new FeatureService(nodeService, usersGroupsService);
+	return new FeatureService(nodeService, usersGroupsService, ocrModel);
 };
 
 interface TestResult {

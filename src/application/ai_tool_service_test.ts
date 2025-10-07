@@ -12,6 +12,7 @@ import { GroupNode } from "domain/users_groups/group_node.ts";
 import { builtinFolders } from "application/builtin_folders/index.ts";
 import { Groups } from "domain/users_groups/groups.ts";
 import { errToMsg } from "shared/test_helpers.ts";
+import { DeterministicModel } from "adapters/models/deterministic.ts";
 
 describe("AI Tool Service Tests", () => {
 	it("should list features including AI tools", async () => {
@@ -719,6 +720,7 @@ const createService = async () => {
 		storage,
 		bus: eventBus,
 	});
+	const ocrModel = new DeterministicModel("");
 
 	await usersGroupsService.createUser(adminAuthContext, {
 		email: "admin@example.com",
@@ -732,7 +734,7 @@ const createService = async () => {
 		groups: ["--group-1--"],
 	});
 
-	return new FeatureService(nodeService, usersGroupsService);
+	return new FeatureService(nodeService, usersGroupsService, ocrModel);
 };
 
 const adminAuthContext: AuthenticationContext = {

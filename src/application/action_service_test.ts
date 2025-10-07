@@ -13,6 +13,8 @@ import { AuthenticationContext } from "application/authentication_context.ts";
 import { NodeService } from "application/node_service.ts";
 import { UsersGroupsService } from "application/users_groups_service.ts";
 import { builtinFolders } from "application/builtin_folders/index.ts";
+import { AIModel } from "./ai_model.ts";
+import { DeterministicModel } from "adapters/models/deterministic.ts";
 
 describe("Action Service Tests", () => {
 	it("should list features including actions", async () => {
@@ -1075,6 +1077,7 @@ const createService = async () => {
 		storage,
 		bus: eventBus,
 	});
+	const ocrModel = new DeterministicModel("");
 
 	await usersGroupsService.createUser(adminAuthContext, {
 		email: "admin@example.com",
@@ -1088,7 +1091,7 @@ const createService = async () => {
 		groups: ["--editors--"],
 	});
 
-	return new FeatureService(nodeService, usersGroupsService);
+	return new FeatureService(nodeService, usersGroupsService, ocrModel);
 };
 
 const adminAuthContext: AuthenticationContext = {

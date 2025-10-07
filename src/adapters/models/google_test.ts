@@ -274,23 +274,6 @@ describe("GoogleModel chat", () => {
 		};
 	});
 
-	it("should fail if model does not support files", async () => {
-		const embeddingModel = new GoogleModel("text-embedding-004", "test-key");
-		const result = embeddingModel.validateModel();
-		if (result.isLeft()) {
-			throw new Error(`Failed to validate model: ${result.value.message}`);
-		}
-
-		const testFile = new File(["test content"], "test.txt", { type: "text/plain" });
-		const ocrResult = await embeddingModel.ocr(testFile);
-
-		expect(ocrResult.isLeft()).toBeTruthy();
-		expect(ocrResult.value).toBeInstanceOf(GoogleAPIError);
-		expect((ocrResult.value as GoogleAPIError).message).toContain(
-			"does not support file inputs",
-		);
-	});
-
 	it("should handle basic chat without tools", async () => {
 		// Create a model without network-dependent client
 		const testModel = new GoogleModel("gemini-2.0-flash", "test-key");

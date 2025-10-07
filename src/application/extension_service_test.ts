@@ -10,6 +10,7 @@ import { UsersGroupsService } from "./users_groups_service.ts";
 import { GroupNode } from "domain/users_groups/group_node.ts";
 import { builtinFolders } from "./builtin_folders/index.ts";
 import { Groups } from "domain/users_groups/groups.ts";
+import { DeterministicModel } from "adapters/models/deterministic.ts";
 
 describe("Extension Service", () => {
 	it("should allow file parameters for Extensions", async () => {
@@ -429,6 +430,7 @@ const createService = async () => {
 		storage,
 		bus: eventBus,
 	});
+	const ocrModel = new DeterministicModel("");
 
 	await usersGroupsService.createUser(adminAuthContext, {
 		email: "admin@example.com",
@@ -442,7 +444,7 @@ const createService = async () => {
 		groups: ["--group-1--"],
 	});
 
-	return new FeatureService(nodeService, usersGroupsService);
+	return new FeatureService(nodeService, usersGroupsService, ocrModel);
 };
 
 const adminAuthContext: AuthenticationContext = {

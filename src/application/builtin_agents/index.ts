@@ -1,5 +1,5 @@
 import { AgentNode } from "domain/ai/agent_node.ts";
-import ragAgent from "./rag.ts";
+import ragAgent from "./rag_agent.ts";
 
 /**
  * Built-in agents provided by the Antbox platform

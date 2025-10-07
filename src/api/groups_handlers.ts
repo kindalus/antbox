@@ -21,7 +21,7 @@ export function createGroupHandler(tenants: AntboxTenant[]): HttpHandler {
 
 			const unavailableResponse = checkServiceAvailability(service, "Groups service");
 			if (unavailableResponse) {
-				return unavailableResponse;
+				return Promise.resolve(unavailableResponse);
 			}
 
 			const metadata = await req.json();
@@ -46,7 +46,7 @@ export function getGroupHandler(tenants: AntboxTenant[]): HttpHandler {
 
 			const unavailableResponse = checkServiceAvailability(service, "Groups service");
 			if (unavailableResponse) {
-				return unavailableResponse;
+				return Promise.resolve(unavailableResponse);
 			}
 
 			const params = getParams(req);
@@ -71,7 +71,7 @@ export function updateGroupHandler(tenants: AntboxTenant[]): HttpHandler {
 
 			const unavailableResponse = checkServiceAvailability(service, "Groups service");
 			if (unavailableResponse) {
-				return unavailableResponse;
+				return Promise.resolve(unavailableResponse);
 			}
 
 			const params = getParams(req);
@@ -97,7 +97,7 @@ export function deleteGroupHandler(tenants: AntboxTenant[]): HttpHandler {
 
 			const unavailableResponse = checkServiceAvailability(service, "Groups service");
 			if (unavailableResponse) {
-				return unavailableResponse;
+				return Promise.resolve(unavailableResponse);
 			}
 
 			const params = getParams(req);
@@ -122,7 +122,7 @@ export function listGroupsHandler(tenants: AntboxTenant[]): HttpHandler {
 
 			const unavailableResponse = checkServiceAvailability(service, "Groups service");
 			if (unavailableResponse) {
-				return unavailableResponse;
+				return Promise.resolve(unavailableResponse);
 			}
 
 			const groups = await service.listGroups(getAuthenticationContext(req));

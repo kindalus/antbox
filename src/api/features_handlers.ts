@@ -2,7 +2,6 @@ import type { AntboxTenant } from "api/antbox_tenant.ts";
 import { defaultMiddlewareChain } from "api/default_middleware_chain.ts";
 import { getAuthenticationContext } from "api/get_authentication_context.ts";
 import { getParams } from "api/get_params.ts";
-import { getQuery } from "api/get_query.ts";
 import { getTenant } from "api/get_tenant.ts";
 import { type HttpHandler, sendBadRequest } from "api/handler.ts";
 import { processError } from "api/process_error.ts";
@@ -13,7 +12,7 @@ import { checkServiceAvailability } from "api/service_availability.ts";
 // CRUD HANDLERS
 // ============================================================================
 
-export function createFeatureHandler(tenants: AntboxTenant[]): HttpHandler {
+export function createOrReplaceHandler(tenants: AntboxTenant[]): HttpHandler {
 	return defaultMiddlewareChain(
 		tenants,
 		async (req: Request): Promise<Response> => {
@@ -22,14 +21,11 @@ export function createFeatureHandler(tenants: AntboxTenant[]): HttpHandler {
 
 			const unavailableResponse = checkServiceAvailability(service, "Feature service");
 			if (unavailableResponse) {
-				return unavailableResponse;
+				return Promise.resolve(unavailableResponse);
 			}
 
-			const formData = await req.formData();
-			const file = formData.get("file") as File;
-			if (!file) {
-				return sendBadRequest({ error: "{ file } not given" });
-			}
+			const formdata = await req.formData();
+			const file = formdata.get("file") as File;
 
 			return service
 				.createOrReplace(getAuthenticationContext(req), file)
@@ -48,7 +44,7 @@ export function getFeatureHandler(tenants: AntboxTenant[]): HttpHandler {
 
 			const unavailableResponse = checkServiceAvailability(service, "Feature service");
 			if (unavailableResponse) {
-				return unavailableResponse;
+				return Promise.resolve(unavailableResponse);
 			}
 
 			const params = getParams(req);
@@ -64,37 +60,16 @@ export function getFeatureHandler(tenants: AntboxTenant[]): HttpHandler {
 	);
 }
 
-export function updateFeatureHandler(tenants: AntboxTenant[]): HttpHandler {
-	return defaultMiddlewareChain(
-		tenants,
-		async (req: Request): Promise<Response> => {
-			const tenant = getTenant(req, tenants);
-			const service = tenant.featureService;
-
-			const unavailableResponse = checkServiceAvailability(service, "Feature service");
-			if (unavailableResponse) {
-				return unavailableResponse;
-			}
-
-			const formData = await req.formData();
-			const file = formData.get("file") as File;
-			if (!file) {
-				return sendBadRequest({ error: "{ file } not given" });
-			}
-
-			return service
-				.createOrReplace(getAuthenticationContext(req), file)
-				.then(processServiceResult)
-				.catch(processError);
-		},
-	);
-}
-
 export function listFeaturesHandler(tenants: AntboxTenant[]): HttpHandler {
 	return defaultMiddlewareChain(
 		tenants,
 		(req: Request): Promise<Response> => {
 			const service = getTenant(req, tenants).featureService;
+
+			const unavailableResponse = checkServiceAvailability(service, "Feature service");
+			if (unavailableResponse) {
+				return Promise.resolve(unavailableResponse);
+			}
 
 			return service
 				.listFeatures(getAuthenticationContext(req))
@@ -110,6 +85,12 @@ export function deleteFeatureHandler(tenants: AntboxTenant[]): HttpHandler {
 		(req: Request): Promise<Response> => {
 			const service = getTenant(req, tenants).featureService;
 			const params = getParams(req);
+
+			const unavailableResponse = checkServiceAvailability(service, "Feature service");
+			if (unavailableResponse) {
+				return Promise.resolve(unavailableResponse);
+			}
+
 			if (!params.uuid) {
 				return Promise.resolve(sendBadRequest({ error: "{ uuid } not given" }));
 			}
@@ -126,6 +107,11 @@ export function exportFeatureHandler(tenants: AntboxTenant[]): HttpHandler {
 	return defaultMiddlewareChain(tenants, (req: Request): Promise<Response> => {
 		const service = getTenant(req, tenants).featureService;
 		const params = getParams(req);
+
+		const unavailableResponse = checkServiceAvailability(service, "Feature service");
+		if (unavailableResponse) {
+			return Promise.resolve(unavailableResponse);
+		}
 
 		if (!params.uuid) {
 			return Promise.resolve(sendBadRequest({ error: "{ uuid } not given" }));

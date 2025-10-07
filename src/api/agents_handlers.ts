@@ -17,12 +17,26 @@ export function createOrReplaceAgentHandler(tenants: AntboxTenant[]): HttpHandle
 		tenants,
 		async (req: Request): Promise<Response> => {
 			const tenant = getTenant(req, tenants);
+
 			const unavailableResponse = checkServiceAvailability(tenant.agentService, "AI agents");
 			if (unavailableResponse) {
-				return unavailableResponse;
+				return Promise.resolve(unavailableResponse);
 			}
 
-			const metadata = await req.json();
+			const formdata = await req.formData();
+			const file = formdata.get("file") as File;
+			let metadata;
+
+			try {
+				metadata = JSON.parse(await file.text());
+
+				if (!metadata) {
+					return new Response("Missing metadata", { status: 400 });
+				}
+			} catch (_error) {
+				return new Response("Invalid metadata", { status: 400 });
+			}
+
 			if (!metadata?.systemInstructions) {
 				return sendBadRequest({ error: "{ systemInstructions } not given" });
 			}
@@ -42,7 +56,7 @@ export function getAgentHandler(tenants: AntboxTenant[]): HttpHandler {
 			const tenant = getTenant(req, tenants);
 			const unavailableResponse = checkServiceAvailability(tenant.agentService, "AI agents");
 			if (unavailableResponse) {
-				return unavailableResponse;
+				return Promise.resolve(unavailableResponse);
 			}
 
 			const params = getParams(req);
@@ -65,7 +79,7 @@ export function deleteAgentHandler(tenants: AntboxTenant[]): HttpHandler {
 			const tenant = getTenant(req, tenants);
 			const unavailableResponse = checkServiceAvailability(tenant.agentService, "AI agents");
 			if (unavailableResponse) {
-				return unavailableResponse;
+				return Promise.resolve(unavailableResponse);
 			}
 
 			const params = getParams(req);
@@ -88,7 +102,7 @@ export function listAgentsHandler(tenants: AntboxTenant[]): HttpHandler {
 			const tenant = getTenant(req, tenants);
 			const unavailableResponse = checkServiceAvailability(tenant.agentService, "AI agents");
 			if (unavailableResponse) {
-				return unavailableResponse;
+				return Promise.resolve(unavailableResponse);
 			}
 
 			return tenant.agentService!
@@ -110,7 +124,7 @@ export function chatHandler(tenants: AntboxTenant[]): HttpHandler {
 			const tenant = getTenant(req, tenants);
 			const unavailableResponse = checkServiceAvailability(tenant.agentService, "AI agents");
 			if (unavailableResponse) {
-				return unavailableResponse;
+				return Promise.resolve(unavailableResponse);
 			}
 
 			const params = getParams(req);
@@ -173,7 +187,7 @@ export function answerHandler(tenants: AntboxTenant[]): HttpHandler {
 			const tenant = getTenant(req, tenants);
 			const unavailableResponse = checkServiceAvailability(tenant.agentService, "AI agents");
 			if (unavailableResponse) {
-				return unavailableResponse;
+				return Promise.resolve(unavailableResponse);
 			}
 
 			const params = getParams(req);
@@ -240,7 +254,7 @@ export function ragChatHandler(tenants: AntboxTenant[]): HttpHandler {
 			const tenant = getTenant(req, tenants);
 			const unavailableResponse = checkServiceAvailability(tenant.ragService, "RAG service");
 			if (unavailableResponse) {
-				return unavailableResponse;
+				return Promise.resolve(unavailableResponse);
 			}
 
 			const chatInput = await req.json();

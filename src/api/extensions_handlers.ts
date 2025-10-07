@@ -11,6 +11,8 @@ import { checkServiceAvailability } from "./service_availability.ts";
 // ============================================================================
 // EXTENSIONS HANDLERS
 // ============================================================================
+//
+//
 
 export function listExtensionsHandler(tenants: AntboxTenant[]): HttpHandler {
 	return defaultMiddlewareChain(
@@ -25,7 +27,7 @@ export function listExtensionsHandler(tenants: AntboxTenant[]): HttpHandler {
 			}
 
 			return service
-				.listExtensions()
+				.listExtensions(getAuthenticationContext(req))
 				.then(processServiceResult)
 				.catch(processError);
 		},
@@ -41,7 +43,7 @@ export function runExtensionHandler(tenants: AntboxTenant[]): HttpHandler {
 
 			const unavailableResponse = checkServiceAvailability(service, "Feature service");
 			if (unavailableResponse) {
-				return unavailableResponse;
+				return Promise.resolve(unavailableResponse);
 			}
 
 			const params = getParams(req);

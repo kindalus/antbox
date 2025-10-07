@@ -16,7 +16,7 @@ export default function (tenants: AntboxTenant[]) {
 	aspectsRouter.get("/:uuid", adapt(getHandler(tenants)));
 	aspectsRouter.delete("/:uuid", adapt(deleteHandler(tenants)));
 	aspectsRouter.get("/:uuid/-/export", adapt(exportHandler(tenants)));
-	aspectsRouter.post("/", adapt(createOrReplaceHandler(tenants)));
+	aspectsRouter.post("/-/upload", adapt(createOrReplaceHandler(tenants)));
 
 	return aspectsRouter;
 }

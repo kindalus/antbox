@@ -22,7 +22,7 @@ export function createApiKeyHandler(tenants: AntboxTenant[]): HttpHandler {
 
 			const unavailableResponse = checkServiceAvailability(service, "API Key service");
 			if (unavailableResponse) {
-				return unavailableResponse;
+				return Promise.resolve(unavailableResponse);
 			}
 
 			const body = await req.json();
@@ -47,7 +47,7 @@ export function getApiKeyHandler(tenants: AntboxTenant[]): HttpHandler {
 
 			const unavailableResponse = checkServiceAvailability(service, "API Key service");
 			if (unavailableResponse) {
-				return unavailableResponse;
+				return Promise.resolve(unavailableResponse);
 			}
 
 			const params = getParams(req);
@@ -72,7 +72,7 @@ export function listApiKeysHandler(tenants: AntboxTenant[]): HttpHandler {
 
 			const unavailableResponse = checkServiceAvailability(service, "API Key service");
 			if (unavailableResponse) {
-				return unavailableResponse;
+				return Promise.resolve(unavailableResponse);
 			}
 
 			const apiKeys = await service.list(getAuthenticationContext(req));
@@ -93,7 +93,7 @@ export function deleteApiKeyHandler(tenants: AntboxTenant[]): HttpHandler {
 
 			const unavailableResponse = checkServiceAvailability(service, "API Key service");
 			if (unavailableResponse) {
-				return unavailableResponse;
+				return Promise.resolve(unavailableResponse);
 			}
 
 			const params = getParams(req);

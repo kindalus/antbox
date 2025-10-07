@@ -21,7 +21,7 @@ export function createUserHandler(tenants: AntboxTenant[]): HttpHandler {
 
 			const unavailableResponse = checkServiceAvailability(service, "Users service");
 			if (unavailableResponse) {
-				return unavailableResponse;
+				return Promise.resolve(unavailableResponse);
 			}
 
 			const metadata = await req.json();
@@ -46,7 +46,7 @@ export function getUserHandler(tenants: AntboxTenant[]): HttpHandler {
 
 			const unavailableResponse = checkServiceAvailability(service, "Users service");
 			if (unavailableResponse) {
-				return unavailableResponse;
+				return Promise.resolve(unavailableResponse);
 			}
 
 			const params = getParams(req);
@@ -71,7 +71,7 @@ export function updateUserHandler(tenants: AntboxTenant[]): HttpHandler {
 
 			const unavailableResponse = checkServiceAvailability(service, "Users service");
 			if (unavailableResponse) {
-				return unavailableResponse;
+				return Promise.resolve(unavailableResponse);
 			}
 
 			const params = getParams(req);
@@ -97,7 +97,7 @@ export function deleteUserHandler(tenants: AntboxTenant[]): HttpHandler {
 
 			const unavailableResponse = checkServiceAvailability(service, "Users service");
 			if (unavailableResponse) {
-				return unavailableResponse;
+				return Promise.resolve(unavailableResponse);
 			}
 
 			const params = getParams(req);
@@ -122,7 +122,7 @@ export function listUsersHandler(tenants: AntboxTenant[]): HttpHandler {
 
 			const unavailableResponse = checkServiceAvailability(service, "Users service");
 			if (unavailableResponse) {
-				return unavailableResponse;
+				return Promise.resolve(unavailableResponse);
 			}
 
 			return service

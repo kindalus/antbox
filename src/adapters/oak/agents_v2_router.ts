@@ -15,7 +15,7 @@ export default function (tenants: AntboxTenant[]): Router {
 	const router = new Router({ prefix: "/agents" });
 
 	// CRUD operations
-	router.post("/", adapt(createOrReplaceAgentHandler(tenants)));
+	router.post("/-/upload", adapt(createOrReplaceAgentHandler(tenants)));
 	router.get("/", adapt(listAgentsHandler(tenants)));
 	router.get("/:uuid", adapt(getAgentHandler(tenants)));
 	router.delete("/:uuid", adapt(deleteAgentHandler(tenants)));

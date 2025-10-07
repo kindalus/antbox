@@ -16,7 +16,7 @@ export default function (tenants: AntboxTenant[]): Router {
 	router.get("/:uuid", adapt(getHandler(tenants)));
 	router.delete("/:uuid", adapt(deleteHandler(tenants)));
 	router.get("/:uuid/-/export", adapt(exportHandler(tenants)));
-	router.post("/", adapt(createOrReplaceHandler(tenants)));
+	router.post("/-/upload", adapt(createOrReplaceHandler(tenants)));
 
 	return router;
 }

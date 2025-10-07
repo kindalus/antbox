@@ -664,19 +664,6 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/AgentChatRequest"
-          multipart/form-data:
-            schema:
-              type: object
-              properties:
-                input:
-                  type: string
-                  description: JSON string containing {text, options} structure
-                file0:
-                  type: string
-                  format: binary
-                  description: Optional file attachment (can include multiple files as file0, file1, etc.)
-              required:
-                - input
       responses:
         "200":
           description: Chat response from agent
@@ -714,19 +701,6 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/AgentAnswerRequest"
-          multipart/form-data:
-            schema:
-              type: object
-              properties:
-                input:
-                  type: string
-                  description: JSON string containing {text, options} structure
-                file0:
-                  type: string
-                  format: binary
-                  description: Optional file attachment (can include multiple files as file0, file1, etc.)
-              required:
-                - input
       responses:
         "200":
           description: Answer from agent
@@ -2202,12 +2176,13 @@ components:
               type: array
               description: Conversation history
               items:
-                type: object
+                $ref: "#/components/schemas/ChatMessage"
             files:
               type: array
-              description: File attachments
+              description: File attachments (File objects)
               items:
                 type: object
+                description: File object for attachment
             temperature:
               type: number
               minimum: 0
@@ -2234,9 +2209,10 @@ components:
           properties:
             files:
               type: array
-              description: File attachments
+              description: File attachments (File objects)
               items:
                 type: object
+                description: File object for attachment
             temperature:
               type: number
               minimum: 0
@@ -2436,6 +2412,24 @@ components:
       required:
         - uuid
         - description
+
+    ChatMessage:
+      type: object
+      properties:
+        role:
+          type: string
+          enum: [user, assistant, system]
+          description: Role of the message sender
+        content:
+          type: string
+          description: Content of the chat message
+        timestamp:
+          type: string
+          format: date-time
+          description: Timestamp of the message
+      required:
+        - role
+        - content
 
 tags:
   - name: Authentication

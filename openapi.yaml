@@ -236,7 +236,7 @@ paths:
         "500":
           $ref: "#/components/responses/ServiceUnavailable"
 
-  /actions/{uuid}/run:
+  /actions/{uuid}/-/run:
     post:
       tags:
         - Actions
@@ -369,6 +369,124 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Feature"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/ServiceUnavailable"
+
+  /templates:
+    get:
+      tags:
+        - Templates
+      summary: List all templates
+      description: |
+        Retrieve a list of all available templates.
+        Templates are predefined code snippets and configurations.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+        - ApiKeyQuery: []
+      responses:
+        "200":
+          description: List of templates
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Template"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/ServiceUnavailable"
+
+  /templates/{uuid}:
+    get:
+      tags:
+        - Templates
+      summary: Get template content by UUID
+      description: |
+        Retrieve template content by UUID. Returns the actual template file content
+        with appropriate content type (TypeScript, JavaScript, or JSON).
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+        - ApiKeyQuery: []
+      parameters:
+        - $ref: "#/components/parameters/UuidPath"
+      responses:
+        "200":
+          description: Template content
+          content:
+            text/typescript:
+              schema:
+                type: string
+                description: TypeScript template content
+            text/javascript:
+              schema:
+                type: string
+                description: JavaScript template content
+            application/json:
+              schema:
+                type: object
+                description: JSON template content
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/ServiceUnavailable"
+
+  /docs:
+    get:
+      tags:
+        - Documentation
+      summary: List all documentation
+      description: |
+        Retrieve a list of all available documentation.
+        Documentation includes guides, API references, and system information.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+        - ApiKeyQuery: []
+      responses:
+        "200":
+          description: List of documentation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DocInfo"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/ServiceUnavailable"
+
+  /docs/{uuid}:
+    get:
+      tags:
+        - Documentation
+      summary: Get documentation by UUID
+      description: |
+        Retrieve documentation content by UUID. Returns markdown content
+        for the specified documentation identifier.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+        - ApiKeyQuery: []
+      parameters:
+        - $ref: "#/components/parameters/UuidPath"
+      responses:
+        "200":
+          description: Documentation content
+          content:
+            text/markdown:
+              schema:
+                type: string
+                description: Markdown documentation content
+        "404":
+          $ref: "#/components/responses/NotFound"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "500":
@@ -1455,44 +1573,6 @@ paths:
         "500":
           $ref: "#/components/responses/ServiceUnavailable"
 
-  # Templates
-  /templates/{uuid}:
-    get:
-      tags:
-        - Templates
-      summary: Get template content by UUID
-      description: |
-        Retrieve template content by UUID. Templates are pre-defined
-        code structures for creating new features or nodes.
-      security:
-        - BearerAuth: []
-        - ApiKeyAuth: []
-        - ApiKeyQuery: []
-      parameters:
-        - $ref: "#/components/parameters/UuidPath"
-      responses:
-        "200":
-          description: Template content
-          content:
-            text/typescript:
-              schema:
-                type: string
-                description: TypeScript template content
-            text/javascript:
-              schema:
-                type: string
-                description: JavaScript template content
-            application/json:
-              schema:
-                type: object
-                description: JSON template content
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "500":
-          $ref: "#/components/responses/ServiceUnavailable"
-
   # Aspects
   /aspects:
     get:
@@ -2205,22 +2285,18 @@ components:
           type: string
           format: uuid
           description: Unique identifier for the API key
-        key:
+        secret:
           type: string
-          description: The actual API key value
+          description: The actual API key secret value
         group:
           type: string
           description: Group UUID associated with this key
+        owner:
+          type: string
+          description: Email of user who owns/created the key
         description:
           type: string
           description: Description of the API key
-        createdAt:
-          type: string
-          format: date-time
-          description: Creation timestamp
-        createdBy:
-          type: string
-          description: Email of user who created the key
 
     ApiKeyCreate:
       type: object
@@ -2250,17 +2326,12 @@ components:
           description: User display name
         group:
           type: string
-          description: Group UUID
-        role:
-          type: string
-          description: User role
-        active:
-          type: boolean
-          description: Whether the user account is active
-        createdAt:
-          type: string
-          format: date-time
-          description: Creation timestamp
+          description: Primary group UUID
+        groups:
+          type: array
+          items:
+            type: string
+          description: Array of group UUIDs the user belongs to
 
     UserCreate:
       type: object
@@ -2275,15 +2346,14 @@ components:
         name:
           type: string
           description: User display name
-        password:
-          type: string
-          description: User password (will be hashed)
         group:
           type: string
-          description: Group UUID
-        role:
-          type: string
-          description: User role
+          description: Primary group UUID
+        groups:
+          type: array
+          items:
+            type: string
+          description: Array of group UUIDs the user should belong to
 
     UserUpdate:
       type: object
@@ -2291,18 +2361,14 @@ components:
         name:
           type: string
           description: User display name
-        password:
-          type: string
-          description: New password (will be hashed)
         group:
           type: string
-          description: Group UUID
-        role:
-          type: string
-          description: User role
-        active:
-          type: boolean
-          description: Whether the user account is active
+          description: Primary group UUID
+        groups:
+          type: array
+          items:
+            type: string
+          description: Array of group UUIDs the user should belong to
 
     Group:
       type: object
@@ -2311,60 +2377,38 @@ components:
           type: string
           format: uuid
           description: Unique identifier for the group
-        name:
+        title:
           type: string
-          description: Group name
-        description:
-          type: string
-          description: Group description
-        createdAt:
-          type: string
-          format: date-time
-          description: Creation timestamp
-        modifiedAt:
-          type: string
-          format: date-time
-          description: Last modification timestamp
+          description: Group title
 
     GroupCreate:
       type: object
       required:
-        - name
+        - title
       properties:
-        name:
+        title:
           type: string
-          description: Group name
-        description:
-          type: string
-          description: Group description
+          description: Group title
 
     GroupUpdate:
       type: object
       properties:
-        name:
+        title:
           type: string
-          description: Group name
-        description:
-          type: string
-          description: Group description
+          description: Group title
 
     Template:
       type: object
       properties:
         uuid:
           type: string
-          format: uuid
           description: Unique identifier for the template
-        mimetype:
+        description:
           type: string
-          description: MIME type of the template (e.g., text/typescript, text/javascript, application/json)
-        size:
-          type: integer
-          description: Size of the template file in bytes
+          description: Template description
       required:
         - uuid
-        - mimetype
-        - size
+        - description
 
     Breadcrumb:
       type: object
@@ -2379,6 +2423,19 @@ components:
       required:
         - uuid
         - title
+
+    DocInfo:
+      type: object
+      properties:
+        uuid:
+          type: string
+          description: Unique identifier for the documentation
+        description:
+          type: string
+          description: Documentation description
+      required:
+        - uuid
+        - description
 
 tags:
   - name: Authentication
@@ -2405,3 +2462,5 @@ tags:
     description: Template management operations
   - name: Aspects
     description: Aspect management operations
+  - name: Documentation
+    description: Documentation endpoints

@@ -1,0 +1,497 @@
+{
+  "title": "Air Waybill (AWB)",
+  "description": "Aspect for Air Waybill documents used in air cargo shipping and logistics. Contains comprehensive information about shipments, parties involved, cargo details, routing, and tracking information.",
+  "filters": [
+    [
+      "mimetype",
+      "in",
+      ["application/pdf", "text/plain", "image/jpg", "image/png"]
+    ]
+  ],
+  "properties": [
+    {
+      "name": "awb_number",
+      "title": "Air Waybill Number",
+      "type": "string",
+      "required": true,
+      "searchable": true,
+      "validationRegex": "^\\d{3}-\\d{8}$"
+    },
+    {
+      "name": "awb_prefix",
+      "title": "AWB Prefix (Airline Code)",
+      "type": "string",
+      "required": true,
+      "searchable": true,
+      "validationRegex": "^\\d{3}$"
+    },
+    {
+      "name": "awb_serial_number",
+      "title": "AWB Serial Number",
+      "type": "string",
+      "required": true,
+      "validationRegex": "^\\d{8}$"
+    },
+    {
+      "name": "master_awb_number",
+      "title": "Master AWB Number (if consolidation)",
+      "type": "string",
+      "required": false,
+      "searchable": true
+    },
+    {
+      "name": "shipper_name",
+      "title": "Shipper Name",
+      "type": "string",
+      "required": true,
+      "searchable": true
+    },
+    {
+      "name": "shipper_address",
+      "title": "Shipper Address",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "shipper_city",
+      "title": "Shipper City",
+      "type": "string",
+      "required": true,
+      "searchable": true
+    },
+    {
+      "name": "shipper_country",
+      "title": "Shipper Country",
+      "type": "string",
+      "required": true,
+      "searchable": true
+    },
+    {
+      "name": "shipper_postal_code",
+      "title": "Shipper Postal Code",
+      "type": "string",
+      "required": false
+    },
+    {
+      "name": "shipper_contact_person",
+      "title": "Shipper Contact Person",
+      "type": "string",
+      "required": false
+    },
+    {
+      "name": "shipper_phone",
+      "title": "Shipper Phone Number",
+      "type": "string",
+      "required": false
+    },
+    {
+      "name": "shipper_email",
+      "title": "Shipper Email",
+      "type": "string",
+      "required": false
+    },
+    {
+      "name": "consignee_name",
+      "title": "Consignee Name",
+      "type": "string",
+      "required": true,
+      "searchable": true
+    },
+    {
+      "name": "consignee_address",
+      "title": "Consignee Address",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "consignee_city",
+      "title": "Consignee City",
+      "type": "string",
+      "required": true,
+      "searchable": true
+    },
+    {
+      "name": "consignee_country",
+      "title": "Consignee Country",
+      "type": "string",
+      "required": true,
+      "searchable": true
+    },
+    {
+      "name": "consignee_postal_code",
+      "title": "Consignee Postal Code",
+      "type": "string",
+      "required": false
+    },
+    {
+      "name": "consignee_contact_person",
+      "title": "Consignee Contact Person",
+      "type": "string",
+      "required": false
+    },
+    {
+      "name": "consignee_phone",
+      "title": "Consignee Phone Number",
+      "type": "string",
+      "required": false
+    },
+    {
+      "name": "origin_airport",
+      "title": "Origin Airport (IATA Code)",
+      "type": "string",
+      "required": true,
+      "searchable": true,
+      "validationRegex": "^[A-Z]{3}$"
+    },
+    {
+      "name": "destination_airport",
+      "title": "Destination Airport (IATA Code)",
+      "type": "string",
+      "required": true,
+      "searchable": true,
+      "validationRegex": "^[A-Z]{3}$"
+    },
+    {
+      "name": "carrier_airline",
+      "title": "Carrier Airline",
+      "type": "string",
+      "required": true,
+      "searchable": true
+    },
+    {
+      "name": "flight_number",
+      "title": "Flight Number",
+      "type": "string",
+      "required": false,
+      "searchable": true
+    },
+    {
+      "name": "flight_date",
+      "title": "Flight Date",
+      "type": "string",
+      "required": false
+    },
+    {
+      "name": "routing_details",
+      "title": "Routing Details",
+      "type": "array",
+      "arrayType": "string",
+      "required": false
+    },
+    {
+      "name": "piece_count",
+      "title": "Number of Pieces",
+      "type": "number",
+      "required": true
+    },
+    {
+      "name": "gross_weight_kg",
+      "title": "Gross Weight (kg)",
+      "type": "number",
+      "required": true
+    },
+    {
+      "name": "chargeable_weight_kg",
+      "title": "Chargeable Weight (kg)",
+      "type": "number",
+      "required": false
+    },
+    {
+      "name": "dimensions",
+      "title": "Dimensions (L×W×H cm)",
+      "type": "string",
+      "required": false
+    },
+    {
+      "name": "volume_cbm",
+      "title": "Volume (CBM)",
+      "type": "number",
+      "required": false
+    },
+    {
+      "name": "nature_of_goods",
+      "title": "Nature of Goods Description",
+      "type": "string",
+      "required": true,
+      "searchable": true
+    },
+    {
+      "name": "commodity_code",
+      "title": "Commodity Code (HS Code)",
+      "type": "string",
+      "required": false
+    },
+    {
+      "name": "special_handling_codes",
+      "title": "Special Handling Codes",
+      "type": "array",
+      "arrayType": "string",
+      "required": false,
+      "validationList": [
+        "AVI",
+        "PER",
+        "DGR",
+        "VAL",
+        "VUN",
+        "HEA",
+        "BIG",
+        "HUM",
+        "MAG",
+        "REQ",
+        "COO",
+        "FRO",
+        "WET"
+      ]
+    },
+    {
+      "name": "handling_instructions",
+      "title": "Special Handling Instructions",
+      "type": "string",
+      "required": false
+    },
+    {
+      "name": "temperature_range",
+      "title": "Temperature Range (°C)",
+      "type": "string",
+      "required": false
+    },
+    {
+      "name": "freight_charges",
+      "title": "Freight Charges",
+      "type": "number",
+      "required": false
+    },
+    {
+      "name": "currency",
+      "title": "Currency Code",
+      "type": "string",
+      "required": false,
+      "validationRegex": "^[A-Z]{3}$"
+    },
+    {
+      "name": "payment_method",
+      "title": "Payment Method",
+      "type": "string",
+      "required": false,
+      "validationList": [
+        "Prepaid",
+        "Collect",
+        "Credit Account",
+        "Cash on Delivery"
+      ]
+    },
+    {
+      "name": "declared_value_carriage",
+      "title": "Declared Value for Carriage",
+      "type": "number",
+      "required": false
+    },
+    {
+      "name": "declared_value_customs",
+      "title": "Declared Value for Customs",
+      "type": "number",
+      "required": false
+    },
+    {
+      "name": "customs_declaration_type",
+      "title": "Customs Declaration Type",
+      "type": "string",
+      "required": false,
+      "validationList": [
+        "Commercial Invoice",
+        "Proforma Invoice",
+        "Gift Declaration",
+        "Return Goods",
+        "Samples",
+        "Documents"
+      ]
+    },
+    {
+      "name": "export_license_number",
+      "title": "Export License Number",
+      "type": "string",
+      "required": false
+    },
+    {
+      "name": "import_license_number",
+      "title": "Import License Number",
+      "type": "string",
+      "required": false
+    },
+    {
+      "name": "commercial_invoice_number",
+      "title": "Commercial Invoice Number",
+      "type": "string",
+      "required": false,
+      "searchable": true
+    },
+    {
+      "name": "insurance_coverage",
+      "title": "Insurance Coverage Amount",
+      "type": "number",
+      "required": false
+    },
+    {
+      "name": "security_screening_status",
+      "title": "Security Screening Status",
+      "type": "string",
+      "required": false,
+      "validationList": [
+        "Screened",
+        "Not Screened",
+        "Exempted",
+        "Known Shipper"
+      ]
+    },
+    {
+      "name": "awb_status",
+      "title": "AWB Status",
+      "type": "string",
+      "required": false,
+      "validationList": [
+        "Issued",
+        "Accepted",
+        "In Transit",
+        "Arrived",
+        "Out for Delivery",
+        "Delivered",
+        "Exception",
+        "Returned",
+        "Cancelled"
+      ],
+      "default": "Issued"
+    },
+    {
+      "name": "issue_date",
+      "title": "AWB Issue Date",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "acceptance_date",
+      "title": "Cargo Acceptance Date",
+      "type": "string",
+      "required": false
+    },
+    {
+      "name": "departure_date",
+      "title": "Departure Date",
+      "type": "string",
+      "required": false
+    },
+    {
+      "name": "arrival_date",
+      "title": "Arrival Date",
+      "type": "string",
+      "required": false
+    },
+    {
+      "name": "delivery_date",
+      "title": "Delivery Date",
+      "type": "string",
+      "required": false
+    },
+    {
+      "name": "delivered_to",
+      "title": "Delivered To (Name)",
+      "type": "string",
+      "required": false
+    },
+    {
+      "name": "issuing_agent",
+      "title": "Issuing Agent/Forwarder",
+      "type": "string",
+      "required": false,
+      "searchable": true
+    },
+    {
+      "name": "destination_agent",
+      "title": "Destination Agent",
+      "type": "string",
+      "required": false,
+      "searchable": true
+    },
+    {
+      "name": "consolidator_name",
+      "title": "Consolidator Name",
+      "type": "string",
+      "required": false,
+      "searchable": true
+    },
+    {
+      "name": "shipper_reference",
+      "title": "Shipper Reference Number",
+      "type": "string",
+      "required": false,
+      "searchable": true
+    },
+    {
+      "name": "consignee_reference",
+      "title": "Consignee Reference Number",
+      "type": "string",
+      "required": false,
+      "searchable": true
+    },
+    {
+      "name": "purchase_order_number",
+      "title": "Purchase Order Number",
+      "type": "string",
+      "required": false,
+      "searchable": true
+    },
+    {
+      "name": "booking_reference",
+      "title": "Booking Reference",
+      "type": "string",
+      "required": false,
+      "searchable": true
+    },
+    {
+      "name": "other_charges",
+      "title": "Other Charges Description",
+      "type": "string",
+      "required": false
+    },
+    {
+      "name": "remarks",
+      "title": "Remarks/Special Instructions",
+      "type": "string",
+      "required": false
+    },
+    {
+      "name": "document_received_date",
+      "title": "Document Received Date",
+      "type": "string",
+      "required": false
+    },
+    {
+      "name": "document_source",
+      "title": "Document Source",
+      "type": "string",
+      "required": false,
+      "validationList": [
+        "Email",
+        "Fax",
+        "EDI",
+        "Portal Upload",
+        "Physical Copy",
+        "API Integration"
+      ]
+    },
+    {
+      "name": "processing_priority",
+      "title": "Processing Priority",
+      "type": "string",
+      "required": false,
+      "validationList": ["Low", "Normal", "High", "Urgent"],
+      "default": "Normal"
+    },
+    {
+      "name": "archived",
+      "title": "Document Archived",
+      "type": "boolean",
+      "required": false,
+      "default": false
+    }
+  ]
+}

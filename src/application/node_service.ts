@@ -10,7 +10,7 @@ import { MetaNode } from "domain/nodes/meta_node.ts";
 import { Node, type Permission } from "domain/nodes/node.ts";
 import { NodeCreatedEvent } from "domain/nodes/node_created_event.ts";
 import { NodeDeletedEvent } from "domain/nodes/node_deleted_event.ts";
-import { NodeUpdatedEvent } from "domain/nodes/node_updated_event.ts";
+import { NodeUpdateChanges, NodeUpdatedEvent } from "domain/nodes/node_updated_event.ts";
 import {
 	isNodeFilters2D,
 	type NodeFilter,
@@ -48,6 +48,7 @@ import { builtinGroups } from "./builtin_groups/index.ts";
 import { builtinUsers } from "./builtin_users/index.ts";
 import { builtinAgents } from "./builtin_agents/index.ts";
 import { FeatureNode, FeatureParameter } from "domain/features/feature_node.ts";
+import { ParentFolderUpdateHandler } from "./parent_folder_update_handler.ts";
 import { MIMEType } from "node:util";
 
 // TODO: Implements throwing events
@@ -65,7 +66,17 @@ import { MIMEType } from "node:util";
  * processed.
  */
 export class NodeService {
-	constructor(private readonly context: NodeServiceContext) {}
+	private readonly parentFolderUpdateHandler: ParentFolderUpdateHandler;
+
+	constructor(private readonly context: NodeServiceContext) {
+		// Initialize the parent folder update handler
+		this.parentFolderUpdateHandler = new ParentFolderUpdateHandler(this.context);
+
+		// Subscribe to node creation, update, and deletion events
+		this.context.bus.subscribe(NodeCreatedEvent.EVENT_ID, this.parentFolderUpdateHandler);
+		this.context.bus.subscribe(NodeUpdatedEvent.EVENT_ID, this.parentFolderUpdateHandler);
+		this.context.bus.subscribe(NodeDeletedEvent.EVENT_ID, this.parentFolderUpdateHandler);
+	}
 
 	async copy(
 		ctx: AuthenticationContext,
@@ -585,6 +596,12 @@ export class NodeService {
 			return left(nodeOrErr.value);
 		}
 
+		const oldValues: Partial<NodeMetadata> = {};
+		for (const key in metadata) {
+			// deno-lint-ignore no-explicit-any
+			(oldValues as any)[key] = (nodeOrErr.value as any)[key];
+		}
+
 		// Get current parent for permission check
 		const currentParentOrErr = await this.#getBuiltinFolderOrFromRepository(
 			nodeOrErr.value.parent,
@@ -705,12 +722,18 @@ export class NodeService {
 		const updateResult = await this.context.repository.update(nodeOrErr.value);
 
 		if (updateResult.isRight()) {
+			// Create NodeUpdateChanges with old and new values
+			const changes: NodeUpdateChanges = {
+				uuid: nodeOrErr.value.uuid,
+				oldValues,
+				newValues: metadata,
+			};
+
 			// Publish NodeUpdatedEvent
 			const evt = new NodeUpdatedEvent(
 				ctx.principal.email,
 				ctx.tenant,
-				nodeOrErr.value.uuid,
-				metadata,
+				changes,
 			);
 			this.context.bus.publish(evt);
 		}

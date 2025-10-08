@@ -341,6 +341,7 @@ Deno.test("ParentFolderUpdateHandler - should update parent folder modification 
 	}
 
 	const originalChild = childFileResult.value;
+	mockRepo.setNode(originalChild.uuid, originalChild);
 
 	// Create updated child with new title
 	const updatedChildResult = FileNode.create({
@@ -550,6 +551,7 @@ Deno.test("ParentFolderUpdateHandler - should update parent when node properties
 	}
 
 	const child = childFileResult.value;
+	mockRepo.setNode(child.uuid, child);
 
 	// Create update changes that don't include parent info
 	const changes: NodeUpdateChanges = {

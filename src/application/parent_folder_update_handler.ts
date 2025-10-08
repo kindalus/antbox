@@ -73,7 +73,7 @@ export class ParentFolderUpdateHandler
 			const updatedNode = await this.context.repository.getById(uuid);
 
 			if (updatedNode.isLeft()) {
-				console.debug();
+				console.debug(`ParentFolderUpdateHandler: Updated node not found: ${uuid}`);
 				return;
 			}
 

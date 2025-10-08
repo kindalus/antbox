@@ -13,6 +13,7 @@ import { InMemoryVectorDatabase } from "adapters/inmem/inmem_vector_database.ts"
 import { DeterministicModel } from "adapters/models/deterministic.ts";
 import { EmbeddingService } from "./embedding_service.ts";
 import type { NodeFilters1D } from "domain/nodes/node_filter.ts";
+import { builtinFolders } from "application/builtin_folders/index.ts";
 
 const authCtx: AuthenticationContext = {
 	mode: "Direct",
@@ -35,6 +36,9 @@ beforeAll(async () => {
 	const repository = new InMemoryNodeRepository();
 	const storage = new InMemoryStorageProvider();
 	const bus = new InMemoryEventBus();
+
+	// Add builtin folders to repository
+	builtinFolders.forEach((folder) => repository.add(folder));
 
 	// Create NodeService with AI features
 	service = new NodeService({
@@ -59,6 +63,7 @@ beforeAll(async () => {
 		uuid: "test-folder-uuid",
 		title: "Test Documents",
 		mimetype: "application/vnd.antbox.folder",
+		parent: Folders.ROOT_FOLDER_UUID,
 	});
 
 	// Create test documents

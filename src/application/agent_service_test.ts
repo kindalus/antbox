@@ -15,6 +15,30 @@ import { ValidationError } from "shared/validation_error.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import { Embedding } from "./ai_model.ts";
 import { AnswerOptions, ChatOptions } from "./agent_service.ts";
+import { AgentDTO } from "./agent_dto.ts";
+
+// ============================================================================
+// TEST HELPERS
+// ============================================================================
+
+function createAgentDTO(overrides: Partial<AgentDTO> = {}): AgentDTO {
+	return {
+		uuid: "test-agent-uuid",
+		title: "Test Agent",
+		description: "A test agent",
+		owner: "test@example.com",
+		created: new Date().toISOString(),
+		updated: new Date().toISOString(),
+		model: "gemini-1.5-pro",
+		temperature: 0.7,
+		maxTokens: 8192,
+		reasoning: false,
+		useTools: false,
+		systemInstructions: "You are a helpful assistant",
+		structuredAnswer: undefined,
+		...overrides,
+	};
+}
 
 // ============================================================================
 // MOCKS
@@ -217,7 +241,7 @@ describe("AgentService", () => {
 
 	describe("createOrReplace", () => {
 		it("should create a new agent successfully", async () => {
-			const metadata = {
+			const metadata = createAgentDTO({
 				title: "Test Agent",
 				description: "A test agent",
 				systemInstructions: "You are a helpful assistant",
@@ -226,7 +250,7 @@ describe("AgentService", () => {
 				maxTokens: 4000,
 				reasoning: true,
 				useTools: true,
-			};
+			});
 
 			const result = await agentService.createOrReplace(authContext, metadata);
 
@@ -246,10 +270,10 @@ describe("AgentService", () => {
 		});
 
 		it("should use defaults for optional parameters", async () => {
-			const metadata = {
+			const metadata = createAgentDTO({
 				title: "Simple Agent",
 				systemInstructions: "Simple instructions",
-			};
+			});
 
 			const result = await agentService.createOrReplace(authContext, metadata);
 
@@ -265,11 +289,11 @@ describe("AgentService", () => {
 		});
 
 		it("should keep 'default' model as is", async () => {
-			const metadata = {
+			const metadata = createAgentDTO({
 				title: "Default Model Agent",
 				systemInstructions: "Test instructions",
 				model: "default",
-			};
+			});
 
 			const result = await agentService.createOrReplace(authContext, metadata);
 
@@ -281,10 +305,10 @@ describe("AgentService", () => {
 		});
 
 		it("should fail with validation error for invalid data", async () => {
-			const metadata = {
+			const metadata = createAgentDTO({
 				title: "", // Invalid empty title
 				systemInstructions: "Test instructions",
-			};
+			});
 
 			const result = await agentService.createOrReplace(authContext, metadata);
 
@@ -293,11 +317,11 @@ describe("AgentService", () => {
 
 		it("should replace existing agent when UUID is provided", async () => {
 			// First create an agent
-			const initialMetadata = {
+			const initialMetadata = createAgentDTO({
 				title: "Original Agent",
 				systemInstructions: "Original instructions",
 				model: "gemini-1.5-pro",
-			};
+			});
 
 			const createResult = await agentService.createOrReplace(authContext, initialMetadata);
 			expect(createResult.isRight()).toBeTruthy();
@@ -306,12 +330,12 @@ describe("AgentService", () => {
 				const originalAgent = createResult.value;
 
 				// Now replace it with new metadata using the same UUID
-				const updatedMetadata = {
+				const updatedMetadata = createAgentDTO({
 					uuid: originalAgent.uuid,
 					title: "Updated Agent",
 					systemInstructions: "Updated instructions",
 					temperature: 0.9,
-				};
+				});
 
 				const replaceResult = await agentService.createOrReplace(authContext, updatedMetadata);
 				expect(replaceResult.isRight()).toBeTruthy();
@@ -330,10 +354,10 @@ describe("AgentService", () => {
 	describe("get", () => {
 		it("should get an existing agent", async () => {
 			// Create an agent first
-			const metadata = {
+			const metadata = createAgentDTO({
 				title: "Test Agent",
 				systemInstructions: "Test instructions",
-			};
+			});
 
 			const createResult = await agentService.createOrReplace(authContext, metadata);
 			expect(createResult.isRight()).toBeTruthy();
@@ -366,10 +390,13 @@ describe("AgentService", () => {
 	describe("delete", () => {
 		it("should delete an existing agent", async () => {
 			// Create an agent first
-			const createResult = await agentService.createOrReplace(authContext, {
-				title: "Delete Test Agent",
-				systemInstructions: "Test instructions",
-			});
+			const createResult = await agentService.createOrReplace(
+				authContext,
+				createAgentDTO({
+					title: "Delete Test Agent",
+					systemInstructions: "Test instructions",
+				}),
+			);
 
 			expect(createResult.isRight()).toBeTruthy();
 			if (createResult.isRight()) {
@@ -400,15 +427,21 @@ describe("AgentService", () => {
 	describe("list", () => {
 		it("should list all agents", async () => {
 			// Create multiple agents
-			await agentService.createOrReplace(authContext, {
-				title: "Agent 1",
-				systemInstructions: "Instructions 1",
-			});
+			await agentService.createOrReplace(
+				authContext,
+				createAgentDTO({
+					title: "Agent 1",
+					systemInstructions: "Instructions 1",
+				}),
+			);
 
-			await agentService.createOrReplace(authContext, {
-				title: "Agent 2",
-				systemInstructions: "Instructions 2",
-			});
+			await agentService.createOrReplace(
+				authContext,
+				createAgentDTO({
+					title: "Agent 2",
+					systemInstructions: "Instructions 2",
+				}),
+			);
 
 			const result = await agentService.list(authContext);
 
@@ -433,11 +466,14 @@ describe("AgentService", () => {
 	describe("chat", () => {
 		it("should execute chat successfully", async () => {
 			// Create an agent first
-			const createResult = await agentService.createOrReplace(authContext, {
-				title: "Chat Agent",
-				systemInstructions: "You are helpful",
-				useTools: false,
-			});
+			const createResult = await agentService.createOrReplace(
+				authContext,
+				createAgentDTO({
+					title: "Chat Agent",
+					systemInstructions: "You are helpful",
+					useTools: false,
+				}),
+			);
 
 			expect(createResult.isRight()).toBeTruthy();
 			if (createResult.isRight()) {
@@ -466,11 +502,14 @@ describe("AgentService", () => {
 
 		it("should use custom tools when specified", async () => {
 			// Create an agent with tools enabled
-			const createResult = await agentService.createOrReplace(authContext, {
-				title: "Tool Agent",
-				systemInstructions: "You can use tools",
-				useTools: true,
-			});
+			const createResult = await agentService.createOrReplace(
+				authContext,
+				createAgentDTO({
+					title: "Tool Agent",
+					systemInstructions: "You can use tools",
+					useTools: true,
+				}),
+			);
 
 			expect(createResult.isRight()).toBeTruthy();
 			if (createResult.isRight()) {
@@ -492,12 +531,15 @@ describe("AgentService", () => {
 
 		it("should override agent parameters when specified", async () => {
 			// Create an agent
-			const createResult = await agentService.createOrReplace(authContext, {
-				title: "Parameter Agent",
-				systemInstructions: "Test agent",
-				temperature: 0.5,
-				maxTokens: 1000,
-			});
+			const createResult = await agentService.createOrReplace(
+				authContext,
+				createAgentDTO({
+					title: "Parameter Agent",
+					systemInstructions: "Test agent",
+					temperature: 0.5,
+					maxTokens: 1000,
+				}),
+			);
 
 			expect(createResult.isRight()).toBeTruthy();
 			if (createResult.isRight()) {
@@ -526,11 +568,14 @@ describe("AgentService", () => {
 	describe("answer", () => {
 		it("should execute answer successfully", async () => {
 			// Create an agent first
-			const createResult = await agentService.createOrReplace(authContext, {
-				title: "Answer Agent",
-				systemInstructions: "You provide direct answers",
-				useTools: false,
-			});
+			const createResult = await agentService.createOrReplace(
+				authContext,
+				createAgentDTO({
+					title: "Answer Agent",
+					systemInstructions: "You provide direct answers",
+					useTools: false,
+				}),
+			);
 
 			expect(createResult.isRight()).toBeTruthy();
 			if (createResult.isRight()) {
@@ -549,11 +594,14 @@ describe("AgentService", () => {
 
 		it("should return structured output when agent has structured answer", async () => {
 			// Create an agent with structured answer
-			const createResult = await agentService.createOrReplace(authContext, {
-				title: "Structured Agent",
-				systemInstructions: "You provide structured answers",
-				structuredAnswer: '{"type": "object", "properties": {"answer": {"type": "string"}}}',
-			});
+			const createResult = await agentService.createOrReplace(
+				authContext,
+				createAgentDTO({
+					title: "Structured Agent",
+					systemInstructions: "You provide structured answers",
+					structuredAnswer: '{"type": "object", "properties": {"answer": {"type": "string"}}}',
+				}),
+			);
 
 			expect(createResult.isRight()).toBeTruthy();
 			if (createResult.isRight()) {
@@ -590,10 +638,14 @@ describe("AgentService", () => {
 
 	describe("system instruction injection", () => {
 		it("should inject chat system instructions", async () => {
-			const createResult = await agentService.createOrReplace(authContext, {
-				title: "Test Agent",
-				systemInstructions: "Custom instructions",
-			});
+			const createResult = await agentService.createOrReplace(
+				authContext,
+				createAgentDTO({
+					title: "Test Agent",
+					systemInstructions: "Test instructions",
+					useTools: false,
+				}),
+			);
 
 			if (createResult.isRight()) {
 				// Spy on the AI model to verify system instructions
@@ -622,10 +674,14 @@ describe("AgentService", () => {
 		});
 
 		it("should inject answer system instructions without language detection", async () => {
-			const createResult = await agentService.createOrReplace(authContext, {
-				title: "Test Agent",
-				systemInstructions: "Custom instructions",
-			});
+			const createResult = await agentService.createOrReplace(
+				authContext,
+				createAgentDTO({
+					title: "Test Agent",
+					systemInstructions: "Test instructions",
+					structuredAnswer: "json",
+				}),
+			);
 
 			if (createResult.isRight()) {
 				// Spy on the AI model to verify system instructions
@@ -656,11 +712,14 @@ describe("AgentService", () => {
 
 	describe("model resolution", () => {
 		it("should use default model instance for 'default' model in chat", async () => {
-			const createResult = await agentService.createOrReplace(authContext, {
-				title: "Default Model Agent",
-				systemInstructions: "Test instructions",
-				model: "default",
-			});
+			const createResult = await agentService.createOrReplace(
+				authContext,
+				createAgentDTO({
+					title: "Default Model Agent",
+					systemInstructions: "Test instructions",
+					model: "default",
+				}),
+			);
 
 			if (createResult.isRight()) {
 				const agent = createResult.value;
@@ -681,11 +740,14 @@ describe("AgentService", () => {
 
 	describe("dynamic model loading", () => {
 		it("should use default model instance for 'default' model name", async () => {
-			const createResult = await agentService.createOrReplace(authContext, {
-				title: "Default Model Agent",
-				systemInstructions: "Test instructions",
-				model: "default",
-			});
+			const createResult = await agentService.createOrReplace(
+				authContext,
+				createAgentDTO({
+					title: "Default Model Agent",
+					systemInstructions: "Test instructions",
+					model: "default",
+				}),
+			);
 
 			expect(createResult.isRight()).toBeTruthy();
 			if (createResult.isRight()) {
@@ -706,11 +768,14 @@ describe("AgentService", () => {
 		});
 
 		it("should use default model instance for custom model name", async () => {
-			const createResult = await agentService.createOrReplace(authContext, {
-				title: "Custom Model Agent",
-				systemInstructions: "Test instructions",
-				model: "google/gemini-2.5-flash", // Custom model format
-			});
+			const createResult = await agentService.createOrReplace(
+				authContext,
+				createAgentDTO({
+					title: "Custom Model Agent",
+					systemInstructions: "Test instructions",
+					model: "google/gemini-2.5-flash", // Custom model format
+				}),
+			);
 
 			expect(createResult.isRight()).toBeTruthy();
 			if (createResult.isRight()) {
@@ -731,11 +796,14 @@ describe("AgentService", () => {
 		});
 
 		it("should handle model loading failure gracefully", async () => {
-			const createResult = await agentService.createOrReplace(authContext, {
-				title: "Invalid Model Agent",
-				systemInstructions: "Test instructions",
-				model: "openai/invalid-model",
-			});
+			const createResult = await agentService.createOrReplace(
+				authContext,
+				createAgentDTO({
+					title: "Invalid Model Agent",
+					systemInstructions: "Test instructions",
+					model: "openai/invalid-model",
+				}),
+			);
 
 			expect(createResult.isRight()).toBeTruthy();
 			if (createResult.isRight()) {
@@ -756,11 +824,14 @@ describe("AgentService", () => {
 		});
 
 		it("should pass files parameter to AI model", async () => {
-			const createResult = await agentService.createOrReplace(authContext, {
-				title: "File Processing Agent",
-				systemInstructions: "You can process files",
-				useTools: false,
-			});
+			const createResult = await agentService.createOrReplace(
+				authContext,
+				createAgentDTO({
+					title: "File Processing Agent",
+					systemInstructions: "You can process files",
+					useTools: false,
+				}),
+			);
 
 			expect(createResult.isRight()).toBeTruthy();
 			if (createResult.isRight()) {

@@ -369,7 +369,6 @@ Deno.test("ParentFolderUpdateHandler - should update parent folder modification 
 		newValues: {
 			title: updatedChild.title,
 		},
-		updatedNode: updatedChild,
 	};
 
 	// Create event
@@ -475,7 +474,6 @@ Deno.test("ParentFolderUpdateHandler - should update both old and new parent fol
 		newValues: {
 			parent: newParent.uuid,
 		},
-		updatedNode: movedChild,
 	};
 
 	// Create event
@@ -560,9 +558,8 @@ Deno.test("ParentFolderUpdateHandler - should update parent when node properties
 			description: "old description",
 		},
 		newValues: {
-			description: "new description",
+			parent: undefined,
 		},
-		updatedNode: child,
 	};
 
 	// Create event

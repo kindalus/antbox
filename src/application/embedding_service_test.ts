@@ -308,8 +308,11 @@ describe("EmbeddingService", () => {
 		const updateEvent = new NodeUpdatedEvent(
 			"user@example.com",
 			"test-tenant",
-			"test-uuid",
-			{ title: "test.txt" },
+			{
+				uuid: "test-uuid",
+				oldValues: {},
+				newValues: { title: "test.txt" },
+			},
 		);
 		await embeddingService.handleNodeUpdated(updateEvent);
 
@@ -392,8 +395,11 @@ describe("EmbeddingService", () => {
 		const updateEvent = new NodeUpdatedEvent(
 			"user@example.com",
 			"test-tenant",
-			"test-uuid",
-			{},
+			{
+				uuid: "test-uuid",
+				oldValues: {},
+				newValues: {},
+			},
 		);
 		await embeddingService.handleNodeUpdated(updateEvent);
 
@@ -539,8 +545,11 @@ describe("EmbeddingService", () => {
 		const updateEvent = new NodeUpdatedEvent(
 			"user@example.com",
 			"test-tenant",
-			"test-uuid",
-			{ mimetype: "image/jpeg" },
+			{
+				uuid: "test-uuid",
+				oldValues: {},
+				newValues: { mimetype: "image/jpeg" },
+			},
 		);
 		await embeddingService.handleNodeUpdated(updateEvent);
 

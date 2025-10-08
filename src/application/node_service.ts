@@ -48,6 +48,7 @@ import { builtinGroups } from "./builtin_groups/index.ts";
 import { builtinUsers } from "./builtin_users/index.ts";
 import { builtinAgents } from "./builtin_agents/index.ts";
 import { FeatureNode, FeatureParameter } from "domain/features/feature_node.ts";
+import { MIMEType } from "node:util";
 
 // TODO: Implements throwing events
 
@@ -106,23 +107,30 @@ export class NodeService {
 		metadata: Partial<NodeMetadata>,
 	): Promise<Either<AntboxError, NodeLike>> {
 		const uuid = metadata.uuid ?? UuidGenerator.generate();
+
+		if (!metadata.parent) {
+			return left(new BadRequestError("Parent is required"));
+		}
+
+		const parentOrErr = await this.#getBuiltinFolderOrFromRepository(
+			metadata.parent,
+		);
+		if (parentOrErr.isLeft()) {
+			return left(parentOrErr.value);
+		}
+
+		const group = metadata.group ?? ctx.principal.groups[0];
+
 		const nodeOrErr = NodeFactory.from({
 			...metadata,
 			uuid,
 			fid: metadata.fid ?? FidGenerator.generate(metadata.title ?? ""),
 			owner: metadata.owner ?? ctx.principal.email,
-			group: metadata.group ?? ctx.principal.groups[0],
+			group: group === Groups.ANONYMOUS_GROUP_UUID ? parentOrErr.value.group : group,
 		});
 
 		if (nodeOrErr.isLeft()) {
 			return left(nodeOrErr.value);
-		}
-
-		const parentOrErr = await this.#getBuiltinFolderOrFromRepository(
-			nodeOrErr.value.parent,
-		);
-		if (parentOrErr.isLeft()) {
-			return left(parentOrErr.value);
 		}
 
 		const isAllowed = isPrincipalAllowedTo(ctx, parentOrErr.value, "Write");
@@ -189,8 +197,8 @@ export class NodeService {
 		file: File,
 		metadata: Partial<NodeMetadata>,
 	): Promise<Either<AntboxError, FileLikeNode>> {
-		const useFileType = !metadata.mimetype ||
-			metadata.mimetype !== Nodes.FEATURE_MIMETYPE;
+		const useFileType = file.type &&
+			(!metadata.mimetype || metadata.mimetype !== Nodes.FEATURE_MIMETYPE);
 
 		const nodeOrErr = await this.create(ctx, {
 			...metadata,
@@ -532,12 +540,12 @@ export class NodeService {
 			return left(nodeOrErr.value);
 		}
 
-		if (!Nodes.isFolder(nodeOrErr.value)) {
-			return left(new BadRequestError("Node is not a folder"));
-		}
+		const breadcrumbs: Array<{ uuid: string; title: string }> = [{
+			uuid: nodeOrErr.value.uuid,
+			title: nodeOrErr.value.title,
+		}];
 
-		const breadcrumbs: Array<{ uuid: string; title: string }> = [];
-		let currentUuid = uuid;
+		let currentUuid = nodeOrErr.value.parent;
 
 		// Traverse up the folder hierarchy
 		while (currentUuid && currentUuid !== Folders.ROOT_FOLDER_UUID) {
@@ -650,7 +658,7 @@ export class NodeService {
 		);
 		if (actualParentOrErr.isLeft()) {
 			return left(
-				new UnknownError(`Parent folder not found for node uuid='${uuid}'`),
+				new BadRequestError(`Parent folder not found: ${nodeOrErr.value.parent}`),
 			);
 		}
 

@@ -102,16 +102,19 @@ describe("FeatureService", () => {
 
 	it("get should return feature", async () => {
 		const service = await createService();
-		(await service.createOrReplace(
+		const createResult = await service.createOrReplace(
 			adminAuthContext,
 			new File([testFeatureContent], "test-feature.js", {
 				type: "application/javascript",
 			}),
-		)).right;
+		);
+		expect(createResult.isRight()).toBeTruthy();
 
 		const result = await service.get(adminAuthContext, "test-feature-uuid");
 		expect(result.isRight()).toBeTruthy();
-		expect(result.right.name).toBe("Test feature");
+		if (result.isRight()) {
+			expect(result.value.name).toBe("Test feature");
+		}
 	});
 
 	it("get should return error if feature does not exist", async () => {
@@ -965,7 +968,8 @@ describe("FeatureService", () => {
 		});
 
 		expect(folderResult.isRight()).toBeTruthy();
-		const folder = folderResult.right;
+		if (!folderResult.isRight()) return;
+		const folder = folderResult.value;
 
 		// Create a node in the folder - should trigger onCreate action
 		const nodeResult = await service.nodeService.create(adminAuthContext, {
@@ -974,6 +978,9 @@ describe("FeatureService", () => {
 			parent: folder.uuid,
 		});
 
+		if (nodeResult.isLeft()) {
+			console.error("Node creation failed:", nodeResult.value);
+		}
 		expect(nodeResult.isRight()).toBeTruthy();
 	});
 
@@ -1020,7 +1027,8 @@ describe("FeatureService", () => {
 		});
 
 		expect(folderResult.isRight()).toBeTruthy();
-		const folder = folderResult.right;
+		if (!folderResult.isRight()) return;
+		const folder = folderResult.value;
 
 		// Create a node in the folder
 		const nodeResult = await service.nodeService.create(adminAuthContext, {
@@ -1029,8 +1037,12 @@ describe("FeatureService", () => {
 			parent: folder.uuid,
 		});
 
+		if (nodeResult.isLeft()) {
+			console.error("Node creation failed:", nodeResult.value);
+		}
 		expect(nodeResult.isRight()).toBeTruthy();
-		const node = nodeResult.right;
+		if (!nodeResult.isRight()) return;
+		const node = nodeResult.value;
 
 		// Update the node - should trigger onUpdate action
 		const updateResult = await service.nodeService.update(
@@ -1085,7 +1097,8 @@ describe("FeatureService", () => {
 		});
 
 		expect(folderResult.isRight()).toBeTruthy();
-		const folder = folderResult.right;
+		if (!folderResult.isRight()) return;
+		const folder = folderResult.value;
 
 		// Create a file in the folder
 		const nodeResult = await service.nodeService.createFile(
@@ -1097,8 +1110,12 @@ describe("FeatureService", () => {
 			},
 		);
 
+		if (nodeResult.isLeft()) {
+			console.error("Node creation failed:", nodeResult.value);
+		}
 		expect(nodeResult.isRight()).toBeTruthy();
-		const node = nodeResult.right;
+		if (!nodeResult.isRight()) return;
+		const node = nodeResult.value;
 
 		// Delete the node - should trigger onDelete action
 		const deleteResult = await service.nodeService.delete(
@@ -1167,7 +1184,8 @@ describe("FeatureService", () => {
 		});
 
 		expect(folderResult.isRight()).toBeTruthy();
-		const folder = folderResult.right;
+		if (!folderResult.isRight()) return;
+		const folder = folderResult.value;
 
 		// Create a node in the folder - should trigger onCreate action with parameters
 		const nodeResult = await service.nodeService.create(adminAuthContext, {
@@ -1176,6 +1194,9 @@ describe("FeatureService", () => {
 			parent: folder.uuid,
 		});
 
+		if (nodeResult.isLeft()) {
+			console.error("Node creation failed:", nodeResult.value);
+		}
 		expect(nodeResult.isRight()).toBeTruthy();
 	});
 
@@ -1254,7 +1275,8 @@ describe("FeatureService", () => {
 		});
 
 		expect(folderResult.isRight()).toBeTruthy();
-		const folder = folderResult.right;
+		if (!folderResult.isRight()) return;
+		const folder = folderResult.value;
 
 		// Create a node in the folder - should trigger both actions
 		const nodeResult = await service.nodeService.create(adminAuthContext, {
@@ -1263,6 +1285,9 @@ describe("FeatureService", () => {
 			parent: folder.uuid,
 		});
 
+		if (nodeResult.isLeft()) {
+			console.error("Node creation failed:", nodeResult.value);
+		}
 		expect(nodeResult.isRight()).toBeTruthy();
 	});
 
@@ -1394,16 +1419,18 @@ describe("FeatureService", () => {
 			mimetype: "application/vnd.antbox.folder",
 		});
 		expect(folderResult.isRight()).toBeTruthy();
+		if (!folderResult.isRight()) return;
+		const folder = folderResult.value;
 
 		// Create a text/plain node - should trigger domain-wide action
 		const nodeResult = await service.nodeService.create(adminAuthContext, {
 			title: "Test Document",
 			mimetype: "text/plain",
-			parent: folderResult.right.uuid,
+			parent: folder.uuid,
 		});
 
 		if (nodeResult.isLeft()) {
-			console.error("Node creation failed:", nodeResult.value.message);
+			console.error("Node creation failed:", nodeResult.value);
 		}
 		expect(nodeResult.isRight()).toBeTruthy();
 	});
@@ -1450,16 +1477,19 @@ describe("FeatureService", () => {
 			mimetype: "application/vnd.antbox.folder",
 		});
 		expect(folderResult.isRight()).toBeTruthy();
+		if (!folderResult.isRight()) return;
+		const folder = folderResult.value;
 
 		// Create a text/plain node
 		const nodeResult = await service.nodeService.create(adminAuthContext, {
 			title: "Test Document",
 			mimetype: "text/plain",
-			parent: folderResult.right.uuid,
+			parent: folder.uuid,
 		});
 
 		expect(nodeResult.isRight()).toBeTruthy();
-		const node = nodeResult.right;
+		if (!nodeResult.isRight()) return;
+		const node = nodeResult.value;
 
 		// Update the node - should trigger domain-wide action
 		const updateResult = await service.nodeService.update(
@@ -1468,6 +1498,9 @@ describe("FeatureService", () => {
 			{ title: "Updated Document" },
 		);
 
+		if (updateResult.isLeft()) {
+			console.error("Node update failed:", updateResult.value);
+		}
 		expect(updateResult.isRight()).toBeTruthy();
 	});
 
@@ -1514,18 +1547,25 @@ describe("FeatureService", () => {
 		});
 		expect(folderResult.isRight()).toBeTruthy();
 
+		if (!folderResult.isRight()) return;
+		const folder = folderResult.value;
+
 		// Create a text/plain file
 		const nodeResult = await service.nodeService.createFile(
 			adminAuthContext,
 			new File(["test content"], "test.txt", { type: "text/plain" }),
 			{
 				title: "Test Document",
-				parent: folderResult.right.uuid,
+				parent: folder.uuid,
 			},
 		);
 
+		if (nodeResult.isLeft()) {
+			console.error("Node creation failed:", nodeResult.value);
+		}
 		expect(nodeResult.isRight()).toBeTruthy();
-		const node = nodeResult.right;
+		if (!nodeResult.isRight()) return;
+		const node = nodeResult.value;
 
 		// Delete the node - should trigger domain-wide action
 		const deleteResult = await service.nodeService.delete(
@@ -1533,6 +1573,9 @@ describe("FeatureService", () => {
 			node.uuid,
 		);
 
+		if (deleteResult.isLeft()) {
+			console.error("Node deletion failed:", deleteResult.value);
+		}
 		expect(deleteResult.isRight()).toBeTruthy();
 	});
 
@@ -1578,14 +1621,19 @@ describe("FeatureService", () => {
 			mimetype: "application/vnd.antbox.folder",
 		});
 		expect(folderResult.isRight()).toBeTruthy();
+		if (!folderResult.isRight()) return;
+		const folder = folderResult.value;
 
-		// Create a text/plain node - should NOT trigger the action (filters don't match)
+		// Create a text/plain node - should NOT trigger domain-wide action (doesn't match filters)
 		const nodeResult = await service.nodeService.create(adminAuthContext, {
 			title: "Test Document",
 			mimetype: "text/plain",
-			parent: folderResult.right.uuid,
+			parent: folder.uuid,
 		});
 
+		if (nodeResult.isLeft()) {
+			console.error("Node creation failed:", nodeResult.value);
+		}
 		expect(nodeResult.isRight()).toBeTruthy();
 	});
 });

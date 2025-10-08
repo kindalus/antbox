@@ -962,7 +962,7 @@ export class FeatureService {
 		for (const feature of actions) {
 			const filterOrErr = NodesFilters.satisfiedBy(
 				feature.filters,
-				evt.payload as Node,
+				evt.payload as unknown as Node,
 			);
 
 			if (filterOrErr.isLeft()) {

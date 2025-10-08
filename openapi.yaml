@@ -1,60 +1,706 @@
 openapi: 3.1.0
 info:
   title: Antbox API
-  description: |
-    Antbox API provides access to the complete Antbox platform functionality including
-    node management, feature execution, AI agents, and user management.
-
-    ## Authentication
-
-    The API supports multiple authentication methods:
-
-    1. **JWT Bearer Token**: Use `Authorization: Bearer <token>` header
-       - User tokens: Obtained through external OAuth/OIDC providers
-       - Root token: Obtained via `/login/root` endpoint
-
-    2. **API Key**: Use `Authorization: ApiKey <key>` header or `api_key` query parameter
-       - API keys are associated with groups and inherit group permissions
-       - Create API keys via the `/api-keys` endpoint
-
-    3. **Anonymous Access**: No authentication required for public endpoints
-       - Limited permissions apply to anonymous users
-
-    Most endpoints require authentication, but some allow anonymous access with restricted permissions.
-  version: 2.0.0
-  contact:
-    name: Antbox Team
-  license:
-    name: MIT
-
+  version: "2.0.0"
+  description: REST API for Antbox
 servers:
-  - url: http://localhost:7180/v2
-    description: Local development server
-
+  - url: /v2
+    description: API server
 security:
-  - BearerAuth: []
-  - ApiKeyAuth: []
-  - ApiKeyQuery: []
-  - {} # Anonymous access allowed
-
+  - bearerAuth: []
+tags:
+  - name: actions
+    description: Operations related to actions
+  - name: agents
+    description: Operations related to AI agents
+  - name: api-keys
+    description: Operations related to API keys
+  - name: aspects
+    description: Operations related to aspects
+  - name: docs
+    description: API documentation
+  - name: extensions
+    description: Operations related to extensions
+  - name: features
+    description: Operations related to features
+  - name: groups
+    description: Operations related to user groups
+  - name: login
+    description: Authentication operations
+  - name: nodes
+    description: Operations related to nodes (files, folders, etc.)
+  - name: templates
+    description: Operations related to templates
+  - name: users
+    description: Operations related to users
 paths:
-  # Authentication
-  /login/root:
+  /actions:
+    get:
+      tags:
+        - actions
+      summary: List available actions
+      operationId: listActions
+      responses:
+        "200":
+          description: A list of action nodes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/NodeLike"
+        default:
+          $ref: "#/components/responses/Error"
+  "/actions/{uuid}/-/run":
     post:
       tags:
-        - Authentication
-      summary: Root user login
-      description: |
-        Authenticate as root user using SHA256 hashed password.
-        Returns a JWT token that can be used for subsequent API calls as root user.
-      security: []
+        - actions
+      summary: Run an action
+      operationId: runAction
+      parameters:
+        - $ref: "#/components/parameters/UUID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                uuids:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+                parameters:
+                  type: object
+                  additionalProperties: true
+      responses:
+        "200":
+          description: Action executed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+        default:
+          $ref: "#/components/responses/Error"
+  /agents:
+    get:
+      tags:
+        - agents
+      summary: List all agents
+      operationId: listAgents
+      responses:
+        "200":
+          description: A list of agents
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Agent"
+        default:
+          $ref: "#/components/responses/Error"
+  "/agents/-/upload":
+    post:
+      tags:
+        - agents
+      summary: Create or replace an agent
+      operationId: createOrReplaceAgent
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: A JSON file containing the agent's metadata.
+      responses:
+        "200":
+          description: Agent created or replaced successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Agent"
+        default:
+          $ref: "#/components/responses/Error"
+  "/agents/rag/-/chat":
+    post:
+      tags:
+        - agents
+      summary: Chat with the RAG service
+      operationId: ragChat
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - text
+              properties:
+                text:
+                  type: string
+                options:
+                  type: object
+                  additionalProperties: true
+      responses:
+        "200":
+          description: RAG chat response
+          content:
+            application/json:
+              schema:
+                type: object
+        default:
+          $ref: "#/components/responses/Error"
+  "/agents/{uuid}":
+    get:
+      tags:
+        - agents
+      summary: Get an agent
+      operationId: getAgent
+      parameters:
+        - $ref: "#/components/parameters/UUID"
+      responses:
+        "200":
+          description: Agent details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Agent"
+        default:
+          $ref: "#/components/responses/Error"
+    delete:
+      tags:
+        - agents
+      summary: Delete an agent
+      operationId: deleteAgent
+      parameters:
+        - $ref: "#/components/parameters/UUID"
+      responses:
+        "204":
+          description: Agent deleted successfully
+        default:
+          $ref: "#/components/responses/Error"
+  "/agents/{uuid}/-/answer":
+    post:
+      tags:
+        - agents
+      summary: Get a structured answer from an agent
+      operationId: answer
+      parameters:
+        - $ref: "#/components/parameters/UUID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - text
+              properties:
+                text:
+                  type: string
+                options:
+                  $ref: "#/components/schemas/AnswerOptions"
+      responses:
+        "200":
+          description: Agent answer
+          content:
+            application/json:
+              schema:
+                type: object
+        default:
+          $ref: "#/components/responses/Error"
+  "/agents/{uuid}/-/chat":
+    post:
+      tags:
+        - agents
+      summary: Chat with an agent
+      operationId: chat
+      parameters:
+        - $ref: "#/components/parameters/UUID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - text
+              properties:
+                text:
+                  type: string
+                options:
+                  $ref: "#/components/schemas/ChatOptions"
+      responses:
+        "200":
+          description: Agent chat response
+          content:
+            application/json:
+              schema:
+                type: object
+        default:
+          $ref: "#/components/responses/Error"
+  /api-keys:
+    get:
+      tags:
+        - api-keys
+      summary: List API keys
+      operationId: listApiKeys
+      responses:
+        "200":
+          description: A list of API keys
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ApiKey"
+        default:
+          $ref: "#/components/responses/Error"
+    post:
+      tags:
+        - api-keys
+      summary: Create an API key
+      operationId: createApiKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - group
+              properties:
+                group:
+                  type: string
+                  format: uuid
+                description:
+                  type: string
+      responses:
+        "201":
+          description: API key created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiKey"
+        default:
+          $ref: "#/components/responses/Error"
+  "/api-keys/{uuid}":
+    get:
+      tags:
+        - api-keys
+      summary: Get an API key
+      operationId: getApiKey
+      parameters:
+        - $ref: "#/components/parameters/UUID"
+      responses:
+        "200":
+          description: API key details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiKey"
+        default:
+          $ref: "#/components/responses/Error"
+    delete:
+      tags:
+        - api-keys
+      summary: Delete an API key
+      operationId: deleteApiKey
+      parameters:
+        - $ref: "#/components/parameters/UUID"
+      responses:
+        "204":
+          description: API key deleted
+        default:
+          $ref: "#/components/responses/Error"
+  /aspects:
+    get:
+      tags:
+        - aspects
+      summary: List aspects
+      operationId: listAspects
+      responses:
+        "200":
+          description: A list of aspects
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Aspect"
+        default:
+          $ref: "#/components/responses/Error"
+  "/aspects/-/upload":
+    post:
+      tags:
+        - aspects
+      summary: Create or replace an aspect
+      operationId: createOrReplaceAspect
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: A JSON file containing the aspect's metadata.
+      responses:
+        "200":
+          description: Aspect created or replaced successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Aspect"
+        default:
+          $ref: "#/components/responses/Error"
+  "/aspects/{uuid}":
+    get:
+      tags:
+        - aspects
+      summary: Get an aspect
+      operationId: getAspect
+      parameters:
+        - $ref: "#/components/parameters/UUID"
+      responses:
+        "200":
+          description: Aspect details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Aspect"
+        default:
+          $ref: "#/components/responses/Error"
+    delete:
+      tags:
+        - aspects
+      summary: Delete an aspect
+      operationId: deleteAspect
+      parameters:
+        - $ref: "#/components/parameters/UUID"
+      responses:
+        "204":
+          description: Aspect deleted
+        default:
+          $ref: "#/components/responses/Error"
+  "/aspects/{uuid}/-/export":
+    get:
+      tags:
+        - aspects
+      summary: Export an aspect
+      operationId: exportAspect
+      parameters:
+        - $ref: "#/components/parameters/UUID"
+      responses:
+        "200":
+          description: Aspect exported successfully
+          content:
+            application/json:
+              schema:
+                type: string
+                format: binary
+        default:
+          $ref: "#/components/responses/Error"
+  /docs:
+    get:
+      tags:
+        - docs
+      summary: List available documentation
+      operationId: listDocs
+      responses:
+        "200":
+          description: A list of available documentation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DocInfo"
+        default:
+          $ref: "#/components/responses/Error"
+  "/docs/openapi.yaml":
+    get:
+      tags:
+        - docs
+      summary: Get OpenAPI specification
+      operationId: getOpenApiSpec
+      responses:
+        "200":
+          description: OpenAPI specification file
+          content:
+            application/yaml:
+              schema:
+                type: string
+  "/docs/{uuid}":
+    get:
+      tags:
+        - docs
+      summary: Get a document
+      operationId: getDoc
+      parameters:
+        - $ref: "#/components/parameters/UUID"
+      responses:
+        "200":
+          description: Document content
+          content:
+            text/markdown:
+              schema:
+                type: string
+            text/html:
+              schema:
+                type: string
+        default:
+          $ref: "#/components/responses/Error"
+  /extensions:
+    get:
+      tags:
+        - extensions
+      summary: List all extensions
+      operationId: listExtensions
+      responses:
+        "200":
+          description: A list of extensions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/NodeLike"
+        default:
+          $ref: "#/components/responses/Error"
+  "/extensions/{uuid}/-/exec":
+    post:
+      tags:
+        - extensions
+      summary: Run an extension
+      operationId: runExtension
+      parameters:
+        - $ref: "#/components/parameters/UUID"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "200":
+          description: Extension run result
+          content:
+            application/json:
+              schema:
+                type: object
+        default:
+          $ref: "#/components/responses/Error"
+  /features:
+    get:
+      tags:
+        - features
+      summary: List features
+      operationId: listFeatures
+      responses:
+        "200":
+          description: A list of features
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FeatureNode"
+        default:
+          $ref: "#/components/responses/Error"
+  "/features/-/upload":
+    post:
+      tags:
+        - features
+      summary: Create or replace a feature
+      operationId: createOrReplaceFeature
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: A JSON file containing the feature's metadata.
+      responses:
+        "200":
+          description: Feature created or replaced successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeatureNode"
+        default:
+          $ref: "#/components/responses/Error"
+  "/features/{uuid}":
+    get:
+      tags:
+        - features
+      summary: Get a feature
+      operationId: getFeature
+      parameters:
+        - $ref: "#/components/parameters/UUID"
+      responses:
+        "200":
+          description: Feature details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeatureNode"
+        default:
+          $ref: "#/components/responses/Error"
+    delete:
+      tags:
+        - features
+      summary: Delete a feature
+      operationId: deleteFeature
+      parameters:
+        - $ref: "#/components/parameters/UUID"
+      responses:
+        "204":
+          description: Feature deleted
+        default:
+          $ref: "#/components/responses/Error"
+  "/features/{uuid}/-/export":
+    get:
+      tags:
+        - features
+      summary: Export a feature
+      operationId: exportFeature
+      parameters:
+        - $ref: "#/components/parameters/UUID"
+      responses:
+        "200":
+          description: Feature exported successfully
+          content:
+            application/json:
+              schema:
+                type: string
+                format: binary
+        default:
+          $ref: "#/components/responses/Error"
+  /groups:
+    get:
+      tags:
+        - groups
+      summary: List groups
+      operationId: listGroups
+      responses:
+        "200":
+          description: A list of groups
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/NodeLike"
+        default:
+          $ref: "#/components/responses/Error"
+    post:
+      tags:
+        - groups
+      summary: Create a group
+      operationId: createGroup
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - title
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+      responses:
+        "201":
+          description: Group created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NodeLike"
+        default:
+          $ref: "#/components/responses/Error"
+  "/groups/{uuid}":
+    get:
+      tags:
+        - groups
+      summary: Get a group
+      operationId: getGroup
+      parameters:
+        - $ref: "#/components/parameters/UUID"
+      responses:
+        "200":
+          description: Group details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NodeLike"
+        default:
+          $ref: "#/components/responses/Error"
+    put:
+      tags:
+        - groups
+      summary: Update a group
+      operationId: updateGroup
+      parameters:
+        - $ref: "#/components/parameters/UUID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+      responses:
+        "200":
+          description: Group updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NodeLike"
+        default:
+          $ref: "#/components/responses/Error"
+    delete:
+      tags:
+        - groups
+      summary: Delete a group
+      operationId: deleteGroup
+      parameters:
+        - $ref: "#/components/parameters/UUID"
+      responses:
+        "204":
+          description: Group deleted
+        default:
+          $ref: "#/components/responses/Error"
+  "/login/root":
+    post:
+      tags:
+        - login
+      summary: Root login
+      operationId: rootLogin
       requestBody:
         required: true
         content:
           text/plain:
             schema:
               type: string
-              description: SHA256 hashed root password
+              description: SHA-256 encoded root password
       responses:
         "200":
           description: Login successful
@@ -65,852 +711,374 @@ paths:
                 properties:
                   jwt:
                     type: string
-                    description: JWT token for authentication
-        "400":
-          $ref: "#/components/responses/BadRequest"
-
-  # Features
-  /features:
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AntboxError"
+  /nodes:
     get:
       tags:
-        - Features
-      summary: List all features
-      description: |
-        Retrieve a list of all features that are exposed as features.
-        Features are executable code units that can perform various operations.
-      security:
-        - BearerAuth: []
-        - ApiKeyAuth: []
-        - ApiKeyQuery: []
+        - nodes
+      summary: List nodes
+      operationId: listNodes
+      parameters:
+        - name: parent
+          in: query
+          schema:
+            type: string
+            format: uuid
       responses:
         "200":
-          description: List of features
+          description: A list of nodes
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/Feature"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "500":
-          $ref: "#/components/responses/ServiceUnavailable"
-
-  /features/-/upload:
+                  $ref: "#/components/schemas/NodeLike"
+        default:
+          $ref: "#/components/responses/Error"
     post:
       tags:
-        - Features
-      summary: Create or replace feature
-      description: Create a new feature or replace an existing one by uploading a file
-      security:
-        - BearerAuth: []
-        - ApiKeyAuth: []
-        - ApiKeyQuery: []
+        - nodes
+      summary: Create a node
+      operationId: createNode
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NodeMetadata"
+      responses:
+        "201":
+          description: Node created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NodeLike"
+        default:
+          $ref: "#/components/responses/Error"
+  "/nodes/-/find":
+    post:
+      tags:
+        - nodes
+      summary: Find nodes
+      operationId: findNodes
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                filters:
+                  type: array
+                  items:
+                    type: array
+                    items:
+                      type: object
+                pageSize:
+                  type: integer
+                pageToken:
+                  type: string
+      responses:
+        "200":
+          description: A list of nodes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/NodeLike"
+        default:
+          $ref: "#/components/responses/Error"
+  "/nodes/-/upload":
+    post:
+      tags:
+        - nodes
+      summary: Create a file node
+      operationId: createFileNode
       requestBody:
         required: true
         content:
           multipart/form-data:
             schema:
               type: object
+              required:
+                - metadata
+                - file
               properties:
+                metadata:
+                  $ref: "#/components/schemas/NodeMetadata"
                 file:
                   type: string
                   format: binary
-                  description: Feature file (JavaScript/TypeScript)
-              required:
-                - file
       responses:
         "201":
-          description: Feature created successfully
+          description: File node created
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Feature"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "500":
-          $ref: "#/components/responses/ServiceUnavailable"
-
-  /features/{uuid}:
+                $ref: "#/components/schemas/NodeLike"
+        default:
+          $ref: "#/components/responses/Error"
+  "/nodes/{uuid}":
     get:
       tags:
-        - Features
-      summary: Get feature by UUID
-      description: Retrieve a specific feature by its UUID
-      security:
-        - BearerAuth: []
-        - ApiKeyAuth: []
-        - ApiKeyQuery: []
+        - nodes
+      summary: Get a node
+      operationId: getNode
       parameters:
-        - $ref: "#/components/parameters/UuidPath"
+        - $ref: "#/components/parameters/UUID"
       responses:
         "200":
-          description: Feature details
+          description: Node details
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Feature"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "500":
-          $ref: "#/components/responses/ServiceUnavailable"
-
-    delete:
+                $ref: "#/components/schemas/NodeLike"
+        default:
+          $ref: "#/components/responses/Error"
+    patch:
       tags:
-        - Features
-      summary: Delete feature
-      description: Delete a feature by its UUID
-      security:
-        - BearerAuth: []
-        - ApiKeyAuth: []
-        - ApiKeyQuery: []
+        - nodes
+      summary: Update a node
+      operationId: updateNode
       parameters:
-        - $ref: "#/components/parameters/UuidPath"
-      responses:
-        "204":
-          description: Feature deleted successfully
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "500":
-          $ref: "#/components/responses/ServiceUnavailable"
-
-  /features/{uuid}/-/export:
-    get:
-      tags:
-        - Features
-      summary: Export feature
-      description: Export feature code
-      security:
-        - BearerAuth: []
-        - ApiKeyAuth: []
-        - ApiKeyQuery: []
-      parameters:
-        - $ref: "#/components/parameters/UuidPath"
-      responses:
-        "200":
-          description: Exported feature code
-          content:
-            application/javascript:
-              schema:
-                type: string
-                description: JavaScript code for the feature
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "500":
-          $ref: "#/components/responses/ServiceUnavailable"
-
-  # Actions
-  /actions:
-    get:
-      tags:
-        - Actions
-      summary: List all actions
-      description: |
-        Retrieve a list of all features that are exposed as actions.
-        Actions are features that can be executed on selected nodes.
-      security:
-        - BearerAuth: []
-        - ApiKeyAuth: []
-        - ApiKeyQuery: []
-      responses:
-        "200":
-          description: List of action-exposed features
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Feature"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "500":
-          $ref: "#/components/responses/ServiceUnavailable"
-
-  /actions/{uuid}/-/run:
-    post:
-      tags:
-        - Actions
-      summary: Run an action
-      description: |
-        Execute a feature as an action on the specified nodes.
-        Actions operate on a collection of node UUIDs.
-      security:
-        - BearerAuth: []
-        - ApiKeyAuth: []
-        - ApiKeyQuery: []
-      parameters:
-        - $ref: "#/components/parameters/UuidPath"
+        - $ref: "#/components/parameters/UUID"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/ActionRunRequest"
+              $ref: "#/components/schemas/NodeMetadata"
       responses:
         "200":
-          description: Action execution result
+          description: Node updated
           content:
             application/json:
               schema:
-                type: object
-                additionalProperties: true
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "500":
-          $ref: "#/components/responses/ServiceUnavailable"
-
-  # Extensions
-  /extensions:
+                $ref: "#/components/schemas/NodeLike"
+        default:
+          $ref: "#/components/responses/Error"
+    delete:
+      tags:
+        - nodes
+      summary: Delete a node
+      operationId: deleteNode
+      parameters:
+        - $ref: "#/components/parameters/UUID"
+      responses:
+        "204":
+          description: Node deleted
+        default:
+          $ref: "#/components/responses/Error"
+  "/nodes/{uuid}/-/breadcrumbs":
     get:
       tags:
-        - Extensions
-      summary: List all extensions
-      description: |
-        Retrieve a list of all features that are exposed as extensions.
-        Extensions are features that can be executed via HTTP requests.
-      security:
-        - BearerAuth: []
-        - ApiKeyAuth: []
-        - ApiKeyQuery: []
+        - nodes
+      summary: Get node breadcrumbs
+      operationId: getNodeBreadcrumbs
+      parameters:
+        - $ref: "#/components/parameters/UUID"
       responses:
         "200":
-          description: List of extension-exposed features
+          description: A list of breadcrumb nodes
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/Feature"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "500":
-          $ref: "#/components/responses/ServiceUnavailable"
-
-  /extensions/{uuid}/-/exec:
+                  $ref: "#/components/schemas/NodeLike"
+        default:
+          $ref: "#/components/responses/Error"
+  "/nodes/{uuid}/-/copy":
     post:
       tags:
-        - Extensions
-      summary: Run an extension
-      description: |
-        Execute a feature as an extension with the full HTTP request context.
-        Extensions have access to the complete request object.
-      security:
-        - BearerAuth: []
-        - ApiKeyAuth: []
-        - ApiKeyQuery: []
+        - nodes
+      summary: Copy a node
+      operationId: copyNode
       parameters:
-        - $ref: "#/components/parameters/UuidPath"
+        - $ref: "#/components/parameters/UUID"
       requestBody:
-        required: false
+        required: true
         content:
           application/json:
             schema:
               type: object
-              additionalProperties: true
-              description: Request body passed to the extension
-          application/x-www-form-urlencoded:
-            schema:
-              type: object
-              additionalProperties: true
-              description: Form data passed to the extension
+              required:
+                - to
+              properties:
+                to:
+                  type: string
+                  format: uuid
       responses:
         "200":
-          description: Extension execution result
+          description: Node copied
+        default:
+          $ref: "#/components/responses/Error"
+  "/nodes/{uuid}/-/duplicate":
+    get:
+      tags:
+        - nodes
+      summary: Duplicate a node
+      operationId: duplicateNode
+      parameters:
+        - $ref: "#/components/parameters/UUID"
+      responses:
+        "200":
+          description: Node duplicated
           content:
             application/json:
               schema:
-                type: object
-                additionalProperties: true
-            text/html:
-              schema:
-                type: string
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "500":
-          $ref: "#/components/responses/ServiceUnavailable"
-
-  # AI Tools
-  /ai-tools:
+                $ref: "#/components/schemas/NodeLike"
+        default:
+          $ref: "#/components/responses/Error"
+  "/nodes/{uuid}/-/evaluate":
     get:
       tags:
-        - AI Tools
-      summary: List all AI tools
-      description: |
-        Retrieve a list of all features that are exposed as AI tools.
-        AI tools are features that can be used by AI agents.
-      security:
-        - BearerAuth: []
-        - ApiKeyAuth: []
-        - ApiKeyQuery: []
+        - nodes
+      summary: Evaluate a smart folder
+      operationId: evaluateNode
+      parameters:
+        - $ref: "#/components/parameters/UUID"
       responses:
         "200":
-          description: List of AI tool-exposed features
+          description: A list of evaluated nodes
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/Feature"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "500":
-          $ref: "#/components/responses/ServiceUnavailable"
-
+                  $ref: "#/components/schemas/NodeLike"
+        default:
+          $ref: "#/components/responses/Error"
+  "/nodes/{uuid}/-/export":
+    get:
+      tags:
+        - nodes
+      summary: Export a node
+      operationId: exportNode
+      parameters:
+        - $ref: "#/components/parameters/UUID"
+      responses:
+        "200":
+          description: Node content
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        default:
+          $ref: "#/components/responses/Error"
+  "/nodes/{uuid}/-/upload":
+    put:
+      tags:
+        - nodes
+      summary: Update node content
+      operationId: updateNodeContent
+      parameters:
+        - $ref: "#/components/parameters/UUID"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        "204":
+          description: Content updated
+        default:
+          $ref: "#/components/responses/Error"
   /templates:
     get:
       tags:
-        - Templates
+        - templates
       summary: List all templates
-      description: |
-        Retrieve a list of all available templates.
-        Templates are predefined code snippets and configurations.
-      security:
-        - BearerAuth: []
-        - ApiKeyAuth: []
-        - ApiKeyQuery: []
+      operationId: listTemplates
       responses:
         "200":
-          description: List of templates
+          description: A list of templates
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/Template"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "500":
-          $ref: "#/components/responses/ServiceUnavailable"
-
-  /templates/{uuid}:
+                  $ref: "#/components/schemas/TemplateInfo"
+        default:
+          $ref: "#/components/responses/Error"
+  "/templates/{uuid}":
     get:
       tags:
-        - Templates
-      summary: Get template content by UUID
-      description: |
-        Retrieve template content by UUID. Returns the actual template file content
-        with appropriate content type (TypeScript, JavaScript, or JSON).
-      security:
-        - BearerAuth: []
-        - ApiKeyAuth: []
-        - ApiKeyQuery: []
+        - templates
+      summary: Get a template
+      operationId: getTemplate
       parameters:
-        - $ref: "#/components/parameters/UuidPath"
+        - $ref: "#/components/parameters/UUID"
       responses:
         "200":
           description: Template content
           content:
-            text/typescript:
+            text/plain:
               schema:
                 type: string
-                description: TypeScript template content
-            text/javascript:
-              schema:
-                type: string
-                description: JavaScript template content
-            application/json:
-              schema:
-                type: object
-                description: JSON template content
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "500":
-          $ref: "#/components/responses/ServiceUnavailable"
-
-  /docs:
-    get:
-      tags:
-        - Documentation
-      summary: List all documentation
-      description: |
-        Retrieve a list of all available documentation.
-        Documentation includes guides, API references, and system information.
-      security:
-        - BearerAuth: []
-        - ApiKeyAuth: []
-        - ApiKeyQuery: []
-      responses:
-        "200":
-          description: List of documentation
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/DocInfo"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "500":
-          $ref: "#/components/responses/ServiceUnavailable"
-
-  /docs/{uuid}:
-    get:
-      tags:
-        - Documentation
-      summary: Get documentation by UUID
-      description: |
-        Retrieve documentation content by UUID. Returns markdown content
-        for the specified documentation identifier.
-      security:
-        - BearerAuth: []
-        - ApiKeyAuth: []
-        - ApiKeyQuery: []
-      parameters:
-        - $ref: "#/components/parameters/UuidPath"
-      responses:
-        "200":
-          description: Documentation content
-          content:
-            text/markdown:
-              schema:
-                type: string
-                description: Markdown documentation content
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "500":
-          $ref: "#/components/responses/ServiceUnavailable"
-
-  /ai-tools/{uuid}/-/run:
-    post:
-      tags:
-        - AI Tools
-      summary: Run an AI tool
-      description: |
-        Execute a feature as an AI tool with the provided parameters.
-        AI tools are designed to be called by AI agents.
-      security:
-        - BearerAuth: []
-        - ApiKeyAuth: []
-        - ApiKeyQuery: []
-      parameters:
-        - $ref: "#/components/parameters/UuidPath"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              additionalProperties: true
-              description: Parameters for the AI tool execution
-      responses:
-        "200":
-          description: AI tool execution result
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "500":
-          $ref: "#/components/responses/ServiceUnavailable"
-
-  # Agents
-  /agents:
-    get:
-      tags:
-        - Agents
-      summary: List agents
-      description: |
-        Retrieve a list of all AI agents configured in the system.
-        Agents are AI assistants that can chat and answer questions.
-      security:
-        - BearerAuth: []
-        - ApiKeyAuth: []
-        - ApiKeyQuery: []
-      responses:
-        "200":
-          description: List of agents
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Agent"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "500":
-          $ref: "#/components/responses/ServiceUnavailable"
-
-  /agents/-/upload:
-    post:
-      tags:
-        - Agents
-      summary: Create or replace agent
-      description: Create a new agent or replace an existing one by uploading metadata
-      security:
-        - BearerAuth: []
-        - ApiKeyAuth: []
-        - ApiKeyQuery: []
-      requestBody:
-        required: true
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              properties:
-                file:
-                  type: string
-                  format: binary
-                  description: Agent metadata file (JSON)
-              required:
-                - file
-      responses:
-        "201":
-          description: Agent created successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Agent"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "500":
-          $ref: "#/components/responses/ServiceUnavailable"
-
-  /agents/{uuid}:
-    get:
-      tags:
-        - Agents
-      summary: Get agent by UUID
-      description: Retrieve a specific AI agent by its UUID
-      security:
-        - BearerAuth: []
-        - ApiKeyAuth: []
-        - ApiKeyQuery: []
-      parameters:
-        - $ref: "#/components/parameters/UuidPath"
-      responses:
-        "200":
-          description: Agent details
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Agent"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "500":
-          $ref: "#/components/responses/ServiceUnavailable"
-
-    delete:
-      tags:
-        - Agents
-      summary: Delete agent
-      description: Delete an AI agent by its UUID
-      security:
-        - BearerAuth: []
-        - ApiKeyAuth: []
-        - ApiKeyQuery: []
-      parameters:
-        - $ref: "#/components/parameters/UuidPath"
-      responses:
-        "204":
-          description: Agent deleted successfully
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "500":
-          $ref: "#/components/responses/ServiceUnavailable"
-
-  /agents/{uuid}/-/chat:
-    post:
-      tags:
-        - Agents
-      summary: Chat with agent
-      description: |
-        Send a message to an AI agent and receive a conversational response.
-        Supports file attachments and conversation history.
-      security:
-        - BearerAuth: []
-        - ApiKeyAuth: []
-        - ApiKeyQuery: []
-      parameters:
-        - $ref: "#/components/parameters/UuidPath"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/AgentChatRequest"
-      responses:
-        "200":
-          description: Chat response from agent
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "500":
-          $ref: "#/components/responses/ServiceUnavailable"
-
-  /agents/{uuid}/-/answer:
-    post:
-      tags:
-        - Agents
-      summary: Get answer from agent
-      description: |
-        Ask a question to an AI agent and receive a direct answer.
-        Similar to chat but focused on question-answering scenarios.
-      security:
-        - BearerAuth: []
-        - ApiKeyAuth: []
-        - ApiKeyQuery: []
-      parameters:
-        - $ref: "#/components/parameters/UuidPath"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/AgentAnswerRequest"
-      responses:
-        "200":
-          description: Answer from agent
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "500":
-          $ref: "#/components/responses/ServiceUnavailable"
-
-  /agents/rag/-/chat:
-    post:
-      tags:
-        - Agents
-      summary: RAG chat
-      description: |
-        Perform Retrieval-Augmented Generation (RAG) chat using the knowledge base.
-        This searches relevant documents and generates responses based on them.
-      security:
-        - BearerAuth: []
-        - ApiKeyAuth: []
-        - ApiKeyQuery: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/RagChatRequest"
-      responses:
-        "200":
-          description: RAG chat response
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "500":
-          $ref: "#/components/responses/ServiceUnavailable"
-
-  # API Keys
-  /api-keys:
-    get:
-      tags:
-        - API Keys
-      summary: List API keys
-      description: |
-        Retrieve a list of all API keys.
-        API keys provide programmatic access to the Antbox API.
-      security:
-        - BearerAuth: []
-      responses:
-        "200":
-          description: List of API keys
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/ApiKey"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "500":
-          $ref: "#/components/responses/ServiceUnavailable"
-
-    post:
-      tags:
-        - API Keys
-      summary: Create API key
-      description: |
-        Create a new API key for programmatic access.
-        API keys are associated with groups for permission management.
-      security:
-        - BearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ApiKeyCreate"
-      responses:
-        "201":
-          description: API key created successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiKey"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "500":
-          $ref: "#/components/responses/ServiceUnavailable"
-
-  /api-keys/{uuid}:
-    get:
-      tags:
-        - API Keys
-      summary: Get API key by UUID
-      description: Retrieve a specific API key by its UUID
-      security:
-        - BearerAuth: []
-      parameters:
-        - $ref: "#/components/parameters/UuidPath"
-      responses:
-        "200":
-          description: API key details
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiKey"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "500":
-          $ref: "#/components/responses/ServiceUnavailable"
-
-    delete:
-      tags:
-        - API Keys
-      summary: Delete API key
-      description: Delete an API key by its UUID
-      security:
-        - BearerAuth: []
-      parameters:
-        - $ref: "#/components/parameters/UuidPath"
-      responses:
-        "204":
-          description: API key deleted successfully
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "500":
-          $ref: "#/components/responses/ServiceUnavailable"
-
-  # Users
+        default:
+          $ref: "#/components/responses/Error"
   /users:
     get:
       tags:
-        - Users
+        - users
       summary: List users
-      description: Retrieve a list of all users
-      security:
-        - BearerAuth: []
+      operationId: listUsers
       responses:
         "200":
-          description: List of users
+          description: A list of users
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/User"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "500":
-          $ref: "#/components/responses/ServiceUnavailable"
-
+                  $ref: "#/components/schemas/NodeLike"
+        default:
+          $ref: "#/components/responses/Error"
     post:
       tags:
-        - Users
-      summary: Create user
-      description: Create a new user account
-      security:
-        - BearerAuth: []
+        - users
+      summary: Create a user
+      operationId: createUser
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/UserCreate"
+              $ref: "#/components/schemas/NodeMetadata"
       responses:
         "201":
-          description: User created successfully
+          description: User created
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/User"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "500":
-          $ref: "#/components/responses/ServiceUnavailable"
-
-  /users/{email}:
+                $ref: "#/components/schemas/NodeLike"
+        default:
+          $ref: "#/components/responses/Error"
+  "/users/{email}":
     get:
       tags:
-        - Users
-      summary: Get user by email
-      description: Retrieve a specific user by their email address
-      security:
-        - BearerAuth: []
+        - users
+      summary: Get a user by email
+      operationId: getUserByEmail
       parameters:
         - name: email
           in: path
           required: true
-          description: User email address
           schema:
             type: string
             format: email
@@ -920,26 +1088,18 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/User"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "500":
-          $ref: "#/components/responses/ServiceUnavailable"
-
+                $ref: "#/components/schemas/NodeLike"
+        default:
+          $ref: "#/components/responses/Error"
     put:
       tags:
-        - Users
-      summary: Update user
-      description: Update an existing user's information
-      security:
-        - BearerAuth: []
+        - users
+      summary: Update a user by email
+      operationId: updateUserByEmail
       parameters:
         - name: email
           in: path
           required: true
-          description: User email address
           schema:
             type: string
             format: email
@@ -948,1550 +1108,675 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/UserUpdate"
+              $ref: "#/components/schemas/NodeMetadata"
       responses:
         "200":
-          description: User updated successfully
+          description: User updated
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/User"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "500":
-          $ref: "#/components/responses/ServiceUnavailable"
-
-  /users/{uuid}:
+                $ref: "#/components/schemas/NodeLike"
+        default:
+          $ref: "#/components/responses/Error"
+  "/users/{uuid}":
+    get:
+      tags:
+        - users
+      summary: Get a user
+      operationId: getUser
+      parameters:
+        - $ref: "#/components/parameters/UUID"
+      responses:
+        "200":
+          description: User details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NodeLike"
+        default:
+          $ref: "#/components/responses/Error"
     delete:
       tags:
-        - Users
-      summary: Delete user
-      description: Delete a user by their UUID
-      security:
-        - BearerAuth: []
+        - users
+      summary: Delete a user
+      operationId: deleteUser
       parameters:
-        - $ref: "#/components/parameters/UuidPath"
+        - $ref: "#/components/parameters/UUID"
       responses:
         "204":
-          description: User deleted successfully
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "500":
-          $ref: "#/components/responses/ServiceUnavailable"
-
-  # Groups
-  /groups:
-    get:
-      tags:
-        - Groups
-      summary: List groups
-      description: Retrieve a list of all groups
-      security:
-        - BearerAuth: []
-      responses:
-        "200":
-          description: List of groups
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Group"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "500":
-          $ref: "#/components/responses/ServiceUnavailable"
-
-    post:
-      tags:
-        - Groups
-      summary: Create group
-      description: Create a new group
-      security:
-        - BearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/GroupCreate"
-      responses:
-        "201":
-          description: Group created successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Group"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "500":
-          $ref: "#/components/responses/ServiceUnavailable"
-
-  /groups/{uuid}:
-    get:
-      tags:
-        - Groups
-      summary: Get group by UUID
-      description: Retrieve a specific group by its UUID
-      security:
-        - BearerAuth: []
-      parameters:
-        - $ref: "#/components/parameters/UuidPath"
-      responses:
-        "200":
-          description: Group details
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Group"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "500":
-          $ref: "#/components/responses/ServiceUnavailable"
-
-    put:
-      tags:
-        - Groups
-      summary: Update group
-      description: Update an existing group's information
-      security:
-        - BearerAuth: []
-      parameters:
-        - $ref: "#/components/parameters/UuidPath"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/GroupUpdate"
-      responses:
-        "200":
-          description: Group updated successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Group"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "500":
-          $ref: "#/components/responses/ServiceUnavailable"
-
-    delete:
-      tags:
-        - Groups
-      summary: Delete group
-      description: Delete a group by its UUID
-      security:
-        - BearerAuth: []
-      parameters:
-        - $ref: "#/components/parameters/UuidPath"
-      responses:
-        "204":
-          description: Group deleted successfully
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "500":
-          $ref: "#/components/responses/ServiceUnavailable"
-
-  # Nodes
-  /nodes:
-    get:
-      tags:
-        - Nodes
-      summary: List nodes
-      description: |
-        Retrieve a list of nodes, optionally filtered by parent folder.
-        If no parent is specified, returns nodes in the root folder.
-      security:
-        - BearerAuth: []
-        - ApiKeyAuth: []
-        - ApiKeyQuery: []
-        - {} # Anonymous access with limited permissions
-      parameters:
-        - name: parent
-          in: query
-          description: Parent folder UUID to filter by
-          schema:
-            type: string
-      responses:
-        "200":
-          description: List of nodes
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Node"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "500":
-          $ref: "#/components/responses/ServiceUnavailable"
-
-    post:
-      tags:
-        - Nodes
-      summary: Create node
-      description: |
-        Create a new node (file or folder) with metadata.
-        For files, use the upload endpoint instead.
-      security:
-        - BearerAuth: []
-        - ApiKeyAuth: []
-        - ApiKeyQuery: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/NodeCreate"
-      responses:
-        "201":
-          description: Node created successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Node"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "500":
-          $ref: "#/components/responses/ServiceUnavailable"
-
-  /nodes/-/upload:
-    post:
-      tags:
-        - Nodes
-      summary: Upload file
-      description: |
-        Upload a file and create a new node. This is the preferred method
-        for creating nodes with file content.
-      security:
-        - BearerAuth: []
-        - ApiKeyAuth: []
-        - ApiKeyQuery: []
-      requestBody:
-        required: true
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              properties:
-                file:
-                  type: string
-                  format: binary
-                  description: File content
-                metadata:
-                  type: string
-                  description: JSON metadata for the node
-              required:
-                - file
-      responses:
-        "201":
-          description: File uploaded successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Node"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "500":
-          $ref: "#/components/responses/ServiceUnavailable"
-
-  /nodes/{uuid}:
-    get:
-      tags:
-        - Nodes
-      summary: Get node by UUID
-      description: Retrieve a specific node by its UUID
-      security:
-        - BearerAuth: []
-        - ApiKeyAuth: []
-        - ApiKeyQuery: []
-        - {} # Anonymous access with limited permissions
-      parameters:
-        - $ref: "#/components/parameters/UuidPath"
-      responses:
-        "200":
-          description: Node details
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Node"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "500":
-          $ref: "#/components/responses/ServiceUnavailable"
-
-    patch:
-      tags:
-        - Nodes
-      summary: Update node
-      description: Update a node's metadata by its UUID
-      security:
-        - BearerAuth: []
-        - ApiKeyAuth: []
-        - ApiKeyQuery: []
-      parameters:
-        - $ref: "#/components/parameters/UuidPath"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/NodeUpdate"
-      responses:
-        "200":
-          description: Node updated successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Node"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "500":
-          $ref: "#/components/responses/ServiceUnavailable"
-
-    delete:
-      tags:
-        - Nodes
-      summary: Delete node
-      description: Delete a node by its UUID
-      security:
-        - BearerAuth: []
-        - ApiKeyAuth: []
-        - ApiKeyQuery: []
-      parameters:
-        - $ref: "#/components/parameters/UuidPath"
-      responses:
-        "204":
-          description: Node deleted successfully
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "500":
-          $ref: "#/components/responses/ServiceUnavailable"
-
-  /nodes/{uuid}/-/copy:
-    post:
-      tags:
-        - Nodes
-      summary: Copy node
-      description: Create a copy of a node
-      security:
-        - BearerAuth: []
-        - ApiKeyAuth: []
-        - ApiKeyQuery: []
-      parameters:
-        - $ref: "#/components/parameters/UuidPath"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                to:
-                  type: string
-                  description: Target parent folder UUID
-              required:
-                - to
-      responses:
-        "201":
-          description: Node copied successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Node"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "500":
-          $ref: "#/components/responses/ServiceUnavailable"
-
-  /nodes/{uuid}/-/duplicate:
-    get:
-      tags:
-        - Nodes
-      summary: Duplicate node
-      description: Create a duplicate of a node in the same location
-      security:
-        - BearerAuth: []
-        - ApiKeyAuth: []
-        - ApiKeyQuery: []
-      parameters:
-        - $ref: "#/components/parameters/UuidPath"
-      responses:
-        "201":
-          description: Node duplicated successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Node"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "500":
-          $ref: "#/components/responses/ServiceUnavailable"
-
-  /nodes/{uuid}/-/export:
-    get:
-      tags:
-        - Nodes
-      summary: Export node
-      description: Export a node's content
-      security:
-        - BearerAuth: []
-        - ApiKeyAuth: []
-        - ApiKeyQuery: []
-      parameters:
-        - $ref: "#/components/parameters/UuidPath"
-      responses:
-        "200":
-          description: Exported node content
-          content:
-            application/octet-stream:
-              schema:
-                type: string
-                format: binary
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "500":
-          $ref: "#/components/responses/ServiceUnavailable"
-
-  /nodes/{uuid}/-/evaluate:
-    get:
-      tags:
-        - Nodes
-      summary: Evaluate node
-      description: Evaluate a node (for executable content)
-      security:
-        - BearerAuth: []
-        - ApiKeyAuth: []
-        - ApiKeyQuery: []
-      parameters:
-        - $ref: "#/components/parameters/UuidPath"
-      responses:
-        "200":
-          description: Node evaluation result
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "500":
-          $ref: "#/components/responses/ServiceUnavailable"
-
-  /nodes/-/find:
-    post:
-      tags:
-        - Nodes
-      summary: Find nodes with filters
-      description: |
-        Search for nodes using advanced filter criteria.
-        Supports complex queries with multiple conditions.
-      security:
-        - BearerAuth: []
-        - ApiKeyAuth: []
-        - ApiKeyQuery: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                filters:
-                  $ref: "#/components/schemas/NodeFilters"
-                  description: Filter criteria to apply
-                pageSize:
-                  type: integer
-                  minimum: 1
-                  maximum: 1000
-                  default: 50
-                  description: Number of results per page
-                pageToken:
-                  type: integer
-                  minimum: 1
-                  default: 1
-                  description: Page number (1-based)
-              required:
-                - filters
-      responses:
-        "200":
-          description: Filter results
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/NodeFilterResult"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "500":
-          $ref: "#/components/responses/ServiceUnavailable"
-
-  /nodes/{uuid}/-/upload:
-    put:
-      tags:
-        - Nodes
-      summary: Update node with file upload
-      description: |
-        Update an existing node's file content and optionally its metadata.
-        This replaces the node's content with the uploaded file.
-      security:
-        - BearerAuth: []
-        - ApiKeyAuth: []
-        - ApiKeyQuery: []
-      parameters:
-        - $ref: "#/components/parameters/UuidPath"
-      requestBody:
-        required: true
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              properties:
-                file:
-                  type: string
-                  format: binary
-                  description: New file content
-              required:
-                - file
-      responses:
-        "200":
-          description: Node updated successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Node"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "500":
-          $ref: "#/components/responses/ServiceUnavailable"
-
-  /nodes/{uuid}/-/breadcrumbs:
-    get:
-      tags:
-        - Nodes
-      summary: Get folder breadcrumb trail
-      description: Retrieve the breadcrumb trail for a folder node, showing the path from root to the current folder. Only works for folder nodes.
-      security:
-        - BearerAuth: []
-        - ApiKeyAuth: []
-        - ApiKeyQuery: []
-        - {} # Anonymous access with limited permissions
-      parameters:
-        - $ref: "#/components/parameters/UuidPath"
-      responses:
-        "200":
-          description: Breadcrumb trail for the folder
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Breadcrumb"
-                description: Array of breadcrumb items from root to current folder
-        "400":
-          description: Bad request - node is not a folder
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "500":
-          $ref: "#/components/responses/ServiceUnavailable"
-
-  # Aspects
-  /aspects:
-    get:
-      tags:
-        - Aspects
-      summary: List aspects
-      description: |
-        Retrieve a list of all aspects. Aspects define additional
-        properties and behaviors for nodes.
-      security:
-        - BearerAuth: []
-        - ApiKeyAuth: []
-        - ApiKeyQuery: []
-      responses:
-        "200":
-          description: List of aspects
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Aspect"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "500":
-          $ref: "#/components/responses/ServiceUnavailable"
-
-  /aspects/-/upload:
-    post:
-      tags:
-        - Aspects
-      summary: Create or replace aspect
-      description: Create a new aspect or replace an existing one by uploading a file
-      security:
-        - BearerAuth: []
-        - ApiKeyAuth: []
-        - ApiKeyQuery: []
-      requestBody:
-        required: true
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              properties:
-                file:
-                  type: string
-                  format: binary
-                  description: Aspect file (JavaScript/TypeScript)
-              required:
-                - file
-      responses:
-        "201":
-          description: Aspect created or replaced successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Aspect"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "500":
-          $ref: "#/components/responses/ServiceUnavailable"
-
-  /aspects/{uuid}:
-    get:
-      tags:
-        - Aspects
-      summary: Get aspect by UUID
-      description: Retrieve a specific aspect by its UUID
-      security:
-        - BearerAuth: []
-        - ApiKeyAuth: []
-        - ApiKeyQuery: []
-      parameters:
-        - $ref: "#/components/parameters/UuidPath"
-      responses:
-        "200":
-          description: Aspect details
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Aspect"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "500":
-          $ref: "#/components/responses/ServiceUnavailable"
-
-    delete:
-      tags:
-        - Aspects
-      summary: Delete aspect
-      description: Delete an aspect by its UUID
-      security:
-        - BearerAuth: []
-        - ApiKeyAuth: []
-        - ApiKeyQuery: []
-      parameters:
-        - $ref: "#/components/parameters/UuidPath"
-      responses:
-        "204":
-          description: Aspect deleted successfully
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "500":
-          $ref: "#/components/responses/ServiceUnavailable"
-
-  /aspects/{uuid}/-/export:
-    get:
-      tags:
-        - Aspects
-      summary: Export aspect
-      description: Export an aspect in various formats
-      security:
-        - BearerAuth: []
-        - ApiKeyAuth: []
-        - ApiKeyQuery: []
-      parameters:
-        - $ref: "#/components/parameters/UuidPath"
-        - name: format
-          in: query
-          description: Export format
-          schema:
-            type: string
-            enum: [json, javascript]
-            default: json
-      responses:
-        "200":
-          description: Exported aspect data
-          content:
-            application/json:
-              schema:
-                type: object
-            application/javascript:
-              schema:
-                type: string
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "500":
-          $ref: "#/components/responses/ServiceUnavailable"
-
+          description: User deleted
+        default:
+          $ref: "#/components/responses/Error"
 components:
-  securitySchemes:
-    BearerAuth:
-      type: http
-      scheme: bearer
-      bearerFormat: JWT
-      description: |
-        JWT Bearer token authentication. Supports both user JWT tokens and root user tokens.
-        Root tokens are issued by the `/login/root` endpoint.
-    ApiKeyAuth:
-      type: apiKey
-      in: header
-      name: Authorization
-      description: |
-        API Key authentication using the format "ApiKey <key>" in the Authorization header.
-        Example: `Authorization: ApiKey abc123def456`
-        API keys inherit the permissions of their associated group.
-    ApiKeyQuery:
-      type: apiKey
-      in: query
-      name: api_key
-      description: |
-        API Key authentication via query parameter. Use this as an alternative to the Authorization header.
-        Example: `?api_key=abc123def456`
-
-  parameters:
-    UuidPath:
-      name: uuid
-      in: path
-      required: true
-      description: UUID of the resource
-      schema:
-        type: string
-        format: uuid
-
-  responses:
-    BadRequest:
-      description: Bad request - invalid parameters or request body
-      content:
-        application/json:
-          schema:
-            $ref: "#/components/schemas/Error"
-
-    Unauthorized:
-      description: Unauthorized - invalid or missing authentication
-      content:
-        application/json:
-          schema:
-            $ref: "#/components/schemas/Error"
-
-    Forbidden:
-      description: Forbidden - insufficient permissions
-      content:
-        application/json:
-          schema:
-            $ref: "#/components/schemas/Error"
-
-    NotFound:
-      description: Resource not found
-      content:
-        application/json:
-          schema:
-            $ref: "#/components/schemas/Error"
-
-    MethodNotAllowed:
-      description: Method not allowed for this resource
-      content:
-        application/json:
-          schema:
-            $ref: "#/components/schemas/Error"
-
-    ServiceUnavailable:
-      description: Service unavailable - the requested service is not available or not configured
-      content:
-        application/json:
-          schema:
-            $ref: "#/components/schemas/Error"
-
   schemas:
-    Feature:
+    Agent:
       type: object
+      required:
+        - uuid
+        - title
+        - description
+        - owner
+        - createdTime
+        - modifiedTime
+        - model
+        - temperature
+        - maxTokens
+        - reasoning
+        - useTools
+        - systemInstructions
       properties:
         uuid:
           type: string
           format: uuid
-          description: Unique identifier for the feature
-        name:
+        title:
           type: string
-          description: Feature name
         description:
           type: string
-          description: Feature description
+        owner:
+          type: string
+          format: uuid
+        createdTime:
+          type: string
+          format: date-time
+        modifiedTime:
+          type: string
+          format: date-time
+        model:
+          type: string
+        temperature:
+          type: number
+        maxTokens:
+          type: integer
+        reasoning:
+          type: boolean
+        useTools:
+          type: boolean
+        systemInstructions:
+          type: string
+        structuredAnswer:
+          type: string
+    ApiKey:
+      type: object
+      required:
+        - uuid
+        - group
+        - owner
+      properties:
+        uuid:
+          type: string
+          format: uuid
+        group:
+          type: string
+          format: uuid
+        owner:
+          type: string
+          format: email
+        description:
+          type: string
+        secret:
+          type: string
+    AntboxError:
+      type: object
+      required:
+        - errorCode
+        - message
+      properties:
+        errorCode:
+          type: string
+        message:
+          type: string
+    ApiKeyNode:
+      type: object
+      allOf:
+        - $ref: "#/components/schemas/BaseNode"
+      properties:
+        group:
+          type: string
+          format: uuid
+        secret:
+          type: string
+    AspectNode:
+      type: object
+      allOf:
+        - $ref: "#/components/schemas/BaseNode"
+      properties:
+        filters:
+          type: array
+          items:
+            type: object
+        properties:
+          type: array
+          items:
+            $ref: "#/components/schemas/AspectProperty"
+    AspectProperty:
+      type: object
+      required:
+        - name
+        - title
+        - type
+      properties:
+        name:
+          type: string
+        title:
+          type: string
+        type:
+          type: string
+          enum:
+            ["uuid", "string", "number", "boolean", "object", "array", "file"]
+        arrayType:
+          type: string
+          enum: ["string", "number", "uuid", "object"]
+        stringMimetype:
+          type: string
+        readonly:
+          type: boolean
+        validationRegex:
+          type: string
+        validationList:
+          type: array
+          items:
+            type: string
+        validationFilters:
+          type: array
+          items:
+            type: object
+        required:
+          type: boolean
+        searchable:
+          type: boolean
+        default:
+          type: object
+          nullable: true
+    AnswerOptions:
+      type: object
+      properties:
+        context:
+          type: object
+          additionalProperties: true
+    Aspect:
+      type: object
+      required:
+        - uuid
+        - title
+      properties:
+        uuid:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+        filters:
+          type: array
+          items:
+            type: array
+            items:
+              type: object
+        properties:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              type:
+                type: string
+              title:
+                type: string
+              description:
+                type: string
+              required:
+                type: boolean
+              readonly:
+                type: boolean
+              default:
+                type: object
+    ChatOptions:
+      type: object
+      properties:
+        context:
+          type: object
+          additionalProperties: true
+        parent:
+          type: string
+          format: uuid
+    DocInfo:
+      type: object
+      required:
+        - id
+        - title
+        - mimetype
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        mimetype:
+          type: string
+    FeatureNode:
+      type: object
+      allOf:
+        - $ref: "#/components/schemas/BaseNode"
+      properties:
+        size:
+          type: integer
+        name:
+          type: string
         exposeAction:
           type: boolean
-          description: Whether feature is exposed as an action
         runOnCreates:
           type: boolean
-          description: Whether feature runs automatically on node creation
         runOnUpdates:
           type: boolean
-          description: Whether feature runs automatically on node updates
         runManually:
           type: boolean
-          description: Whether feature can be run manually
         filters:
-          $ref: "#/components/schemas/NodeFilters"
-          description: Node filters that determine when the feature runs
+          type: array
+          items:
+            type: array
+            items:
+              type: object
         exposeExtension:
           type: boolean
-          description: Whether feature is exposed as an extension
         exposeAITool:
           type: boolean
-          description: Whether feature is exposed as an AI tool
         runAs:
           type: string
-          description: Email of user to run the feature as
         groupsAllowed:
           type: array
           items:
             type: string
-          description: Groups allowed to execute this feature
+            format: uuid
         parameters:
           type: array
           items:
-            $ref: "#/components/schemas/Parameter"
-          description: Feature parameters
+            $ref: "#/components/schemas/FeatureParameter"
         returnType:
           type: string
           enum:
-            ["string", "number", "boolean", "array", "object", "file", "void"]
-          description: Return type of the feature
+            - string
+            - number
+            - boolean
+            - array
+            - object
+            - file
+            - void
         returnDescription:
           type: string
-          description: Description of the return value
         returnContentType:
           type: string
-          description: Content type of the return value (for file returns)
-
-    Parameter:
+    FeatureParameter:
       type: object
+      required:
+        - name
+        - type
+        - required
       properties:
         name:
           type: string
-          description: Parameter name
         type:
           type: string
-          description: Parameter type
-        description:
+          enum: ["string", "number", "boolean", "object", "array", "file"]
+        arrayType:
           type: string
-          description: Parameter description
+          enum: ["string", "number", "file", "object"]
+        contentType:
+          type: string
         required:
           type: boolean
-          description: Whether parameter is required
+        description:
+          type: string
         defaultValue:
-          description: Default value for the parameter
-
-    Node:
-      type: object
-      properties:
-        uuid:
-          type: string
-          format: uuid
-          description: Unique identifier
-        fid:
-          type: string
-          description: File identifier
-        title:
-          type: string
-          description: Node title
-        mimetype:
-          type: string
-          description: MIME type
-        parent:
-          type: string
-          description: Parent folder UUID
-        owner:
-          type: string
-          description: Owner email
-        group:
-          type: string
-          description: Group UUID
-        permissions:
-          $ref: "#/components/schemas/Permissions"
-        size:
-          type: integer
-          description: Size in bytes (for files)
-        createdAt:
-          type: string
-          format: date-time
-          description: Creation timestamp
-        modifiedAt:
-          type: string
-          format: date-time
-          description: Last modification timestamp
-
-    NodeCreate:
-      type: object
-      required:
-        - title
-        - mimetype
-      properties:
-        title:
-          type: string
-          description: Node title
-        mimetype:
-          type: string
-          description: MIME type
-        parent:
-          type: string
-          description: Parent folder UUID
-        content:
-          type: string
-          description: Node content (for text-based nodes)
-        permissions:
-          $ref: "#/components/schemas/Permissions"
-
-    NodeUpdate:
-      type: object
-      properties:
-        title:
-          type: string
-          description: Node title
-        mimetype:
-          type: string
-          description: MIME type
-        parent:
-          type: string
-          description: Parent folder UUID
-        content:
-          type: string
-          description: Node content (for text-based nodes)
-        permissions:
-          $ref: "#/components/schemas/Permissions"
-
-    Aspect:
-      type: object
-      properties:
-        uuid:
-          type: string
-          format: uuid
-          description: Unique identifier
-        title:
-          type: string
-          description: Aspect title
-        description:
-          type: string
-          description: Aspect description
-        filters:
-          $ref: "#/components/schemas/NodeFilters"
-          description: Node filters for aspect application
-        properties:
           type: object
-          additionalProperties: true
-          description: Aspect properties configuration
-
-    AspectCreate:
-      type: object
-      required:
-        - title
-      properties:
-        title:
-          type: string
-          description: Aspect title
-        description:
-          type: string
-          description: Aspect description
-        filters:
-          $ref: "#/components/schemas/NodeFilters"
-          description: Node filters for aspect application
-        properties:
-          type: object
-          additionalProperties: true
-          description: Aspect properties configuration
-
+          nullable: true
+    Permission:
+      type: string
+      enum:
+        - Read
+        - Write
+        - Export
     Permissions:
       type: object
       properties:
         group:
           type: array
           items:
-            type: string
-            enum: [Read, Write, Execute]
-          description: Permissions for group members
+            $ref: "#/components/schemas/Permission"
         authenticated:
           type: array
           items:
-            type: string
-            enum: [Read, Write, Execute]
-          description: Permissions for authenticated users
+            $ref: "#/components/schemas/Permission"
         anonymous:
           type: array
           items:
-            type: string
-            enum: [Read, Write, Execute]
-          description: Permissions for anonymous users
+            $ref: "#/components/schemas/Permission"
         advanced:
           type: object
-          additionalProperties: true
-          description: Advanced permission settings
-
-    NodeFilters:
-      oneOf:
-        - $ref: "#/components/schemas/NodeFilters1D"
-        - $ref: "#/components/schemas/NodeFilters2D"
-      description: Filter criteria for nodes - can be 1D array of filters (AND) or 2D array of filter groups (OR)
-
-    NodeFilters1D:
-      type: array
-      description: Array of filters (all must match - AND logic)
-      items:
-        $ref: "#/components/schemas/NodeFilter"
-
-    NodeFilters2D:
-      type: array
-      description: Array of filter groups (any group can match - OR logic)
-      items:
-        $ref: "#/components/schemas/NodeFilters1D"
-
-    NodeFilter:
-      type: array
-      description: Single filter condition [field, operator, value]
-      minItems: 3
-      maxItems: 3
-      items:
-        oneOf:
-          - type: string
-          - type: number
-          - type: boolean
-          - type: array
-      example: ["title", "contains", "test"]
-
-    NodeFilterResult:
-      type: object
-      properties:
-        nodes:
-          type: array
-          items:
-            $ref: "#/components/schemas/Node"
-          description: Array of matching nodes
-        pageSize:
-          type: integer
-          description: Number of results per page
-        pageToken:
-          type: integer
-          description: Current page number
-      required:
-        - nodes
-        - pageSize
-        - pageToken
-
-    Error:
-      type: object
-      properties:
-        error:
-          type: string
-          description: Error message
-        code:
-          type: string
-          description: Error code
-        details:
-          type: object
-          additionalProperties: true
-          description: Additional error details
-
-    ActionRunRequest:
+          additionalProperties:
+            type: array
+            items:
+              $ref: "#/components/schemas/Permission"
+    BaseNode:
       type: object
       required:
-        - uuids
+        - uuid
+        - fid
+        - title
+        - mimetype
+        - parent
+        - createdTime
+        - modifiedTime
+        - owner
       properties:
-        uuids:
+        uuid:
+          type: string
+          format: uuid
+        fid:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        mimetype:
+          type: string
+        parent:
+          type: string
+          format: uuid
+        createdTime:
+          type: string
+          format: date-time
+        modifiedTime:
+          type: string
+          format: date-time
+        owner:
+          type: string
+          format: email
+        fulltext:
+          type: string
+        permissions:
+          $ref: "#/components/schemas/Permissions"
+    FileNode:
+      type: object
+      allOf:
+        - $ref: "#/components/schemas/BaseNode"
+      properties:
+        size:
+          type: integer
+        aspects:
           type: array
           items:
             type: string
             format: uuid
-          description: Array of node UUIDs to process with the action
-        parameters:
+        properties:
           type: object
           additionalProperties: true
-          description: Optional parameters for the action execution
-
-    Agent:
+        tags:
+          type: array
+          items:
+            type: string
+        related:
+          type: array
+          items:
+            type: string
+            format: uuid
+    FolderNode:
+      type: object
+      allOf:
+        - $ref: "#/components/schemas/BaseNode"
+      properties:
+        aspects:
+          type: array
+          items:
+            type: string
+            format: uuid
+        filters:
+          type: array
+          items:
+            type: object
+        group:
+          type: string
+          format: uuid
+        onCreate:
+          type: array
+          items:
+            type: string
+        onDelete:
+          type: array
+          items:
+            type: string
+        onUpdate:
+          type: array
+          items:
+            type: string
+        permissions:
+          $ref: "#/components/schemas/Permissions"
+        properties:
+          type: object
+          additionalProperties: true
+        related:
+          type: array
+          items:
+            type: string
+            format: uuid
+        tags:
+          type: array
+          items:
+            type: string
+    GroupNode:
+      type: object
+      allOf:
+        - $ref: "#/components/schemas/BaseNode"
+    MetaNode:
+      type: object
+      allOf:
+        - $ref: "#/components/schemas/BaseNode"
+      properties:
+        aspects:
+          type: array
+          items:
+            type: string
+            format: uuid
+        properties:
+          type: object
+          additionalProperties: true
+        related:
+          type: array
+          items:
+            type: string
+            format: uuid
+        tags:
+          type: array
+          items:
+            type: string
+    SmartFolderNode:
+      type: object
+      allOf:
+        - $ref: "#/components/schemas/BaseNode"
+      properties:
+        filters:
+          type: array
+          items:
+            type: object
+    UserNode:
+      type: object
+      allOf:
+        - $ref: "#/components/schemas/BaseNode"
+      properties:
+        email:
+          type: string
+          format: email
+        group:
+          type: string
+          format: uuid
+        groups:
+          type: array
+          items:
+            type: string
+            format: uuid
+    NodeLike:
+      oneOf:
+        - $ref: "#/components/schemas/ApiKeyNode"
+        - $ref: "#/components/schemas/AspectNode"
+        - $ref: "#/components/schemas/FeatureNode"
+        - $ref: "#/components/schemas/FileNode"
+        - $ref: "#/components/schemas/FolderNode"
+        - $ref: "#/components/schemas/GroupNode"
+        - $ref: "#/components/schemas/MetaNode"
+        - $ref: "#/components/schemas/SmartFolderNode"
+        - $ref: "#/components/schemas/UserNode"
+    NodeMetadata:
       type: object
       properties:
         uuid:
           type: string
           format: uuid
-          description: Unique identifier for the agent
+        fid:
+          type: string
         title:
           type: string
-          description: Agent title
+        name:
+          type: string
         description:
           type: string
-          description: Agent description
+        mimetype:
+          type: string
+        size:
+          type: integer
+        parent:
+          type: string
+          format: uuid
+        createdTime:
+          type: string
+          format: date-time
+        modifiedTime:
+          type: string
+          format: date-time
         owner:
           type: string
-          description: Owner email
-        created:
-          type: string
-          format: date-time
-          description: Creation timestamp
-        updated:
-          type: string
-          format: date-time
-          description: Last modification timestamp
-        model:
-          type: string
-          description: AI model to use
-        temperature:
-          type: number
-          minimum: 0
-          maximum: 2
-          description: Temperature for response generation
-        maxTokens:
-          type: integer
-          description: Maximum tokens in the response
-        reasoning:
-          type: boolean
-          description: Whether the agent uses reasoning
-        useTools:
-          type: boolean
-          description: Whether the agent can use tools
-        systemInstructions:
-          type: string
-          description: System instructions for the AI agent
-        structuredAnswer:
-          type: string
-          description: Structured answer format (optional)
-
-    AgentCreate:
-      type: object
-      required:
-        - systemInstructions
-        - title
-      properties:
-        title:
-          type: string
-          description: Agent title
-        description:
-          type: string
-          description: Agent description
-        model:
-          type: string
-          description: AI model to use
-        temperature:
-          type: number
-          minimum: 0
-          maximum: 2
-          description: Temperature for response generation
-        maxTokens:
-          type: integer
-          description: Maximum tokens in the response
-        reasoning:
-          type: boolean
-          description: Whether the agent uses reasoning
-        useTools:
-          type: boolean
-          description: Whether the agent can use tools
-        systemInstructions:
-          type: string
-          description: System instructions for the AI agent
-        structuredAnswer:
-          type: string
-          description: Structured answer format (optional)
-
-    AgentChatRequest:
-      type: object
-      required:
-        - text
-      properties:
-        text:
-          type: string
-          description: Chat message to send to the agent
-        options:
+          format: email
+        aspects:
+          type: array
+          items:
+            type: string
+            format: uuid
+        tags:
+          type: array
+          items:
+            type: string
+        related:
+          type: array
+          items:
+            type: string
+            format: uuid
+        properties:
           type: object
-          description: Optional chat options
-          properties:
-            history:
-              type: array
-              description: Conversation history
-              items:
-                $ref: "#/components/schemas/ChatMessage"
-            files:
-              type: array
-              description: File attachments (File objects)
-              items:
-                type: object
-                description: File object for attachment
-            temperature:
-              type: number
-              minimum: 0
-              maximum: 2
-              description: Temperature for response generation
-            maxTokens:
-              type: integer
-              description: Maximum tokens in the response
-            instructions:
-              type: string
-              description: Additional system instructions
-
-    AgentAnswerRequest:
-      type: object
-      required:
-        - text
-      properties:
-        text:
+          additionalProperties: true
+        fulltext:
           type: string
-          description: Query to send to the agent
-        options:
+        filters:
           type: object
-          description: Optional answer options
-          properties:
-            files:
-              type: array
-              description: File attachments (File objects)
-              items:
-                type: object
-                description: File object for attachment
-            temperature:
-              type: number
-              minimum: 0
-              maximum: 2
-              description: Temperature for response generation
-            maxTokens:
-              type: integer
-              description: Maximum tokens in the response
-            instructions:
-              type: string
-              description: Additional system instructions
-
-    RagChatRequest:
-      type: object
-      required:
-        - text
-      properties:
-        text:
-          type: string
-          description: Message for RAG chat
-        options:
-          type: object
-          description: Optional RAG chat options
-          properties:
-            parent:
-              type: string
-              description: Folder UUID for scoped context search
-            history:
-              type: array
-              description: Conversation history
-              items:
-                type: object
-            temperature:
-              type: number
-              minimum: 0
-              maximum: 2
-              description: Temperature for response generation
-            maxTokens:
-              type: integer
-              description: Maximum tokens in the response
-
-    ApiKey:
-      type: object
-      properties:
-        uuid:
+        group:
           type: string
           format: uuid
-          description: Unique identifier for the API key
+        groups:
+          type: array
+          items:
+            type: string
+            format: uuid
+        email:
+          type: string
+          format: email
         secret:
           type: string
-          description: The actual API key secret value
-        group:
-          type: string
-          description: Group UUID associated with this key
-        owner:
-          type: string
-          description: Email of user who owns/created the key
-        description:
-          type: string
-          description: Description of the API key
-
-    ApiKeyCreate:
-      type: object
-      required:
-        - group
-      properties:
-        group:
-          type: string
-          description: Group UUID to associate with this API key
-        description:
-          type: string
-          description: Optional description for the API key
-
-    User:
-      type: object
-      properties:
-        uuid:
-          type: string
-          format: uuid
-          description: Unique identifier for the user
-        email:
-          type: string
-          format: email
-          description: User email address
-        name:
-          type: string
-          description: User display name
-        group:
-          type: string
-          description: Primary group UUID
-        groups:
+        onCreate:
           type: array
           items:
             type: string
-          description: Array of group UUIDs the user belongs to
-
-    UserCreate:
-      type: object
-      required:
-        - email
-        - name
-      properties:
-        email:
-          type: string
-          format: email
-          description: User email address
-        name:
-          type: string
-          description: User display name
-        group:
-          type: string
-          description: Primary group UUID
-        groups:
+        onUpdate:
           type: array
           items:
             type: string
-          description: Array of group UUIDs the user should belong to
-
-    UserUpdate:
-      type: object
-      properties:
-        name:
-          type: string
-          description: User display name
-        group:
-          type: string
-          description: Primary group UUID
-        groups:
+        onDelete:
           type: array
           items:
             type: string
-          description: Array of group UUIDs the user should belong to
-
-    Group:
-      type: object
-      properties:
-        uuid:
+        permissions:
+          $ref: "#/components/schemas/Permissions"
+        runManually:
+          type: boolean
+        runAs:
           type: string
-          format: uuid
-          description: Unique identifier for the group
-        title:
+        parameters:
+          type: array
+          items:
+            $ref: "#/components/schemas/FeatureParameter"
+        returnType:
           type: string
-          description: Group title
-
-    GroupCreate:
+          enum:
+            ["string", "number", "boolean", "array", "object", "file", "void"]
+        returnDescription:
+          type: string
+        returnContentType:
+          type: string
+        groupsAllowed:
+          type: array
+          items:
+            type: string
+            format: uuid
+        runOnCreates:
+          type: boolean
+        runOnUpdates:
+          type: boolean
+        runOnDeletes:
+          type: boolean
+        exposeAction:
+          type: boolean
+        exposeExtension:
+          type: boolean
+        exposeAITool:
+          type: boolean
+        model:
+          type: string
+        temperature:
+          type: number
+        maxTokens:
+          type: integer
+        reasoning:
+          type: boolean
+        useTools:
+          type: boolean
+        systemInstructions:
+          type: string
+        structuredAnswer:
+          type: string
+    TemplateInfo:
       type: object
       required:
+        - id
         - title
+        - mimetype
       properties:
+        id:
+          type: string
         title:
           type: string
-          description: Group title
-
-    GroupUpdate:
-      type: object
-      properties:
-        title:
+        mimetype:
           type: string
-          description: Group title
-
-    Template:
-      type: object
-      properties:
-        uuid:
-          type: string
-          description: Unique identifier for the template
-        description:
-          type: string
-          description: Template description
-      required:
-        - uuid
-        - description
-
-    Breadcrumb:
-      type: object
-      properties:
-        uuid:
-          type: string
-          format: uuid
-          description: UUID of the folder in the breadcrumb trail
-        title:
-          type: string
-          description: Title of the folder
-      required:
-        - uuid
-        - title
-
-    DocInfo:
-      type: object
-      properties:
-        uuid:
-          type: string
-          description: Unique identifier for the documentation
-        description:
-          type: string
-          description: Documentation description
-      required:
-        - uuid
-        - description
-
-    ChatMessage:
-      type: object
-      properties:
-        role:
-          type: string
-          enum: [user, model, tool]
-          description: Role of the message sender
-        parts:
-          type: array
-          items:
-            $ref: "#/components/schemas/ChatMessagePart"
-          description: Array of message parts
-      required:
-        - role
-        - parts
-
-    ChatMessagePart:
-      type: object
-      properties:
-        text:
-          type: string
-          description: Text content of the message part
-        toolCall:
-          $ref: "#/components/schemas/ToolCall"
-        toolResponse:
-          $ref: "#/components/schemas/ToolResponse"
-      description: Individual part of a chat message
-
-    ToolCall:
-      type: object
-      properties:
-        name:
-          type: string
-          description: Name of the tool being called
-        args:
-          type: object
-          additionalProperties: true
-          description: Arguments passed to the tool
-      required:
-        - name
-        - args
-
-    ToolResponse:
-      type: object
-      properties:
-        name:
-          type: string
-          description: Name of the tool that generated the response
-        text:
-          type: string
-          description: Response text from the tool
-      required:
-        - name
-        - text
-
-tags:
-  - name: Authentication
-    description: Authentication and authorization endpoints
-  - name: Features
-    description: Feature management and execution
-  - name: Actions
-    description: Action execution endpoints for running features as actions
-  - name: Extensions
-    description: Extension execution endpoints for running features as extensions
-  - name: AI Tools
-    description: AI tool execution endpoints for running features as AI tools
-  - name: Agents
-    description: AI agent management and interaction endpoints
-  - name: API Keys
-    description: API key management endpoints
-  - name: Users
-    description: User account management endpoints
-  - name: Groups
-    description: Group management endpoints
-  - name: Nodes
-    description: Node management operations
-  - name: Templates
-    description: Template management operations
-  - name: Aspects
-    description: Aspect management operations
-  - name: Documentation
-    description: Documentation endpoints
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    UUID:
+      name: uuid
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  responses:
+    Error:
+      description: Error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/AntboxError"

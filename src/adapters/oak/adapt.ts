@@ -9,6 +9,7 @@ export function adapt(handler: HttpHandler): (ctx: Context) => Promise<void> {
 		for (const [key, value] of ctx.request.headers.entries()) {
 			headers.set(key, value);
 		}
+
 		headers.set(
 			"x-params",
 			JSON.stringify(

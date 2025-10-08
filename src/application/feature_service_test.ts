@@ -972,6 +972,7 @@ describe("FeatureService", () => {
 		const folderResult = await service.nodeService.create(adminAuthContext, {
 			title: "Test Folder",
 			mimetype: "application/vnd.antbox.folder",
+			parent: "--root--",
 			onCreate: ["on-create-action-uuid"],
 		});
 
@@ -1031,6 +1032,7 @@ describe("FeatureService", () => {
 		const folderResult = await service.nodeService.create(adminAuthContext, {
 			title: "Test Folder",
 			mimetype: "application/vnd.antbox.folder",
+			parent: "--root--",
 			onUpdate: ["on-update-action-uuid"],
 		});
 
@@ -1101,6 +1103,7 @@ describe("FeatureService", () => {
 		const folderResult = await service.nodeService.create(adminAuthContext, {
 			title: "Test Folder",
 			mimetype: "application/vnd.antbox.folder",
+			parent: "--root--",
 			onDelete: ["on-delete-action-uuid"],
 		});
 
@@ -1188,7 +1191,8 @@ describe("FeatureService", () => {
 		const folderResult = await service.nodeService.create(adminAuthContext, {
 			title: "Test Folder",
 			mimetype: "application/vnd.antbox.folder",
-			onCreate: ["param-action-uuid category=docs priority=high"],
+			parent: "--root--",
+			onCreate: ["param-action-uuid"],
 		});
 
 		expect(folderResult.isRight()).toBeTruthy();
@@ -1279,7 +1283,8 @@ describe("FeatureService", () => {
 		const folderResult = await service.nodeService.create(adminAuthContext, {
 			title: "Test Folder",
 			mimetype: "application/vnd.antbox.folder",
-			onCreate: ["action-1-uuid", "action-2-uuid"],
+			parent: "--root--",
+			onCreate: ["first-action-uuid", "second-action-uuid"],
 		});
 
 		expect(folderResult.isRight()).toBeTruthy();
@@ -1425,6 +1430,7 @@ describe("FeatureService", () => {
 		const folderResult = await service.nodeService.create(adminAuthContext, {
 			title: "Test Folder",
 			mimetype: "application/vnd.antbox.folder",
+			parent: "--root--",
 		});
 		expect(folderResult.isRight()).toBeTruthy();
 		if (!folderResult.isRight()) return;
@@ -1483,6 +1489,7 @@ describe("FeatureService", () => {
 		const folderResult = await service.nodeService.create(adminAuthContext, {
 			title: "Test Folder",
 			mimetype: "application/vnd.antbox.folder",
+			parent: "--root--",
 		});
 		expect(folderResult.isRight()).toBeTruthy();
 		if (!folderResult.isRight()) return;
@@ -1552,6 +1559,7 @@ describe("FeatureService", () => {
 		const folderResult = await service.nodeService.create(adminAuthContext, {
 			title: "Test Folder",
 			mimetype: "application/vnd.antbox.folder",
+			parent: "--root--",
 		});
 		expect(folderResult.isRight()).toBeTruthy();
 
@@ -1627,6 +1635,7 @@ describe("FeatureService", () => {
 		const folderResult = await service.nodeService.create(adminAuthContext, {
 			title: "Test Folder",
 			mimetype: "application/vnd.antbox.folder",
+			parent: "--root--",
 		});
 		expect(folderResult.isRight()).toBeTruthy();
 		if (!folderResult.isRight()) return;
@@ -1643,53 +1652,6 @@ describe("FeatureService", () => {
 			console.error("Node creation failed:", nodeResult.value);
 		}
 		expect(nodeResult.isRight()).toBeTruthy();
-	});
-
-	it("debug: should identify why node creation fails", async () => {
-		const service = await createService();
-
-		// Create a simple folder without onCreate actions first
-		const simpleFolder = await service.nodeService.create(adminAuthContext, {
-			title: "Simple Test Folder",
-			mimetype: "application/vnd.antbox.folder",
-		});
-
-		console.log("Simple folder creation:", simpleFolder.isRight() ? "SUCCESS" : "FAILED");
-		if (simpleFolder.isLeft()) {
-			console.log("Simple folder error:", simpleFolder.value);
-		}
-
-		// Create a folder with onCreate action
-		const folderWithAction = await service.nodeService.create(adminAuthContext, {
-			title: "Folder With Action",
-			mimetype: "application/vnd.antbox.folder",
-			onCreate: ["non-existent-action"],
-		});
-
-		console.log(
-			"Folder with action creation:",
-			folderWithAction.isRight() ? "SUCCESS" : "FAILED",
-		);
-		if (folderWithAction.isLeft()) {
-			console.log("Folder with action error:", folderWithAction.value);
-		}
-
-		if (simpleFolder.isRight()) {
-			// Try to create a node in the simple folder
-			const nodeInSimpleFolder = await service.nodeService.create(adminAuthContext, {
-				title: "Test Node",
-				mimetype: "text/plain",
-				parent: simpleFolder.value.uuid,
-			});
-
-			console.log("Node in simple folder:", nodeInSimpleFolder.isRight() ? "SUCCESS" : "FAILED");
-			if (nodeInSimpleFolder.isLeft()) {
-				console.log("Node in simple folder error:", nodeInSimpleFolder.value);
-			}
-		}
-
-		// This test is just for debugging, so always pass
-		expect(true).toBe(true);
 	});
 });
 

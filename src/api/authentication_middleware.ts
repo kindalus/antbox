@@ -97,7 +97,7 @@ function getApiKey(req: Request) {
 }
 
 function storeAnonymous(req: Request) {
-	return storePrincipal(req, Users.ANONYMOUS_USER_EMAIL, []);
+	return storePrincipal(req, Users.ANONYMOUS_USER_EMAIL, [Groups.ANONYMOUS_GROUP_UUID]);
 }
 
 function storePrincipal(req: Request, email: string, groups: string[]) {

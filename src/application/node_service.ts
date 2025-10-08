@@ -49,7 +49,6 @@ import { builtinUsers } from "./builtin_users/index.ts";
 import { builtinAgents } from "./builtin_agents/index.ts";
 import { FeatureNode, FeatureParameter } from "domain/features/feature_node.ts";
 import { ParentFolderUpdateHandler } from "./parent_folder_update_handler.ts";
-import { MIMEType } from "node:util";
 
 // TODO: Implements throwing events
 

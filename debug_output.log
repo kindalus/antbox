@@ -1,0 +1,353 @@
+[0m[38;5;245mrunning 1 test from ./src/application/feature_service_test.ts[0m
+FeatureService ...
+  create should create a new feature ...
+[0m[38;5;245m------- output -------[0m
+ParentFolderUpdateHandler: Updated modification time for parent folder --features-- after NodeCreatedEvent
+ParentFolderUpdateHandler: Updated modification time for parent folder --features-- after NodeCreatedEvent
+[0m[38;5;245m----- output end -----[0m
+  create should create a new feature ... [0m[32mok[0m [0m[38;5;245m(3ms)[0m
+  update should replace existing feature ...
+[0m[38;5;245m------- output -------[0m
+ParentFolderUpdateHandler: Updated modification time for parent folder --features-- after NodeCreatedEvent
+ParentFolderUpdateHandler: Updated modification time for parent folder --features-- after NodeCreatedEvent
+ParentFolderUpdateHandler: Updated modification time for parent folder --features-- after NodeCreatedEvent
+ParentFolderUpdateHandler: Updated modification time for parent folder --features-- after NodeCreatedEvent
+Retrieved feature: {
+  name: "Updated Test feature",
+  description: "This is an updated test feature.",
+  uuid: "updated-test-feature-uuid"
+}
+[0m[38;5;245m----- output end -----[0m
+  update should replace existing feature ... [0m[32mok[0m [0m[38;5;245m(3ms)[0m
+  get should return feature ...
+[0m[38;5;245m------- output -------[0m
+ParentFolderUpdateHandler: Updated modification time for parent folder --features-- after NodeCreatedEvent
+ParentFolderUpdateHandler: Updated modification time for parent folder --features-- after NodeCreatedEvent
+[0m[38;5;245m----- output end -----[0m
+  get should return feature ... [0m[32mok[0m [0m[38;5;245m(1ms)[0m
+  get should return error if feature does not exist ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+  get should return error if node is not a feature ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+  delete should remove feature ...
+[0m[38;5;245m------- output -------[0m
+ParentFolderUpdateHandler: Updated modification time for parent folder --features-- after NodeCreatedEvent
+ParentFolderUpdateHandler: Updated modification time for parent folder --features-- after NodeCreatedEvent
+ParentFolderUpdateHandler: Updated modification time for parent folder --features-- after NodeDeletedEvent
+[0m[38;5;245m----- output end -----[0m
+  delete should remove feature ... [0m[32mok[0m [0m[38;5;245m(1ms)[0m
+  list should return all features ...
+[0m[38;5;245m------- output -------[0m
+ParentFolderUpdateHandler: Updated modification time for parent folder --features-- after NodeCreatedEvent
+ParentFolderUpdateHandler: Updated modification time for parent folder --features-- after NodeCreatedEvent
+[0m[38;5;245m----- output end -----[0m
+  list should return all features ... [0m[32mok[0m [0m[38;5;245m(5ms)[0m
+  export should create a JavaScript file containing feature ...
+[0m[38;5;245m------- output -------[0m
+ParentFolderUpdateHandler: Updated modification time for parent folder --features-- after NodeCreatedEvent
+ParentFolderUpdateHandler: Updated modification time for parent folder --features-- after NodeCreatedEvent
+[0m[38;5;245m----- output end -----[0m
+  export should create a JavaScript file containing feature ... [0m[32mok[0m [0m[38;5;245m(1ms)[0m
+  runAction should execute the feature and return result ...
+[0m[38;5;245m------- output -------[0m
+ParentFolderUpdateHandler: Updated modification time for parent folder --features-- after NodeCreatedEvent
+ParentFolderUpdateHandler: Updated modification time for parent folder --features-- after NodeCreatedEvent
+[0m[38;5;245m----- output end -----[0m
+  runAction should execute the feature and return result ... [0m[32mok[0m [0m[38;5;245m(2ms)[0m
+  runAction should return error if parameter validation fails ...
+[0m[38;5;245m------- output -------[0m
+ParentFolderUpdateHandler: Updated modification time for parent folder --features-- after NodeCreatedEvent
+ParentFolderUpdateHandler: Updated modification time for parent folder --features-- after NodeCreatedEvent
+[0m[38;5;245m----- output end -----[0m
+  runAction should return error if parameter validation fails ... [0m[32mok[0m [0m[38;5;245m(1ms)[0m
+  runAction should return error if feature cannot be run manually ...
+[0m[38;5;245m------- output -------[0m
+ParentFolderUpdateHandler: Updated modification time for parent folder --features-- after NodeCreatedEvent
+ParentFolderUpdateHandler: Updated modification time for parent folder --features-- after NodeCreatedEvent
+[0m[38;5;245m----- output end -----[0m
+  runAction should return error if feature cannot be run manually ... [0m[32mok[0m [0m[38;5;245m(1ms)[0m
+  should validate Feature must have uuid ... [0m[32mok[0m [0m[38;5;245m(1ms)[0m
+  should validate Feature must have name ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+  should validate Feature must have run method ... [0m[32mok[0m [0m[38;5;245m(1ms)[0m
+  should validate Feature must have default export ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+  should validate invalid file type ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+  should validate malformed JavaScript ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+  should validate Action must have uuids parameter when exposeAction is true ... [0m[32mok[0m [0m[38;5;245m(1ms)[0m
+  should validate uuids parameter must be array of strings for Actions ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+  should validate file parameters not allowed for Actions ... [0m[32mok[0m [0m[38;5;245m(1ms)[0m
+  should validate file parameters not allowed for AI Tools ... [0m[32mok[0m [0m[38;5;245m(1ms)[0m
+  should allow file parameters for Extensions ...
+[0m[38;5;245m------- output -------[0m
+ParentFolderUpdateHandler: Updated modification time for parent folder --features-- after NodeCreatedEvent
+ParentFolderUpdateHandler: Updated modification time for parent folder --features-- after NodeCreatedEvent
+[0m[38;5;245m----- output end -----[0m
+  should allow file parameters for Extensions ... [0m[32mok[0m [0m[38;5;245m(0ms)[0m
+  createOrReplaceFeature should create new feature ...
+[0m[38;5;245m------- output -------[0m
+ParentFolderUpdateHandler: Updated modification time for parent folder --features-- after NodeCreatedEvent
+ParentFolderUpdateHandler: Updated modification time for parent folder --features-- after NodeCreatedEvent
+[0m[38;5;245m----- output end -----[0m
+  createOrReplaceFeature should create new feature ... [0m[32mok[0m [0m[38;5;245m(1ms)[0m
+  createOrReplaceFeature should replace existing feature ...
+[0m[38;5;245m------- output -------[0m
+ParentFolderUpdateHandler: Updated modification time for parent folder --features-- after NodeCreatedEvent
+ParentFolderUpdateHandler: Updated modification time for parent folder --features-- after NodeCreatedEvent
+ParentFolderUpdateHandler: Updated modification time for parent folder --features-- after NodeUpdatedEvent
+ParentFolderUpdateHandler: Updated modification time for parent folder --features-- after NodeUpdatedEvent
+[0m[38;5;245m----- output end -----[0m
+  createOrReplaceFeature should replace existing feature ... [0m[32mok[0m [0m[38;5;245m(2ms)[0m
+  should handle feature metadata extraction correctly ...
+[0m[38;5;245m------- output -------[0m
+ParentFolderUpdateHandler: Updated modification time for parent folder --features-- after NodeCreatedEvent
+ParentFolderUpdateHandler: Updated modification time for parent folder --features-- after NodeCreatedEvent
+[0m[38;5;245m----- output end -----[0m
+  should handle feature metadata extraction correctly ... [0m[32mok[0m [0m[38;5;245m(1ms)[0m
+  should handle features with multiple subtype exposure ...
+[0m[38;5;245m------- output -------[0m
+ParentFolderUpdateHandler: Updated modification time for parent folder --features-- after NodeCreatedEvent
+ParentFolderUpdateHandler: Updated modification time for parent folder --features-- after NodeCreatedEvent
+[0m[38;5;245m----- output end -----[0m
+  should handle features with multiple subtype exposure ... [0m[32mok[0m [0m[38;5;245m(2ms)[0m
+  should create and validate AI Tool features ...
+[0m[38;5;245m------- output -------[0m
+ParentFolderUpdateHandler: Updated modification time for parent folder --features-- after NodeCreatedEvent
+ParentFolderUpdateHandler: Updated modification time for parent folder --features-- after NodeCreatedEvent
+[0m[38;5;245m----- output end -----[0m
+  should create and validate AI Tool features ... [0m[32mok[0m [0m[38;5;245m(1ms)[0m
+  should handle concurrent feature operations ...
+[0m[38;5;245m------- output -------[0m
+ParentFolderUpdateHandler: Updated modification time for parent folder --features-- after NodeCreatedEvent
+ParentFolderUpdateHandler: Updated modification time for parent folder --features-- after NodeCreatedEvent
+ParentFolderUpdateHandler: Updated modification time for parent folder --features-- after NodeCreatedEvent
+ParentFolderUpdateHandler: Updated modification time for parent folder --features-- after NodeCreatedEvent
+ParentFolderUpdateHandler: Updated modification time for parent folder --features-- after NodeCreatedEvent
+ParentFolderUpdateHandler: Updated modification time for parent folder --features-- after NodeCreatedEvent
+ParentFolderUpdateHandler: Updated modification time for parent folder --features-- after NodeCreatedEvent
+ParentFolderUpdateHandler: Updated modification time for parent folder --features-- after NodeCreatedEvent
+ParentFolderUpdateHandler: Updated modification time for parent folder --features-- after NodeCreatedEvent
+ParentFolderUpdateHandler: Updated modification time for parent folder --features-- after NodeCreatedEvent
+[0m[38;5;245m----- output end -----[0m
+  should handle concurrent feature operations ... [0m[32mok[0m [0m[38;5;245m(2ms)[0m
+  should provide proper runtime context to features ...
+[0m[38;5;245m------- output -------[0m
+ParentFolderUpdateHandler: Updated modification time for parent folder --features-- after NodeCreatedEvent
+ParentFolderUpdateHandler: Updated modification time for parent folder --features-- after NodeCreatedEvent
+[0m[38;5;245m----- output end -----[0m
+  should provide proper runtime context to features ... [0m[32mok[0m [0m[38;5;245m(1ms)[0m
+  should trigger onCreate action when node is created in folder ...
+[0m[38;5;245m------- output -------[0m
+ParentFolderUpdateHandler: Updated modification time for parent folder --features-- after NodeCreatedEvent
+ParentFolderUpdateHandler: Updated modification time for parent folder --features-- after NodeCreatedEvent
+[0m[38;5;245m----- output end -----[0m
+  should trigger onCreate action when node is created in folder ... [0m[31mFAILED[0m [0m[38;5;245m(1ms)[0m
+  should trigger onUpdate action when node is updated in folder ...
+[0m[38;5;245m------- output -------[0m
+ParentFolderUpdateHandler: Updated modification time for parent folder --features-- after NodeCreatedEvent
+ParentFolderUpdateHandler: Updated modification time for parent folder --features-- after NodeCreatedEvent
+[0m[38;5;245m----- output end -----[0m
+  should trigger onUpdate action when node is updated in folder ... [0m[31mFAILED[0m [0m[38;5;245m(1ms)[0m
+  should trigger onDelete action when node is deleted in folder ...
+[0m[38;5;245m------- output -------[0m
+ParentFolderUpdateHandler: Updated modification time for parent folder --features-- after NodeCreatedEvent
+ParentFolderUpdateHandler: Updated modification time for parent folder --features-- after NodeCreatedEvent
+[0m[38;5;245m----- output end -----[0m
+  should trigger onDelete action when node is deleted in folder ... [0m[31mFAILED[0m [0m[38;5;245m(1ms)[0m
+  should pass additional parameters to onCreate action ...
+[0m[38;5;245m------- output -------[0m
+ParentFolderUpdateHandler: Updated modification time for parent folder --features-- after NodeCreatedEvent
+ParentFolderUpdateHandler: Updated modification time for parent folder --features-- after NodeCreatedEvent
+[0m[38;5;245m----- output end -----[0m
+  should pass additional parameters to onCreate action ... [0m[31mFAILED[0m [0m[38;5;245m(1ms)[0m
+  should handle multiple onCreate actions ...
+[0m[38;5;245m------- output -------[0m
+ParentFolderUpdateHandler: Updated modification time for parent folder --features-- after NodeCreatedEvent
+ParentFolderUpdateHandler: Updated modification time for parent folder --features-- after NodeCreatedEvent
+ParentFolderUpdateHandler: Updated modification time for parent folder --features-- after NodeCreatedEvent
+ParentFolderUpdateHandler: Updated modification time for parent folder --features-- after NodeCreatedEvent
+[0m[38;5;245m----- output end -----[0m
+  should handle multiple onCreate actions ... [0m[31mFAILED[0m [0m[38;5;245m(1ms)[0m
+  should validate that runOnCreates requires filters ... [0m[32mok[0m [0m[38;5;245m(1ms)[0m
+  should validate that runOnUpdates requires exposeAction ... [0m[32mok[0m [0m[38;5;245m(1ms)[0m
+  should trigger domain-wide action on node creation with runOnCreates ...
+[0m[38;5;245m------- output -------[0m
+ParentFolderUpdateHandler: Updated modification time for parent folder --features-- after NodeCreatedEvent
+ParentFolderUpdateHandler: Updated modification time for parent folder --features-- after NodeCreatedEvent
+[0m[38;5;245m----- output end -----[0m
+  should trigger domain-wide action on node creation with runOnCreates ... [0m[31mFAILED[0m [0m[38;5;245m(1ms)[0m
+  should trigger domain-wide action on node update with runOnUpdates ...
+[0m[38;5;245m------- output -------[0m
+ParentFolderUpdateHandler: Updated modification time for parent folder --features-- after NodeCreatedEvent
+ParentFolderUpdateHandler: Updated modification time for parent folder --features-- after NodeCreatedEvent
+[0m[38;5;245m----- output end -----[0m
+  should trigger domain-wide action on node update with runOnUpdates ... [0m[31mFAILED[0m [0m[38;5;245m(1ms)[0m
+  should trigger domain-wide action on node deletion with runOnDeletes ...
+[0m[38;5;245m------- output -------[0m
+ParentFolderUpdateHandler: Updated modification time for parent folder --features-- after NodeCreatedEvent
+ParentFolderUpdateHandler: Updated modification time for parent folder --features-- after NodeCreatedEvent
+[0m[38;5;245m----- output end -----[0m
+  should trigger domain-wide action on node deletion with runOnDeletes ... [0m[31mFAILED[0m [0m[38;5;245m(1ms)[0m
+  should not trigger domain-wide action when filters don't match ...
+[0m[38;5;245m------- output -------[0m
+ParentFolderUpdateHandler: Updated modification time for parent folder --features-- after NodeCreatedEvent
+ParentFolderUpdateHandler: Updated modification time for parent folder --features-- after NodeCreatedEvent
+[0m[38;5;245m----- output end -----[0m
+  should not trigger domain-wide action when filters don't match ... [0m[31mFAILED[0m [0m[38;5;245m(0ms)[0m
+  debug: should identify why node creation fails ...
+[0m[38;5;245m------- output -------[0m
+Simple folder creation: FAILED
+Simple folder error: Error: Parent is required
+    at NodeService.create (file:///Users/kindalus/workspace/src/github.com/kindalus/antbox/src/application/node_service.ts:122:16)
+    at Object.<anonymous> (file:///Users/kindalus/workspace/src/github.com/kindalus/antbox/src/application/feature_service_test.ts:1652:50)
+    at async TestSuiteInternal.runTest (https://jsr.io/@std/testing/1.0.15/_test_suite.ts:429:7)
+    at async TestSuiteInternal.runTest (https://jsr.io/@std/testing/1.0.15/_test_suite.ts:417:9)
+    at async fn (https://jsr.io/@std/testing/1.0.15/_test_suite.ts:378:13)
+    at async innerWrapped (ext:cli/40_test.js:181:5)
+    at async exitSanitizer (ext:cli/40_test.js:97:27)
+    at async Object.outerWrapped [as fn] (ext:cli/40_test.js:124:14)
+    at async TestContext.step (ext:cli/40_test.js:511:22)
+    at async TestSuiteInternal.run (https://jsr.io/@std/testing/1.0.15/_test_suite.ts:394:7) {
+  message: "Parent is required",
+  errorCode: "BadRequestError"
+}
+Folder with action creation: FAILED
+Folder with action error: Error: Parent is required
+    at NodeService.create (file:///Users/kindalus/workspace/src/github.com/kindalus/antbox/src/application/node_service.ts:122:16)
+    at Object.<anonymous> (file:///Users/kindalus/workspace/src/github.com/kindalus/antbox/src/application/feature_service_test.ts:1663:54)
+    at async TestSuiteInternal.runTest (https://jsr.io/@std/testing/1.0.15/_test_suite.ts:429:7)
+    at async TestSuiteInternal.runTest (https://jsr.io/@std/testing/1.0.15/_test_suite.ts:417:9)
+    at async fn (https://jsr.io/@std/testing/1.0.15/_test_suite.ts:378:13)
+    at async innerWrapped (ext:cli/40_test.js:181:5)
+    at async exitSanitizer (ext:cli/40_test.js:97:27)
+    at async Object.outerWrapped [as fn] (ext:cli/40_test.js:124:14)
+    at async TestContext.step (ext:cli/40_test.js:511:22)
+    at async TestSuiteInternal.run (https://jsr.io/@std/testing/1.0.15/_test_suite.ts:394:7) {
+  message: "Parent is required",
+  errorCode: "BadRequestError"
+}
+[0m[38;5;245m----- output end -----[0m
+  debug: should identify why node creation fails ... [0m[32mok[0m [0m[38;5;245m(2ms)[0m
+FeatureService ... [0m[31mFAILED[0m (due to 9 failed steps) [0m[38;5;245m(51ms)[0m
+
+[0m[1m[37m[41m ERRORS [0m
+
+FeatureService ... should trigger onCreate action when node is created in folder [0m[38;5;245m=> https://jsr.io/@std/testing/1.0.15/_test_suite.ts:394:15[0m
+[0m[1m[31merror[0m: AssertionError: Expected false to be truthy
+      throw new AssertionError(
+[0m[31m            ^[0m
+    at [0m[1m[3mtoBeTruthy[0m ([0m[36mhttps://jsr.io/@std/expect/1.0.17/_matchers.ts[0m:[0m[33m177[0m:[0m[33m13[0m)
+    at [0m[1m[3mapplyMatcher[0m ([0m[36mhttps://jsr.io/@std/expect/1.0.17/expect.ts[0m:[0m[33m223[0m:[0m[33m13[0m)
+    at [0m[1m[3mProxy.<anonymous>[0m ([0m[36mhttps://jsr.io/@std/expect/1.0.17/expect.ts[0m:[0m[33m233[0m:[0m[33m13[0m)
+    at [0m[1m[3mObject.<anonymous>[0m ([0m[36mfile:///Users/kindalus/workspace/src/github.com/kindalus/antbox/src/application/feature_service_test.ts[0m:[0m[33m978[0m:[0m[33m34[0m)
+    at async [0m[1m[3mTestSuiteInternal.runTest[0m ([0m[36mhttps://jsr.io/@std/testing/1.0.15/_test_suite.ts[0m:[0m[33m429[0m:[0m[33m7[0m)
+    at async [0m[1m[3mTestSuiteInternal.runTest[0m ([0m[36mhttps://jsr.io/@std/testing/1.0.15/_test_suite.ts[0m:[0m[33m417[0m:[0m[33m9[0m)
+    at async [0m[1m[3mfn[0m ([0m[36mhttps://jsr.io/@std/testing/1.0.15/_test_suite.ts[0m:[0m[33m378[0m:[0m[33m13[0m)
+
+FeatureService ... should trigger onUpdate action when node is updated in folder [0m[38;5;245m=> https://jsr.io/@std/testing/1.0.15/_test_suite.ts:394:15[0m
+[0m[1m[31merror[0m: AssertionError: Expected false to be truthy
+      throw new AssertionError(
+[0m[31m            ^[0m
+    at [0m[1m[3mtoBeTruthy[0m ([0m[36mhttps://jsr.io/@std/expect/1.0.17/_matchers.ts[0m:[0m[33m177[0m:[0m[33m13[0m)
+    at [0m[1m[3mapplyMatcher[0m ([0m[36mhttps://jsr.io/@std/expect/1.0.17/expect.ts[0m:[0m[33m223[0m:[0m[33m13[0m)
+    at [0m[1m[3mProxy.<anonymous>[0m ([0m[36mhttps://jsr.io/@std/expect/1.0.17/expect.ts[0m:[0m[33m233[0m:[0m[33m13[0m)
+    at [0m[1m[3mObject.<anonymous>[0m ([0m[36mfile:///Users/kindalus/workspace/src/github.com/kindalus/antbox/src/application/feature_service_test.ts[0m:[0m[33m1037[0m:[0m[33m34[0m)
+    at async [0m[1m[3mTestSuiteInternal.runTest[0m ([0m[36mhttps://jsr.io/@std/testing/1.0.15/_test_suite.ts[0m:[0m[33m429[0m:[0m[33m7[0m)
+    at async [0m[1m[3mTestSuiteInternal.runTest[0m ([0m[36mhttps://jsr.io/@std/testing/1.0.15/_test_suite.ts[0m:[0m[33m417[0m:[0m[33m9[0m)
+    at async [0m[1m[3mfn[0m ([0m[36mhttps://jsr.io/@std/testing/1.0.15/_test_suite.ts[0m:[0m[33m378[0m:[0m[33m13[0m)
+
+FeatureService ... should trigger onDelete action when node is deleted in folder [0m[38;5;245m=> https://jsr.io/@std/testing/1.0.15/_test_suite.ts:394:15[0m
+[0m[1m[31merror[0m: AssertionError: Expected false to be truthy
+      throw new AssertionError(
+[0m[31m            ^[0m
+    at [0m[1m[3mtoBeTruthy[0m ([0m[36mhttps://jsr.io/@std/expect/1.0.17/_matchers.ts[0m:[0m[33m177[0m:[0m[33m13[0m)
+    at [0m[1m[3mapplyMatcher[0m ([0m[36mhttps://jsr.io/@std/expect/1.0.17/expect.ts[0m:[0m[33m223[0m:[0m[33m13[0m)
+    at [0m[1m[3mProxy.<anonymous>[0m ([0m[36mhttps://jsr.io/@std/expect/1.0.17/expect.ts[0m:[0m[33m233[0m:[0m[33m13[0m)
+    at [0m[1m[3mObject.<anonymous>[0m ([0m[36mfile:///Users/kindalus/workspace/src/github.com/kindalus/antbox/src/application/feature_service_test.ts[0m:[0m[33m1107[0m:[0m[33m34[0m)
+    at async [0m[1m[3mTestSuiteInternal.runTest[0m ([0m[36mhttps://jsr.io/@std/testing/1.0.15/_test_suite.ts[0m:[0m[33m429[0m:[0m[33m7[0m)
+    at async [0m[1m[3mTestSuiteInternal.runTest[0m ([0m[36mhttps://jsr.io/@std/testing/1.0.15/_test_suite.ts[0m:[0m[33m417[0m:[0m[33m9[0m)
+    at async [0m[1m[3mfn[0m ([0m[36mhttps://jsr.io/@std/testing/1.0.15/_test_suite.ts[0m:[0m[33m378[0m:[0m[33m13[0m)
+
+FeatureService ... should pass additional parameters to onCreate action [0m[38;5;245m=> https://jsr.io/@std/testing/1.0.15/_test_suite.ts:394:15[0m
+[0m[1m[31merror[0m: AssertionError: Expected false to be truthy
+      throw new AssertionError(
+[0m[31m            ^[0m
+    at [0m[1m[3mtoBeTruthy[0m ([0m[36mhttps://jsr.io/@std/expect/1.0.17/_matchers.ts[0m:[0m[33m177[0m:[0m[33m13[0m)
+    at [0m[1m[3mapplyMatcher[0m ([0m[36mhttps://jsr.io/@std/expect/1.0.17/expect.ts[0m:[0m[33m223[0m:[0m[33m13[0m)
+    at [0m[1m[3mProxy.<anonymous>[0m ([0m[36mhttps://jsr.io/@std/expect/1.0.17/expect.ts[0m:[0m[33m233[0m:[0m[33m13[0m)
+    at [0m[1m[3mObject.<anonymous>[0m ([0m[36mfile:///Users/kindalus/workspace/src/github.com/kindalus/antbox/src/application/feature_service_test.ts[0m:[0m[33m1194[0m:[0m[33m34[0m)
+    at async [0m[1m[3mTestSuiteInternal.runTest[0m ([0m[36mhttps://jsr.io/@std/testing/1.0.15/_test_suite.ts[0m:[0m[33m429[0m:[0m[33m7[0m)
+    at async [0m[1m[3mTestSuiteInternal.runTest[0m ([0m[36mhttps://jsr.io/@std/testing/1.0.15/_test_suite.ts[0m:[0m[33m417[0m:[0m[33m9[0m)
+    at async [0m[1m[3mfn[0m ([0m[36mhttps://jsr.io/@std/testing/1.0.15/_test_suite.ts[0m:[0m[33m378[0m:[0m[33m13[0m)
+
+FeatureService ... should handle multiple onCreate actions [0m[38;5;245m=> https://jsr.io/@std/testing/1.0.15/_test_suite.ts:394:15[0m
+[0m[1m[31merror[0m: AssertionError: Expected false to be truthy
+      throw new AssertionError(
+[0m[31m            ^[0m
+    at [0m[1m[3mtoBeTruthy[0m ([0m[36mhttps://jsr.io/@std/expect/1.0.17/_matchers.ts[0m:[0m[33m177[0m:[0m[33m13[0m)
+    at [0m[1m[3mapplyMatcher[0m ([0m[36mhttps://jsr.io/@std/expect/1.0.17/expect.ts[0m:[0m[33m223[0m:[0m[33m13[0m)
+    at [0m[1m[3mProxy.<anonymous>[0m ([0m[36mhttps://jsr.io/@std/expect/1.0.17/expect.ts[0m:[0m[33m233[0m:[0m[33m13[0m)
+    at [0m[1m[3mObject.<anonymous>[0m ([0m[36mfile:///Users/kindalus/workspace/src/github.com/kindalus/antbox/src/application/feature_service_test.ts[0m:[0m[33m1285[0m:[0m[33m34[0m)
+    at async [0m[1m[3mTestSuiteInternal.runTest[0m ([0m[36mhttps://jsr.io/@std/testing/1.0.15/_test_suite.ts[0m:[0m[33m429[0m:[0m[33m7[0m)
+    at async [0m[1m[3mTestSuiteInternal.runTest[0m ([0m[36mhttps://jsr.io/@std/testing/1.0.15/_test_suite.ts[0m:[0m[33m417[0m:[0m[33m9[0m)
+    at async [0m[1m[3mfn[0m ([0m[36mhttps://jsr.io/@std/testing/1.0.15/_test_suite.ts[0m:[0m[33m378[0m:[0m[33m13[0m)
+
+FeatureService ... should trigger domain-wide action on node creation with runOnCreates [0m[38;5;245m=> https://jsr.io/@std/testing/1.0.15/_test_suite.ts:394:15[0m
+[0m[1m[31merror[0m: AssertionError: Expected false to be truthy
+      throw new AssertionError(
+[0m[31m            ^[0m
+    at [0m[1m[3mtoBeTruthy[0m ([0m[36mhttps://jsr.io/@std/expect/1.0.17/_matchers.ts[0m:[0m[33m177[0m:[0m[33m13[0m)
+    at [0m[1m[3mapplyMatcher[0m ([0m[36mhttps://jsr.io/@std/expect/1.0.17/expect.ts[0m:[0m[33m223[0m:[0m[33m13[0m)
+    at [0m[1m[3mProxy.<anonymous>[0m ([0m[36mhttps://jsr.io/@std/expect/1.0.17/expect.ts[0m:[0m[33m233[0m:[0m[33m13[0m)
+    at [0m[1m[3mObject.<anonymous>[0m ([0m[36mfile:///Users/kindalus/workspace/src/github.com/kindalus/antbox/src/application/feature_service_test.ts[0m:[0m[33m1429[0m:[0m[33m34[0m)
+    at async [0m[1m[3mTestSuiteInternal.runTest[0m ([0m[36mhttps://jsr.io/@std/testing/1.0.15/_test_suite.ts[0m:[0m[33m429[0m:[0m[33m7[0m)
+    at async [0m[1m[3mTestSuiteInternal.runTest[0m ([0m[36mhttps://jsr.io/@std/testing/1.0.15/_test_suite.ts[0m:[0m[33m417[0m:[0m[33m9[0m)
+    at async [0m[1m[3mfn[0m ([0m[36mhttps://jsr.io/@std/testing/1.0.15/_test_suite.ts[0m:[0m[33m378[0m:[0m[33m13[0m)
+
+FeatureService ... should trigger domain-wide action on node update with runOnUpdates [0m[38;5;245m=> https://jsr.io/@std/testing/1.0.15/_test_suite.ts:394:15[0m
+[0m[1m[31merror[0m: AssertionError: Expected false to be truthy
+      throw new AssertionError(
+[0m[31m            ^[0m
+    at [0m[1m[3mtoBeTruthy[0m ([0m[36mhttps://jsr.io/@std/expect/1.0.17/_matchers.ts[0m:[0m[33m177[0m:[0m[33m13[0m)
+    at [0m[1m[3mapplyMatcher[0m ([0m[36mhttps://jsr.io/@std/expect/1.0.17/expect.ts[0m:[0m[33m223[0m:[0m[33m13[0m)
+    at [0m[1m[3mProxy.<anonymous>[0m ([0m[36mhttps://jsr.io/@std/expect/1.0.17/expect.ts[0m:[0m[33m233[0m:[0m[33m13[0m)
+    at [0m[1m[3mObject.<anonymous>[0m ([0m[36mfile:///Users/kindalus/workspace/src/github.com/kindalus/antbox/src/application/feature_service_test.ts[0m:[0m[33m1487[0m:[0m[33m34[0m)
+    at async [0m[1m[3mTestSuiteInternal.runTest[0m ([0m[36mhttps://jsr.io/@std/testing/1.0.15/_test_suite.ts[0m:[0m[33m429[0m:[0m[33m7[0m)
+    at async [0m[1m[3mTestSuiteInternal.runTest[0m ([0m[36mhttps://jsr.io/@std/testing/1.0.15/_test_suite.ts[0m:[0m[33m417[0m:[0m[33m9[0m)
+    at async [0m[1m[3mfn[0m ([0m[36mhttps://jsr.io/@std/testing/1.0.15/_test_suite.ts[0m:[0m[33m378[0m:[0m[33m13[0m)
+
+FeatureService ... should trigger domain-wide action on node deletion with runOnDeletes [0m[38;5;245m=> https://jsr.io/@std/testing/1.0.15/_test_suite.ts:394:15[0m
+[0m[1m[31merror[0m: AssertionError: Expected false to be truthy
+      throw new AssertionError(
+[0m[31m            ^[0m
+    at [0m[1m[3mtoBeTruthy[0m ([0m[36mhttps://jsr.io/@std/expect/1.0.17/_matchers.ts[0m:[0m[33m177[0m:[0m[33m13[0m)
+    at [0m[1m[3mapplyMatcher[0m ([0m[36mhttps://jsr.io/@std/expect/1.0.17/expect.ts[0m:[0m[33m223[0m:[0m[33m13[0m)
+    at [0m[1m[3mProxy.<anonymous>[0m ([0m[36mhttps://jsr.io/@std/expect/1.0.17/expect.ts[0m:[0m[33m233[0m:[0m[33m13[0m)
+    at [0m[1m[3mObject.<anonymous>[0m ([0m[36mfile:///Users/kindalus/workspace/src/github.com/kindalus/antbox/src/application/feature_service_test.ts[0m:[0m[33m1556[0m:[0m[33m34[0m)
+    at async [0m[1m[3mTestSuiteInternal.runTest[0m ([0m[36mhttps://jsr.io/@std/testing/1.0.15/_test_suite.ts[0m:[0m[33m429[0m:[0m[33m7[0m)
+    at async [0m[1m[3mTestSuiteInternal.runTest[0m ([0m[36mhttps://jsr.io/@std/testing/1.0.15/_test_suite.ts[0m:[0m[33m417[0m:[0m[33m9[0m)
+    at async [0m[1m[3mfn[0m ([0m[36mhttps://jsr.io/@std/testing/1.0.15/_test_suite.ts[0m:[0m[33m378[0m:[0m[33m13[0m)
+
+FeatureService ... should not trigger domain-wide action when filters don't match [0m[38;5;245m=> https://jsr.io/@std/testing/1.0.15/_test_suite.ts:394:15[0m
+[0m[1m[31merror[0m: AssertionError: Expected false to be truthy
+      throw new AssertionError(
+[0m[31m            ^[0m
+    at [0m[1m[3mtoBeTruthy[0m ([0m[36mhttps://jsr.io/@std/expect/1.0.17/_matchers.ts[0m:[0m[33m177[0m:[0m[33m13[0m)
+    at [0m[1m[3mapplyMatcher[0m ([0m[36mhttps://jsr.io/@std/expect/1.0.17/expect.ts[0m:[0m[33m223[0m:[0m[33m13[0m)
+    at [0m[1m[3mProxy.<anonymous>[0m ([0m[36mhttps://jsr.io/@std/expect/1.0.17/expect.ts[0m:[0m[33m233[0m:[0m[33m13[0m)
+    at [0m[1m[3mObject.<anonymous>[0m ([0m[36mfile:///Users/kindalus/workspace/src/github.com/kindalus/antbox/src/application/feature_service_test.ts[0m:[0m[33m1631[0m:[0m[33m34[0m)
+    at async [0m[1m[3mTestSuiteInternal.runTest[0m ([0m[36mhttps://jsr.io/@std/testing/1.0.15/_test_suite.ts[0m:[0m[33m429[0m:[0m[33m7[0m)
+    at async [0m[1m[3mTestSuiteInternal.runTest[0m ([0m[36mhttps://jsr.io/@std/testing/1.0.15/_test_suite.ts[0m:[0m[33m417[0m:[0m[33m9[0m)
+    at async [0m[1m[3mfn[0m ([0m[36mhttps://jsr.io/@std/testing/1.0.15/_test_suite.ts[0m:[0m[33m378[0m:[0m[33m13[0m)
+
+[0m[1m[37m[41m FAILURES [0m
+
+FeatureService ... should trigger onCreate action when node is created in folder [0m[38;5;245m=> https://jsr.io/@std/testing/1.0.15/_test_suite.ts:394:15[0m
+FeatureService ... should trigger onUpdate action when node is updated in folder [0m[38;5;245m=> https://jsr.io/@std/testing/1.0.15/_test_suite.ts:394:15[0m
+FeatureService ... should trigger onDelete action when node is deleted in folder [0m[38;5;245m=> https://jsr.io/@std/testing/1.0.15/_test_suite.ts:394:15[0m
+FeatureService ... should pass additional parameters to onCreate action [0m[38;5;245m=> https://jsr.io/@std/testing/1.0.15/_test_suite.ts:394:15[0m
+FeatureService ... should handle multiple onCreate actions [0m[38;5;245m=> https://jsr.io/@std/testing/1.0.15/_test_suite.ts:394:15[0m
+FeatureService ... should trigger domain-wide action on node creation with runOnCreates [0m[38;5;245m=> https://jsr.io/@std/testing/1.0.15/_test_suite.ts:394:15[0m
+FeatureService ... should trigger domain-wide action on node update with runOnUpdates [0m[38;5;245m=> https://jsr.io/@std/testing/1.0.15/_test_suite.ts:394:15[0m
+FeatureService ... should trigger domain-wide action on node deletion with runOnDeletes [0m[38;5;245m=> https://jsr.io/@std/testing/1.0.15/_test_suite.ts:394:15[0m
+FeatureService ... should not trigger domain-wide action when filters don't match [0m[38;5;245m=> https://jsr.io/@std/testing/1.0.15/_test_suite.ts:394:15[0m
+
+[0m[31mFAILED[0m | 0 passed (32 steps) | 1 failed (9 steps) [0m[38;5;245m(53ms)[0m
+
+[0m[1m[31merror[0m: Test failed

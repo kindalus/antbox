@@ -1,3 +1,4 @@
+import { AnswerOptions, ChatOptions } from "application/agent_service.ts";
 import { type AntboxTenant } from "./antbox_tenant.ts";
 import { defaultMiddlewareChain } from "./default_middleware_chain.ts";
 import { getAuthenticationContext } from "./get_authentication_context.ts";
@@ -132,45 +133,14 @@ export function chatHandler(tenants: AntboxTenant[]): HttpHandler {
 				return sendBadRequest({ error: "{ uuid } not given" });
 			}
 
-			// Check if this is multipart/form-data (with files) or JSON
-			const contentType = req.headers.get("content-type") || "";
-			let chatInput;
-			let files: File[] | undefined;
-
-			if (contentType.includes("multipart/form-data")) {
-				const formData = await req.formData();
-				const inputStr = formData.get("input");
-
-				try {
-					chatInput = JSON.parse(inputStr as string);
-				} catch (_e) {
-					return sendBadRequest({ error: "{ input } field must be valid JSON" });
-				}
-
-				// Collect all files from form data
-				files = [];
-				for (const [key, value] of formData.entries()) {
-					if (key.startsWith("file") && value instanceof File) {
-						files.push(value);
-					}
-				}
-
-				if (files.length === 0) {
-					files = undefined;
-				}
-			} else {
-				chatInput = await req.json();
-			}
+			const chatInput = await req.json();
 
 			if (!chatInput?.text) {
 				return sendBadRequest({ error: "{ text } not given" });
 			}
 
 			// Extract text and options
-			const { text, options = {} } = chatInput;
-			if (files) {
-				options.files = files;
-			}
+			const { text, options = {} }: { text: string; options: ChatOptions } = chatInput;
 
 			return tenant.agentService!
 				.chat(getAuthenticationContext(req), params.uuid, text, options)
@@ -195,45 +165,14 @@ export function answerHandler(tenants: AntboxTenant[]): HttpHandler {
 				return sendBadRequest({ error: "{ uuid } not given" });
 			}
 
-			// Check if this is multipart/form-data (with files) or JSON
-			const contentType = req.headers.get("content-type") || "";
-			let answerInput;
-			let files: File[] | undefined;
+			const chatInput = await req.json();
 
-			if (contentType.includes("multipart/form-data")) {
-				const formData = await req.formData();
-				const inputStr = formData.get("input");
-
-				try {
-					answerInput = JSON.parse(inputStr as string);
-				} catch (_e) {
-					return sendBadRequest({ error: "{ input } field must be valid JSON" });
-				}
-
-				// Collect all files from form data
-				files = [];
-				for (const [key, value] of formData.entries()) {
-					if (key.startsWith("file") && value instanceof File) {
-						files.push(value);
-					}
-				}
-
-				if (files.length === 0) {
-					files = undefined;
-				}
-			} else {
-				answerInput = await req.json();
-			}
-
-			if (!answerInput?.text) {
+			if (!chatInput?.text) {
 				return sendBadRequest({ error: "{ text } not given" });
 			}
 
 			// Extract text and options
-			const { text, options = {} } = answerInput;
-			if (files) {
-				options.files = files;
-			}
+			const { text, options = {} }: { text: string; options: AnswerOptions } = chatInput;
 
 			return tenant.agentService!
 				.answer(getAuthenticationContext(req), params.uuid, text, options)

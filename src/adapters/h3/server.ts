@@ -1,16 +1,15 @@
-import aspectsRouter from "adapters/h3/aspects_v2_router.ts";
-import nodesRouter from "adapters/h3/nodes_v2_router.ts";
-import featuresRouter from "adapters/h3/features_router.ts";
-import agentsRouter from "adapters/h3/agents_v2_router.ts";
-import apiKeysRouter from "adapters/h3/api_keys_router.ts";
-import usersRouter from "adapters/h3/users_router.ts";
-import groupsRouter from "adapters/h3/groups_router.ts";
-import actionsRouter from "adapters/h3/actions_router.ts";
-import extensionsRouter from "adapters/h3/extensions_router.ts";
-import aiToolsRouter from "adapters/h3/ai_tools_router.ts";
-import templatesRouter from "adapters/h3/templates_router.ts";
-import docsRouter from "adapters/h3/docs_router.ts";
 import loginRouter from "adapters/h3/login_v2_router.ts";
+import nodesRouter from "adapters/h3/nodes_v2_router.ts";
+import aspectsRouter from "adapters/h3/aspects_v2_router.ts";
+import agentsRouter from "adapters/h3/agents_v2_router.ts";
+import featuresRouter from "adapters/h3/features_v2_router.ts";
+import apiKeysRouter from "adapters/h3/api_keys_v2_router.ts";
+import usersRouter from "adapters/h3/users_v2_router.ts";
+import groupsRouter from "adapters/h3/groups_v2_router.ts";
+import actionsRouter from "adapters/h3/actions_v2_router.ts";
+import extensionsRouter from "adapters/h3/extensions_v2_router.ts";
+import templatesRouter from "adapters/h3/templates_v2_router.ts";
+import docsRouter from "adapters/h3/docs_v2_router.ts";
 import type { AntboxTenant } from "api/antbox_tenant.ts";
 import { App, createApp, createRouter, useBase } from "h3";
 
@@ -27,7 +26,6 @@ export default function setupH3Server(tenants: AntboxTenant[]): App {
 	const groups = groupsRouter(tenants);
 	const actions = actionsRouter(tenants);
 	const extensions = extensionsRouter(tenants);
-	const aiTools = aiToolsRouter(tenants);
 	const templates = templatesRouter(tenants);
 	const docs = docsRouter(tenants);
 	const login = loginRouter(tenants);
@@ -45,7 +43,6 @@ export default function setupH3Server(tenants: AntboxTenant[]): App {
 	v2Router.use("/groups/**", useBase("/groups", groups.handler));
 	v2Router.use("/actions/**", useBase("/actions", actions.handler));
 	v2Router.use("/extensions/**", useBase("/extensions", extensions.handler));
-	v2Router.use("/ai-tools/**", useBase("/ai-tools", aiTools.handler));
 	v2Router.use("/templates/**", useBase("/templates", templates.handler));
 	v2Router.use("/docs/**", useBase("/docs", docs.handler));
 	v2Router.use("/login/**", useBase("/login", login.handler));

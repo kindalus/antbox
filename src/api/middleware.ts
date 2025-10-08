@@ -24,6 +24,26 @@ export const corsMiddleware: HttpMiddleware = (next: HttpHandler) => async (req:
 };
 
 export const logMiddleware: HttpMiddleware = (next: HttpHandler) => async (req: Request) => {
-	console.log(`${req.method} ${req.url}`);
-	return await next(req);
+	try {
+		const res = await next(req);
+		console.debug(`${req.method} ${req.url} ${res.status}`);
+
+		if (res.status >= 400 && res.status !== 404) {
+			const body = await res.text();
+
+			console.error(`Status: ${res.statusText}`);
+			console.error(`Reason: ${body}`);
+
+			return new Response(body, {
+				headers: res.headers,
+				status: res.status,
+				statusText: res.statusText,
+			});
+		}
+
+		return res;
+	} catch (error) {
+		console.error(error);
+		throw error;
+	}
 };

@@ -6,6 +6,7 @@
     "domain/": "./src/domain/",
     "setup/": "./src/setup/",
     "shared/": "./src/shared/",
+    "integration/": "./src/integration/",
 
     "bdd": "jsr:@std/testing/bdd",
 

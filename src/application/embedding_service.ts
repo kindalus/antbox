@@ -53,6 +53,11 @@ export class EmbeddingService {
 			return;
 		}
 
+		// Check if file size is zero - don't create embeddings for empty files
+		if (node.size === 0) {
+			return;
+		}
+
 		// Check if mimetype is supported
 		if (!node.mimetype || !isEmbeddingsSupportedMimetype(node.mimetype)) {
 			return;
@@ -85,6 +90,12 @@ export class EmbeddingService {
 		if (!Nodes.isFile(node)) {
 			// Node is no longer a file, delete any existing embedding
 			await this.#deleteEmbedding(event.payload.uuid);
+			return;
+		}
+
+		// Check if file size is zero - delete any existing embedding for empty files
+		if (node.size === 0) {
+			await this.#deleteEmbedding(node.uuid);
 			return;
 		}
 

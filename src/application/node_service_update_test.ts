@@ -81,6 +81,22 @@ describe("NodeService.update", () => {
 		expect(updateOrErr.value).toBeInstanceOf(ForbiddenError);
 	});
 
+	it("should return BadRequestError when updating to non-existent parent", async () => {
+		const service = nodeService();
+		const nodeOrErr = await service.create(authCtx, {
+			title: "Test Node",
+			mimetype: Nodes.META_NODE_MIMETYPE,
+		});
+
+		const updateOrErr = await service.update(authCtx, nodeOrErr.right.uuid, {
+			parent: "non-existent-parent-uuid",
+		});
+
+		expect(updateOrErr.isLeft()).toBeTruthy();
+		expect(updateOrErr.value).toBeInstanceOf(BadRequestError);
+		expect((updateOrErr.value as BadRequestError).message).toContain("Parent folder not found");
+	});
+
 	it("should not update mimetype", async () => {
 		const service = nodeService();
 		const parentOrErr = await service.create(authCtx, {

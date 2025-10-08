@@ -133,6 +133,53 @@ describe("EmbeddingService", () => {
 		}
 	});
 
+	it("should not generate embedding for FileNode with zero size", async () => {
+		const nodeService = new MockNodeService() as unknown as NodeService;
+		const embeddingModel = new DeterministicModel("text-embedding-3-small", 1536);
+		const ocrModel = new DeterministicModel("deterministic-ocr", 1536);
+		const vectorDatabase = new InMemoryVectorDatabase();
+		const bus = {
+			subscribe: () => {},
+			publish: () => {},
+		} as unknown as EventBus;
+
+		const context: EmbeddingServiceContext = {
+			embeddingModel,
+			ocrModel,
+			nodeService,
+			vectorDatabase,
+			bus,
+		};
+
+		const embeddingService = new EmbeddingService(context);
+
+		const fileNodeOrErr = FileNode.create({
+			uuid: "test-uuid",
+			title: "empty.txt",
+			mimetype: "text/plain",
+			size: 0,
+			owner: "user@example.com",
+			group: "test-group",
+			parent: "root",
+		});
+		expect(fileNodeOrErr.isRight()).toBe(true);
+		const fileNode = fileNodeOrErr.right;
+
+		const event = new NodeCreatedEvent("user@example.com", "test-tenant", fileNode);
+		await embeddingService.handleNodeCreated(event);
+
+		// Verify no embedding was stored
+		const searchResult = await vectorDatabase.search(
+			new Array(1536).fill(0),
+			"test-tenant",
+			10,
+		);
+		expect(searchResult.isRight()).toBe(true);
+		if (searchResult.isRight()) {
+			expect(searchResult.value.length).toBe(0);
+		}
+	});
+
 	it("should not generate embedding for FolderNode", async () => {
 		const nodeService = new MockNodeService() as unknown as NodeService;
 		const embeddingModel = new DeterministicModel("text-embedding-3-small", 1536);
@@ -276,6 +323,89 @@ describe("EmbeddingService", () => {
 		if (searchResult.isRight()) {
 			expect(searchResult.value.length).toBe(1);
 			expect(searchResult.value[0].nodeUuid).toBe("test-uuid");
+		}
+	});
+
+	it("should delete embedding when file is updated to zero size", async () => {
+		const nodeService = new MockNodeService() as unknown as NodeService;
+		const embeddingModel = new DeterministicModel("text-embedding-3-small", 1536);
+		const ocrModel = new DeterministicModel("deterministic-ocr", 1536);
+		const vectorDatabase = new InMemoryVectorDatabase();
+		const bus = {
+			subscribe: () => {},
+			publish: () => {},
+		} as unknown as EventBus;
+
+		const context: EmbeddingServiceContext = {
+			embeddingModel,
+			ocrModel,
+			nodeService,
+			vectorDatabase,
+			bus,
+		};
+
+		const embeddingService = new EmbeddingService(context);
+
+		const fileNodeOrErr = FileNode.create({
+			uuid: "test-uuid",
+			title: "test.txt",
+			mimetype: "text/plain",
+			size: 100,
+			owner: "user@example.com",
+			group: "test-group",
+			parent: "root",
+		});
+		expect(fileNodeOrErr.isRight()).toBe(true);
+		const fileNode = fileNodeOrErr.right;
+
+		// Create initial embedding
+		(nodeService as any).setFile("test-uuid", "Initial content", "text/plain");
+		const createEvent = new NodeCreatedEvent("user@example.com", "test-tenant", fileNode);
+		await embeddingService.handleNodeCreated(createEvent);
+
+		// Verify embedding was created
+		let searchResult = await vectorDatabase.search(
+			new Array(1536).fill(0),
+			"test-tenant",
+			10,
+		);
+		expect(searchResult.isRight()).toBe(true);
+		if (searchResult.isRight()) {
+			expect(searchResult.value.length).toBe(1);
+		}
+
+		// Update the file to zero size
+		const updatedFileNodeOrErr = FileNode.create({
+			uuid: "test-uuid",
+			title: "test.txt",
+			mimetype: "text/plain",
+			size: 0,
+			owner: "user@example.com",
+			group: "test-group",
+			parent: "root",
+		});
+		expect(updatedFileNodeOrErr.isRight()).toBe(true);
+		const updatedFileNode = updatedFileNodeOrErr.right;
+
+		(nodeService as any).get = async () => ({ isLeft: () => false, value: updatedFileNode });
+
+		const updateEvent = new NodeUpdatedEvent(
+			"user@example.com",
+			"test-tenant",
+			"test-uuid",
+			{},
+		);
+		await embeddingService.handleNodeUpdated(updateEvent);
+
+		// Verify embedding was deleted
+		searchResult = await vectorDatabase.search(
+			new Array(1536).fill(0),
+			"test-tenant",
+			10,
+		);
+		expect(searchResult.isRight()).toBe(true);
+		if (searchResult.isRight()) {
+			expect(searchResult.value.length).toBe(0);
 		}
 	});
 

@@ -1,7 +1,7 @@
 import { beforeEach, describe, it } from "jsr:@std/testing/bdd";
 import { expect } from "jsr:@std/expect";
 import { builtinAgents, getBuiltinAgent, getRAGAgent, isBuiltinAgent } from "./index.ts";
-import ragAgent from "./rag.ts";
+import ragAgent from "./rag_agent.ts";
 import { AgentNode } from "domain/ai/agent_node.ts";
 import { Users } from "domain/users_groups/users.ts";
 import { Nodes } from "domain/nodes/nodes.ts";

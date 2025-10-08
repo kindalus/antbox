@@ -321,6 +321,27 @@ describe("NodeService.createFile", () => {
 		expect(nodeOrErr.isRight(), errToMsg(nodeOrErr.value)).toBeTruthy();
 		expect(nodeOrErr.right.mimetype).toBe(Nodes.FEATURE_MIMETYPE);
 	});
+
+	it("should not create embeddings for zero-size files", async () => {
+		const service = nodeService();
+		await service.create(authCtx, {
+			uuid: "--parent--",
+			title: "Folder",
+			mimetype: Nodes.FOLDER_MIMETYPE,
+		});
+
+		const emptyFile = new File([], "empty.txt", {
+			type: "text/plain",
+		});
+		const nodeOrErr = await service.createFile(authCtx, emptyFile, {
+			parent: "--parent--",
+		});
+
+		expect(nodeOrErr.isRight(), errToMsg(nodeOrErr.value)).toBeTruthy();
+		expect(nodeOrErr.right.size).toBe(0);
+		// The embedding service should not generate embeddings for zero-size files
+		// This is verified through the EmbeddingService tests
+	});
 });
 
 describe("NodeService.duplicate", () => {

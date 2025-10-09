@@ -27,9 +27,7 @@ function createAgentDTO(overrides: Partial<AgentDTO> = {}): AgentDTO {
 		title: "Test Agent",
 		description: "A test agent",
 		owner: "test@example.com",
-		created: new Date().toISOString(),
-		updated: new Date().toISOString(),
-		model: "gemini-1.5-pro",
+		model: "google/gemini-2.5-pro",
 		temperature: 0.7,
 		maxTokens: 8192,
 		reasoning: false,
@@ -245,7 +243,7 @@ describe("AgentService", () => {
 				title: "Test Agent",
 				description: "A test agent",
 				systemInstructions: "You are a helpful assistant",
-				model: "gemini-1.5-pro",
+				model: "google/gemini-2.5-pro",
 				temperature: 0.8,
 				maxTokens: 4000,
 				reasoning: true,
@@ -259,7 +257,7 @@ describe("AgentService", () => {
 				const agent = result.value;
 				expect(agent.title).toBe("Test Agent");
 				expect(agent.description).toBe("A test agent");
-				expect(agent.model).toBe("gemini-1.5-pro");
+				expect(agent.model).toBe("google/gemini-2.5-pro");
 				expect(agent.temperature).toBe(0.8);
 				expect(agent.maxTokens).toBe(4000);
 				expect(agent.reasoning).toBe(true);
@@ -270,10 +268,15 @@ describe("AgentService", () => {
 		});
 
 		it("should use defaults for optional parameters", async () => {
-			const metadata = createAgentDTO({
+			// Create DTO without model to test service defaults
+			const metadata = {
+				uuid: "test-simple-agent-uuid",
 				title: "Simple Agent",
+				description: "A simple test agent",
+				owner: "test@example.com",
 				systemInstructions: "Simple instructions",
-			});
+				// Omit model to test default behavior
+			} as AgentDTO;
 
 			const result = await agentService.createOrReplace(authContext, metadata);
 
@@ -320,7 +323,7 @@ describe("AgentService", () => {
 			const initialMetadata = createAgentDTO({
 				title: "Original Agent",
 				systemInstructions: "Original instructions",
-				model: "gemini-1.5-pro",
+				model: "google/gemini-2.5-pro",
 			});
 
 			const createResult = await agentService.createOrReplace(authContext, initialMetadata);
@@ -430,6 +433,7 @@ describe("AgentService", () => {
 			await agentService.createOrReplace(
 				authContext,
 				createAgentDTO({
+					uuid: "agent-1-uuid",
 					title: "Agent 1",
 					systemInstructions: "Instructions 1",
 				}),
@@ -438,6 +442,7 @@ describe("AgentService", () => {
 			await agentService.createOrReplace(
 				authContext,
 				createAgentDTO({
+					uuid: "agent-2-uuid",
 					title: "Agent 2",
 					systemInstructions: "Instructions 2",
 				}),
@@ -663,7 +668,7 @@ describe("AgentService", () => {
 				expect(capturedSystemInstructions).toContain(
 					"You are an AI agent running inside Antbox",
 				);
-				expect(capturedSystemInstructions).toContain("Custom instructions");
+				expect(capturedSystemInstructions).toContain("Test instructions");
 				expect(capturedSystemInstructions).toContain(
 					"Always detect and respond in the same language",
 				);
@@ -699,7 +704,7 @@ describe("AgentService", () => {
 				expect(capturedSystemInstructions).toContain(
 					"You are an AI agent running inside Antbox",
 				);
-				expect(capturedSystemInstructions).toContain("Custom instructions");
+				expect(capturedSystemInstructions).toContain("Test instructions");
 				expect(capturedSystemInstructions).not.toContain(
 					"Always detect and respond in the same language",
 				);
@@ -779,18 +784,18 @@ describe("AgentService", () => {
 
 			expect(createResult.isRight()).toBeTruthy();
 			if (createResult.isRight()) {
-				// This will attempt to load the model dynamically, but will fail in test environment
+				// This will attempt to load the model dynamically, but will fall back to default model
 				const chatResult = await agentService.chat(
 					authContext,
 					createResult.value.uuid,
 					"Test message",
 				);
 
-				expect(chatResult.isLeft()).toBeTruthy();
-				if (chatResult.isLeft()) {
-					expect(chatResult.value.message).toContain(
-						"Could not load model: google/gemini-2.5-flash",
-					);
+				expect(chatResult.isRight()).toBeTruthy();
+				if (chatResult.isRight()) {
+					const history = chatResult.value;
+					expect(Array.isArray(history)).toBe(true);
+					expect(history.length).toBeGreaterThan(0);
 				}
 			}
 		});
@@ -807,18 +812,18 @@ describe("AgentService", () => {
 
 			expect(createResult.isRight()).toBeTruthy();
 			if (createResult.isRight()) {
-				// Chat should fail with model error
+				// Chat should succeed by falling back to default model
 				const chatResult = await agentService.chat(
 					authContext,
 					createResult.value.uuid,
 					"Hello",
 				);
 
-				expect(chatResult.isLeft()).toBeTruthy();
-				if (chatResult.isLeft()) {
-					expect(chatResult.value.message).toContain(
-						"Could not load model: openai/invalid-model",
-					);
+				expect(chatResult.isRight()).toBeTruthy();
+				if (chatResult.isRight()) {
+					const history = chatResult.value;
+					expect(Array.isArray(history)).toBe(true);
+					expect(history.length).toBeGreaterThan(0);
 				}
 			}
 		});

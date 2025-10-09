@@ -1,4 +1,4 @@
-import { NodeMetadata } from "domain/nodes/node_metadata.ts";
+import { AgentNode } from "domain/ai/agent_node.ts";
 
 /**
  * Data Transfer Object for Agent API operations
@@ -9,8 +9,6 @@ export interface AgentDTO {
 	readonly title: string;
 	readonly description?: string;
 	readonly owner: string;
-	readonly created: string;
-	readonly updated: string;
 	readonly model: string;
 	readonly temperature: number;
 	readonly maxTokens: number;
@@ -23,20 +21,18 @@ export interface AgentDTO {
 /**
  * Convert AgentNode metadata to AgentDTO
  */
-export function nodeMetadataToAgentDTO(metadata: NodeMetadata): AgentDTO {
+export function toAgentDTO(node: AgentNode): AgentDTO {
 	return {
-		uuid: metadata.uuid!,
-		title: metadata.title!,
-		description: metadata.description,
-		owner: metadata.owner!,
-		created: metadata.createdTime || new Date().toISOString(),
-		updated: metadata.modifiedTime || new Date().toISOString(),
-		model: metadata.model as string,
-		temperature: metadata.temperature as number,
-		maxTokens: metadata.maxTokens as number,
-		reasoning: metadata.reasoning as boolean,
-		useTools: metadata.useTools as boolean,
-		systemInstructions: metadata.systemInstructions as string,
-		structuredAnswer: metadata.structuredAnswer as string | undefined,
+		uuid: node.uuid!,
+		title: node.title!,
+		description: node.description,
+		owner: node.owner!,
+		model: node.model as string,
+		temperature: node.temperature as number,
+		maxTokens: node.maxTokens as number,
+		reasoning: node.reasoning as boolean,
+		useTools: node.useTools as boolean,
+		systemInstructions: node.systemInstructions as string,
+		structuredAnswer: node.structuredAnswer as string | undefined,
 	};
 }

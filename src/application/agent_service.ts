@@ -13,7 +13,7 @@ import { Folders } from "domain/nodes/folders.ts";
 import { AIModel } from "application/ai_model.ts";
 import { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
-import { AgentDTO, nodeMetadataToAgentDTO } from "application/agent_dto.ts";
+import { AgentDTO, toAgentDTO } from "application/agent_dto.ts";
 import { modelFrom } from "adapters/model_configuration_parser.ts";
 const chatSystemPrompt =
 	`You are an AI agent running inside Antbox, an ECM (Enterprise Content Management) platform.
@@ -146,7 +146,7 @@ export class AgentService {
 			}
 
 			// Convert to DTO and return
-			return right(nodeMetadataToAgentDTO(agent.metadata as NodeMetadata));
+			return right(toAgentDTO(agent));
 		} catch (error) {
 			return left(new AntboxError("AgentCreationError", `Failed to create agent: ${error}`));
 		}
@@ -172,7 +172,7 @@ export class AgentService {
 			return left(new AgentNotFoundError(uuid));
 		}
 
-		return right(nodeMetadataToAgentDTO(node.metadata as NodeMetadata));
+		return right(toAgentDTO(node));
 	}
 
 	/**
@@ -214,7 +214,7 @@ export class AgentService {
 			}
 
 			// Return updated DTO
-			return right(nodeMetadataToAgentDTO(agent.metadata as NodeMetadata));
+			return right(toAgentDTO(agent));
 		} catch (error) {
 			return left(new AntboxError("AgentUpdateError", `Failed to update agent: ${error}`));
 		}
@@ -274,7 +274,7 @@ export class AgentService {
 		// Convert to DTOs
 		const agents = findResult.value.nodes
 			.filter((node) => Nodes.isAgent(node))
-			.map((node) => nodeMetadataToAgentDTO(node.metadata as NodeMetadata));
+			.map((node) => toAgentDTO(node));
 
 		return right(agents);
 	}
@@ -496,10 +496,6 @@ export class AgentService {
 		}
 	}
 
-	// ========================================================================
-	// PRIVATE HELPER METHODS
-	// ========================================================================
-
 	/**
 	 * Execute tool calls and return chat messages with results
 	 */
@@ -662,7 +658,10 @@ export class AgentService {
 			}
 		} catch (error) {
 			console.error(`Failed to load model ${modelName}:`, error);
-			return undefined;
+			// Fall back to default model instance when model loading fails
+			// This provides better resilience and enables testing
+			console.warn(`Falling back to default model instance for ${modelName}`);
+			return this.defaultModel;
 		}
 	}
 

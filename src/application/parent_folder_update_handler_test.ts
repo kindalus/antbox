@@ -67,19 +67,119 @@ function createMockContext(): NodeServiceContext {
 	};
 }
 
-Deno.test("ParentFolderUpdateHandler - should update parent folder modification time when node is created", async () => {
-	const mockContext = createMockContext();
-	const mockRepo = mockContext.repository as unknown as MockNodeRepository;
-	const handler = new ParentFolderUpdateHandler(mockContext);
+describe("ParentFolderUpdateHandler", () => {
+	describe("handleNodeCreated", () => {
+		it("should update parent folder modification time when node is created", async () => {
+			const mockContext = createMockContext();
+			const mockRepo = mockContext.repository as unknown as MockNodeRepository;
+			const handler = new ParentFolderUpdateHandler(mockContext);
 
-	// Create a parent folder
-	const parentFolderResult = FolderNode.create({
-		uuid: "parent-folder-uuid",
-		title: "Parent Folder",
-		owner: "test@example.com",
-		group: "test-group",
-		modifiedTime: "2023-01-01T00:00:00.000Z",
-	});
+			// Create a parent folder
+			const parentFolderResult = FolderNode.create({
+				uuid: "parent-folder-uuid",
+				title: "Parent Folder",
+				owner: "test@example.com",
+				group: "test-group",
+				modifiedTime: "2023-01-01T00:00:00.000Z",
+			});
+
+			if (parentFolderResult.isLeft()) {
+				throw new Error("Failed to create parent folder");
+			}
+
+			const parentFolder = parentFolderResult.value;
+			mockRepo.setNode(parentFolder.uuid, parentFolder);
+
+			// Create a child file
+			const childFileResult = FileNode.create({
+				uuid: "child-file-uuid",
+				title: "child.txt",
+				mimetype: "text/plain",
+				parent: parentFolder.uuid,
+				owner: "test@example.com",
+			});
+
+			if (childFileResult.isLeft()) {
+				throw new Error("Failed to create child file");
+			}
+
+			const childFile = childFileResult.value;
+
+			// Create event
+			const event = new NodeCreatedEvent("test@example.com", "test-tenant", childFile);
+
+			// Handle the event
+			handler.handle(event);
+
+			// Wait a bit for async operation to complete
+			await new Promise((resolve) => setTimeout(resolve, 10));
+
+			// Verify parent folder modification time was updated
+			const updatedParentResult = await mockContext.repository.getById(parentFolder.uuid);
+			if (updatedParentResult.isLeft()) {
+				throw new Error("Parent folder not found after update");
+			}
+
+			const updatedParent = updatedParentResult.value;
+			expect(updatedParent.modifiedTime).not.toBe("2023-01-01T00:00:00.000Z");
+
+			// Verify the modification time is recent (within last few seconds)
+			const modifiedTime = new Date(updatedParent.modifiedTime);
+			const now = new Date();
+			const diffInSeconds = (now.getTime() - modifiedTime.getTime()) / 1000;
+			expect(diffInSeconds).toBeLessThan(5);
+		});
+
+		it("should not update root folder", async () => {
+			const mockContext = createMockContext();
+			const handler = new ParentFolderUpdateHandler(mockContext);
+
+			// Create a child file with root folder as parent
+			const childFileResult = FileNode.create({
+				uuid: "child-file-uuid",
+				title: "child.txt",
+				mimetype: "text/plain",
+				parent: Folders.ROOT_FOLDER_UUID,
+				owner: "test@example.com",
+			});
+
+			if (childFileResult.isLeft()) {
+				throw new Error("Failed to create child file");
+			}
+
+			const childFile = childFileResult.value;
+
+			// Create event
+			const event = new NodeCreatedEvent("test@example.com", "test-tenant", childFile);
+
+			// Handle the event - should not throw or try to update root folder
+			handler.handle(event);
+
+			// Wait a bit for async operation to complete
+			await new Promise((resolve) => setTimeout(resolve, 10));
+
+			// Test passes if no errors are thrown
+			expect(true).toBe(true);
+		});
+
+		it("should handle parent not found gracefully", async () => {
+			const mockContext = createMockContext();
+			const handler = new ParentFolderUpdateHandler(mockContext);
+
+			// Create a child file with non-existent parent
+			const childFileResult = FileNode.create({
+				uuid: "child-file-uuid",
+				title: "child.txt",
+				mimetype: "text/plain",
+				parent: "non-existent-parent-uuid",
+				owner: "test@example.com",
+			});
+
+			if (childFileResult.isLeft()) {
+				throw new Error("Failed to create child file");
+			}
+
+			const childFile = childFileResult.value;
 
 	if (parentFolderResult.isLeft()) {
 		throw new Error("Failed to create parent folder");

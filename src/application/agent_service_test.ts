@@ -27,7 +27,7 @@ function createAgentDTO(overrides: Partial<AgentDTO> = {}): AgentDTO {
 		title: "Test Agent",
 		description: "A test agent",
 		owner: "test@example.com",
-		model: "google/gemini-2.5-pro",
+		model: "default",
 		temperature: 0.7,
 		maxTokens: 8192,
 		reasoning: false,
@@ -243,7 +243,7 @@ describe("AgentService", () => {
 				title: "Test Agent",
 				description: "A test agent",
 				systemInstructions: "You are a helpful assistant",
-				model: "google/gemini-2.5-pro",
+				model: "default",
 				temperature: 0.8,
 				maxTokens: 4000,
 				reasoning: true,
@@ -257,7 +257,7 @@ describe("AgentService", () => {
 				const agent = result.value;
 				expect(agent.title).toBe("Test Agent");
 				expect(agent.description).toBe("A test agent");
-				expect(agent.model).toBe("google/gemini-2.5-pro");
+				expect(agent.model).toBe("default");
 				expect(agent.temperature).toBe(0.8);
 				expect(agent.maxTokens).toBe(4000);
 				expect(agent.reasoning).toBe(true);
@@ -323,7 +323,7 @@ describe("AgentService", () => {
 			const initialMetadata = createAgentDTO({
 				title: "Original Agent",
 				systemInstructions: "Original instructions",
-				model: "google/gemini-2.5-pro",
+				model: "default",
 			});
 
 			const createResult = await agentService.createOrReplace(authContext, initialMetadata);

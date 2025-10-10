@@ -36,6 +36,7 @@ export class AspectService {
 		const nodeOrErr = await this.nodeService.create(ctx, {
 			...metadata,
 			mimetype: Nodes.ASPECT_MIMETYPE,
+			parent: Folders.ASPECTS_FOLDER_UUID,
 		});
 
 		if (nodeOrErr.isLeft()) {

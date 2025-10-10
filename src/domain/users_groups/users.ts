@@ -4,6 +4,8 @@ import { UserNode } from "./user_node.ts";
 export class Users {
 	static ANONYMOUS_USER_UUID = "--anonymous--";
 	static ANONYMOUS_USER_EMAIL = "anonymous@antbox.io";
+	static API_KEY_USER_UUID = "--api-key--";
+	static API_KEY_USER_EMAIL = "apikey@antbox.io";
 	static ROOT_USER_UUID = "--root--";
 	static ROOT_USER_EMAIL = "root@antbox.io";
 

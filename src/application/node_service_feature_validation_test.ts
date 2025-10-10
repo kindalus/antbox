@@ -32,38 +32,37 @@ const adminAuthContext: AuthenticationContext = {
 };
 
 describe("NodeService Feature Validation", () => {
-	// === Action Feature Validation Tests ===
+	describe("action validation", () => {
+		it("should validate Action must have uuids parameter", async () => {
+			const nodeService = createNodeService();
 
-	it("should validate Action must have uuids parameter", async () => {
-		const nodeService = createNodeService();
+			const result = await nodeService.createFile(
+				adminAuthContext,
+				new File(["dummy content"], "action-without-uuids.js", {
+					type: "application/javascript",
+				}),
+				{
+					title: "action-without-uuids.js",
+					parent: "--features--",
+					mimetype: "application/vnd.antbox.feature",
+					exposeAction: true,
+					exposeExtension: false,
+					exposeAITool: false,
+					parameters: [
+						{
+							name: "message",
+							type: "string",
+							required: true,
+						},
+					],
+				},
+			);
 
-		const result = await nodeService.createFile(
-			adminAuthContext,
-			new File(["dummy content"], "action-without-uuids.js", {
-				type: "application/javascript",
-			}),
-			{
-				title: "action-without-uuids.js",
-				parent: "--features--",
-				mimetype: "application/vnd.antbox.feature",
-				exposeAction: true,
-				exposeExtension: false,
-				exposeAITool: false,
-				parameters: [
-					{
-						name: "message",
-						type: "string",
-						required: true,
-					},
-				],
-			},
-		);
-
-		expect(result.isLeft()).toBeTruthy();
-		if (result.isLeft()) {
-			expect(result.value).toBeInstanceOf(ValidationError);
-			expect((result.value as ValidationError).message).toContain("uuids");
-		}
+			expect(result.isLeft()).toBeTruthy();
+			if (result.isLeft()) {
+				expect(result.value).toBeInstanceOf(ValidationError);
+				expect((result.value as ValidationError).message).toContain("uuids");
+			}
 	});
 
 	it("should validate Action uuids parameter must be array of strings", async () => {
@@ -198,40 +197,41 @@ describe("NodeService Feature Validation", () => {
 		expect(result.isRight()).toBeTruthy();
 	});
 
-	// === Extension Feature Validation Tests ===
+	});
 
-	it("should validate Extension cannot have uuids parameter (unless also Action)", async () => {
-		const nodeService = createNodeService();
+	describe("extension validation", () => {
+		it("should validate Extension cannot have uuids parameter (unless also Action)", async () => {
+			const nodeService = createNodeService();
 
-		// Test Extension-only with uuids (should fail)
-		const result = await nodeService.createFile(
-			adminAuthContext,
-			new File(["dummy content"], "extension-with-uuids.js", {
-				type: "application/javascript",
-			}),
-			{
-				title: "extension-with-uuids.js",
-				parent: "--features--",
-				mimetype: "application/vnd.antbox.feature",
-				exposeAction: false,
-				exposeExtension: true,
-				exposeAITool: false,
-				parameters: [
-					{
-						name: "uuids",
-						type: "array",
-						arrayType: "string",
-						required: true,
-					},
-				],
-			},
-		);
+			// Test Extension-only with uuids (should fail)
+			const result = await nodeService.createFile(
+				adminAuthContext,
+				new File(["dummy content"], "extension-with-uuids.js", {
+					type: "application/javascript",
+				}),
+				{
+					title: "extension-with-uuids.js",
+					parent: "--features--",
+					mimetype: "application/vnd.antbox.feature",
+					exposeAction: false,
+					exposeExtension: true,
+					exposeAITool: false,
+					parameters: [
+						{
+							name: "uuids",
+							type: "array",
+							arrayType: "string",
+							required: true,
+						},
+					],
+				},
+			);
 
-		expect(result.isLeft()).toBeTruthy();
-		if (result.isLeft()) {
-			expect(result.value).toBeInstanceOf(BadRequestError);
-			expect((result.value as BadRequestError).message).toContain("uuids parameter");
-		}
+			expect(result.isLeft()).toBeTruthy();
+			if (result.isLeft()) {
+				expect(result.value).toBeInstanceOf(BadRequestError);
+				expect((result.value as BadRequestError).message).toContain("uuids parameter");
+			}
 	});
 
 	it("should allow Extension with file parameters", async () => {
@@ -284,40 +284,41 @@ describe("NodeService Feature Validation", () => {
 		expect(result.isRight()).toBeTruthy();
 	});
 
-	// === AI Tool Feature Validation Tests ===
+	});
 
-	it("should validate AI Tool cannot have uuids parameter (unless also Action)", async () => {
-		const nodeService = createNodeService();
+	describe("ai tool validation", () => {
+		it("should validate AI Tool cannot have uuids parameter (unless also Action)", async () => {
+			const nodeService = createNodeService();
 
-		// Test AI Tool-only with uuids (should fail)
-		const result = await nodeService.createFile(
-			adminAuthContext,
-			new File(["dummy content"], "ai-tool-with-uuids.js", {
-				type: "application/javascript",
-			}),
-			{
-				title: "ai-tool-with-uuids.js",
-				parent: "--features--",
-				mimetype: "application/vnd.antbox.feature",
-				exposeAction: false,
-				exposeExtension: false,
-				exposeAITool: true,
-				parameters: [
-					{
-						name: "uuids",
-						type: "array",
-						arrayType: "string",
-						required: true,
-					},
-				],
-			},
-		);
+			// Test AI Tool-only with uuids (should fail)
+			const result = await nodeService.createFile(
+				adminAuthContext,
+				new File(["dummy content"], "ai-tool-with-uuids.js", {
+					type: "application/javascript",
+				}),
+				{
+					title: "ai-tool-with-uuids.js",
+					parent: "--features--",
+					mimetype: "application/vnd.antbox.feature",
+					exposeAction: false,
+					exposeExtension: false,
+					exposeAITool: true,
+					parameters: [
+						{
+							name: "uuids",
+							type: "array",
+							arrayType: "string",
+							required: true,
+						},
+					],
+				},
+			);
 
-		expect(result.isLeft()).toBeTruthy();
-		if (result.isLeft()) {
-			expect(result.value).toBeInstanceOf(BadRequestError);
-			expect((result.value as BadRequestError).message).toContain("uuids parameter");
-		}
+			expect(result.isLeft()).toBeTruthy();
+			if (result.isLeft()) {
+				expect(result.value).toBeInstanceOf(BadRequestError);
+				expect((result.value as BadRequestError).message).toContain("uuids parameter");
+			}
 	});
 
 	it("should validate AI Tool cannot have file parameters", async () => {
@@ -380,68 +381,70 @@ describe("NodeService Feature Validation", () => {
 		expect(result.isRight()).toBeTruthy();
 	});
 
-	// === Multi-Subtype Feature Validation Tests ===
-
-	it("should validate Action + AI Tool combination", async () => {
-		const nodeService = createNodeService();
-
-		const result = await nodeService.createFile(
-			adminAuthContext,
-			new File(["dummy content"], "action-ai-tool-combo.js", {
-				type: "application/javascript",
-			}),
-			{
-				title: "action-ai-tool-combo.js",
-				parent: "--features--",
-				mimetype: "application/vnd.antbox.feature",
-				exposeAction: true,
-				exposeExtension: false,
-				exposeAITool: true,
-				parameters: [
-					{
-						name: "uuids",
-						type: "array",
-						arrayType: "string",
-						required: true,
-					},
-					{
-						name: "input",
-						type: "string",
-						required: true,
-					},
-				],
-			},
-		);
-
-		expect(result.isRight()).toBeTruthy();
 	});
 
-	// === General Feature Validation Tests ===
+	describe("multi subtype validation", () => {
+		it("should validate Action + AI Tool combination", async () => {
+			const nodeService = createNodeService();
 
-	it("should validate Feature must have at least one subtype exposure", async () => {
-		const nodeService = createNodeService();
+			const result = await nodeService.createFile(
+				adminAuthContext,
+				new File(["dummy content"], "action-ai-tool-combo.js", {
+					type: "application/javascript",
+				}),
+				{
+					title: "action-ai-tool-combo.js",
+					parent: "--features--",
+					mimetype: "application/vnd.antbox.feature",
+					exposeAction: true,
+					exposeExtension: false,
+					exposeAITool: true,
+					parameters: [
+						{
+							name: "uuids",
+							type: "array",
+							arrayType: "string",
+							required: true,
+						},
+						{
+							name: "input",
+							type: "string",
+							required: true,
+						},
+					],
+				},
+			);
 
-		const result = await nodeService.createFile(
-			adminAuthContext,
-			new File(["dummy content"], "no-exposure-feature.js", {
-				type: "application/javascript",
-			}),
-			{
-				title: "no-exposure-feature.js",
-				parent: "--features--",
-				mimetype: "application/vnd.antbox.feature",
-				exposeAction: false,
-				exposeExtension: false,
-				exposeAITool: false,
-				parameters: [],
-			},
-		);
+			expect(result.isRight()).toBeTruthy();
+	});
 
-		expect(result.isLeft()).toBeTruthy();
-		if (result.isLeft()) {
-			expect(result.value).toBeInstanceOf(BadRequestError);
-			expect((result.value as BadRequestError).message).toContain("at least one");
-		}
+	});
+
+	describe("general validation", () => {
+		it("should validate Feature must have at least one subtype exposure", async () => {
+			const nodeService = createNodeService();
+
+			const result = await nodeService.createFile(
+				adminAuthContext,
+				new File(["dummy content"], "no-exposure-feature.js", {
+					type: "application/javascript",
+				}),
+				{
+					title: "no-exposure-feature.js",
+					parent: "--features--",
+					mimetype: "application/vnd.antbox.feature",
+					exposeAction: false,
+					exposeExtension: false,
+					exposeAITool: false,
+					parameters: [],
+				},
+			);
+
+			expect(result.isLeft()).toBeTruthy();
+			if (result.isLeft()) {
+				expect(result.value).toBeInstanceOf(BadRequestError);
+				expect((result.value as BadRequestError).message).toContain("at least one");
+			}
 	});
 
 	it("should validate Feature parameters array structure", async () => {
@@ -474,6 +477,7 @@ describe("NodeService Feature Validation", () => {
 			expect(result.value).toBeInstanceOf(BadRequestError);
 			expect((result.value as BadRequestError).message).toContain("parameter");
 		}
+	});
 	});
 
 	// Note: Feature property updates (exposeAction, exposeExtension, exposeAITool, parameters)

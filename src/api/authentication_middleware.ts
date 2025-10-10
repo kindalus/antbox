@@ -133,7 +133,7 @@ async function authenticateApiKey(
 		return storeAnonymous(req);
 	}
 
-	storePrincipal(req, Users.ROOT_USER_EMAIL, [apiKeyOrErr.value.group]);
+	storePrincipal(req, Users.API_KEY_USER_EMAIL, [apiKeyOrErr.value.group]);
 }
 
 async function authenticateToken(

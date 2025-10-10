@@ -12,7 +12,6 @@ import { modelFrom } from "adapters/model_configuration_parser.ts";
 import { AspectService } from "application/aspect_service.ts";
 import { FeatureService } from "application/feature_service.ts";
 import { UsersGroupsService } from "application/users_groups_service.ts";
-import { AuthService } from "application/auth_service.ts";
 import { ApiKeyService } from "application/api_key_service.ts";
 import type { VectorDatabase } from "application/vector_database.ts";
 import type { AIModel } from "application/ai_model.ts";
@@ -25,6 +24,7 @@ import { Users } from "domain/users_groups/users.ts";
 
 import {} from "path";
 import { resolve } from "path";
+import { toAgentDTO } from "application/agent_dto.ts";
 
 export function setupTenants(
 	cfg: ServerConfiguration,
@@ -114,8 +114,8 @@ async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
 		storage: storage ?? new InMemoryStorageProvider(),
 		bus: eventBus,
 	});
-	const featureService = new FeatureService(nodeService, usersGroupsService);
-	const authService = new AuthService(nodeService);
+	const featureService = new FeatureService(nodeService, usersGroupsService, ocrModel);
+
 	const apiKeyService = new ApiKeyService(nodeService);
 
 	// Build AI-related services AFTER NodeService and core services
@@ -149,7 +149,6 @@ async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
 		nodeService,
 		aspectService,
 		featureService,
-		authService,
 		apiKeyService,
 		rootPasswd: passwd,
 		rawJwk,
@@ -217,10 +216,10 @@ async function loadSymmetricKey(keyPath?: string): Promise<string> {
 /**
  * Validate that the default model has required capabilities for AI agents
  */
-async function validateModelCapabilities(
+function validateModelCapabilities(
 	tenantName: string,
 	model: AIModel,
-): Promise<void> {
+) {
 	// REQUIRED capabilities
 	if (!model.tools) {
 		console.error(
@@ -262,7 +261,7 @@ async function seedBuiltinAgents(
 	for (const agent of builtinAgents) {
 		const result = await agentService.createOrReplace(
 			rootAuthContext,
-			agent.metadata,
+			toAgentDTO(agent),
 		);
 
 		if (result.isLeft()) {

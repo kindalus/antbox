@@ -57,11 +57,6 @@ export class ParentFolderUpdateHandler
 		if (
 			newValues.parent !== undefined && oldValues.parent !== newValues.parent
 		) {
-			// Node was moved - update both old and new parent folders
-			console.debug(
-				`ParentFolderUpdateHandler: Node moved from ${oldValues.parent} to ${newValues.parent}`,
-			);
-
 			// Update old parent folder
 			await this.updateParentFolder(oldValues.parent!, event.eventId, "old parent");
 
@@ -122,10 +117,5 @@ export class ParentFolderUpdateHandler
 			);
 			return;
 		}
-
-		const contextStr = context ? ` (${context})` : "";
-		console.debug(
-			`ParentFolderUpdateHandler: Updated modification time for parent folder ${parentUuid}${contextStr} after ${eventType}`,
-		);
 	}
 }

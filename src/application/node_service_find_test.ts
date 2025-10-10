@@ -59,164 +59,165 @@ beforeAll(async () => {
 	await loadData(service);
 });
 
-describe("NodeService.find", () => {
-	it("should find all jpg files", async () => {
-		const filters: NodeFilters1D = [["mimetype", "==", "image/jpeg"]];
-		const result = await service.find(authCtx, filters);
+describe("NodeService", () => {
+	describe("find", () => {
+		it("should find all jpg files", async () => {
+			const filters: NodeFilters1D = [["mimetype", "==", "image/jpeg"]];
+			const result = await service.find(authCtx, filters);
 
-		expect(result.isRight(), errToMsg(result.value)).toBeTruthy();
-		expect(result.right.nodes.length).toBe(2);
-		expect(result.right.nodes.map((n) => n.title)).toEqual([
-			"Background Zoom-1.jpg",
-			"Background Zoom-2.jpg",
-		]);
+			expect(result.isRight(), errToMsg(result.value)).toBeTruthy();
+			expect(result.right.nodes.length).toBe(2);
+			expect(result.right.nodes.map((n) => n.title)).toEqual([
+				"Background Zoom-1.jpg",
+				"Background Zoom-2.jpg",
+			]);
+		});
+
+		it("should find nodes with OPE aspect", async () => {
+			const filters: NodeFilters1D = [[
+				"aspects",
+				"contains",
+				"ope-aspect",
+			]];
+			const result = await service.find(authCtx, filters);
+
+			expect(result.isRight(), errToMsg(result.value)).toBeTruthy();
+			expect(result.right.nodes.length).toBe(5);
+			expect(
+				result.right.nodes.every((n) => (n as AspectableNode).aspects?.includes("ope-aspect")),
+			)
+				.toBeTruthy();
+		});
+
+		it("should find posicao-financeira aspect OR contabilidade folder nodes", async () => {
+			const filters: NodeFilters2D = [
+				[["aspects", "contains", "posicao-financeira"]],
+				[["parent", "==", "contabilidade-uuid"]],
+			];
+
+			const result = await service.find(authCtx, filters);
+
+			expect(result.isRight(), errToMsg(result.value)).toBeTruthy();
+			expect(result.right.nodes.length).toBe(8);
+			expect(
+				result.right.nodes.some((n) =>
+					(n as AspectableNode).aspects?.includes("posicao-financeira")
+				),
+			).toBeTruthy();
+			expect(result.right.nodes.some((n) => n.parent === "contabilidade-uuid"))
+				.toBeTruthy();
+		});
+
+		it("should not return files without read permission", async () => {
+			const filters: NodeFilters1D = [["parent", "==", Folders.ROOT_FOLDER_UUID]];
+			const result = await service.find(financeCtx, filters);
+
+			expect(result.isRight(), errToMsg(result.value)).toBeTruthy();
+			expect(result.right.nodes.length).toBe(5);
+		});
 	});
 
-	it("should find nodes with OPE aspect", async () => {
-		const filters: NodeFilters1D = [[
-			"aspects",
-			"contains",
-			"ope-aspect",
-		]];
-		const result = await service.find(authCtx, filters);
+	describe("list", () => {
+		it("should list all nodes in the root folder", async () => {
+			const listOrErr = await service.list(authCtx, Folders.ROOT_FOLDER_UUID);
 
-		expect(result.isRight(), errToMsg(result.value)).toBeTruthy();
-		expect(result.right.nodes.length).toBe(5);
-		expect(
-			result.right.nodes.every((n) => (n as AspectableNode).aspects?.includes("ope-aspect")),
-		)
-			.toBeTruthy();
+			expect(listOrErr.isRight(), errToMsg(listOrErr.value)).toBeTruthy();
+			expect(listOrErr.right.length).toBeGreaterThan(0);
+		});
+
+		it("should list nodes in 'Data Warehouse' folder", async () => {
+			const listOrErr = await service.list(authCtx, "data-warehouse-uuid");
+
+			expect(listOrErr.isRight(), errToMsg(listOrErr.value)).toBeTruthy();
+			expect(listOrErr.right.length).toBe(5);
+			expect(listOrErr.right.map((n) => n.title)).toEqual([
+				"vetify_sales_dw-20240329.sql",
+				"vetify_sales_dw-20240507.sql",
+				"vetify_sales_dw-202409013.sql",
+				"vetify_sales_dw-20241222.sql",
+				"vetify_sales_dw-20250106.sql",
+			]);
+		});
+
+		it("should not list nodes in 'Data Warehouse' folder for anonymous user", async () => {
+			const listOrErr = await service.list(anonymousCtx, "data-warehouse-uuid");
+
+			expect(listOrErr.isLeft()).toBeTruthy();
+			expect(listOrErr.value).toBeInstanceOf(ForbiddenError);
+		});
+
+		it("should list public nodes in 'Marca' folder for anonymous user", async () => {
+			const listOrErr = await service.list(anonymousCtx, "marca-uuid");
+
+			expect(listOrErr.isRight(), errToMsg(listOrErr.value)).toBeTruthy();
+			expect(listOrErr.right.length).toBe(6);
+		});
+
+		it("should include system root folder when listing root folder", async () => {
+			const listOrErr = await service.list(authCtx, Folders.ROOT_FOLDER_UUID);
+
+			expect(listOrErr.isRight(), errToMsg(listOrErr.value)).toBeTruthy();
+			expect(listOrErr.right.some((n) => n.uuid === Folders.SYSTEM_FOLDER_UUID))
+				.toBeTruthy();
+		});
+
+		it("should list all system folders when listing system root folder", async () => {
+			const listOrErr = await service.list(authCtx, Folders.SYSTEM_FOLDER_UUID);
+
+			expect(listOrErr.isRight(), errToMsg(listOrErr.value)).toBeTruthy();
+			expect(listOrErr.right.map((n) => n.uuid).sort()).toEqual(
+				Folders.SYSTEM_FOLDERS_UUID.filter((uuid) => uuid !== Folders.SYSTEM_FOLDER_UUID).sort(),
+			);
+		});
+
+		it("should not show nodes that the user cannot read", async () => {
+			const listOrErr = await service.list(anonymousCtx, "vetify-logotipo-uuid");
+			expect(listOrErr.isRight(), errToMsg(listOrErr.value)).toBeTruthy();
+			expect(listOrErr.right.length).toBe(1);
+		});
+
+		it("should evaluate smartfolder when listing it", async () => {
+			const listOrErr = await service.list(
+				authCtx,
+				"posicao-financeira-2024-uuid",
+			);
+
+			expect(listOrErr.isRight(), errToMsg(listOrErr.value)).toBeTruthy();
+			expect(listOrErr.right.length).toBe(2);
+			expect(listOrErr.right.map((n) => n.title)).toEqual([
+				"Posição Financeira - 2024-09-29.pdf",
+				"Posição Financeira - 2024-12-08.pdf",
+			]);
+		});
 	});
 
-	it("should find posicao-financeira aspect OR contabilidade folder nodes", async () => {
-		const filters: NodeFilters2D = [
-			[["aspects", "contains", "posicao-financeira"]],
-			[["parent", "==", "contabilidade-uuid"]],
-		];
+	describe("evaluate", () => {
+		it("should return filtered nodes", async () => {
+			const evaluationOrErr = await service.evaluate(
+				authCtx,
+				"posicao-financeira-2024-uuid",
+			);
 
-		const result = await service.find(authCtx, filters);
+			expect(evaluationOrErr.isRight(), errToMsg(evaluationOrErr.value))
+				.toBeTruthy();
+			expect(evaluationOrErr.right.length).toBe(2);
+			expect(evaluationOrErr.right.map((n) => n.title)).toEqual([
+				"Posição Financeira - 2024-09-29.pdf",
+				"Posição Financeira - 2024-12-08.pdf",
+			]);
+		});
 
-		expect(result.isRight(), errToMsg(result.value)).toBeTruthy();
-		expect(result.right.nodes.length).toBe(8);
-		expect(
-			result.right.nodes.some((n) =>
-				(n as AspectableNode).aspects?.includes("posicao-financeira")
-			),
-		).toBeTruthy();
-		expect(result.right.nodes.some((n) => n.parent === "contabilidade-uuid"))
-			.toBeTruthy();
-	});
+		it("should return error if node is not a smartfolder node", async () => {
+			const evaluationOrErr = await service.evaluate(
+				authCtx,
+				"data-warehouse-uuid",
+			);
 
-	it("should not return files without read permission", async () => {
-		const filters: NodeFilters1D = [["parent", "==", Folders.ROOT_FOLDER_UUID]];
-		const result = await service.find(financeCtx, filters);
-
-		expect(result.isRight(), errToMsg(result.value)).toBeTruthy();
-		expect(result.right.nodes.length).toBe(6);
+			expect(evaluationOrErr.isLeft()).toBeTruthy();
+			expect(evaluationOrErr.value).toBeInstanceOf(SmartFolderNodeNotFoundError);
+		});
 	});
 });
-
-describe("NodeService.list", () => {
-	it("should list all nodes in the root folder", async () => {
-		const listOrErr = await service.list(authCtx, Folders.ROOT_FOLDER_UUID);
-
-		expect(listOrErr.isRight(), errToMsg(listOrErr.value)).toBeTruthy();
-		expect(listOrErr.right.length).toBeGreaterThan(0);
-	});
-
-	it("should list nodes in 'Data Warehouse' folder", async () => {
-		const listOrErr = await service.list(authCtx, "data-warehouse-uuid");
-
-		expect(listOrErr.isRight(), errToMsg(listOrErr.value)).toBeTruthy();
-		expect(listOrErr.right.length).toBe(5);
-		expect(listOrErr.right.map((n) => n.title)).toEqual([
-			"vetify_sales_dw-20240329.sql",
-			"vetify_sales_dw-20240507.sql",
-			"vetify_sales_dw-202409013.sql",
-			"vetify_sales_dw-20241222.sql",
-			"vetify_sales_dw-20250106.sql",
-		]);
-	});
-
-	it("should not list nodes in 'Data Warehouse' folder for anonymous user", async () => {
-		const listOrErr = await service.list(anonymousCtx, "data-warehouse-uuid");
-
-		expect(listOrErr.isLeft()).toBeTruthy();
-		expect(listOrErr.value).toBeInstanceOf(ForbiddenError);
-	});
-
-	it("should list public nodes in 'Marca' folder for anonymous user", async () => {
-		const listOrErr = await service.list(anonymousCtx, "marca-uuid");
-
-		expect(listOrErr.isRight(), errToMsg(listOrErr.value)).toBeTruthy();
-		expect(listOrErr.right.length).toBe(6);
-	});
-
-	it("should include system root folder when listing root folder", async () => {
-		const listOrErr = await service.list(authCtx, Folders.ROOT_FOLDER_UUID);
-
-		expect(listOrErr.isRight(), errToMsg(listOrErr.value)).toBeTruthy();
-		expect(listOrErr.right.some((n) => n.uuid === Folders.SYSTEM_FOLDER_UUID))
-			.toBeTruthy();
-	});
-
-	it("should list all system folders when listing system root folder", async () => {
-		const listOrErr = await service.list(authCtx, Folders.SYSTEM_FOLDER_UUID);
-
-		expect(listOrErr.isRight(), errToMsg(listOrErr.value)).toBeTruthy();
-		expect(listOrErr.right.map((n) => n.uuid).sort()).toEqual(
-			Folders.SYSTEM_FOLDERS_UUID.filter((uuid) => uuid !== Folders.SYSTEM_FOLDER_UUID).sort(),
-		);
-	});
-
-	it("should not show nodes that the user cannot read", async () => {
-		const listOrErr = await service.list(anonymousCtx, "vetify-logotipo-uuid");
-		expect(listOrErr.isRight(), errToMsg(listOrErr.value)).toBeTruthy();
-		expect(listOrErr.right.length).toBe(1);
-	});
-
-	it("should evaluate smartfolder when listing it", async () => {
-		const listOrErr = await service.list(
-			authCtx,
-			"posicao-financeira-2024-uuid",
-		);
-
-		expect(listOrErr.isRight(), errToMsg(listOrErr.value)).toBeTruthy();
-		expect(listOrErr.right.length).toBe(2);
-		expect(listOrErr.right.map((n) => n.title)).toEqual([
-			"Posição Financeira - 2024-09-29.pdf",
-			"Posição Financeira - 2024-12-08.pdf",
-		]);
-	});
-});
-
-describe("NodeService.evaluate", () => {
-	it("should return filtered nodes", async () => {
-		const evaluationOrErr = await service.evaluate(
-			authCtx,
-			"posicao-financeira-2024-uuid",
-		);
-
-		expect(evaluationOrErr.isRight(), errToMsg(evaluationOrErr.value))
-			.toBeTruthy();
-		expect(evaluationOrErr.right.length).toBe(2);
-		expect(evaluationOrErr.right.map((n) => n.title)).toEqual([
-			"Posição Financeira - 2024-09-29.pdf",
-			"Posição Financeira - 2024-12-08.pdf",
-		]);
-	});
-
-	it("should return error if node is not a smartfolder node", async () => {
-		const evaluationOrErr = await service.evaluate(
-			authCtx,
-			"data-warehouse-uuid",
-		);
-
-		expect(evaluationOrErr.isLeft()).toBeTruthy();
-		expect(evaluationOrErr.value).toBeInstanceOf(SmartFolderNodeNotFoundError);
-	});
-});
-
 function errToMsg(err: unknown): string {
 	if (err instanceof Error) {
 		return err.message;
@@ -294,6 +295,7 @@ all 'Posição Financeira' files from 2024.
 		uuid: "ope-aspect",
 		title: "OPE",
 		mimetype: Nodes.ASPECT_MIMETYPE,
+		parent: Folders.ASPECTS_FOLDER_UUID,
 		properties: [
 			{ name: "date", title: "Date", type: "date", required: true },
 			{ name: "amount", title: "Amount", type: "number", required: true },
@@ -306,6 +308,7 @@ all 'Posição Financeira' files from 2024.
 		uuid: "posicao-financeira",
 		title: "Posição Financeira",
 		mimetype: Nodes.ASPECT_MIMETYPE,
+		parent: Folders.ASPECTS_FOLDER_UUID,
 		properties: [
 			{ name: "date", title: "Date", type: "date", required: true },
 			{ name: "amount", title: "Amount", type: "number", required: true },
@@ -316,6 +319,7 @@ all 'Posição Financeira' files from 2024.
 		uuid: "contabilidade-uuid",
 		title: "Contabilidade",
 		mimetype: Nodes.FOLDER_MIMETYPE,
+		parent: Folders.ROOT_FOLDER_UUID,
 		group: "accounting",
 		permissions: {
 			group: ["Read"],
@@ -341,6 +345,7 @@ all 'Posição Financeira' files from 2024.
 		uuid: "data-warehouse-uuid",
 		title: "Data Warehouse",
 		mimetype: Nodes.FOLDER_MIMETYPE,
+		parent: Folders.ROOT_FOLDER_UUID,
 	});
 
 	await service.create(authCtx, {
@@ -377,6 +382,7 @@ all 'Posição Financeira' files from 2024.
 		uuid: "importacao-uuid",
 		title: "Importação",
 		mimetype: Nodes.FOLDER_MIMETYPE,
+		parent: Folders.ROOT_FOLDER_UUID,
 	});
 
 	await service.create(authCtx, {
@@ -419,6 +425,7 @@ all 'Posição Financeira' files from 2024.
 		uuid: "ope-uuid",
 		title: "OPEs",
 		mimetype: Nodes.FOLDER_MIMETYPE,
+		parent: "importacao-uuid",
 	})).right;
 
 	(await service.create(authCtx, {
@@ -505,6 +512,7 @@ all 'Posição Financeira' files from 2024.
 		uuid: "marca-uuid",
 		title: "Marca",
 		mimetype: Nodes.FOLDER_MIMETYPE,
+		parent: Folders.ROOT_FOLDER_UUID,
 		permissions: {
 			group: [],
 			authenticated: [],
@@ -604,6 +612,7 @@ all 'Posição Financeira' files from 2024.
 		uuid: "posicao-financeira-uuid",
 		title: "Posições Financeiras",
 		mimetype: Nodes.FOLDER_MIMETYPE,
+		parent: Folders.ROOT_FOLDER_UUID,
 		group: "finance",
 		permissions: {
 			group: ["Read"],
@@ -686,6 +695,7 @@ all 'Posição Financeira' files from 2024.
 		uuid: "posicao-financeira-2024-uuid",
 		title: "Posição Financeira 2024",
 		mimetype: Nodes.SMART_FOLDER_MIMETYPE,
+		parent: Folders.ROOT_FOLDER_UUID,
 		filters: [
 			["aspects", "contains", "posicao-financeira"],
 			["properties.posicao-financeira:date", ">=", "2024-01-01"],

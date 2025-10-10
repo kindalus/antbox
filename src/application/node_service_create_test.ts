@@ -25,6 +25,7 @@ describe("NodeService.create", () => {
 			uuid: "--parent--",
 			title: "Folder 1",
 			mimetype: Nodes.FOLDER_MIMETYPE,
+			parent: Folders.ROOT_FOLDER_UUID,
 		});
 
 		await service.create(authCtx, {
@@ -57,6 +58,7 @@ describe("NodeService.create", () => {
 				uuid: "invoice",
 				title: "Invoice",
 				mimetype: Nodes.ASPECT_MIMETYPE,
+				parent: Folders.ASPECTS_FOLDER_UUID,
 				properties: props,
 			})
 		).right;
@@ -65,6 +67,7 @@ describe("NodeService.create", () => {
 		const nodeOrErr = await service.create(authCtx, {
 			title: "Invalid Node",
 			mimetype: Nodes.FOLDER_MIMETYPE,
+			parent: Folders.ROOT_FOLDER_UUID,
 			aspects: ["invoice"],
 			properties: {
 				"invoice:amount": "Invalid value",
@@ -89,6 +92,7 @@ describe("NodeService.create", () => {
 			uuid: "invoice",
 			title: "Invoice",
 			mimetype: Nodes.ASPECT_MIMETYPE,
+			parent: Folders.ASPECTS_FOLDER_UUID,
 			properties: props,
 		});
 
@@ -96,6 +100,7 @@ describe("NodeService.create", () => {
 		const nodeOrErr = await service.create(authCtx, {
 			title: "Test Node",
 			mimetype: Nodes.FOLDER_MIMETYPE,
+			parent: Folders.ROOT_FOLDER_UUID,
 			aspects: ["invoice"],
 			properties: {
 				"invoice:amount": 1000, // valid property
@@ -130,6 +135,7 @@ describe("NodeService.create", () => {
 		const nodeOrErr = await service.create(authCtx, {
 			title: "Test Node",
 			mimetype: Nodes.FOLDER_MIMETYPE,
+			parent: Folders.ROOT_FOLDER_UUID,
 			aspects: ["nonexistent-aspect"],
 			properties: {
 				"nonexistent-aspect:property": "value",
@@ -152,6 +158,7 @@ describe("NodeService.create", () => {
 		const node = await service.create(authCtx, {
 			title: "Folder 1",
 			mimetype: Nodes.FOLDER_MIMETYPE,
+			parent: Folders.ROOT_FOLDER_UUID,
 			permissions,
 		});
 
@@ -173,6 +180,7 @@ describe("NodeService.create", () => {
 			uuid: "--parent--",
 			title: "Parent Folder",
 			mimetype: Nodes.FOLDER_MIMETYPE,
+			parent: Folders.ROOT_FOLDER_UUID,
 			permissions,
 		});
 
@@ -191,21 +199,12 @@ describe("NodeService.create", () => {
 		const nodeOrErr = await service.create(authCtx, {
 			title: "Unique Title",
 			mimetype: Nodes.FOLDER_MIMETYPE,
+			parent: Folders.ROOT_FOLDER_UUID,
 		});
 
 		expect(nodeOrErr.isRight(), errToMsg(nodeOrErr.value)).toBeTruthy();
 		expect(nodeOrErr.right.fid).toBeDefined();
 		expect(nodeOrErr.right.fid).toBe("unique-title");
-	});
-
-	it("should store in root folder if no parent given", async () => {
-		const nodeOrErr = await nodeService().create(authCtx, {
-			title: "Folder 1",
-			mimetype: Nodes.FOLDER_MIMETYPE,
-		});
-
-		expect(nodeOrErr.isRight(), errToMsg(nodeOrErr.value)).toBeTruthy();
-		expect(nodeOrErr.right.parent).toBe(Folders.ROOT_FOLDER_UUID);
 	});
 
 	it("should convey to folder children restrictions", async () => {
@@ -257,6 +256,7 @@ describe("NodeService.createFile", () => {
 			uuid: "--parent--",
 			title: "Folder",
 			mimetype: Nodes.FOLDER_MIMETYPE,
+			parent: Folders.ROOT_FOLDER_UUID,
 		});
 
 		const nodeOrErr = await service.createFile(authCtx, dummyFile, {
@@ -274,6 +274,7 @@ describe("NodeService.createFile", () => {
 		const parent = await service.create(authCtx, {
 			title: "Folder",
 			mimetype: Nodes.FOLDER_MIMETYPE,
+			parent: Folders.ROOT_FOLDER_UUID,
 		});
 
 		const fileNode = await service.createFile(authCtx, dummyFile, {
@@ -291,6 +292,7 @@ describe("NodeService.createFile", () => {
 			uuid: "--parent--",
 			title: "Folder",
 			mimetype: Nodes.FOLDER_MIMETYPE,
+			parent: Folders.ROOT_FOLDER_UUID,
 		});
 
 		const nodeOrErr = await service.createFile(authCtx, dummyFile, {
@@ -310,6 +312,7 @@ describe("NodeService.createFile", () => {
 			uuid: "--parent--",
 			title: "Parent Folder",
 			mimetype: Nodes.FOLDER_MIMETYPE,
+			parent: Folders.ROOT_FOLDER_UUID,
 		});
 
 		const nodeOrErr = await service.createFile(authCtx, dummyFile, {
@@ -328,6 +331,7 @@ describe("NodeService.createFile", () => {
 			uuid: "--parent--",
 			title: "Folder",
 			mimetype: Nodes.FOLDER_MIMETYPE,
+		parent: Folders.ROOT_FOLDER_UUID,
 		});
 
 		const emptyFile = new File([], "empty.txt", {
@@ -350,6 +354,7 @@ describe("NodeService.duplicate", () => {
 		const parent = await service.create(authCtx, {
 			title: "Folder",
 			mimetype: Nodes.FOLDER_MIMETYPE,
+			parent: Folders.ROOT_FOLDER_UUID,
 		});
 		const node = await service.create(authCtx, {
 			title: "Meta File",
@@ -372,6 +377,7 @@ describe("NodeService.duplicate", () => {
 		const parent = await service.create(authCtx, {
 			title: "Folder",
 			mimetype: Nodes.FOLDER_MIMETYPE,
+			parent: Folders.ROOT_FOLDER_UUID,
 		});
 		const node = await service.createFile(authCtx, dummyFile, {
 			parent: parent.right.uuid,
@@ -393,6 +399,7 @@ describe("NodeService.duplicate", () => {
 		const parent = await service.create(authCtx, {
 			title: "Folder",
 			mimetype: Nodes.FOLDER_MIMETYPE,
+		parent: Folders.ROOT_FOLDER_UUID,
 		});
 		const folder = await service.create(authCtx, {
 			title: "Folder to Duplicate",
@@ -413,10 +420,12 @@ describe("NodeService.copy", () => {
 		const parent1 = await service.create(authCtx, {
 			title: "Parent Folder 1",
 			mimetype: Nodes.FOLDER_MIMETYPE,
+		parent: Folders.ROOT_FOLDER_UUID,
 		});
 		const parent2 = await service.create(authCtx, {
 			title: "Parent Folder 2",
 			mimetype: Nodes.FOLDER_MIMETYPE,
+		parent: Folders.ROOT_FOLDER_UUID,
 		});
 		const node = await service.create(authCtx, {
 			title: "Meta File",
@@ -442,6 +451,7 @@ describe("NodeService.copy", () => {
 		const parent = await service.create(authCtx, {
 			title: "Parent Folder",
 			mimetype: Nodes.FOLDER_MIMETYPE,
+		parent: Folders.ROOT_FOLDER_UUID,
 		});
 		const folder = await service.create(authCtx, {
 			title: "Folder to Copy",
@@ -464,10 +474,12 @@ describe("NodeService.copy", () => {
 		const parent1 = await service.create(authCtx, {
 			title: "Parent Folder 1",
 			mimetype: Nodes.FOLDER_MIMETYPE,
+		parent: Folders.ROOT_FOLDER_UUID,
 		});
 		const parent2 = await service.create(authCtx, {
 			title: "Parent Folder 2",
 			mimetype: Nodes.FOLDER_MIMETYPE,
+		parent: Folders.ROOT_FOLDER_UUID,
 		});
 		const node = await service.createFile(authCtx, dummyFile, {
 			parent: parent1.right.uuid,
@@ -527,6 +539,7 @@ describe("NodeService.create - UUID property validation", () => {
 			uuid: "reference-aspect",
 			title: "Reference Aspect",
 			mimetype: Nodes.ASPECT_MIMETYPE,
+			parent: Folders.ASPECTS_FOLDER_UUID,
 			properties: props,
 		});
 
@@ -538,6 +551,7 @@ describe("NodeService.create - UUID property validation", () => {
 			properties: {
 				"reference-aspect:reference_prop": "non-existing-node-uuid",
 			},
+		parent: Folders.ROOT_FOLDER_UUID,
 		});
 
 		expect(nodeOrErr.isLeft()).toBeTruthy();
@@ -552,6 +566,7 @@ describe("NodeService.create - UUID property validation", () => {
 			uuid: "target-node-uuid",
 			title: "Target Node",
 			mimetype: Nodes.FOLDER_MIMETYPE,
+		parent: Folders.ROOT_FOLDER_UUID,
 		});
 
 		const props: AspectProperties = [{
@@ -565,6 +580,7 @@ describe("NodeService.create - UUID property validation", () => {
 			uuid: "reference-aspect",
 			title: "Reference Aspect",
 			mimetype: Nodes.ASPECT_MIMETYPE,
+			parent: Folders.ASPECTS_FOLDER_UUID,
 			properties: props,
 		});
 
@@ -576,6 +592,7 @@ describe("NodeService.create - UUID property validation", () => {
 			properties: {
 				"reference-aspect:reference_prop": "target-node-uuid",
 			},
+		parent: Folders.ROOT_FOLDER_UUID,
 		});
 
 		expect(nodeOrErr.isRight(), errToMsg(nodeOrErr.value)).toBeTruthy();
@@ -589,6 +606,7 @@ describe("NodeService.create - UUID property validation", () => {
 			uuid: "existing-node-uuid",
 			title: "Existing Node",
 			mimetype: Nodes.FOLDER_MIMETYPE,
+		parent: Folders.ROOT_FOLDER_UUID,
 		});
 
 		const props: AspectProperties = [{
@@ -603,6 +621,7 @@ describe("NodeService.create - UUID property validation", () => {
 			uuid: "references-aspect",
 			title: "References Aspect",
 			mimetype: Nodes.ASPECT_MIMETYPE,
+			parent: Folders.ASPECTS_FOLDER_UUID,
 			properties: props,
 		});
 
@@ -610,6 +629,7 @@ describe("NodeService.create - UUID property validation", () => {
 		const nodeOrErr = await service.create(authCtx, {
 			title: "Test Node",
 			mimetype: Nodes.FOLDER_MIMETYPE,
+			parent: Folders.ROOT_FOLDER_UUID,
 			aspects: ["references-aspect"],
 			properties: {
 				"references-aspect:references_prop": [
@@ -631,12 +651,14 @@ describe("NodeService.create - UUID property validation", () => {
 			uuid: "target-node-1",
 			title: "Target Node 1",
 			mimetype: Nodes.FOLDER_MIMETYPE,
+		parent: Folders.ROOT_FOLDER_UUID,
 		});
 
 		await service.create(authCtx, {
 			uuid: "target-node-2",
 			title: "Target Node 2",
 			mimetype: Nodes.FOLDER_MIMETYPE,
+		parent: Folders.ROOT_FOLDER_UUID,
 		});
 
 		const props: AspectProperties = [{
@@ -651,6 +673,7 @@ describe("NodeService.create - UUID property validation", () => {
 			uuid: "references-aspect",
 			title: "References Aspect",
 			mimetype: Nodes.ASPECT_MIMETYPE,
+			parent: Folders.ASPECTS_FOLDER_UUID,
 			properties: props,
 		});
 
@@ -662,6 +685,7 @@ describe("NodeService.create - UUID property validation", () => {
 			properties: {
 				"references-aspect:references_prop": ["target-node-1", "target-node-2"],
 			},
+		parent: Folders.ROOT_FOLDER_UUID,
 		});
 
 		expect(nodeOrErr.isRight(), errToMsg(nodeOrErr.value)).toBeTruthy();
@@ -675,6 +699,7 @@ describe("NodeService.create - UUID property validation", () => {
 		const parent = await service.create(authCtx, {
 			title: "Parent Folder",
 			mimetype: Nodes.FOLDER_MIMETYPE,
+		parent: Folders.ROOT_FOLDER_UUID,
 		});
 
 		const _fileNodeOrErr = await service.createFile(authCtx, file, {
@@ -694,6 +719,7 @@ describe("NodeService.create - UUID property validation", () => {
 			uuid: "filtered-aspect",
 			title: "Filtered Aspect",
 			mimetype: Nodes.ASPECT_MIMETYPE,
+			parent: Folders.ASPECTS_FOLDER_UUID,
 			properties: props,
 		});
 
@@ -705,6 +731,7 @@ describe("NodeService.create - UUID property validation", () => {
 			properties: {
 				"filtered-aspect:folder_reference_prop": "file-node-uuid",
 			},
+		parent: Folders.ROOT_FOLDER_UUID,
 		});
 
 		expect(nodeOrErr.isLeft()).toBeTruthy();
@@ -719,6 +746,7 @@ describe("NodeService.create - UUID property validation", () => {
 			uuid: "folder-node-uuid",
 			title: "Target Folder",
 			mimetype: Nodes.FOLDER_MIMETYPE,
+		parent: Folders.ROOT_FOLDER_UUID,
 		});
 
 		const props: AspectProperties = [{
@@ -733,6 +761,7 @@ describe("NodeService.create - UUID property validation", () => {
 			uuid: "filtered-aspect",
 			title: "Filtered Aspect",
 			mimetype: Nodes.ASPECT_MIMETYPE,
+			parent: Folders.ASPECTS_FOLDER_UUID,
 			properties: props,
 		});
 
@@ -744,6 +773,7 @@ describe("NodeService.create - UUID property validation", () => {
 			properties: {
 				"filtered-aspect:folder_reference_prop": "folder-node-uuid",
 			},
+		parent: Folders.ROOT_FOLDER_UUID,
 		});
 
 		expect(nodeOrErr.isRight(), errToMsg(nodeOrErr.value)).toBeTruthy();
@@ -757,11 +787,13 @@ describe("NodeService.create - UUID property validation", () => {
 			uuid: "folder-node-uuid",
 			title: "Target Folder",
 			mimetype: Nodes.FOLDER_MIMETYPE,
+		parent: Folders.ROOT_FOLDER_UUID,
 		});
 
 		const parent = await service.create(authCtx, {
 			title: "Parent Folder",
 			mimetype: Nodes.FOLDER_MIMETYPE,
+		parent: Folders.ROOT_FOLDER_UUID,
 		});
 
 		const file = new File(["content"], "test.txt", { type: "text/plain" });
@@ -783,6 +815,7 @@ describe("NodeService.create - UUID property validation", () => {
 			uuid: "filtered-references-aspect",
 			title: "Filtered References Aspect",
 			mimetype: Nodes.ASPECT_MIMETYPE,
+			parent: Folders.ASPECTS_FOLDER_UUID,
 			properties: props,
 		});
 
@@ -790,6 +823,7 @@ describe("NodeService.create - UUID property validation", () => {
 		const nodeOrErr = await service.create(authCtx, {
 			title: "Test Node",
 			mimetype: Nodes.FOLDER_MIMETYPE,
+			parent: Folders.ROOT_FOLDER_UUID,
 			aspects: ["filtered-references-aspect"],
 			properties: {
 				"filtered-references-aspect:folder_references_prop": [
@@ -811,12 +845,14 @@ describe("NodeService.create - UUID property validation", () => {
 			uuid: "folder-node-1",
 			title: "Target Folder 1",
 			mimetype: Nodes.FOLDER_MIMETYPE,
+		parent: Folders.ROOT_FOLDER_UUID,
 		});
 
 		await service.create(authCtx, {
 			uuid: "folder-node-2",
 			title: "Target Folder 2",
 			mimetype: Nodes.FOLDER_MIMETYPE,
+		parent: Folders.ROOT_FOLDER_UUID,
 		});
 
 		const props: AspectProperties = [{
@@ -832,6 +868,7 @@ describe("NodeService.create - UUID property validation", () => {
 			uuid: "filtered-references-aspect",
 			title: "Filtered References Aspect",
 			mimetype: Nodes.ASPECT_MIMETYPE,
+			parent: Folders.ASPECTS_FOLDER_UUID,
 			properties: props,
 		});
 
@@ -839,6 +876,7 @@ describe("NodeService.create - UUID property validation", () => {
 		const nodeOrErr = await service.create(authCtx, {
 			title: "Test Node",
 			mimetype: Nodes.FOLDER_MIMETYPE,
+			parent: Folders.ROOT_FOLDER_UUID,
 			aspects: ["filtered-references-aspect"],
 			properties: {
 				"filtered-references-aspect:folder_references_prop": [
@@ -859,6 +897,7 @@ describe("NodeService.create - UUID property validation", () => {
 			uuid: "regular-folder-uuid",
 			title: "Regular Folder",
 			mimetype: Nodes.FOLDER_MIMETYPE,
+		parent: Folders.ROOT_FOLDER_UUID,
 		});
 
 		const props: AspectProperties = [{
@@ -876,6 +915,7 @@ describe("NodeService.create - UUID property validation", () => {
 			uuid: "complex-filtered-aspect",
 			title: "Complex Filtered Aspect",
 			mimetype: Nodes.ASPECT_MIMETYPE,
+			parent: Folders.ASPECTS_FOLDER_UUID,
 			properties: props,
 		});
 
@@ -887,6 +927,7 @@ describe("NodeService.create - UUID property validation", () => {
 			properties: {
 				"complex-filtered-aspect:project_folder_prop": "regular-folder-uuid",
 			},
+		parent: Folders.ROOT_FOLDER_UUID,
 		});
 
 		expect(nodeOrErr.isLeft()).toBeTruthy();

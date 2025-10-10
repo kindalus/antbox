@@ -1,5 +1,5 @@
-import { describe, it } from "jsr:@std/testing/bdd";
-import { expect } from "jsr:@std/expect";
+import { describe, it } from "bdd";
+import { expect } from "expect";
 import { EmbeddingService, type EmbeddingServiceContext } from "./embedding_service.ts";
 import { InMemoryVectorDatabase } from "adapters/inmem/inmem_vector_database.ts";
 import { DeterministicModel } from "adapters/models/deterministic.ts";
@@ -13,14 +13,16 @@ import type { NodeService } from "application/node_service.ts";
 import type { AntboxError } from "shared/antbox_error.ts";
 import type { Node } from "domain/nodes/node.ts";
 import type { EventBus } from "shared/event_bus.ts";
+import { EventHandler } from "shared/event_handler.ts";
+import { Event } from "shared/event.ts";
 
 // Mock EventBus
 class MockEventBus implements EventBus {
-	private handlers = new Map<string, any[]>();
+	private handlers = new Map<string, EventHandler<Event>[]>();
 
 	async publish() {}
 
-	subscribe(eventId: string, handler: any) {
+	subscribe(eventId: string, handler: EventHandler<Event>) {
 		if (!this.handlers.has(eventId)) {
 			this.handlers.set(eventId, []);
 		}
@@ -83,523 +85,523 @@ class MockNodeService {
 }
 
 describe("EmbeddingService", () => {
-	it("should generate embedding for FileNode with supported mimetype", async () => {
-		const nodeService = new MockNodeService() as unknown as NodeService;
-		const embeddingModel = new DeterministicModel("text-embedding-3-small", 1536);
-		const ocrModel = new DeterministicModel("deterministic-ocr", 1536);
-		const vectorDatabase = new InMemoryVectorDatabase();
-		const bus = new MockEventBus();
+	describe("handleNodeCreated", () => {
+		it("should generate embedding for FileNode with supported mimetype", async () => {
+			const nodeService = new MockNodeService() as unknown as NodeService;
+			const embeddingModel = new DeterministicModel("text-embedding-3-small", 1536);
+			const ocrModel = new DeterministicModel("deterministic-ocr", 1536);
+			const vectorDatabase = new InMemoryVectorDatabase();
+			const bus = new MockEventBus();
 
-		const context: EmbeddingServiceContext = {
-			embeddingModel,
-			ocrModel,
-			nodeService,
-			vectorDatabase,
-			bus,
-		};
+			const context: EmbeddingServiceContext = {
+				embeddingModel,
+				ocrModel,
+				nodeService,
+				vectorDatabase,
+				bus,
+			};
 
-		const embeddingService = new EmbeddingService(context);
+			const embeddingService = new EmbeddingService(context);
 
-		const fileNodeOrErr = FileNode.create({
-			uuid: "test-uuid",
-			title: "test.txt",
-			mimetype: "text/plain",
-			size: 100,
-			owner: "user@example.com",
-			group: "test-group",
-			parent: "root",
-		});
-
-		expect(fileNodeOrErr.isRight()).toBe(true);
-		const fileNode = fileNodeOrErr.right;
-
-		(nodeService as any).setFile("test-uuid", "This is test content", "text/plain");
-
-		const event = new NodeCreatedEvent("user@example.com", "test-tenant", fileNode);
-		await embeddingService.handleNodeCreated(event);
-
-		// Verify embedding was stored
-		const searchResult = await vectorDatabase.search(
-			new Array(1536).fill(0),
-			"test-tenant",
-			10,
-		);
-		expect(searchResult.isRight()).toBe(true);
-		if (searchResult.isRight()) {
-			expect(searchResult.value.length).toBe(1);
-			expect(searchResult.value[0].nodeUuid).toBe("test-uuid");
-			expect(searchResult.value[0].metadata.mimetype).toBe("text/plain");
-			expect(searchResult.value[0].metadata.model).toBe("text-embedding-3-small");
-		}
-	});
-
-	it("should not generate embedding for FileNode with zero size", async () => {
-		const nodeService = new MockNodeService() as unknown as NodeService;
-		const embeddingModel = new DeterministicModel("text-embedding-3-small", 1536);
-		const ocrModel = new DeterministicModel("deterministic-ocr", 1536);
-		const vectorDatabase = new InMemoryVectorDatabase();
-		const bus = {
-			subscribe: () => {},
-			publish: () => {},
-		} as unknown as EventBus;
-
-		const context: EmbeddingServiceContext = {
-			embeddingModel,
-			ocrModel,
-			nodeService,
-			vectorDatabase,
-			bus,
-		};
-
-		const embeddingService = new EmbeddingService(context);
-
-		const fileNodeOrErr = FileNode.create({
-			uuid: "test-uuid",
-			title: "empty.txt",
-			mimetype: "text/plain",
-			size: 0,
-			owner: "user@example.com",
-			group: "test-group",
-			parent: "root",
-		});
-		expect(fileNodeOrErr.isRight()).toBe(true);
-		const fileNode = fileNodeOrErr.right;
-
-		const event = new NodeCreatedEvent("user@example.com", "test-tenant", fileNode);
-		await embeddingService.handleNodeCreated(event);
-
-		// Verify no embedding was stored
-		const searchResult = await vectorDatabase.search(
-			new Array(1536).fill(0),
-			"test-tenant",
-			10,
-		);
-		expect(searchResult.isRight()).toBe(true);
-		if (searchResult.isRight()) {
-			expect(searchResult.value.length).toBe(0);
-		}
-	});
-
-	it("should not generate embedding for FolderNode", async () => {
-		const nodeService = new MockNodeService() as unknown as NodeService;
-		const embeddingModel = new DeterministicModel("text-embedding-3-small", 1536);
-		const ocrModel = new DeterministicModel("deterministic-ocr", 1536);
-		const vectorDatabase = new InMemoryVectorDatabase();
-		const bus = new MockEventBus();
-
-		const context: EmbeddingServiceContext = {
-			embeddingModel,
-			ocrModel,
-			nodeService,
-			vectorDatabase,
-			bus,
-		};
-
-		const embeddingService = new EmbeddingService(context);
-
-		const folderNodeOrErr = FolderNode.create({
-			uuid: "folder-uuid",
-			title: "test-folder",
-			owner: "user@example.com",
-			group: "test-group",
-			parent: "root",
-		});
-
-		expect(folderNodeOrErr.isRight()).toBe(true);
-		const folderNode = folderNodeOrErr.right;
-
-		const event = new NodeCreatedEvent("user@example.com", "test-tenant", folderNode);
-		await embeddingService.handleNodeCreated(event);
-
-		// Verify no embedding was stored
-		const searchResult = await vectorDatabase.search(
-			new Array(1536).fill(0),
-			"test-tenant",
-			10,
-		);
-		expect(searchResult.isRight()).toBe(true);
-		if (searchResult.isRight()) {
-			expect(searchResult.value.length).toBe(0);
-		}
-	});
-
-	it("should not generate embedding for FileNode with unsupported mimetype", async () => {
-		const nodeService = new MockNodeService() as unknown as NodeService;
-		const embeddingModel = new DeterministicModel("text-embedding-3-small", 1536);
-		const ocrModel = new DeterministicModel("deterministic-ocr", 1536);
-		const vectorDatabase = new InMemoryVectorDatabase();
-		const bus = new MockEventBus();
-
-		const context: EmbeddingServiceContext = {
-			embeddingModel,
-			ocrModel,
-			nodeService,
-			vectorDatabase,
-			bus,
-		};
-
-		const embeddingService = new EmbeddingService(context);
-
-		const fileNodeOrErr = FileNode.create({
-			uuid: "test-uuid",
-			title: "test.jpg",
-			mimetype: "image/jpeg",
-			size: 100,
-			owner: "user@example.com",
-			group: "test-group",
-			parent: "root",
-		});
-
-		expect(fileNodeOrErr.isRight()).toBe(true);
-		const fileNode = fileNodeOrErr.right;
-
-		const event = new NodeCreatedEvent("user@example.com", "test-tenant", fileNode);
-		await embeddingService.handleNodeCreated(event);
-
-		// Verify no embedding was stored
-		const searchResult = await vectorDatabase.search(
-			new Array(1536).fill(0),
-			"test-tenant",
-			10,
-		);
-		expect(searchResult.isRight()).toBe(true);
-		if (searchResult.isRight()) {
-			expect(searchResult.value.length).toBe(0);
-		}
-	});
-
-	it("should update embedding when node is updated", async () => {
-		const nodeService = new MockNodeService() as unknown as NodeService;
-		const embeddingModel = new DeterministicModel("text-embedding-3-small", 1536);
-		const ocrModel = new DeterministicModel("deterministic-ocr", 1536);
-		const vectorDatabase = new InMemoryVectorDatabase();
-		const bus = new MockEventBus();
-
-		const context: EmbeddingServiceContext = {
-			embeddingModel,
-			ocrModel,
-			nodeService,
-			vectorDatabase,
-			bus,
-		};
-
-		const embeddingService = new EmbeddingService(context);
-
-		const fileNodeOrErr = FileNode.create({
-			uuid: "test-uuid",
-			title: "test.txt",
-			mimetype: "text/plain",
-			size: 100,
-			owner: "user@example.com",
-			group: "test-group",
-			parent: "root",
-		});
-
-		expect(fileNodeOrErr.isRight()).toBe(true);
-		const fileNode = fileNodeOrErr.right;
-
-		// Create initial embedding
-		(nodeService as any).setFile("test-uuid", "Initial content", "text/plain");
-		const createEvent = new NodeCreatedEvent("user@example.com", "test-tenant", fileNode);
-		await embeddingService.handleNodeCreated(createEvent);
-
-		// Update the file content
-		(nodeService as any).setFile("test-uuid", "Updated content", "text/plain");
-		const updateEvent = new NodeUpdatedEvent(
-			"user@example.com",
-			"test-tenant",
-			{
+			const fileNodeOrErr = FileNode.create({
 				uuid: "test-uuid",
-				oldValues: {},
-				newValues: { title: "test.txt" },
-			},
-		);
-		await embeddingService.handleNodeUpdated(updateEvent);
+				title: "test.txt",
+				mimetype: "text/plain",
+				size: 100,
+				owner: "user@example.com",
+				group: "test-group",
+				parent: "root",
+			});
 
-		// Verify embedding exists (should be updated)
-		const searchResult = await vectorDatabase.search(
-			new Array(1536).fill(0),
-			"test-tenant",
-			10,
-		);
-		expect(searchResult.isRight()).toBe(true);
-		if (searchResult.isRight()) {
-			expect(searchResult.value.length).toBe(1);
-			expect(searchResult.value[0].nodeUuid).toBe("test-uuid");
-		}
-	});
+			expect(fileNodeOrErr.isRight()).toBe(true);
+			const fileNode = fileNodeOrErr.right;
 
-	it("should delete embedding when file is updated to zero size", async () => {
-		const nodeService = new MockNodeService() as unknown as NodeService;
-		const embeddingModel = new DeterministicModel("text-embedding-3-small", 1536);
-		const ocrModel = new DeterministicModel("deterministic-ocr", 1536);
-		const vectorDatabase = new InMemoryVectorDatabase();
-		const bus = {
-			subscribe: () => {},
-			publish: () => {},
-		} as unknown as EventBus;
+			(nodeService as any).setFile("test-uuid", "This is test content", "text/plain");
 
-		const context: EmbeddingServiceContext = {
-			embeddingModel,
-			ocrModel,
-			nodeService,
-			vectorDatabase,
-			bus,
-		};
+			const event = new NodeCreatedEvent("user@example.com", "test-tenant", fileNode);
+			await embeddingService.handleNodeCreated(event);
 
-		const embeddingService = new EmbeddingService(context);
-
-		const fileNodeOrErr = FileNode.create({
-			uuid: "test-uuid",
-			title: "test.txt",
-			mimetype: "text/plain",
-			size: 100,
-			owner: "user@example.com",
-			group: "test-group",
-			parent: "root",
+			// Verify embedding was stored
+			const searchResult = await vectorDatabase.search(
+				new Array(1536).fill(0),
+				"test-tenant",
+				10,
+			);
+			expect(searchResult.isRight()).toBe(true);
+			if (searchResult.isRight()) {
+				expect(searchResult.value.length).toBe(1);
+				expect(searchResult.value[0].nodeUuid).toBe("test-uuid");
+				expect(searchResult.value[0].metadata.mimetype).toBe("text/plain");
+				expect(searchResult.value[0].metadata.model).toBe("text-embedding-3-small");
+			}
 		});
-		expect(fileNodeOrErr.isRight()).toBe(true);
-		const fileNode = fileNodeOrErr.right;
+		it("should not generate embedding for FileNode with zero size", async () => {
+			const nodeService = new MockNodeService() as unknown as NodeService;
+			const embeddingModel = new DeterministicModel("text-embedding-3-small", 1536);
+			const ocrModel = new DeterministicModel("deterministic-ocr", 1536);
+			const vectorDatabase = new InMemoryVectorDatabase();
+			const bus = {
+				subscribe: () => {},
+				publish: () => {},
+			} as unknown as EventBus;
 
-		// Create initial embedding
-		(nodeService as any).setFile("test-uuid", "Initial content", "text/plain");
-		const createEvent = new NodeCreatedEvent("user@example.com", "test-tenant", fileNode);
-		await embeddingService.handleNodeCreated(createEvent);
+			const context: EmbeddingServiceContext = {
+				embeddingModel,
+				ocrModel,
+				nodeService,
+				vectorDatabase,
+				bus,
+			};
 
-		// Verify embedding was created
-		let searchResult = await vectorDatabase.search(
-			new Array(1536).fill(0),
-			"test-tenant",
-			10,
-		);
-		expect(searchResult.isRight()).toBe(true);
-		if (searchResult.isRight()) {
-			expect(searchResult.value.length).toBe(1);
-		}
+			const embeddingService = new EmbeddingService(context);
 
-		// Update the file to zero size
-		const updatedFileNodeOrErr = FileNode.create({
-			uuid: "test-uuid",
-			title: "test.txt",
-			mimetype: "text/plain",
-			size: 0,
-			owner: "user@example.com",
-			group: "test-group",
-			parent: "root",
-		});
-		expect(updatedFileNodeOrErr.isRight()).toBe(true);
-		const updatedFileNode = updatedFileNodeOrErr.right;
-
-		(nodeService as any).get = async () => ({ isLeft: () => false, value: updatedFileNode });
-
-		const updateEvent = new NodeUpdatedEvent(
-			"user@example.com",
-			"test-tenant",
-			{
+			const fileNodeOrErr = FileNode.create({
 				uuid: "test-uuid",
-				oldValues: {},
-				newValues: {},
-			},
-		);
-		await embeddingService.handleNodeUpdated(updateEvent);
+				title: "empty.txt",
+				mimetype: "text/plain",
+				size: 0,
+				owner: "user@example.com",
+				group: "test-group",
+				parent: "root",
+			});
+			expect(fileNodeOrErr.isRight()).toBe(true);
+			const fileNode = fileNodeOrErr.right;
 
-		// Verify embedding was deleted
-		searchResult = await vectorDatabase.search(
-			new Array(1536).fill(0),
-			"test-tenant",
-			10,
-		);
-		expect(searchResult.isRight()).toBe(true);
-		if (searchResult.isRight()) {
-			expect(searchResult.value.length).toBe(0);
-		}
-	});
+			const event = new NodeCreatedEvent("user@example.com", "test-tenant", fileNode);
+			await embeddingService.handleNodeCreated(event);
 
-	it("should delete embedding when node is deleted", async () => {
-		const nodeService = new MockNodeService() as unknown as NodeService;
-		const embeddingModel = new DeterministicModel("text-embedding-3-small", 1536);
-		const ocrModel = new DeterministicModel("deterministic-ocr", 1536);
-		const vectorDatabase = new InMemoryVectorDatabase();
-		const bus = new MockEventBus();
-
-		const context: EmbeddingServiceContext = {
-			embeddingModel,
-			ocrModel,
-			nodeService,
-			vectorDatabase,
-			bus,
-		};
-
-		const embeddingService = new EmbeddingService(context);
-
-		const fileNodeOrErr = FileNode.create({
-			uuid: "test-uuid",
-			title: "test.txt",
-			mimetype: "text/plain",
-			size: 100,
-			owner: "user@example.com",
-			group: "test-group",
-			parent: "root",
+			// Verify no embedding was stored
+			const searchResult = await vectorDatabase.search(
+				new Array(1536).fill(0),
+				"test-tenant",
+				10,
+			);
+			expect(searchResult.isRight()).toBe(true);
+			if (searchResult.isRight()) {
+				expect(searchResult.value.length).toBe(0);
+			}
 		});
+		it("should not generate embedding for FolderNode", async () => {
+			const nodeService = new MockNodeService() as unknown as NodeService;
+			const embeddingModel = new DeterministicModel("text-embedding-3-small", 1536);
+			const ocrModel = new DeterministicModel("deterministic-ocr", 1536);
+			const vectorDatabase = new InMemoryVectorDatabase();
+			const bus = new MockEventBus();
 
-		expect(fileNodeOrErr.isRight()).toBe(true);
-		const fileNode = fileNodeOrErr.right;
+			const context: EmbeddingServiceContext = {
+				embeddingModel,
+				ocrModel,
+				nodeService,
+				vectorDatabase,
+				bus,
+			};
 
-		// Create embedding first
-		(nodeService as any).setFile("test-uuid", "This is test content", "text/plain");
-		const createEvent = new NodeCreatedEvent("user@example.com", "test-tenant", fileNode);
-		await embeddingService.handleNodeCreated(createEvent);
+			const embeddingService = new EmbeddingService(context);
 
-		// Verify embedding exists
-		let searchResult = await vectorDatabase.search(
-			new Array(1536).fill(0),
-			"test-tenant",
-			10,
-		);
-		expect(searchResult.isRight()).toBe(true);
-		if (searchResult.isRight()) {
-			expect(searchResult.value.length).toBe(1);
-		}
+			const folderNodeOrErr = FolderNode.create({
+				uuid: "folder-uuid",
+				title: "test-folder",
+				owner: "user@example.com",
+				group: "test-group",
+				parent: "root",
+			});
 
-		// Delete the node
-		const deleteEvent = new NodeDeletedEvent("user@example.com", "test-tenant", fileNode);
-		await embeddingService.handleNodeDeleted(deleteEvent);
+			expect(folderNodeOrErr.isRight()).toBe(true);
+			const folderNode = folderNodeOrErr.right;
 
-		// Verify embedding was deleted
-		searchResult = await vectorDatabase.search(
-			new Array(1536).fill(0),
-			"test-tenant",
-			10,
-		);
-		expect(searchResult.isRight()).toBe(true);
-		if (searchResult.isRight()) {
-			expect(searchResult.value.length).toBe(0);
-		}
-	});
+			const event = new NodeCreatedEvent("user@example.com", "test-tenant", folderNode);
+			await embeddingService.handleNodeCreated(event);
 
-	it("should delete embedding when node mimetype changes to unsupported", async () => {
-		const nodeService = new MockNodeService() as unknown as NodeService;
-		const embeddingModel = new DeterministicModel("text-embedding-3-small", 1536);
-		const ocrModel = new DeterministicModel("deterministic-ocr", 1536);
-		const vectorDatabase = new InMemoryVectorDatabase();
-		const bus = new MockEventBus();
-
-		const context: EmbeddingServiceContext = {
-			embeddingModel,
-			ocrModel,
-			nodeService,
-			vectorDatabase,
-			bus,
-		};
-
-		const embeddingService = new EmbeddingService(context);
-
-		// Create a file with supported mimetype
-		const fileNodeOrErr = FileNode.create({
-			uuid: "test-uuid",
-			title: "test.txt",
-			mimetype: "text/plain",
-			size: 100,
-			owner: "user@example.com",
-			group: "test-group",
-			parent: "root",
+			// Verify no embedding was stored
+			const searchResult = await vectorDatabase.search(
+				new Array(1536).fill(0),
+				"test-tenant",
+				10,
+			);
+			expect(searchResult.isRight()).toBe(true);
+			if (searchResult.isRight()) {
+				expect(searchResult.value.length).toBe(0);
+			}
 		});
+		it("should not generate embedding for FileNode with unsupported mimetype", async () => {
+			const nodeService = new MockNodeService() as unknown as NodeService;
+			const embeddingModel = new DeterministicModel("text-embedding-3-small", 1536);
+			const ocrModel = new DeterministicModel("deterministic-ocr", 1536);
+			const vectorDatabase = new InMemoryVectorDatabase();
+			const bus = new MockEventBus();
 
-		expect(fileNodeOrErr.isRight()).toBe(true);
-		const fileNode = fileNodeOrErr.right;
+			const context: EmbeddingServiceContext = {
+				embeddingModel,
+				ocrModel,
+				nodeService,
+				vectorDatabase,
+				bus,
+			};
 
-		// Create embedding
-		(nodeService as any).setFile("test-uuid", "This is test content", "text/plain");
-		const createEvent = new NodeCreatedEvent("user@example.com", "test-tenant", fileNode);
-		await embeddingService.handleNodeCreated(createEvent);
+			const embeddingService = new EmbeddingService(context);
 
-		// Verify embedding exists
-		let searchResult = await vectorDatabase.search(
-			new Array(1536).fill(0),
-			"test-tenant",
-			10,
-		);
-		expect(searchResult.isRight()).toBe(true);
-		if (searchResult.isRight()) {
-			expect(searchResult.value.length).toBe(1);
-		}
-
-		// Change mimetype to unsupported type (image/jpeg)
-		const updatedFileNodeOrErr = FileNode.create({
-			uuid: "test-uuid",
-			title: "test.jpg",
-			mimetype: "image/jpeg",
-			size: 100,
-			owner: "user@example.com",
-			group: "test-group",
-			parent: "root",
-		});
-
-		expect(updatedFileNodeOrErr.isRight()).toBe(true);
-		const updatedFileNode = updatedFileNodeOrErr.right;
-
-		// Mock nodeService.get to return the updated node
-		(nodeService as any).setFile("test-uuid", "binary image data", "image/jpeg");
-		(nodeService as any).get = async () => updatedFileNodeOrErr;
-
-		const updateEvent = new NodeUpdatedEvent(
-			"user@example.com",
-			"test-tenant",
-			{
+			const fileNodeOrErr = FileNode.create({
 				uuid: "test-uuid",
-				oldValues: {},
-				newValues: { mimetype: "image/jpeg" },
-			},
-		);
-		await embeddingService.handleNodeUpdated(updateEvent);
+				title: "test.jpg",
+				mimetype: "image/jpeg",
+				size: 100,
+				owner: "user@example.com",
+				group: "test-group",
+				parent: "root",
+			});
 
-		// Verify embedding was deleted
-		searchResult = await vectorDatabase.search(
-			new Array(1536).fill(0),
-			"test-tenant",
-			10,
-		);
-		expect(searchResult.isRight()).toBe(true);
-		if (searchResult.isRight()) {
-			expect(searchResult.value.length).toBe(0);
-		}
+			expect(fileNodeOrErr.isRight()).toBe(true);
+			const fileNode = fileNodeOrErr.right;
+
+			const event = new NodeCreatedEvent("user@example.com", "test-tenant", fileNode);
+			await embeddingService.handleNodeCreated(event);
+
+			// Verify no embedding was stored
+			const searchResult = await vectorDatabase.search(
+				new Array(1536).fill(0),
+				"test-tenant",
+				10,
+			);
+			expect(searchResult.isRight()).toBe(true);
+			if (searchResult.isRight()) {
+				expect(searchResult.value.length).toBe(0);
+			}
+		});
 	});
 
-	it("should handle deletion of non-existent embedding gracefully", async () => {
-		const nodeService = new MockNodeService() as unknown as NodeService;
-		const embeddingModel = new DeterministicModel("text-embedding-3-small", 1536);
-		const ocrModel = new DeterministicModel("deterministic-ocr", 1536);
-		const vectorDatabase = new InMemoryVectorDatabase();
-		const bus = new MockEventBus();
+	describe("handleNodeUpdated", () => {
+		it("should update embedding when node is updated", async () => {
+			const nodeService = new MockNodeService() as unknown as NodeService;
+			const embeddingModel = new DeterministicModel("text-embedding-3-small", 1536);
+			const ocrModel = new DeterministicModel("deterministic-ocr", 1536);
+			const vectorDatabase = new InMemoryVectorDatabase();
+			const bus = new MockEventBus();
 
-		const context: EmbeddingServiceContext = {
-			embeddingModel,
-			ocrModel,
-			nodeService,
-			vectorDatabase,
-			bus,
-		};
+			const context: EmbeddingServiceContext = {
+				embeddingModel,
+				ocrModel,
+				nodeService,
+				vectorDatabase,
+				bus,
+			};
 
-		const embeddingService = new EmbeddingService(context);
+			const embeddingService = new EmbeddingService(context);
 
-		const fileNodeOrErr = FileNode.create({
-			uuid: "non-existent-uuid",
-			title: "test.txt",
-			mimetype: "text/plain",
-			size: 100,
-			owner: "user@example.com",
-			group: "test-group",
-			parent: "root",
+			const fileNodeOrErr = FileNode.create({
+				uuid: "test-uuid",
+				title: "test.txt",
+				mimetype: "text/plain",
+				size: 100,
+				owner: "user@example.com",
+				group: "test-group",
+				parent: "root",
+			});
+
+			expect(fileNodeOrErr.isRight()).toBe(true);
+			const fileNode = fileNodeOrErr.right;
+
+			// Create initial embedding
+			(nodeService as any).setFile("test-uuid", "Initial content", "text/plain");
+			const createEvent = new NodeCreatedEvent("user@example.com", "test-tenant", fileNode);
+			await embeddingService.handleNodeCreated(createEvent);
+
+			// Update the file content
+			(nodeService as any).setFile("test-uuid", "Updated content", "text/plain");
+			const updateEvent = new NodeUpdatedEvent(
+				"user@example.com",
+				"test-tenant",
+				{
+					uuid: "test-uuid",
+					oldValues: {},
+					newValues: { title: "test.txt" },
+				},
+			);
+			await embeddingService.handleNodeUpdated(updateEvent);
+
+			// Verify embedding exists (should be updated)
+			const searchResult = await vectorDatabase.search(
+				new Array(1536).fill(0),
+				"test-tenant",
+				10,
+			);
+			expect(searchResult.isRight()).toBe(true);
+			if (searchResult.isRight()) {
+				expect(searchResult.value.length).toBe(1);
+				expect(searchResult.value[0].nodeUuid).toBe("test-uuid");
+			}
 		});
+		it("should delete embedding when file is updated to zero size", async () => {
+			const nodeService = new MockNodeService() as unknown as NodeService;
+			const embeddingModel = new DeterministicModel("text-embedding-3-small", 1536);
+			const ocrModel = new DeterministicModel("deterministic-ocr", 1536);
+			const vectorDatabase = new InMemoryVectorDatabase();
+			const bus = {
+				subscribe: () => {},
+				publish: () => {},
+			} as unknown as EventBus;
 
-		expect(fileNodeOrErr.isRight()).toBe(true);
-		const fileNode = fileNodeOrErr.right;
+			const context: EmbeddingServiceContext = {
+				embeddingModel,
+				ocrModel,
+				nodeService,
+				vectorDatabase,
+				bus,
+			};
 
-		// Try to delete embedding that doesn't exist (should not throw)
-		const deleteEvent = new NodeDeletedEvent("user@example.com", "test-tenant", fileNode);
-		await embeddingService.handleNodeDeleted(deleteEvent);
+			const embeddingService = new EmbeddingService(context);
 
-		// Should complete without error
-		expect(true).toBe(true);
+			const fileNodeOrErr = FileNode.create({
+				uuid: "test-uuid",
+				title: "test.txt",
+				mimetype: "text/plain",
+				size: 100,
+				owner: "user@example.com",
+				group: "test-group",
+				parent: "root",
+			});
+			expect(fileNodeOrErr.isRight()).toBe(true);
+			const fileNode = fileNodeOrErr.right;
+
+			// Create initial embedding
+			(nodeService as any).setFile("test-uuid", "Initial content", "text/plain");
+			const createEvent = new NodeCreatedEvent("user@example.com", "test-tenant", fileNode);
+			await embeddingService.handleNodeCreated(createEvent);
+
+			// Verify embedding was created
+			let searchResult = await vectorDatabase.search(
+				new Array(1536).fill(0),
+				"test-tenant",
+				10,
+			);
+			expect(searchResult.isRight()).toBe(true);
+			if (searchResult.isRight()) {
+				expect(searchResult.value.length).toBe(1);
+			}
+
+			// Update the file to zero size
+			const updatedFileNodeOrErr = FileNode.create({
+				uuid: "test-uuid",
+				title: "test.txt",
+				mimetype: "text/plain",
+				size: 0,
+				owner: "user@example.com",
+				group: "test-group",
+				parent: "root",
+			});
+			expect(updatedFileNodeOrErr.isRight()).toBe(true);
+			const updatedFileNode = updatedFileNodeOrErr.right;
+
+			(nodeService as any).get = async () => ({ isLeft: () => false, value: updatedFileNode });
+
+			const updateEvent = new NodeUpdatedEvent(
+				"user@example.com",
+				"test-tenant",
+				{
+					uuid: "test-uuid",
+					oldValues: {},
+					newValues: {},
+				},
+			);
+			await embeddingService.handleNodeUpdated(updateEvent);
+
+			// Verify embedding was deleted
+			searchResult = await vectorDatabase.search(
+				new Array(1536).fill(0),
+				"test-tenant",
+				10,
+			);
+			expect(searchResult.isRight()).toBe(true);
+			if (searchResult.isRight()) {
+				expect(searchResult.value.length).toBe(0);
+			}
+		});
+		it("should delete embedding when node mimetype changes to unsupported", async () => {
+			const nodeService = new MockNodeService() as unknown as NodeService;
+			const embeddingModel = new DeterministicModel("text-embedding-3-small", 1536);
+			const ocrModel = new DeterministicModel("deterministic-ocr", 1536);
+			const vectorDatabase = new InMemoryVectorDatabase();
+			const bus = new MockEventBus();
+
+			const context: EmbeddingServiceContext = {
+				embeddingModel,
+				ocrModel,
+				nodeService,
+				vectorDatabase,
+				bus,
+			};
+
+			const embeddingService = new EmbeddingService(context);
+
+			// Create a file with supported mimetype
+			const fileNodeOrErr = FileNode.create({
+				uuid: "test-uuid",
+				title: "test.txt",
+				mimetype: "text/plain",
+				size: 100,
+				owner: "user@example.com",
+				group: "test-group",
+				parent: "root",
+			});
+
+			expect(fileNodeOrErr.isRight()).toBe(true);
+			const fileNode = fileNodeOrErr.right;
+
+			// Create embedding
+			(nodeService as any).setFile("test-uuid", "This is test content", "text/plain");
+			const createEvent = new NodeCreatedEvent("user@example.com", "test-tenant", fileNode);
+			await embeddingService.handleNodeCreated(createEvent);
+
+			// Verify embedding exists
+			let searchResult = await vectorDatabase.search(
+				new Array(1536).fill(0),
+				"test-tenant",
+				10,
+			);
+			expect(searchResult.isRight()).toBe(true);
+			if (searchResult.isRight()) {
+				expect(searchResult.value.length).toBe(1);
+			}
+
+			// Change mimetype to unsupported type (image/jpeg)
+			const updatedFileNodeOrErr = FileNode.create({
+				uuid: "test-uuid",
+				title: "test.jpg",
+				mimetype: "image/jpeg",
+				size: 100,
+				owner: "user@example.com",
+				group: "test-group",
+				parent: "root",
+			});
+
+			expect(updatedFileNodeOrErr.isRight()).toBe(true);
+			const updatedFileNode = updatedFileNodeOrErr.right;
+
+			// Mock nodeService.get to return the updated node
+			(nodeService as any).setFile("test-uuid", "binary image data", "image/jpeg");
+			(nodeService as any).get = async () => updatedFileNodeOrErr;
+
+			const updateEvent = new NodeUpdatedEvent(
+				"user@example.com",
+				"test-tenant",
+				{
+					uuid: "test-uuid",
+					oldValues: {},
+					newValues: { mimetype: "image/jpeg" },
+				},
+			);
+			await embeddingService.handleNodeUpdated(updateEvent);
+
+			// Verify embedding was deleted
+			searchResult = await vectorDatabase.search(
+				new Array(1536).fill(0),
+				"test-tenant",
+				10,
+			);
+			expect(searchResult.isRight()).toBe(true);
+			if (searchResult.isRight()) {
+				expect(searchResult.value.length).toBe(0);
+			}
+		});
+	});
+
+	describe("handleNodeDeleted", () => {
+		it("should delete embedding when node is deleted", async () => {
+			const nodeService = new MockNodeService() as unknown as NodeService;
+			const embeddingModel = new DeterministicModel("text-embedding-3-small", 1536);
+			const ocrModel = new DeterministicModel("deterministic-ocr", 1536);
+			const vectorDatabase = new InMemoryVectorDatabase();
+			const bus = new MockEventBus();
+
+			const context: EmbeddingServiceContext = {
+				embeddingModel,
+				ocrModel,
+				nodeService,
+				vectorDatabase,
+				bus,
+			};
+
+			const embeddingService = new EmbeddingService(context);
+
+			const fileNodeOrErr = FileNode.create({
+				uuid: "test-uuid",
+				title: "test.txt",
+				mimetype: "text/plain",
+				size: 100,
+				owner: "user@example.com",
+				group: "test-group",
+				parent: "root",
+			});
+
+			expect(fileNodeOrErr.isRight()).toBe(true);
+			const fileNode = fileNodeOrErr.right;
+
+			// Create embedding first
+			(nodeService as any).setFile("test-uuid", "This is test content", "text/plain");
+			const createEvent = new NodeCreatedEvent("user@example.com", "test-tenant", fileNode);
+			await embeddingService.handleNodeCreated(createEvent);
+
+			// Verify embedding exists
+			let searchResult = await vectorDatabase.search(
+				new Array(1536).fill(0),
+				"test-tenant",
+				10,
+			);
+			expect(searchResult.isRight()).toBe(true);
+			if (searchResult.isRight()) {
+				expect(searchResult.value.length).toBe(1);
+			}
+
+			// Delete the node
+			const deleteEvent = new NodeDeletedEvent("user@example.com", "test-tenant", fileNode);
+			await embeddingService.handleNodeDeleted(deleteEvent);
+
+			// Verify embedding was deleted
+			searchResult = await vectorDatabase.search(
+				new Array(1536).fill(0),
+				"test-tenant",
+				10,
+			);
+			expect(searchResult.isRight()).toBe(true);
+			if (searchResult.isRight()) {
+				expect(searchResult.value.length).toBe(0);
+			}
+		});
+		it("should handle deletion of non-existent embedding gracefully", async () => {
+			const nodeService = new MockNodeService() as unknown as NodeService;
+			const embeddingModel = new DeterministicModel("text-embedding-3-small", 1536);
+			const ocrModel = new DeterministicModel("deterministic-ocr", 1536);
+			const vectorDatabase = new InMemoryVectorDatabase();
+			const bus = new MockEventBus();
+
+			const context: EmbeddingServiceContext = {
+				embeddingModel,
+				ocrModel,
+				nodeService,
+				vectorDatabase,
+				bus,
+			};
+
+			const embeddingService = new EmbeddingService(context);
+
+			const fileNodeOrErr = FileNode.create({
+				uuid: "non-existent-uuid",
+				title: "test.txt",
+				mimetype: "text/plain",
+				size: 100,
+				owner: "user@example.com",
+				group: "test-group",
+				parent: "root",
+			});
+
+			expect(fileNodeOrErr.isRight()).toBe(true);
+			const fileNode = fileNodeOrErr.right;
+
+			// Try to delete embedding that doesn't exist (should not throw)
+			const deleteEvent = new NodeDeletedEvent("user@example.com", "test-tenant", fileNode);
+			await embeddingService.handleNodeDeleted(deleteEvent);
+
+			// Should complete without error
+			expect(true).toBe(true);
+		});
 	});
 });

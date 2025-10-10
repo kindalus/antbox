@@ -14,676 +14,686 @@ import { Groups } from "domain/users_groups/groups.ts";
 import { errToMsg } from "shared/test_helpers.ts";
 import { DeterministicModel } from "adapters/models/deterministic.ts";
 
-describe("AI Tool Service Tests", () => {
-	it("should list features including AI tools", async () => {
-		const service = await createService();
+describe("FeatureService", () => {
+	describe("listAITools", () => {
+		it("should list features including AI tools", async () => {
+			const service = await createService();
 
-		await service.createOrReplace(
-			adminAuthContext,
-			new File([testAIToolContent], "test-ai-tool.js", {
-				type: "application/javascript",
-			}),
-		);
+			await service.createOrReplace(
+				adminAuthContext,
+				new File([testAIToolContent], "test-ai-tool.js", {
+					type: "application/javascript",
+				}),
+			);
 
-		const result = await service.listAITools(adminAuthContext);
+			const result = await service.listAITools(adminAuthContext);
 
-		expect(result.isRight()).toBeTruthy();
-		if (result.isRight()) {
-			const aiTools = result.value;
-			expect(aiTools.length).toBeGreaterThan(0);
-			const testAITool = aiTools.find((tool) => tool.uuid === "test-ai-tool-uuid");
-			expect(testAITool).toBeDefined();
-		}
-	});
+			expect(result.isRight()).toBeTruthy();
+			if (result.isRight()) {
+				const aiTools = result.value;
+				expect(aiTools.length).toBeGreaterThan(0);
+				const testAITool = aiTools.find((tool) => tool.uuid === "test-ai-tool-uuid");
+				expect(testAITool).toBeDefined();
+			}
+		});
 
-	it("should run AI tool with proper parameters", async () => {
-		const service = await createService();
+		it("listAITools should return only AI Tools", async () => {
+				const service = await createService();
 
-		await service.createOrReplace(
-			adminAuthContext,
-			new File([testAIToolContent], "test-ai-tool.js", {
-				type: "application/javascript",
-			}),
-		);
+				// Create an AI Tool
+				await service.createOrReplace(
+					adminAuthContext,
+					new File([testAIToolContent], "test-ai-tool.js", {
+						type: "application/javascript",
+					}),
+				);
 
-		const parameters = {
-			input: "Hello World",
-			count: 5,
-		};
+				// Create an Action (should not appear in AI Tools list)
+				const actionContent = `
+		      export default {
+		        uuid: "test-action-uuid",
+		        name: "Test Action",
+		        description: "This is a test action.",
+		        exposeAction: true,
+		        exposeExtension: false,
+		        exposeAITool: false,
+		        runManually: true,
+		        filters: [],
+		        groupsAllowed: [],
+		        parameters: [
+		          {
+		            name: "uuids",
+		            type: "array",
+		            arrayType: "string",
+		            required: true
+		          }
+		        ],
+		        returnType: "void",
 
-		const result = await service.runAITool(
-			adminAuthContext,
-			"test-ai-tool-uuid",
-			parameters,
-		);
+		        run: async (ctx, args) => {
+		          return { processed: args.uuids.length };
+		        }
+		      };
+		    `;
 
-		expect(result.isRight()).toBeTruthy();
-		if (result.isRight()) {
-			const response = result.value;
-			expect(response).toEqual({
-				processed: "Hello World",
-				times: 5,
-				timestamp: expect.any(Number),
+				await service.createOrReplace(
+					adminAuthContext,
+					new File([actionContent], "action.js", {
+						type: "application/javascript",
+					}),
+				);
+
+				// Create an Extension (should not appear in AI Tools list)
+				const extensionContent = `
+		      export default {
+		        uuid: "test-extension-uuid",
+		        name: "Test Extension",
+		        description: "This is a test extension.",
+		        exposeAction: false,
+		        exposeExtension: true,
+		        exposeAITool: false,
+		        groupsAllowed: [],
+		        parameters: [],
+		        returnType: "void",
+
+		        run: async (request) => {
+		          return new Response("Hello from extension", {
+		            status: 200,
+		            headers: { "Content-Type": "text/plain" }
+		          });
+		        }
+		      };
+		    `;
+
+				await service.createOrReplace(
+					adminAuthContext,
+					new File([extensionContent], "extension.js", {
+						type: "application/javascript",
+					}),
+				);
+
+				const aiToolsResult = await service.listAITools(adminAuthContext);
+
+				expect(aiToolsResult.isRight()).toBeTruthy();
+				if (aiToolsResult.isRight()) {
+					const aiTools = aiToolsResult.value;
+					expect(aiTools.length).toBeGreaterThan(0);
+
+					// Should contain the AI Tool
+					const testAITool = aiTools.find((tool) => tool.uuid === "test-ai-tool-uuid");
+					expect(testAITool).toBeDefined();
+					expect((testAITool as any)?.exposeAITool).toBe(true);
+
+					// Should not contain the Action or Extension
+					const testAction = aiTools.find((tool) => tool.uuid === "test-action-uuid");
+					expect(testAction).toBeUndefined();
+
+					const testExtension = aiTools.find((tool) => tool.uuid === "test-extension-uuid");
+					expect(testExtension).toBeUndefined();
+				}
 			});
-		}
 	});
 
-	it("should return error if AI tool is not found when running", async () => {
-		const service = await createService();
+	describe("runAITool", () => {
+		it("should run AI tool with proper parameters", async () => {
+			const service = await createService();
 
-		const result = await service.runAITool(
-			adminAuthContext,
-			"non-existent-uuid",
-			{},
-		);
+			await service.createOrReplace(
+				adminAuthContext,
+				new File([testAIToolContent], "test-ai-tool.js", {
+					type: "application/javascript",
+				}),
+			);
 
-		expect(result.isLeft()).toBeTruthy();
+			const parameters = {
+				input: "Hello World",
+				count: 5,
+			};
+
+			const result = await service.runAITool(
+				adminAuthContext,
+				"test-ai-tool-uuid",
+				parameters,
+			);
+
+			expect(result.isRight()).toBeTruthy();
+			if (result.isRight()) {
+				const response = result.value;
+				expect(response).toEqual({
+					processed: "Hello World",
+					times: 5,
+					timestamp: expect.any(Number),
+				});
+			}
+		});
+
+		it("should return error if AI tool is not found when running", async () => {
+			const service = await createService();
+
+			const result = await service.runAITool(
+				adminAuthContext,
+				"non-existent-uuid",
+				{},
+			);
+
+			expect(result.isLeft()).toBeTruthy();
+		});
+
+		it("should run AI Tool with valid parameters", async () => {
+			const service = await createService();
+
+			await service.createOrReplace(
+				adminAuthContext,
+				new File([testAIToolContent], "test-ai-tool.js", {
+					type: "application/javascript",
+				}),
+			);
+
+			const validParameters = {
+				input: "Hello World",
+				count: 5,
+			};
+
+			const result = await service.runAITool(
+				adminAuthContext,
+				"test-ai-tool-uuid",
+				validParameters,
+			);
+
+			expect(result.isRight()).toBeTruthy();
+			if (result.isRight()) {
+				const response = result.value as any;
+				expect(response.processed).toBe("Hello World");
+				expect(response.times).toBe(5);
+			}
+		});
+
+		it("should execute AI Tool with proper context and parameters", async () => {
+				const service = await createService();
+
+				const contextAwareAIToolContent = `
+		      export default {
+		        uuid: "context-aware-ai-tool-uuid",
+		        name: "Context Aware AI Tool",
+		        description: "AI Tool that uses context information",
+		        exposeAction: false,
+		        exposeExtension: false,
+		        exposeAITool: true,
+		        groupsAllowed: [],
+		        parameters: [
+		          {
+		            name: "message",
+		            type: "string",
+		            required: true,
+		            description: "Message to process"
+		          }
+		        ],
+		        returnType: "object",
+
+		        run: async (context, params) => {
+		          return {
+		            message: params.message,
+		            user: context.authenticationContext.principal.email,
+		            tenant: context.authenticationContext.tenant,
+		            hasNodeService: !!context.nodeService,
+		            hasUsersGroupsService: !!context.usersGroupsService
+		          };
+		        }
+		      };
+		    `;
+
+				await service.createOrReplace(
+					adminAuthContext,
+					new File([contextAwareAIToolContent], "context-aware-ai-tool.js", {
+						type: "application/javascript",
+					}),
+				);
+
+				const result = await service.runAITool(
+					adminAuthContext,
+					"context-aware-ai-tool-uuid",
+					{ message: "Hello AI" },
+				);
+
+				expect(result.isRight(), errToMsg(result.value)).toBeTruthy();
+				if (result.isRight()) {
+					// deno-lint-ignore no-explicit-any
+					const response = result.value as any;
+					expect(response.message).toBe("Hello AI");
+					expect(response.user).toBe("admin@example.com");
+					expect(response.tenant).toBe("default");
+					expect(response.hasNodeService).toBe(true);
+				}
+			});
+		it("should handle AI Tool with complex parameter validation", async () => {
+				const service = await createService();
+
+				const complexAIToolContent = `
+		      export default {
+		        uuid: "complex-ai-tool-uuid",
+		        name: "Complex AI Tool",
+		        description: "AI Tool with complex parameters",
+		        exposeAction: false,
+		        exposeExtension: false,
+		        exposeAITool: true,
+		        groupsAllowed: [],
+		        parameters: [
+		          {
+		            name: "strings",
+		            type: "array",
+		            arrayType: "string",
+		            required: true,
+		            description: "Array of strings"
+		          },
+		          {
+		            name: "numbers",
+		            type: "array",
+		            arrayType: "number",
+		            required: true,
+		            description: "Array of numbers"
+		          },
+		          {
+		            name: "optional",
+		            type: "string",
+		            required: false,
+		            description: "Optional parameter"
+		          }
+		        ],
+		        returnType: "object",
+
+		        run: async (context, params) => {
+		          return {
+		            stringCount: params.strings.length,
+		            numberSum: params.numbers.reduce((a, b) => a + b, 0),
+		            hasOptional: !!params.optional
+		          };
+		        }
+		      };
+		    `;
+
+				await service.createOrReplace(
+					adminAuthContext,
+					new File([complexAIToolContent], "complex-ai-tool.js", {
+						type: "application/javascript",
+					}),
+				);
+
+				// Test with valid parameters
+				const validResult = await service.runAITool(
+					adminAuthContext,
+					"complex-ai-tool-uuid",
+					{
+						strings: ["hello", "world"],
+						numbers: [1, 2, 3],
+						optional: "present",
+					},
+				);
+
+				expect(validResult.isRight()).toBeTruthy();
+				if (validResult.isRight()) {
+					expect((validResult.value as any).stringCount).toBe(2);
+					expect((validResult.value as any).numberSum).toBe(6);
+					expect((validResult.value as any).hasOptional).toBe(true);
+				}
+
+				// Test without optional parameter
+				const validResult2 = await service.runAITool(
+					adminAuthContext,
+					"complex-ai-tool-uuid",
+					{
+						strings: ["test"],
+						numbers: [10],
+					},
+				);
+
+				expect(validResult2.isRight()).toBeTruthy();
+				if (validResult2.isRight()) {
+					expect((validResult2.value as any).stringCount).toBe(1);
+					expect((validResult2.value as any).numberSum).toBe(10);
+					expect((validResult2.value as any).hasOptional).toBe(false);
+				}
+			});
+		it("should handle AI Tool runtime errors gracefully", async () => {
+				const service = await createService();
+
+				const errorAIToolContent = `
+		      export default {
+		        uuid: "error-ai-tool-uuid",
+		        name: "Error AI Tool",
+		        description: "AI Tool that throws an error",
+		        exposeAction: false,
+		        exposeExtension: false,
+		        exposeAITool: true,
+		        groupsAllowed: [],
+		        parameters: [
+		          {
+		            name: "shouldError",
+		            type: "boolean",
+		            required: true,
+		            description: "Whether to throw an error"
+		          }
+		        ],
+		        returnType: "object",
+
+		        run: async (context, params) => {
+		          if (params.shouldError) {
+		            throw new Error("Something went wrong in AI tool");
+		          }
+		          return { success: true };
+		        }
+		      };
+		    `;
+
+				await service.createOrReplace(
+					adminAuthContext,
+					new File([errorAIToolContent], "error-ai-tool.js", {
+						type: "application/javascript",
+					}),
+				);
+
+				// Test error case
+				const errorResult = await service.runAITool(
+					adminAuthContext,
+					"error-ai-tool-uuid",
+					{ shouldError: true },
+				);
+
+				expect(errorResult.isLeft()).toBeTruthy();
+				expect(errorResult.value).toBeInstanceOf(Error);
+				expect((errorResult.value as Error).message).toContain("Something went wrong in AI tool");
+
+				// Test success case
+				const successResult = await service.runAITool(
+					adminAuthContext,
+					"error-ai-tool-uuid",
+					{ shouldError: false },
+				);
+
+				expect(successResult.isRight()).toBeTruthy();
+				if (successResult.isRight()) {
+					expect((successResult.value as any).success).toBe(true);
+				}
+			});
+		it("should return error for non-existent AI Tool", async () => {
+			const service = await createService();
+
+			const result = await service.runAITool(
+				adminAuthContext,
+				"non-existent-ai-tool-uuid",
+				{ input: "test" },
+			);
+
+			expect(result.isLeft()).toBeTruthy();
+		});
+
+		it("should return error for non-AI Tool Feature", async () => {
+				const service = await createService();
+
+				const actionContent = `
+		      export default {
+		        uuid: "action-not-ai-tool-uuid",
+		        name: "Action Not AI Tool",
+		        description: "This is an action, not an AI tool",
+		        exposeAction: true,
+		        exposeExtension: false,
+		        exposeAITool: false,
+		        runManually: true,
+		        filters: [],
+		        groupsAllowed: [],
+		        parameters: [
+		          {
+		            name: "uuids",
+		            type: "array",
+		            arrayType: "string",
+		            required: true
+		          }
+		        ],
+		        returnType: "void",
+
+		        run: async (ctx, args) => {
+		          return { processed: args.uuids.length };
+		        }
+		      };
+		    `;
+
+				await service.createOrReplace(
+					adminAuthContext,
+					new File([actionContent], "action.js", {
+						type: "application/javascript",
+					}),
+				);
+
+				const result = await service.runAITool(
+					adminAuthContext,
+					"action-not-ai-tool-uuid",
+					{ input: "test" },
+				);
+
+				expect(result.isLeft()).toBeTruthy();
+				expect(result.value).toBeInstanceOf(BadRequestError);
+				expect((result.value as BadRequestError).message).toContain("not exposed as AI tool");
+			});
+		it("should enforce group permissions for AI Tools", async () => {
+				const service = await createService();
+
+				// AI Tool with admin group restriction
+				const adminOnlyAIToolContent = `
+		      export default {
+		        uuid: "admin-only-ai-tool-uuid",
+		        name: "Admin Only AI Tool",
+		        description: "AI Tool restricted to admins",
+		        exposeAction: false,
+		        exposeExtension: false,
+		        exposeAITool: true,
+		        groupsAllowed: [\"${Groups.ADMINS_GROUP_UUID}\"],
+		        parameters: [
+		          {
+		            name: "input",
+		            type: "string",
+		            required: true,
+		            description: "Text input"
+		          }
+		        ],
+		        returnType: "object",
+
+		        run: async (context, params) => {
+		          return { result: "admin content", input: params.input };
+		        }
+		      };
+		    `;
+
+				await service.createOrReplace(
+					adminAuthContext,
+					new File([adminOnlyAIToolContent], "admin-only-ai-tool.js", {
+						type: "application/javascript",
+					}),
+				);
+
+				// Test with admin user (should succeed)
+				const adminResult = await service.runAITool(
+					adminAuthContext,
+					"admin-only-ai-tool-uuid",
+					{ input: "test" },
+				);
+
+				expect(adminResult.isRight(), errToMsg(adminResult.value)).toBeTruthy();
+				if (adminResult.isRight()) {
+					expect((adminResult.value as any).result).toBe("admin content");
+					expect((adminResult.value as any).input).toBe("test");
+				}
+
+				// Test with non-admin editor user (should fail)
+				const editorResult = await service.runAITool(
+					editorAuthContext,
+					"admin-only-ai-tool-uuid",
+					{ input: "test" },
+				);
+
+				expect(editorResult.isLeft()).toBeTruthy();
+			});
+		it("should handle AI Tool execution with all parameters", async () => {
+			const service = await createService();
+
+			await service.createOrReplace(
+				adminAuthContext,
+				new File([testAIToolContent], "test-ai-tool.js", {
+					type: "application/javascript",
+				}),
+			);
+
+			const allParams = {
+				input: "Complete test",
+				count: 3,
+			};
+
+			const result = await service.runAITool(
+				adminAuthContext,
+				"test-ai-tool-uuid",
+				allParams,
+			);
+
+			expect(result.isRight()).toBeTruthy();
+			if (result.isRight()) {
+				const response = result.value as any;
+				expect(response.processed).toBe("Complete test");
+				expect(response.times).toBe(3);
+				expect(typeof response.timestamp).toBe("number");
+			}
+		});
+
+		it("should handle AI Tool with no parameters", async () => {
+				const service = await createService();
+
+				const noParamsAIToolContent = `
+		      export default {
+		        uuid: "no-params-ai-tool-uuid",
+		        name: "No Params AI Tool",
+		        description: "AI Tool with no parameters",
+		        exposeAction: false,
+		        exposeExtension: false,
+		        exposeAITool: true,
+		        groupsAllowed: [],
+		        parameters: [],
+		        returnType: "object",
+
+		        run: async (context, params) => {
+		          return {
+		            message: "No parameters needed",
+		            timestamp: Date.now()
+		          };
+		        }
+		      };
+		    `;
+
+				await service.createOrReplace(
+					adminAuthContext,
+					new File([noParamsAIToolContent], "no-params-ai-tool.js", {
+						type: "application/javascript",
+					}),
+				);
+
+				const result = await service.runAITool(
+					adminAuthContext,
+					"no-params-ai-tool-uuid",
+					{},
+				);
+
+				expect(result.isRight()).toBeTruthy();
+				if (result.isRight()) {
+					expect((result.value as any).message).toBe("No parameters needed");
+					expect(typeof (result.value as any).timestamp).toBe("number");
+				}
+			});
 	});
 
-	it("should run AI Tool with valid parameters", async () => {
-		const service = await createService();
-
-		await service.createOrReplace(
-			adminAuthContext,
-			new File([testAIToolContent], "test-ai-tool.js", {
-				type: "application/javascript",
-			}),
-		);
-
-		const validParameters = {
-			input: "Hello World",
-			count: 5,
-		};
-
-		const result = await service.runAITool(
-			adminAuthContext,
-			"test-ai-tool-uuid",
-			validParameters,
-		);
-
-		expect(result.isRight()).toBeTruthy();
-		if (result.isRight()) {
-			const response = result.value as any;
-			expect(response.processed).toBe("Hello World");
-			expect(response.times).toBe(5);
-		}
-	});
-
-	it("should create AI Tool with valid parameters", async () => {
-		const service = await createService();
-
-		const validAIToolContent = `
-      export default {
-        uuid: "valid-ai-tool-uuid",
-        name: "Valid AI Tool",
-        description: "AI Tool with valid parameters",
-        exposeAction: false,
-        exposeExtension: false,
-        exposeAITool: true,
-        groupsAllowed: [],
-        parameters: [
-          {
-            name: "input",
-            type: "string",
-            required: true,
-            description: "Text input"
-          }
-        ],
-        returnType: "object",
-
-        run: async (context, params) => {
-          return { result: params.input };
-        }
-      };
-    `;
-
-		const result = await service.createOrReplace(
-			adminAuthContext,
-			new File([validAIToolContent], "valid-ai-tool.js", {
-				type: "application/javascript",
-			}),
-		);
-
-		expect(result.isRight()).toBeTruthy();
-	});
-
-	it("should create AI Tool with group restrictions", async () => {
-		const service = await createService();
-
-		const restrictedAIToolContent = `
-      export default {
-        uuid: "restricted-ai-tool-uuid",
-        name: "Restricted AI Tool",
-        description: "AI Tool with group restrictions",
-        exposeAction: false,
-        exposeExtension: false,
-        exposeAITool: true,
-        groupsAllowed: ["admins"],
-        parameters: [
-          {
-            name: "input",
-            type: "string",
-            required: true,
-            description: "Text input"
-          }
-        ],
-        returnType: "object",
-
-        run: async (context, params) => {
-          return { result: "admin only result", input: params.input };
-        }
-      };
-    `;
-
-		const createResult = await service.createOrReplace(
-			adminAuthContext,
-			new File([restrictedAIToolContent], "restricted-ai-tool.js", {
-				type: "application/javascript",
-			}),
-		);
-
-		expect(createResult.isRight()).toBeTruthy();
-
-		// Test execution works
-		const result = await service.runAITool(
-			adminAuthContext,
-			"restricted-ai-tool-uuid",
-			{ input: "test" },
-		);
-		expect(result.isRight()).toBeTruthy();
-		if (result.isRight()) {
-			const response = result.value as any;
-			expect(response.result).toBe("admin only result");
-			expect(response.input).toBe("test");
-		}
-	});
-
-	it("should execute AI Tool with proper context and parameters", async () => {
-		const service = await createService();
-
-		const contextAwareAIToolContent = `
-      export default {
-        uuid: "context-aware-ai-tool-uuid",
-        name: "Context Aware AI Tool",
-        description: "AI Tool that uses context information",
-        exposeAction: false,
-        exposeExtension: false,
-        exposeAITool: true,
-        groupsAllowed: [],
-        parameters: [
-          {
-            name: "message",
-            type: "string",
-            required: true,
-            description: "Message to process"
-          }
-        ],
-        returnType: "object",
-
-        run: async (context, params) => {
-          return {
-            message: params.message,
-            user: context.authenticationContext.principal.email,
-            tenant: context.authenticationContext.tenant,
-            hasNodeService: !!context.nodeService,
-            hasUsersGroupsService: !!context.usersGroupsService
-          };
-        }
-      };
-    `;
-
-		await service.createOrReplace(
-			adminAuthContext,
-			new File([contextAwareAIToolContent], "context-aware-ai-tool.js", {
-				type: "application/javascript",
-			}),
-		);
-
-		const result = await service.runAITool(
-			adminAuthContext,
-			"context-aware-ai-tool-uuid",
-			{ message: "Hello AI" },
-		);
-
-		expect(result.isRight(), errToMsg(result.value)).toBeTruthy();
-		if (result.isRight()) {
-			// deno-lint-ignore no-explicit-any
-			const response = result.value as any;
-			expect(response.message).toBe("Hello AI");
-			expect(response.user).toBe("admin@example.com");
-			expect(response.tenant).toBe("default");
-			expect(response.hasNodeService).toBe(true);
-		}
-	});
-
-	it("should handle AI Tool with complex parameter validation", async () => {
-		const service = await createService();
-
-		const complexAIToolContent = `
-      export default {
-        uuid: "complex-ai-tool-uuid",
-        name: "Complex AI Tool",
-        description: "AI Tool with complex parameters",
-        exposeAction: false,
-        exposeExtension: false,
-        exposeAITool: true,
-        groupsAllowed: [],
-        parameters: [
-          {
-            name: "strings",
-            type: "array",
-            arrayType: "string",
-            required: true,
-            description: "Array of strings"
-          },
-          {
-            name: "numbers",
-            type: "array",
-            arrayType: "number",
-            required: true,
-            description: "Array of numbers"
-          },
-          {
-            name: "optional",
-            type: "string",
-            required: false,
-            description: "Optional parameter"
-          }
-        ],
-        returnType: "object",
-
-        run: async (context, params) => {
-          return {
-            stringCount: params.strings.length,
-            numberSum: params.numbers.reduce((a, b) => a + b, 0),
-            hasOptional: !!params.optional
-          };
-        }
-      };
-    `;
-
-		await service.createOrReplace(
-			adminAuthContext,
-			new File([complexAIToolContent], "complex-ai-tool.js", {
-				type: "application/javascript",
-			}),
-		);
-
-		// Test with valid parameters
-		const validResult = await service.runAITool(
-			adminAuthContext,
-			"complex-ai-tool-uuid",
-			{
-				strings: ["hello", "world"],
-				numbers: [1, 2, 3],
-				optional: "present",
-			},
-		);
-
-		expect(validResult.isRight()).toBeTruthy();
-		if (validResult.isRight()) {
-			expect((validResult.value as any).stringCount).toBe(2);
-			expect((validResult.value as any).numberSum).toBe(6);
-			expect((validResult.value as any).hasOptional).toBe(true);
-		}
-
-		// Test without optional parameter
-		const validResult2 = await service.runAITool(
-			adminAuthContext,
-			"complex-ai-tool-uuid",
-			{
-				strings: ["test"],
-				numbers: [10],
-			},
-		);
-
-		expect(validResult2.isRight()).toBeTruthy();
-		if (validResult2.isRight()) {
-			expect((validResult2.value as any).stringCount).toBe(1);
-			expect((validResult2.value as any).numberSum).toBe(10);
-			expect((validResult2.value as any).hasOptional).toBe(false);
-		}
-	});
-
-	it("should handle AI Tool runtime errors gracefully", async () => {
-		const service = await createService();
-
-		const errorAIToolContent = `
-      export default {
-        uuid: "error-ai-tool-uuid",
-        name: "Error AI Tool",
-        description: "AI Tool that throws an error",
-        exposeAction: false,
-        exposeExtension: false,
-        exposeAITool: true,
-        groupsAllowed: [],
-        parameters: [
-          {
-            name: "shouldError",
-            type: "boolean",
-            required: true,
-            description: "Whether to throw an error"
-          }
-        ],
-        returnType: "object",
-
-        run: async (context, params) => {
-          if (params.shouldError) {
-            throw new Error("Something went wrong in AI tool");
-          }
-          return { success: true };
-        }
-      };
-    `;
-
-		await service.createOrReplace(
-			adminAuthContext,
-			new File([errorAIToolContent], "error-ai-tool.js", {
-				type: "application/javascript",
-			}),
-		);
-
-		// Test error case
-		const errorResult = await service.runAITool(
-			adminAuthContext,
-			"error-ai-tool-uuid",
-			{ shouldError: true },
-		);
-
-		expect(errorResult.isLeft()).toBeTruthy();
-		expect(errorResult.value).toBeInstanceOf(Error);
-		expect((errorResult.value as Error).message).toContain("Something went wrong in AI tool");
-
-		// Test success case
-		const successResult = await service.runAITool(
-			adminAuthContext,
-			"error-ai-tool-uuid",
-			{ shouldError: false },
-		);
-
-		expect(successResult.isRight()).toBeTruthy();
-		if (successResult.isRight()) {
-			expect((successResult.value as any).success).toBe(true);
-		}
-	});
-
-	it("should return error for non-existent AI Tool", async () => {
-		const service = await createService();
-
-		const result = await service.runAITool(
-			adminAuthContext,
-			"non-existent-ai-tool-uuid",
-			{ input: "test" },
-		);
-
-		expect(result.isLeft()).toBeTruthy();
-	});
-
-	it("should return error for non-AI Tool Feature", async () => {
-		const service = await createService();
-
-		const actionContent = `
-      export default {
-        uuid: "action-not-ai-tool-uuid",
-        name: "Action Not AI Tool",
-        description: "This is an action, not an AI tool",
-        exposeAction: true,
-        exposeExtension: false,
-        exposeAITool: false,
-        runManually: true,
-        filters: [],
-        groupsAllowed: [],
-        parameters: [
-          {
-            name: "uuids",
-            type: "array",
-            arrayType: "string",
-            required: true
-          }
-        ],
-        returnType: "void",
-
-        run: async (ctx, args) => {
-          return { processed: args.uuids.length };
-        }
-      };
-    `;
-
-		await service.createOrReplace(
-			adminAuthContext,
-			new File([actionContent], "action.js", {
-				type: "application/javascript",
-			}),
-		);
-
-		const result = await service.runAITool(
-			adminAuthContext,
-			"action-not-ai-tool-uuid",
-			{ input: "test" },
-		);
-
-		expect(result.isLeft()).toBeTruthy();
-		expect(result.value).toBeInstanceOf(BadRequestError);
-		expect((result.value as BadRequestError).message).toContain("not exposed as AI tool");
-	});
-
-	it("should allow AI Tools with empty groupsAllowed (public access)", async () => {
-		const service = await createService();
-
-		const publicAIToolContent = `
-      export default {
-        uuid: "public-ai-tool-uuid",
-        name: "Public AI Tool",
-        description: "AI Tool with no group restrictions",
-        exposeAction: false,
-        exposeExtension: false,
-        exposeAITool: true,
-        groupsAllowed: [],
-        parameters: [
-          {
-            name: "input",
-            type: "string",
-            required: true,
-            description: "Text input"
-          }
-        ],
-        returnType: "object",
-
-        run: async (context, params) => {
-          return { result: "public content", input: params.input };
-        }
-      };
-    `;
-
-		await service.createOrReplace(
-			adminAuthContext,
-			new File([publicAIToolContent], "public-ai-tool.js", {
-				type: "application/javascript",
-			}),
-		);
-
-		// Test with editor (should succeed)
-		const result = await service.runAITool(
-			editorAuthContext,
-			"public-ai-tool-uuid",
-			{ input: "test" },
-		);
-
-		expect(result.isRight()).toBeTruthy();
-		if (result.isRight()) {
-			expect((result.value as any).result).toBe("public content");
-			expect((result.value as any).input).toBe("test");
-		}
-	});
-
-	it("listAITools should return only AI Tools", async () => {
-		const service = await createService();
-
-		// Create an AI Tool
-		await service.createOrReplace(
-			adminAuthContext,
-			new File([testAIToolContent], "test-ai-tool.js", {
-				type: "application/javascript",
-			}),
-		);
-
-		// Create an Action (should not appear in AI Tools list)
-		const actionContent = `
-      export default {
-        uuid: "test-action-uuid",
-        name: "Test Action",
-        description: "This is a test action.",
-        exposeAction: true,
-        exposeExtension: false,
-        exposeAITool: false,
-        runManually: true,
-        filters: [],
-        groupsAllowed: [],
-        parameters: [
-          {
-            name: "uuids",
-            type: "array",
-            arrayType: "string",
-            required: true
-          }
-        ],
-        returnType: "void",
-
-        run: async (ctx, args) => {
-          return { processed: args.uuids.length };
-        }
-      };
-    `;
-
-		await service.createOrReplace(
-			adminAuthContext,
-			new File([actionContent], "action.js", {
-				type: "application/javascript",
-			}),
-		);
-
-		// Create an Extension (should not appear in AI Tools list)
-		const extensionContent = `
-      export default {
-        uuid: "test-extension-uuid",
-        name: "Test Extension",
-        description: "This is a test extension.",
-        exposeAction: false,
-        exposeExtension: true,
-        exposeAITool: false,
-        groupsAllowed: [],
-        parameters: [],
-        returnType: "void",
-
-        run: async (request) => {
-          return new Response("Hello from extension", {
-            status: 200,
-            headers: { "Content-Type": "text/plain" }
-          });
-        }
-      };
-    `;
-
-		await service.createOrReplace(
-			adminAuthContext,
-			new File([extensionContent], "extension.js", {
-				type: "application/javascript",
-			}),
-		);
-
-		const aiToolsResult = await service.listAITools(adminAuthContext);
-
-		expect(aiToolsResult.isRight()).toBeTruthy();
-		if (aiToolsResult.isRight()) {
-			const aiTools = aiToolsResult.value;
-			expect(aiTools.length).toBeGreaterThan(0);
-
-			// Should contain the AI Tool
-			const testAITool = aiTools.find((tool) => tool.uuid === "test-ai-tool-uuid");
-			expect(testAITool).toBeDefined();
-			expect((testAITool as any)?.exposeAITool).toBe(true);
-
-			// Should not contain the Action or Extension
-			const testAction = aiTools.find((tool) => tool.uuid === "test-action-uuid");
-			expect(testAction).toBeUndefined();
-
-			const testExtension = aiTools.find((tool) => tool.uuid === "test-extension-uuid");
-			expect(testExtension).toBeUndefined();
-		}
-	});
-
-	it("should handle AI Tool execution with all parameters", async () => {
-		const service = await createService();
-
-		await service.createOrReplace(
-			adminAuthContext,
-			new File([testAIToolContent], "test-ai-tool.js", {
-				type: "application/javascript",
-			}),
-		);
-
-		const allParams = {
-			input: "Complete test",
-			count: 3,
-		};
-
-		const result = await service.runAITool(
-			adminAuthContext,
-			"test-ai-tool-uuid",
-			allParams,
-		);
-
-		expect(result.isRight()).toBeTruthy();
-		if (result.isRight()) {
-			const response = result.value as any;
-			expect(response.processed).toBe("Complete test");
-			expect(response.times).toBe(3);
-			expect(typeof response.timestamp).toBe("number");
-		}
-	});
-
-	it("should handle AI Tool with no parameters", async () => {
-		const service = await createService();
-
-		const noParamsAIToolContent = `
-      export default {
-        uuid: "no-params-ai-tool-uuid",
-        name: "No Params AI Tool",
-        description: "AI Tool with no parameters",
-        exposeAction: false,
-        exposeExtension: false,
-        exposeAITool: true,
-        groupsAllowed: [],
-        parameters: [],
-        returnType: "object",
-
-        run: async (context, params) => {
-          return {
-            message: "No parameters needed",
-            timestamp: Date.now()
-          };
-        }
-      };
-    `;
-
-		await service.createOrReplace(
-			adminAuthContext,
-			new File([noParamsAIToolContent], "no-params-ai-tool.js", {
-				type: "application/javascript",
-			}),
-		);
-
-		const result = await service.runAITool(
-			adminAuthContext,
-			"no-params-ai-tool-uuid",
-			{},
-		);
-
-		expect(result.isRight()).toBeTruthy();
-		if (result.isRight()) {
-			expect((result.value as any).message).toBe("No parameters needed");
-			expect(typeof (result.value as any).timestamp).toBe("number");
-		}
+	describe("createOrReplace", () => {
+		it("should create AI Tool with valid parameters", async () => {
+				const service = await createService();
+
+				const validAIToolContent = `
+		      export default {
+		        uuid: "valid-ai-tool-uuid",
+		        name: "Valid AI Tool",
+		        description: "AI Tool with valid parameters",
+		        exposeAction: false,
+		        exposeExtension: false,
+		        exposeAITool: true,
+		        groupsAllowed: [],
+		        parameters: [
+		          {
+		            name: "input",
+		            type: "string",
+		            required: true,
+		            description: "Text input"
+		          }
+		        ],
+		        returnType: "object",
+
+		        run: async (context, params) => {
+		          return { result: params.input };
+		        }
+		      };
+		    `;
+
+				const result = await service.createOrReplace(
+					adminAuthContext,
+					new File([validAIToolContent], "valid-ai-tool.js", {
+						type: "application/javascript",
+					}),
+				);
+
+				expect(result.isRight()).toBeTruthy();
+			});
+		it("should create AI Tool with group restrictions", async () => {
+				const service = await createService();
+
+				const restrictedAIToolContent = `
+		      export default {
+		        uuid: "restricted-ai-tool-uuid",
+		        name: "Restricted AI Tool",
+		        description: "AI Tool with group restrictions",
+		        exposeAction: false,
+		        exposeExtension: false,
+		        exposeAITool: true,
+		        groupsAllowed: ["admins"],
+		        parameters: [
+		          {
+		            name: "input",
+		            type: "string",
+		            required: true,
+		            description: "Text input"
+		          }
+		        ],
+		        returnType: "object",
+
+		        run: async (context, params) => {
+		          return { result: "admin only result", input: params.input };
+		        }
+		      };
+		    `;
+
+				const createResult = await service.createOrReplace(
+					adminAuthContext,
+					new File([restrictedAIToolContent], "restricted-ai-tool.js", {
+						type: "application/javascript",
+					}),
+				);
+
+				expect(createResult.isRight()).toBeTruthy();
+
+				// Test execution works
+				const result = await service.runAITool(
+					adminAuthContext,
+					"restricted-ai-tool-uuid",
+					{ input: "test" },
+				);
+				expect(result.isRight()).toBeTruthy();
+				if (result.isRight()) {
+					const response = result.value as any;
+					expect(response.result).toBe("admin only result");
+					expect(response.input).toBe("test");
+				}
+			});
 	});
 });
 
@@ -724,13 +734,13 @@ const createService = async () => {
 
 	await usersGroupsService.createUser(adminAuthContext, {
 		email: "admin@example.com",
-		name: "Admin",
+		name: "Admin User",
 		groups: [Groups.ADMINS_GROUP_UUID],
 	});
 
 	await usersGroupsService.createUser(adminAuthContext, {
 		email: "editor@example.com",
-		name: "Editor",
+		name: "Editor User",
 		groups: ["--group-1--"],
 	});
 

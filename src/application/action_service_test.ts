@@ -13,73 +13,78 @@ import { AuthenticationContext } from "application/authentication_context.ts";
 import { NodeService } from "application/node_service.ts";
 import { UsersGroupsService } from "application/users_groups_service.ts";
 import { builtinFolders } from "application/builtin_folders/index.ts";
+import { Folders } from "domain/nodes/folders.ts";
 import { AIModel } from "./ai_model.ts";
 import { DeterministicModel } from "adapters/models/deterministic.ts";
 
-describe("Action Service Tests", () => {
-	it("should list features including actions", async () => {
-		const service = await createService();
-		await service.createOrReplace(
-			adminAuthContext,
-			new File([testActionContent], "action.js", {
-				type: "application/javascript",
-			}),
-		);
+describe("Action Service", () => {
+	describe("list", () => {
+		it("should list features including actions", async () => {
+			const service = await createService();
+			await service.createOrReplace(
+				adminAuthContext,
+				new File([testActionContent], "action.js", {
+					type: "application/javascript",
+				}),
+			);
 
-		const result = await service.listFeatures(adminAuthContext);
-		expect(result.isRight()).toBeTruthy();
+			const result = await service.listFeatures(adminAuthContext);
+			expect(result.isRight()).toBeTruthy();
 
-		if (result.isRight()) {
-			const features = result.value;
-			const testAction = features.find((f) => f.name === "Test Action");
-			expect(testAction).toBeDefined();
-			if (testAction) {
-				expect(testAction.exposeAction).toBe(true);
+			if (result.isRight()) {
+				const features = result.value;
+				const testAction = features.find((f) => f.name === "Test Action");
+				expect(testAction).toBeDefined();
+				if (testAction) {
+					expect(testAction.exposeAction).toBe(true);
+				}
 			}
-		}
+		});
 	});
 
-	it("should run action", async () => {
-		const service = await createService();
-		await service.createOrReplace(
-			adminAuthContext,
-			new File([testActionContent], "action.js", {
-				type: "application/javascript",
-			}),
-		);
+	describe("run", () => {
+		it("should run action", async () => {
+			const service = await createService();
+			await service.createOrReplace(
+				adminAuthContext,
+				new File([testActionContent], "action.js", {
+					type: "application/javascript",
+				}),
+			);
 
-		const runResult = await service.runAction(
-			adminAuthContext,
-			"test-action-uuid",
-			["--group-1--", "--group-2--"],
-			{ message: "test message" },
-		);
+			const runResult = await service.runAction(
+				adminAuthContext,
+				"test-action-uuid",
+				["--group-1--", "--group-2--"],
+				{ message: "test message" },
+			);
 
-		expect(runResult.isRight()).toBeTruthy();
+			expect(runResult.isRight()).toBeTruthy();
 
-		const result = runResult.right as any;
-		expect(result.message).toBe("test message");
-		expect(result.hasNodeService).toBe(true);
-		expect(result.processedCount).toBe(2);
+			const result = runResult.right as any;
+			expect(result.message).toBe("test message");
+			expect(result.hasNodeService).toBe(true);
+			expect(result.processedCount).toBe(2);
+		});
+
+		it("should return error if action is not found when running", async () => {
+			const service = await createService();
+
+			const runResult = await service.runAction(
+				adminAuthContext,
+				"non-existing-action-uuid",
+				["test-uuid"],
+			);
+
+			expect(runResult.isLeft()).toBeTruthy();
+		});
 	});
 
-	it("should return error if action is not found when running", async () => {
-		const service = await createService();
+	describe("validation", () => {
+		it("should validate Action must have uuids parameter", async () => {
+			const service = await createService();
 
-		const runResult = await service.runAction(
-			adminAuthContext,
-			"non-existing-action-uuid",
-			["test-uuid"],
-		);
-
-		expect(runResult.isLeft()).toBeTruthy();
-	});
-
-	// Validation tests
-	it("should validate Action must have uuids parameter", async () => {
-		const service = await createService();
-
-		const invalidActionContent = `
+			const invalidActionContent = `
       export default {
         uuid: "invalid-action-uuid",
         name: "Invalid Action",
@@ -106,24 +111,24 @@ describe("Action Service Tests", () => {
       };
     `;
 
-		const result = await service.createOrReplace(
-			adminAuthContext,
-			new File([invalidActionContent], "invalid-action.js", {
-				type: "application/javascript",
-			}),
-		);
+			const result = await service.createOrReplace(
+				adminAuthContext,
+				new File([invalidActionContent], "invalid-action.js", {
+					type: "application/javascript",
+				}),
+			);
 
-		expect(result.isLeft()).toBeTruthy();
-		expect(result.value).toBeInstanceOf(ValidationError);
-		if (result.isLeft() && result.value instanceof ValidationError) {
-			expect(result.value.message).toContain("uuids");
-		}
-	});
+			expect(result.isLeft()).toBeTruthy();
+			expect(result.value).toBeInstanceOf(ValidationError);
+			if (result.isLeft() && result.value instanceof ValidationError) {
+				expect(result.value.message).toContain("uuids");
+			}
+		});
 
-	it("should validate uuids parameter must be array of strings", async () => {
-		const service = await createService();
+		it("should validate uuids parameter must be array of strings", async () => {
+			const service = await createService();
 
-		const invalidActionContent = `
+			const invalidActionContent = `
       export default {
         uuid: "invalid-action-uuid",
         name: "Invalid Action",
@@ -150,21 +155,21 @@ describe("Action Service Tests", () => {
       };
     `;
 
-		const result = await service.createOrReplace(
-			adminAuthContext,
-			new File([invalidActionContent], "invalid-action.js", {
-				type: "application/javascript",
-			}),
-		);
+			const result = await service.createOrReplace(
+				adminAuthContext,
+				new File([invalidActionContent], "invalid-action.js", {
+					type: "application/javascript",
+				}),
+			);
 
-		expect(result.isLeft()).toBeTruthy();
-		expect(result.value).toBeInstanceOf(ValidationError);
-	});
+			expect(result.isLeft()).toBeTruthy();
+			expect(result.value).toBeInstanceOf(ValidationError);
+		});
 
-	it("should validate Action cannot have file parameters", async () => {
-		const service = await createService();
+		it("should validate Action cannot have file parameters", async () => {
+			const service = await createService();
 
-		const invalidActionContent = `
+			const invalidActionContent = `
       export default {
         uuid: "invalid-action-uuid",
         name: "Invalid Action",
@@ -198,21 +203,21 @@ describe("Action Service Tests", () => {
       };
     `;
 
-		const result = await service.createOrReplace(
-			adminAuthContext,
-			new File([invalidActionContent], "invalid-action.js", {
-				type: "application/javascript",
-			}),
-		);
+			const result = await service.createOrReplace(
+				adminAuthContext,
+				new File([invalidActionContent], "invalid-action.js", {
+					type: "application/javascript",
+				}),
+			);
 
-		expect(result.isLeft()).toBeTruthy();
-		expect(result.value).toBeInstanceOf(ValidationError);
-	});
+			expect(result.isLeft()).toBeTruthy();
+			expect(result.value).toBeInstanceOf(ValidationError);
+		});
 
-	it("should validate Action filter compliance during execution", async () => {
-		const service = await createService();
+		it("should validate Action filter compliance during execution", async () => {
+			const service = await createService();
 
-		const filterActionContent = `
+			const filterActionContent = `
       export default {
         uuid: "filter-action-uuid",
         name: "Filter Action",
@@ -241,28 +246,28 @@ describe("Action Service Tests", () => {
       };
     `;
 
-		await service.createOrReplace(
-			adminAuthContext,
-			new File([filterActionContent], "filter-action.js", {
-				type: "application/javascript",
-			}),
-		);
+			await service.createOrReplace(
+				adminAuthContext,
+				new File([filterActionContent], "filter-action.js", {
+					type: "application/javascript",
+				}),
+			);
 
-		// The service handles filter validation internally
-		const result = await service.runAction(
-			adminAuthContext,
-			"filter-action-uuid",
-			["--group-1--"],
-		);
+			// The service handles filter validation internally
+			const result = await service.runAction(
+				adminAuthContext,
+				"filter-action-uuid",
+				["--group-1--"],
+			);
 
-		// Result should be successful since no specific filters are applied
-		expect(result.isRight()).toBeTruthy();
-	});
+			// Result should be successful since no specific filters are applied
+			expect(result.isRight()).toBeTruthy();
+		});
 
-	it("should validate Action permissions with groupsAllowed", async () => {
-		const service = await createService();
+		it("should validate Action permissions with groupsAllowed", async () => {
+			const service = await createService();
 
-		const restrictedActionContent = `
+			const restrictedActionContent = `
       export default {
         uuid: "restricted-action-uuid",
         name: "Restricted Action",
@@ -291,35 +296,35 @@ describe("Action Service Tests", () => {
       };
     `;
 
-		await service.createOrReplace(
-			adminAuthContext,
-			new File([restrictedActionContent], "restricted-action.js", {
-				type: "application/javascript",
-			}),
-		);
+			await service.createOrReplace(
+				adminAuthContext,
+				new File([restrictedActionContent], "restricted-action.js", {
+					type: "application/javascript",
+				}),
+			);
 
-		// Test with admin user (should succeed)
-		const adminResult = await service.runAction(
-			adminAuthContext,
-			"restricted-action-uuid",
-			["--group-1--"],
-		);
-		expect(adminResult.isRight()).toBeTruthy();
+			// Test with admin user (should succeed)
+			const adminResult = await service.runAction(
+				adminAuthContext,
+				"restricted-action-uuid",
+				["--group-1--"],
+			);
+			expect(adminResult.isRight()).toBeTruthy();
 
-		// Test with editor user (should fail due to permissions)
-		const runResult = await service.runAction(
-			editorAuthContext,
-			"restricted-action-uuid",
-			["--group-1--"],
-		);
+			// Test with editor user (should fail due to permissions)
+			const runResult = await service.runAction(
+				editorAuthContext,
+				"restricted-action-uuid",
+				["--group-1--"],
+			);
 
-		expect(runResult.isLeft()).toBeTruthy();
-	});
+			expect(runResult.isLeft()).toBeTruthy();
+		});
 
-	it("should validate runManually false prevents manual execution", async () => {
-		const service = await createService();
+		it("should validate runManually false prevents manual execution", async () => {
+			const service = await createService();
 
-		const nonManualActionContent = `
+			const nonManualActionContent = `
       export default {
         uuid: "non-manual-action-uuid",
         name: "Non Manual Action",
@@ -346,32 +351,34 @@ describe("Action Service Tests", () => {
       };
     `;
 
-		const createResult = await service.createOrReplace(
-			adminAuthContext,
-			new File([nonManualActionContent], "non-manual-action.js", {
-				type: "application/javascript",
-			}),
-		);
+			const createResult = await service.createOrReplace(
+				adminAuthContext,
+				new File([nonManualActionContent], "non-manual-action.js", {
+					type: "application/javascript",
+				}),
+			);
 
-		expect(createResult.isRight()).toBeTruthy();
+			expect(createResult.isRight()).toBeTruthy();
 
-		// Try to run action manually (should fail)
-		const runResult = await service.runAction(
-			adminAuthContext,
-			"non-manual-action-uuid",
-			["--group-1--"],
-		);
+			// Try to run action manually (should fail)
+			const runResult = await service.runAction(
+				adminAuthContext,
+				"non-manual-action-uuid",
+				["--group-1--"],
+			);
 
-		expect(runResult.isLeft()).toBeTruthy();
-		if (runResult.isLeft()) {
-			expect(runResult.value).toBeInstanceOf(BadRequestError);
-		}
+			expect(runResult.isLeft()).toBeTruthy();
+			if (runResult.isLeft()) {
+				expect(runResult.value).toBeInstanceOf(BadRequestError);
+			}
+		});
 	});
 
-	it("should execute Action with proper context and parameters", async () => {
-		const service = await createService();
+	describe("execution", () => {
+		it("should execute Action with proper context and parameters", async () => {
+			const service = await createService();
 
-		const contextTestContent = `
+			const contextTestContent = `
       export default {
         uuid: "context-test-action-uuid",
         name: "Context Test Action",
@@ -412,34 +419,33 @@ describe("Action Service Tests", () => {
       };
     `;
 
-		await service.createOrReplace(
-			adminAuthContext,
-			new File([contextTestContent], "context-test.js", {
-				type: "application/javascript",
-			}),
-		);
+			await service.createOrReplace(
+				adminAuthContext,
+				new File([contextTestContent], "context-test.js", {
+					type: "application/javascript",
+				}),
+			);
 
-		const runResult = await service.runAction(
-			adminAuthContext,
-			"context-test-action-uuid",
-			["--group-1--", "--group-2--"],
-		);
+			const runResult = await service.runAction(
+				adminAuthContext,
+				"context-test-action-uuid",
+				["--group-1--", "--group-2--"],
+			);
 
-		expect(runResult.isRight()).toBeTruthy();
-		const result = runResult.right as any;
-		expect(result.message).toBe("test message");
-		expect(result.hasNodeService).toBe(true);
-		expect(result.hasAuthContext).toBe(true);
-		expect(result.userEmail).toBe("admin@example.com");
-		expect(result.argsReceived).toContain("uuids");
-		expect(result.processedCount).toBe(2);
-	});
+			expect(runResult.isRight()).toBeTruthy();
+			const result = runResult.right as any;
+			expect(result.message).toBe("test message");
+			expect(result.hasNodeService).toBe(true);
+			expect(result.hasAuthContext).toBe(true);
+			expect(result.userEmail).toBe("admin@example.com");
+			expect(result.argsReceived).toContain("uuids");
+			expect(result.processedCount).toBe(2);
+		});
 
-	// Test for handling batch operations
-	it("should handle batch execution on multiple nodes", async () => {
-		const service = await createService();
+		it("should handle batch execution on multiple nodes", async () => {
+			const service = await createService();
 
-		const batchActionContent = `
+			const batchActionContent = `
       export default {
         uuid: "batch-action-uuid",
         name: "Batch Action",
@@ -472,33 +478,32 @@ describe("Action Service Tests", () => {
       };
     `;
 
-		await service.createOrReplace(
-			adminAuthContext,
-			new File([batchActionContent], "batch-action.js", {
-				type: "application/javascript",
-			}),
-		);
+			await service.createOrReplace(
+				adminAuthContext,
+				new File([batchActionContent], "batch-action.js", {
+					type: "application/javascript",
+				}),
+			);
 
-		const result = await service.runAction(
-			adminAuthContext,
-			"batch-action-uuid",
-			["--group-1--", "--group-2--"],
-			{ operation: "test-operation" },
-		);
+			const result = await service.runAction(
+				adminAuthContext,
+				"batch-action-uuid",
+				["--group-1--", "--group-2--"],
+				{ operation: "test-operation" },
+			);
 
-		expect(result.isRight()).toBeTruthy();
-		if (result.isRight()) {
-			const response = result.value as any;
-			expect(response.total).toBe(2);
-			expect(response.results.length).toBe(2);
-		}
-	});
+			expect(result.isRight()).toBeTruthy();
+			if (result.isRight()) {
+				const response = result.value as any;
+				expect(response.total).toBe(2);
+				expect(response.results.length).toBe(2);
+			}
+		});
 
-	// Test error handling
-	it("should handle action runtime errors gracefully", async () => {
-		const service = await createService();
+		it("should handle action runtime errors gracefully", async () => {
+			const service = await createService();
 
-		const errorActionContent = `
+			const errorActionContent = `
       export default {
         uuid: "error-action-uuid",
         name: "Error Action",
@@ -530,44 +535,45 @@ describe("Action Service Tests", () => {
       };
     `;
 
-		await service.createOrReplace(
-			adminAuthContext,
-			new File([errorActionContent], "error-action.js", {
-				type: "application/javascript",
-			}),
-		);
+			await service.createOrReplace(
+				adminAuthContext,
+				new File([errorActionContent], "error-action.js", {
+					type: "application/javascript",
+				}),
+			);
 
-		// Test error handling
-		// Test error case
-		const errorResult = await service.runAction(
-			adminAuthContext,
-			"error-action-uuid",
-			["--group-1--"],
-			{ shouldError: true },
-		);
+			// Test error case
+			const errorResult = await service.runAction(
+				adminAuthContext,
+				"error-action-uuid",
+				["--group-1--"],
+				{ shouldError: true },
+			);
 
-		expect(errorResult.isLeft()).toBeTruthy();
+			expect(errorResult.isLeft()).toBeTruthy();
 
-		// Test successful execution
-		const runResult = await service.runAction(
-			adminAuthContext,
-			"error-action-uuid",
-			["--group-1--"],
-			{ shouldError: false },
-		);
+			// Test successful execution
+			const runResult = await service.runAction(
+				adminAuthContext,
+				"error-action-uuid",
+				["--group-1--"],
+				{ shouldError: false },
+			);
 
-		expect(runResult.isRight()).toBeTruthy();
-		if (runResult.isRight()) {
-			const response = runResult.value as any;
-			expect(response.success).toBe(true);
-		}
+			expect(runResult.isRight()).toBeTruthy();
+			if (runResult.isRight()) {
+				const response = runResult.value as any;
+				expect(response.success).toBe(true);
+			}
+		});
 	});
 
-	it("should trigger action from folder onCreate with correct uuids", async () => {
-		const service = await createService();
+	describe("triggers", () => {
+		it("should trigger action from folder onCreate with correct uuids", async () => {
+			const service = await createService();
 
-		// Create action to track execution
-		const trackingActionContent = `
+			// Create action to track execution
+			const trackingActionContent = `
       export default {
         uuid: "tracking-action-uuid",
         name: "Tracking Action",
@@ -590,38 +596,39 @@ describe("Action Service Tests", () => {
       };
     `;
 
-		await service.createOrReplace(
-			adminAuthContext,
-			new File([trackingActionContent], "tracking-action.js", {
-				type: "application/javascript",
-			}),
-		);
+			await service.createOrReplace(
+				adminAuthContext,
+				new File([trackingActionContent], "tracking-action.js", {
+					type: "application/javascript",
+				}),
+			);
 
-		// Create folder with onCreate trigger
-		const folderResult = await service.nodeService.create(adminAuthContext, {
-			title: "Trigger Folder",
-			mimetype: "application/vnd.antbox.folder",
-			onCreate: ["tracking-action-uuid"],
+			// Create folder with onCreate trigger
+			const folderResult = await service.nodeService.create(adminAuthContext, {
+				title: "Trigger Folder",
+				mimetype: "application/vnd.antbox.folder",
+				parent: Folders.ROOT_FOLDER_UUID,
+				onCreate: ["tracking-action-uuid"],
+			});
+
+			expect(folderResult.isRight()).toBeTruthy();
+			const folder = folderResult.right;
+
+			// Create a node - should trigger action with node's uuid
+			const nodeResult = await service.nodeService.create(adminAuthContext, {
+				title: "Test Node",
+				mimetype: "text/plain",
+				parent: folder.uuid,
+			});
+
+			expect(nodeResult.isRight()).toBeTruthy();
 		});
 
-		expect(folderResult.isRight()).toBeTruthy();
-		const folder = folderResult.right;
+		it("should trigger action from folder onUpdate with correct uuids", async () => {
+			const service = await createService();
 
-		// Create a node - should trigger action with node's uuid
-		const nodeResult = await service.nodeService.create(adminAuthContext, {
-			title: "Test Node",
-			mimetype: "text/plain",
-			parent: folder.uuid,
-		});
-
-		expect(nodeResult.isRight()).toBeTruthy();
-	});
-
-	it("should trigger action from folder onUpdate with correct uuids", async () => {
-		const service = await createService();
-
-		// Create action to track execution
-		const updateTrackingActionContent = `
+			// Create action to track execution
+			const updateTrackingActionContent = `
       export default {
         uuid: "update-tracking-action-uuid",
         name: "Update Tracking Action",
@@ -644,48 +651,49 @@ describe("Action Service Tests", () => {
       };
     `;
 
-		await service.createOrReplace(
-			adminAuthContext,
-			new File([updateTrackingActionContent], "update-tracking-action.js", {
-				type: "application/javascript",
-			}),
-		);
+			await service.createOrReplace(
+				adminAuthContext,
+				new File([updateTrackingActionContent], "update-tracking-action.js", {
+					type: "application/javascript",
+				}),
+			);
 
-		// Create folder with onUpdate trigger
-		const folderResult = await service.nodeService.create(adminAuthContext, {
-			title: "Update Trigger Folder",
-			mimetype: "application/vnd.antbox.folder",
-			onUpdate: ["update-tracking-action-uuid"],
+			// Create folder with onUpdate trigger
+			const folderResult = await service.nodeService.create(adminAuthContext, {
+				title: "Update Trigger Folder",
+				mimetype: "application/vnd.antbox.folder",
+				parent: Folders.ROOT_FOLDER_UUID,
+				onUpdate: ["update-tracking-action-uuid"],
+			});
+
+			expect(folderResult.isRight()).toBeTruthy();
+			const folder = folderResult.right;
+
+			// Create a node
+			const nodeResult = await service.nodeService.create(adminAuthContext, {
+				title: "Test Node",
+				mimetype: "text/plain",
+				parent: folder.uuid,
+			});
+
+			expect(nodeResult.isRight()).toBeTruthy();
+			const node = nodeResult.right;
+
+			// Update the node - should trigger action with node's uuid
+			const updateResult = await service.nodeService.update(
+				adminAuthContext,
+				node.uuid,
+				{ title: "Updated Node" },
+			);
+
+			expect(updateResult.isRight()).toBeTruthy();
 		});
 
-		expect(folderResult.isRight()).toBeTruthy();
-		const folder = folderResult.right;
+		it("should trigger action from folder onDelete with correct uuids", async () => {
+			const service = await createService();
 
-		// Create a node
-		const nodeResult = await service.nodeService.create(adminAuthContext, {
-			title: "Test Node",
-			mimetype: "text/plain",
-			parent: folder.uuid,
-		});
-
-		expect(nodeResult.isRight()).toBeTruthy();
-		const node = nodeResult.right;
-
-		// Update the node - should trigger action with node's uuid
-		const updateResult = await service.nodeService.update(
-			adminAuthContext,
-			node.uuid,
-			{ title: "Updated Node" },
-		);
-
-		expect(updateResult.isRight()).toBeTruthy();
-	});
-
-	it("should trigger action from folder onDelete with correct uuids", async () => {
-		const service = await createService();
-
-		// Create action to track execution
-		const deleteTrackingActionContent = `
+			// Create action to track execution
+			const deleteTrackingActionContent = `
       export default {
         uuid: "delete-tracking-action-uuid",
         name: "Delete Tracking Action",
@@ -708,50 +716,51 @@ describe("Action Service Tests", () => {
       };
     `;
 
-		await service.createOrReplace(
-			adminAuthContext,
-			new File([deleteTrackingActionContent], "delete-tracking-action.js", {
-				type: "application/javascript",
-			}),
-		);
+			await service.createOrReplace(
+				adminAuthContext,
+				new File([deleteTrackingActionContent], "delete-tracking-action.js", {
+					type: "application/javascript",
+				}),
+			);
 
-		// Create folder with onDelete trigger
-		const folderResult = await service.nodeService.create(adminAuthContext, {
-			title: "Delete Trigger Folder",
-			mimetype: "application/vnd.antbox.folder",
-			onDelete: ["delete-tracking-action-uuid"],
+			// Create folder with onDelete trigger
+			const folderResult = await service.nodeService.create(adminAuthContext, {
+				title: "Delete Trigger Folder",
+				mimetype: "application/vnd.antbox.folder",
+				parent: Folders.ROOT_FOLDER_UUID,
+				onDelete: ["delete-tracking-action-uuid"],
+			});
+
+			expect(folderResult.isRight()).toBeTruthy();
+			const folder = folderResult.right;
+
+			// Create a file
+			const nodeResult = await service.nodeService.createFile(
+				adminAuthContext,
+				new File(["test content"], "test.txt", { type: "text/plain" }),
+				{
+					title: "Test Node",
+					parent: folder.uuid,
+				},
+			);
+
+			expect(nodeResult.isRight()).toBeTruthy();
+			const node = nodeResult.right;
+
+			// Delete the node - should trigger action with node's uuid
+			const deleteResult = await service.nodeService.delete(
+				adminAuthContext,
+				node.uuid,
+			);
+
+			expect(deleteResult.isRight()).toBeTruthy();
 		});
 
-		expect(folderResult.isRight()).toBeTruthy();
-		const folder = folderResult.right;
+		it("should pass additional parameters to folder-triggered actions", async () => {
+			const service = await createService();
 
-		// Create a file
-		const nodeResult = await service.nodeService.createFile(
-			adminAuthContext,
-			new File(["test content"], "test.txt", { type: "text/plain" }),
-			{
-				title: "Test Node",
-				parent: folder.uuid,
-			},
-		);
-
-		expect(nodeResult.isRight()).toBeTruthy();
-		const node = nodeResult.right;
-
-		// Delete the node - should trigger action with node's uuid
-		const deleteResult = await service.nodeService.delete(
-			adminAuthContext,
-			node.uuid,
-		);
-
-		expect(deleteResult.isRight()).toBeTruthy();
-	});
-
-	it("should pass additional parameters to folder-triggered actions", async () => {
-		const service = await createService();
-
-		// Create action with additional parameters
-		const paramActionContent = `
+			// Create action with additional parameters
+			const paramActionContent = `
       export default {
         uuid: "folder-param-action-uuid",
         name: "Folder Param Action",
@@ -788,38 +797,39 @@ describe("Action Service Tests", () => {
       };
     `;
 
-		await service.createOrReplace(
-			adminAuthContext,
-			new File([paramActionContent], "folder-param-action.js", {
-				type: "application/javascript",
-			}),
-		);
+			await service.createOrReplace(
+				adminAuthContext,
+				new File([paramActionContent], "folder-param-action.js", {
+					type: "application/javascript",
+				}),
+			);
 
-		// Create folder with onCreate action with parameters
-		const folderResult = await service.nodeService.create(adminAuthContext, {
-			title: "Param Folder",
-			mimetype: "application/vnd.antbox.folder",
-			onCreate: ["folder-param-action-uuid workflow=approval stage=initial"],
+			// Create folder with onCreate action with parameters
+			const folderResult = await service.nodeService.create(adminAuthContext, {
+				title: "Param Folder",
+				mimetype: "application/vnd.antbox.folder",
+				parent: Folders.ROOT_FOLDER_UUID,
+				onCreate: ["folder-param-action-uuid workflow=approval stage=initial"],
+			});
+
+			expect(folderResult.isRight()).toBeTruthy();
+			const folder = folderResult.right;
+
+			// Create a node - should trigger action with parameters
+			const nodeResult = await service.nodeService.create(adminAuthContext, {
+				title: "Test Node",
+				mimetype: "text/plain",
+				parent: folder.uuid,
+			});
+
+			expect(nodeResult.isRight()).toBeTruthy();
 		});
 
-		expect(folderResult.isRight()).toBeTruthy();
-		const folder = folderResult.right;
+		it("should trigger domain-wide action with runOnCreates on matching nodes", async () => {
+			const service = await createService();
 
-		// Create a node - should trigger action with parameters
-		const nodeResult = await service.nodeService.create(adminAuthContext, {
-			title: "Test Node",
-			mimetype: "text/plain",
-			parent: folder.uuid,
-		});
-
-		expect(nodeResult.isRight()).toBeTruthy();
-	});
-
-	it("should trigger domain-wide action with runOnCreates on matching nodes", async () => {
-		const service = await createService();
-
-		// Create domain-wide action that triggers on text/plain creation
-		const domainActionContent = `
+			// Create domain-wide action that triggers on text/plain creation
+			const domainActionContent = `
       export default {
         uuid: "domain-action-uuid",
         name: "Domain Action",
@@ -843,35 +853,36 @@ describe("Action Service Tests", () => {
       };
     `;
 
-		await service.createOrReplace(
-			adminAuthContext,
-			new File([domainActionContent], "domain-action.js", {
-				type: "application/javascript",
-			}),
-		);
+			await service.createOrReplace(
+				adminAuthContext,
+				new File([domainActionContent], "domain-action.js", {
+					type: "application/javascript",
+				}),
+			);
 
-		// Create a folder first (root only allows folders)
-		const folderResult = await service.nodeService.create(adminAuthContext, {
-			title: "Test Folder",
-			mimetype: "application/vnd.antbox.folder",
+			// Create a folder first (root only allows folders)
+			const folderResult = await service.nodeService.create(adminAuthContext, {
+				title: "Test Folder",
+				mimetype: "application/vnd.antbox.folder",
+				parent: Folders.ROOT_FOLDER_UUID,
+			});
+			expect(folderResult.isRight()).toBeTruthy();
+
+			// Create a text/plain node - should trigger domain-wide action
+			const nodeResult = await service.nodeService.create(adminAuthContext, {
+				title: "Domain Test",
+				mimetype: "text/plain",
+				parent: folderResult.right.uuid,
+			});
+
+			expect(nodeResult.isRight()).toBeTruthy();
 		});
-		expect(folderResult.isRight()).toBeTruthy();
 
-		// Create a text/plain node - should trigger domain-wide action
-		const nodeResult = await service.nodeService.create(adminAuthContext, {
-			title: "Domain Test",
-			mimetype: "text/plain",
-			parent: folderResult.right.uuid,
-		});
+		it("should trigger domain-wide action with runOnUpdates on matching nodes", async () => {
+			const service = await createService();
 
-		expect(nodeResult.isRight()).toBeTruthy();
-	});
-
-	it("should trigger domain-wide action with runOnUpdates on matching nodes", async () => {
-		const service = await createService();
-
-		// Create domain-wide action that triggers on text/plain updates
-		const domainUpdateActionContent = `
+			// Create domain-wide action that triggers on text/plain updates
+			const domainUpdateActionContent = `
       export default {
         uuid: "domain-update-action-uuid",
         name: "Domain Update Action",
@@ -895,45 +906,46 @@ describe("Action Service Tests", () => {
       };
     `;
 
-		await service.createOrReplace(
-			adminAuthContext,
-			new File([domainUpdateActionContent], "domain-update-action.js", {
-				type: "application/javascript",
-			}),
-		);
+			await service.createOrReplace(
+				adminAuthContext,
+				new File([domainUpdateActionContent], "domain-update-action.js", {
+					type: "application/javascript",
+				}),
+			);
 
-		// Create a folder first (root only allows folders)
-		const folderResult = await service.nodeService.create(adminAuthContext, {
-			title: "Test Folder",
-			mimetype: "application/vnd.antbox.folder",
+			// Create a folder first (root only allows folders)
+			const folderResult = await service.nodeService.create(adminAuthContext, {
+				title: "Test Folder",
+				mimetype: "application/vnd.antbox.folder",
+				parent: Folders.ROOT_FOLDER_UUID,
+			});
+			expect(folderResult.isRight()).toBeTruthy();
+
+			// Create a text/plain node
+			const nodeResult = await service.nodeService.create(adminAuthContext, {
+				title: "Domain Test",
+				mimetype: "text/plain",
+				parent: folderResult.right.uuid,
+			});
+
+			expect(nodeResult.isRight()).toBeTruthy();
+			const node = nodeResult.right;
+
+			// Update the node - should trigger domain-wide action
+			const updateResult = await service.nodeService.update(
+				adminAuthContext,
+				node.uuid,
+				{ title: "Updated Domain Test" },
+			);
+
+			expect(updateResult.isRight()).toBeTruthy();
 		});
-		expect(folderResult.isRight()).toBeTruthy();
 
-		// Create a text/plain node
-		const nodeResult = await service.nodeService.create(adminAuthContext, {
-			title: "Domain Test",
-			mimetype: "text/plain",
-			parent: folderResult.right.uuid,
-		});
+		it("should trigger domain-wide action with runOnDeletes on matching nodes", async () => {
+			const service = await createService();
 
-		expect(nodeResult.isRight()).toBeTruthy();
-		const node = nodeResult.right;
-
-		// Update the node - should trigger domain-wide action
-		const updateResult = await service.nodeService.update(
-			adminAuthContext,
-			node.uuid,
-			{ title: "Updated Domain Test" },
-		);
-
-		expect(updateResult.isRight()).toBeTruthy();
-	});
-
-	it("should trigger domain-wide action with runOnDeletes on matching nodes", async () => {
-		const service = await createService();
-
-		// Create domain-wide action that triggers on text/plain deletes
-		const domainDeleteActionContent = `
+			// Create domain-wide action that triggers on text/plain deletes
+			const domainDeleteActionContent = `
       export default {
         uuid: "domain-delete-action-uuid",
         name: "Domain Delete Action",
@@ -957,47 +969,48 @@ describe("Action Service Tests", () => {
       };
     `;
 
-		await service.createOrReplace(
-			adminAuthContext,
-			new File([domainDeleteActionContent], "domain-delete-action.js", {
-				type: "application/javascript",
-			}),
-		);
+			await service.createOrReplace(
+				adminAuthContext,
+				new File([domainDeleteActionContent], "domain-delete-action.js", {
+					type: "application/javascript",
+				}),
+			);
 
-		// Create a folder first (root only allows folders)
-		const folderResult = await service.nodeService.create(adminAuthContext, {
-			title: "Test Folder",
-			mimetype: "application/vnd.antbox.folder",
+			// Create a folder first (root only allows folders)
+			const folderResult = await service.nodeService.create(adminAuthContext, {
+				title: "Test Folder",
+				mimetype: "application/vnd.antbox.folder",
+				parent: Folders.ROOT_FOLDER_UUID,
+			});
+			expect(folderResult.isRight()).toBeTruthy();
+
+			// Create a text/plain file
+			const nodeResult = await service.nodeService.createFile(
+				adminAuthContext,
+				new File(["test content"], "test.txt", { type: "text/plain" }),
+				{
+					title: "Domain Test",
+					parent: folderResult.right.uuid,
+				},
+			);
+
+			expect(nodeResult.isRight()).toBeTruthy();
+			const node = nodeResult.right;
+
+			// Delete the node - should trigger domain-wide action
+			const deleteResult = await service.nodeService.delete(
+				adminAuthContext,
+				node.uuid,
+			);
+
+			expect(deleteResult.isRight()).toBeTruthy();
 		});
-		expect(folderResult.isRight()).toBeTruthy();
 
-		// Create a text/plain file
-		const nodeResult = await service.nodeService.createFile(
-			adminAuthContext,
-			new File(["test content"], "test.txt", { type: "text/plain" }),
-			{
-				title: "Domain Test",
-				parent: folderResult.right.uuid,
-			},
-		);
+		it("should not trigger domain-wide action when filters do not match", async () => {
+			const service = await createService();
 
-		expect(nodeResult.isRight()).toBeTruthy();
-		const node = nodeResult.right;
-
-		// Delete the node - should trigger domain-wide action
-		const deleteResult = await service.nodeService.delete(
-			adminAuthContext,
-			node.uuid,
-		);
-
-		expect(deleteResult.isRight()).toBeTruthy();
-	});
-
-	it("should not trigger domain-wide action when filters do not match", async () => {
-		const service = await createService();
-
-		// Create domain-wide action that only triggers on application/pdf
-		const selectiveDomainActionContent = `
+			// Create domain-wide action that only triggers on application/pdf
+			const selectiveDomainActionContent = `
       export default {
         uuid: "selective-domain-action-uuid",
         name: "Selective Domain Action",
@@ -1021,28 +1034,30 @@ describe("Action Service Tests", () => {
       };
     `;
 
-		await service.createOrReplace(
-			adminAuthContext,
-			new File([selectiveDomainActionContent], "selective-domain-action.js", {
-				type: "application/javascript",
-			}),
-		);
+			await service.createOrReplace(
+				adminAuthContext,
+				new File([selectiveDomainActionContent], "selective-domain-action.js", {
+					type: "application/javascript",
+				}),
+			);
 
-		// Create a folder first (root only allows folders)
-		const folderResult = await service.nodeService.create(adminAuthContext, {
-			title: "Test Folder",
-			mimetype: "application/vnd.antbox.folder",
+			// Create a folder first (root only allows folders)
+			const folderResult = await service.nodeService.create(adminAuthContext, {
+				title: "Test Folder",
+				mimetype: "application/vnd.antbox.folder",
+				parent: Folders.ROOT_FOLDER_UUID,
+			});
+			expect(folderResult.isRight()).toBeTruthy();
+
+			// Create a text/plain node - should NOT trigger (filters don't match)
+			const nodeResult = await service.nodeService.create(adminAuthContext, {
+				title: "Domain Test",
+				mimetype: "text/plain",
+				parent: folderResult.right.uuid,
+			});
+
+			expect(nodeResult.isRight()).toBeTruthy();
 		});
-		expect(folderResult.isRight()).toBeTruthy();
-
-		// Create a text/plain node - should NOT trigger (filters don't match)
-		const nodeResult = await service.nodeService.create(adminAuthContext, {
-			title: "Domain Test",
-			mimetype: "text/plain",
-			parent: folderResult.right.uuid,
-		});
-
-		expect(nodeResult.isRight()).toBeTruthy();
 	});
 });
 

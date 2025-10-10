@@ -14,152 +14,154 @@ import GroupNotFoundError from "domain/users_groups/group_not_found_error.ts";
 import { BadRequestError } from "shared/antbox_error.ts";
 import { errToMsg } from "shared/test_helpers.ts";
 
-describe("UsersGroupsService.updateUser", () => {
-	it("should update the user", async () => {
-		const service = usersGroupsService();
+describe("UsersGroupsService", () => {
+	describe("updateUser", () => {
+		it("should update the user", async () => {
+			const service = usersGroupsService();
 
-		const createdUserOrErr = await service.createUser(authCtx, {
-			name: "The Name",
-			email: "dennis@gmail.com",
-			groups: ["--users--"],
+			const createdUserOrErr = await service.createUser(authCtx, {
+				name: "The Name",
+				email: "dennis@gmail.com",
+				groups: ["--users--"],
+			});
+
+			const voidOrErr = await service.updateUser(
+				authCtx,
+				createdUserOrErr.right.email,
+				{ name: "James Smith" },
+			);
+
+			expect(voidOrErr.isRight(), errToMsg(voidOrErr.value)).toBeTruthy();
+
+			const updated = (await service.getUser(authCtx, createdUserOrErr.right.email!)).right;
+			expect(updated.name).toBe("James Smith");
 		});
 
-		const voidOrErr = await service.updateUser(
-			authCtx,
-			createdUserOrErr.right.email,
-			{ name: "James Smith" },
-		);
+		it("should not update email", async () => {
+			const service = usersGroupsService();
 
-		expect(voidOrErr.isRight(), errToMsg(voidOrErr.value)).toBeTruthy();
+			const createdUserOrErr = await service.createUser(authCtx, {
+				name: "The Name",
+				email: "bale@gmail.com",
+				groups: ["--users--"],
+			});
 
-		const updated = (await service.getUser(authCtx, createdUserOrErr.right.email!)).right;
-		expect(updated.name).toBe("James Smith");
-	});
+			const voidOrErr = await service.updateUser(
+				authCtx,
+				createdUserOrErr.right.email,
+				{
+					email: "lande@gmail.com",
+				},
+			);
 
-	it("should not update email", async () => {
-		const service = usersGroupsService();
+			expect(voidOrErr.isRight()).toBeTruthy();
 
-		const createdUserOrErr = await service.createUser(authCtx, {
-			name: "The Name",
-			email: "bale@gmail.com",
-			groups: ["--users--"],
+			const updatedUserOrErr = await service.getUser(
+				authCtx,
+				createdUserOrErr.right.email,
+			);
+			expect(updatedUserOrErr.isRight(), errToMsg(updatedUserOrErr.value))
+				.toBeTruthy();
+			expect(updatedUserOrErr.right.email).toBe("bale@gmail.com");
 		});
 
-		const voidOrErr = await service.updateUser(
-			authCtx,
-			createdUserOrErr.right.email,
-			{
-				email: "lande@gmail.com",
-			},
-		);
+		it("should return error if user not found", async () => {
+			const service = usersGroupsService();
 
-		expect(voidOrErr.isRight()).toBeTruthy();
+			const voidOrErr = await service.updateUser(authCtx, "any uuid", {
+				name: "James Smith",
+			});
 
-		const updatedUserOrErr = await service.getUser(
-			authCtx,
-			createdUserOrErr.right.email,
-		);
-		expect(updatedUserOrErr.isRight(), errToMsg(updatedUserOrErr.value))
-			.toBeTruthy();
-		expect(updatedUserOrErr.right.email).toBe("bale@gmail.com");
-	});
-
-	it("should return error if user not found", async () => {
-		const service = usersGroupsService();
-
-		const voidOrErr = await service.updateUser(authCtx, "any uuid", {
-			name: "James Smith",
+			expect(voidOrErr.isLeft()).toBeTruthy();
+			expect(voidOrErr.value).toBeInstanceOf(UserNotFoundError);
 		});
 
-		expect(voidOrErr.isLeft()).toBeTruthy();
-		expect(voidOrErr.value).toBeInstanceOf(UserNotFoundError);
-	});
+		it("should not udpdate builtin root user", async () => {
+			const service = usersGroupsService();
 
-	it("should not udpdate builtin root user", async () => {
-		const service = usersGroupsService();
+			const voidOrErr = await service.updateUser(authCtx, Users.ROOT_USER_EMAIL, {
+				name: "Anonymous",
+				email: "james@gmail.com",
+			});
 
-		const voidOrErr = await service.updateUser(authCtx, Users.ROOT_USER_EMAIL, {
-			name: "Anonymous",
-			email: "james@gmail.com",
+			expect(voidOrErr.isLeft()).toBeTruthy();
+			expect(voidOrErr.value).toBeInstanceOf(BadRequestError);
 		});
 
-		expect(voidOrErr.isLeft()).toBeTruthy();
-		expect(voidOrErr.value).toBeInstanceOf(BadRequestError);
+		it("should not udpdate builtin anonymous user", async () => {
+			const service = usersGroupsService();
+
+			const voidOrErr = await service.updateUser(
+				authCtx,
+				Users.ANONYMOUS_USER_EMAIL,
+				{
+					name: "root",
+				},
+			);
+
+			expect(voidOrErr.isLeft()).toBeTruthy();
+			expect(voidOrErr.value).toBeInstanceOf(BadRequestError);
+		});
 	});
 
-	it("should not udpdate builtin anonymous user", async () => {
-		const service = usersGroupsService();
+	describe("updateGroup", () => {
+		it("should update the group", async () => {
+			const service = usersGroupsService();
 
-		const voidOrErr = await service.updateUser(
-			authCtx,
-			Users.ANONYMOUS_USER_EMAIL,
-			{
-				name: "root",
-			},
-		);
+			const createdGroupOrErr = await service.createGroup(authCtx, {
+				uuid: "--title--",
+				title: "The title",
+			});
 
-		expect(voidOrErr.isLeft()).toBeTruthy();
-		expect(voidOrErr.value).toBeInstanceOf(BadRequestError);
-	});
-});
+			const voidOrErr = await service.updateGroup(
+				authCtx,
+				createdGroupOrErr.right.uuid,
+				{
+					title: "Updated title",
+				},
+			);
 
-describe("UsersGroupsService.updateGroup", () => {
-	it("should update the group", async () => {
-		const service = usersGroupsService();
+			expect(voidOrErr.isRight()).toBeTruthy();
 
-		const createdGroupOrErr = await service.createGroup(authCtx, {
-			uuid: "--title--",
-			title: "The title",
+			const updatedGroupOrErr = await service.getGroup(
+				authCtx,
+				createdGroupOrErr.right.uuid,
+			);
+			expect(updatedGroupOrErr.isRight(), errToMsg(updatedGroupOrErr.value))
+				.toBeTruthy();
+			expect(updatedGroupOrErr.right.title).toBe("Updated title");
 		});
 
-		const voidOrErr = await service.updateGroup(
-			authCtx,
-			createdGroupOrErr.right.uuid,
-			{
-				title: "Updated title",
-			},
-		);
+		it("should return error if group not found", async () => {
+			const service = usersGroupsService();
 
-		expect(voidOrErr.isRight()).toBeTruthy();
+			(await service.createUser(authCtx, {
+				name: "The title",
+				uuid: "doily-uuid",
+				email: "doily@gmail.com",
+				groups: ["--users--"],
+			})).right;
 
-		const updatedGroupOrErr = await service.getGroup(
-			authCtx,
-			createdGroupOrErr.right.uuid,
-		);
-		expect(updatedGroupOrErr.isRight(), errToMsg(updatedGroupOrErr.value))
-			.toBeTruthy();
-		expect(updatedGroupOrErr.right.title).toBe("Updated title");
-	});
+			const voidOrErr = await service.updateGroup(authCtx, "doily-uuid", {
+				title: "The title",
+			});
 
-	it("should return error if group not found", async () => {
-		const service = usersGroupsService();
-
-		(await service.createUser(authCtx, {
-			name: "The title",
-			uuid: "doily-uuid",
-			email: "doily@gmail.com",
-			groups: ["--users--"],
-		})).right;
-
-		const voidOrErr = await service.updateGroup(authCtx, "doily-uuid", {
-			title: "The title",
+			expect(voidOrErr.isLeft()).toBeTruthy();
+			expect(voidOrErr.value).toBeInstanceOf(GroupNotFoundError);
 		});
 
-		expect(voidOrErr.isLeft()).toBeTruthy();
-		expect(voidOrErr.value).toBeInstanceOf(GroupNotFoundError);
-	});
+		it("should not update builtin group", async () => {
+			const service = usersGroupsService();
 
-	it("should not update builtin group", async () => {
-		const service = usersGroupsService();
+			const voidOrErr = await service.updateGroup(
+				authCtx,
+				Groups.ADMINS_GROUP_UUID,
+				{ title: "The title" },
+			);
 
-		const voidOrErr = await service.updateGroup(
-			authCtx,
-			Groups.ADMINS_GROUP_UUID,
-			{ title: "The title" },
-		);
-
-		expect(voidOrErr.isLeft()).toBeTruthy();
-		expect(voidOrErr.value).toBeInstanceOf(BadRequestError);
+			expect(voidOrErr.isLeft()).toBeTruthy();
+			expect(voidOrErr.value).toBeInstanceOf(BadRequestError);
+		});
 	});
 });
 

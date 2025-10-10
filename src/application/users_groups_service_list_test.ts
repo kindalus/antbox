@@ -7,24 +7,26 @@ import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository.ts"
 import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider.ts";
 import { builtinGroups } from "application/builtin_groups/index.ts";
 
-describe("UsersGroupsService.listUsers", () => {
-	it("should list the users", async () => {
-		const service = usersGroupsService();
+describe("UsersGroupsService", () => {
+	describe("listUsers", () => {
+		it("should list the users", async () => {
+			const service = usersGroupsService();
 
-		const usersOrErr = await service.listUsers();
+			const usersOrErr = await service.listUsers();
 
-		expect(usersOrErr.isRight()).toBeTruthy();
-		expect(usersOrErr.right.length).toBe(2);
+			expect(usersOrErr.isRight()).toBeTruthy();
+			expect(usersOrErr.right.length).toBe(2);
+		});
 	});
-});
 
-describe("UsersGroupsService.listGroups", () => {
-	it("should list built-in groups", async () => {
-		const service = usersGroupsService();
+	describe("listGroups", () => {
+		it("should list built-in groups", async () => {
+			const service = usersGroupsService();
 
-		const groups = await service.listGroups();
+			const groups = await service.listGroups();
 
-		expect(groups.length).toBe(builtinGroups.length);
+			expect(groups.length).toBe(builtinGroups.length);
+		});
 	});
 });
 

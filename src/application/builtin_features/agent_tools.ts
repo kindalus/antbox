@@ -365,6 +365,126 @@ Array of objects with uuid and title for each folder in the path from root to ta
 			"Array of breadcrumb objects, each containing {uuid: string, title: string} representing the folder hierarchy from root to the specified folder in navigation order.",
 	},
 	{
+		uuid: "NodeService:list",
+		name: "list",
+		description: `List all child nodes within a specific folder.
+
+This tool retrieves all direct child nodes (files and subfolders) contained within a specified parent folder.
+It provides a comprehensive view of folder contents including metadata for each child node.
+
+**Behavior:**
+- Lists only direct children (not recursive)
+- Returns all accessible nodes in the specified folder
+- Includes both files and subfolders
+- Respects user permissions and access controls
+- For smart folders, evaluates and returns matching nodes
+- System root folder includes built-in system folders
+
+**Default behavior:**
+- If no parent UUID is provided, lists root folder contents
+- Root folder includes user folders and system folder
+- System folder contains built-in aspects, users, groups, etc.
+
+**Returned information per node:**
+- uuid: Unique identifier
+- title: Display name
+- mimetype: Content type (folder, text/plain, etc.)
+- size: File size in bytes (0 for folders)
+- parent: Parent folder UUID
+- owner: Owner email address
+- createdTime: When created (ISO timestamp)
+- modifiedTime: When last modified (ISO timestamp)
+- description: Node description
+- tags: Associated tags
+- aspects: Applied aspects
+- properties: Custom properties
+
+**Use cases:**
+- Browse folder contents
+- Display file listings in UI
+- Navigation and exploration
+- Folder content analysis
+- Building file trees
+- Content discovery
+
+**Permissions:**
+- Requires read access to the parent folder
+- Only returns nodes the user has permission to see`,
+		parameters: [
+			{
+				name: "parent",
+				type: "string",
+				required: false,
+				description:
+					"UUID of the parent folder to list contents from. If not provided, defaults to root folder. Must be a valid folder UUID that the user has read access to.",
+			},
+		],
+		returnType: "array",
+		returnDescription:
+			"Array of NodeLike objects representing all child nodes in the specified folder, each containing complete metadata including uuid, title, mimetype, size, parent, owner, timestamps, and other properties.",
+	},
+	{
+		uuid: "NodeService:export",
+		name: "export",
+		description: `Export a node's content as a downloadable file.
+
+This tool prepares a node for download by creating a File object with the node's content and metadata.
+It handles different node types appropriately and applies proper file naming and MIME type mapping.
+
+**Supported node types:**
+- Files: Exports the actual file content with original filename
+- Actions: Exports as JavaScript files with .js extension
+- Documents: Maintains original format and filename
+- Any node with file content
+
+**Behavior:**
+- Retrieves the actual file content from storage
+- Maps Antbox MIME types to standard web MIME types
+- Preserves original filename and extension
+- For action nodes, appends .js extension
+- Maintains file metadata and properties
+- Respects export permissions
+
+**File naming:**
+- Regular files: Uses original title as filename
+- Action nodes: Appends .js extension to title
+- Maintains file extensions where present
+- Ensures proper MIME type mapping
+
+**Permissions:**
+- Requires export permission on the parent folder
+- Validates user access before allowing export
+- Returns error if node is not found or access denied
+
+**Use cases:**
+- Download files from the system
+- Export documents for external use
+- Save action scripts as JavaScript files
+- Backup important content
+- Share files with external users
+- Content migration and archival
+
+**Error handling:**
+- Returns NodeNotFoundError if node doesn't exist
+- Returns ForbiddenError if user lacks export permission
+- Handles storage read failures gracefully
+
+**Return format:**
+File object ready for download with proper content, filename, and MIME type.`,
+		parameters: [
+			{
+				name: "uuid",
+				type: "string",
+				required: true,
+				description:
+					"UUID of the node to export. Must be a valid node UUID that contains file content and that the user has export permission for.",
+			},
+		],
+		returnType: "object",
+		returnDescription:
+			"File object containing the node's content with proper filename and MIME type, ready for download or further processing.",
+	},
+	{
 		uuid: "NodeService:delete",
 		name: "delete",
 		description: `Delete a node and all its contents from the Antbox repository.

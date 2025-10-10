@@ -9,6 +9,7 @@ import { Groups } from "domain/users_groups/groups.ts";
 import type { AuthenticationContext } from "./authentication_context.ts";
 import { AspectNotFoundError } from "domain/aspects/aspect_not_found_error.ts";
 import type { AspectDTO } from "./aspect_dto.ts";
+import { builtinFolders } from "application/builtin_folders/index.ts";
 
 describe("AspectService", () => {
 	const adminAuthContext: AuthenticationContext = {
@@ -37,120 +38,134 @@ describe("AspectService", () => {
 
 	function createService() {
 		const repository = new InMemoryNodeRepository();
+
+		// Add builtin folders to repository
+		builtinFolders.forEach((folder) => repository.add(folder));
+
 		const storage = new InMemoryStorageProvider();
 		const eventBus = new InMemoryEventBus();
 		const nodeService = new NodeService({ repository, storage, bus: eventBus });
 		return new AspectService(nodeService);
 	}
 
-	it("createOrReplace should create a new aspect", async () => {
-		const service = createService();
+	describe("createOrReplace", () => {
+		it("createOrReplace should create a new aspect", async () => {
+			const service = createService();
 
-		const aspectOrErr = await service.createOrReplace(
-			adminAuthContext,
-			testAspect,
-		);
+			const aspectOrErr = await service.createOrReplace(
+				adminAuthContext,
+				testAspect,
+			);
 
-		expect(aspectOrErr.isRight(), errMsg(aspectOrErr.value)).toBeTruthy();
-		expect(aspectOrErr.right.uuid).toBe(testAspect.uuid);
-		expect(aspectOrErr.right.title).toBe(testAspect.title);
-		expect(aspectOrErr.right.filters).toEqual(testAspect.filters);
-	});
-
-	it("createOrReplace should replace existing aspect", async () => {
-		const service = createService();
-
-		// Create initial aspect
-		await service.createOrReplace(adminAuthContext, testAspect);
-
-		// Update the aspect
-		const updatedAspect = {
-			...testAspect,
-			description: "Updated description",
-			filters: [["mimetype", "==", "application/json"]],
-		} satisfies AspectDTO;
-
-		const aspectOrErr = await service.createOrReplace(
-			adminAuthContext,
-			updatedAspect,
-		);
-
-		expect(aspectOrErr.isRight(), errMsg(aspectOrErr.value)).toBeTruthy();
-		expect(aspectOrErr.right.description).toBe(updatedAspect.description);
-		expect(aspectOrErr.right.filters).toEqual(updatedAspect.filters);
-	});
-
-	it("get should return an aspect", async () => {
-		const service = createService();
-
-		await service.createOrReplace(adminAuthContext, testAspect);
-
-		const aspectOrErr = await service.get(adminAuthContext, testAspect.uuid);
-
-		expect(aspectOrErr.isRight(), errMsg(aspectOrErr.value)).toBeTruthy();
-		expect(aspectOrErr.right.uuid).toBe(testAspect.uuid);
-		expect(aspectOrErr.right.title).toBe(testAspect.title);
-	});
-
-	it("get should return error if aspect not found", async () => {
-		const service = createService();
-
-		const aspectOrErr = await service.get(
-			adminAuthContext,
-			"non-existent-aspect",
-		);
-
-		expect(aspectOrErr.isLeft()).toBeTruthy();
-		expect(aspectOrErr.value).toBeInstanceOf(AspectNotFoundError);
-	});
-
-	it("list should return all aspects including built-ins", async () => {
-		const service = createService();
-
-		await service.createOrReplace(adminAuthContext, testAspect);
-		await service.createOrReplace(adminAuthContext, {
-			...testAspect,
-			uuid: "another-aspect",
-			title: "Another Aspect",
+			expect(aspectOrErr.isRight(), errMsg(aspectOrErr.value)).toBeTruthy();
+			expect(aspectOrErr.right.uuid).toBe(testAspect.uuid);
+			expect(aspectOrErr.right.title).toBe(testAspect.title);
+			expect(aspectOrErr.right.filters).toEqual(testAspect.filters);
 		});
 
-		const aspects = await service.list(adminAuthContext);
+		it("createOrReplace should replace existing aspect", async () => {
+			const service = createService();
 
-		expect(aspects.length).toEqual(2);
-		expect(aspects.some((a) => a.uuid === testAspect.uuid)).toBeTruthy();
-		expect(aspects.some((a) => a.uuid === "another-aspect")).toBeTruthy();
+			// Create initial aspect
+			await service.createOrReplace(adminAuthContext, testAspect);
+
+			// Update the aspect
+			const updatedAspect = {
+				...testAspect,
+				description: "Updated description",
+				filters: [["mimetype", "==", "application/json"]],
+			} satisfies AspectDTO;
+
+			const aspectOrErr = await service.createOrReplace(
+				adminAuthContext,
+				updatedAspect,
+			);
+
+			expect(aspectOrErr.isRight(), errMsg(aspectOrErr.value)).toBeTruthy();
+			expect(aspectOrErr.right.description).toBe(updatedAspect.description);
+			expect(aspectOrErr.right.filters).toEqual(updatedAspect.filters);
+		});
 	});
 
-	it("delete should remove an aspect", async () => {
-		const service = createService();
+	describe("get", () => {
+		it("get should return an aspect", async () => {
+			const service = createService();
 
-		await service.createOrReplace(adminAuthContext, testAspect);
+			await service.createOrReplace(adminAuthContext, testAspect);
 
-		const deleteResult = await service.delete(
-			adminAuthContext,
-			testAspect.uuid,
-		);
-		expect(deleteResult.isRight(), errMsg(deleteResult.value)).toBeTruthy();
+			const aspectOrErr = await service.get(adminAuthContext, testAspect.uuid);
 
-		const aspectOrErr = await service.get(adminAuthContext, testAspect.uuid);
-		expect(aspectOrErr.isLeft()).toBeTruthy();
-		expect(aspectOrErr.value).toBeInstanceOf(AspectNotFoundError);
+			expect(aspectOrErr.isRight(), errMsg(aspectOrErr.value)).toBeTruthy();
+			expect(aspectOrErr.right.uuid).toBe(testAspect.uuid);
+			expect(aspectOrErr.right.title).toBe(testAspect.title);
+		});
+
+		it("get should return error if aspect not found", async () => {
+			const service = createService();
+
+			const aspectOrErr = await service.get(
+				adminAuthContext,
+				"non-existent-aspect",
+			);
+
+			expect(aspectOrErr.isLeft()).toBeTruthy();
+			expect(aspectOrErr.value).toBeInstanceOf(AspectNotFoundError);
+		});
 	});
 
-	it("export should create a JSON file for the aspect", async () => {
-		const service = createService();
+	describe("list", () => {
+		it("list should return all aspects including built-ins", async () => {
+			const service = createService();
 
-		await service.createOrReplace(adminAuthContext, testAspect);
+			await service.createOrReplace(adminAuthContext, testAspect);
+			await service.createOrReplace(adminAuthContext, {
+				...testAspect,
+				uuid: "another-aspect",
+				title: "Another Aspect",
+			});
 
-		const fileOrErr = await service.export(adminAuthContext, testAspect.uuid);
+			const aspects = await service.list(adminAuthContext);
 
-		expect(fileOrErr.isRight(), errMsg(fileOrErr.value)).toBeTruthy();
-		expect(fileOrErr.right.type).toBe("application/json");
-		expect(fileOrErr.right.name).toBe(`${testAspect.uuid}.json`);
+			expect(aspects.length).toEqual(2);
+			expect(aspects.some((a) => a.uuid === testAspect.uuid)).toBeTruthy();
+			expect(aspects.some((a) => a.uuid === "another-aspect")).toBeTruthy();
+		});
+	});
 
-		const content = JSON.parse(await fileOrErr.right.text());
-		expect(content.uuid).toBe(testAspect.uuid);
-		expect(content.title).toBe(testAspect.title);
+	describe("delete", () => {
+		it("delete should remove an aspect", async () => {
+			const service = createService();
+
+			await service.createOrReplace(adminAuthContext, testAspect);
+
+			const deleteResult = await service.delete(
+				adminAuthContext,
+				testAspect.uuid,
+			);
+			expect(deleteResult.isRight(), errMsg(deleteResult.value)).toBeTruthy();
+
+			const aspectOrErr = await service.get(adminAuthContext, testAspect.uuid);
+			expect(aspectOrErr.isLeft()).toBeTruthy();
+			expect(aspectOrErr.value).toBeInstanceOf(AspectNotFoundError);
+		});
+	});
+
+	describe("export", () => {
+		it("export should create a JSON file for the aspect", async () => {
+			const service = createService();
+
+			await service.createOrReplace(adminAuthContext, testAspect);
+
+			const fileOrErr = await service.export(adminAuthContext, testAspect.uuid);
+
+			expect(fileOrErr.isRight(), errMsg(fileOrErr.value)).toBeTruthy();
+			expect(fileOrErr.right.type).toBe("application/json");
+			expect(fileOrErr.right.name).toBe(`${testAspect.uuid}.json`);
+
+			const content = JSON.parse(await fileOrErr.right.text());
+			expect(content.uuid).toBe(testAspect.uuid);
+			expect(content.title).toBe(testAspect.title);
+		});
 	});
 });
 

@@ -1,3 +1,4 @@
+// deno-lint-ignore-file no-case-declarations
 import type { Feature } from "domain/features/feature.ts";
 import { featureToNodeMetadata, fileToFeature } from "domain/features/feature.ts";
 import { FeatureNode } from "domain/features/feature_node.ts";
@@ -39,12 +40,12 @@ export class FeatureService {
 
 	readonly #nodeService: NodeService;
 	readonly #authService: UsersGroupsService;
-	readonly #ocrModel: AIModel;
+	readonly #ocrModel?: AIModel;
 
 	constructor(
 		nodeService: NodeService,
 		authService: UsersGroupsService,
-		ocrModel: AIModel,
+		ocrModel?: AIModel,
 	) {
 		this.#nodeService = nodeService;
 		this.#authService = authService;
@@ -533,7 +534,19 @@ export class FeatureService {
 						args.metadata as NodeMetadata,
 					);
 					break;
+
+				case "NodeService:export":
+					result = this.#nodeService.export(ctx, args.uuid as string);
+					break;
+
+				case "NodeService:list":
+					result = this.#nodeService.list(ctx, args.parent as string);
+					break;
+
 				case "OcrModel:ocr":
+					if (!this.#ocrModel) {
+						return left(new UnknownError("OCR model not initialized"));
+					}
 					fileOrErr = await this.#nodeService.export(ctx, args.uuid as string);
 					result = this.#ocrModel.ocr(fileOrErr.right);
 					break;

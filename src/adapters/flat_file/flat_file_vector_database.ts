@@ -9,7 +9,6 @@ import type { Embedding } from "application/ai_model.ts";
 import { AntboxError, UnknownError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
 import { fileExistsSync } from "shared/os_helpers.ts";
-import { promise } from "zod";
 
 export default function buildFlatFileVectorDatabase(
 	baseDir: string,

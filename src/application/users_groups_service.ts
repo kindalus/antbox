@@ -7,7 +7,7 @@ import { UserExistsError } from "domain/users_groups/user_exists_error.ts";
 import { UserNode } from "domain/users_groups/user_node.ts";
 import { UserNotFoundError } from "domain/users_groups/user_not_found_error.ts";
 import { Users } from "domain/users_groups/users.ts";
-import { AntboxError, BadRequestError, ForbiddenError } from "shared/antbox_error.ts";
+import { type AntboxError, BadRequestError, ForbiddenError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
 import { ValidationError } from "shared/validation_error.ts";
 import type { AuthenticationContext } from "./authentication_context.ts";
@@ -21,9 +21,9 @@ import {
 	type UserDTO,
 	userToNode,
 } from "./users_groups_dto.ts";
-import type { UsersGroupsContext } from "./users_groups_service_context.ts";
 
-import { NodeMetadata } from "domain/nodes/node_metadata.ts";
+import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
+import type { NodeService } from "./node_service.ts";
 
 export class UsersGroupsService {
 	static elevatedContext: AuthenticationContext = {
@@ -35,7 +35,11 @@ export class UsersGroupsService {
 		tenant: "default",
 	};
 
-	constructor(private readonly context: UsersGroupsContext) {}
+	readonly service: NodeService;
+
+	constructor(service: NodeService) {
+		this.service = service;
+	}
 
 	async createUser(
 		ctx: AuthenticationContext,
@@ -75,7 +79,7 @@ export class UsersGroupsService {
 
 		const user = userOrErr.value;
 
-		const voidOrErr = await this.context.repository.add(user);
+		const voidOrErr = await this.service.create(ctx, user);
 		if (voidOrErr.isLeft()) {
 			return left(voidOrErr.value);
 		}
@@ -97,16 +101,16 @@ export class UsersGroupsService {
 			return right(nodeToUser(ANONYMOUS_USER));
 		}
 
-		const result = await this.context.repository.filter([
+		const result = await this.service.find(ctx, [
 			["email", "==", email],
 			["mimetype", "==", Nodes.USER_MIMETYPE],
 		]);
 
-		if (result.nodes.length === 0) {
+		if (result.isLeft() || result.value.nodes.length === 0) {
 			return left(new UserNotFoundError(email));
 		}
 
-		const node = result.nodes[0] as UserNode;
+		const node = result.value.nodes[0] as UserNode;
 
 		if (node.email === ctx.principal.email) {
 			return right(nodeToUser(node));
@@ -155,7 +159,7 @@ export class UsersGroupsService {
 			return left(updateResultOrErr.value);
 		}
 
-		const voidOrErr = await this.context.repository.update(user);
+		const voidOrErr = await this.service.update(ctx, user.uuid, user);
 		if (voidOrErr.isLeft()) {
 			return left(voidOrErr.value);
 		}
@@ -163,17 +167,17 @@ export class UsersGroupsService {
 		return right(voidOrErr.value);
 	}
 
-	async deleteUser(uuid: string): Promise<Either<AntboxError, void>> {
+	async deleteUser(ctx: AuthenticationContext, uuid: string): Promise<Either<AntboxError, void>> {
 		if (uuid === Users.ROOT_USER_UUID || uuid === Users.ANONYMOUS_USER_UUID) {
 			return left(new BadRequestError("Cannot delete built-in user"));
 		}
 
-		const existingOrErr = await this.context.repository.getById(uuid);
+		const existingOrErr = await this.service.get(ctx, uuid);
 		if (existingOrErr.isLeft()) {
 			return left(new UserNotFoundError(uuid));
 		}
 
-		const voidOrErr = await this.context.repository.delete(uuid);
+		const voidOrErr = await this.service.delete(ctx, uuid);
 		if (voidOrErr.isLeft()) {
 			return left(voidOrErr.value);
 		}
@@ -181,16 +185,17 @@ export class UsersGroupsService {
 		return right(voidOrErr.value);
 	}
 
-	async listUsers(): Promise<Either<ForbiddenError, UserDTO[]>> {
-		const usersOrErr = await this.context.repository.filter(
-			[
-				["mimetype", "==", Nodes.USER_MIMETYPE],
-				["parent", "==", Folders.USERS_FOLDER_UUID],
-			],
-			Number.MAX_SAFE_INTEGER,
-		);
+	async listUsers(ctx: AuthenticationContext): Promise<Either<AntboxError, UserDTO[]>> {
+		const usersOrErr = await this.service.find(ctx, [
+			["mimetype", "==", Nodes.USER_MIMETYPE],
+			["parent", "==", Folders.USERS_FOLDER_UUID],
+		], Number.MAX_SAFE_INTEGER);
 
-		const users = (usersOrErr.nodes as UserNode[]).map(nodeToUser);
+		if (usersOrErr.isLeft()) {
+			return left(usersOrErr.value);
+		}
+
+		const users = (usersOrErr.value.nodes as UserNode[]).map(nodeToUser);
 		const sytemUsers = builtinUsers.map(nodeToUser);
 
 		return right(
@@ -219,7 +224,7 @@ export class UsersGroupsService {
 
 		const group = groupOrErr.value;
 
-		const voidOrErr = await this.context.repository.add(group);
+		const voidOrErr = await this.service.create(ctx, group);
 		if (voidOrErr.isLeft()) {
 			return left(voidOrErr.value);
 		}
@@ -235,7 +240,7 @@ export class UsersGroupsService {
 			return right(ADMINS_GROUP);
 		}
 
-		const groupOrErr = await this.context.repository.getById(uuid);
+		const groupOrErr = await this.service.get(ctx, uuid);
 
 		if (groupOrErr.isLeft()) {
 			return left(groupOrErr.value);
@@ -271,7 +276,7 @@ export class UsersGroupsService {
 			return left(updateResultOrErr.value);
 		}
 
-		const voidOrErr = await this.context.repository.update(group);
+		const voidOrErr = await this.service.update(ctx, group.uuid, group);
 		if (voidOrErr.isLeft()) {
 			return left(voidOrErr.value);
 		}
@@ -292,7 +297,7 @@ export class UsersGroupsService {
 			return left(existingOrErr.value);
 		}
 
-		const voidOrErr = await this.context.repository.delete(uuid);
+		const voidOrErr = await this.service.delete(ctx, uuid);
 		if (voidOrErr.isLeft()) {
 			return left(voidOrErr.value);
 		}
@@ -300,18 +305,22 @@ export class UsersGroupsService {
 		return right(voidOrErr.value);
 	}
 
-	async listGroups(): Promise<GroupDTO[]> {
-		const groupsOrErr = await this.context.repository.filter(
-			[
-				["mimetype", "==", Nodes.GROUP_MIMETYPE],
-				["parent", "==", Folders.GROUPS_FOLDER_UUID],
-			],
-			Number.MAX_SAFE_INTEGER,
-		);
+	async listGroups(ctx: AuthenticationContext): Promise<Either<AntboxError, GroupDTO[]>> {
+		const groupsOrErr = await this.service.find(ctx, [
+			["mimetype", "==", Nodes.GROUP_MIMETYPE],
+			["parent", "==", Folders.GROUPS_FOLDER_UUID],
+		], Number.MAX_SAFE_INTEGER);
 
-		const groups = groupsOrErr.nodes.map(nodeToGroup);
+		if (groupsOrErr.isLeft()) {
+			return left(groupsOrErr.value);
+		}
+
+		const groups = groupsOrErr.value.nodes.map(nodeToGroup);
 		const systemGroups = builtinGroups.map(nodeToGroup);
 
-		return [...groups, ...systemGroups].sort((a, b) => a.title.localeCompare(b.title));
+		const _groups = [...groups, ...systemGroups]
+			.sort((a, b) => a.title.localeCompare(b.title));
+
+		return right(_groups);
 	}
 }

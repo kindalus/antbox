@@ -1,4 +1,4 @@
-import { type AntboxTenant } from "./antbox_tenant.ts";
+import type { AntboxTenant } from "./antbox_tenant.ts";
 import { defaultMiddlewareChain } from "./default_middleware_chain.ts";
 import { getAuthenticationContext } from "./get_authentication_context.ts";
 import { getParams } from "./get_params.ts";
@@ -17,7 +17,7 @@ export function createUserHandler(tenants: AntboxTenant[]): HttpHandler {
 		tenants,
 		async (req: Request): Promise<Response> => {
 			const tenant = getTenant(req, tenants);
-			const service = tenant.authService;
+			const service = tenant.usersGroupsService;
 
 			const unavailableResponse = checkServiceAvailability(service, "Users service");
 			if (unavailableResponse) {
@@ -42,7 +42,7 @@ export function getUserHandler(tenants: AntboxTenant[]): HttpHandler {
 		tenants,
 		async (req: Request): Promise<Response> => {
 			const tenant = getTenant(req, tenants);
-			const service = tenant.authService;
+			const service = tenant.usersGroupsService;
 
 			const unavailableResponse = checkServiceAvailability(service, "Users service");
 			if (unavailableResponse) {
@@ -67,7 +67,7 @@ export function updateUserHandler(tenants: AntboxTenant[]): HttpHandler {
 		tenants,
 		async (req: Request): Promise<Response> => {
 			const tenant = getTenant(req, tenants);
-			const service = tenant.authService;
+			const service = tenant.usersGroupsService;
 
 			const unavailableResponse = checkServiceAvailability(service, "Users service");
 			if (unavailableResponse) {
@@ -93,7 +93,7 @@ export function deleteUserHandler(tenants: AntboxTenant[]): HttpHandler {
 		tenants,
 		async (req: Request): Promise<Response> => {
 			const tenant = getTenant(req, tenants);
-			const service = tenant.authService;
+			const service = tenant.usersGroupsService;
 
 			const unavailableResponse = checkServiceAvailability(service, "Users service");
 			if (unavailableResponse) {
@@ -118,7 +118,7 @@ export function listUsersHandler(tenants: AntboxTenant[]): HttpHandler {
 		tenants,
 		async (req: Request): Promise<Response> => {
 			const tenant = getTenant(req, tenants);
-			const service = tenant.authService;
+			const service = tenant.usersGroupsService;
 
 			const unavailableResponse = checkServiceAvailability(service, "Users service");
 			if (unavailableResponse) {

@@ -19,10 +19,9 @@ import { EmbeddingService } from "application/embedding_service.ts";
 import { AgentService } from "application/agent_service.ts";
 import { RAGService } from "application/rag_service.ts";
 import { builtinAgents } from "application/builtin_agents/index.ts";
-import { AuthenticationContext } from "application/authentication_context.ts";
+import type { AuthenticationContext } from "application/authentication_context.ts";
 import { Users } from "domain/users_groups/users.ts";
 
-import {} from "path";
 import { resolve } from "path";
 import { toAgentDTO } from "application/agent_dto.ts";
 
@@ -95,7 +94,7 @@ async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
 		}
 
 		// Validate default model capabilities
-		await validateModelCapabilities(cfg.name, defaultModel);
+		validateModelCapabilities(cfg.name, defaultModel);
 	}
 
 	// Create NodeService
@@ -109,11 +108,7 @@ async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
 
 	// Create other core services
 	const aspectService = new AspectService(nodeService);
-	const usersGroupsService = new UsersGroupsService({
-		repository: repository ?? new InMemoryNodeRepository(),
-		storage: storage ?? new InMemoryStorageProvider(),
-		bus: eventBus,
-	});
+	const usersGroupsService = new UsersGroupsService(nodeService);
 	const featureService = new FeatureService(nodeService, usersGroupsService, ocrModel);
 
 	const apiKeyService = new ApiKeyService(nodeService);
@@ -150,6 +145,7 @@ async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
 		aspectService,
 		featureService,
 		apiKeyService,
+		usersGroupsService,
 		rootPasswd: passwd,
 		rawJwk,
 		embeddingService,

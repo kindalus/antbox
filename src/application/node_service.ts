@@ -49,6 +49,7 @@ import { builtinUsers } from "./builtin_users/index.ts";
 import { builtinAgents } from "./builtin_agents/index.ts";
 import { FeatureNode, FeatureParameter } from "domain/features/feature_node.ts";
 import { ParentFolderUpdateHandler } from "./parent_folder_update_handler.ts";
+import { NodeFileNotFoundError } from "domain/nodes/node_file_not_found_error.ts";
 
 // TODO: Implements throwing events
 
@@ -419,25 +420,34 @@ export class NodeService {
 
 	async find(
 		ctx: AuthenticationContext,
-		filters: NodeFilters,
+		filters: NodeFilters | string,
 		pageSize = 20,
 		pageToken = 1,
 	): Promise<Either<AntboxError, NodeFilterResult>> {
-		const f = isNodeFilters2D(filters) ? filters : [filters];
+		if (typeof filters === "string") {
+			const filtersOrErr = NodesFilters.parse(filters);
+
+			if (filtersOrErr.isRight()) return this.find(ctx, filtersOrErr.value, pageSize, pageToken);
+			console.debug("defaulting to content search");
+			return this.find(ctx, [[":content", "~=", filters]], pageSize, pageToken);
+		}
+
+		filters = isNodeFilters2D(filters) ? filters : [filters];
 
 		// Check for semantic search operator (~= on :content field)
-		const semanticSearchResult = await this.#extractAndPerformSemanticSearch(f, ctx.tenant);
-		let filtersWithSemanticResults = f;
+		const semanticSearchResult = await this.#extractAndPerformSemanticSearch(filters, ctx.tenant);
 
 		if (semanticSearchResult) {
 			// Remove semantic search filter and add UUID filter from results
-			filtersWithSemanticResults = this.#addUuidFilterToFilters(
-				this.#removeSemanticSearchFilter(f),
+			filters = this.#addUuidFilterToFilters(
+				this.#removeSemanticSearchFilter(filters),
 				semanticSearchResult.uuids,
 			);
 		}
 
-		const stage1 = filtersWithSemanticResults.reduce(
+		console.debug("filters after semantic search", filters);
+
+		const stage1 = filters.reduce(
 			this.#toFiltersWithPermissionsResolved(ctx, "Read"),
 			[],
 		);
@@ -1412,7 +1422,6 @@ export class NodeService {
 			// Search vector database
 			const searchOrErr = await this.context.vectorDatabase.search(
 				queryEmbedding,
-				tenant,
 				100, // topK - return top 100 results
 			);
 
@@ -1445,6 +1454,10 @@ export class NodeService {
 		if (uuids.length === 0) {
 			// No results from semantic search, return filter that matches nothing
 			return [[["uuid", "==", "@@semantic-search-no-results@@"]]];
+		}
+
+		if (filters.length === 0) {
+			return [[["uuid", "in", uuids] as NodeFilter]];
 		}
 
 		// Add UUID filter to each filter group (AND condition)

@@ -2,32 +2,15 @@ import { Command } from "commander";
 import { printServerKeys } from "./src/print_server_keys.ts";
 import { setupTenants } from "setup/setup_tenants.ts";
 import { PORT } from "setup/server_defaults.ts";
-import { parse } from "toml";
-import { fileExistsSync } from "shared/os_helpers.ts";
 import { ServerConfiguration } from "api/http_server_configuration.ts";
 import process from "node:process";
+import { loadConfiguration } from "setup/load_configuration.ts";
 
 interface CommandOpts {
 	config?: string;
 	keys?: boolean;
 	demo?: boolean;
 	sandbox?: boolean;
-}
-
-async function loadConfiguration(
-	configPath: string,
-): Promise<ServerConfiguration> {
-	if (!(fileExistsSync(configPath))) {
-		console.error(`Configuration file not found: ${configPath}`);
-		Deno.exit(1);
-	}
-
-	const configText = await Deno.readTextFile(configPath);
-	const config = parse(configText) as unknown as ServerConfiguration;
-
-	if (!config.port) config.port = PORT;
-
-	return config;
 }
 
 async function startServer(config: ServerConfiguration) {

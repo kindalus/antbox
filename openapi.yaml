@@ -771,18 +771,13 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                filters:
-                  type: array
-                  items:
-                    type: array
-                    items:
-                      type: object
-                pageSize:
-                  type: integer
-                pageToken:
-                  type: string
+              oneOf:
+                - type: string
+                - $ref: "#/components/schemas/NodeFilters"
+              pageSize:
+                type: integer
+              pageToken:
+                type: string
       responses:
         "200":
           description: A list of nodes
@@ -1427,6 +1422,54 @@ components:
         defaultValue:
           type: object
           nullable: true
+    FilterOperator:
+      type: string
+      description: The comparison or logical operator for filtering.
+      enum:
+        - "=="
+        - "<="
+        - ">="
+        - "<"
+        - ">"
+        - "!="
+        - "~=" # Note: OpenAPI does not enforce unique enums, but listing "~=" twice is non-standard.
+        - "in"
+        - "not-in"
+        - "match"
+        - "contains"
+        - "contains-all"
+        - "contains-any"
+        - "not-contains"
+        - "contains-none"
+
+    NodeFilter:
+      type: array
+      description: A single filter tuple #: [field: string, operator: FilterOperator, value: unknown].
+      # Represents a tuple (fixed length array with different types for each item)
+      items:
+        - type: string # field: string
+        - $ref: "#/components/schemas/FilterOperator" # operator: FilterOperator
+        - {} # value: unknown (empty schema allows any type)
+      minItems: 3
+      maxItems: 3
+
+    NodeFilters1D:
+      type: array
+      description: An array of NodeFilter tuples (AND/OR logic implied by the endpoint).
+      items:
+        $ref: "#/components/schemas/NodeFilter"
+
+    NodeFilters2D:
+      type: array
+      description: An array of NodeFilters1D arrays (representing nested logic, e.g., OR groups of AND filters).
+      items:
+        $ref: "#/components/schemas/NodeFilters1D"
+
+    NodeFilters:
+      description: Either a 1D array of filters or a 2D array of filters.
+      oneOf:
+        - $ref: "#/components/schemas/NodeFilters1D"
+        - $ref: "#/components/schemas/NodeFilters2D"
     Permission:
       type: string
       enum:

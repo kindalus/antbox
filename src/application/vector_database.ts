@@ -49,16 +49,12 @@ export interface VectorDatabase {
 	/**
 	 * Search for similar vectors using cosine similarity or other distance metrics
 	 * @param queryVector The query vector to search with
-	 * @param tenant The tenant to filter results by
 	 * @param topK Number of top results to return
-	 * @param filter Optional metadata filters
 	 * @returns Either an error or array of search results
 	 */
 	search(
 		queryVector: Embedding,
-		tenant: string,
 		topK: number,
-		filter?: Record<string, unknown>,
 	): Promise<Either<AntboxError, VectorSearchResult[]>>;
 
 	/**

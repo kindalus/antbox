@@ -9,6 +9,7 @@ import type { Embedding } from "application/ai_model.ts";
 import { AntboxError, UnknownError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
 import { fileExistsSync } from "shared/os_helpers.ts";
+import { promise } from "zod";
 
 export default function buildFlatFileVectorDatabase(
 	baseDir: string,
@@ -56,30 +57,12 @@ class FlatFileVectorDatabase implements VectorDatabase {
 		}
 	}
 
-	async search(
+	search(
 		queryVector: Embedding,
-		tenant: string,
 		topK: number,
-		filter?: Record<string, unknown>,
 	): Promise<Either<AntboxError, VectorSearchResult[]>> {
 		try {
-			const candidates = Array.from(this.#vectors.values()).filter((entry) => {
-				if (entry.metadata.tenant !== tenant) {
-					return false;
-				}
-
-				if (filter) {
-					for (const [key, value] of Object.entries(filter)) {
-						if (entry.metadata[key as keyof VectorEntry["metadata"]] !== value) {
-							return false;
-						}
-					}
-				}
-
-				return true;
-			});
-
-			const results = candidates.map<VectorSearchResult>((entry) => ({
+			const results = this.#vectors.values().toArray().map<VectorSearchResult>((entry) => ({
 				id: entry.id,
 				nodeUuid: entry.metadata.nodeUuid,
 				score: this.#cosineSimilarity(queryVector, entry.vector),
@@ -88,9 +71,9 @@ class FlatFileVectorDatabase implements VectorDatabase {
 
 			results.sort((a, b) => b.score - a.score);
 
-			return right(results.slice(0, topK));
+			return Promise.resolve(right(results.slice(0, topK)));
 		} catch (error) {
-			return left(this.#error(error));
+			return Promise.resolve(left(this.#error(error)));
 		}
 	}
 

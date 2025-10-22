@@ -1,7 +1,12 @@
 import { UserExistsError } from "domain/users_groups/user_exists_error.ts";
 import { FolderNotFoundError } from "domain/nodes/folder_not_found_error.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
-import { AntboxError, BadRequestError, ForbiddenError } from "shared/antbox_error.ts";
+import {
+	AntboxError,
+	BadRequestError,
+	ForbiddenError,
+	UnauthorizedError,
+} from "shared/antbox_error.ts";
 import { ValidationError } from "shared/validation_error.ts";
 import {
 	sendBadRequest,
@@ -9,6 +14,7 @@ import {
 	sendForbidden,
 	sendInternalServerError,
 	sendNotFound,
+	sendUnauthorized,
 } from "./handler.ts";
 
 export function processError({ errorCode, message }: AntboxError): Response {
@@ -28,6 +34,9 @@ export function processError({ errorCode, message }: AntboxError): Response {
 
 		case ForbiddenError.ERROR_CODE:
 			return sendForbidden(body);
+
+		case UnauthorizedError.ERROR_CODE:
+			return sendUnauthorized(body);
 
 		default:
 			console.error(errorCode, body);

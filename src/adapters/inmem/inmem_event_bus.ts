@@ -5,11 +5,12 @@ import type { EventHandler } from "shared/event_handler.ts";
 export class InMemoryEventBus implements EventBus {
 	#handlers: Record<string, EventHandler<Event>[]> = {};
 
-	async publish(event: Event): Promise<void> {
+	publish(event: Event): Promise<void> {
 		const eventHandlers = this.#handlers[event.eventId];
 		if (eventHandlers) {
 			eventHandlers.forEach((handler) => handler.handle(event));
 		}
+		return Promise.resolve();
 	}
 
 	subscribe(eventId: string, handler: EventHandler<Event>): void {

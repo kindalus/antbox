@@ -7,6 +7,12 @@ import type {
 } from "application/vector_database.ts";
 import type { Embedding } from "application/ai_model.ts";
 
+export default function buildInmemVectorDatabase(): Promise<
+	Either<AntboxError, VectorDatabase>
+> {
+	return Promise.resolve(right(new InMemoryVectorDatabase()));
+}
+
 /**
  * In-memory implementation of VectorDatabase for development and testing
  * Stores vectors in memory and performs cosine similarity search
@@ -17,26 +23,26 @@ export class InMemoryVectorDatabase implements VectorDatabase {
 	/**
 	 * Store a vector embedding with associated metadata
 	 */
-	async upsert(entry: VectorEntry): Promise<Either<AntboxError, void>> {
+	upsert(entry: VectorEntry): Promise<Either<AntboxError, void>> {
 		try {
 			this.vectors.set(entry.id, entry);
-			return right(undefined);
+			return Promise.resolve(right(undefined));
 		} catch (error) {
-			return left(new UnknownError((error as Error).message));
+			return Promise.resolve(left(new UnknownError((error as Error).message)));
 		}
 	}
 
 	/**
 	 * Store multiple vector embeddings in a batch
 	 */
-	async upsertBatch(entries: VectorEntry[]): Promise<Either<AntboxError, void>> {
+	upsertBatch(entries: VectorEntry[]): Promise<Either<AntboxError, void>> {
 		try {
 			for (const entry of entries) {
 				this.vectors.set(entry.id, entry);
 			}
-			return right(undefined);
+			return Promise.resolve(right(undefined));
 		} catch (error) {
-			return left(new UnknownError((error as Error).message));
+			return Promise.resolve(left(new UnknownError((error as Error).message)));
 		}
 	}
 
@@ -47,36 +53,13 @@ export class InMemoryVectorDatabase implements VectorDatabase {
 	 * @param topK Number of top results to return
 	 * @param filter Optional metadata filters (e.g., {mimetype: "text/plain"})
 	 */
-	async search(
+	search(
 		queryVector: Embedding,
-		tenant: string,
 		topK: number,
-		filter?: Record<string, unknown>,
 	): Promise<Either<AntboxError, VectorSearchResult[]>> {
 		try {
-			// Filter vectors by tenant and optional metadata filters
-			const candidateVectors = Array.from(this.vectors.values()).filter(
-				(entry) => {
-					// Must match tenant
-					if (entry.metadata.tenant !== tenant) {
-						return false;
-					}
-
-					// Apply optional metadata filters
-					if (filter) {
-						for (const [key, value] of Object.entries(filter)) {
-							if (entry.metadata[key as keyof typeof entry.metadata] !== value) {
-								return false;
-							}
-						}
-					}
-
-					return true;
-				},
-			);
-
 			// Calculate cosine similarity for each candidate
-			const results: VectorSearchResult[] = candidateVectors.map((entry) => ({
+			const results: VectorSearchResult[] = Array.from(this.vectors.values()).map((entry) => ({
 				id: entry.id,
 				nodeUuid: entry.metadata.nodeUuid,
 				score: this.#cosineSimilarity(queryVector, entry.vector),
@@ -87,28 +70,28 @@ export class InMemoryVectorDatabase implements VectorDatabase {
 			results.sort((a, b) => b.score - a.score);
 			const topResults = results.slice(0, topK);
 
-			return right(topResults);
+			return Promise.resolve(right(topResults));
 		} catch (error) {
-			return left(new UnknownError((error as Error).message));
+			return Promise.resolve(left(new UnknownError((error as Error).message)));
 		}
 	}
 
 	/**
 	 * Delete a vector entry by ID
 	 */
-	async delete(id: string): Promise<Either<AntboxError, void>> {
+	delete(id: string): Promise<Either<AntboxError, void>> {
 		try {
 			this.vectors.delete(id);
-			return right(undefined);
+			return Promise.resolve(right(undefined));
 		} catch (error) {
-			return left(new UnknownError((error as Error).message));
+			return Promise.resolve(left(new UnknownError((error as Error).message)));
 		}
 	}
 
 	/**
 	 * Delete vector entries by node UUID
 	 */
-	async deleteByNodeUuid(nodeUuid: string): Promise<Either<AntboxError, void>> {
+	deleteByNodeUuid(nodeUuid: string): Promise<Either<AntboxError, void>> {
 		try {
 			const idsToDelete: string[] = [];
 
@@ -122,9 +105,9 @@ export class InMemoryVectorDatabase implements VectorDatabase {
 				this.vectors.delete(id);
 			}
 
-			return right(undefined);
+			return Promise.resolve(right(undefined));
 		} catch (error) {
-			return left(new UnknownError((error as Error).message));
+			return Promise.resolve(left(new UnknownError((error as Error).message)));
 		}
 	}
 

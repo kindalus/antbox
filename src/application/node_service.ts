@@ -143,9 +143,9 @@ export class NodeService {
 			return left(nodeOrErr.value);
 		}
 
-		const isAllowed = isPrincipalAllowedTo(ctx, parentOrErr.value, "Write");
-		if (!isAllowed) {
-			return left(new ForbiddenError());
+		const allowedOrErr = isPrincipalAllowedTo(ctx, parentOrErr.value, "Write");
+		if (allowedOrErr.isLeft()) {
+			return left(allowedOrErr.value);
 		}
 
 		if (Nodes.isFolder(nodeOrErr.value) && !metadata.permissions) {
@@ -263,9 +263,9 @@ export class NodeService {
 			);
 		}
 
-		const isAllowed = isPrincipalAllowedTo(ctx, parentOrErr.value, "Write");
-		if (!isAllowed) {
-			return left(new ForbiddenError());
+		const allowedOrErr = isPrincipalAllowedTo(ctx, parentOrErr.value, "Write");
+		if (allowedOrErr.isLeft()) {
+			return left(allowedOrErr.value);
 		}
 
 		if (Nodes.isFileLike(nodeOrErr.value)) {
@@ -363,9 +363,9 @@ export class NodeService {
 			);
 		}
 
-		const isAllowed = isPrincipalAllowedTo(ctx, parentOrErr.value, "Export");
-		if (!isAllowed) {
-			return left(new ForbiddenError());
+		const allowedOrErr = isPrincipalAllowedTo(ctx, parentOrErr.value, "Export");
+		if (allowedOrErr.isLeft()) {
+			return left(allowedOrErr.value);
 		}
 
 		const fileOrErr = await this.context.storage.read(uuid);
@@ -480,9 +480,10 @@ export class NodeService {
 		}
 
 		if (Nodes.isFolder(nodeOrErr.value)) {
-			return isPrincipalAllowedTo(ctx, nodeOrErr.value, "Read")
-				? right(nodeOrErr.value)
-				: left(new ForbiddenError());
+			const allowedOrErr = isPrincipalAllowedTo(ctx, nodeOrErr.value, "Read");
+			if (allowedOrErr.isLeft()) {
+				return left(allowedOrErr.value);
+			}
 		}
 
 		const parentOrErr = await this.#getBuiltinFolderOrFromRepository(
@@ -496,9 +497,12 @@ export class NodeService {
 			);
 		}
 
-		return isPrincipalAllowedTo(ctx, parentOrErr.value, "Read")
-			? right(nodeOrErr.value)
-			: left(new ForbiddenError());
+		const allowedOrErr = isPrincipalAllowedTo(ctx, parentOrErr.value, "Read");
+		if (allowedOrErr.isLeft()) {
+			return left(allowedOrErr.value);
+		}
+
+		return right(nodeOrErr.value);
 	}
 
 	async list(
@@ -521,9 +525,9 @@ export class NodeService {
 			return left(parentOrErr.value);
 		}
 
-		const isAllowed = isPrincipalAllowedTo(ctx, parentOrErr.value, "Read");
-		if (!isAllowed) {
-			return left(new ForbiddenError());
+		const allowedOrErr = isPrincipalAllowedTo(ctx, parentOrErr.value, "Read");
+		if (allowedOrErr.isLeft()) {
+			return left(allowedOrErr.value);
 		}
 
 		if (Folders.isSystemRootFolder(parentOrErr.value)) {
@@ -621,13 +625,13 @@ export class NodeService {
 			);
 		}
 
-		const allowed = isPrincipalAllowedTo(
+		const allowedOrErr = isPrincipalAllowedTo(
 			ctx,
 			currentParentOrErr.value,
 			"Write",
 		);
-		if (!allowed) {
-			return left(new ForbiddenError());
+		if (allowedOrErr.isLeft()) {
+			return left(allowedOrErr.value);
 		}
 
 		if (Nodes.isApikey(nodeOrErr.value)) {

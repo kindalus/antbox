@@ -2,7 +2,7 @@ import type { StorageProvider, WriteFileOpts } from "application/storage_provide
 import { S3Client } from "s3";
 import type { DuplicatedNodeError } from "domain/nodes/duplicated_node_error.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
-import path from "path";
+import * as path from "path";
 import { AntboxError, UnknownError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
 import type { Event } from "shared/event.ts";

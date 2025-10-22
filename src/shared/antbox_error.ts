@@ -15,6 +15,17 @@ export class ForbiddenError extends AntboxError {
 	}
 }
 
+export class UnauthorizedError extends AntboxError {
+	static ERROR_CODE = "UnauthorizedError";
+
+	constructor() {
+		super(
+			UnauthorizedError.ERROR_CODE,
+			"You are not authorized to perform this action",
+		);
+	}
+}
+
 export class UnknownError extends AntboxError {
 	constructor(message: string) {
 		super("UnknownError", message);

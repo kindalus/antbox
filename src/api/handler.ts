@@ -5,12 +5,12 @@ const enum STATUS_CODE {
 	Created = 201,
 	NoContent = 204,
 	BadRequest = 400,
-	Unauthorized = 401,
 	Forbidden = 403,
 	NotFound = 404,
 	Conflict = 409,
 	InternalServerError = 500,
 	ServiceUnavailable = 503,
+	Unauthorized = 401,
 }
 
 export function sendCreated<T>(body?: T) {
@@ -37,8 +37,8 @@ export function sendForbidden<T>(body?: T) {
 	return sendResponse(STATUS_CODE.Forbidden, body);
 }
 
-export function sendUnauthorized() {
-	return sendResponse(STATUS_CODE.Unauthorized);
+export function sendUnauthorized<T>(body?: T) {
+	return sendResponse(STATUS_CODE.Unauthorized, body);
 }
 
 export function sendConflict<T>(body?: T) {

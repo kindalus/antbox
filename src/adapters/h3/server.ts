@@ -11,7 +11,7 @@ import extensionsRouter from "adapters/h3/extensions_v2_router.ts";
 import templatesRouter from "adapters/h3/templates_v2_router.ts";
 import docsRouter from "adapters/h3/docs_v2_router.ts";
 import type { AntboxTenant } from "api/antbox_tenant.ts";
-import { App, createApp, createRouter, useBase } from "h3";
+import { type App, createApp, createRouter, useBase } from "h3";
 
 // TODO: Should return a startServerFn
 export default function setupH3Server(tenants: AntboxTenant[]): App {

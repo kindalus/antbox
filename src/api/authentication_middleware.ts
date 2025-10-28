@@ -73,11 +73,22 @@ export function authenticationMiddleware(
 }
 
 function getToken(req: Request) {
+	// Priority 2: Authorization: Bearer <token>
 	const bearer = req.headers.get("authorization");
-
 	if (bearer && /Bearer\s.*/.test(bearer)) {
 		return bearer.split(" ")[1];
 	}
+
+	// Priority 3: Cookie: token=<jwt>
+	const cookieHeader = req.headers.get("cookie");
+	if (cookieHeader) {
+		const match = cookieHeader.match(/\btoken=([^;]+)/);
+		if (match) {
+			return match[1];
+		}
+	}
+
+	return undefined;
 }
 
 function getApiKey(req: Request) {

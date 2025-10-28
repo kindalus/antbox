@@ -34,7 +34,33 @@ export function rootHandler(tenants: AntboxTenant[]): HttpHandler {
 				.setExpirationTime("4h")
 				.sign(secret);
 
-			return sendOK({ jwt });
+			const response = sendOK({ jwt });
+
+			// Set cookie with same expiration as JWT (4 hours = 14400 seconds)
+			// SameSite=Strict provides CSRF protection for same-origin requests
+			response.headers.set(
+				"Set-Cookie",
+				`token=${jwt}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=14400`,
+			);
+
+			return response;
+		},
+	);
+}
+
+export function logoutHandler(tenants: AntboxTenant[]): HttpHandler {
+	return defaultMiddlewareChain(
+		tenants,
+		async (_req: Request): Promise<Response> => {
+			const response = sendOK({ message: "Logged out successfully" });
+
+			// Clear the authentication cookie by setting Max-Age=0
+			response.headers.set(
+				"Set-Cookie",
+				"token=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0",
+			);
+
+			return response;
 		},
 	);
 }

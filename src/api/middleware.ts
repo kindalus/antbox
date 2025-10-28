@@ -13,13 +13,54 @@ export function chain(
 }
 
 export const corsMiddleware: HttpMiddleware = (next: HttpHandler) => async (req: Request) => {
+	const origin = req.headers.get("origin");
+
+	// Handle preflight requests
+	if (req.method === "OPTIONS") {
+		const response = new Response(null, { status: 204 });
+
+		if (origin) {
+			response.headers.set("Access-Control-Allow-Origin", origin);
+			response.headers.set("Access-Control-Allow-Credentials", "true");
+		} else {
+			response.headers.set("Access-Control-Allow-Origin", "*");
+		}
+
+		response.headers.set(
+			"Access-Control-Allow-Methods",
+			"GET, POST, PUT, DELETE, OPTIONS",
+		);
+		response.headers.set(
+			"Access-Control-Allow-Headers",
+			"Content-Type, Authorization, X-Tenant",
+		);
+		response.headers.set("Access-Control-Max-Age", "86400");
+
+		return response;
+	}
+
+	// Process actual request
 	const response = await next(req);
-	response.headers.set("Access-Control-Allow-Origin", "*");
+
+	// Set CORS headers based on whether origin is present
+	if (origin) {
+		// Cross-origin request - use specific origin and allow credentials
+		response.headers.set("Access-Control-Allow-Origin", origin);
+		response.headers.set("Access-Control-Allow-Credentials", "true");
+	} else {
+		// Same-origin or no origin - use wildcard (no credentials)
+		response.headers.set("Access-Control-Allow-Origin", "*");
+	}
+
 	response.headers.set(
 		"Access-Control-Allow-Methods",
-		"GET, POST, PUT, DELETE",
+		"GET, POST, PUT, DELETE, OPTIONS",
 	);
-	response.headers.set("Access-Control-Allow-Headers", "Content-Type");
+	response.headers.set(
+		"Access-Control-Allow-Headers",
+		"Content-Type, Authorization, X-Tenant",
+	);
+
 	return response;
 };
 

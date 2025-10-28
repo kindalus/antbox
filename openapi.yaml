@@ -8,6 +8,9 @@ servers:
     description: API server
 security:
   - bearerAuth: []
+  - cookieAuth: []
+  - apiKeyHeader: []
+  - apiKeyQuery: []
 tags:
   - name: actions
     description: Operations related to actions
@@ -703,7 +706,13 @@ paths:
               description: SHA-256 encoded root password
       responses:
         "200":
-          description: Login successful
+          description: Login successful. Returns JWT in response body and sets HTTP-only cookie.
+          headers:
+            Set-Cookie:
+              description: HTTP-only authentication cookie (token=<jwt>)
+              schema:
+                type: string
+                example: "token=<jwt>; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=14400"
           content:
             application/json:
               schema:
@@ -711,12 +720,37 @@ paths:
                 properties:
                   jwt:
                     type: string
+                    description: JWT token valid for 4 hours
         "401":
           description: Unauthorized
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/AntboxError"
+  "/login/logout":
+    post:
+      tags:
+        - login
+      summary: Logout
+      operationId: logout
+      description: Clears the authentication cookie. Can be called with any authentication method.
+      responses:
+        "200":
+          description: Logout successful
+          headers:
+            Set-Cookie:
+              description: Expired cookie to clear authentication
+              schema:
+                type: string
+                example: "token=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Logged out successfully"
   /nodes:
     get:
       tags:
@@ -1808,6 +1842,22 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+      description: "JWT token in Authorization header (Priority 2)"
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: token
+      description: "JWT token in HTTP-only cookie (Priority 3). Automatically sent by browser for same-origin requests."
+    apiKeyHeader:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: "API key in Authorization header format: 'ApiKey <key>' (Priority 1)"
+    apiKeyQuery:
+      type: apiKey
+      in: query
+      name: api_key
+      description: "API key in query parameter (Priority 4)"
   parameters:
     UUID:
       name: uuid

@@ -28,6 +28,8 @@ export interface NodeMetadata {
 	group: string;
 	groups: string[];
 	email: string;
+	phone: string;
+	hasWhatsapp: boolean;
 	secret: string;
 
 	onCreate: string[];

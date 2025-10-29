@@ -8,6 +8,8 @@ export interface UserDTO {
 	email: string;
 	group: string;
 	groups: string[];
+	phone?: string;
+	hasWhatsapp: boolean;
 }
 
 export interface GroupDTO {
@@ -22,6 +24,8 @@ export function nodeToUser(metadata: UserNode): UserDTO {
 		email: metadata.email,
 		group: metadata.group,
 		groups: [...metadata.groups],
+		phone: metadata.phone,
+		hasWhatsapp: metadata.hasWhatsapp,
 	};
 }
 
@@ -38,6 +42,8 @@ export function userToNode(
 		owner: ctx.principal.email,
 		group: metadata.group,
 		groups: Array.from(groups),
+		phone: metadata.phone,
+		hasWhatsapp: metadata.phone ? (metadata.hasWhatsapp ?? false) : false,
 	}).right;
 }
 

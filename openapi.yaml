@@ -1761,6 +1761,12 @@ components:
         email:
           type: string
           format: email
+        phone:
+          type: string
+          description: Optional phone number
+        hasWhatsapp:
+          type: boolean
+          description: Whether the phone number has WhatsApp (always false if phone is not provided)
         secret:
           type: string
         onCreate:

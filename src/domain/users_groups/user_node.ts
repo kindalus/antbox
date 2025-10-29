@@ -17,12 +17,16 @@ const UserValidationSchema = z.object({
 	group: z.string().min(1, "User must have at least one group"),
 	email: z.email().min(1, "User email is required"),
 	groups: z.array(z.string()),
+	phone: z.string().optional(),
+	hasWhatsapp: z.boolean(),
 });
 
 export class UserNode extends Node {
 	protected _email: string;
 	protected _group: string;
 	protected _groups: string[];
+	protected _phone?: string;
+	protected _hasWhatsapp: boolean;
 
 	static create(
 		metadata: Partial<NodeMetadata> = {},
@@ -45,6 +49,8 @@ export class UserNode extends Node {
 		this._groups = metadata?.groups ?? [];
 		this._group = metadata?.group ?? this._groups[0];
 		this._email = metadata.email!;
+		this._phone = metadata?.phone;
+		this._hasWhatsapp = metadata?.phone ? (metadata?.hasWhatsapp ?? false) : false;
 
 		this._validateUserNode();
 	}
@@ -55,6 +61,8 @@ export class UserNode extends Node {
 			email: this._email,
 			group: this._group,
 			groups: this._groups ?? [],
+			phone: this._phone,
+			hasWhatsapp: this._hasWhatsapp,
 		};
 	}
 
@@ -72,6 +80,8 @@ export class UserNode extends Node {
 
 		this._group = metadata?.group ?? this._group;
 		this._groups = metadata?.groups ?? this._groups;
+		this._phone = metadata?.phone ?? this._phone;
+		this._hasWhatsapp = metadata?.phone ? (metadata?.hasWhatsapp ?? this._hasWhatsapp) : false;
 
 		try {
 			this._validateUserNode();
@@ -111,5 +121,13 @@ export class UserNode extends Node {
 
 	get groups(): string[] {
 		return this._groups;
+	}
+
+	get phone(): string | undefined {
+		return this._phone;
+	}
+
+	get hasWhatsapp(): boolean {
+		return this._hasWhatsapp;
 	}
 }

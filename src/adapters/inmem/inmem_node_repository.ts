@@ -89,7 +89,9 @@ export class InMemoryNodeRepository implements NodeRepository {
 		const lastIndex = firstIndex + pageSize;
 
 		const spec = NodesFilters.nodeSpecificationFrom(filters);
-		const filtered = this.records.filter((n) => spec.isSatisfiedBy(n).isRight());
+		const filtered = this.records
+			.filter((n) => spec.isSatisfiedBy(n).isRight())
+			.sort((a, b) => a.title.localeCompare(b.title));
 
 		const nodes = filtered.slice(firstIndex, lastIndex);
 

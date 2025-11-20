@@ -444,8 +444,6 @@ export class NodeService {
 			);
 		}
 
-		console.debug("filters after semantic search", filters);
-
 		const stage1 = filters.reduce(
 			this.#toFiltersWithPermissionsResolved(ctx, "Read"),
 			[],
@@ -550,6 +548,22 @@ export class NodeService {
 		if (parent === Folders.ROOT_FOLDER_UUID) {
 			nodes.push(SYSTEM_FOLDER);
 		}
+
+		nodes.sort((a, b) => {
+			if (Nodes.isFolderLike(a) && Nodes.isFolderLike(b)) {
+				return a.title.localeCompare(b.title);
+			}
+
+			if (Nodes.isFolderLike(a)) {
+				return -1;
+			}
+
+			if (Nodes.isFolderLike(b)) {
+				return 1;
+			}
+
+			return a.title.localeCompare(b.title);
+		});
 
 		return right(nodes);
 	}

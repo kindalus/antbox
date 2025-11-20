@@ -10,6 +10,7 @@ import { ApiKeyNode } from "domain/api_keys/api_key_node.ts";
 import { FeatureNode } from "domain/features/feature_node.ts";
 import { AgentNode } from "domain/ai/agent_node.ts";
 import { ARTICLE_ASPECT } from "application/builtin_aspects/index.ts";
+import { NodeDeletedEvent } from "./node_deleted_event.ts";
 
 export class Nodes {
 	static FID_PREFIX = "--fid--";
@@ -60,6 +61,9 @@ export class Nodes {
 
 	static isSmartFolder(node: NodeLike): node is SmartFolderNode {
 		return node.mimetype === Nodes.SMART_FOLDER_MIMETYPE;
+	}
+	static isFolderLike(node: NodeLike): node is FolderNode | SmartFolderNode {
+		return Nodes.isFolder(node) || Nodes.isSmartFolder(node);
 	}
 
 	static isAspect(node: NodeLike): node is AspectNode {

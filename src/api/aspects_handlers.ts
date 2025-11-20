@@ -6,7 +6,6 @@ import { getTenant } from "api/get_tenant.ts";
 import { type HttpHandler, sendOK } from "api/handler.ts";
 import { processError } from "api/process_error.ts";
 import { processServiceResult } from "api/process_service_result.ts";
-import { constants } from "node:perf_hooks";
 
 export function listHandler(tenants: AntboxTenant[]): HttpHandler {
 	return defaultMiddlewareChain(
@@ -109,7 +108,12 @@ export function createOrReplaceHandler(tenants: AntboxTenant[]): HttpHandler {
 					return new Response("Missing metadata", { status: 400 });
 				}
 			} catch (_error) {
+				console.error(_error);
 				return new Response("Invalid metadata", { status: 400 });
+			}
+
+			if (!metadata.uuid) {
+				metadata.uuid = file.name.substring(0, file.name.lastIndexOf("."));
 			}
 
 			return service

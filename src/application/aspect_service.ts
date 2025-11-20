@@ -9,6 +9,7 @@ import { type AspectDTO, toAspectDTO } from "./aspect_dto.ts";
 import type { AuthenticationContext } from "./authentication_context.ts";
 
 import { NodeService } from "./node_service.ts";
+import { UsersGroupsService } from "./users_groups_service.ts";
 
 export class AspectService {
 	constructor(private readonly nodeService: NodeService) {}
@@ -65,7 +66,7 @@ export class AspectService {
 	}
 
 	async get(
-		ctx: AuthenticationContext,
+		_ctx: AuthenticationContext,
 		uuid: string,
 	): Promise<Either<NodeNotFoundError, AspectDTO>> {
 		// const builtin = builtinAspects.find((aspect) => aspect.uuid === uuid);
@@ -73,7 +74,7 @@ export class AspectService {
 		//   return right(builtin);
 		// }
 
-		const nodeOrErr = await this.nodeService.get(ctx, uuid);
+		const nodeOrErr = await this.nodeService.get(UsersGroupsService.elevatedContext, uuid);
 
 		if (nodeOrErr.isLeft() && nodeOrErr.value instanceof NodeNotFoundError) {
 			return left(new AspectNotFoundError(uuid));
@@ -90,9 +91,9 @@ export class AspectService {
 		return right(toAspectDTO(nodeOrErr.value));
 	}
 
-	async list(ctx: AuthenticationContext): Promise<AspectDTO[]> {
+	async list(_ctx: AuthenticationContext): Promise<AspectDTO[]> {
 		const nodesOrErrs = await this.nodeService.find(
-			ctx,
+			UsersGroupsService.elevatedContext,
 			[
 				["mimetype", "==", Nodes.ASPECT_MIMETYPE],
 				["parent", "==", Folders.ASPECTS_FOLDER_UUID],

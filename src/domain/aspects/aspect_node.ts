@@ -91,6 +91,14 @@ export class AspectNode extends Node {
 		return this._filters;
 	}
 
+	override get metadata(): Partial<NodeMetadata> {
+		return {
+			...super.metadata,
+			properties: this._properties,
+			filters: this._filters,
+		};
+	}
+
 	protected _validateAspectNode() {
 		const errors: AntboxError[] = [];
 

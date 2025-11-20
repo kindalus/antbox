@@ -8,6 +8,7 @@ import { PropertyRequiredError } from "./property_errors.ts";
 import { AntboxError } from "shared/antbox_error.ts";
 import { z } from "zod";
 import { toPropertyError } from "../validation_schemas.ts";
+import { NodesFilters } from "../nodes_filters.ts";
 
 const SmartFolderValidationSchema = z.object({
 	filters: z.array(z.any()).min(1, "SmartFolder.filters is required"),
@@ -24,12 +25,18 @@ export class SmartFolderNode extends Node {
 		}
 	}
 
-	protected _filters: NodeFilters;
+	protected _filters: NodeFilters = undefined as unknown as NodeFilters;
 
 	constructor(metadata: Partial<NodeMetadata> = {}) {
 		super({ ...metadata, mimetype: Nodes.SMART_FOLDER_MIMETYPE });
 
-		this._filters = metadata.filters ?? [];
+		if (typeof metadata.filters === "string") {
+			const filtersOrErr = NodesFilters.parse(metadata.filters);
+
+			if (filtersOrErr.isRight()) this._filters = filtersOrErr.value;
+		} else {
+			this._filters = metadata.filters ?? [];
+		}
 
 		this._validateSmartFolderNode();
 	}

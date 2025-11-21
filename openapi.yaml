@@ -79,11 +79,15 @@ paths:
                   additionalProperties: true
       responses:
         "200":
-          description: Action executed successfully
+          description: Action executed successfully. The response shape depends on the feature's returnType (string, number, boolean, array, object, file, or void).
           content:
             application/json:
               schema:
-                type: object
+                $ref: "#/components/schemas/FeatureActionResult"
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
         default:
           $ref: "#/components/responses/Error"
   /agents:
@@ -1466,6 +1470,16 @@ components:
           type: string
         returnContentType:
           type: string
+    FeatureActionResult:
+      description: Result payload returned when running a feature action. The concrete shape depends on the feature's declared returnType.
+      nullable: true
+      oneOf:
+        - type: object
+        - type: array
+          items: {}
+        - type: string
+        - type: number
+        - type: boolean
     FeatureParameter:
       type: object
       required:

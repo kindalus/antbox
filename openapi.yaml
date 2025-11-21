@@ -751,6 +751,40 @@ paths:
                   message:
                     type: string
                     example: "Logged out successfully"
+  "/login/me":
+    get:
+      tags:
+        - login
+      summary: Get current authenticated user
+      operationId: getCurrentUser
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+        - apiKeyHeader: []
+        - apiKeyQuery: []
+      responses:
+        "200":
+          description: Returns the authenticated user's profile
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  email:
+                    type: string
+                    format: email
+                  name:
+                    type: string
+                  groups:
+                    type: array
+                    items:
+                      type: string
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AntboxError"
   /nodes:
     get:
       tags:

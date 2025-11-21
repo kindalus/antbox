@@ -6,6 +6,7 @@ import { getTenant } from "./get_tenant.ts";
 import { type HttpHandler, sendOK, sendUnauthorized } from "./handler.ts";
 
 import { ROOT_USER } from "application/builtin_users/index.ts";
+import { ADMINS_GROUP } from "application/builtin_groups/index.ts";
 
 export function rootHandler(tenants: AntboxTenant[]): HttpHandler {
 	return defaultMiddlewareChain(
@@ -27,7 +28,7 @@ export function rootHandler(tenants: AntboxTenant[]): HttpHandler {
 
 			const secret = new TextEncoder().encode(symmetricKey);
 
-			const jwt = await new jose.SignJWT({ email: ROOT_USER.email })
+			const jwt = await new jose.SignJWT({ email: ROOT_USER.email, groups: [ADMINS_GROUP.uuid] })
 				.setProtectedHeader({ alg: "HS256" })
 				.setIssuedAt()
 				.setIssuer("urn:antbox")

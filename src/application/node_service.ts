@@ -1402,7 +1402,7 @@ export class NodeService {
 
 	async #extractAndPerformSemanticSearch(
 		filters: NodeFilters2D,
-		tenant: string,
+		_tenant: string,
 	): Promise<{ uuids: string[]; scores: Record<string, number>; query: string } | null> {
 		// Check if AI features are available
 		if (!this.context.vectorDatabase || !this.context.embeddingModel) {

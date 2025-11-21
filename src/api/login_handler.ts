@@ -2,11 +2,13 @@ import * as jose from "jose";
 import { readTextStream } from "shared/readers.ts";
 import type { AntboxTenant } from "./antbox_tenant.ts";
 import { defaultMiddlewareChain } from "./default_middleware_chain.ts";
+import { getAuthenticationContext } from "./get_authentication_context.ts";
 import { getTenant } from "./get_tenant.ts";
 import { type HttpHandler, sendOK, sendUnauthorized } from "./handler.ts";
 
 import { ROOT_USER } from "application/builtin_users/index.ts";
 import { ADMINS_GROUP } from "application/builtin_groups/index.ts";
+import { Users } from "domain/users_groups/users.ts";
 
 export function rootHandler(tenants: AntboxTenant[]): HttpHandler {
 	return defaultMiddlewareChain(
@@ -62,6 +64,36 @@ export function logoutHandler(tenants: AntboxTenant[]): HttpHandler {
 			);
 
 			return response;
+		},
+	);
+}
+
+export function meHandler(tenants: AntboxTenant[]): HttpHandler {
+	return defaultMiddlewareChain(
+		tenants,
+		async (req: Request): Promise<Response> => {
+			const tenant = getTenant(req, tenants);
+			const ctx = getAuthenticationContext(req);
+
+			if (
+				!ctx.principal?.email ||
+				ctx.principal.email === Users.ANONYMOUS_USER_EMAIL
+			) {
+				return sendUnauthorized();
+			}
+
+			const userOrErr = await tenant.usersGroupsService.getUser(
+				ctx,
+				ctx.principal.email,
+			);
+
+			if (userOrErr.isLeft()) {
+				return sendUnauthorized();
+			}
+
+			const { email, name, groups } = userOrErr.value;
+
+			return sendOK({ email, name, groups });
 		},
 	);
 }

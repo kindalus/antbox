@@ -12,7 +12,7 @@ import { NodesFilters } from "domain/nodes_filters.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import { Node } from "domain/nodes/node.ts";
 import { NodeLike } from "domain/node_like.ts";
-import type { NodeFilter, NodeFilters } from "domain/nodes/node_filter.ts";
+import type { NodeFilters } from "domain/nodes/node_filter.ts";
 import { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { Users } from "domain/users_groups/users.ts";
 import { AntboxError, BadRequestError, ForbiddenError, UnknownError } from "shared/antbox_error.ts";
@@ -280,51 +280,24 @@ export class FeatureService {
 
 	async listActions(
 		ctx: AuthenticationContext,
-	): Promise<Either<AntboxError, NodeLike[]>> {
-		// Get features that are exposed as actions
-		const featuresOrErrs = await this.#nodeService.find(
-			ctx,
-			[
-				["mimetype", "==", Nodes.FEATURE_MIMETYPE],
-				["parent", "==", Folders.FEATURES_FOLDER_UUID],
-				["exposeAction", "==", true],
-			],
-			Number.MAX_SAFE_INTEGER,
-		);
-
-		if (featuresOrErrs.isLeft()) {
-			return left(featuresOrErrs.value);
+	): Promise<Either<AntboxError, FeatureDTO[]>> {
+		const featuresOrErr = await this.listFeatures(ctx);
+		if (featuresOrErr.isLeft()) {
+			return featuresOrErr;
 		}
 
-		return right(featuresOrErrs.value.nodes);
+		return right(featuresOrErr.value.filter((f) => f.exposeAction));
 	}
 
 	async listAITools(
 		ctx: AuthenticationContext,
 	): Promise<Either<AntboxError, FeatureDTO[]>> {
-		// Get features that are exposed as AI tools
-		const featuresOrErrs = await this.#nodeService.find(
-			ctx,
-			[
-				["mimetype", "==", Nodes.FEATURE_MIMETYPE],
-				["parent", "==", Folders.FEATURES_FOLDER_UUID],
-				["exposeAITool", "==", true],
-			],
-			Number.MAX_SAFE_INTEGER,
-		);
-
-		if (featuresOrErrs.isLeft()) {
-			return left(featuresOrErrs.value);
+		const featuresOrErr = await this.listFeatures(ctx);
+		if (featuresOrErr.isLeft()) {
+			return featuresOrErr;
 		}
 
-		const nodes = [
-			...featuresOrErrs.value.nodes.filter(Nodes.isAITool),
-			...builtinFeatures.filter((f) => f.exposeAITool),
-		].map(toFeatureDTO);
-
-		nodes.push(...(BUILTIN_AGENT_TOOLS as FeatureDTO[]));
-
-		return right(nodes);
+		return right(featuresOrErr.value.filter((f) => f.exposeAITool));
 	}
 
 	async listExtensions(
@@ -357,16 +330,6 @@ export class FeatureService {
 			[
 				["mimetype", "==", Nodes.FEATURE_MIMETYPE],
 				["parent", "==", Folders.FEATURES_FOLDER_UUID],
-				["exposeFeature", "==", true],
-			],
-			Number.MAX_SAFE_INTEGER,
-		);
-
-		const actionsOrErrs = await this.#nodeService.find(
-			ctx,
-			[
-				["mimetype", "==", Nodes.FEATURE_MIMETYPE],
-				["parent", "==", Folders.FEATURES_FOLDER_UUID],
 			],
 			Number.MAX_SAFE_INTEGER,
 		);
@@ -374,47 +337,37 @@ export class FeatureService {
 		const featureNodes = featuresOrErrs.isRight()
 			? featuresOrErrs.value.nodes as FeatureNode[]
 			: [];
-		const actionNodes = actionsOrErrs.isRight() ? actionsOrErrs.value.nodes as FeatureNode[] : [];
 
 		const builtinFeatureNodes = builtinFeatures
-			.map((a) => {
-				try {
-					const result = FeatureNode.create({
-						uuid: a.uuid,
-						title: a.name,
-						description: a.description,
-						mimetype: Nodes.FEATURE_MIMETYPE,
-						parent: Folders.FEATURES_FOLDER_UUID,
-						exposeAction: a.exposeAction,
-						runOnCreates: a.runOnCreates,
-						runOnUpdates: a.runOnUpdates,
-						runManually: a.runManually,
-						filters: a.filters,
-						exposeExtension: a.exposeExtension,
-						exposeAITool: a.exposeAITool,
-						runAs: a.runAs,
-						groupsAllowed: a.groupsAllowed,
-						parameters: a.parameters,
-						returnType: a.returnType,
-						returnDescription: a.returnDescription,
-						returnContentType: a.returnContentType,
-						owner: Users.ROOT_USER_EMAIL,
-					});
-					return result.isRight() ? result.value : null;
-				} catch {
-					return null;
-				}
-			})
-			.filter((node): node is FeatureNode => node !== null);
+			.map((a) =>
+				FeatureNode.create({
+					...featureToNodeMetadata(a),
+					owner: Users.ROOT_USER_EMAIL,
+				})
+			).filter((f) => f.isRight())
+			.map((f) => f.value);
 
 		const allNodes: FeatureNode[] = [
 			...featureNodes,
-			...actionNodes,
 			...builtinFeatureNodes,
 		].sort((a, b) => a.title.localeCompare(b.title));
 
 		const dtos = allNodes.map(toFeatureDTO);
-		return right(dtos);
+
+		if (
+			ctx.principal.email === Users.ROOT_USER_EMAIL ||
+			ctx.principal.groups.includes(Groups.ADMINS_GROUP_UUID)
+		) {
+			return right(dtos);
+		}
+
+		return right(dtos.filter((f) => {
+			if (!f.groupsAllowed.length) {
+				return true;
+			}
+
+			return f.groupsAllowed.some((g) => ctx.principal.groups.includes(g));
+		}));
 	}
 
 	get nodeService(): NodeService {
@@ -464,6 +417,8 @@ export class FeatureService {
 			return left(
 				new UnknownError(`Action error: ${(error as Error).message}`),
 			);
+		} finally {
+			FeatureService.#decRunnable([uuid, "action"]);
 		}
 	}
 
@@ -673,32 +628,6 @@ export class FeatureService {
 		});
 	}
 
-	async #create(
-		ctx: AuthenticationContext,
-		file: File,
-		metadata?: Partial<NodeMetadata>,
-	): Promise<Either<AntboxError, FeatureDTO>> {
-		const featureOrErr = await fileToFeature(file);
-
-		if (featureOrErr.isLeft()) {
-			return left(featureOrErr.value);
-		}
-
-		const feature = featureOrErr.value;
-		const featureMetadata = featureToNodeMetadata(feature, ctx.principal.email);
-		const combinedMetadata = metadata ? { ...featureMetadata, ...metadata } : featureMetadata;
-
-		const nodeOrErr = await this.#nodeService.createFile(
-			ctx,
-			file,
-			combinedMetadata as NodeMetadata,
-		);
-		if (nodeOrErr.isLeft()) {
-			return left(nodeOrErr.value);
-		}
-		return right(toFeatureDTO(nodeOrErr.value as FeatureNode));
-	}
-
 	async #extractParametersFromRequest(
 		request: Request,
 	): Promise<Either<BadRequestError, Record<string, unknown>>> {
@@ -739,71 +668,28 @@ export class FeatureService {
 		return left(new BadRequestError(`Unsupported content type: ${contentType}`));
 	}
 
-	#filterUuidsByFeature(
-		ctx: AuthenticationContext,
-		action: Feature,
-		uuids: string[],
-	): Promise<Array<{ uuid: string; passed: boolean }>> {
-		const promises = uuids.map(async (uuid) => {
-			const nodeOrErr = await this.#nodeService.get(ctx, uuid);
-
-			if (nodeOrErr.isLeft()) {
-				return { uuid, passed: false };
-			}
-
-			const filterOrErr = NodesFilters.satisfiedBy(
-				action.filters,
-				nodeOrErr.value,
-			);
-
-			if (filterOrErr.isLeft()) {
-				return { uuid, passed: false };
-			}
-
-			return { uuid, passed: filterOrErr.value };
-		});
-
-		return Promise.all(promises);
-	}
-
 	async #getAutomaticActions(
-		criteria: NodeFilter,
+		criteria: NodeFilters,
 	): Promise<Feature[]> {
-		// Get builtin actions that match criteria
-		const builtinMatches = builtinFeatures.filter((a) => {
-			const [key, op, value] = criteria;
-			const propertyValue = (a as unknown as Record<string, unknown>)[key];
-			return op === "==" ? propertyValue === value : propertyValue !== value;
-		});
+		const ctx = UsersGroupsService.elevatedContext;
+		const actionsOrErr = await this.listActions(ctx);
 
-		// Get action nodes from the repository
-		const actionsOrErrs = await this.#nodeService.find(
-			UsersGroupsService.elevatedContext,
-			[
-				["mimetype", "==", Nodes.FEATURE_MIMETYPE],
-				["parent", "==", Folders.FEATURES_FOLDER_UUID],
-				criteria,
-			],
-			Number.MAX_SAFE_INTEGER,
-		);
-
-		if (actionsOrErrs.isLeft()) {
-			return builtinMatches;
+		if (actionsOrErr.isLeft()) {
+			return [];
 		}
 
-		const actions = [];
-		for (const node of actionsOrErrs.value.nodes) {
-			const featureOrErr = await this.#getNodeAsRunnableFeature(
-				UsersGroupsService.elevatedContext,
-				node.uuid,
-			);
+		const runnables = actionsOrErr.value
+			.filter((a) => NodesFilters.satisfiedBy(criteria, a as NodeLike).isRight())
+			.map((a) => this.#getNodeAsRunnableFeature(ctx, a.uuid));
 
-			if (featureOrErr.isRight()) {
-				actions.push(featureOrErr.value);
-			}
-		}
+		const featuresOrErrs = await Promise.all(runnables);
 
-		return [...builtinMatches, ...actions];
+		featuresOrErrs.filter((v) => v.isLeft())
+			.forEach((v) => {
+				console.warn(v.value.message);
+			});
+
+		return featuresOrErrs.filter((v) => v.isRight()).map((v) => v.value);
 	}
 
 	async #getNodeAsRunnableFeature(
@@ -914,7 +800,7 @@ export class FeatureService {
 	}
 
 	async #runAutomaticFeaturesForCreates(evt: NodeCreatedEvent) {
-		const runCriteria: NodeFilter = ["runOnCreates", "==", true];
+		const runCriteria: NodeFilters = [["runOnCreates", "==", true]];
 
 		const actions = await this.#getAutomaticActions(runCriteria);
 
@@ -958,7 +844,7 @@ export class FeatureService {
 	async #runAutomaticFeaturesForUpdates(
 		evt: NodeUpdatedEvent,
 	) {
-		const runCriteria: NodeFilter = ["runOnUpdates", "==", true];
+		const runCriteria: NodeFilters = [["runOnUpdates", "==", true]];
 
 		const actions = await this.#getAutomaticActions(runCriteria);
 
@@ -1000,7 +886,7 @@ export class FeatureService {
 	}
 
 	async #runAutomaticFeaturesForDeletes(evt: NodeDeletedEvent) {
-		const runCriteria: NodeFilter = ["runOnDeletes", "==", true];
+		const runCriteria: NodeFilters = [["runOnDeletes", "==", true]];
 
 		const actions = await this.#getAutomaticActions(runCriteria);
 

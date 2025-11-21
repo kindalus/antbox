@@ -1,7 +1,5 @@
 import { NodeFilters } from "domain/nodes/node_filter.ts";
 import { FeatureNode, FeatureParameter } from "domain/features/feature_node.ts";
-import { NodeListener } from "h3";
-import { NodeLike } from "domain/node_like.ts";
 import { Feature } from "domain/features/feature.ts";
 
 export interface FeatureDTO {

@@ -7,7 +7,7 @@ import { Feature } from "domain/features/feature.ts";
 
 const deleteAll: Feature = {
 	uuid: "delete_all",
-	name: "delete_all",
+	name: "Delete All",
 	description: "Delete all selected nodes",
 	exposeAction: true,
 	runOnCreates: false,

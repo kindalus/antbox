@@ -66,7 +66,7 @@ export function runActionHandler(tenants: AntboxTenant[]): HttpHandler {
 					)
 					.then(processServiceResult)
 					.catch(processError);
-			} catch (error) {
+			} catch (_error) {
 				return sendBadRequest({ error: "Invalid JSON body" });
 			}
 		},

@@ -417,12 +417,60 @@ export class NodeService {
 		return right(evaluationOrErr.value.nodes);
 	}
 
+	/**
+	 * Finds nodes based on filters, with support for semantic search and permission checks.
+	 *
+	 * This is a complex method that performs multiple stages of processing:
+	 *
+	 * 1. **String Parsing Stage**: If filters are provided as a string:
+	 *    - Attempts to parse it as structured filters
+	 *    - Falls back to content search if parsing fails
+	 *
+	 * 2. **Semantic Search Stage**: Detects semantic search operators (~= on :content)
+	 *    - Uses vector embeddings to find semantically similar content
+	 *    - Replaces semantic filter with UUID-based filter from results
+	 *    - Preserves relevance scores for ranking
+	 *
+	 * 3. **Permission Resolution Stage**: Transforms filters to respect permissions
+	 *    - Adds permission constraints based on user's authentication context
+	 *    - Ensures users only see nodes they have "Read" access to
+	 *    - Expands filters to include permission checks
+	 *
+	 * 4. **Special Filter Resolution Stage**: Resolves special "@" filters
+	 *    - Processes dynamic filters like "@me" (current user)
+	 *    - Handles async resolution of filter values
+	 *    - Filters out any failed resolutions
+	 *
+	 * 5. **Repository Query Stage**: Executes the processed filters
+	 *    - Applies pagination (pageSize, pageToken)
+	 *    - Returns matching nodes with metadata
+	 *    - Attaches semantic search scores if applicable
+	 *
+	 * @param ctx - Authentication context for permission checks
+	 * @param filters - NodeFilters (structured) or string (for parsing/content search)
+	 * @param pageSize - Number of results per page (default: 20)
+	 * @param pageToken - Page number for pagination (default: 1)
+	 * @returns Either an error or the filtered node results with pagination info
+	 *
+	 * @example
+	 * ```typescript
+	 * // Structured filter
+	 * const result = await nodeService.find(ctx, [["mimetype", "==", "image/png"]], 10, 1);
+	 *
+	 * // String content search
+	 * const result = await nodeService.find(ctx, "meeting notes", 20, 1);
+	 *
+	 * // Semantic search
+	 * const result = await nodeService.find(ctx, [[":content", "~=", "documents about AI"]], 50, 1);
+	 * ```
+	 */
 	async find(
 		ctx: AuthenticationContext,
 		filters: NodeFilters | string,
 		pageSize = 20,
 		pageToken = 1,
 	): Promise<Either<AntboxError, NodeFilterResult>> {
+		// Stage 1: Handle string-based filters
 		if (typeof filters === "string") {
 			const filtersOrErr = NodesFilters.parse(filters);
 
@@ -431,36 +479,40 @@ export class NodeService {
 			return this.find(ctx, [[":content", "~=", filters]], pageSize, pageToken);
 		}
 
+		// Normalize filters to 2D array format
 		filters = isNodeFilters2D(filters) ? filters : [filters];
 
-		// Check for semantic search operator (~= on :content field)
+		// Stage 2: Semantic search detection and execution
 		const semanticSearchResult = await this.#extractAndPerformSemanticSearch(filters, ctx.tenant);
 
 		if (semanticSearchResult) {
-			// Remove semantic search filter and add UUID filter from results
+			// Replace semantic filter with UUID-based filter from vector search results
 			filters = this.#addUuidFilterToFilters(
 				this.#removeSemanticSearchFilter(filters),
 				semanticSearchResult.uuids,
 			);
 		}
 
+		// Stage 3: Add permission constraints to filters
 		const stage1 = filters.reduce(
 			this.#toFiltersWithPermissionsResolved(ctx, "Read"),
 			[],
 		);
 
+		// Stage 4: Resolve special "@" filters (async operations)
 		const batch = stage1.map((f) => this.#toFiltersWithAtResolved(f));
 		const stage2 = await Promise.allSettled(batch);
 		const stage3 = stage2.filter((r) => r.status === "fulfilled").map((r) => r.value);
 		const processedFilters = stage3.filter((f) => f.length);
 
+		// Stage 5: Execute repository query with processed filters
 		const r = await this.context.repository.filter(
 			processedFilters,
 			pageSize,
 			pageToken,
 		);
 
-		// Add scores if semantic search was performed
+		// Attach semantic search scores if available
 		if (semanticSearchResult) {
 			r.scores = semanticSearchResult.scores;
 		}

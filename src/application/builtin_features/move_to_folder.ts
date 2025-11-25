@@ -8,7 +8,7 @@ import { Feature } from "domain/features/feature.ts";
 
 const moveToFolder: Feature = {
 	uuid: "move_to_folder",
-	name: "move_to_folder",
+	name: "Move to Folder",
 	description: "Move nodes to a target folder",
 	exposeAction: true,
 	runOnCreates: false,

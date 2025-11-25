@@ -338,21 +338,9 @@ export class FeatureService {
 			? featuresOrErrs.value.nodes as FeatureNode[]
 			: [];
 
-		const builtinFeatureNodes = builtinFeatures
-			.map((a) =>
-				FeatureNode.create({
-					...featureToNodeMetadata(a),
-					owner: Users.ROOT_USER_EMAIL,
-				})
-			).filter((f) => f.isRight())
-			.map((f) => f.value);
-
-		const allNodes: FeatureNode[] = [
-			...featureNodes,
-			...builtinFeatureNodes,
-		].sort((a, b) => a.title.localeCompare(b.title));
-
-		const dtos = allNodes.map(toFeatureDTO);
+		const dtos = [...featureNodes, ...builtinFeatures]
+			.map(toFeatureDTO)
+			.sort((a, b) => a.name.localeCompare(b.name));
 
 		if (
 			ctx.principal.email === Users.ROOT_USER_EMAIL ||
@@ -374,6 +362,41 @@ export class FeatureService {
 		return this.#nodeService;
 	}
 
+	/**
+	 * Executes a feature action on a set of nodes.
+	 *
+	 * This method performs several validation and filtering steps before executing:
+	 *
+	 * 1. **Feature Validation**: Verifies the feature exists and is exposed as an action
+	 * 2. **Manual Execution Check**: Ensures the feature can be run manually if invoked directly
+	 * 3. **Node Filtering**: Filters the provided node UUIDs based on the feature's filter criteria
+	 *    - Retrieves each node (with permission checks via NodeService)
+	 *    - Logs warnings for nodes that can't be retrieved
+	 *    - Applies the feature's NodeFilter specification
+	 *    - Only passes matching nodes to the action
+	 * 4. **Execution Tracking**: Uses a counter to track concurrent action executions
+	 * 5. **Error Handling**: Catches and wraps execution errors
+	 *
+	 * The filtered node UUIDs are passed to the action as the "uuids" parameter,
+	 * merged with any additional parameters provided by the caller.
+	 *
+	 * @param ctx - Authentication context for permission checks and execution context
+	 * @param uuid - UUID of the feature/action to run
+	 * @param uuids - Array of node UUIDs to apply the action to
+	 * @param params - Optional additional parameters for the action
+	 * @returns Either an error or the action result (type T)
+	 *
+	 * @example
+	 * ```typescript
+	 * // Run "copy_to_folder" action on selected nodes
+	 * const result = await featureService.runAction(
+	 *   ctx,
+	 *   "copy_to_folder",
+	 *   ["node-uuid-1", "node-uuid-2"],
+	 *   { to: "target-folder-uuid" }
+	 * );
+	 * ```
+	 */
 	async runAction<T>(
 		ctx: AuthenticationContext,
 		uuid: string,
@@ -395,10 +418,11 @@ export class FeatureService {
 			return left(new BadRequestError("Feature is not run manually"));
 		}
 
-		// Filter uuids to can be exposed to action
+		// Filter node UUIDs based on the feature's filter criteria
 		const spec = NodesFilters.nodeSpecificationFrom(feature.filters);
 		const nodesOrErrs = await Promise.all(uuids.map((uuid) => this.#nodeService.get(ctx, uuid)));
 
+		// Helper to filter out error results and log warnings
 		const filterAndLog = (nodeOrErr: Either<AntboxError, NodeLike>) => {
 			if (nodeOrErr.isLeft()) {
 				console.warn("Error retrieving the node", nodeOrErr.value.message);
@@ -406,11 +430,14 @@ export class FeatureService {
 			return nodeOrErr.isRight();
 		};
 
+		// Extract successfully retrieved nodes, apply filters, get UUIDs
 		const nodes = nodesOrErrs.filter(filterAndLog)
 			.map((n) => n.value)
-			.filter((n) => spec.isSatisfiedBy(n as unknown as NodeLike));
+			.filter((n) => spec.isSatisfiedBy(n as unknown as NodeLike).isRight())
+			.map((n) => n.uuid);
 
 		try {
+			// Track concurrent action executions
 			FeatureService.#incRunnable([uuid, "action"]);
 			return await this.#run(ctx, uuid, { ...params, uuids: nodes });
 		} catch (error) {
@@ -446,6 +473,45 @@ export class FeatureService {
 		return this.#run(ctx, uuid, parameters);
 	}
 
+	/**
+	 * Executes built-in system methods as AI tools.
+	 *
+	 * This internal method provides a bridge between AI agents and core system services.
+	 * It accepts specially formatted tool names (e.g., "NodeService:find") and routes
+	 * them to the corresponding service methods.
+	 *
+	 * **Supported Tools:**
+	 * - **NodeService methods**: find, get, create, duplicate, copy, breadcrumbs, delete, update, export, list
+	 * - **OcrModel methods**: ocr (optical character recognition)
+	 * - **Templates methods**: list (template enumeration)
+	 * - **Docs methods**: list, get (documentation access)
+	 *
+	 * This allows AI agents to:
+	 * - Search and retrieve content
+	 * - Manipulate nodes (create, update, delete)
+	 * - Extract text from images via OCR
+	 * - Access system templates and documentation
+	 *
+	 * The method name format is "ServiceName:methodName" (e.g., "NodeService:find").
+	 * Arguments are passed as a record and mapped to the appropriate parameters.
+	 *
+	 * @param ctx - Authentication context (permissions apply to all operations)
+	 * @param name - Fully qualified tool name (format: "ServiceName:methodName")
+	 * @param args - Arguments for the tool, structure depends on the specific tool
+	 * @returns Either an error or the tool execution result
+	 *
+	 * @throws UnknownError if the tool name is not recognized
+	 *
+	 * @example
+	 * ```typescript
+	 * // AI agent calling the find tool
+	 * const result = await runNodeServiceMethodAsTool(
+	 *   ctx,
+	 *   "NodeService:find",
+	 *   { filters: [["mimetype", "==", "application/pdf"]], pageSize: 10 }
+	 * );
+	 * ```
+	 */
 	async #runNodeServiceMethodAsTool<T>(
 		ctx: AuthenticationContext,
 		name: string,
@@ -455,6 +521,7 @@ export class FeatureService {
 		let result: any;
 		let fileOrErr: Either<AntboxError, File>;
 		try {
+			// Route tool calls to appropriate service methods
 			switch (name) {
 				case "NodeService:find":
 					result = this.#nodeService.find(

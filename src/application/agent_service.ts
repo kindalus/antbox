@@ -15,6 +15,7 @@ import { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import { AgentDTO, toAgentDTO } from "application/agent_dto.ts";
 import { modelFrom } from "adapters/model_configuration_parser.ts";
+import { BUILTIN_AGENT_TOOLS } from "./builtin_features/agent_tools.ts";
 const chatSystemPrompt =
 	`You are an AI agent running inside Antbox, an ECM (Enterprise Content Management) platform.
 
@@ -284,7 +285,58 @@ export class AgentService {
 	// ========================================================================
 
 	/**
-	 * Execute agent chat with history and tool support
+	 * Execute an interactive chat session with an AI agent.
+	 *
+	 * This is a complex method that orchestrates AI agent conversations with tool calling support.
+	 * It handles multi-turn conversations where the agent can call tools (features) to gather
+	 * information or perform actions before responding to the user.
+	 *
+	 * **Chat Flow:**
+	 * 1. **Agent & Model Preparation**: Loads the agent configuration and resolves the AI model
+	 * 2. **System Prompt Construction**: Builds system instructions (only for new conversations)
+	 * 3. **History Management**: Merges provided history with the new user message
+	 * 4. **Tool Preparation**: Loads available tools based on agent configuration
+	 * 5. **Tool Calling Loop**: Repeatedly interacts with the AI model:
+	 *    - Model generates a response (may include tool calls)
+	 *    - If tool calls are present, executes them and adds results to history
+	 *    - Continues until the model returns a text response without tool calls
+	 * 6. **History Return**: Returns the complete conversation history including tool interactions
+	 *
+	 * **Tool Calling Support:**
+	 * - The agent can call built-in tools (NodeService methods) or custom features
+	 * - Tool results are automatically added to the conversation history
+	 * - The loop continues until the agent produces a final text response
+	 *
+	 * **Options:**
+	 * - `history`: Previous conversation turns to continue a session
+	 * - `files`: Attach files (images, documents) to the user message
+	 * - `temperature`: Override agent's default creativity setting
+	 * - `maxTokens`: Override agent's default response length
+	 * - `instructions`: Additional one-time instructions for this turn
+	 *
+	 * @param authContext - Authentication context (permissions apply to all tool calls)
+	 * @param agentUuid - UUID of the agent to chat with
+	 * @param text - The user's message/question
+	 * @param options - Optional configuration for this chat turn
+	 * @returns Either an error or the complete chat history including the agent's response
+	 *
+	 * @example
+	 * ```typescript
+	 * // Start a new conversation
+	 * const result = await agentService.chat(
+	 *   ctx,
+	 *   "agent-uuid",
+	 *   "Find all PDF documents about project Alpha"
+	 * );
+	 *
+	 * // Continue a conversation
+	 * const result2 = await agentService.chat(
+	 *   ctx,
+	 *   "agent-uuid",
+	 *   "Summarize the first document",
+	 *   { history: result.value }
+	 * );
+	 * ```
 	 */
 	async chat(
 		authContext: AuthenticationContext,
@@ -301,7 +353,7 @@ export class AgentService {
 		const { agent, aiModel } = prepareResult.value;
 
 		try {
-			// Build system prompt only if no history provided
+			// Build system prompt only if no history provided (new conversation)
 			let systemPrompt: string | undefined;
 			if (!options?.history || options.history.length === 0) {
 				systemPrompt = this.#buildSystemPrompt(
@@ -311,16 +363,16 @@ export class AgentService {
 				);
 			}
 
-			// Use provided history
+			// Initialize conversation history with previous turns + new message
 			let currentHistory: ChatHistory = [
 				...(options?.history || []),
 				{ role: "user", parts: [{ text }] },
 			];
 
-			// Prepare tools
+			// Prepare tools that the agent can call
 			const tools = await this.#prepareTools(authContext, agent);
 
-			// Loop until we get a response with text or encounter an error
+			// Tool calling loop: continue until we get a text response
 			while (true) {
 				// Execute chat via AI model
 				const chatResult = await aiModel.chat?.(
@@ -551,7 +603,10 @@ export class AgentService {
 			return undefined;
 		}
 
-		return result.value;
+		const finalTools = [...BUILTIN_AGENT_TOOLS, ...result.value]
+			.map((t) => ({ ...t, name: t.uuid }));
+
+		return finalTools;
 	}
 
 	#extractToolCalls(message: ChatMessage): Array<{ name: string; args: Record<string, unknown> }> {

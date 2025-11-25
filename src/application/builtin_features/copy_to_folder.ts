@@ -3,7 +3,7 @@ import { Feature } from "domain/features/feature.ts";
 
 const copyToFolder: Feature = {
 	uuid: "copy_to_folder",
-	name: "copy_to_folder",
+	name: "Copy to Folder",
 	description: "Copy nodes to a target folder",
 	exposeAction: true,
 	runOnCreates: false,

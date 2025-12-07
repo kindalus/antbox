@@ -10,6 +10,7 @@ export class Folders {
 
 	static FEATURES_FOLDER_UUID = "--features--";
 	static AGENTS_FOLDER_UUID = "--agents--";
+	static WORKFLOWS_FOLDER_UUID = "--workflows--";
 
 	static SYSTEM_FOLDERS_UUID = [
 		Folders.USERS_FOLDER_UUID,
@@ -20,6 +21,7 @@ export class Folders {
 
 		Folders.FEATURES_FOLDER_UUID,
 		Folders.AGENTS_FOLDER_UUID,
+		Folders.WORKFLOWS_FOLDER_UUID,
 	];
 
 	static isRootFolder(node: FolderNode): boolean {
@@ -44,6 +46,10 @@ export class Folders {
 
 	static isAgentsFolder(node: FolderNode): boolean {
 		return node.uuid === Folders.AGENTS_FOLDER_UUID;
+	}
+
+	static isWorkflowsFolder(node: FolderNode): boolean {
+		return node.uuid === Folders.WORKFLOWS_FOLDER_UUID;
 	}
 
 	static isSystemFolder(uuid: string): boolean {

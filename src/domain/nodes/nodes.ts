@@ -25,6 +25,7 @@ export class Nodes {
 	static GROUP_MIMETYPE = "application/vnd.antbox.group";
 	static API_KEY_MIMETYPE = "application/vnd.antbox.apikey";
 	static AGENT_MIMETYPE = "application/vnd.antbox.agent";
+	static WORKFLOW_MIMETYPE = "application/vnd.antbox.workflow";
 
 	static SYSTEM_MIMETYPES = [
 		Nodes.ASPECT_MIMETYPE,
@@ -33,6 +34,7 @@ export class Nodes {
 		Nodes.GROUP_MIMETYPE,
 		Nodes.API_KEY_MIMETYPE,
 		Nodes.AGENT_MIMETYPE,
+		Nodes.WORKFLOW_MIMETYPE,
 	];
 
 	static fidToUuid(fid: string): string {

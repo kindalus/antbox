@@ -4,6 +4,7 @@ import { type NodeFilters } from "domain/nodes/node_filter.ts";
 import { type NodeProperties } from "domain/nodes/node_properties.ts";
 
 import { FeatureParameter } from "domain/features/feature_node.ts";
+import { WorkflowState } from "domain/workflows/workflow_node.ts";
 
 export interface NodeMetadata {
 	uuid: string;
@@ -69,4 +70,8 @@ export interface NodeMetadata {
 	useTools: boolean;
 	systemInstructions: string;
 	structuredAnswer?: string;
+
+	// Workflow properties
+	states: WorkflowState[];
+	availableStateNames: string[];
 }

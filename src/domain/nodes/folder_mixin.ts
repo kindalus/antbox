@@ -19,6 +19,9 @@ const FolderValidationSchema = z.object({
 		advanced: z.record(z.string(), PermissionSchema),
 	}),
 	filters: z.array(z.any()),
+	onCreate: z.array(z.string()).optional(),
+	onUpdate: z.array(z.string()).optional(),
+	onDelete: z.array(z.string()).optional(),
 });
 
 export function FolderMixin<TBase extends Constructor>(Base: TBase) {

@@ -23,6 +23,24 @@ export class FolderNode extends FolderMixin(WithAspectMixin(Node)) {
 		this._validateFolderNode();
 	}
 
+	override update(
+		metadata: Partial<NodeMetadata>,
+	): Either<ValidationError, void> {
+		const result = super.update(metadata);
+
+		if (result.isLeft()) {
+			return result;
+		}
+
+		try {
+			this._validateFolderNode();
+		} catch (e) {
+			return left(e as ValidationError);
+		}
+
+		return right(undefined);
+	}
+
 	protected _validateFolderNode(): void {
 		const errors: AntboxError[] = [];
 		const folderMixinError = super._safeValidateFolderMixin();

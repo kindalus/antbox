@@ -52,7 +52,7 @@ export function getFeatureHandler(tenants: AntboxTenant[]): HttpHandler {
 				return sendBadRequest({ error: "{ uuid } not given" });
 			}
 
-			return service
+			return await service
 				.get(getAuthenticationContext(req), params.uuid)
 				.then(processServiceResult)
 				.catch(processError);
@@ -104,22 +104,35 @@ export function deleteFeatureHandler(tenants: AntboxTenant[]): HttpHandler {
 }
 
 export function exportFeatureHandler(tenants: AntboxTenant[]): HttpHandler {
-	return defaultMiddlewareChain(tenants, (req: Request): Promise<Response> => {
-		const service = getTenant(req, tenants).featureService;
-		const params = getParams(req);
+	return defaultMiddlewareChain(
+		tenants,
+		async (req: Request): Promise<Response> => {
+			const service = getTenant(req, tenants).nodeService;
+			const params = getParams(req);
+			if (!params.uuid) {
+				return new Response("{ uuid } not given", { status: 400 });
+			}
 
-		const unavailableResponse = checkServiceAvailability(service, "Feature service");
-		if (unavailableResponse) {
-			return Promise.resolve(unavailableResponse);
-		}
+			const unavailableResponse = checkServiceAvailability(service, "Feature service");
+			if (unavailableResponse) {
+				return Promise.resolve(unavailableResponse);
+			}
 
-		if (!params.uuid) {
-			return Promise.resolve(sendBadRequest({ error: "{ uuid } not given" }));
-		}
+			if (!params.uuid) {
+				return Promise.resolve(sendBadRequest({ error: "{ uuid } not given" }));
+			}
 
-		return service
-			.export(getAuthenticationContext(req), params.uuid)
-			.then(processServiceResult)
-			.catch(processError);
-	});
+			const fileOrErr = await service
+				.export(getAuthenticationContext(req), params.uuid);
+
+			if (fileOrErr.isLeft()) {
+				return processError(fileOrErr.value);
+			}
+
+			const response = new Response(fileOrErr.value);
+			response.headers.set("Content-Type", fileOrErr.value.type);
+			response.headers.set("Content-length", fileOrErr.value.size.toString());
+			return response;
+		},
+	);
 }

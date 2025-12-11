@@ -1,33 +1,33 @@
 // deno-lint-ignore-file no-case-declarations
+import { loadTemplate, TEMPLATES } from "api/templates/index.ts";
+import { builtinFeatures } from "./builtin_features/index.ts";
+import { FeatureDTO, toFeatureDTO } from "./feature_dto.ts";
+import { NodeService } from "./node_service.ts";
+import { UsersGroupsService } from "./users_groups_service.ts";
 import type { Feature } from "domain/features/feature.ts";
-import { featureToNodeMetadata, fileToFeature } from "domain/features/feature.ts";
+import { featureToFile, featureToNodeMetadata, fileToFeature } from "domain/features/feature.ts";
 import { FeatureNode } from "domain/features/feature_node.ts";
 import { FeatureNotFoundError } from "domain/features/feature_not_found_error.ts";
-import { Folders } from "domain/nodes/folders.ts";
-import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
-import { NodeCreatedEvent } from "domain/nodes/node_created_event.ts";
-import { NodeUpdatedEvent } from "domain/nodes/node_updated_event.ts";
-import { NodeDeletedEvent } from "domain/nodes/node_deleted_event.ts";
-import { NodesFilters } from "domain/nodes_filters.ts";
-import { Nodes } from "domain/nodes/nodes.ts";
-import { Node } from "domain/nodes/node.ts";
+import { RunContext } from "domain/features/feature_run_context.ts";
 import { NodeLike } from "domain/node_like.ts";
+import { Folders } from "domain/nodes/folders.ts";
+import { Node } from "domain/nodes/node.ts";
+import { NodeCreatedEvent } from "domain/nodes/node_created_event.ts";
+import { NodeDeletedEvent } from "domain/nodes/node_deleted_event.ts";
 import type { NodeFilters } from "domain/nodes/node_filter.ts";
 import { NodeMetadata } from "domain/nodes/node_metadata.ts";
+import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
+import { NodeUpdatedEvent } from "domain/nodes/node_updated_event.ts";
+import { Nodes } from "domain/nodes/nodes.ts";
+import { NodesFilters } from "domain/nodes_filters.ts";
+import { Groups } from "domain/users_groups/groups.ts";
 import { Users } from "domain/users_groups/users.ts";
 import { AntboxError, BadRequestError, ForbiddenError, UnknownError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
-import { type AuthenticationContext } from "./authentication_context.ts";
-import { NodeService } from "application/node_service.ts";
-import { UsersGroupsService } from "application/users_groups_service.ts";
-import { FeatureDTO, toFeatureDTO } from "application/feature_dto.ts";
-import { RunContext } from "domain/features/feature_run_context.ts";
-import { BUILTIN_AGENT_TOOLS, builtinFeatures } from "application/builtin_features/index.ts";
 import { ValidationError } from "shared/validation_error.ts";
-import { Groups } from "domain/users_groups/groups.ts";
-import { AIModel } from "./ai_model.ts";
-import { loadTemplate, TEMPLATES } from "api/templates/index.ts";
 import { DOCS, loadDoc } from "../../docs/index.ts";
+import { AIModel } from "./ai_model.ts";
+import { type AuthenticationContext } from "./authentication_context.ts";
 
 type RecordKey = [string, string];
 interface RunnableRecord {
@@ -152,6 +152,12 @@ export class FeatureService {
 		ctx: AuthenticationContext,
 		uuid: string,
 	): Promise<Either<AntboxError, File>> {
+		const builtinFeature = builtinFeatures.find((f) => f.uuid === uuid);
+		if (builtinFeature) {
+			const file = featureToFile(builtinFeature);
+			return right(file);
+		}
+
 		const featureOrErr = await this.get(ctx, uuid);
 
 		if (featureOrErr.isLeft()) {
@@ -166,6 +172,9 @@ export class FeatureService {
 
 		const originalFile = fileOrErr.value;
 		const originalContent = await originalFile.text();
+
+		console.log("File content");
+		console.log(originalContent);
 
 		const exportContent = originalContent;
 		const feature = featureOrErr.value;

@@ -207,8 +207,16 @@ export class NodeService {
 		file: File,
 		metadata: Partial<NodeMetadata>,
 	): Promise<Either<AntboxError, FileLikeNode>> {
-		const useFileType = file.type &&
+		let useFileType = file.type &&
 			(!metadata.mimetype || metadata.mimetype !== Nodes.FEATURE_MIMETYPE);
+
+		if (
+			metadata.mimetype !== Nodes.FEATURE_MIMETYPE &&
+			(metadata.mimetype === "text/javascript" || file.type === "text/javascript")
+		) {
+			metadata.mimetype = "application/javascript";
+			useFileType = false;
+		}
 
 		const nodeOrErr = await this.create(ctx, {
 			...metadata,
@@ -474,7 +482,10 @@ export class NodeService {
 		if (typeof filters === "string") {
 			const filtersOrErr = NodesFilters.parse(filters);
 
-			if (filtersOrErr.isRight()) return this.find(ctx, filtersOrErr.value, pageSize, pageToken);
+			if (filtersOrErr.isRight()) {
+				return this.find(ctx, filtersOrErr.value, pageSize, pageToken);
+			}
+
 			console.debug("defaulting to content search");
 			return this.find(ctx, [[":content", "~=", filters]], pageSize, pageToken);
 		}

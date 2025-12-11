@@ -16,7 +16,7 @@ const FolderValidationSchema = z.object({
 		group: PermissionSchema,
 		authenticated: PermissionSchema,
 		anonymous: PermissionSchema,
-		advanced: z.record(z.string(), PermissionSchema),
+		advanced: z.record(z.string(), PermissionSchema).optional(),
 	}),
 	filters: z.array(z.any()),
 	onCreate: z.array(z.string()).optional(),

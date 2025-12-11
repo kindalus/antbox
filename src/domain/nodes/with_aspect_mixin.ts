@@ -8,7 +8,6 @@ export function WithAspectMixin<TBase extends Constructor>(Base: TBase) {
 	return class extends Base {
 		protected _aspects: string[] = [];
 		protected _properties: NodeProperties = {};
-		protected _tags: string[] = [];
 		protected _related: string[] = [];
 
 		// deno-lint-ignore no-explicit-any
@@ -29,10 +28,6 @@ export function WithAspectMixin<TBase extends Constructor>(Base: TBase) {
 			return this._properties;
 		}
 
-		get tags(): string[] {
-			return this._tags;
-		}
-
 		get related(): string[] {
 			return this._related;
 		}
@@ -51,7 +46,7 @@ export function WithAspectMixin<TBase extends Constructor>(Base: TBase) {
 			this._aspects = metadata.aspects ?? this._aspects;
 			this._properties = (metadata.properties as NodeProperties) ??
 				this._properties;
-			this._tags = metadata.tags ?? this._tags;
+
 			this._related = metadata.related ?? this._related;
 
 			return super.update(metadata);

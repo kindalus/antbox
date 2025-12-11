@@ -278,7 +278,7 @@ export interface AspectProperty {
 	name: string;
 	title: string;
 
-	type: "uuid" | "string" | "number" | "boolean" | "object" | "array" | "file";
+	type: "uuid" | "string" | "number" | "boolean" | "object" | "array";
 	arrayType?: "string" | "number" | "uuid" | "object";
 	stringMimetype?: string;
 
@@ -287,6 +287,7 @@ export interface AspectProperty {
 	validationList?: string[];
 	validationFilters?: NodeFilters;
 	required?: boolean;
+	// TODO: Será realmente necessário? Quero implementar semantic search across all projects
 	searchable?: boolean;
 	default?: unknown;
 }

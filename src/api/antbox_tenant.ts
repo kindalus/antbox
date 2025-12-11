@@ -24,4 +24,5 @@ export interface AntboxTenant {
 	agentService?: AgentService;
 	ragService?: RAGService;
 	defaultModel?: AIModel;
+	models?: AIModel[];
 }

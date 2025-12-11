@@ -11,6 +11,7 @@ import actionsRouter from "adapters/oak/actions_v2_router.ts";
 import extensionsRouter from "adapters/oak/extensions_v2_router.ts";
 import templatesRouter from "adapters/oak/templates_v2_router.ts";
 import docsRouter from "adapters/oak/docs_v2_router.ts";
+import aiModelRouter from "adapters/oak/ai_models_v2_router.ts";
 
 import type { AntboxTenant } from "api/antbox_tenant.ts";
 import { Application, Router } from "@oak/oak";
@@ -35,6 +36,7 @@ export default function setupOakServer(
 	const templates = templatesRouter(tenants);
 	const docs = docsRouter(tenants);
 	const login = loginRouter(tenants);
+	const aiModels = aiModelRouter(tenants);
 
 	const v2 = new Router({ prefix: "/v2" });
 
@@ -50,6 +52,7 @@ export default function setupOakServer(
 	v2.use(templates.routes(), templates.allowedMethods());
 	v2.use(docs.routes(), docs.allowedMethods());
 	v2.use(login.routes(), login.allowedMethods());
+	v2.use(aiModels.routes(), aiModels.allowedMethods());
 
 	app.use(v2.routes(), v2.allowedMethods());
 	app.use(webdav.routes(), webdav.allowedMethods());

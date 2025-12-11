@@ -1,5 +1,5 @@
 import { Either, left, right } from "shared/either.ts";
-import { AntboxError } from "shared/antbox_error.ts";
+import { AntboxError, ForbiddenError } from "shared/antbox_error.ts";
 import { AuthenticationContext } from "application/authentication_context.ts";
 import { NodeService } from "application/node_service.ts";
 import { FeatureService } from "application/feature_service.ts";
@@ -16,6 +16,9 @@ import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import { AgentDTO, toAgentDTO } from "application/agent_dto.ts";
 import { modelFrom } from "adapters/model_configuration_parser.ts";
 import { BUILTIN_AGENT_TOOLS } from "./builtin_features/agent_tools.ts";
+import { builtinAgents } from "./builtin_agents/index.ts";
+import { AIModelDTO, aiModelToDto } from "./ai_model_dto.ts";
+import { Groups } from "domain/users_groups/groups.ts";
 const chatSystemPrompt =
 	`You are an AI agent running inside Antbox, an ECM (Enterprise Content Management) platform.
 
@@ -87,6 +90,7 @@ export class AgentService {
 		private readonly nodeService: NodeService,
 		private readonly featureService: FeatureService,
 		private readonly defaultModel: AIModel,
+		private readonly models: AIModel[],
 	) {}
 
 	// ========================================================================
@@ -141,7 +145,7 @@ export class AgentService {
 			const agent = agentResult.value;
 
 			// Save via NodeService
-			const saveResult = await this.nodeService.create(authContext, agent);
+			const saveResult = await this.nodeService.create(authContext, agent.metadata);
 			if (saveResult.isLeft()) {
 				return left(saveResult.value);
 			}
@@ -248,18 +252,12 @@ export class AgentService {
 	 */
 	async list(
 		authContext: AuthenticationContext,
-		filters?: NodeFilter[],
 	): Promise<Either<AntboxError, AgentDTO[]>> {
 		// Build filters for agents
 		const agentFilters: NodeFilter[] = [
 			["mimetype", "==", Nodes.AGENT_MIMETYPE],
 			["parent", "==", Folders.AGENTS_FOLDER_UUID],
 		];
-
-		// Add custom filters if provided
-		if (filters) {
-			agentFilters.push(...filters);
-		}
 
 		// Find agents
 		const findResult = await this.nodeService.find(
@@ -272,8 +270,8 @@ export class AgentService {
 			return left(findResult.value);
 		}
 
-		// Convert to DTOs
-		const agents = findResult.value.nodes
+		// Retrieve builtin agents and convert to DTOs
+		const agents = [...findResult.value.nodes, ...builtinAgents]
 			.filter((node) => Nodes.isAgent(node))
 			.map((node) => toAgentDTO(node));
 
@@ -546,6 +544,14 @@ export class AgentService {
 		} catch (error) {
 			return left(new AntboxError("AgentAnswerError", `Agent answer failed: ${error}`));
 		}
+	}
+
+	listModels(authContext: AuthenticationContext): Either<AntboxError, AIModelDTO[]> {
+		if (!authContext.principal.groups.includes(Groups.ADMINS_GROUP_UUID)) {
+			return left(new ForbiddenError());
+		}
+
+		return right(this.models.map(aiModelToDto));
 	}
 
 	/**

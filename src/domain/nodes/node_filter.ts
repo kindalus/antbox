@@ -23,8 +23,7 @@ export type FilterOperator =
 	| "contains-all"
 	| "contains-any"
 	| "not-contains"
-	| "contains-none"
-	| "~=";
+	| "contains-none";
 
 export function isNodeFilters2D(
 	filters: NodeFilters,

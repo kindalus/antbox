@@ -9,6 +9,7 @@ export interface FeatureDTO {
 	exposeAction: boolean;
 	runOnCreates: boolean;
 	runOnUpdates: boolean;
+	runOnDeletes: boolean;
 	runManually: boolean;
 	filters: NodeFilters;
 
@@ -18,6 +19,7 @@ export interface FeatureDTO {
 	runAs?: string;
 	groupsAllowed: string[];
 	parameters: FeatureParameter[];
+	tags?: string[];
 
 	returnType:
 		| "string"
@@ -39,6 +41,7 @@ export function toFeatureDTO(node: FeatureNode | Feature): FeatureDTO {
 		exposeAction: node.exposeAction || false,
 		runOnCreates: node.runOnCreates || false,
 		runOnUpdates: node.runOnUpdates || false,
+		runOnDeletes: node.runOnDeletes || false,
 		runManually: node.runManually || false,
 		filters: node.filters || [],
 		exposeExtension: node.exposeExtension || false,
@@ -49,5 +52,6 @@ export function toFeatureDTO(node: FeatureNode | Feature): FeatureDTO {
 		returnType: node.returnType,
 		returnDescription: node.returnDescription,
 		returnContentType: node.returnContentType,
+		tags: node.tags,
 	};
 }

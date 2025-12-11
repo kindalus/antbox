@@ -3,18 +3,22 @@ import type { AuthenticationContext } from "./authentication_context.ts";
 import { GroupNode } from "domain/users_groups/group_node.ts";
 
 export interface UserDTO {
-	uuid?: string;
+	uuid: string;
 	name: string;
 	email: string;
 	group: string;
 	groups: string[];
 	phone?: string;
-	hasWhatsapp: boolean;
+	hasWhatsapp?: boolean;
+	createdTime: string;
+	modifiedTime: string;
 }
 
 export interface GroupDTO {
 	uuid: string;
 	title: string;
+	createdTime: string;
+	modifiedTime: string;
 }
 
 export function nodeToUser(metadata: UserNode): UserDTO {
@@ -26,6 +30,8 @@ export function nodeToUser(metadata: UserNode): UserDTO {
 		groups: [...metadata.groups],
 		phone: metadata.phone,
 		hasWhatsapp: metadata.hasWhatsapp,
+		createdTime: metadata.createdTime,
+		modifiedTime: metadata.modifiedTime,
 	};
 }
 
@@ -51,6 +57,8 @@ export function nodeToGroup(metadata: GroupDTO): GroupDTO {
 	return {
 		uuid: metadata.uuid,
 		title: metadata.title,
+		createdTime: metadata.createdTime,
+		modifiedTime: metadata.modifiedTime,
 	};
 }
 

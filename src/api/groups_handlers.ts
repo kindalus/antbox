@@ -125,11 +125,10 @@ export function listGroupsHandler(tenants: AntboxTenant[]): HttpHandler {
 				return Promise.resolve(unavailableResponse);
 			}
 
-			const groups = await service.listGroups(getAuthenticationContext(req));
-			return new Response(JSON.stringify(groups), {
-				status: 200,
-				headers: { "Content-Type": "application/json" },
-			});
+			return service
+				.listGroups(getAuthenticationContext(req))
+				.then(processServiceResult)
+				.catch(processError);
 		},
 	);
 }

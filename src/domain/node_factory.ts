@@ -14,6 +14,7 @@ import { SmartFolderNode } from "./nodes/smart_folder_node.ts";
 import { NodeLike } from "domain/node_like.ts";
 
 import { FeatureNode } from "domain/features/feature_node.ts";
+import { AgentNode } from "./ai/agent_node.ts";
 
 export class NodeFactory {
 	static from<T extends NodeLike>(
@@ -50,6 +51,9 @@ export class NodeFactory {
 
 			case Nodes.FEATURE_MIMETYPE:
 				createFn = FeatureNode.create;
+				break;
+			case Nodes.AGENT_MIMETYPE:
+				createFn = AgentNode.create;
 				break;
 
 			default:

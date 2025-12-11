@@ -12,7 +12,7 @@ const NodeValidationSchema = z.object({
 	title: z.string().min(1, "Node.title is required")
 		.min(3, "Node.title must be at least 3 characters"),
 	mimetype: z.string()
-		.regex(/^\w+\/[a-z0-9.-]+(;\w+=.+)?$/, "Invalid Mimetype"),
+		.regex(/^\w+\/[a-z0-9.+-]+(;\w+=.+)?$/, "Invalid Mimetype"),
 	parent: z.string().min(1, "Node.parent is required"),
 	owner: z.email().min(1, "Node.owner is required"),
 });
@@ -29,6 +29,7 @@ export class Node {
 	protected _parent = Folders.ROOT_FOLDER_UUID;
 	protected _modifiedTime: string;
 	protected _fulltext: string;
+	protected _tags: string[];
 
 	constructor(metadata: Partial<NodeMetadata> = {}) {
 		this.uuid = metadata?.uuid ?? UuidGenerator.generate();
@@ -39,6 +40,7 @@ export class Node {
 		this._parent = metadata?.parent ?? Folders.ROOT_FOLDER_UUID;
 		this._createdTime = metadata?.createdTime ?? new Date().toISOString();
 		this._modifiedTime = metadata?.modifiedTime ?? new Date().toISOString();
+		this._tags = metadata?.tags ?? [];
 
 		this._owner = metadata.owner!;
 
@@ -81,6 +83,7 @@ export class Node {
 		this._parent = metadata.parent ?? this._parent;
 		this._modifiedTime = new Date().toISOString();
 		this._fulltext = metadata.fulltext ?? this._fulltext;
+		this._tags = metadata.tags ?? this._tags;
 
 		if (!this._fid?.length) {
 			this._fid = FidGenerator.generate(this._title);
@@ -131,6 +134,10 @@ export class Node {
 		return this._fulltext;
 	}
 
+	get tags(): string[] {
+		return this._tags;
+	}
+
 	get metadata(): Partial<NodeMetadata> {
 		return {
 			uuid: this.uuid,
@@ -143,6 +150,7 @@ export class Node {
 			createdTime: this.createdTime,
 			modifiedTime: this.modifiedTime,
 			fulltext: this.fulltext,
+			tags: this.tags,
 		};
 	}
 

@@ -8,6 +8,7 @@ import { type HttpHandler, sendBadRequest } from "./handler.ts";
 import { processError } from "./process_error.ts";
 import { processServiceCreateResult, processServiceResult } from "./process_service_result.ts";
 import { checkServiceAvailability } from "./service_availability.ts";
+import { AntboxError } from "shared/antbox_error.ts";
 
 // ============================================================================
 // CRUD HANDLERS
@@ -110,6 +111,62 @@ export function listAgentsHandler(tenants: AntboxTenant[]): HttpHandler {
 				.list(getAuthenticationContext(req))
 				.then(processServiceResult)
 				.catch(processError);
+		},
+	);
+}
+
+export function listAIModelsHandler(tenants: AntboxTenant[]): HttpHandler {
+	return defaultMiddlewareChain(
+		tenants,
+		async (req: Request): Promise<Response> => {
+			const tenant = getTenant(req, tenants);
+			const unavailableResponse = checkServiceAvailability(tenant.agentService, "AI agents");
+			if (unavailableResponse) {
+				return Promise.resolve(unavailableResponse);
+			}
+
+			try {
+				return processServiceResult(tenant.agentService!
+					.listModels(getAuthenticationContext(req)));
+			} catch (err: unknown) {
+				return processError(err as AntboxError);
+			}
+		},
+	);
+}
+
+export function exportAgentHandler(tenants: AntboxTenant[]): HttpHandler {
+	return defaultMiddlewareChain(
+		tenants,
+		async (req: Request): Promise<Response> => {
+			const tenant = getTenant(req, tenants);
+			const unavailableResponse = checkServiceAvailability(tenant.agentService, "AI agents");
+			if (unavailableResponse) {
+				return Promise.resolve(unavailableResponse);
+			}
+
+			const params = getParams(req);
+			if (!params.uuid) {
+				return sendBadRequest({ error: "{ uuid } not given" });
+			}
+			const agentOrErr = await tenant.agentService!.get(
+				getAuthenticationContext(req),
+				params.uuid,
+			);
+
+			if (agentOrErr.isLeft()) {
+				return processError(agentOrErr.value);
+			}
+
+			const file = new File([JSON.stringify(agentOrErr.value, null, 2)], `${params.uuid}.json`, {
+				type: "application/json",
+			});
+
+			const response = new Response(file);
+			response.headers.set("Content-Type", file.type);
+			response.headers.set("Content-length", file.size.toString());
+
+			return response;
 		},
 	);
 }

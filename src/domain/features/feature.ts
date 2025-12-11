@@ -14,6 +14,7 @@ export interface Feature {
 	exposeAction: boolean;
 	runOnCreates: boolean;
 	runOnUpdates: boolean;
+	runOnDeletes: boolean;
 	runManually: boolean;
 	filters: NodeFilter[];
 
@@ -34,6 +35,7 @@ export interface Feature {
 		| "void";
 	returnDescription?: string;
 	returnContentType?: string;
+	tags?: string[];
 
 	run(ctx: RunContext, args: Record<string, unknown>): Promise<unknown>;
 }
@@ -62,6 +64,7 @@ export interface FeatureMetadata {
 		| "void";
 	returnDescription?: string;
 	returnContentType?: string;
+	tags: string[];
 }
 
 export function featureToNodeMetadata(
@@ -88,13 +91,49 @@ export function featureToNodeMetadata(
 		returnDescription: feature.returnDescription,
 		returnContentType: feature.returnContentType,
 		owner: owner!,
+		tags: feature.tags,
 	};
+}
+
+export function featureToFile(feature: Feature): File {
+	const runFunction = feature.run.toString();
+
+	const content = `export default {
+uuid: ${JSON.stringify(feature.uuid)},
+name: ${JSON.stringify(feature.name)},
+description: ${JSON.stringify(feature.description)},
+exposeAction: ${feature.exposeAction},
+exposeAITool: ${feature.exposeAITool},
+exposeExtension: ${feature.exposeExtension},
+// Actions only
+runOnCreates: ${feature.runOnCreates ?? false},
+runOnUpdates: ${feature.runOnUpdates ?? false},
+runOnDeletes: ${feature.runOnDeletes ?? false},
+runManually: ${feature.runManually ?? false},
+// End Actions only
+filters: ${JSON.stringify(feature.filters)},
+runAs: ${JSON.stringify(feature.runAs)},
+groupsAllowed: ${JSON.stringify(feature.groupsAllowed)},
+parameters: ${JSON.stringify(feature.parameters)},
+returnType: ${JSON.stringify(feature.returnType)},
+returnDescription: ${JSON.stringify(feature.returnDescription) ?? '""'},
+returnContentType: ${JSON.stringify(feature.returnContentType) ?? '""'},
+tags: ${JSON.stringify(feature.tags) ?? "[]"},
+run: ${runFunction}
+};`;
+
+	return new File(
+		[content],
+		`${feature.name}.js`,
+		{ type: "application/vnd.antbox.feature" },
+	);
 }
 
 export async function fileToFeature(
 	file: File,
 ): Promise<Either<AntboxError, Feature>> {
 	if (
+		file.type !== "text/javascript" &&
 		file.type !== "application/javascript" &&
 		file.type !== "application/vnd.antbox.feature"
 	) {

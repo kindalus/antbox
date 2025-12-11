@@ -79,7 +79,7 @@ export class UsersGroupsService {
 
 		const user = userOrErr.value;
 
-		const voidOrErr = await this.service.create(ctx, user);
+		const voidOrErr = await this.service.create(ctx, user.metadata);
 		if (voidOrErr.isLeft()) {
 			return left(voidOrErr.value);
 		}
@@ -224,7 +224,7 @@ export class UsersGroupsService {
 
 		const group = groupOrErr.value;
 
-		const voidOrErr = await this.service.create(ctx, group);
+		const voidOrErr = await this.service.create(ctx, group.metadata);
 		if (voidOrErr.isLeft()) {
 			return left(voidOrErr.value);
 		}

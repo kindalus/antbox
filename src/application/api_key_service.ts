@@ -50,7 +50,9 @@ export class ApiKeyService {
 			return left(apiKeyOrErr.value);
 		}
 
-		return right(nodeToApiKey(apiKeyOrErr.value as ApiKeyNode));
+		const key = apiKeyOrErr.value as ApiKeyNode;
+
+		return right({ ...nodeToApiKey(key), secret: key.secret });
 	}
 
 	async get(uuid: string): Promise<Either<AntboxError, ApiKeyDTO>> {

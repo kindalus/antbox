@@ -18,12 +18,8 @@ import type { AIModel } from "application/ai_model.ts";
 import { EmbeddingService } from "application/embedding_service.ts";
 import { AgentService } from "application/agent_service.ts";
 import { RAGService } from "application/rag_service.ts";
-import { builtinAgents } from "application/builtin_agents/index.ts";
-import type { AuthenticationContext } from "application/authentication_context.ts";
-import { Users } from "domain/users_groups/users.ts";
 
 import { resolve } from "path";
-import { toAgentDTO } from "application/agent_dto.ts";
 
 export function setupTenants(
 	cfg: ServerConfiguration,
@@ -45,9 +41,15 @@ async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
 	let embeddingModel: AIModel | undefined;
 	let ocrModel: AIModel | undefined;
 	let defaultModel: AIModel | undefined;
+	let models: AIModel[] | undefined;
 
-	if (cfg.ai?.enabled) {
+	if (cfg.ai && cfg.ai?.enabled) {
 		// Validate all required AI configuration
+		if (!cfg.ai.models?.length) {
+			console.error(`Tenant ${cfg.name}: AI is enabled but no models were configured`);
+			Deno.exit(1);
+		}
+
 		if (!cfg.ai.defaultModel) {
 			console.error(`Tenant ${cfg.name}: AI is enabled but defaultModel is not configured`);
 			Deno.exit(1);
@@ -68,20 +70,33 @@ async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
 			Deno.exit(1);
 		}
 
+		// Load all models
+		const configModels = await Promise.all(cfg.ai.models.map(modelFrom));
+
+		console.info(`[${cfg.name}] Available models:`);
+		console.info(JSON.stringify(configModels.map((m) => m?.modelName ?? "N/A"), null, 2));
+
+		if (configModels.some((m) => !m)) {
+			console.error(`Tenant ${cfg.name}: AI is enabled but some models failed to load`);
+			Deno.exit(1);
+		}
+
+		models = configModels as AIModel[];
+
 		// Load all AI components
-		defaultModel = await modelFrom(cfg.ai.defaultModel);
+		defaultModel = models.find((m) => m.modelName === cfg.ai!.defaultModel);
 		if (!defaultModel) {
 			console.error(`Tenant ${cfg.name}: Failed to load default model`);
 			Deno.exit(1);
 		}
 
-		embeddingModel = await modelFrom(cfg.ai.embeddingModel);
+		embeddingModel = models.find((m) => m.modelName === cfg.ai!.embeddingModel);
 		if (!embeddingModel) {
 			console.error(`Tenant ${cfg.name}: Failed to load embedding model`);
 			Deno.exit(1);
 		}
 
-		ocrModel = await modelFrom(cfg.ai.ocrModel);
+		ocrModel = models.find((m) => m.modelName === cfg.ai!.ocrModel);
 		if (!ocrModel) {
 			console.error(`Tenant ${cfg.name}: Failed to load OCR model`);
 			Deno.exit(1);
@@ -129,13 +144,10 @@ async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
 		});
 
 		// Create AgentService
-		agentService = new AgentService(nodeService, featureService, defaultModel);
+		agentService = new AgentService(nodeService, featureService, defaultModel, models ?? []);
 
 		// Create RAGService
 		ragService = new RAGService(nodeService, agentService);
-
-		// Seed built-in agents
-		await seedBuiltinAgents(cfg.name, agentService);
 	}
 
 	return {
@@ -153,6 +165,7 @@ async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
 		agentService,
 		ragService,
 		defaultModel,
+		models,
 	};
 }
 
@@ -236,38 +249,5 @@ function validateModelCapabilities(
 		console.warn(
 			`Tenant ${tenantName}: Default model ${model.modelName} does not support reasoning - agents with reasoning flag will ignore it`,
 		);
-	}
-}
-
-/**
- * Seed built-in agents into the tenant's node repository
- */
-async function seedBuiltinAgents(
-	tenantName: string,
-	agentService: AgentService,
-): Promise<void> {
-	// Create root authentication context for seeding
-	const rootAuthContext: AuthenticationContext = {
-		tenant: tenantName,
-		principal: { email: Users.ROOT_USER_EMAIL, groups: [] },
-		mode: "Direct",
-	};
-
-	// Seed each built-in agent
-	for (const agent of builtinAgents) {
-		const result = await agentService.createOrReplace(
-			rootAuthContext,
-			toAgentDTO(agent),
-		);
-
-		if (result.isLeft()) {
-			console.error(
-				`Tenant ${tenantName}: Failed to seed built-in agent ${agent.title}: ${result.value.message}`,
-			);
-		} else {
-			console.log(
-				`Tenant ${tenantName}: Seeded built-in agent: ${agent.title} (${agent.uuid})`,
-			);
-		}
 	}
 }

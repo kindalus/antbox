@@ -12,6 +12,8 @@ import {
 	findHandler,
 	getHandler,
 	listHandler,
+	lockHandler,
+	unlockHandler,
 	updateFileHandler,
 	updateHandler,
 } from "api/nodes_handlers.ts";
@@ -36,6 +38,10 @@ export default function (tenants: AntboxTenant[]): Router {
 	router.get("/:uuid/-/export", adapt(exportHandler(tenants)));
 	router.get("/:uuid/-/evaluate", adapt(evaluateHandler(tenants)));
 	router.get("/:uuid/-/breadcrumbs", adapt(breadcrumbsHandler(tenants)));
+
+	// Lock operations
+	router.post("/:uuid/-/lock", adapt(lockHandler(tenants)));
+	router.post("/:uuid/-/unlock", adapt(unlockHandler(tenants)));
 
 	// Search operations
 	router.post("/-/find", adapt(findHandler(tenants)));

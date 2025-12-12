@@ -49,6 +49,9 @@ import { builtinUsers } from "./builtin_users/index.ts";
 import { builtinAgents } from "./builtin_agents/index.ts";
 import { FeatureNode, FeatureParameter } from "domain/features/feature_node.ts";
 import { ParentFolderUpdateHandler } from "./parent_folder_update_handler.ts";
+import { fromAgentDTO } from "./agent_dto.ts";
+import { builtinFeatures } from "./builtin_features/index.ts";
+import { fromFeature } from "domain/features/feature.ts";
 
 // TODO: Implements throwing events
 
@@ -711,6 +714,12 @@ export class NodeService {
 			return left(allowedOrErr.value);
 		}
 
+		// Check if node is locked
+		const lockCheckOrErr = this.#checkNodeLock(ctx, nodeOrErr.value);
+		if (lockCheckOrErr.isLeft()) {
+			return left(lockCheckOrErr.value);
+		}
+
 		if (Nodes.isApikey(nodeOrErr.value)) {
 			return left(new BadRequestError("Cannot update apikey"));
 		}
@@ -857,6 +866,94 @@ export class NodeService {
 		return this.update(ctx, uuid, { size: file.size });
 	}
 
+	async lock(
+		ctx: AuthenticationContext,
+		uuid: string,
+		unlockAuthorizedGroups: string[],
+	): Promise<Either<AntboxError, void>> {
+		const nodeOrErr = await this.#getFromRepository(uuid);
+		if (nodeOrErr.isLeft()) {
+			return left(nodeOrErr.value);
+		}
+
+		const node = nodeOrErr.value;
+
+		// Check if already locked
+		if (node.locked) {
+			return left(
+				new BadRequestError(
+					`Node is already locked by ${node.lockedBy}`,
+				),
+			);
+		}
+
+		// Check write permission on parent
+		const parentOrErr = await this.#getBuiltinFolderOrFromRepository(node.parent);
+		if (parentOrErr.isLeft()) {
+			return left(
+				new UnknownError(`Parent folder not found for node uuid='${uuid}'`),
+			);
+		}
+
+		const allowedOrErr = isPrincipalAllowedTo(ctx, parentOrErr.value, "Write");
+		if (allowedOrErr.isLeft()) {
+			return left(allowedOrErr.value);
+		}
+
+		// Lock the node
+		node.update({
+			locked: true,
+			lockedBy: ctx.principal.email,
+			unlockAuthorizedGroups,
+		});
+
+		const updateResult = await this.context.repository.update(node);
+		if (updateResult.isLeft()) {
+			return left(updateResult.value);
+		}
+
+		return right(undefined);
+	}
+
+	async unlock(
+		ctx: AuthenticationContext,
+		uuid: string,
+	): Promise<Either<AntboxError, void>> {
+		const nodeOrErr = await this.#getFromRepository(uuid);
+		if (nodeOrErr.isLeft()) {
+			return left(nodeOrErr.value);
+		}
+
+		const node = nodeOrErr.value;
+
+		// Check if node is locked
+		if (!node.locked) {
+			return left(new BadRequestError("Node is not locked"));
+		}
+
+		// Check if user is authorized to unlock
+		const canUnlock = this.#canUnlockNode(ctx, node);
+		if (!canUnlock) {
+			return left(
+				new ForbiddenError(),
+			);
+		}
+
+		// Unlock the node
+		node.update({
+			locked: false,
+			lockedBy: "",
+			unlockAuthorizedGroups: [],
+		});
+
+		const updateResult = await this.context.repository.update(node);
+		if (updateResult.isLeft()) {
+			return left(updateResult.value);
+		}
+
+		return right(undefined);
+	}
+
 	async #calculateFulltext(
 		ctx: AuthenticationContext,
 		node: NodeLike,
@@ -948,8 +1045,9 @@ export class NodeService {
 			...builtinAspects,
 			...builtinGroups,
 			...builtinUsers,
-			...builtinAgents,
-			//...builtinFeatures,
+
+			...builtinAgents.map(fromAgentDTO),
+			...builtinFeatures.map(fromFeature),
 		];
 		const builtinNode = builtinNodes.find(predicate);
 
@@ -1545,5 +1643,36 @@ export class NodeService {
 			...filterGroup,
 			["uuid", "in", uuids] as NodeFilter,
 		]);
+	}
+
+	#canUnlockNode(ctx: AuthenticationContext, node: NodeLike): boolean {
+		// User who locked the node can unlock it
+		if (node.lockedBy === ctx.principal.email) {
+			return true;
+		}
+
+		// Check if user belongs to any of the authorized groups
+		const userGroups = ctx.principal.groups;
+		const authorizedGroups = node.unlockAuthorizedGroups || [];
+
+		return authorizedGroups.some((group) => userGroups.includes(group));
+	}
+
+	#checkNodeLock(ctx: AuthenticationContext, node: NodeLike): Either<BadRequestError, void> {
+		// If node is not locked, allow operation
+		if (!node.locked) {
+			return right(undefined);
+		}
+
+		// Check if user can unlock (same logic as unlock authorization)
+		if (this.#canUnlockNode(ctx, node)) {
+			return right(undefined);
+		}
+
+		return left(
+			new BadRequestError(
+				`Node is locked by ${node.lockedBy}. You are not authorized to modify it.`,
+			),
+		);
 	}
 }

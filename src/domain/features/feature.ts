@@ -1,4 +1,4 @@
-import { FeatureParameter } from "domain/features/feature_node.ts";
+import { FeatureNode, FeatureParameter } from "domain/features/feature_node.ts";
 import { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { NodeFilter } from "domain/nodes/node_filter.ts";
 import { Folders } from "domain/nodes/folders.ts";
@@ -6,6 +6,7 @@ import { Nodes } from "domain/nodes/nodes.ts";
 import { AntboxError, BadRequestError } from "shared/antbox_error.ts";
 import { Either, left, right } from "shared/either.ts";
 import { RunContext } from "domain/features/feature_run_context.ts";
+import { Users } from "../users_groups/users.ts";
 
 export interface Feature {
 	uuid: string;
@@ -93,6 +94,12 @@ export function featureToNodeMetadata(
 		owner: owner!,
 		tags: feature.tags,
 	};
+}
+
+export function fromFeature(feat: Feature): FeatureNode {
+	const metadata = { ...feat, title: feat.name, owner: Users.ROOT_USER_EMAIL };
+
+	return FeatureNode.create(metadata).right;
 }
 
 export function featureToFile(feature: Feature): File {

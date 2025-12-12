@@ -74,4 +74,9 @@ export interface NodeMetadata {
 	// Workflow properties
 	states: WorkflowState[];
 	availableStateNames: string[];
+
+	// Lock properties
+	locked: boolean;
+	lockedBy: string;
+	unlockAuthorizedGroups: string[];
 }

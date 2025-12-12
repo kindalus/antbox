@@ -36,3 +36,7 @@ export function toAgentDTO(node: AgentNode): AgentDTO {
 		structuredAnswer: node.structuredAnswer as string | undefined,
 	};
 }
+
+export function fromAgentDTO(dto: AgentDTO): AgentNode {
+	return AgentNode.create(dto).right;
+}

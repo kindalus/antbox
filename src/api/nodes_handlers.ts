@@ -279,3 +279,46 @@ export function breadcrumbsHandler(tenants: AntboxTenant[]): HttpHandler {
 		},
 	);
 }
+
+export function lockHandler(tenants: AntboxTenant[]): HttpHandler {
+	return defaultMiddlewareChain(
+		tenants,
+		async (req: Request): Promise<Response> => {
+			const service = getTenant(req, tenants).nodeService;
+			const params = getParams(req);
+			if (!params.uuid) {
+				return sendBadRequest({ error: "{ uuid } not given" });
+			}
+
+			const body = await req.json();
+			const unlockAuthorizedGroups = body.unlockAuthorizedGroups || [];
+
+			if (!Array.isArray(unlockAuthorizedGroups)) {
+				return sendBadRequest({ error: "{ unlockAuthorizedGroups } must be an array" });
+			}
+
+			return await service
+				.lock(getAuthenticationContext(req), params.uuid, unlockAuthorizedGroups)
+				.then(processServiceResult)
+				.catch(processError);
+		},
+	);
+}
+
+export function unlockHandler(tenants: AntboxTenant[]): HttpHandler {
+	return defaultMiddlewareChain(
+		tenants,
+		async (req: Request): Promise<Response> => {
+			const service = getTenant(req, tenants).nodeService;
+			const params = getParams(req);
+			if (!params.uuid) {
+				return sendBadRequest({ error: "{ uuid } not given" });
+			}
+
+			return await service
+				.unlock(getAuthenticationContext(req), params.uuid)
+				.then(processServiceResult)
+				.catch(processError);
+		},
+	);
+}

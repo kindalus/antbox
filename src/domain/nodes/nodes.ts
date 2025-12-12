@@ -9,6 +9,7 @@ import type { NodeLike } from "domain/node_like.ts";
 import { ApiKeyNode } from "domain/api_keys/api_key_node.ts";
 import { FeatureNode } from "domain/features/feature_node.ts";
 import { AgentNode } from "domain/ai/agent_node.ts";
+import { WorkflowNode } from "domain/workflows/workflow_node.ts";
 import { ARTICLE_ASPECT } from "application/builtin_aspects/index.ts";
 import { NodeDeletedEvent } from "./node_deleted_event.ts";
 
@@ -97,6 +98,10 @@ export class Nodes {
 
 	static isAgent(node: NodeLike): node is AgentNode {
 		return node.mimetype === Nodes.AGENT_MIMETYPE;
+	}
+
+	static isWorkflow(node: NodeLike): node is WorkflowNode {
+		return node.mimetype === Nodes.WORKFLOW_MIMETYPE;
 	}
 
 	static isGroup(node: NodeLike): node is GroupNode {

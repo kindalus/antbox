@@ -36,6 +36,8 @@ tags:
     description: Operations related to templates
   - name: users
     description: Operations related to users
+  - name: workflows
+    description: Operations related to workflow instances
 paths:
   /actions:
     get:
@@ -1214,6 +1216,224 @@ paths:
           description: User deleted
         default:
           $ref: "#/components/responses/Error"
+  /workflows/instances:
+    get:
+      tags:
+        - workflows
+      summary: Find active workflow instances
+      operationId: findActiveWorkflows
+      parameters:
+        - name: workflowDefinitionUuid
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Optional workflow definition UUID to filter instances
+      responses:
+        "200":
+          description: A list of active workflow instances
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WorkflowInstance"
+        default:
+          $ref: "#/components/responses/Error"
+  "/workflows/instances/{uuid}":
+    get:
+      tags:
+        - workflows
+      summary: Get a workflow instance by node UUID
+      operationId: getWorkflowInstance
+      parameters:
+        - $ref: "#/components/parameters/UUID"
+      responses:
+        "200":
+          description: Workflow instance details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkflowInstance"
+        default:
+          $ref: "#/components/responses/Error"
+  "/workflows/instances/{uuid}/-/start":
+    post:
+      tags:
+        - workflows
+      summary: Start a workflow instance for a node
+      operationId: startWorkflow
+      parameters:
+        - $ref: "#/components/parameters/UUID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - workflowDefinitionUuid
+              properties:
+                workflowDefinitionUuid:
+                  type: string
+                  format: uuid
+                  description: UUID of the workflow definition node
+      responses:
+        "200":
+          description: Workflow instance started successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkflowInstance"
+        default:
+          $ref: "#/components/responses/Error"
+  "/workflows/instances/{uuid}/-/transition":
+    post:
+      tags:
+        - workflows
+      summary: Transition a workflow instance to a new state
+      operationId: transitionWorkflow
+      parameters:
+        - $ref: "#/components/parameters/UUID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - signal
+              properties:
+                signal:
+                  type: string
+                  description: The signal/event that triggers the transition
+                message:
+                  type: string
+                  description: Optional message describing the transition
+      responses:
+        "200":
+          description: Workflow transitioned successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkflowInstance"
+        default:
+          $ref: "#/components/responses/Error"
+  /workflows/definitions:
+    get:
+      tags:
+        - workflows
+      summary: List all workflow definitions
+      operationId: listWorkflowDefinitions
+      responses:
+        "200":
+          description: A list of workflow definitions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WorkflowDefinition"
+        default:
+          $ref: "#/components/responses/Error"
+    post:
+      tags:
+        - workflows
+      summary: Create or replace a workflow definition
+      operationId: createOrReplaceWorkflowDefinition
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - title
+                - states
+                - availableStateNames
+              properties:
+                uuid:
+                  type: string
+                  format: uuid
+                  description: Optional UUID for update, omit for create
+                title:
+                  type: string
+                  description: Workflow definition title
+                description:
+                  type: string
+                  description: Workflow definition description
+                states:
+                  type: array
+                  description: Array of workflow states
+                  items:
+                    $ref: "#/components/schemas/WorkflowState"
+                availableStateNames:
+                  type: array
+                  description: Array of all state names in the workflow
+                  items:
+                    type: string
+      responses:
+        "200":
+          description: Workflow definition created or updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkflowDefinition"
+        default:
+          $ref: "#/components/responses/Error"
+  "/workflows/definitions/{uuid}":
+    get:
+      tags:
+        - workflows
+      summary: Get a workflow definition
+      operationId: getWorkflowDefinition
+      parameters:
+        - $ref: "#/components/parameters/UUID"
+      responses:
+        "200":
+          description: Workflow definition details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkflowDefinition"
+        default:
+          $ref: "#/components/responses/Error"
+    delete:
+      tags:
+        - workflows
+      summary: Delete a workflow definition
+      operationId: deleteWorkflowDefinition
+      description: Deletes a workflow definition. Fails if active instances exist.
+      parameters:
+        - $ref: "#/components/parameters/UUID"
+      responses:
+        "204":
+          description: Workflow definition deleted successfully
+        "400":
+          description: Cannot delete - active instances exist
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AntboxError"
+        default:
+          $ref: "#/components/responses/Error"
+  "/workflows/definitions/{uuid}/-/export":
+    get:
+      tags:
+        - workflows
+      summary: Export a workflow definition
+      operationId: exportWorkflowDefinition
+      parameters:
+        - $ref: "#/components/parameters/UUID"
+      responses:
+        "200":
+          description: Workflow definition exported successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkflowDefinition"
+        default:
+          $ref: "#/components/responses/Error"
 components:
   schemas:
     Agent:
@@ -1891,6 +2111,166 @@ components:
           type: string
         mimetype:
           type: string
+    WorkflowDefinition:
+      type: object
+      required:
+        - uuid
+        - title
+        - description
+        - owner
+        - createdTime
+        - modifiedTime
+        - states
+        - availableStateNames
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          description: Unique identifier for the workflow definition
+        title:
+          type: string
+          description: Workflow definition title
+        description:
+          type: string
+          description: Workflow definition description
+        owner:
+          type: string
+          format: email
+          description: Email of the workflow definition owner
+        createdTime:
+          type: string
+          format: date-time
+          description: When the workflow definition was created
+        modifiedTime:
+          type: string
+          format: date-time
+          description: When the workflow definition was last modified
+        states:
+          type: array
+          description: Array of workflow states
+          items:
+            $ref: "#/components/schemas/WorkflowState"
+        availableStateNames:
+          type: array
+          description: Array of all state names in the workflow
+          items:
+            type: string
+    WorkflowState:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          description: Unique name of the state (e.g., "Draft", "In Review")
+        isInitial:
+          type: boolean
+          description: Is this where new items start?
+        isFinal:
+          type: boolean
+          description: Is the workflow complete when reaching this state?
+        onEnter:
+          type: array
+          description: IDs/Names of actions to execute when entering this state
+          items:
+            type: string
+        onExit:
+          type: array
+          description: IDs/Names of actions to execute before leaving this state
+          items:
+            type: string
+        transitions:
+          type: array
+          description: The possible paths out of this state
+          items:
+            $ref: "#/components/schemas/WorkflowTransition"
+    WorkflowTransition:
+      type: object
+      required:
+        - signal
+        - targetState
+      properties:
+        signal:
+          type: string
+          description: The signal/event name that triggers this transition
+        targetState:
+          type: string
+          description: The name of the destination state
+        filters:
+          type: array
+          description: Guard conditions - transition only valid if node satisfies these filters
+          items:
+            type: array
+            items: {}
+        actions:
+          type: array
+          description: IDs/Names of actions to execute during the transition
+          items:
+            type: string
+        groupsAllowed:
+          type: array
+          description: List of groups allowed to execute this transition
+          items:
+            type: string
+            format: uuid
+    WorkflowInstance:
+      type: object
+      required:
+        - uuid
+        - workflowDefinitionUuid
+        - nodeUuid
+        - currentStateName
+        - history
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          description: Unique identifier for the workflow instance
+        workflowDefinitionUuid:
+          type: string
+          format: uuid
+          description: UUID of the workflow definition node
+        nodeUuid:
+          type: string
+          format: uuid
+          description: UUID of the node this workflow is attached to
+        currentStateName:
+          type: string
+          description: Name of the current state in the workflow
+        history:
+          type: array
+          description: History of state transitions
+          items:
+            $ref: "#/components/schemas/WorkflowTransitionHistory"
+    WorkflowTransitionHistory:
+      type: object
+      required:
+        - from
+        - to
+        - signal
+        - timestamp
+        - user
+      properties:
+        from:
+          type: string
+          description: Previous state name
+        to:
+          type: string
+          description: New state name
+        signal:
+          type: string
+          description: Signal/event that triggered the transition
+        timestamp:
+          type: string
+          format: date-time
+          description: When the transition occurred
+        user:
+          type: string
+          format: email
+          description: Email of the user who triggered the transition
+        message:
+          type: string
+          description: Optional message describing the transition
   securitySchemes:
     bearerAuth:
       type: http

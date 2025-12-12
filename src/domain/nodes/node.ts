@@ -30,6 +30,9 @@ export class Node {
 	protected _modifiedTime: string;
 	protected _fulltext: string;
 	protected _tags: string[];
+	protected _locked: boolean;
+	protected _lockedBy: string;
+	protected _unlockAuthorizedGroups: string[];
 
 	constructor(metadata: Partial<NodeMetadata> = {}) {
 		this.uuid = metadata?.uuid ?? UuidGenerator.generate();
@@ -41,6 +44,9 @@ export class Node {
 		this._createdTime = metadata?.createdTime ?? new Date().toISOString();
 		this._modifiedTime = metadata?.modifiedTime ?? new Date().toISOString();
 		this._tags = metadata?.tags ?? [];
+		this._locked = metadata?.locked ?? false;
+		this._lockedBy = metadata?.lockedBy ?? "";
+		this._unlockAuthorizedGroups = metadata?.unlockAuthorizedGroups ?? [];
 
 		this._owner = metadata.owner!;
 
@@ -84,6 +90,16 @@ export class Node {
 		this._modifiedTime = new Date().toISOString();
 		this._fulltext = metadata.fulltext ?? this._fulltext;
 		this._tags = metadata.tags ?? this._tags;
+
+		if (metadata.locked !== undefined) {
+			this._locked = metadata.locked;
+		}
+		if (metadata.lockedBy !== undefined) {
+			this._lockedBy = metadata.lockedBy;
+		}
+		if (metadata.unlockAuthorizedGroups !== undefined) {
+			this._unlockAuthorizedGroups = metadata.unlockAuthorizedGroups;
+		}
 
 		if (!this._fid?.length) {
 			this._fid = FidGenerator.generate(this._title);
@@ -138,6 +154,18 @@ export class Node {
 		return this._tags;
 	}
 
+	get locked(): boolean {
+		return this._locked;
+	}
+
+	get lockedBy(): string {
+		return this._lockedBy;
+	}
+
+	get unlockAuthorizedGroups(): string[] {
+		return this._unlockAuthorizedGroups;
+	}
+
 	get metadata(): Partial<NodeMetadata> {
 		return {
 			uuid: this.uuid,
@@ -151,6 +179,9 @@ export class Node {
 			modifiedTime: this.modifiedTime,
 			fulltext: this.fulltext,
 			tags: this.tags,
+			locked: this.locked,
+			lockedBy: this.lockedBy,
+			unlockAuthorizedGroups: this.unlockAuthorizedGroups,
 		};
 	}
 

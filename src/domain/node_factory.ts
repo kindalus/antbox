@@ -15,6 +15,7 @@ import { NodeLike } from "domain/node_like.ts";
 
 import { FeatureNode } from "domain/features/feature_node.ts";
 import { AgentNode } from "./ai/agent_node.ts";
+import { WorkflowNode } from "./workflows/workflow_node.ts";
 
 export class NodeFactory {
 	static from<T extends NodeLike>(
@@ -54,6 +55,9 @@ export class NodeFactory {
 				break;
 			case Nodes.AGENT_MIMETYPE:
 				createFn = AgentNode.create;
+				break;
+			case Nodes.WORKFLOW_MIMETYPE:
+				createFn = WorkflowNode.create;
 				break;
 
 			default:

@@ -8,8 +8,11 @@ import type { MetaNode } from "domain/nodes/meta_node.ts";
 import type { SmartFolderNode } from "domain/nodes/smart_folder_node.ts";
 
 import { FeatureNode } from "domain/features/feature_node.ts";
+import { AgentNode } from "domain/ai/agent_node.ts";
+import { WorkflowNode } from "domain/workflows/workflow_node.ts";
 
 export type NodeLike =
+	| AgentNode
 	| ApiKeyNode
 	| AspectNode
 	| FileNode
@@ -18,7 +21,8 @@ export type NodeLike =
 	| MetaNode
 	| FeatureNode
 	| SmartFolderNode
-	| UserNode;
+	| UserNode
+	| WorkflowNode;
 
 export type AspectableNode = FileNode | FolderNode | MetaNode;
 

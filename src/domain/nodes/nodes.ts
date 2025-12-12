@@ -11,7 +11,6 @@ import { FeatureNode } from "domain/features/feature_node.ts";
 import { AgentNode } from "domain/ai/agent_node.ts";
 import { WorkflowNode } from "domain/workflows/workflow_node.ts";
 import { ARTICLE_ASPECT } from "application/builtin_aspects/index.ts";
-import { NodeDeletedEvent } from "./node_deleted_event.ts";
 
 export class Nodes {
 	static FID_PREFIX = "--fid--";

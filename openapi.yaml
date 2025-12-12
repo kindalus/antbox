@@ -1400,6 +1400,9 @@ paths:
                   description: Array of all state names in the workflow
                   items:
                     type: string
+                filters:
+                  $ref: "#/components/schemas/NodeFilters"
+                  description: Optional filters to restrict which nodes can use this workflow. Empty filters allow all nodes.
       responses:
         "200":
           description: Workflow definition created or updated successfully
@@ -2165,6 +2168,7 @@ components:
         - modifiedTime
         - states
         - availableStateNames
+        - filters
       properties:
         uuid:
           type: string
@@ -2198,6 +2202,9 @@ components:
           description: Array of all state names in the workflow
           items:
             type: string
+        filters:
+          $ref: "#/components/schemas/NodeFilters"
+          description: Filters to restrict which nodes can use this workflow. Empty filters allow all nodes.
     WorkflowState:
       type: object
       required:

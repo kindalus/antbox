@@ -2,14 +2,19 @@ import { type Either, left, right } from "shared/either.ts";
 import { AntboxError, BadRequestError } from "shared/antbox_error.ts";
 import type { WorkflowServiceContext } from "./workflow_service_context.ts";
 import type { AuthenticationContext } from "./authentication_context.ts";
-import type { WorkflowInstance, WorkflowTransitionHistory } from "domain/workflows/workflow_instance.ts";
+import type {
+	WorkflowInstance,
+	WorkflowTransitionHistory,
+} from "domain/workflows/workflow_instance.ts";
 import { UuidGenerator } from "shared/uuid_generator.ts";
 import { WorkflowNode } from "domain/workflows/workflow_node.ts";
-import { WorkflowDTO, toWorkflowDTO } from "./workflow_dto.ts";
+import { toWorkflowDTO, WorkflowDTO } from "./workflow_dto.ts";
 import { Folders } from "domain/nodes/folders.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import { NodeMetadata } from "domain/nodes/node_metadata.ts";
+import { Context } from "@oak/oak";
+import { NodesFilters } from "domain/nodes_filters.ts";
 
 export class WorkflowService {
 	#context: WorkflowServiceContext;
@@ -24,7 +29,9 @@ export class WorkflowService {
 		workflowDefinitionUuid: string,
 	): Promise<Either<AntboxError, WorkflowInstance>> {
 		// Check if node already has a workflow instance
-		const existingInstanceOrErr = await this.#context.workflowInstanceRepository.getByNodeUuid(nodeUuid);
+		const existingInstanceOrErr = await this.#context.workflowInstanceRepository.getByNodeUuid(
+			nodeUuid,
+		);
 		if (existingInstanceOrErr.isRight()) {
 			return left(
 				new AntboxError(
@@ -33,6 +40,13 @@ export class WorkflowService {
 				),
 			);
 		}
+
+		// Get the node that will be attached to the workflow
+		const nodeOrErr = await this.#context.nodeService.get(authCtx, nodeUuid);
+		if (nodeOrErr.isLeft()) {
+			return left(nodeOrErr.value);
+		}
+		const node = nodeOrErr.right;
 
 		// Get workflow definition
 		const workflowDefOrErr = await this.#context.nodeService.get(authCtx, workflowDefinitionUuid);
@@ -48,9 +62,24 @@ export class WorkflowService {
 			return left(
 				new AntboxError(
 					"InvalidWorkflowDefinition",
-					`Node ${workflowDefinitionUuid} is not a valid workflow definition: ${(error as Error).message}`,
+					`Node ${workflowDefinitionUuid} is not a valid workflow definition: ${
+						(error as Error).message
+					}`,
 				),
 			);
+		}
+
+		// Check if node matches workflow filters
+		if (workflowDef.filters && workflowDef.filters.length > 0) {
+			const matchResult = NodesFilters.satisfiedBy(workflowDef.filters, node);
+			if (matchResult.isLeft()) {
+				return left(
+					new AntboxError(
+						"NodeNotEligibleForWorkflow",
+						`Node ${nodeUuid} does not match the workflow definition filters`,
+					),
+				);
+			}
 		}
 
 		// Get initial state
@@ -285,7 +314,7 @@ export class WorkflowService {
 	/**
 	 * Creates or replaces a workflow definition
 	 */
-	async createOrReplaceWorkflowDefinition(
+	async createOrReplaceWorkflow(
 		ctx: AuthenticationContext,
 		metadata: Partial<NodeMetadata>,
 	): Promise<Either<AntboxError, WorkflowDTO>> {
@@ -294,6 +323,7 @@ export class WorkflowService {
 			...metadata,
 			mimetype: Nodes.WORKFLOW_MIMETYPE,
 			parent: Folders.WORKFLOWS_FOLDER_UUID,
+			owner: ctx.principal.email,
 		};
 
 		// Try to get existing workflow definition
@@ -401,9 +431,10 @@ export class WorkflowService {
 		}
 
 		// Check if there are any active instances using this workflow
-		const instancesOrErr = await this.#context.workflowInstanceRepository.findByWorkflowDefinition(
-			uuid,
-		);
+		const instancesOrErr = await this.#context.workflowInstanceRepository
+			.findByWorkflowDefinition(
+				uuid,
+			);
 
 		if (instancesOrErr.isRight() && instancesOrErr.value.length > 0) {
 			return left(

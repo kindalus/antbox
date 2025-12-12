@@ -20,6 +20,8 @@ import { AgentService } from "application/agent_service.ts";
 import { RAGService } from "application/rag_service.ts";
 
 import { resolve } from "path";
+import { WorkflowService } from "application/workflow_service.ts";
+import { WorkflowInstanceRepository } from "domain/workflows/workflow_instance_repository.ts";
 
 export function setupTenants(
 	cfg: ServerConfiguration,
@@ -128,6 +130,11 @@ async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
 
 	const apiKeyService = new ApiKeyService(nodeService);
 
+	const workflowService = new WorkflowService({
+		nodeService,
+		workflowInstanceRepository: undefined as unknown as WorkflowInstanceRepository,
+	});
+
 	// Build AI-related services AFTER NodeService and core services
 	let embeddingService: EmbeddingService | undefined;
 	let agentService: AgentService | undefined;
@@ -166,6 +173,7 @@ async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
 		ragService,
 		defaultModel,
 		models,
+		workflowService,
 	};
 }
 

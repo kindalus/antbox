@@ -111,6 +111,17 @@ function buildAgentsFolder(): FolderNode {
 	).right;
 }
 
+function buildWorkflowsFolder(): FolderNode {
+	return FolderNode.create(
+		createSystemFolderMetadata(
+			Folders.WORKFLOWS_FOLDER_UUID,
+			Folders.WORKFLOWS_FOLDER_UUID,
+			"Worflows",
+			Folders.SYSTEM_FOLDER_UUID,
+		),
+	).right;
+}
+
 function createSystemFolderMetadata(
 	uuid: string,
 	fid: string,
@@ -164,6 +175,7 @@ const SYSTEM_FOLDER = buildSystemFolder();
 const API_KEYS_FOLDER = buildApiKeysFolder();
 const FEATURES_FOLDER = buildFeaturesFolder();
 const AGENTS_FOLDER = buildAgentsFolder();
+const WORKFLOWS_FOLDER = buildWorkflowsFolder();
 
 const ROOT_FOLDER = buildRootFolder();
 
@@ -174,6 +186,7 @@ const SYSTEM_FOLDERS = [
 	FEATURES_FOLDER,
 	GROUPS_FOLDER,
 	USERS_FOLDER,
+	WORKFLOWS_FOLDER,
 ];
 
 export {
@@ -186,6 +199,7 @@ export {
 	SYSTEM_FOLDER,
 	SYSTEM_FOLDERS,
 	USERS_FOLDER,
+	WORKFLOWS_FOLDER,
 };
 
 export const builtinFolders: FolderNode[] = [
@@ -194,6 +208,7 @@ export const builtinFolders: FolderNode[] = [
 	ASPECTS_FOLDER,
 	FEATURES_FOLDER,
 	GROUPS_FOLDER,
+	WORKFLOWS_FOLDER,
 
 	SYSTEM_FOLDER,
 	USERS_FOLDER,

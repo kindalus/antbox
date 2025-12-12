@@ -157,7 +157,7 @@ export function createOrReplaceWorkflowDefinitionHandler(tenants: AntboxTenant[]
 				const metadata = await req.json();
 
 				return await service!
-					.createOrReplaceWorkflowDefinition(getAuthenticationContext(req), metadata)
+					.createOrReplaceWorkflow(getAuthenticationContext(req), metadata)
 					.then(processServiceResult)
 					.catch(processError);
 			} catch (_error) {

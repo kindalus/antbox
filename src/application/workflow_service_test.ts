@@ -125,6 +125,7 @@ describe("WorkflowService", () => {
 				},
 			],
 			availableStateNames: ["draft", "review", "approved"],
+			filters: [], // Empty filters allow all nodes
 		});
 
 		if (workflowOrErr.isLeft()) {
@@ -510,6 +511,7 @@ describe("WorkflowService", () => {
 					},
 				],
 				availableStateNames: ["draft", "review", "approved"],
+				filters: [], // Empty filters allow all nodes
 			});
 
 			const savedWorkflowOrErr = await context.nodeService.create(
@@ -578,6 +580,7 @@ describe("WorkflowService", () => {
 					},
 				],
 				availableStateNames: ["draft", "done"],
+				filters: [], // Empty filters allow all nodes
 			});
 
 			const savedWorkflowOrErr = await context.nodeService.create(

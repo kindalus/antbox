@@ -84,11 +84,13 @@ const WorkflowNodeValidationSchema = z.object({
 		1,
 		"WorkflowNode.availableStateNames must be non-empty",
 	),
+	filters: z.array(z.any()).optional(),
 });
 
 export class WorkflowNode extends Node {
 	readonly states: WorkflowState[];
 	readonly availableStateNames: string[];
+	readonly filters: NodeFilters;
 
 	constructor(metadata: Partial<NodeMetadata>) {
 		super({
@@ -99,6 +101,7 @@ export class WorkflowNode extends Node {
 
 		this.states = metadata.states ?? [];
 		this.availableStateNames = metadata.availableStateNames ?? [];
+		this.filters = metadata.filters ?? [];
 
 		this._validateWorkflowNode();
 	}
@@ -128,6 +131,7 @@ export class WorkflowNode extends Node {
 			parent: Folders.WORKFLOWS_FOLDER_UUID,
 			states: this.states,
 			availableStateNames: this.availableStateNames,
+			filters: this.filters,
 		};
 	}
 

@@ -1,4 +1,5 @@
 import { WorkflowNode, WorkflowState } from "domain/workflows/workflow_node.ts";
+import { NodeFilters } from "domain/nodes/node_filter.ts";
 
 export interface WorkflowDTO {
 	uuid: string;
@@ -9,6 +10,7 @@ export interface WorkflowDTO {
 	modifiedTime: string;
 	states: WorkflowState[];
 	availableStateNames: string[];
+	filters: NodeFilters;
 }
 
 export function toWorkflowDTO(node: WorkflowNode): WorkflowDTO {
@@ -21,5 +23,6 @@ export function toWorkflowDTO(node: WorkflowNode): WorkflowDTO {
 		modifiedTime: node.modifiedTime,
 		states: node.states,
 		availableStateNames: node.availableStateNames,
+		filters: node.filters,
 	};
 }

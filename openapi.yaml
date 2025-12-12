@@ -1051,20 +1051,6 @@ paths:
       operationId: lockNode
       parameters:
         - $ref: "#/components/parameters/UUID"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                unlockAuthorizedGroups:
-                  type: array
-                  items:
-                    type: string
-                    format: uuid
-                  description: UUIDs of groups authorized to unlock this node
-                  default: []
       responses:
         "200":
           description: Node locked successfully

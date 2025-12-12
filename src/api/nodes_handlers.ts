@@ -290,15 +290,8 @@ export function lockHandler(tenants: AntboxTenant[]): HttpHandler {
 				return sendBadRequest({ error: "{ uuid } not given" });
 			}
 
-			const body = await req.json();
-			const unlockAuthorizedGroups = body.unlockAuthorizedGroups || [];
-
-			if (!Array.isArray(unlockAuthorizedGroups)) {
-				return sendBadRequest({ error: "{ unlockAuthorizedGroups } must be an array" });
-			}
-
 			return await service
-				.lock(getAuthenticationContext(req), params.uuid, unlockAuthorizedGroups)
+				.lock(getAuthenticationContext(req), params.uuid)
 				.then(processServiceResult)
 				.catch(processError);
 		},

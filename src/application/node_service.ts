@@ -869,7 +869,7 @@ export class NodeService {
 	async lock(
 		ctx: AuthenticationContext,
 		uuid: string,
-		unlockAuthorizedGroups: string[],
+		unlockAuthorizedGroups: string[] = [],
 	): Promise<Either<AntboxError, void>> {
 		const nodeOrErr = await this.#getFromRepository(uuid);
 		if (nodeOrErr.isLeft()) {
@@ -898,6 +898,10 @@ export class NodeService {
 		const allowedOrErr = isPrincipalAllowedTo(ctx, parentOrErr.value, "Write");
 		if (allowedOrErr.isLeft()) {
 			return left(allowedOrErr.value);
+		}
+
+		if (!unlockAuthorizedGroups.length) {
+			unlockAuthorizedGroups.splice(0, 0, ...ctx.principal.groups);
 		}
 
 		// Lock the node

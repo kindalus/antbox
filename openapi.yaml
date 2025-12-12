@@ -1042,6 +1042,48 @@ paths:
                 format: binary
         default:
           $ref: "#/components/responses/Error"
+  "/nodes/{uuid}/-/lock":
+    post:
+      tags:
+        - nodes
+      summary: Lock a node
+      description: Lock a node to prevent modifications by unauthorized users
+      operationId: lockNode
+      parameters:
+        - $ref: "#/components/parameters/UUID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                unlockAuthorizedGroups:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+                  description: UUIDs of groups authorized to unlock this node
+                  default: []
+      responses:
+        "200":
+          description: Node locked successfully
+        default:
+          $ref: "#/components/responses/Error"
+  "/nodes/{uuid}/-/unlock":
+    post:
+      tags:
+        - nodes
+      summary: Unlock a node
+      description: Unlock a previously locked node (requires authorization)
+      operationId: unlockNode
+      parameters:
+        - $ref: "#/components/parameters/UUID"
+      responses:
+        "200":
+          description: Node unlocked successfully
+        default:
+          $ref: "#/components/responses/Error"
   "/nodes/{uuid}/-/upload":
     put:
       tags:
@@ -1838,6 +1880,21 @@ components:
           type: string
         permissions:
           $ref: "#/components/schemas/Permissions"
+        locked:
+          type: boolean
+          description: Indicates if the node is locked
+          default: false
+        lockedBy:
+          type: string
+          format: email
+          description: Email of the user who locked the node
+        unlockAuthorizedGroups:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: UUIDs of groups authorized to unlock this node
+          default: []
     FileNode:
       type: object
       allOf:

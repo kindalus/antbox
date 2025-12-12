@@ -15,6 +15,7 @@ import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { Context } from "@oak/oak";
 import { NodesFilters } from "domain/nodes_filters.ts";
+import { builtinWorkflows } from "./builtin_workflows/index.ts";
 
 export class WorkflowService {
 	#context: WorkflowServiceContext;
@@ -318,6 +319,14 @@ export class WorkflowService {
 		ctx: AuthenticationContext,
 		metadata: Partial<NodeMetadata>,
 	): Promise<Either<AntboxError, WorkflowDTO>> {
+		// Check if it's a builtin workflow
+		if (metadata.uuid) {
+			const isBuiltin = builtinWorkflows.some((w) => w.uuid === metadata.uuid);
+			if (isBuiltin) {
+				return left(new BadRequestError("Cannot update built-in workflow"));
+			}
+		}
+
 		// Ensure proper mimetype and parent
 		const workflowMetadata: Partial<NodeMetadata> = {
 			...metadata,
@@ -372,6 +381,13 @@ export class WorkflowService {
 		ctx: AuthenticationContext,
 		uuid: string,
 	): Promise<Either<AntboxError, WorkflowDTO>> {
+		// Check builtin workflows first
+		const builtinWorkflow = builtinWorkflows.find((w) => w.uuid === uuid);
+		if (builtinWorkflow) {
+			return right(toWorkflowDTO(builtinWorkflow));
+		}
+
+		// Check repository workflows
 		const nodeOrErr = await this.#context.nodeService.get(ctx, uuid);
 
 		if (nodeOrErr.isLeft()) {
@@ -410,10 +426,14 @@ export class WorkflowService {
 
 		const workflows = nodesOrErr.value.nodes
 			.filter((node) => Nodes.isWorkflow(node))
-			.map((node) => toWorkflowDTO(node as WorkflowNode))
+			.map((node) => toWorkflowDTO(node as WorkflowNode));
+
+		// Merge with builtin workflows
+		const builtinWorkflowDTOs = builtinWorkflows.map(toWorkflowDTO);
+		const allWorkflows = [...workflows, ...builtinWorkflowDTOs]
 			.sort((a, b) => a.title.localeCompare(b.title));
 
-		return right(workflows);
+		return right(allWorkflows);
 	}
 
 	/**
@@ -423,6 +443,12 @@ export class WorkflowService {
 		ctx: AuthenticationContext,
 		uuid: string,
 	): Promise<Either<AntboxError, void>> {
+		// Check if it's a builtin workflow
+		const isBuiltin = builtinWorkflows.some((w) => w.uuid === uuid);
+		if (isBuiltin) {
+			return left(new BadRequestError("Cannot delete built-in workflow"));
+		}
+
 		// Verify it's a workflow definition
 		const workflowOrErr = await this.getWorkflowDefinition(ctx, uuid);
 

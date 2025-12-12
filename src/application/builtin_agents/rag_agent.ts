@@ -77,4 +77,4 @@ Remember: Your primary value is in finding, analyzing, and synthesizing informat
 	structuredAnswer: undefined,
 }).value as AgentNode;
 
-export default ragAgent;
+export { ragAgent };

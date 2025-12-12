@@ -104,7 +104,13 @@ export class AgentService {
 		authContext: AuthenticationContext,
 		metadata: AgentDTO,
 	): Promise<Either<AntboxError, AgentDTO>> {
+		// Check if it's a builtin agent
 		if (metadata.uuid) {
+			const isBuiltin = builtinAgents.some((a) => a.uuid === metadata.uuid);
+			if (isBuiltin) {
+				return left(new AntboxError("ForbiddenError", "Cannot update built-in agent"));
+			}
+
 			// If UUID is provided, check if agent exists
 			const existingAgent = await this.get(authContext, metadata.uuid);
 			if (existingAgent.isRight()) {
@@ -164,6 +170,13 @@ export class AgentService {
 		authContext: AuthenticationContext,
 		uuid: string,
 	): Promise<Either<AntboxError, AgentDTO>> {
+		// Check builtin agents first
+		const builtinAgent = builtinAgents.find((a) => a.uuid === uuid);
+		if (builtinAgent) {
+			return right(builtinAgent);
+		}
+
+		// Check repository agents
 		const nodeResult = await this.nodeService.get(authContext, uuid);
 		if (nodeResult.isLeft()) {
 			if (nodeResult.value instanceof NodeNotFoundError) {
@@ -232,6 +245,12 @@ export class AgentService {
 		authContext: AuthenticationContext,
 		uuid: string,
 	): Promise<Either<AntboxError, void>> {
+		// Check if it's a builtin agent
+		const isBuiltin = builtinAgents.some((a) => a.uuid === uuid);
+		if (isBuiltin) {
+			return left(new AntboxError("ForbiddenError", "Cannot delete built-in agent"));
+		}
+
 		// Verify agent exists
 		const getResult = await this.get(authContext, uuid);
 		if (getResult.isLeft()) {

@@ -1,6 +1,7 @@
 import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus.ts";
 import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository.ts";
 import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider.ts";
+import { InmemWorkflowInstanceRepository } from "adapters/inmem/inmem_workflow_instance_repository.ts";
 import type { AntboxTenant } from "api/antbox_tenant.ts";
 import type { ServerConfiguration, TenantConfiguration } from "api/http_server_configuration.ts";
 import { NodeService } from "application/node_service.ts";
@@ -36,6 +37,9 @@ async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
 	const rawJwk = await loadJwk(cfg?.jwk);
 	const repository = await providerFrom<NodeRepository>(cfg?.repository);
 	const storage = await providerFrom<StorageProvider>(cfg?.storage);
+	const workflowInstanceRepository = await providerFrom<WorkflowInstanceRepository>(
+		cfg?.workflowInstanceRepository,
+	);
 	const eventBus = new InMemoryEventBus();
 
 	// Validate and load AI components FIRST if AI is enabled
@@ -132,7 +136,7 @@ async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
 
 	const workflowService = new WorkflowService({
 		nodeService,
-		workflowInstanceRepository: undefined as unknown as WorkflowInstanceRepository,
+		workflowInstanceRepository: workflowInstanceRepository ?? new InmemWorkflowInstanceRepository(),
 	});
 
 	// Build AI-related services AFTER NodeService and core services

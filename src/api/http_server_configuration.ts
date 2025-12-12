@@ -24,5 +24,6 @@ export interface TenantConfiguration {
 	jwk?: string;
 	storage?: ModuleConfiguration;
 	repository?: ModuleConfiguration;
+	workflowInstanceRepository?: ModuleConfiguration;
 	ai?: AIConfiguration;
 }

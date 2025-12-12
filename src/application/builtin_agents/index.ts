@@ -1,3 +1,6 @@
-import type { AgentDTO } from "../agent_dto.ts";
+import { AgentNode } from "domain/ai/agent_node.ts";
+import { ragAgent } from "./rag_agent.ts";
 
-export const builtinAgents: AgentDTO[] = [];
+export const builtinAgents: AgentNode[] = [
+	ragAgent,
+];

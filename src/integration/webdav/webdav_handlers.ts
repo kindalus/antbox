@@ -19,14 +19,36 @@ function getPath(req: Request | string, tenant: AntboxTenant): string {
 }
 
 export function optionsHandler(tenants: AntboxTenant[]): HttpHandler {
-	return webdavMiddlewareChain(tenants, (_req: Request) => {
+	return webdavMiddlewareChain(tenants, (req: Request) => {
+		const origin = req.headers.get("origin");
+
+		const headers: Record<string, string> = {
+			// WebDAV Headers
+			"MS-Author-Via": "DAV",
+			Allow: "OPTIONS, GET, HEAD, PUT, DELETE, PROPFIND, MKCOL, COPY, MOVE, LOCK, UNLOCK",
+			DAV: "1, 2",
+
+			// CORS Headers
+			"Access-Control-Allow-Methods":
+				"OPTIONS, GET, HEAD, PUT, DELETE, PROPFIND, MKCOL, COPY, MOVE, LOCK, UNLOCK",
+			"Access-Control-Allow-Headers":
+				"Authorization, Content-Type, Depth, Destination, If, If-Modified-Since, If-None-Match, If-Match, Lock-Token, Overwrite, Timeout, User-Agent, X-File-Name, X-Requested-With",
+			"Access-Control-Max-Age": "86400",
+		};
+
+		if (origin) {
+			// Cross-origin request - use specific origin and allow credentials
+			headers["Access-Control-Allow-Origin"] = origin;
+			headers["Access-Control-Allow-Credentials"] = "true";
+		} else {
+			// Same-origin or no origin - use wildcard (no credentials)
+			headers["Access-Control-Allow-Origin"] = "*";
+		}
+
 		return Promise.resolve(
 			new Response(null, {
 				status: 200,
-				headers: {
-					Allow: "OPTIONS, GET, HEAD, PUT, DELETE, PROPFIND, MKCOL, COPY, MOVE, LOCK, UNLOCK",
-					DAV: "1, 2",
-				},
+				headers,
 			}),
 		);
 	});

@@ -72,7 +72,7 @@ function nodeToPropfindXml(node: NodeLike, basePath: string, first = false): str
 }
 
 export function createPropfindResponse(nodes: NodeLike[], req: Request): string {
-	const basePath = new URL(req.url).pathname.replace(`/webdav`, "") || "/";
+	const basePath = new URL(req.url).pathname || "/";
 	const responses = nodes.map((node, index) => {
 		return nodeToPropfindXml(node, basePath, index === 0);
 	}).join("\n");

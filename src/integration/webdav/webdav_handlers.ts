@@ -38,7 +38,7 @@ export function propfindHandler(tenants: AntboxTenant[]): HttpHandler {
 		const authContext = getAuthenticationContext(req);
 		const path = getPath(req, tenant);
 
-		const nodeOrErr = await resolvePath(tenant.nodeService, authContext, path);
+		const nodeOrErr = await resolvePath(tenant.nodeService, authContext, path, tenant.name);
 		if (nodeOrErr.isLeft()) {
 			return processError(nodeOrErr.value);
 		}
@@ -91,7 +91,7 @@ export function getHandler(tenants: AntboxTenant[]): HttpHandler {
 		const authContext = getAuthenticationContext(req);
 		const path = getPath(req, tenant);
 
-		const nodeOrErr = await resolvePath(tenant.nodeService, authContext, path);
+		const nodeOrErr = await resolvePath(tenant.nodeService, authContext, path, tenant.name);
 
 		if (nodeOrErr.isLeft()) {
 			return processError(nodeOrErr.value);
@@ -164,6 +164,7 @@ export function putHandler(tenants: AntboxTenant[]): HttpHandler {
 			tenant.nodeService,
 			authContext,
 			parentPath,
+			tenant.name,
 		);
 		if (parentOrErr.isLeft()) {
 			return processError(parentOrErr.value);
@@ -181,6 +182,7 @@ export function putHandler(tenants: AntboxTenant[]): HttpHandler {
 			tenant.nodeService,
 			authContext,
 			path,
+			tenant.name,
 		);
 
 		if (existingNodeOrErr.isLeft()) {
@@ -199,9 +201,18 @@ export function putHandler(tenants: AntboxTenant[]): HttpHandler {
 			return processError(existingNodeOrErr.value);
 		}
 
+		// Check if node is locked before updating
+		const existingNode = existingNodeOrErr.value;
+		if (existingNode.locked && existingNode.lockedBy !== authContext.principal.email) {
+			return new Response(
+				`Resource is locked by ${existingNode.lockedBy}`,
+				{ status: 423 }, // 423 Locked
+			);
+		}
+
 		const result = await tenant.nodeService.updateFile(
 			authContext,
-			existingNodeOrErr.value.uuid,
+			existingNode.uuid,
 			file as File,
 		);
 
@@ -215,14 +226,24 @@ export function deleteHandler(tenants: AntboxTenant[]): HttpHandler {
 		const authContext = getAuthenticationContext(req);
 		const path = getPath(req, tenant);
 
-		const nodeOrErr = await resolvePath(tenant.nodeService, authContext, path);
+		const nodeOrErr = await resolvePath(tenant.nodeService, authContext, path, tenant.name);
 		if (nodeOrErr.isLeft()) {
 			return processError(nodeOrErr.value);
 		}
 
+		const node = nodeOrErr.value;
+
+		// Check if node is locked before deleting
+		if (node.locked && node.lockedBy !== authContext.principal.email) {
+			return new Response(
+				`Resource is locked by ${node.lockedBy}`,
+				{ status: 423 }, // 423 Locked
+			);
+		}
+
 		const result = await tenant.nodeService.delete(
 			authContext,
-			nodeOrErr.value.uuid,
+			node.uuid,
 		);
 
 		return result.isRight() ? sendNoContent() : processError(result.value);
@@ -241,6 +262,7 @@ export function mkcolHandler(tenants: AntboxTenant[]): HttpHandler {
 			tenant.nodeService,
 			authContext,
 			parentPath,
+			tenant.name,
 		);
 		if (parentOrErr.isLeft()) {
 			return processError(parentOrErr.value);
@@ -272,11 +294,12 @@ export function copyHandler(tenants: AntboxTenant[]): HttpHandler {
 			return new Response("Destination header missing", { status: 400 });
 		}
 
-		const destinationPath = new URL(destination).pathname.replace(/^\/webdav/, "");
+		const destinationPath = getPath(destination, tenant);
 		const sourceNodeOrErr = await resolvePath(
 			tenant.nodeService,
 			authContext,
 			sourcePath,
+			tenant.name,
 		);
 		if (sourceNodeOrErr.isLeft()) {
 			return processError(sourceNodeOrErr.value);
@@ -294,6 +317,7 @@ export function copyHandler(tenants: AntboxTenant[]): HttpHandler {
 			tenant.nodeService,
 			authContext,
 			destParentPath,
+			tenant.name,
 		);
 		if (destParentOrErr.isLeft()) {
 			return processError(destParentOrErr.value);
@@ -336,9 +360,20 @@ export function moveHandler(tenants: AntboxTenant[]): HttpHandler {
 			tenant.nodeService,
 			authContext,
 			sourcePath,
+			tenant.name,
 		);
 		if (sourceNodeOrErr.isLeft()) {
 			return processError(sourceNodeOrErr.value);
+		}
+
+		const sourceNode = sourceNodeOrErr.value;
+
+		// Check if source node is locked before moving
+		if (sourceNode.locked && sourceNode.lockedBy !== authContext.principal.email) {
+			return new Response(
+				`Resource is locked by ${sourceNode.lockedBy}`,
+				{ status: 423 }, // 423 Locked
+			);
 		}
 
 		const destParentPath = destinationPath.substring(0, destinationPath.lastIndexOf("/"));
@@ -348,6 +383,7 @@ export function moveHandler(tenants: AntboxTenant[]): HttpHandler {
 			tenant.nodeService,
 			authContext,
 			destParentPath,
+			tenant.name,
 		);
 		if (destParentOrErr.isLeft()) {
 			return processError(destParentOrErr.value);
@@ -355,7 +391,7 @@ export function moveHandler(tenants: AntboxTenant[]): HttpHandler {
 
 		const result = await tenant.nodeService.update(
 			authContext,
-			sourceNodeOrErr.value.uuid,
+			sourceNode.uuid,
 			{ parent: destParentOrErr.value.uuid, title: unescapePath(destTitle) },
 		);
 
@@ -369,17 +405,31 @@ export function lockHandler(tenants: AntboxTenant[]): HttpHandler {
 		const authContext = getAuthenticationContext(req);
 		const path = getPath(req, tenant);
 
-		// // Verificar se o recurso existe
-		const nodeOrErr = await resolvePath(tenant.nodeService, authContext, path);
+		const nodeOrErr = await resolvePath(tenant.nodeService, authContext, path, tenant.name);
 		if (nodeOrErr.isLeft()) {
 			return processError(nodeOrErr.value);
 		}
 
-		// Gerar um token de lock dummy
-		const lockToken = `opaquelocktoken:${crypto.randomUUID()}`;
+		const node = nodeOrErr.value;
+
+		// Actually lock the node using NodeService
+		const lockResult = await tenant.nodeService.lock(
+			authContext,
+			node.uuid,
+			[], // Empty array means only user's groups can unlock
+		);
+
+		if (lockResult.isLeft()) {
+			return processError(lockResult.value);
+		}
+
+		// Generate lock token (WebDAV protocol requirement)
+		// Format: opaquelocktoken:{nodeUuid}-{email-hash}
+		const lockToken = `opaquelocktoken:${node.uuid}-${
+			btoa(authContext.principal.email).substring(0, 16)
+		}`;
 		const timeout = req.headers.get("Timeout") || "Second-3600";
 
-		// Resposta XML dummy para LOCK
 		const lockResponse = `<?xml version="1.0" encoding="utf-8"?>
 <D:prop xmlns:D="DAV:">
   <D:lockdiscovery>
@@ -388,7 +438,7 @@ export function lockHandler(tenants: AntboxTenant[]): HttpHandler {
       <D:lockscope><D:exclusive/></D:lockscope>
       <D:depth>0</D:depth>
       <D:owner>
-        <D:href>${authContext.principal.email || "anonymous"}</D:href>
+        <D:href>${authContext.principal.email}</D:href>
       </D:owner>
       <D:timeout>${timeout}</D:timeout>
       <D:locktoken>
@@ -415,18 +465,35 @@ export function unlockHandler(tenants: AntboxTenant[]): HttpHandler {
 		const path = getPath(req, tenant);
 		const lockToken = req.headers.get("Lock-Token");
 
-		// // Verificar se o recurso existe
-		const nodeOrErr = await resolvePath(tenant.nodeService, authContext, path);
+		const nodeOrErr = await resolvePath(tenant.nodeService, authContext, path, tenant.name);
 		if (nodeOrErr.isLeft()) {
 			return processError(nodeOrErr.value);
 		}
 
-		// Validação básica do token (dummy)
+		const node = nodeOrErr.value;
+
+		// Basic lock token validation
 		if (!lockToken) {
-			return new Response("Lock token required", { status: 400 });
+			return new Response("Lock-Token header required", { status: 400 });
 		}
 
-		// Por enquanto, sempre aceitar o unlock
+		// Validate token format (optional - for better error messages)
+		const cleanToken = lockToken.replace(/^<|>$/g, ""); // Remove angle brackets
+		if (!cleanToken.startsWith("opaquelocktoken:")) {
+			return new Response("Invalid lock token format", { status: 400 });
+		}
+
+		// Actually unlock the node using NodeService
+		// NodeService.unlock() will check if the user is authorized to unlock
+		const unlockResult = await tenant.nodeService.unlock(
+			authContext,
+			node.uuid,
+		);
+
+		if (unlockResult.isLeft()) {
+			return processError(unlockResult.value);
+		}
+
 		return sendNoContent();
 	});
 }

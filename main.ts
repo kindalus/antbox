@@ -5,6 +5,7 @@ import { PORT } from "setup/server_defaults.ts";
 import { ServerConfiguration } from "api/http_server_configuration.ts";
 import process from "node:process";
 import { loadConfiguration } from "setup/load_configuration.ts";
+import { startPathCacheCleanup } from "integration/webdav/webdav_path_cache.ts";
 
 interface CommandOpts {
 	config?: string;
@@ -17,6 +18,10 @@ async function startServer(config: ServerConfiguration) {
 	const tenants = await setupTenants({
 		tenants: config.tenants,
 	});
+
+	// Start WebDAV path cache cleanup (runs every minute)
+	startPathCacheCleanup(60000);
+	console.log("WebDAV path cache cleanup started");
 
 	const serverLocation = `adapters/${config.engine}/server.ts`;
 	let startServerFn;

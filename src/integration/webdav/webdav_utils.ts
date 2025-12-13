@@ -5,6 +5,7 @@ import { Either, left, right } from "shared/either.ts";
 import { AntboxError } from "shared/antbox_error.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import { Folders } from "domain/nodes/folders.ts";
+import { webdavPathCache } from "./webdav_path_cache.ts";
 
 function pathsMatch(pathA: string[], pathB: string[]): boolean {
 	return (
@@ -20,12 +21,35 @@ export async function resolvePath(
 	service: NodeService,
 	authContext: AuthenticationContext,
 	path: string,
+	tenantName?: string,
 ): Promise<Either<AntboxError, NodeLike>> {
-	if (path === "/" || path === "") {
-		return service.get(authContext, Folders.ROOT_FOLDER_UUID);
+	// Normalize path
+	const normalizedPath = path === "" ? "/" : path;
+
+	// Try cache first if tenant name provided
+	if (tenantName) {
+		const cached = webdavPathCache.get(tenantName, authContext.principal.email, normalizedPath);
+		if (cached) {
+			// Verify user still has access (security check)
+			const verifyResult = await service.get(authContext, cached.uuid);
+			if (verifyResult.isRight()) {
+				return right(cached);
+			}
+			// Access denied or node deleted - invalidate cache
+			webdavPathCache.invalidatePath(tenantName, normalizedPath);
+		}
 	}
 
-	const segments = path.split("/")
+	// Cache miss or no tenant - resolve from database
+	if (normalizedPath === "/") {
+		const rootResult = await service.get(authContext, Folders.ROOT_FOLDER_UUID);
+		if (rootResult.isRight() && tenantName) {
+			webdavPathCache.set(tenantName, authContext.principal.email, "/", rootResult.value);
+		}
+		return rootResult;
+	}
+
+	const segments = normalizedPath.split("/")
 		.filter((s) => s.length > 0)
 		.map(unescapePath);
 
@@ -44,7 +68,7 @@ export async function resolvePath(
 	const nodes = findResultOrErr.value.nodes;
 
 	if (nodes.length === 0) {
-		return left(new NodeNotFoundError(`Node not found for path: ${path}`));
+		return left(new NodeNotFoundError(`Node not found for path: ${normalizedPath}`));
 	}
 
 	const paths = await Promise.all(
@@ -52,15 +76,22 @@ export async function resolvePath(
 	);
 
 	for (let i = 0; i < paths.length; i++) {
-		const path = paths[i];
-		if (path.isLeft()) continue;
+		const pathResult = paths[i];
+		if (pathResult.isLeft()) continue;
 
-		const pathB = path.value.map((b) => b.title).slice(1, -1);
+		const pathB = pathResult.value.map((b) => b.title).slice(1, -1);
 
-		if (pathsMatch(parentPathSegments, pathB)) return right(nodes[i]);
+		if (pathsMatch(parentPathSegments, pathB)) {
+			const node = nodes[i];
+			// Cache the result if tenant name provided
+			if (tenantName) {
+				webdavPathCache.set(tenantName, authContext.principal.email, normalizedPath, node);
+			}
+			return right(node);
+		}
 	}
 
-	return left(new NodeNotFoundError(`Node not found for path: ${path}`));
+	return left(new NodeNotFoundError(`Node not found for path: ${normalizedPath}`));
 }
 
 export function getMimetype(filename: string): string {

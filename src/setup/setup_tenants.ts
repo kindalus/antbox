@@ -23,6 +23,7 @@ import { RAGService } from "application/rag_service.ts";
 import { resolve } from "path";
 import { WorkflowService } from "application/workflow_service.ts";
 import { WorkflowInstanceRepository } from "domain/workflows/workflow_instance_repository.ts";
+import { registerCacheInvalidationHandlers } from "integration/webdav/webdav_cache_invalidation_handler.ts";
 
 export function setupTenants(
 	cfg: ServerConfiguration,
@@ -126,6 +127,9 @@ async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
 		vectorDatabase,
 		embeddingModel,
 	});
+
+	// Register WebDAV cache invalidation handlers
+	registerCacheInvalidationHandlers(eventBus);
 
 	// Create other core services
 	const aspectService = new AspectService(nodeService);

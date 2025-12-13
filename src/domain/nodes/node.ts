@@ -33,6 +33,8 @@ export class Node {
 	protected _locked: boolean;
 	protected _lockedBy: string;
 	protected _unlockAuthorizedGroups: string[];
+	protected _workflowInstanceUuid?: string;
+	protected _workflowState?: string;
 
 	constructor(metadata: Partial<NodeMetadata> = {}) {
 		this.uuid = metadata?.uuid ?? UuidGenerator.generate();
@@ -47,6 +49,8 @@ export class Node {
 		this._locked = metadata?.locked ?? false;
 		this._lockedBy = metadata?.lockedBy ?? "";
 		this._unlockAuthorizedGroups = metadata?.unlockAuthorizedGroups ?? [];
+		this._workflowInstanceUuid = metadata.workflowInstanceUuid ?? undefined;
+		this._workflowState = metadata.workflowState ?? undefined;
 
 		this._owner = metadata.owner!;
 

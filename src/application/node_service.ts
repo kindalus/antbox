@@ -1050,8 +1050,8 @@ export class NodeService {
 			...builtinGroups,
 			...builtinUsers,
 
-			...builtinAgents.map(fromAgentDTO),
-			...builtinFeatures.map(fromFeature),
+			...builtinAgents,
+			...builtinFeatures,
 		];
 		const builtinNode = builtinNodes.find(predicate);
 

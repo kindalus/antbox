@@ -14,6 +14,7 @@ const moveUp: Feature = {
 	exposeAction: true,
 	runOnCreates: false,
 	runOnUpdates: false,
+	runOnDeletes: false,
 	runManually: true,
 	filters: [
 		[

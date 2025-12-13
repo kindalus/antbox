@@ -1,9 +1,9 @@
+import { Folders } from "../nodes/folders.ts";
+import { Node } from "../nodes/node.ts";
+import { type NodeMetadata } from "../nodes/node_metadata.ts";
+import { Nodes } from "../nodes/nodes.ts";
 import { type Either, left, right } from "shared/either.ts";
 import { ValidationError } from "shared/validation_error.ts";
-import { Folders } from "domain/nodes/folders.ts";
-import { Node } from "domain/nodes/node.ts";
-import { type NodeMetadata } from "domain/nodes/node_metadata.ts";
-import { Nodes } from "domain/nodes/nodes.ts";
 
 export class GroupNode extends Node {
 	static create(

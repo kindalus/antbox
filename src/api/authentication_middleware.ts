@@ -17,8 +17,8 @@ export function authenticationMiddleware(
 	return (next: HttpHandler) => {
 		const jwks = new Map<string, KeyObject | Uint8Array>();
 		const secrets = new Map<string, Uint8Array>();
-		const authServices = new Map<string, UsersGroupsService>();
-		const apiKeysServices = new Map<string, ApiKeyService>();
+		const usersGroupsServices = new Map<string, UsersGroupsService>();
+		const apiKeyServices = new Map<string, ApiKeyService>();
 
 		tenants.forEach(async (tenant) => {
 			const jwkOrErr = await importJwkKey(tenant.rawJwk as unknown as JWK);
@@ -32,8 +32,8 @@ export function authenticationMiddleware(
 
 			jwks.set(tenant.name, jwk);
 			secrets.set(tenant.name, secret);
-			// authServices.set(tenant.name, tenant.service.authService);
-			// apiKeysServices.set(tenant.name, tenant.service.apiKeysService);
+			usersGroupsServices.set(tenant.name, tenant.usersGroupsService);
+			apiKeyServices.set(tenant.name, tenant.apiKeyService);
 		});
 
 		return async (req: Request) => {
@@ -41,8 +41,8 @@ export function authenticationMiddleware(
 
 			const apiKey = getApiKey(req);
 			if (apiKey) {
-				const apiKeysService = apiKeysServices.get(tenantName);
-				await authenticateApiKey(apiKeysService!, req, apiKey);
+				const apiKeyService = apiKeyServices.get(tenantName);
+				await authenticateApiKey(apiKeyService!, req, apiKey);
 				return next(req);
 			}
 
@@ -64,7 +64,7 @@ export function authenticationMiddleware(
 				return next(req);
 			}
 
-			const authService = authServices.get(tenantName)!;
+			const authService = usersGroupsServices.get(tenantName)!;
 			const jwk = jwks.get(tenantName)!;
 			await authenticateToken(jwk, authService, req, token);
 			return next(req);
@@ -131,7 +131,7 @@ async function authenticateRoot(
 		return storeAnonymous(req);
 	}
 
-	storePrincipal(req, Users.ROOT_USER_EMAIL, [Groups.ADMINS_GROUP_UUID]);
+	return storePrincipal(req, Users.ROOT_USER_EMAIL, [Groups.ADMINS_GROUP_UUID]);
 }
 
 async function authenticateApiKey(
@@ -144,7 +144,7 @@ async function authenticateApiKey(
 		return storeAnonymous(req);
 	}
 
-	storePrincipal(req, Users.API_KEY_USER_EMAIL, [apiKeyOrErr.value.group]);
+	return storePrincipal(req, Users.API_KEY_USER_EMAIL, [apiKeyOrErr.value.group]);
 }
 
 async function authenticateToken(

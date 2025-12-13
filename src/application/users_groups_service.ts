@@ -137,29 +137,7 @@ export class UsersGroupsService {
 			return left(existingOrErr.value);
 		}
 
-		const user = userToNode(ctx, existingOrErr.value);
-
-		const { name, group, groups } = metadata;
-		const newMetadata: Partial<NodeMetadata> = {};
-
-		if (name) {
-			newMetadata.title = name;
-		}
-
-		if (group) {
-			newMetadata.group = group;
-		}
-
-		if (groups) {
-			newMetadata.groups = [...groups];
-		}
-
-		const updateResultOrErr = user.update(newMetadata);
-		if (updateResultOrErr.isLeft()) {
-			return left(updateResultOrErr.value);
-		}
-
-		const voidOrErr = await this.service.update(ctx, user.uuid, user);
+		const voidOrErr = await this.service.update(ctx, existingOrErr.value.uuid, metadata);
 		if (voidOrErr.isLeft()) {
 			return left(voidOrErr.value);
 		}
@@ -269,14 +247,7 @@ export class UsersGroupsService {
 			return left(existingOrErr.value);
 		}
 
-		const group = groupToNode(ctx, existingOrErr.value);
-
-		const updateResultOrErr = group.update(metadata);
-		if (updateResultOrErr.isLeft()) {
-			return left(updateResultOrErr.value);
-		}
-
-		const voidOrErr = await this.service.update(ctx, group.uuid, group);
+		const voidOrErr = await this.service.update(ctx, uuid, metadata);
 		if (voidOrErr.isLeft()) {
 			return left(voidOrErr.value);
 		}

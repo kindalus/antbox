@@ -1,5 +1,5 @@
 import { type Either, left, right } from "shared/either.ts";
-import { AntboxError, BadRequestError } from "shared/antbox_error.ts";
+import { AntboxError, BadRequestError, ForbiddenError } from "shared/antbox_error.ts";
 import type { WorkflowServiceContext } from "./workflow_service_context.ts";
 import type { AuthenticationContext } from "./authentication_context.ts";
 import type {
@@ -35,8 +35,7 @@ export class WorkflowService {
 		);
 		if (existingInstanceOrErr.isRight()) {
 			return left(
-				new AntboxError(
-					"WorkflowAlreadyExists",
+				new BadRequestError(
 					`Node ${nodeUuid} already has a workflow instance`,
 				),
 			);
@@ -47,45 +46,37 @@ export class WorkflowService {
 		if (nodeOrErr.isLeft()) {
 			return left(nodeOrErr.value);
 		}
-		const node = nodeOrErr.right;
+		const node = nodeOrErr.value;
 
 		// Get workflow definition
-		const workflowDefOrErr = await this.#context.nodeService.get(authCtx, workflowDefinitionUuid);
+		const workflowDefOrErr = await this.getWorkflowDefinition(authCtx, workflowDefinitionUuid);
 		if (workflowDefOrErr.isLeft()) {
 			return left(workflowDefOrErr.value);
 		}
 
-		// Verify it's a workflow node and create instance
-		let workflowDef: WorkflowNode;
-		try {
-			workflowDef = new WorkflowNode(workflowDefOrErr.right.metadata);
-		} catch (error) {
-			return left(
-				new AntboxError(
-					"InvalidWorkflowDefinition",
-					`Node ${workflowDefinitionUuid} is not a valid workflow definition: ${
-						(error as Error).message
-					}`,
-				),
-			);
+		// Check if node is locked
+		if (node.locked) {
+			return left(new BadRequestError(`The node ${node.uuid} is locked`));
 		}
 
 		// Check if node matches workflow filters
-		if (workflowDef.filters && workflowDef.filters.length > 0) {
-			const matchResult = NodesFilters.satisfiedBy(workflowDef.filters, node);
-			if (matchResult.isLeft()) {
-				return left(
-					new AntboxError(
-						"NodeNotEligibleForWorkflow",
-						`Node ${nodeUuid} does not match the workflow definition filters`,
-					),
-				);
-			}
+		const result = NodesFilters.satisfiedBy(workflowDefOrErr.value.filters, node);
+		if (result.isLeft()) {
+			return left(new BadRequestError(result.value.message));
 		}
 
-		// Get initial state
-		const initialState = workflowDef.states.find((s) => s.isInitial === true);
-		if (!initialState) {
+		// Create workflow instance
+		const workflowInstance: WorkflowInstance = {
+			uuid: UuidGenerator.generate(),
+			nodeUuid,
+			workflowDefinitionUuid,
+			currentStateName: workflowDefOrErr.value.states.find((s) => s.isInitial)!.name,
+			running: true,
+			history: [],
+		};
+
+		// Guard for initial state
+		if (!workflowInstance.currentStateName) {
 			return left(
 				new AntboxError(
 					"NoInitialState",
@@ -105,24 +96,19 @@ export class WorkflowService {
 			return left(lockOrErr.value);
 		}
 
-		// Create workflow instance
-		const instance: WorkflowInstance = {
-			uuid: UuidGenerator.generate(),
-			workflowDefinitionUuid,
-			nodeUuid,
-			currentStateName: initialState.name,
-			history: [],
-		};
-
 		// Save instance
-		const saveOrErr = await this.#context.workflowInstanceRepository.add(instance);
+		const saveOrErr = await this.#context.workflowInstanceRepository.add(workflowInstance);
 		if (saveOrErr.isLeft()) {
 			// Rollback lock
 			await this.#context.nodeService.unlock(authCtx, nodeUuid);
 			return left(saveOrErr.value);
 		}
 
-		return right(instance);
+		await this.#context.nodeService.update(authCtx, nodeUuid, {
+			workflowInstanceUuid: workflowInstance.uuid,
+			workflowState: workflowInstance.currentStateName,
+		});
+		return right(workflowInstance);
 	}
 
 	async transition(
@@ -136,29 +122,24 @@ export class WorkflowService {
 		if (instanceOrErr.isLeft()) {
 			return left(instanceOrErr.value);
 		}
-
-		const instance = instanceOrErr.right;
+		const instance = instanceOrErr.value;
 
 		// Get workflow definition
-		const workflowDefOrErr = await this.#context.nodeService.get(
+		const workflowDefOrErr = await this.getWorkflowDefinition(
 			authCtx,
 			instance.workflowDefinitionUuid,
 		);
 		if (workflowDefOrErr.isLeft()) {
 			return left(workflowDefOrErr.value);
 		}
+		const workflowDef = workflowDefOrErr.value;
 
-		let workflowDef: WorkflowNode;
-		try {
-			workflowDef = new WorkflowNode(workflowDefOrErr.right.metadata);
-		} catch (error) {
-			return left(
-				new AntboxError(
-					"InvalidWorkflowDefinition",
-					`Workflow definition is invalid: ${(error as Error).message}`,
-				),
-			);
+		// Get the node that will be attached to the workflow
+		const nodeOrErr = await this.#context.nodeService.get(authCtx, nodeUuid);
+		if (nodeOrErr.isLeft()) {
+			return left(nodeOrErr.value);
 		}
+		const node = nodeOrErr.value;
 
 		// Find current state
 		const currentState = workflowDef.states.find((s) => s.name === instance.currentStateName);
@@ -182,6 +163,20 @@ export class WorkflowService {
 			);
 		}
 
+		// Check if nodes can transition to new state
+		const nodeSatisfies = NodesFilters.satisfiedBy(transition.filters ?? [], node);
+		if (nodeSatisfies.isLeft()) {
+			return left(new BadRequestError(nodeSatisfies.value.message));
+		}
+
+		// Check if the user can transition
+		if (
+			transition.groupsAllowed &&
+			transition.groupsAllowed.some((g) => authCtx.principal.groups.includes(g))
+		) {
+			return left(new ForbiddenError());
+		}
+
 		// Create history entry
 		const historyEntry: WorkflowTransitionHistory = {
 			from: instance.currentStateName,
@@ -195,7 +190,8 @@ export class WorkflowService {
 		// Update instance
 		instance.currentStateName = transition.targetState;
 		instance.history = [...(instance.history || []), historyEntry];
-
+		instance.running = !workflowDef.states.find((s) => s.name === transition.targetState)
+			?.isFinal;
 		// Save updated instance
 		const updateOrErr = await this.#context.workflowInstanceRepository.update(instance);
 		if (updateOrErr.isLeft()) {
@@ -203,10 +199,18 @@ export class WorkflowService {
 		}
 
 		// Check if we reached a final state
-		const newState = workflowDef.states.find((s) => s.name === transition.targetState);
-		if (newState?.isFinal) {
+
+		if (!instance.running) {
 			// Unlock the node
 			await this.#context.nodeService.unlock(authCtx, nodeUuid);
+			await this.#context.nodeService.update(authCtx, nodeUuid, {
+				workflowState: null as unknown as string,
+				workflowInstanceUuid: null as unknown as string,
+			});
+		} else {
+			await this.#context.nodeService.update(authCtx, nodeUuid, {
+				workflowState: instance.currentStateName,
+			});
 		}
 
 		return right(instance);
@@ -227,23 +231,16 @@ export class WorkflowService {
 
 	async findActiveInstances(
 		authCtx: AuthenticationContext,
-		workflowDefinitionUuid?: string,
 	): Promise<Either<AntboxError, WorkflowInstance[]>> {
 		// Get all instances for the workflow definition (or all if not specified)
-		let instancesOrErr;
-		if (workflowDefinitionUuid) {
-			instancesOrErr = await this.#context.workflowInstanceRepository.findByWorkflowDefinition(
-				workflowDefinitionUuid,
-			);
-		} else {
-			instancesOrErr = await this.#context.workflowInstanceRepository.findActive();
-		}
+
+		const instancesOrErr = await this.#context.workflowInstanceRepository.findActive();
 
 		if (instancesOrErr.isLeft()) {
 			return left(instancesOrErr.value);
 		}
 
-		const instances = instancesOrErr.right;
+		const instances = instancesOrErr.value;
 
 		// Check if user is admin
 		const isAdmin = authCtx.principal.groups.includes("--admins--");

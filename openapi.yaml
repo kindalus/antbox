@@ -658,7 +658,7 @@ paths:
                 $ref: "#/components/schemas/NodeLike"
         default:
           $ref: "#/components/responses/Error"
-    put:
+    patch:
       tags:
         - groups
       summary: Update a group

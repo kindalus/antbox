@@ -29,6 +29,8 @@ export interface WorkflowInstance {
 	 * Full history is stored in WorkflowTransitionHistoryRepository.
 	 */
 	history?: WorkflowTransitionHistory[];
+
+	running: boolean;
 }
 
 /**

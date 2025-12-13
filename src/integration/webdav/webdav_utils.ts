@@ -29,9 +29,11 @@ export async function resolvePath(
 	// Try cache first if tenant name provided
 	if (tenantName) {
 		const cached = webdavPathCache.get(tenantName, authContext.principal.email, normalizedPath);
+
 		if (cached) {
 			// Verify user still has access (security check)
 			const verifyResult = await service.get(authContext, cached.uuid);
+
 			if (verifyResult.isRight()) {
 				return right(cached);
 			}
@@ -61,6 +63,7 @@ export async function resolvePath(
 		"==",
 		targetTitle,
 	]]);
+
 	if (findResultOrErr.isLeft()) {
 		return left(findResultOrErr.value);
 	}

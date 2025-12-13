@@ -38,7 +38,7 @@ export default function (tenants: AntboxTenant[]): Router {
 		const handler = handlers[ctx.request.method as keyof typeof handlers];
 
 		if (handler) {
-			return handler(ctx);
+			return await handler(ctx);
 		}
 
 		ctx.response.status = 405;

@@ -13,6 +13,7 @@ import templatesRouter from "adapters/oak/templates_v2_router.ts";
 import docsRouter from "adapters/oak/docs_v2_router.ts";
 import aiModelRouter from "adapters/oak/ai_models_v2_router.ts";
 import workflowsRouter from "adapters/oak/workflows_v2_router.ts";
+import cmisRouter from "adapters/oak/cmis_router.ts";
 
 import type { AntboxTenant } from "api/antbox_tenant.ts";
 import { Application, Router } from "@oak/oak";
@@ -39,6 +40,7 @@ export default function setupOakServer(
 	const login = loginRouter(tenants);
 	const aiModels = aiModelRouter(tenants);
 	const workflows = workflowsRouter(tenants);
+	const cmis = cmisRouter(tenants);
 
 	const v2 = new Router({ prefix: "/v2" });
 
@@ -58,6 +60,7 @@ export default function setupOakServer(
 	v2.use(workflows.routes(), workflows.allowedMethods());
 
 	app.use(v2.routes(), v2.allowedMethods());
+	app.use(cmis.routes(), cmis.allowedMethods());
 	app.use(webdav.routes(), webdav.allowedMethods());
 
 	return (options: HttpServerOpts = { port: 7180 }) => {

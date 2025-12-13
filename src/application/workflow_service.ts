@@ -177,6 +177,31 @@ export class WorkflowService {
 			return left(new ForbiddenError());
 		}
 
+		// Find target state
+		const targetState = workflowDef.states.find((s) => s.name === transition.targetState);
+		if (!targetState) {
+			return left(
+				new AntboxError(
+					"InvalidState",
+					`Target state ${transition.targetState} not found in workflow definition`,
+				),
+			);
+		}
+
+		// Execute actions in order: onExit → transition actions → onEnter
+		const onExitActions = currentState.onExit ?? [];
+		const transitionActions = transition.actions ?? [];
+		const onEnterActions = targetState.onEnter ?? [];
+
+		const allActions = [...onExitActions, ...transitionActions, ...onEnterActions];
+
+		if (allActions.length > 0) {
+			const executeResult = await this.#executeActions(allActions, authCtx, nodeUuid);
+			if (executeResult.isLeft()) {
+				return left(executeResult.value);
+			}
+		}
+
 		// Create history entry
 		const historyEntry: WorkflowTransitionHistory = {
 			from: instance.currentStateName,
@@ -190,8 +215,8 @@ export class WorkflowService {
 		// Update instance
 		instance.currentStateName = transition.targetState;
 		instance.history = [...(instance.history || []), historyEntry];
-		instance.running = !workflowDef.states.find((s) => s.name === transition.targetState)
-			?.isFinal;
+		instance.running = !targetState.isFinal;
+
 		// Save updated instance
 		const updateOrErr = await this.#context.workflowInstanceRepository.update(instance);
 		if (updateOrErr.isLeft()) {
@@ -199,7 +224,6 @@ export class WorkflowService {
 		}
 
 		// Check if we reached a final state
-
 		if (!instance.running) {
 			// Unlock the node
 			await this.#context.nodeService.unlock(authCtx, nodeUuid);
@@ -303,6 +327,87 @@ export class WorkflowService {
 				authCtx.principal.groups.includes(allowedGroup)
 			);
 		});
+	}
+
+	/**
+	 * Parse action string in the format: "[action_uuid] [param]=[value]"
+	 * Example: "rename new_name='New Name'"
+	 *
+	 * @param actionString - The action string to parse
+	 * @returns Object with action UUID and parameters
+	 */
+	#parseAction(actionString: string): {
+		actionUuid: string;
+		params: Record<string, unknown>;
+	} {
+		const trimmed = actionString.trim();
+
+		// Split by first space to separate action UUID from parameters
+		const firstSpaceIndex = trimmed.indexOf(" ");
+
+		if (firstSpaceIndex === -1) {
+			// No parameters, just action UUID
+			return {
+				actionUuid: trimmed,
+				params: {},
+			};
+		}
+
+		const actionUuid = trimmed.substring(0, firstSpaceIndex);
+		const paramsString = trimmed.substring(firstSpaceIndex + 1).trim();
+
+		// Parse parameters: key=value key2='value with spaces'
+		const params: Record<string, unknown> = {};
+
+		// Match pattern: word=value or word='value' or word="value"
+		const paramRegex = /(\w+)=(?:'([^']*)'|"([^"]*)"|([^\s]+))/g;
+		let match;
+
+		while ((match = paramRegex.exec(paramsString)) !== null) {
+			const key = match[1];
+			// Use the first non-undefined capture group (quoted or unquoted value)
+			const value = match[2] ?? match[3] ?? match[4];
+			params[key] = value;
+		}
+
+		return { actionUuid, params };
+	}
+
+	/**
+	 * Execute a list of actions on a node
+	 *
+	 * @param actions - Array of action strings in format: "[action_uuid] [param]=[value]"
+	 * @param authCtx - Authentication context
+	 * @param nodeUuid - UUID of the node to execute actions on
+	 * @returns Either error or void
+	 */
+	async #executeActions(
+		actions: string[],
+		authCtx: AuthenticationContext,
+		nodeUuid: string,
+	): Promise<Either<AntboxError, void>> {
+		for (const actionString of actions) {
+			const { actionUuid, params } = this.#parseAction(actionString);
+
+			// Execute the action using FeatureService
+			const result = await this.#context.featureService.runAction(
+				authCtx,
+				actionUuid,
+				[nodeUuid],
+				params,
+			);
+
+			if (result.isLeft()) {
+				return left(
+					new AntboxError(
+						"ActionExecutionFailed",
+						`Failed to execute action "${actionString}": ${result.value.message}`,
+					),
+				);
+			}
+		}
+
+		return right(undefined);
 	}
 
 	// ============================================================================

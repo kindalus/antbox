@@ -141,6 +141,7 @@ async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
 	const workflowService = new WorkflowService({
 		nodeService,
 		workflowInstanceRepository: workflowInstanceRepository ?? new InmemWorkflowInstanceRepository(),
+		featureService,
 	});
 
 	// Build AI-related services AFTER NodeService and core services

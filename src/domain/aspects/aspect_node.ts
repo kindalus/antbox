@@ -91,7 +91,7 @@ export class AspectNode extends Node {
 		return this._filters;
 	}
 
-	override get metadata(): Partial<NodeMetadata> {
+	override get metadata(): NodeMetadata {
 		return {
 			...super.metadata,
 			properties: this._properties,

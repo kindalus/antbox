@@ -78,8 +78,8 @@ export class ParentFolderUpdateHandler
 
 	private async updateParentFolder(
 		parentUuid: string,
-		eventType: string,
-		context = "",
+		_eventType: string,
+		_context = "",
 	): Promise<void> {
 		// Don't update the root folder as it's a built-in folder
 		if (parentUuid === Folders.ROOT_FOLDER_UUID) {

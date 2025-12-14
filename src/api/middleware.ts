@@ -69,22 +69,6 @@ export const logMiddleware: HttpMiddleware = (next: HttpHandler) => async (req: 
 		const res = await next(req);
 		console.debug(`${req.method} ${req.url} ${res.status}`);
 
-		if (res.status >= 400 && res.status !== 404) {
-			const body = await res.text();
-
-			if (res?.statusText) console.error(`Status: ${res.statusText}`);
-			if (res?.body) console.error(`Reason: ${body}`);
-			console.error("----- Headers -----");
-			res.headers.forEach((v, k) => console.error(`${k}:\t${v}`));
-			console.error("-------------------");
-
-			return new Response(body, {
-				headers: res.headers,
-				status: res.status,
-				statusText: res.statusText,
-			});
-		}
-
 		return res;
 	} catch (error) {
 		console.error(error);

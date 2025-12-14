@@ -18,14 +18,14 @@ export function FileMixin<TBase extends Constructor>(Base: TBase) {
 			return this._size;
 		}
 
-		get metadata(): Partial<NodeMetadata> {
+		get metadata(): NodeMetadata {
 			return {
 				...super.metadata,
 				size: this._size,
 			};
 		}
 
-		update(metadata: Partial<NodeMetadata>): Either<ValidationError, void> {
+		update(metadata: NodeMetadata): Either<ValidationError, void> {
 			this._size = metadata.size ?? this._size;
 			return super.update(metadata);
 		}

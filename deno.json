@@ -22,7 +22,6 @@
     "@oak/oak": "jsr:@oak/oak@17.1.6",
     "commander": "npm:commander@14.0.1",
     "crypto": "node:crypto",
-    "h3": "npm:h3@1.15.4",
     "jose": "npm:jose@6.1.0",
     "jsdom": "npm:jsdom@27.0.0",
     "marked": "npm:marked@16.4.0",

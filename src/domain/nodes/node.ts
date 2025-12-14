@@ -36,7 +36,7 @@ export class Node {
 	protected _workflowInstanceUuid?: string;
 	protected _workflowState?: string;
 
-	constructor(metadata: Partial<NodeMetadata> = {}) {
+	constructor(metadata: Partial<NodeMetadata> = {} as NodeMetadata) {
 		this.uuid = metadata?.uuid ?? UuidGenerator.generate();
 		this._mimetype = metadata?.mimetype ?? "";
 		this._fid = metadata?.fid ?? "";
@@ -170,7 +170,7 @@ export class Node {
 		return this._unlockAuthorizedGroups;
 	}
 
-	get metadata(): Partial<NodeMetadata> {
+	get metadata(): NodeMetadata {
 		return {
 			uuid: this.uuid,
 			fid: this.fid,

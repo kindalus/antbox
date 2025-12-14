@@ -1,10 +1,10 @@
-import { type Node } from "domain/nodes/node.ts";
+import { NodeMetadata } from "domain/nodes/node_metadata.ts";
 
 /**
  * Cache entry with timestamp for TTL and LRU tracking
  */
 interface CacheEntry {
-	node: Node;
+	node: NodeMetadata;
 	timestamp: number;
 	lastAccess: number;
 	tenantName: string;
@@ -141,7 +141,7 @@ export class WebDAVPathCache {
 	 * @param path - Path to resolve (e.g., "/folder/file.txt")
 	 * @returns Cached node or undefined if not found/expired
 	 */
-	get(tenantName: string, userId: string, path: string): Node | undefined {
+	get(tenantName: string, userId: string, path: string): NodeMetadata | undefined {
 		const key = this.#makeKey(tenantName, userId, path);
 		const entry = this.#cache.get(key);
 
@@ -172,7 +172,7 @@ export class WebDAVPathCache {
 	 * @param path - Path to cache (e.g., "/folder/file.txt")
 	 * @param node - Node to cache
 	 */
-	set(tenantName: string, userId: string, path: string, node: Node): void {
+	set(tenantName: string, userId: string, path: string, node: NodeMetadata): void {
 		const key = this.#makeKey(tenantName, userId, path);
 
 		// Evict if cache is full

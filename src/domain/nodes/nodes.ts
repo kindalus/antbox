@@ -11,6 +11,7 @@ import { FeatureNode } from "domain/features/feature_node.ts";
 import { AgentNode } from "domain/ai/agent_node.ts";
 import { WorkflowNode } from "domain/workflows/workflow_node.ts";
 import { ARTICLE_ASPECT } from "application/builtin_aspects/index.ts";
+import { NodeMetadata } from "./node_metadata.ts";
 
 export class Nodes {
 	static FID_PREFIX = "--fid--";
@@ -49,65 +50,65 @@ export class Nodes {
 		return fid?.startsWith(Nodes.FID_PREFIX) ? fid.substring(Nodes.FID_PREFIX.length) : fid;
 	}
 
-	static isFolder(node: NodeLike): node is FolderNode {
+	static isFolder(node: NodeLike | NodeMetadata): node is FolderNode {
 		return node.mimetype === Nodes.FOLDER_MIMETYPE;
 	}
 
-	static isUser(node: NodeLike): node is UserNode {
+	static isUser(node: NodeLike | NodeMetadata): node is UserNode {
 		return node.mimetype === Nodes.USER_MIMETYPE;
 	}
 
-	static isApikey(node: NodeLike): node is ApiKeyNode {
+	static isApikey(node: NodeLike | NodeMetadata): node is ApiKeyNode {
 		return node.mimetype === Nodes.API_KEY_MIMETYPE;
 	}
 
-	static isSmartFolder(node: NodeLike): node is SmartFolderNode {
+	static isSmartFolder(node: NodeLike | NodeMetadata): node is SmartFolderNode {
 		return node.mimetype === Nodes.SMART_FOLDER_MIMETYPE;
 	}
-	static isFolderLike(node: NodeLike): node is FolderNode | SmartFolderNode {
+	static isFolderLike(node: NodeLike | NodeMetadata): node is FolderNode | SmartFolderNode {
 		return Nodes.isFolder(node) || Nodes.isSmartFolder(node);
 	}
 
-	static isAspect(node: NodeLike): node is AspectNode {
+	static isAspect(node: NodeLike | NodeMetadata): node is AspectNode {
 		return node.mimetype === Nodes.ASPECT_MIMETYPE;
 	}
 
-	static isMetaNode(node: NodeLike): node is MetaNode {
+	static isMetaNode(node: NodeLike | NodeMetadata): node is MetaNode {
 		return node.mimetype === Nodes.META_NODE_MIMETYPE;
 	}
 
-	static isFeature(node: NodeLike): node is FeatureNode {
+	static isFeature(node: NodeLike | NodeMetadata): node is FeatureNode {
 		return node.mimetype === Nodes.FEATURE_MIMETYPE;
 	}
 
-	static isAction(node: NodeLike): node is FeatureNode {
+	static isAction(node: NodeLike | NodeMetadata): node is FeatureNode {
 		return node.mimetype === Nodes.FEATURE_MIMETYPE &&
 			(node as FeatureNode).exposeAction;
 	}
 
-	static isExt(node: NodeLike): node is FeatureNode {
+	static isExt(node: NodeLike | NodeMetadata): node is FeatureNode {
 		return node.mimetype === Nodes.FEATURE_MIMETYPE &&
 			(node as FeatureNode).exposeExtension;
 	}
 
-	static isAITool(node: NodeLike): node is FeatureNode {
+	static isAITool(node: NodeLike | NodeMetadata): node is FeatureNode {
 		return node.mimetype === Nodes.FEATURE_MIMETYPE &&
 			(node as FeatureNode).exposeAITool;
 	}
 
-	static isAgent(node: NodeLike): node is AgentNode {
+	static isAgent(node: NodeLike | NodeMetadata): node is AgentNode {
 		return node.mimetype === Nodes.AGENT_MIMETYPE;
 	}
 
-	static isWorkflow(node: NodeLike): node is WorkflowNode {
+	static isWorkflow(node: NodeLike | NodeMetadata): node is WorkflowNode {
 		return node.mimetype === Nodes.WORKFLOW_MIMETYPE;
 	}
 
-	static isGroup(node: NodeLike): node is GroupNode {
+	static isGroup(node: NodeLike | NodeMetadata): node is GroupNode {
 		return node.mimetype === Nodes.GROUP_MIMETYPE;
 	}
 
-	static isArticle(node: NodeLike): node is FileNode {
+	static isArticle(node: NodeLike | NodeMetadata): node is FileNode {
 		return Nodes.hasAspects(node) && node.aspects?.includes(ARTICLE_ASPECT.uuid);
 	}
 
@@ -118,16 +119,16 @@ export class Nodes {
 		);
 	}
 
-	static isFile(node: NodeLike): node is FileNode {
+	static isFile(node: NodeLike | NodeMetadata): node is FileNode {
 		return !node.mimetype.startsWith("application/vnd.antbox");
 	}
 
-	static hasAspects(node: NodeLike): node is FileNode | FolderNode | MetaNode {
+	static hasAspects(node: NodeLike | NodeMetadata): node is FileNode | FolderNode | MetaNode {
 		return Nodes.isMetaNode(node) || Nodes.isFile(node) || Nodes.isFolder(node);
 	}
 
 	static isFileLike(
-		node: NodeLike,
+		node: NodeLike | NodeMetadata,
 	): node is FileNode | FeatureNode {
 		return (
 			Nodes.isFile(node) ||
@@ -138,15 +139,15 @@ export class Nodes {
 		);
 	}
 
-	static isTextPlain(node: NodeLike) {
+	static isTextPlain(node: NodeLike | NodeMetadata) {
 		return node.mimetype === "text/plain";
 	}
 
-	static isHtml(node: NodeLike) {
+	static isHtml(node: NodeLike | NodeMetadata) {
 		return node.mimetype === "text/html";
 	}
 
-	static isMarkdown(node: NodeLike) {
+	static isMarkdown(node: NodeLike | NodeMetadata) {
 		return node.mimetype === "text/markdown";
 	}
 }

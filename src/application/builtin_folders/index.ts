@@ -127,7 +127,7 @@ function createSystemFolderMetadata(
 	fid: string,
 	title: string,
 	parent: string,
-): Partial<NodeMetadata> {
+): NodeMetadata {
 	const filters: NodeFilter[] = [];
 
 	switch (uuid) {

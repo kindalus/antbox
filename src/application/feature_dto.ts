@@ -1,6 +1,7 @@
 import { NodeFilters } from "domain/nodes/node_filter.ts";
 import { FeatureNode, FeatureParameter } from "domain/features/feature_node.ts";
 import { Feature } from "domain/features/feature.ts";
+import { NodeMetadata } from "domain/nodes/node_metadata.ts";
 
 export interface FeatureDTO {
 	uuid: string;
@@ -33,10 +34,12 @@ export interface FeatureDTO {
 	returnContentType?: string;
 }
 
-export function toFeatureDTO(node: FeatureNode | Feature): FeatureDTO {
+export function toFeatureDTO(node: FeatureNode | Feature | NodeMetadata): FeatureDTO {
+	const name = Object.hasOwn(node, "name") ? (node as Feature).name : (node as NodeMetadata).title;
+
 	return {
 		uuid: node.uuid,
-		name: node.name,
+		name,
 		description: node.description || "",
 		exposeAction: node.exposeAction || false,
 		runOnCreates: node.runOnCreates || false,
@@ -49,7 +52,7 @@ export function toFeatureDTO(node: FeatureNode | Feature): FeatureDTO {
 		runAs: node.runAs,
 		groupsAllowed: node.groupsAllowed || [],
 		parameters: node.parameters || [],
-		returnType: node.returnType,
+		returnType: node.returnType!,
 		returnDescription: node.returnDescription,
 		returnContentType: node.returnContentType,
 		tags: node.tags,

@@ -11,7 +11,6 @@ import { Folders } from "../nodes/folders.ts";
 import { toPropertyError } from "../validation_schemas.ts";
 
 const FeatureNodeValidationSchema = z.object({
-	name: z.string().min(1, "Node.title is required"),
 	mimetype: z.literal(
 		Nodes.FEATURE_MIMETYPE,
 		"FeatureNode.mimetype must be feature",
@@ -38,7 +37,6 @@ export interface FeatureParameter {
 }
 
 export class FeatureNode extends FileMixin(Node) {
-	readonly name: string;
 	readonly parameters: FeatureParameter[];
 
 	readonly returnType:
@@ -74,7 +72,6 @@ export class FeatureNode extends FileMixin(Node) {
 			parent: Folders.FEATURES_FOLDER_UUID,
 		});
 
-		this.name = metadata.name || metadata.title!;
 		this.parameters = metadata.parameters ?? [];
 		this.filters = metadata.filters ?? [] as NodeFilters;
 		this.returnType = metadata.returnType ?? "void";
@@ -113,12 +110,11 @@ export class FeatureNode extends FileMixin(Node) {
 		return right(undefined);
 	}
 
-	override get metadata(): Partial<NodeMetadata> {
+	override get metadata(): NodeMetadata {
 		return {
 			...super.metadata,
 			mimetype: Nodes.FEATURE_MIMETYPE,
 			parent: Folders.FEATURES_FOLDER_UUID,
-			name: this.name,
 			exposeAction: this.exposeAction,
 			runOnCreates: this.runOnCreates,
 			runOnUpdates: this.runOnUpdates,
@@ -139,10 +135,10 @@ export class FeatureNode extends FileMixin(Node) {
 	static create(
 		metadata: Partial<NodeMetadata>,
 	): Either<ValidationError, FeatureNode> {
-		if (!metadata.name && !metadata.title) {
+		if (!metadata.title) {
 			return left(
 				ValidationError.from(
-					new AntboxError("ValidationError", "Name or title is required"),
+					new AntboxError("ValidationError", "Title is required"),
 				),
 			);
 		}

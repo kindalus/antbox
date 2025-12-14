@@ -13,16 +13,8 @@ import { ValidationError } from "shared/validation_error.ts";
 import type { AuthenticationContext } from "./authentication_context.ts";
 import { ADMINS_GROUP, builtinGroups } from "./builtin_groups/index.ts";
 import { ANONYMOUS_USER, builtinUsers, ROOT_USER } from "./builtin_users/index.ts";
-import {
-	type GroupDTO,
-	groupToNode,
-	nodeToGroup,
-	nodeToUser,
-	type UserDTO,
-	userToNode,
-} from "./users_groups_dto.ts";
+import { type GroupDTO, nodeToGroup, nodeToUser, type UserDTO } from "./users_groups_dto.ts";
 
-import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import type { NodeService } from "./node_service.ts";
 import type { NodeLike } from "domain/node_like.ts";
 

@@ -60,7 +60,7 @@ export class SmartFolderNode extends Node {
 		}
 	}
 
-	override get metadata(): Partial<NodeMetadata> {
+	override get metadata(): NodeMetadata {
 		return {
 			...super.metadata,
 			filters: this._filters,

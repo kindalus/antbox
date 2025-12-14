@@ -55,7 +55,7 @@ export class UserNode extends Node {
 		this._validateUserNode();
 	}
 
-	override get metadata(): Partial<NodeMetadata> {
+	override get metadata(): NodeMetadata {
 		return {
 			...super.metadata,
 			email: this._email,

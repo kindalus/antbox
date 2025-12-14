@@ -29,7 +29,7 @@ export class ApiKeyNode extends Node {
 		}
 	}
 
-	private constructor(metadata: Partial<NodeMetadata>) {
+	private constructor(metadata: NodeMetadata) {
 		super({
 			...metadata,
 			mimetype: Nodes.API_KEY_MIMETYPE,
@@ -69,7 +69,7 @@ export class ApiKeyNode extends Node {
 		return right(undefined);
 	}
 
-	override get metadata(): Partial<NodeMetadata> {
+	override get metadata(): NodeMetadata {
 		return {
 			...super.metadata,
 			group: this._group,

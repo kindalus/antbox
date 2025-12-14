@@ -10,38 +10,37 @@ export interface NodeMetadata {
 	uuid: string;
 	fid: string;
 	title: string;
-	name: string;
-	description: string;
+	description?: string;
 	mimetype: string;
-	size: number;
+	size?: number;
 	parent: string;
 	createdTime: string;
 	modifiedTime: string;
 	owner: string;
-	aspects: string[];
-	tags: string[];
-	related: string[];
-	properties: NodeProperties | AspectProperties;
+	aspects?: string[];
+	tags?: string[];
+	related?: string[];
+	properties?: NodeProperties | AspectProperties;
 	fulltext: string;
 
-	filters: NodeFilters;
+	filters?: NodeFilters;
 
-	group: string;
-	groups: string[];
-	email: string;
-	phone: string;
-	hasWhatsapp: boolean;
-	secret: string;
+	group?: string;
+	groups?: string[];
+	email?: string;
+	phone?: string;
+	hasWhatsapp?: boolean;
+	secret?: string;
 
-	onCreate: string[];
-	onUpdate: string[];
-	onDelete: string[];
-	permissions: Permissions;
+	onCreate?: string[];
+	onUpdate?: string[];
+	onDelete?: string[];
+	permissions?: Permissions;
 
-	runManually: boolean;
+	runManually?: boolean;
 	runAs?: string;
-	parameters: FeatureParameter[];
-	returnType:
+	parameters?: FeatureParameter[];
+	returnType?:
 		| "string"
 		| "number"
 		| "boolean"
@@ -49,36 +48,36 @@ export interface NodeMetadata {
 		| "object"
 		| "file"
 		| "void";
-	returnDescription: string;
-	returnContentType: string;
+	returnDescription?: string;
+	returnContentType?: string;
 
-	groupsAllowed: string[];
+	groupsAllowed?: string[];
 
-	runOnCreates: boolean;
-	runOnUpdates: boolean;
-	runOnDeletes: boolean;
+	runOnCreates?: boolean;
+	runOnUpdates?: boolean;
+	runOnDeletes?: boolean;
 
-	exposeAction: boolean;
-	exposeExtension: boolean;
-	exposeAITool: boolean;
+	exposeAction?: boolean;
+	exposeExtension?: boolean;
+	exposeAITool?: boolean;
 
 	// Agent properties
-	model: string;
-	temperature: number;
-	maxTokens: number;
-	reasoning: boolean;
-	useTools: boolean;
-	systemInstructions: string;
+	model?: string;
+	temperature?: number;
+	maxTokens?: number;
+	reasoning?: boolean;
+	useTools?: boolean;
+	systemInstructions?: string;
 	structuredAnswer?: string;
 
 	// Workflow properties
-	states: WorkflowState[];
-	availableStateNames: string[];
+	states?: WorkflowState[];
+	availableStateNames?: string[];
 
 	// Lock properties
-	locked: boolean;
-	lockedBy: string;
-	unlockAuthorizedGroups: string[];
+	locked?: boolean;
+	lockedBy?: string;
+	unlockAuthorizedGroups?: string[];
 
 	// Workflow related properties
 	workflowInstanceUuid?: string;

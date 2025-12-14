@@ -159,7 +159,7 @@ class PouchdbNodeRepository implements NodeRepository {
 			uuid: _id,
 			filters: xfilters,
 			...rest,
-		} as Partial<NodeMetadata>;
+		} as NodeMetadata;
 		const node = NodeFactory.from(metadata);
 
 		if (node.isLeft()) {

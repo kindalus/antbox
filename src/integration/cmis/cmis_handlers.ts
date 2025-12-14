@@ -155,7 +155,7 @@ async function handleGetDescendants(
 	const depth = depthParam ? Number(depthParam) : -1; // -1 for all
 	const succinct = url.searchParams.get("succinct") === "true";
 
-	const collected: Partial<NodeMetadata>[] = [];
+	const collected: NodeMetadata[] = [];
 	const walk = async (parentId: string, currentDepth: number) => {
 		if (depth !== -1 && currentDepth > depth) return;
 		const childrenOrErr = await tenant.nodeService.list(authContext, parentId);
@@ -190,7 +190,10 @@ async function handleGetFolderTree(
 	const depth = depthParam ? Number(depthParam) : -1;
 	const succinct = url.searchParams.get("succinct") === "true";
 
-	const buildTree = async (folderId: string, currentDepth: number): Promise<Record<string, unknown>> => {
+	const buildTree = async (
+		folderId: string,
+		currentDepth: number,
+	): Promise<Record<string, unknown>> => {
 		const nodeOrErr = await tenant.nodeService.get(authContext, folderId);
 		if (nodeOrErr.isLeft()) {
 			throw nodeOrErr.value;
@@ -253,7 +256,9 @@ async function handleGetFolderParent(
 		return processError(parentOrErr.value);
 	}
 
-	return jsonResponse({ object: toCmisObject(parentOrErr.value as unknown as NodeLike, succinct) });
+	return jsonResponse({
+		object: toCmisObject(parentOrErr.value as unknown as NodeLike, succinct),
+	});
 }
 
 async function handleGetObject(
@@ -296,7 +301,9 @@ async function handleQuery(
 		return processError(resultOrErr.value);
 	}
 
-	const nodes = resultOrErr.value.nodes.map((node) => toCmisObject(node as unknown as NodeLike, false));
+	const nodes = resultOrErr.value.nodes.map((node) =>
+		toCmisObject(node as unknown as NodeLike, false)
+	);
 	return jsonResponse({
 		numItems: resultOrErr.value.total,
 		hasMoreItems: resultOrErr.value.hasMore,
@@ -350,7 +357,7 @@ async function handleCreateDocument(
 	const title = (properties["cmis:name"] as string) ?? content.name;
 	const mimetype = (properties["cmis:contentStreamMimeType"] as string) ?? content.type;
 
-	const metadata: Partial<NodeMetadata> = {
+	const metadata: NodeMetadata = {
 		title,
 		mimetype,
 		parent: parentId,
@@ -420,7 +427,7 @@ async function handleCreateFolder(
 		return jsonResponse({ error: "cmis:name property is required" }, 400);
 	}
 
-	const metadata: Partial<NodeMetadata> = {
+	const metadata: NodeMetadata = {
 		title,
 		mimetype: Nodes.FOLDER_MIMETYPE,
 		parent: parentId,
@@ -449,7 +456,7 @@ async function handleMoveObject(
 		return jsonResponse({ error: "objectId and targetFolderId are required" }, 400);
 	}
 
-	const update: Partial<NodeMetadata> = { parent: targetFolderId };
+	const update: NodeMetadata = { parent: targetFolderId };
 	if (newName) update.title = newName;
 
 	const moveOrErr = await tenant.nodeService.update(authContext, objectId, update);
@@ -485,7 +492,9 @@ async function handleCopyObject(
 	}
 
 	if (newName) {
-		const updateOrErr = await tenant.nodeService.update(authContext, copyOrErr.value.uuid, { title: newName });
+		const updateOrErr = await tenant.nodeService.update(authContext, copyOrErr.value.uuid, {
+			title: newName,
+		});
 		if (updateOrErr.isLeft()) {
 			return processError(updateOrErr.value);
 		}
@@ -565,7 +574,10 @@ async function handleCheckOut(
 		return processError(nodeOrErr.value);
 	}
 
-	return jsonResponse({ objectId, object: toCmisObject(nodeOrErr.value as unknown as NodeLike, false) });
+	return jsonResponse({
+		objectId,
+		object: toCmisObject(nodeOrErr.value as unknown as NodeLike, false),
+	});
 }
 
 async function handleCheckIn(
@@ -650,7 +662,12 @@ async function handleGetACL(
 	}
 
 	const node = nodeOrErr.value as NodeLike & {
-		permissions?: { group?: Permission[]; authenticated?: Permission[]; anonymous?: Permission[]; advanced?: Record<string, Permission[]>; };
+		permissions?: {
+			group?: Permission[];
+			authenticated?: Permission[];
+			anonymous?: Permission[];
+			advanced?: Record<string, Permission[]>;
+		};
 		group?: string;
 	};
 
@@ -776,7 +793,9 @@ function toCmisObject(node: NodeLike, succinct: boolean) {
 	const baseProperties = {
 		"cmis:objectId": node.uuid,
 		"cmis:baseTypeId": node.mimetype === Nodes.FOLDER_MIMETYPE ? "cmis:folder" : "cmis:document",
-		"cmis:objectTypeId": node.mimetype === Nodes.FOLDER_MIMETYPE ? "cmis:folder" : "cmis:document",
+		"cmis:objectTypeId": node.mimetype === Nodes.FOLDER_MIMETYPE
+			? "cmis:folder"
+			: "cmis:document",
 		"cmis:name": node.title,
 		"cmis:createdBy": node.owner,
 		"cmis:creationDate": node.createdTime,

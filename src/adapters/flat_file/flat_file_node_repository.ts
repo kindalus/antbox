@@ -50,20 +50,21 @@ class FlatFileNodeRepository implements NodeRepository {
 		this.#encoder = new TextEncoder();
 
 		this.#base = new InMemoryNodeRepository(
-			data.reduce((acc, m) => {
-				acc[m.uuid] = NodeFactory.from(m).right;
-				return acc;
-			}, {} as Record<string, NodeLike>),
+			data.filter((d) => d)
+				.reduce((acc, m) => {
+					acc[m.uuid] = NodeFactory.from(m).right;
+					return acc;
+				}, {} as Record<string, NodeLike>),
 		);
 	}
 
-	#dataAsArray(): Partial<NodeMetadata>[] {
+	#dataAsArray(): NodeMetadata[] {
 		return Object.values(this.#base.data).map((m) => m.metadata);
 	}
 
 	#saveDb(path?: string) {
 		const rows = this.#dataAsArray();
-		const rawData = this.#encoder.encode(JSON.stringify(rows));
+		const rawData = this.#encoder.encode(JSON.stringify(rows, null, 2));
 		Deno.writeFileSync(path || this.#dbFilePath, rawData);
 	}
 

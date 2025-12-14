@@ -43,7 +43,7 @@ export function FolderMixin<TBase extends Constructor>(Base: TBase) {
 		constructor(...args: any[]) {
 			super({ ...args[0], mimetype: Nodes.FOLDER_MIMETYPE });
 
-			const metadata = args[0] as Partial<NodeMetadata>;
+			const metadata = args[0] as NodeMetadata;
 
 			this._onCreate = metadata.onCreate ?? [];
 			this._onUpdate = metadata.onUpdate ?? [];
@@ -86,7 +86,7 @@ export function FolderMixin<TBase extends Constructor>(Base: TBase) {
 			return this._onDelete;
 		}
 
-		update(metadata: Partial<NodeMetadata>): Either<ValidationError, void> {
+		update(metadata: NodeMetadata): Either<ValidationError, void> {
 			this._onCreate = metadata.onCreate ?? this._onCreate;
 			this._onUpdate = metadata.onUpdate ?? this._onUpdate;
 			this._onDelete = metadata.onDelete ?? this._onDelete;
@@ -106,7 +106,7 @@ export function FolderMixin<TBase extends Constructor>(Base: TBase) {
 			}
 		}
 
-		get metadata(): Partial<NodeMetadata> {
+		get metadata(): NodeMetadata {
 			return {
 				...super.metadata,
 				onCreate: this._onCreate,

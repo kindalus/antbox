@@ -13,7 +13,7 @@ import { Folders } from "domain/nodes/folders.ts";
 import { AIModel } from "application/ai_model.ts";
 import { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
-import { AgentDTO, toAgentDTO } from "application/agent_dto.ts";
+import { AgentDTO, fromAgentDTO, toAgentDTO } from "application/agent_dto.ts";
 import { modelFrom } from "adapters/model_configuration_parser.ts";
 import { BUILTIN_AGENT_TOOLS } from "./builtin_features/agent_tools.ts";
 import { builtinAgents } from "./builtin_agents/index.ts";
@@ -116,12 +116,12 @@ export class AgentService {
 			const existingAgent = await this.get(authContext, metadata.uuid);
 			if (existingAgent.isRight()) {
 				// Agent exists, update it
-				return this.#update(authContext, metadata.uuid, metadata);
+				return this.#update(authContext, metadata.uuid, fromAgentDTO(metadata).metadata);
 			}
 		}
 
 		// Agent doesn't exist or no UUID provided, create new one
-		return this.#create(authContext, metadata);
+		return this.#create(authContext, fromAgentDTO(metadata).metadata);
 	}
 
 	/**
@@ -129,7 +129,7 @@ export class AgentService {
 	 */
 	async #create(
 		authContext: AuthenticationContext,
-		metadata: Partial<NodeMetadata>,
+		metadata: NodeMetadata,
 	): Promise<Either<AntboxError, AgentDTO>> {
 		try {
 			// Set defaults for agent properties if not provided
@@ -200,7 +200,7 @@ export class AgentService {
 	async #update(
 		authContext: AuthenticationContext,
 		uuid: string,
-		metadata: Partial<NodeMetadata>,
+		metadata: NodeMetadata,
 	): Promise<Either<AntboxError, AgentDTO>> {
 		// First get the existing agent
 		const getResult = await this.get(authContext, uuid);

@@ -33,7 +33,7 @@ export class ArticleService {
 		ctx: AuthenticationContext,
 		file: File,
 		metadata: { uuid: string; title: string; description?: string; parent: string },
-	): Promise<Either<AntboxError, Partial<NodeMetadata>>> {
+	): Promise<Either<AntboxError, NodeMetadata>> {
 		if (!["text/html", "text/plain", "text/markdown"].includes(file.type)) {
 			return left(new BadRequestError(`Invalid file mimetype: : ${file.type}`));
 		}
@@ -156,7 +156,7 @@ export class ArticleService {
 		return this.nodeService.delete(ctx, uuid);
 	}
 
-	async list(ctx: AuthenticationContext): Promise<Partial<NodeMetadata>[]> {
+	async list(ctx: AuthenticationContext): Promise<NodeMetadata[]> {
 		const nodesOrErrs = await this.nodeService.find(
 			ctx,
 			[
@@ -170,7 +170,7 @@ export class ArticleService {
 			return [];
 		}
 
-		return nodesOrErrs.value.nodes.map(n => n.metadata);
+		return nodesOrErrs.value.nodes.map((n) => n.metadata);
 	}
 
 	async #markdownToHtml(value: string): Promise<string> {
@@ -215,7 +215,7 @@ export class ArticleService {
 		ctx: AuthenticationContext,
 		file: File,
 		metadata: { uuid: string; title: string; description?: string; parent: string },
-	): Promise<Either<AntboxError, Partial<NodeMetadata>>> {
+	): Promise<Either<AntboxError, NodeMetadata>> {
 		const nodeOrErr = await this.nodeService.get(ctx, metadata.uuid);
 		if (nodeOrErr.isLeft()) {
 			return left(nodeOrErr.value);

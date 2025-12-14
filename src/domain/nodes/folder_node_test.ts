@@ -72,7 +72,7 @@ describe("FolderNode", () => {
 			];
 
 			metadatas.forEach((metadata) => {
-				const result = FolderNode.create(metadata as Partial<NodeMetadata>);
+				const result = FolderNode.create(metadata as NodeMetadata);
 				expect(result.isLeft()).toBe(true);
 				expect(result.value).toBeInstanceOf(ValidationError);
 			});

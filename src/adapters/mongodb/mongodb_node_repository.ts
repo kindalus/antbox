@@ -10,7 +10,7 @@ import { AntboxError, UnknownError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
 import { isNodeFilters2D, type NodeFilter } from "domain/nodes/node_filter.ts";
 
-type NodeDbModel = Partial<NodeMetadata> & { _id: ObjectId };
+type NodeDbModel = NodeMetadata & { _id: ObjectId };
 
 export default function buildMongodbNodeRepository(
 	url: string,

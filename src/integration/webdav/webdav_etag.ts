@@ -1,12 +1,12 @@
-import type { NodeLike } from "domain/node_like.ts";
+import { NodeMetadata } from "domain/nodes/node_metadata.ts";
 
 /**
  * Generates an ETag for a node in the format: uuid-yyyymmddHHmmss
  * @param node The node to generate ETag for
  * @returns ETag string
  */
-export function generateETag(node: NodeLike): string {
-	const modifiedDate = new Date(node.modifiedTime);
+export function generateETag(node: NodeMetadata): string {
+	const modifiedDate = new Date(node.modifiedTime!);
 
 	// Format date as yyyymmddHHmmss
 	const year = modifiedDate.getUTCFullYear();
@@ -26,6 +26,6 @@ export function generateETag(node: NodeLike): string {
  * @param node The node to generate ETag for
  * @returns ETag header value with quotes
  */
-export function createETagHeader(node: NodeLike): string {
+export function createETagHeader(node: NodeMetadata): string {
 	return `"${generateETag(node)}"`;
 }

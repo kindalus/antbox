@@ -4,6 +4,7 @@ import { AuthenticationContext } from "application/authentication_context.ts";
 import { NodeService } from "application/node_service.ts";
 import { AgentService } from "application/agent_service.ts";
 import { ChatHistory } from "domain/ai/chat_message.ts";
+import { NodeMetadata } from "domain/nodes/node_metadata.ts";
 
 // ============================================================================
 // INPUT TYPES
@@ -158,7 +159,7 @@ RESPONSE GUIDELINES:
 			context += `- Modified: ${parentNode.modifiedTime}\n`;
 
 			// Add custom metadata if present
-			const customMetadata = { ...parentNode.metadata };
+			const customMetadata: Partial<NodeMetadata> = { ...parentNode };
 			// Remove standard fields
 			delete customMetadata.uuid;
 			delete customMetadata.title;

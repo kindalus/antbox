@@ -32,7 +32,7 @@ export function WithAspectMixin<TBase extends Constructor>(Base: TBase) {
 			return this._related;
 		}
 
-		get metadata(): Partial<NodeMetadata> {
+		get metadata(): NodeMetadata {
 			return {
 				...super.metadata,
 				aspects: this._aspects,
@@ -42,7 +42,7 @@ export function WithAspectMixin<TBase extends Constructor>(Base: TBase) {
 			};
 		}
 
-		update(metadata: Partial<NodeMetadata>): Either<ValidationError, void> {
+		update(metadata: NodeMetadata): Either<ValidationError, void> {
 			this._aspects = metadata.aspects ?? this._aspects;
 			this._properties = (metadata.properties as NodeProperties) ??
 				this._properties;

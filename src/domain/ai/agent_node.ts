@@ -85,7 +85,7 @@ export class AgentNode extends Node {
 		return right(undefined);
 	}
 
-	override get metadata(): Partial<NodeMetadata> {
+	override get metadata(): NodeMetadata {
 		return {
 			...super.metadata,
 			model: this._model,

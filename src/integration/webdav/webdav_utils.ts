@@ -1,11 +1,11 @@
 import { NodeService } from "application/node_service.ts";
 import { AuthenticationContext } from "application/authentication_context.ts";
-import { NodeLike } from "domain/node_like.ts";
 import { Either, left, right } from "shared/either.ts";
 import { AntboxError } from "shared/antbox_error.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import { Folders } from "domain/nodes/folders.ts";
 import { webdavPathCache } from "./webdav_path_cache.ts";
+import { NodeMetadata } from "domain/nodes/node_metadata.ts";
 
 function pathsMatch(pathA: string[], pathB: string[]): boolean {
 	return (
@@ -22,7 +22,7 @@ export async function resolvePath(
 	authContext: AuthenticationContext,
 	path: string,
 	tenantName?: string,
-): Promise<Either<AntboxError, NodeLike>> {
+): Promise<Either<AntboxError, NodeMetadata>> {
 	// Normalize path
 	const normalizedPath = path === "" ? "/" : path;
 
@@ -88,9 +88,14 @@ export async function resolvePath(
 			const node = nodes[i];
 			// Cache the result if tenant name provided
 			if (tenantName) {
-				webdavPathCache.set(tenantName, authContext.principal.email, normalizedPath, node);
+				webdavPathCache.set(
+					tenantName,
+					authContext.principal.email,
+					normalizedPath,
+					node.metadata,
+				);
 			}
-			return right(node);
+			return right(node.metadata);
 		}
 	}
 

@@ -92,7 +92,7 @@ export class WorkflowNode extends Node {
 	readonly availableStateNames: string[];
 	readonly filters: NodeFilters;
 
-	constructor(metadata: Partial<NodeMetadata>) {
+	constructor(metadata: NodeMetadata) {
 		super({
 			...metadata,
 			mimetype: Nodes.WORKFLOW_MIMETYPE,
@@ -124,7 +124,7 @@ export class WorkflowNode extends Node {
 		return right(undefined);
 	}
 
-	override get metadata(): Partial<NodeMetadata> {
+	override get metadata(): NodeMetadata {
 		return {
 			...super.metadata,
 			mimetype: Nodes.WORKFLOW_MIMETYPE,

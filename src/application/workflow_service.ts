@@ -13,7 +13,6 @@ import { Folders } from "domain/nodes/folders.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import { NodeMetadata } from "domain/nodes/node_metadata.ts";
-import { Context } from "@oak/oak";
 import { NodesFilters } from "domain/nodes_filters.ts";
 import { builtinWorkflows } from "./builtin_workflows/index.ts";
 import type { NodeLike } from "domain/node_like.ts";
@@ -61,7 +60,10 @@ export class WorkflowService {
 		}
 
 		// Check if node matches workflow filters
-		const result = NodesFilters.satisfiedBy(workflowDefOrErr.value.filters, node as unknown as NodeLike);
+		const result = NodesFilters.satisfiedBy(
+			workflowDefOrErr.value.filters,
+			node as unknown as NodeLike,
+		);
 		if (result.isLeft()) {
 			return left(new BadRequestError(result.value.message));
 		}
@@ -165,7 +167,10 @@ export class WorkflowService {
 		}
 
 		// Check if nodes can transition to new state
-		const nodeSatisfies = NodesFilters.satisfiedBy(transition.filters ?? [], node as unknown as NodeLike);
+		const nodeSatisfies = NodesFilters.satisfiedBy(
+			transition.filters ?? [],
+			node as unknown as NodeLike,
+		);
 		if (nodeSatisfies.isLeft()) {
 			return left(new BadRequestError(nodeSatisfies.value.message));
 		}
@@ -423,7 +428,7 @@ export class WorkflowService {
 	 */
 	async createOrReplaceWorkflow(
 		ctx: AuthenticationContext,
-		metadata: Partial<NodeMetadata>,
+		metadata: NodeMetadata,
 	): Promise<Either<AntboxError, WorkflowDTO>> {
 		// Check if it's a builtin workflow
 		if (metadata.uuid) {
@@ -434,7 +439,7 @@ export class WorkflowService {
 		}
 
 		// Ensure proper mimetype and parent
-		const workflowMetadata: Partial<NodeMetadata> = {
+		const workflowMetadata: NodeMetadata = {
 			...metadata,
 			mimetype: Nodes.WORKFLOW_MIMETYPE,
 			parent: Folders.WORKFLOWS_FOLDER_UUID,

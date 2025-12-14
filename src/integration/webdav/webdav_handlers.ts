@@ -3,12 +3,13 @@ import { webdavMiddlewareChain } from "./webdav_middleware.ts";
 import { getAuthenticationContext } from "api/get_authentication_context.ts";
 import { getTenant } from "api/get_tenant.ts";
 import { type HttpHandler, sendCreated, sendNoContent, sendOK } from "api/handler.ts";
-import { processError } from "api/process_error.ts";
+
 import { createPropfindResponse } from "./webdav_xml.ts";
 import { getMimetype, resolvePath, unescapePath } from "./webdav_utils.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import { createETagHeader } from "./webdav_etag.ts";
+import { processError } from "api/process_error.ts";
 
 function getPath(req: Request | string, tenant: AntboxTenant): string {
 	const path = new URL(typeof req === "string" ? req : req.url).pathname.replace(
@@ -65,18 +66,22 @@ export function propfindHandler(tenants: AntboxTenant[]): HttpHandler {
 			return processError(nodeOrErr.value);
 		}
 
-		const targetNode = nodeOrErr.value;
+		const node = nodeOrErr.value;
 		const depth = req.headers.get("Depth") ?? "1";
 
-		if ((Nodes.isFolder(targetNode) || Nodes.isSmartFolder(targetNode)) && depth === "1") {
+		if ((Nodes.isFolder(node) || Nodes.isSmartFolder(node)) && depth === "1") {
 			const childrenOrErr = await tenant.nodeService.list(
 				authContext,
-				targetNode.uuid,
+				node.uuid,
 			);
 			if (childrenOrErr.isLeft()) {
 				return processError(childrenOrErr.value);
 			}
-			const xml = createPropfindResponse([targetNode, ...childrenOrErr.value], req);
+
+			const xml = createPropfindResponse(
+				[node, ...childrenOrErr.value],
+				req,
+			);
 
 			return new Response(xml, {
 				status: 207,
@@ -85,13 +90,13 @@ export function propfindHandler(tenants: AntboxTenant[]): HttpHandler {
 					"Cache-Control": "no-cache, no-store, must-revalidate",
 					"Pragma": "no-cache",
 					"Expires": "0",
-					"ETag": createETagHeader(targetNode),
+					"ETag": createETagHeader(node),
 					"Content-Length": xml.length.toString(),
 				},
 			});
 		}
 
-		const xml = createPropfindResponse([targetNode], req);
+		const xml = createPropfindResponse([node], req);
 
 		return new Response(xml, {
 			status: 207,
@@ -100,7 +105,7 @@ export function propfindHandler(tenants: AntboxTenant[]): HttpHandler {
 				"Cache-Control": "no-cache, no-store, must-revalidate",
 				"Pragma": "no-cache",
 				"Expires": "0",
-				"ETag": createETagHeader(targetNode),
+				"ETag": createETagHeader(node),
 				"Content-Length": xml.length.toString(),
 			},
 		});
@@ -193,7 +198,7 @@ export function putHandler(tenants: AntboxTenant[]): HttpHandler {
 		}
 
 		const parent = parentOrErr.value;
-		if (!Nodes.isFolder(parent)) {
+		if (parent.mimetype !== Nodes.FOLDER_MIMETYPE) {
 			return new Response("Parent is not a folder", { status: 400 });
 		}
 

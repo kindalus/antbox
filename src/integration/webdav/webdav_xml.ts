@@ -1,4 +1,4 @@
-import { NodeLike } from "domain/node_like.ts";
+import { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import { generateETag } from "./webdav_etag.ts";
 
@@ -21,7 +21,7 @@ function escapeXml(unsafe: string): string {
 	});
 }
 
-function nodeToHref(node: NodeLike, basePath: string): string {
+function nodeToHref(node: NodeMetadata, basePath: string): string {
 	const isFolder = node.mimetype === Nodes.FOLDER_MIMETYPE;
 	const encodedTitle = encodeURIComponent(node.title);
 
@@ -37,13 +37,14 @@ function nodeToHref(node: NodeLike, basePath: string): string {
 	return href;
 }
 
-function nodeToPropfindXml(node: NodeLike, basePath: string, first = false): string {
+function nodeToPropfindXml(node: NodeMetadata, basePath: string, first = false): string {
 	const isFolder = node.mimetype === Nodes.FOLDER_MIMETYPE;
-	const creationDate = new Date(node.createdTime).toISOString();
-	const modifiedDate = new Date(node.modifiedTime).toUTCString();
+	const creationDate = new Date(node.createdTime!).toISOString();
+	const modifiedDate = new Date(node.modifiedTime!).toUTCString();
 	const etag = generateETag(node);
 	const contentLength = isFolder
 		? ""
+		// deno-lint-ignore no-explicit-any
 		: `<D:getcontentlength>${(node as any).size || 0}</D:getcontentlength>`;
 
 	const resourceType = isFolder ? "<D:collection/>" : "";
@@ -71,7 +72,7 @@ function nodeToPropfindXml(node: NodeLike, basePath: string, first = false): str
   `;
 }
 
-export function createPropfindResponse(nodes: NodeLike[], req: Request): string {
+export function createPropfindResponse(nodes: NodeMetadata[], req: Request): string {
 	const basePath = new URL(req.url).pathname || "/";
 	const responses = nodes.map((node, index) => {
 		return nodeToPropfindXml(node, basePath, index === 0);

@@ -73,7 +73,7 @@ export function createFileHandler(tenants: AntboxTenant[]): HttpHandler {
 
 			const metadataStr = formdata.get("metadata");
 			const file = formdata.get("file") as File;
-			let metadata: Partial<NodeMetadata>;
+			let metadata: NodeMetadata;
 
 			try {
 				metadata = JSON.parse(metadataStr as string);

@@ -71,7 +71,7 @@ export interface FeatureMetadata {
 export function featureToNodeMetadata(
 	feature: Feature,
 	owner?: string,
-): Partial<NodeMetadata> {
+): NodeMetadata {
 	return {
 		uuid: feature.uuid,
 		title: feature.name,

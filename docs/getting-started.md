@@ -32,7 +32,7 @@ curl -fsSL https://deno.land/x/install/install.sh | sh
     You should see the following output:
 
     ```
-    Antbox Server (h3) started successfully on port :: 7180
+    Antbox Server (oak) started successfully on port :: 7180
     ```
 
 ## Authentication

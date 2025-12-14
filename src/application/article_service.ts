@@ -10,6 +10,8 @@ import { JSDOM } from "jsdom";
 import { ARTICLE_ASPECT } from "./builtin_aspects/index.ts";
 import { FileNode } from "domain/nodes/file_node.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
+import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
+import type { NodeLike } from "domain/node_like.ts";
 
 /**
  * ArticleService manages documents with mimetypes "text/html", "text/plain", or "text/markdown"
@@ -31,7 +33,7 @@ export class ArticleService {
 		ctx: AuthenticationContext,
 		file: File,
 		metadata: { uuid: string; title: string; description?: string; parent: string },
-	): Promise<Either<AntboxError, FileNode>> {
+	): Promise<Either<AntboxError, Partial<NodeMetadata>>> {
 		if (!["text/html", "text/plain", "text/markdown"].includes(file.type)) {
 			return left(new BadRequestError(`Invalid file mimetype: : ${file.type}`));
 		}
@@ -50,7 +52,7 @@ export class ArticleService {
 				return left(createOrErr.value);
 			}
 
-			return right(createOrErr.value as FileNode);
+			return right(createOrErr.value);
 		}
 
 		return this.#update(ctx, file, metadata);
@@ -70,7 +72,7 @@ export class ArticleService {
 			return left(nodeOrErr.value);
 		}
 
-		const node = nodeOrErr.value as FileNode;
+		const node = nodeOrErr.value;
 
 		const fileTextOrErr = await this.#getFileText(ctx, uuid);
 		if (fileTextOrErr.isLeft()) {
@@ -79,21 +81,21 @@ export class ArticleService {
 
 		const fileText = fileTextOrErr.value;
 
-		if (Nodes.isMarkdown(node)) {
+		if (Nodes.isMarkdown(node as unknown as NodeLike)) {
 			const html = await this.#markdownToHtml(fileText);
 			return right(html);
 		}
 
-		if (Nodes.isHtml(node)) {
+		if (Nodes.isHtml(node as unknown as NodeLike)) {
 			return right(fileText);
 		}
 
-		if (Nodes.isTextPlain(node)) {
+		if (Nodes.isTextPlain(node as unknown as NodeLike)) {
 			const html = await this.#textPlainToHtml(fileText);
 			return right(html);
 		}
 
-		if (!Nodes.isArticle(node)) {
+		if (!Nodes.isArticle(node as unknown as NodeLike)) {
 			return left(new NodeNotFoundError(uuid));
 		}
 
@@ -147,14 +149,14 @@ export class ArticleService {
 		}
 
 		const node = nodeOrErr.value;
-		if (!Nodes.isArticle(node)) {
+		if (!Nodes.isArticle(node as unknown as NodeLike)) {
 			return left(new NodeNotFoundError(uuid));
 		}
 
 		return this.nodeService.delete(ctx, uuid);
 	}
 
-	async list(ctx: AuthenticationContext): Promise<FileNode[]> {
+	async list(ctx: AuthenticationContext): Promise<Partial<NodeMetadata>[]> {
 		const nodesOrErrs = await this.nodeService.find(
 			ctx,
 			[
@@ -168,7 +170,7 @@ export class ArticleService {
 			return [];
 		}
 
-		return nodesOrErrs.value.nodes as FileNode[];
+		return nodesOrErrs.value.nodes.map(n => n.metadata);
 	}
 
 	async #markdownToHtml(value: string): Promise<string> {
@@ -213,13 +215,13 @@ export class ArticleService {
 		ctx: AuthenticationContext,
 		file: File,
 		metadata: { uuid: string; title: string; description?: string; parent: string },
-	): Promise<Either<AntboxError, FileNode>> {
+	): Promise<Either<AntboxError, Partial<NodeMetadata>>> {
 		const nodeOrErr = await this.nodeService.get(ctx, metadata.uuid);
 		if (nodeOrErr.isLeft()) {
 			return left(nodeOrErr.value);
 		}
 
-		const existingNode = nodeOrErr.value as FileNode;
+		const existingNode = nodeOrErr.value;
 
 		const createOrErr = FileNode.create({
 			...metadata,
@@ -254,6 +256,6 @@ export class ArticleService {
 			return left(voidOrErr.value);
 		}
 
-		return right(article);
+		return right(article.metadata);
 	}
 }

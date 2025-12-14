@@ -10,6 +10,7 @@ import type { AuthenticationContext } from "./authentication_context.ts";
 
 import { NodeService } from "./node_service.ts";
 import { UsersGroupsService } from "./users_groups_service.ts";
+import type { NodeLike } from "domain/node_like.ts";
 
 export class AspectService {
 	constructor(private readonly nodeService: NodeService) {}
@@ -84,11 +85,11 @@ export class AspectService {
 			return left(nodeOrErr.value);
 		}
 
-		if (!Nodes.isAspect(nodeOrErr.value)) {
+		if (!Nodes.isAspect(nodeOrErr.value as unknown as NodeLike)) {
 			return left(new AspectNotFoundError(uuid));
 		}
 
-		return right(toAspectDTO(nodeOrErr.value));
+		return right(toAspectDTO(nodeOrErr.value as unknown as AspectNode));
 	}
 
 	async list(_ctx: AuthenticationContext): Promise<AspectDTO[]> {

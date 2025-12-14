@@ -11,6 +11,7 @@ import { NodeService } from "./node_service.ts";
 import { UsersGroupsService } from "application/users_groups_service.ts";
 import { UuidGenerator } from "shared/uuid_generator.ts";
 import { NodeMetadata } from "domain/nodes/node_metadata.ts";
+import type { NodeLike } from "domain/node_like.ts";
 
 export class ApiKeyService {
 	readonly #nodeService: NodeService;
@@ -65,7 +66,7 @@ export class ApiKeyService {
 			return left(nodeOrErr.value);
 		}
 
-		if (!Nodes.isApikey(nodeOrErr.value)) {
+		if (!Nodes.isApikey(nodeOrErr.value as unknown as NodeLike)) {
 			return left(new ApiKeyNodeFoundError(uuid));
 		}
 

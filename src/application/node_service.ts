@@ -49,9 +49,7 @@ import { builtinUsers } from "./builtin_users/index.ts";
 import { builtinAgents } from "./builtin_agents/index.ts";
 import { FeatureNode, FeatureParameter } from "domain/features/feature_node.ts";
 import { ParentFolderUpdateHandler } from "./parent_folder_update_handler.ts";
-import { fromAgentDTO } from "./agent_dto.ts";
 import { builtinFeatures } from "./builtin_features/index.ts";
-import { fromFeature } from "domain/features/feature.ts";
 
 // TODO: Implements throwing events
 
@@ -85,26 +83,28 @@ export class NodeService {
 		uuid: string,
 		parent: string,
 	): Promise<Either<AntboxError, Node>> {
-		const nodeOrErr = await this.get(ctx, uuid);
+		const nodeOrErr = await this.#getBuiltinNodeOrFromRepository(uuid);
 		if (nodeOrErr.isLeft()) {
 			return left(nodeOrErr.value);
 		}
 
-		if (Nodes.isFolder(nodeOrErr.value)) {
+		const node = nodeOrErr.value;
+
+		if (Nodes.isFolder(node)) {
 			return left(new BadRequestError("Cannot copy folder"));
 		}
 
 		const metadata = {
-			...nodeOrErr.value.metadata,
+			...node.metadata,
 			uuid: UuidGenerator.generate(),
-			title: `${nodeOrErr.value.title} 2`,
+			title: `${node.title} 2`,
 			parent,
 		};
 
 		delete metadata.fid;
 
-		if (!Nodes.isFileLike(nodeOrErr.value)) {
-			return this.create(ctx, metadata);
+		if (!Nodes.isFileLike(node)) {
+			return this.create(ctx, metadata) as Promise<Either<AntboxError, Node>>;
 		}
 
 		const fileOrErr = await this.context.storage.read(uuid);
@@ -112,13 +112,13 @@ export class NodeService {
 			return left(fileOrErr.value);
 		}
 
-		return this.createFile(ctx, fileOrErr.value, metadata);
+		return this.createFile(ctx, fileOrErr.value, metadata) as Promise<Either<AntboxError, Node>>;
 	}
 
 	async create(
 		ctx: AuthenticationContext,
 		metadata: Partial<NodeMetadata>,
-	): Promise<Either<AntboxError, NodeLike>> {
+	): Promise<Either<AntboxError, Partial<NodeMetadata>>> {
 		const uuid = metadata.uuid ?? UuidGenerator.generate();
 
 		if (!metadata.parent) {
@@ -202,14 +202,14 @@ export class NodeService {
 		const evt = new NodeCreatedEvent(ctx.principal.email, ctx.tenant, nodeOrErr.value);
 		this.context.bus.publish(evt);
 
-		return right(nodeOrErr.value);
+		return right(nodeOrErr.value.metadata);
 	}
 
 	async createFile(
 		ctx: AuthenticationContext,
 		file: File,
 		metadata: Partial<NodeMetadata>,
-	): Promise<Either<AntboxError, FileLikeNode>> {
+	): Promise<Either<AntboxError, Partial<NodeMetadata>>> {
 		let useFileType = file.type &&
 			(!metadata.mimetype || metadata.mimetype !== Nodes.FEATURE_MIMETYPE);
 
@@ -253,7 +253,7 @@ export class NodeService {
 		const evt = new NodeCreatedEvent(ctx.principal.email, ctx.tenant, node);
 		this.context.bus.publish(evt);
 
-		return right(node);
+		return right(node.metadata);
 	}
 
 	async delete(
@@ -326,26 +326,28 @@ export class NodeService {
 		ctx: AuthenticationContext,
 		uuid: string,
 	): Promise<Either<NodeNotFoundError, Node>> {
-		const nodeOrErr = await this.get(ctx, uuid);
+		const nodeOrErr = await this.#getBuiltinNodeOrFromRepository(uuid);
 
 		if (nodeOrErr.isLeft()) {
 			return left(nodeOrErr.value);
 		}
 
-		if (Nodes.isFolder(nodeOrErr.value)) {
+		const node = nodeOrErr.value;
+
+		if (Nodes.isFolder(node)) {
 			return left(new BadRequestError("Cannot duplicate folder"));
 		}
 
 		const metadata = {
-			...nodeOrErr.value.metadata,
+			...node.metadata,
 			uuid: UuidGenerator.generate(),
-			title: `${nodeOrErr.value.title} 2`,
+			title: `${node.title} 2`,
 		};
 
 		delete metadata.fid;
 
-		if (!Nodes.isFileLike(nodeOrErr.value)) {
-			return this.create(ctx, metadata);
+		if (!Nodes.isFileLike(node)) {
+			return this.create(ctx, metadata) as Promise<Either<NodeNotFoundError, Node>>;
 		}
 
 		const fileOrErr = await this.context.storage.read(uuid);
@@ -353,7 +355,9 @@ export class NodeService {
 			return left(fileOrErr.value);
 		}
 
-		return this.createFile(ctx, fileOrErr.value, metadata);
+		return this.createFile(ctx, fileOrErr.value, metadata) as Promise<
+			Either<NodeNotFoundError, Node>
+		>;
 	}
 
 	async export(
@@ -401,8 +405,8 @@ export class NodeService {
 	async evaluate(
 		ctx: AuthenticationContext,
 		uuid: string,
-	): Promise<Either<SmartFolderNodeNotFoundError, NodeLike[]>> {
-		const nodeOrErr = await this.get(ctx, uuid);
+	): Promise<Either<SmartFolderNodeNotFoundError, Partial<NodeMetadata>[]>> {
+		const nodeOrErr = await this.#getBuiltinNodeOrFromRepository(uuid);
 		if (nodeOrErr.isLeft()) {
 			return left(new SmartFolderNodeNotFoundError(uuid));
 		}
@@ -425,7 +429,7 @@ export class NodeService {
 			);
 		}
 
-		return right(evaluationOrErr.value.nodes);
+		return right(evaluationOrErr.value.nodes.map((n) => n.metadata));
 	}
 
 	/**
@@ -537,7 +541,7 @@ export class NodeService {
 	async get(
 		ctx: AuthenticationContext,
 		uuid: string,
-	): Promise<Either<NodeNotFoundError, NodeLike>> {
+	): Promise<Either<NodeNotFoundError, Partial<NodeMetadata>>> {
 		const nodeOrErr = await this.#getBuiltinNodeOrFromRepository(uuid);
 		if (nodeOrErr.isLeft()) {
 			return left(nodeOrErr.value);
@@ -566,13 +570,13 @@ export class NodeService {
 			return left(allowedOrErr.value);
 		}
 
-		return right(nodeOrErr.value);
+		return right(nodeOrErr.value.metadata);
 	}
 
 	async list(
 		ctx: AuthenticationContext,
 		parent = Folders.ROOT_FOLDER_UUID,
-	): Promise<Either<FolderNotFoundError | ForbiddenError, NodeLike[]>> {
+	): Promise<Either<FolderNotFoundError | ForbiddenError, Partial<NodeMetadata>[]>> {
 		const [parentOrErr, nodeOrErr] = await Promise.all([
 			this.#getBuiltinFolderOrFromRepository(parent),
 			this.#getFromRepository(parent),
@@ -631,21 +635,21 @@ export class NodeService {
 			return a.title.localeCompare(b.title);
 		});
 
-		return right(nodes);
+		return right(nodes.map((n) => n.metadata));
 	}
 
 	async breadcrumbs(
 		ctx: AuthenticationContext,
 		uuid: string,
 	): Promise<Either<AntboxError, Array<{ uuid: string; title: string }>>> {
-		const nodeOrErr = await this.get(ctx, uuid);
+		const nodeOrErr = await this.#getBuiltinNodeOrFromRepository(uuid);
 		if (nodeOrErr.isLeft()) {
 			return left(nodeOrErr.value);
 		}
 
 		const breadcrumbs: Array<{ uuid: string; title: string }> = [{
-			uuid: nodeOrErr.value.uuid,
-			title: nodeOrErr.value.title,
+			uuid: nodeOrErr.value.uuid!,
+			title: nodeOrErr.value.title!,
 		}];
 
 		let currentUuid = nodeOrErr.value.parent;
@@ -683,7 +687,7 @@ export class NodeService {
 		uuid: string,
 		metadata: Partial<NodeMetadata>,
 	): Promise<Either<NodeNotFoundError, void>> {
-		let nodeOrErr = await this.get(ctx, uuid);
+		let nodeOrErr = await this.#getBuiltinNodeOrFromRepository(uuid);
 		if (nodeOrErr.isLeft()) {
 			return left(nodeOrErr.value);
 		}
@@ -725,13 +729,14 @@ export class NodeService {
 		}
 
 		if (Nodes.isFileLike(nodeOrErr.value)) {
-			nodeOrErr = NodeFactory.from({
+			const newNodeOrErr = NodeFactory.from({
 				...nodeOrErr.value.metadata,
 				size: metadata.size,
 			});
-			if (nodeOrErr.isLeft()) {
-				return left(nodeOrErr.value);
+			if (newNodeOrErr.isLeft()) {
+				return left(newNodeOrErr.value);
 			}
+			nodeOrErr = newNodeOrErr;
 		}
 
 		// Filter out readonly properties from metadata before updating
@@ -844,7 +849,7 @@ export class NodeService {
 		uuid: string,
 		file: File,
 	): Promise<Either<NodeNotFoundError, void>> {
-		const nodeOrErr = await this.get(ctx, uuid);
+		const nodeOrErr = await this.#getBuiltinNodeOrFromRepository(uuid);
 		if (nodeOrErr.isLeft()) {
 			return left(nodeOrErr.value);
 		}
@@ -1233,7 +1238,7 @@ export class NodeService {
 
 		// First, always validate that all referenced nodes exist
 		const nodesOrErrs = await Promise.all(
-			values.map((uuid) => this.get(auth, uuid)),
+			values.map((uuid) => this.#getBuiltinNodeOrFromRepository(uuid)),
 		);
 
 		const notFound = nodesOrErrs.filter((n) => n.isLeft());

@@ -19,6 +19,7 @@ import { BUILTIN_AGENT_TOOLS } from "./builtin_features/agent_tools.ts";
 import { builtinAgents } from "./builtin_agents/index.ts";
 import { AIModelDTO, aiModelToDto } from "./ai_model_dto.ts";
 import { Groups } from "domain/users_groups/groups.ts";
+import type { NodeLike } from "domain/node_like.ts";
 const chatSystemPrompt =
 	`You are an AI agent running inside Antbox, an ECM (Enterprise Content Management) platform.
 
@@ -186,11 +187,11 @@ export class AgentService {
 		}
 
 		const node = nodeResult.value;
-		if (!Nodes.isAgent(node)) {
+		if (!Nodes.isAgent(node as unknown as NodeLike)) {
 			return left(new AgentNotFoundError(uuid));
 		}
 
-		return right(toAgentDTO(node));
+		return right(toAgentDTO(node as unknown as AgentNode));
 	}
 
 	/**
@@ -291,8 +292,8 @@ export class AgentService {
 
 		// Retrieve builtin agents and convert to DTOs
 		const agents = [...findResult.value.nodes, ...builtinAgents]
-			.filter((node) => Nodes.isAgent(node))
-			.map((node) => toAgentDTO(node));
+			.filter((node) => Nodes.isAgent(node as unknown as NodeLike))
+			.map((node) => toAgentDTO(node as unknown as AgentNode));
 
 		return right(agents);
 	}

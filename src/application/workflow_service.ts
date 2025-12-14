@@ -16,6 +16,7 @@ import { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { Context } from "@oak/oak";
 import { NodesFilters } from "domain/nodes_filters.ts";
 import { builtinWorkflows } from "./builtin_workflows/index.ts";
+import type { NodeLike } from "domain/node_like.ts";
 
 export class WorkflowService {
 	#context: WorkflowServiceContext;
@@ -60,7 +61,7 @@ export class WorkflowService {
 		}
 
 		// Check if node matches workflow filters
-		const result = NodesFilters.satisfiedBy(workflowDefOrErr.value.filters, node);
+		const result = NodesFilters.satisfiedBy(workflowDefOrErr.value.filters, node as unknown as NodeLike);
 		if (result.isLeft()) {
 			return left(new BadRequestError(result.value.message));
 		}
@@ -164,7 +165,7 @@ export class WorkflowService {
 		}
 
 		// Check if nodes can transition to new state
-		const nodeSatisfies = NodesFilters.satisfiedBy(transition.filters ?? [], node);
+		const nodeSatisfies = NodesFilters.satisfiedBy(transition.filters ?? [], node as unknown as NodeLike);
 		if (nodeSatisfies.isLeft()) {
 			return left(new BadRequestError(nodeSatisfies.value.message));
 		}
@@ -255,10 +256,13 @@ export class WorkflowService {
 
 	async findActiveInstances(
 		authCtx: AuthenticationContext,
+		workflowDefinitionUuid?: string,
 	): Promise<Either<AntboxError, WorkflowInstance[]>> {
 		// Get all instances for the workflow definition (or all if not specified)
 
-		const instancesOrErr = await this.#context.workflowInstanceRepository.findActive();
+		const instancesOrErr = await this.#context.workflowInstanceRepository.findActive(
+			workflowDefinitionUuid,
+		);
 
 		if (instancesOrErr.isLeft()) {
 			return left(instancesOrErr.value);
@@ -281,7 +285,7 @@ export class WorkflowService {
 
 			if (workflowDefOrErr.isRight()) {
 				try {
-					const workflowDef = new WorkflowNode(workflowDefOrErr.right.metadata);
+					const workflowDef = new WorkflowNode(workflowDefOrErr.right as NodeMetadata);
 					const state = workflowDef.states.find(
 						(s) => s.name === instance.currentStateName,
 					);
@@ -467,7 +471,7 @@ export class WorkflowService {
 		const node = createOrErr.value;
 
 		// Verify it's a workflow node
-		if (!Nodes.isWorkflow(node)) {
+		if (!Nodes.isWorkflow(node as unknown as NodeLike)) {
 			return left(
 				new BadRequestError("Created node is not a valid workflow definition"),
 			);
@@ -498,7 +502,7 @@ export class WorkflowService {
 
 		const node = nodeOrErr.value;
 
-		if (!Nodes.isWorkflow(node)) {
+		if (!Nodes.isWorkflow(node as unknown as NodeLike)) {
 			return left(
 				new NodeNotFoundError(`Node ${uuid} is not a workflow definition`),
 			);
@@ -527,7 +531,7 @@ export class WorkflowService {
 		}
 
 		const workflows = nodesOrErr.value.nodes
-			.filter((node) => Nodes.isWorkflow(node))
+			.filter((node) => Nodes.isWorkflow(node as unknown as NodeLike))
 			.map((node) => toWorkflowDTO(node as WorkflowNode));
 
 		// Merge with builtin workflows

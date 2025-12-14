@@ -53,7 +53,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/NodeLike"
+                  $ref: "#/components/schemas/NodeMetadata"
         default:
           $ref: "#/components/responses/Error"
   "/actions/{uuid}/-/run":
@@ -481,7 +481,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/NodeLike"
+                  $ref: "#/components/schemas/NodeMetadata"
         default:
           $ref: "#/components/responses/Error"
   "/extensions/{uuid}/-/exec":
@@ -611,7 +611,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/NodeLike"
+                  $ref: "#/components/schemas/NodeMetadata"
         default:
           $ref: "#/components/responses/Error"
     post:
@@ -638,7 +638,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/NodeLike"
+                $ref: "#/components/schemas/NodeMetadata"
         default:
           $ref: "#/components/responses/Error"
   "/groups/{uuid}":
@@ -655,7 +655,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/NodeLike"
+                $ref: "#/components/schemas/NodeMetadata"
         default:
           $ref: "#/components/responses/Error"
     patch:
@@ -682,7 +682,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/NodeLike"
+                $ref: "#/components/schemas/NodeMetadata"
         default:
           $ref: "#/components/responses/Error"
     delete:
@@ -811,7 +811,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/NodeLike"
+                  $ref: "#/components/schemas/NodeMetadata"
         default:
           $ref: "#/components/responses/Error"
     post:
@@ -831,7 +831,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/NodeLike"
+                $ref: "#/components/schemas/NodeMetadata"
         default:
           $ref: "#/components/responses/Error"
   "/nodes/-/find":
@@ -860,7 +860,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/NodeLike"
+                  $ref: "#/components/schemas/NodeMetadata"
         default:
           $ref: "#/components/responses/Error"
   "/nodes/-/upload":
@@ -890,7 +890,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/NodeLike"
+                $ref: "#/components/schemas/NodeMetadata"
         default:
           $ref: "#/components/responses/Error"
   "/nodes/{uuid}":
@@ -907,7 +907,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/NodeLike"
+                $ref: "#/components/schemas/NodeMetadata"
         default:
           $ref: "#/components/responses/Error"
     patch:
@@ -929,7 +929,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/NodeLike"
+                $ref: "#/components/schemas/NodeMetadata"
         default:
           $ref: "#/components/responses/Error"
     delete:
@@ -960,7 +960,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/NodeLike"
+                  $ref: "#/components/schemas/NodeMetadata"
         default:
           $ref: "#/components/responses/Error"
   "/nodes/{uuid}/-/copy":
@@ -1002,7 +1002,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/NodeLike"
+                $ref: "#/components/schemas/NodeMetadata"
         default:
           $ref: "#/components/responses/Error"
   "/nodes/{uuid}/-/evaluate":
@@ -1021,7 +1021,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/NodeLike"
+                  $ref: "#/components/schemas/NodeMetadata"
         default:
           $ref: "#/components/responses/Error"
   "/nodes/{uuid}/-/export":
@@ -1143,7 +1143,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/NodeLike"
+                  $ref: "#/components/schemas/NodeMetadata"
         default:
           $ref: "#/components/responses/Error"
     post:
@@ -1163,7 +1163,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/NodeLike"
+                $ref: "#/components/schemas/NodeMetadata"
         default:
           $ref: "#/components/responses/Error"
   "/users/{email}":
@@ -1185,7 +1185,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/NodeLike"
+                $ref: "#/components/schemas/NodeMetadata"
         default:
           $ref: "#/components/responses/Error"
     put:
@@ -1212,7 +1212,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/NodeLike"
+                $ref: "#/components/schemas/NodeMetadata"
         default:
           $ref: "#/components/responses/Error"
   "/users/{uuid}":
@@ -1229,7 +1229,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/NodeLike"
+                $ref: "#/components/schemas/NodeMetadata"
         default:
           $ref: "#/components/responses/Error"
     delete:

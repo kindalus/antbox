@@ -111,7 +111,7 @@ export class FeatureService {
 				...metadata,
 				uuid: feature.uuid,
 				parent: Folders.FEATURES_FOLDER_UUID,
-			});
+			}) as Promise<Either<AntboxError, Node>>;
 		}
 
 		await this.#nodeService.updateFile(ctx, feature.uuid, file);
@@ -132,7 +132,7 @@ export class FeatureService {
 			return left(updatedNodeOrErr.value);
 		}
 
-		return right(updatedNodeOrErr.value);
+		return right(updatedNodeOrErr.value as unknown as Node);
 	}
 
 	async delete(
@@ -154,7 +154,7 @@ export class FeatureService {
 	): Promise<Either<AntboxError, File>> {
 		const builtinFeature = builtinFeatures.find((f) => f.uuid === uuid);
 		if (builtinFeature) {
-			const file = featureToFile(builtinFeature);
+			const file = featureToFile(builtinFeature as unknown as Feature);
 			return right(file);
 		}
 
@@ -229,11 +229,11 @@ export class FeatureService {
 			return left(nodeOrErr.value);
 		}
 
-		if (!Nodes.isFeature(nodeOrErr.value)) {
+		if (!Nodes.isFeature(nodeOrErr.value as unknown as NodeLike)) {
 			return left(new FeatureNotFoundError(uuid));
 		}
 
-		return right(toFeatureDTO(nodeOrErr.value as FeatureNode));
+		return right(toFeatureDTO(nodeOrErr.value as unknown as FeatureNode));
 	}
 
 	async getAITool(
@@ -311,7 +311,7 @@ export class FeatureService {
 
 	async listExtensions(
 		ctx: AuthenticationContext,
-	): Promise<Either<AntboxError, NodeLike[]>> {
+	): Promise<Either<AntboxError, Partial<NodeMetadata>[]>> {
 		// Get features that are exposed as extensions
 		const featuresOrErrs = await this.#nodeService.find(
 			ctx,
@@ -327,7 +327,7 @@ export class FeatureService {
 			return left(featuresOrErrs.value);
 		}
 
-		return right(featuresOrErrs.value.nodes);
+		return right(featuresOrErrs.value.nodes.map(n => n.metadata));
 	}
 
 	async listFeatures(
@@ -432,7 +432,7 @@ export class FeatureService {
 		const nodesOrErrs = await Promise.all(uuids.map((uuid) => this.#nodeService.get(ctx, uuid)));
 
 		// Helper to filter out error results and log warnings
-		const filterAndLog = (nodeOrErr: Either<AntboxError, NodeLike>) => {
+		const filterAndLog = (nodeOrErr: Either<AntboxError, Partial<NodeMetadata>>) => {
 			if (nodeOrErr.isLeft()) {
 				console.warn("Error retrieving the node", nodeOrErr.value.message);
 			}
@@ -441,9 +441,9 @@ export class FeatureService {
 
 		// Extract successfully retrieved nodes, apply filters, get UUIDs
 		const nodes = nodesOrErrs.filter(filterAndLog)
-			.map((n) => n.value)
+			.map((n) => n.value as Partial<NodeMetadata>)
 			.filter((n) => spec.isSatisfiedBy(n as unknown as NodeLike).isRight())
-			.map((n) => n.uuid);
+			.map((n) => n.uuid!);
 
 		try {
 			// Track concurrent action executions
@@ -773,7 +773,7 @@ export class FeatureService {
 		uuid: string,
 	): Promise<Either<AntboxError, Feature>> {
 		if (builtinFeatures.some((a) => a.uuid === uuid)) {
-			return right(builtinFeatures.find((a) => a.uuid === uuid)!);
+			return right(builtinFeatures.find((a) => a.uuid === uuid)! as unknown as Feature);
 		}
 
 		const nodeOrErr = await this.#nodeService.get(ctx, uuid);
@@ -782,7 +782,7 @@ export class FeatureService {
 			return left(nodeOrErr.value);
 		}
 
-		if (!Nodes.isFeature(nodeOrErr.value)) {
+		if (!Nodes.isFeature(nodeOrErr.value as unknown as NodeLike)) {
 			return left(new NodeNotFoundError(uuid));
 		}
 
@@ -893,7 +893,7 @@ export class FeatureService {
 		for (const feature of actions) {
 			const filterOrErr = NodesFilters.satisfiedBy(
 				feature.filters,
-				evt.payload,
+				evt.payload as unknown as NodeLike,
 			);
 
 			if (filterOrErr.isLeft()) {
@@ -979,7 +979,7 @@ export class FeatureService {
 		for (const feature of actions) {
 			const filterOrErr = NodesFilters.satisfiedBy(
 				feature.filters,
-				evt.payload,
+				evt.payload as unknown as NodeLike,
 			);
 
 			if (filterOrErr.isLeft()) {
@@ -1021,7 +1021,7 @@ export class FeatureService {
 		const folder = folderOrErr.value;
 
 		// Check if folder has onDelete actions
-		if (!Nodes.isFolder(folder) || !folder.onDelete || folder.onDelete.length === 0) {
+		if (!Nodes.isFolder(folder as unknown as NodeLike) || !folder.onDelete || folder.onDelete.length === 0) {
 			return;
 		}
 
@@ -1073,7 +1073,7 @@ export class FeatureService {
 		const folder = folderOrErr.value;
 
 		// Check if folder has onCreate actions
-		if (!Nodes.isFolder(folder) || !folder.onCreate || folder.onCreate.length === 0) {
+		if (!Nodes.isFolder(folder as unknown as NodeLike) || !folder.onCreate || folder.onCreate.length === 0) {
 			return;
 		}
 
@@ -1127,7 +1127,7 @@ export class FeatureService {
 		// Get the parent folder
 		const folderOrErr = await this.#nodeService.get(
 			UsersGroupsService.elevatedContext,
-			node.value.parent,
+			node.value.parent!,
 		);
 
 		if (folderOrErr.isLeft()) {
@@ -1137,7 +1137,7 @@ export class FeatureService {
 		const folder = folderOrErr.value;
 
 		// Check if folder has onUpdate actions
-		if (!Nodes.isFolder(folder) || !folder.onUpdate || folder.onUpdate.length === 0) {
+		if (!Nodes.isFolder(folder as unknown as NodeLike) || !folder.onUpdate || folder.onUpdate.length === 0) {
 			return;
 		}
 

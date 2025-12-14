@@ -111,9 +111,8 @@ export class InmemWorkflowInstanceRepository
 			);
 		}
 
-		// Note: This returns all instances. Filtering for "active" (non-final states)
-		// requires loading the workflow definition to check which states are final.
-		// This could be optimized by maintaining a separate "isFinal" flag on the instance.
+		// Filter by running flag to get only active instances
+		instances = instances.filter((i) => i.running);
 
 		// Deep clone to avoid mutations
 		return right(structuredClone(instances));

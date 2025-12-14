@@ -139,7 +139,7 @@ async function handleGetChildren(
 	}
 
 	const children = childrenOrErr.value.map((node) =>
-		toCmisObject(node, succinct)
+		toCmisObject(node as unknown as NodeLike, succinct)
 	);
 	return jsonResponse({ objects: children });
 }
@@ -155,7 +155,7 @@ async function handleGetDescendants(
 	const depth = depthParam ? Number(depthParam) : -1; // -1 for all
 	const succinct = url.searchParams.get("succinct") === "true";
 
-	const collected: NodeLike[] = [];
+	const collected: Partial<NodeMetadata>[] = [];
 	const walk = async (parentId: string, currentDepth: number) => {
 		if (depth !== -1 && currentDepth > depth) return;
 		const childrenOrErr = await tenant.nodeService.list(authContext, parentId);
@@ -164,15 +164,15 @@ async function handleGetDescendants(
 		}
 		for (const child of childrenOrErr.value) {
 			collected.push(child);
-			if (Nodes.isFolder(child)) {
-				await walk(child.uuid, currentDepth + 1);
+			if (Nodes.isFolder(child as unknown as NodeLike)) {
+				await walk(child.uuid!, currentDepth + 1);
 			}
 		}
 	};
 
 	try {
 		await walk(objectId, 1);
-		const objects = collected.map((node) => toCmisObject(node, succinct));
+		const objects = collected.map((node) => toCmisObject(node as unknown as NodeLike, succinct));
 		return jsonResponse({ objects });
 	} catch (err) {
 		return processError(err);
@@ -197,7 +197,7 @@ async function handleGetFolderTree(
 		}
 		const node = nodeOrErr.value;
 		const entry: Record<string, unknown> = {
-			object: toCmisObject(node, succinct),
+			object: toCmisObject(node as unknown as NodeLike, succinct),
 		};
 
 		if (depth !== -1 && currentDepth >= depth) {
@@ -253,7 +253,7 @@ async function handleGetFolderParent(
 		return processError(parentOrErr.value);
 	}
 
-	return jsonResponse({ object: toCmisObject(parentOrErr.value, succinct) });
+	return jsonResponse({ object: toCmisObject(parentOrErr.value as unknown as NodeLike, succinct) });
 }
 
 async function handleGetObject(
@@ -274,7 +274,7 @@ async function handleGetObject(
 		return processError(nodeOrErr.value);
 	}
 
-	return jsonResponse(toCmisObject(nodeOrErr.value, succinct));
+	return jsonResponse(toCmisObject(nodeOrErr.value as unknown as NodeLike, succinct));
 }
 
 async function handleQuery(
@@ -296,7 +296,7 @@ async function handleQuery(
 		return processError(resultOrErr.value);
 	}
 
-	const nodes = resultOrErr.value.nodes.map((node) => toCmisObject(node, false));
+	const nodes = resultOrErr.value.nodes.map((node) => toCmisObject(node as unknown as NodeLike, false));
 	return jsonResponse({
 		numItems: resultOrErr.value.total,
 		hasMoreItems: resultOrErr.value.hasMore,
@@ -362,7 +362,7 @@ async function handleCreateDocument(
 		return processError(nodeOrErr.value);
 	}
 
-	return jsonResponse(toCmisObject(nodeOrErr.value, false), 201);
+	return jsonResponse(toCmisObject(nodeOrErr.value as unknown as NodeLike, false), 201);
 }
 
 async function handleUpdateProperties(
@@ -396,7 +396,7 @@ async function handleUpdateProperties(
 		return processError(nodeOrErr.value);
 	}
 
-	return jsonResponse(toCmisObject(nodeOrErr.value, false));
+	return jsonResponse(toCmisObject(nodeOrErr.value as unknown as NodeLike, false));
 }
 
 async function handleCreateFolder(
@@ -432,7 +432,7 @@ async function handleCreateFolder(
 		return processError(nodeOrErr.value);
 	}
 
-	return jsonResponse(toCmisObject(nodeOrErr.value, false), 201);
+	return jsonResponse(toCmisObject(nodeOrErr.value as unknown as NodeLike, false), 201);
 }
 
 async function handleMoveObject(
@@ -462,7 +462,7 @@ async function handleMoveObject(
 		return processError(nodeOrErr.value);
 	}
 
-	return jsonResponse(toCmisObject(nodeOrErr.value, false));
+	return jsonResponse(toCmisObject(nodeOrErr.value as unknown as NodeLike, false));
 }
 
 async function handleCopyObject(
@@ -491,7 +491,7 @@ async function handleCopyObject(
 		}
 	}
 
-	return jsonResponse(toCmisObject(copyOrErr.value, false), 201);
+	return jsonResponse(toCmisObject(copyOrErr.value as unknown as NodeLike, false), 201);
 }
 
 async function handleDeleteObject(
@@ -565,7 +565,7 @@ async function handleCheckOut(
 		return processError(nodeOrErr.value);
 	}
 
-	return jsonResponse({ objectId, object: toCmisObject(nodeOrErr.value, false) });
+	return jsonResponse({ objectId, object: toCmisObject(nodeOrErr.value as unknown as NodeLike, false) });
 }
 
 async function handleCheckIn(
@@ -604,7 +604,7 @@ async function handleCheckIn(
 		return processError(nodeOrErr.value);
 	}
 
-	return jsonResponse(toCmisObject(nodeOrErr.value, false));
+	return jsonResponse(toCmisObject(nodeOrErr.value as unknown as NodeLike, false));
 }
 
 type CmisPermission = "cmis:read" | "cmis:write" | "cmis:all";

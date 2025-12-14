@@ -111,13 +111,13 @@ async function getNewParent(
 		return left(new NodeNotFoundError("Already at root folder"));
 	}
 
-	const firstParentOrErr = await nodeService.get(ctx, nodeOrErr.value.parent);
+	const firstParentOrErr = await nodeService.get(ctx, nodeOrErr.value.parent!);
 
 	if (firstParentOrErr.isLeft()) {
 		return left(firstParentOrErr.value);
 	}
 
-	return right(firstParentOrErr.value.parent);
+	return right(firstParentOrErr.value.parent!);
 }
 
 export default moveUp;

@@ -24,6 +24,7 @@ import {
 
 import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import type { NodeService } from "./node_service.ts";
+import type { NodeLike } from "domain/node_like.ts";
 
 export class UsersGroupsService {
 	static elevatedContext: AuthenticationContext = {
@@ -226,11 +227,11 @@ export class UsersGroupsService {
 
 		const group = groupOrErr.value;
 
-		if (!Nodes.isGroup(group)) {
+		if (!Nodes.isGroup(group as unknown as NodeLike)) {
 			return left(new GroupNotFoundError(uuid));
 		}
 
-		return right(group);
+		return right(group as unknown as GroupNode);
 	}
 
 	async updateGroup(

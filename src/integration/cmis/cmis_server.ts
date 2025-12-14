@@ -132,7 +132,7 @@ async function getChildren(
     return;
   }
 
-  const children = childrenOrErr.value.map((node) => toCmisObject(node, succinct === "true"));
+  const children = childrenOrErr.value.map((node) => toCmisObject(node as unknown as NodeLike, succinct === "true"));
 
   res.statusCode = 200;
   res.end(JSON.stringify({ objects: children }));
@@ -152,7 +152,7 @@ async function getObject(
     return;
   }
 
-  const cmisObject = toCmisObject(nodeOrErr.value, succinct === "true");
+  const cmisObject = toCmisObject(nodeOrErr.value as unknown as NodeLike, succinct === "true");
 
   res.statusCode = 200;
   res.end(JSON.stringify(cmisObject));
@@ -205,7 +205,7 @@ async function createDocument(
   }
 
   res.statusCode = 201;
-  res.end(JSON.stringify(toCmisObject(nodeOrErr.value, false)));
+  res.end(JSON.stringify(toCmisObject(nodeOrErr.value as unknown as NodeLike, false)));
 }
 
 async function createFolder(
@@ -238,7 +238,7 @@ async function createFolder(
   }
 
   res.statusCode = 201;
-  res.end(JSON.stringify(toCmisObject(nodeOrErr.value, false)));
+  res.end(JSON.stringify(toCmisObject(nodeOrErr.value as unknown as NodeLike, false)));
 }
 
 async function deleteObject(

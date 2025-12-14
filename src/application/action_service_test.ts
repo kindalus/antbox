@@ -682,7 +682,7 @@ describe("Action Service", () => {
 			// Update the node - should trigger action with node's uuid
 			const updateResult = await service.nodeService.update(
 				adminAuthContext,
-				node.uuid,
+				node.uuid!,
 				{ title: "Updated Node" },
 			);
 
@@ -750,7 +750,7 @@ describe("Action Service", () => {
 			// Delete the node - should trigger action with node's uuid
 			const deleteResult = await service.nodeService.delete(
 				adminAuthContext,
-				node.uuid,
+				node.uuid!,
 			);
 
 			expect(deleteResult.isRight()).toBeTruthy();
@@ -934,7 +934,7 @@ describe("Action Service", () => {
 			// Update the node - should trigger domain-wide action
 			const updateResult = await service.nodeService.update(
 				adminAuthContext,
-				node.uuid,
+				node.uuid!,
 				{ title: "Updated Domain Test" },
 			);
 
@@ -1000,7 +1000,7 @@ describe("Action Service", () => {
 			// Delete the node - should trigger domain-wide action
 			const deleteResult = await service.nodeService.delete(
 				adminAuthContext,
-				node.uuid,
+				node.uuid!,
 			);
 
 			expect(deleteResult.isRight()).toBeTruthy();

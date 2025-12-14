@@ -253,7 +253,7 @@ export function exportHandler(tenants: AntboxTenant[]): HttpHandler {
 					}
 
 					const response = new Response(blob.value);
-					response.headers.set("Content-Type", node.value.mimetype);
+					response.headers.set("Content-Type", node.value.mimetype!);
 					response.headers.set("Content-length", blob.value.size.toString());
 					return response;
 				})

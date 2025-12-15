@@ -15,32 +15,7 @@ export function webdavMiddlewareChain(tenants: AntboxTenant[], h: HttpHandler): 
 
 const authCheckMiddleware: HttpMiddleware = (next: HttpHandler) => async (req: Request) => {
 	const authHeader = req.headers.get("authorization");
-	if (authHeader) {
-		const basicMatch = authHeader.match(/^Basic\s+(.+)$/i);
-		if (!basicMatch) {
-			return sendInternalServerError(new UnknownError("Invalid authorization header"));
-		}
-
-		let decoded = "";
-		try {
-			decoded = atob(basicMatch[1]);
-		} catch (_e) {
-			return sendInternalServerError(new UnknownError(JSON.stringify(_e)));
-		}
-
-		const [user, password] = decoded.split(":");
-		if (user === "jwt") {
-			req.headers.set("authorization", `Bearer ${password}`);
-		} else if (user === "key") {
-			req.headers.set("authorization", `ApiKey ${password}`);
-		} else {
-			return sendInternalServerError(new UnknownError(`Invalid authentication method: ${user}`));
-		}
-	}
-
-	const res = await next(req);
-
-	if (res.status === 401 || res.status === 403) {
+	if (!authHeader) {
 		return new Response("Unauthorized", {
 			status: 401,
 			headers: {
@@ -48,5 +23,27 @@ const authCheckMiddleware: HttpMiddleware = (next: HttpHandler) => async (req: R
 			},
 		});
 	}
-	return res;
+
+	const basicMatch = authHeader.match(/^Basic\s+(.+)$/i);
+	if (!basicMatch) {
+		return sendInternalServerError(new UnknownError("Invalid authorization header"));
+	}
+
+	let decoded = "";
+	try {
+		decoded = atob(basicMatch[1]);
+	} catch (_e) {
+		return sendInternalServerError(new UnknownError(JSON.stringify(_e)));
+	}
+
+	const [user, password] = decoded.split(":");
+	if (user === "jwt") {
+		req.headers.set("authorization", `Bearer ${password}`);
+	} else if (user === "key") {
+		req.headers.set("authorization", `ApiKey ${password}`);
+	} else {
+		return sendInternalServerError(new UnknownError(`Invalid authentication method: ${user}`));
+	}
+
+	return next(req);
 };

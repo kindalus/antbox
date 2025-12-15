@@ -10,6 +10,7 @@ import { Nodes } from "domain/nodes/nodes.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import { createETagHeader } from "./webdav_etag.ts";
 import { processError } from "api/process_error.ts";
+import { NodeMetadata } from "domain/nodes/node_metadata.ts";
 
 function getPath(req: Request | string, tenant: AntboxTenant): string {
 	const path = new URL(typeof req === "string" ? req : req.url).pathname.replace(
@@ -35,16 +36,15 @@ export function optionsHandler(tenants: AntboxTenant[]): HttpHandler {
 			"Access-Control-Allow-Headers":
 				"Authorization, Content-Type, Depth, Destination, If, If-Modified-Since, If-None-Match, If-Match, Lock-Token, Overwrite, Timeout, User-Agent, X-File-Name, X-Requested-With",
 			"Access-Control-Max-Age": "86400",
+			"Access-Control-Allow-Credentials": "true",
 		};
 
 		if (origin) {
 			// Cross-origin request - use specific origin and allow credentials
 			headers["Access-Control-Allow-Origin"] = origin;
-			headers["Access-Control-Allow-Credentials"] = "true";
-		} else {
-			// Same-origin or no origin - use wildcard (no credentials)
-			headers["Access-Control-Allow-Origin"] = "*";
 		}
+
+		console.log(headers);
 
 		return Promise.resolve(
 			new Response(null, {
@@ -69,46 +69,32 @@ export function propfindHandler(tenants: AntboxTenant[]): HttpHandler {
 		const node = nodeOrErr.value;
 		const depth = req.headers.get("Depth") ?? "1";
 
-		if ((Nodes.isFolder(node) || Nodes.isSmartFolder(node)) && depth === "1") {
+		const nodes: NodeMetadata[] = [node];
+
+		if (Nodes.isFolderLike(node) && depth === "1") {
 			const childrenOrErr = await tenant.nodeService.list(
 				authContext,
 				node.uuid,
 			);
+
 			if (childrenOrErr.isLeft()) {
 				return processError(childrenOrErr.value);
 			}
 
-			const xml = createPropfindResponse(
-				[node, ...childrenOrErr.value],
-				req,
-			);
-
-			return new Response(xml, {
-				status: 207,
-				headers: {
-					"Content-Type": "application/xml; charset=utf-8",
-					"Cache-Control": "no-cache, no-store, must-revalidate",
-					"Pragma": "no-cache",
-					"Expires": "0",
-					"ETag": createETagHeader(node),
-					"Content-Length": xml.length.toString(),
-				},
-			});
+			nodes.splice(1, 0, ...childrenOrErr.value);
 		}
 
-		const xml = createPropfindResponse([node], req);
+		const xml = createPropfindResponse(nodes, req);
+		const headers = {
+			"Content-Type": "application/xml; charset=utf-8",
+			"Cache-Control": "no-cache, no-store, must-revalidate",
+			"Pragma": "no-cache",
+			"Expires": "0",
+			"ETag": createETagHeader(node),
+			"Content-Length": xml.length.toString(),
+		};
 
-		return new Response(xml, {
-			status: 207,
-			headers: {
-				"Content-Type": "application/xml; charset=utf-8",
-				"Cache-Control": "no-cache, no-store, must-revalidate",
-				"Pragma": "no-cache",
-				"Expires": "0",
-				"ETag": createETagHeader(node),
-				"Content-Length": xml.length.toString(),
-			},
-		});
+		return new Response(xml, { status: 207, headers });
 	});
 }
 

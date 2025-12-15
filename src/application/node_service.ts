@@ -201,7 +201,7 @@ export class NodeService {
 		}
 
 		// Publish NodeCreatedEvent
-		const evt = new NodeCreatedEvent(ctx.principal.email, ctx.tenant, nodeOrErr.value);
+		const evt = new NodeCreatedEvent(ctx.principal.email, ctx.tenant, nodeOrErr.value.metadata);
 		this.context.bus.publish(evt);
 
 		return right(nodeOrErr.value.metadata);
@@ -285,7 +285,7 @@ export class NodeService {
 		if (!Nodes.isFolder(nodeOrErr.value)) {
 			const v = await this.context.repository.delete(uuid);
 			if (v.isRight()) {
-				const evt = new NodeDeletedEvent(ctx.principal.email, ctx.tenant, nodeOrErr.value);
+				const evt = new NodeDeletedEvent(ctx.principal.email, ctx.tenant, nodeOrErr.value.metadata);
 				this.context.bus.publish(evt);
 			}
 			return v;
@@ -311,7 +311,7 @@ export class NodeService {
 		const v = await this.context.repository.delete(uuid);
 
 		if (v.isRight()) {
-			const evt = new NodeDeletedEvent(ctx.principal.email, ctx.tenant, nodeOrErr.value);
+			const evt = new NodeDeletedEvent(ctx.principal.email, ctx.tenant, nodeOrErr.value.metadata);
 			this.context.bus.publish(evt);
 		}
 

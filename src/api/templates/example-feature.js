@@ -12,76 +12,76 @@
  */
 
 export default {
-  uuid: "folder-content-summary-extension",
-  name: "folder-content-summary",
-  description:
-    "Generates HTML reports showing comprehensive folder statistics including file counts, total size, file type breakdown, and size distribution.",
+	uuid: "folder-content-summary-extension",
+	name: "folder-content-summary",
+	description:
+		"Generates HTML reports showing comprehensive folder statistics including file counts, total size, file type breakdown, and size distribution.",
 
-  exposeAction: false,
-  runOnCreates: false,
-  runOnUpdates: false,
-  runManually: true,
-  filters: [],
+	exposeAction: false,
+	runOnCreates: false,
+	runOnUpdates: false,
+	runManually: true,
+	filters: [],
 
-  exposeExtension: true,
-  exposeAITool: false,
+	exposeExtension: true,
+	exposeAITool: false,
 
-  runAs: "admin",
-  groupsAllowed: ["admin", "managers"],
+	runAs: "admin",
+	groupsAllowed: ["admin", "managers"],
 
-  parameters: [
-    {
-      name: "folderId",
-      type: "string",
-      required: true,
-      description: "UUID of the folder to analyze",
-    },
-  ],
+	parameters: [
+		{
+			name: "folderId",
+			type: "string",
+			required: true,
+			description: "UUID of the folder to analyze",
+		},
+	],
 
-  returnType: "file",
-  returnContentType: "text/html",
-  returnDescription:
-    "HTML page with comprehensive folder content summary including statistics, file type breakdown, and visual charts",
+	returnType: "file",
+	returnContentType: "text/html",
+	returnDescription:
+		"HTML page with comprehensive folder content summary including statistics, file type breakdown, and visual charts",
 
-  /**
-   * Main execution function for the folder summary extension
-   * @param {Object} ctx - The run context containing authentication and services
-   * @param {Object} args - Arguments including folder ID
-   * @returns {string} HTML content for the summary page
-   */
-  async run(ctx, args) {
-    const { nodeService, authenticationContext } = ctx;
-    const { folderId } = args;
+	/**
+	 * Main execution function for the folder summary extension
+	 * @param {Object} ctx - The run context containing authentication and services
+	 * @param {Object} args - Arguments including folder ID
+	 * @returns {string} HTML content for the summary page
+	 */
+	async run(ctx, args) {
+		const { nodeService, authenticationContext } = ctx;
+		const { folderId } = args;
 
-    if (!folderId) {
-      throw new Error("Missing folder ID parameter");
-    }
+		if (!folderId) {
+			throw new Error("Missing folder ID parameter");
+		}
 
-    // Verify folder exists and user has access
-    const folderResult = await nodeService.get(authenticationContext, folderId);
-    if (folderResult.isLeft()) {
-      throw new Error(`Folder not found: ${folderId}`);
-    }
+		// Verify folder exists and user has access
+		const folderResult = await nodeService.get(authenticationContext, folderId);
+		if (folderResult.isLeft()) {
+			throw new Error(`Folder not found: ${folderId}`);
+		}
 
-    const folder = folderResult.value;
+		const folder = folderResult.value;
 
-    // Get all children of the folder
-    const childrenResult = await nodeService.list(
-      authenticationContext,
-      folderId,
-    );
-    if (childrenResult.isLeft()) {
-      throw new Error("Failed to fetch folder contents");
-    }
+		// Get all children of the folder
+		const childrenResult = await nodeService.list(
+			authenticationContext,
+			folderId,
+		);
+		if (childrenResult.isLeft()) {
+			throw new Error("Failed to fetch folder contents");
+		}
 
-    const children = childrenResult.value;
+		const children = childrenResult.value;
 
-    // Analyze folder contents
-    const analysis = analyzeFolderContents(children);
+		// Analyze folder contents
+		const analysis = analyzeFolderContents(children);
 
-    // Generate and return HTML response
-    return generateSummaryPage(folder, analysis);
-  },
+		// Generate and return HTML response
+		return generateSummaryPage(folder, analysis);
+	},
 };
 
 /**
@@ -90,54 +90,54 @@ export default {
  * @returns {Object} Analysis results with file counts, sizes, and breakdowns
  */
 function analyzeFolderContents(children) {
-  const analysis = {
-    totalFiles: 0,
-    totalFolders: 0,
-    totalSize: 0,
-    fileTypes: new Map(),
-    lastModified: null,
-    sizeDistribution: {
-      small: 0, // < 1MB
-      medium: 0, // 1MB - 10MB
-      large: 0, // 10MB - 100MB
-      xlarge: 0, // > 100MB
-    },
-  };
+	const analysis = {
+		totalFiles: 0,
+		totalFolders: 0,
+		totalSize: 0,
+		fileTypes: new Map(),
+		lastModified: null,
+		sizeDistribution: {
+			small: 0, // < 1MB
+			medium: 0, // 1MB - 10MB
+			large: 0, // 10MB - 100MB
+			xlarge: 0, // > 100MB
+		},
+	};
 
-  for (const child of children) {
-    // Check if it's a file or folder
-    if (child.mimetype === "application/vnd.antbox.folder") {
-      analysis.totalFolders++;
-    } else {
-      analysis.totalFiles++;
+	for (const child of children) {
+		// Check if it's a file or folder
+		if (child.mimetype === "application/vnd.antbox.folder") {
+			analysis.totalFolders++;
+		} else {
+			analysis.totalFiles++;
 
-      // Get file size if available
-      const size = child.size || 0;
-      analysis.totalSize += size;
+			// Get file size if available
+			const size = child.size ?? 0;
+			analysis.totalSize += size;
 
-      // Categorize by size
-      const sizeMB = size / (1024 * 1024);
-      if (sizeMB < 1) analysis.sizeDistribution.small++;
-      else if (sizeMB < 10) analysis.sizeDistribution.medium++;
-      else if (sizeMB < 100) analysis.sizeDistribution.large++;
-      else analysis.sizeDistribution.xlarge++;
+			// Categorize by size
+			const sizeMB = size / (1024 * 1024);
+			if (sizeMB < 1) analysis.sizeDistribution.small++;
+			else if (sizeMB < 10) analysis.sizeDistribution.medium++;
+			else if (sizeMB < 100) analysis.sizeDistribution.large++;
+			else analysis.sizeDistribution.xlarge++;
 
-      // Track file types
-      const mimeType = child.mimetype || "unknown";
-      const count = analysis.fileTypes.get(mimeType) || 0;
-      analysis.fileTypes.set(mimeType, count + 1);
+			// Track file types
+			const mimeType = child.mimetype || "unknown";
+			const count = analysis.fileTypes.get(mimeType) ?? 0;
+			analysis.fileTypes.set(mimeType, count + 1);
 
-      // Track most recent modification
-      if (child.lastModified) {
-        const modDate = new Date(child.lastModified);
-        if (!analysis.lastModified || modDate > analysis.lastModified) {
-          analysis.lastModified = modDate;
-        }
-      }
-    }
-  }
+			// Track most recent modification
+			if (child.lastModified) {
+				const modDate = new Date(child.lastModified);
+				if (!analysis.lastModified || modDate > analysis.lastModified) {
+					analysis.lastModified = modDate;
+				}
+			}
+		}
+	}
 
-  return analysis;
+	return analysis;
 }
 
 /**
@@ -147,15 +147,15 @@ function analyzeFolderContents(children) {
  * @returns {string} HTML content for the summary page
  */
 function generateSummaryPage(folder, analysis) {
-  const totalItems = analysis.totalFiles + analysis.totalFolders;
-  const formattedSize = formatFileSize(analysis.totalSize);
+	const totalItems = analysis.totalFiles + analysis.totalFolders;
+	const formattedSize = formatFileSize(analysis.totalSize);
 
-  // Convert file types map to sorted array
-  const fileTypesList = Array.from(analysis.fileTypes.entries())
-    .sort((a, b) => b[1] - a[1]) // Sort by count, descending
-    .slice(0, 10); // Top 10 file types
+	// Convert file types map to sorted array
+	const fileTypesList = Array.from(analysis.fileTypes.entries())
+		.sort((a, b) => b[1] - a[1]) // Sort by count, descending
+		.slice(0, 10); // Top 10 file types
 
-  return `
+	return `
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -293,21 +293,21 @@ function generateSummaryPage(folder, analysis) {
         <div class="stat-card">
             <div class="stat-title">File Types</div>
             <ul class="file-types-list">
-                ${fileTypesList
-                  .map(
-                    ([type, count]) => `
+                ${
+		fileTypesList
+			.map(
+				([type, count]) => `
                     <li class="file-type-item">
                         <span class="file-type-name">${escapeHtml(getMimeTypeLabel(type))}</span>
                         <span class="file-type-count">${count}</span>
                     </li>
                 `,
-                  )
-                  .join("")}
+			)
+			.join("")
+	}
                 ${
-                  fileTypesList.length === 0
-                    ? '<li class="file-type-item">No files found</li>'
-                    : ""
-                }
+		fileTypesList.length === 0 ? '<li class="file-type-item">No files found</li>' : ""
+	}
             </ul>
         </div>
 
@@ -328,10 +328,8 @@ function generateSummaryPage(folder, analysis) {
     <div class="timestamp">
         Report generated on ${new Date().toLocaleString()}
         ${
-          analysis.lastModified
-            ? `• Last file modified: ${analysis.lastModified.toLocaleString()}`
-            : ""
-        }
+		analysis.lastModified ? `• Last file modified: ${analysis.lastModified.toLocaleString()}` : ""
+	}
     </div>
 </body>
 </html>`;
@@ -344,27 +342,27 @@ function generateSummaryPage(folder, analysis) {
  * @returns {string} HTML for the size bar segments
  */
 function generateSizeBar(sizeDistribution, totalFiles) {
-  if (totalFiles === 0) {
-    return '<div style="text-align: center; line-height: 30px;">No files</div>';
-  }
+	if (totalFiles === 0) {
+		return '<div style="text-align: center; line-height: 30px;">No files</div>';
+	}
 
-  const segments = [
-    { key: "small", class: "size-small", label: "S" },
-    { key: "medium", class: "size-medium", label: "M" },
-    { key: "large", class: "size-large", label: "L" },
-    { key: "xlarge", class: "size-xlarge", label: "XL" },
-  ];
+	const segments = [
+		{ key: "small", class: "size-small", label: "S" },
+		{ key: "medium", class: "size-medium", label: "M" },
+		{ key: "large", class: "size-large", label: "L" },
+		{ key: "xlarge", class: "size-xlarge", label: "XL" },
+	];
 
-  return segments
-    .map((segment) => {
-      const count = sizeDistribution[segment.key];
-      const percentage = (count / totalFiles) * 100;
+	return segments
+		.map((segment) => {
+			const count = sizeDistribution[segment.key];
+			const percentage = (count / totalFiles) * 100;
 
-      return percentage > 0
-        ? `<div class="size-segment ${segment.class}" style="width: ${percentage}%">${segment.label}</div>`
-        : "";
-    })
-    .join("");
+			return percentage > 0
+				? `<div class="size-segment ${segment.class}" style="width: ${percentage}%">${segment.label}</div>`
+				: "";
+		})
+		.join("");
 }
 
 /**
@@ -373,18 +371,18 @@ function generateSizeBar(sizeDistribution, totalFiles) {
  * @returns {Object} Object with value and unit properties
  */
 function formatFileSize(bytes) {
-  if (bytes === 0) return { value: "0", unit: "bytes" };
+	if (bytes === 0) return { value: "0", unit: "bytes" };
 
-  const units = ["bytes", "KB", "MB", "GB", "TB"];
-  const k = 1024;
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
+	const units = ["bytes", "KB", "MB", "GB", "TB"];
+	const k = 1024;
+	const i = Math.floor(Math.log(bytes) / Math.log(k));
 
-  const value = parseFloat((bytes / Math.pow(k, i)).toFixed(1));
+	const value = parseFloat((bytes / Math.pow(k, i)).toFixed(1));
 
-  return {
-    value: value.toString(),
-    unit: units[i],
-  };
+	return {
+		value: value.toString(),
+		unit: units[i],
+	};
 }
 
 /**
@@ -393,25 +391,24 @@ function formatFileSize(bytes) {
  * @returns {string} Human-readable label
  */
 function getMimeTypeLabel(mimeType) {
-  const typeMap = {
-    "application/pdf": "PDF Documents",
-    "image/jpeg": "JPEG Images",
-    "image/png": "PNG Images",
-    "image/gif": "GIF Images",
-    "text/plain": "Text Files",
-    "application/vnd.ms-excel": "Excel Spreadsheets",
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
-      "Excel Files (xlsx)",
-    "application/msword": "Word Documents",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
-      "Word Files (docx)",
-    "video/mp4": "MP4 Videos",
-    "audio/mpeg": "MP3 Audio",
-    "application/zip": "ZIP Archives",
-    unknown: "Unknown Type",
-  };
+	const typeMap = {
+		"application/pdf": "PDF Documents",
+		"image/jpeg": "JPEG Images",
+		"image/png": "PNG Images",
+		"image/gif": "GIF Images",
+		"text/plain": "Text Files",
+		"application/vnd.ms-excel": "Excel Spreadsheets",
+		"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "Excel Files (xlsx)",
+		"application/msword": "Word Documents",
+		"application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+			"Word Files (docx)",
+		"video/mp4": "MP4 Videos",
+		"audio/mpeg": "MP3 Audio",
+		"application/zip": "ZIP Archives",
+		unknown: "Unknown Type",
+	};
 
-  return typeMap[mimeType] || mimeType;
+	return typeMap[mimeType] || mimeType;
 }
 
 /**
@@ -420,10 +417,10 @@ function getMimeTypeLabel(mimeType) {
  * @returns {string} HTML-escaped text
  */
 function escapeHtml(text) {
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
+	return text
+		.replace(/&/g, "&amp;")
+		.replace(/</g, "&lt;")
+		.replace(/>/g, "&gt;")
+		.replace(/"/g, "&quot;")
+		.replace(/'/g, "&#39;");
 }

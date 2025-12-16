@@ -485,10 +485,9 @@ const legalAspect = {
 
 ```javascript
 export default {
-  uuid: "analyzeContract", // camelCase
-  title: "Analyze Contract Clauses", // This will be the feature's name
-  description:
-    "Extracts liability and termination clauses from legal documents.",
+	uuid: "analyzeContract", // camelCase
+	title: "Analyze Contract Clauses", // This will be the feature's name
+	description: "Extracts liability and termination clauses from legal documents.",
 
 	// Exposed as Action (for UI buttons) and AI Tool (for Agents)
 	exposeAction: true,
@@ -519,8 +518,12 @@ export default {
 		const results = {};
 
 		for (const uuid of args.uuids) {
-			const node = await ctx.nodeService.get(uuid);
-			if (node.isLeft()) continue;
+			const nodeOrErr = await ctx.nodeService.get(
+				ctx.authenticationContext,
+				uuid,
+			);
+			if (nodeOrErr.isLeft()) continue;
+			const node = nodeOrErr.value;
 
 			// Pseudo-code: In a real scenario, this might call an LLM service or OCR
 			// ctx provides services like: ctx.llm, ctx.storage, etc.
@@ -575,9 +578,9 @@ const legalAgent = {
 
 ```javascript
 export default {
-  uuid: "nodeReport",
-  title: "Node Report", // This will be the feature's name
-  description: "Generates an HTML table of node properties",
+	uuid: "nodeReport",
+	title: "Node Report", // This will be the feature's name
+	description: "Generates an HTML table of node properties",
 
 	exposeAction: false,
 	exposeAITool: false,
@@ -598,7 +601,10 @@ export default {
 	returnContentType: "text/html", // Hint for client rendering
 
 	run: async (ctx, args) => {
-		const nodeResult = await ctx.nodeService.get(args.uuid);
+		const nodeResult = await ctx.nodeService.get(
+			ctx.authenticationContext,
+			args.uuid,
+		);
 		if (nodeResult.isLeft()) return "<h1>Node not found</h1>";
 		const node = nodeResult.value;
 
@@ -657,9 +663,9 @@ platform.
 
 ```javascript
 export default {
-  uuid: "logPdfCreation", // camelCase
-  title: "Log PDF Creation", // This will be the feature's name
-  description: "Logs to console when a PDF is created",
+	uuid: "logPdfCreation", // camelCase
+	title: "Log PDF Creation", // This will be the feature's name
+	description: "Logs to console when a PDF is created",
 
 	exposeAction: true, // Needs to be an action to use 'runOnCreates'
 	exposeAITool: false,
@@ -688,7 +694,10 @@ export default {
 
 	run: async (ctx, args) => {
 		for (const uuid of args.uuids) {
-			const nodeResult = await ctx.nodeService.get(uuid);
+			const nodeResult = await ctx.nodeService.get(
+				ctx.authenticationContext,
+				uuid,
+			);
 			if (nodeResult.isLeft()) {
 				console.error(`Failed to get node ${uuid} for logging.`);
 				continue;

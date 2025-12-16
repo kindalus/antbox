@@ -21,7 +21,7 @@ export interface NodeMetadata {
 	tags?: string[];
 	related?: string[];
 	properties?: NodeProperties | AspectProperties;
-	fulltext: string;
+	fulltext?: string;
 
 	filters?: NodeFilters;
 

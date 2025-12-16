@@ -176,12 +176,12 @@ export class AspectNode extends Node {
 				}
 			}
 
-			// Validate stringMimetype constraints
-			if (property.stringMimetype) {
+			// Validate contentType constraints
+			if (property.contentType) {
 				if (property.type !== "string") {
 					errors.push(
 						new PropertyFormatError(
-							`AspectProperty.${property.name}.stringMimetype`,
+							`AspectProperty.${property.name}.contentType`,
 							"only allowed when type is 'string'",
 							`type: ${property.type}`,
 						),
@@ -279,8 +279,8 @@ export interface AspectProperty {
 	title: string;
 
 	type: "uuid" | "string" | "number" | "boolean" | "object" | "array";
-	arrayType?: "string" | "number" | "uuid" | "object";
-	stringMimetype?: string;
+	arrayType?: "string" | "number" | "uuid";
+	contentType?: string;
 
 	readonly?: boolean;
 	validationRegex?: string;

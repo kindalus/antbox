@@ -141,7 +141,7 @@ describe("AspectNode", () => {
 				{
 					name: "file_prop",
 					title: "File Property",
-					type: "file",
+					type: "object",
 				},
 			];
 
@@ -566,8 +566,8 @@ describe("AspectNode", () => {
 			expect(invalidArrayResult.value).toBeInstanceOf(ValidationError);
 		});
 
-		it("String mimetype should only be used when type is 'string'", () => {
-			// Valid case: string type with stringMimetype
+		it("contentType should only be used when type is 'string'", () => {
+			// Valid case: string type with contentType
 			const validStringResult = AspectNode.create({
 				title: "Test aspect",
 				owner: "user@domain.com",
@@ -575,7 +575,7 @@ describe("AspectNode", () => {
 					name: "string_mimetype_prop",
 					title: "String Mimetype Property",
 					type: "string",
-					stringMimetype: "application/json",
+					contentType: "application/json",
 				}],
 			});
 
@@ -584,7 +584,7 @@ describe("AspectNode", () => {
 				(validStringResult.value as ValidationError).message,
 			).toBe(true);
 
-			// Invalid case: number type with stringMimetype
+			// Invalid case: number type with contentType
 			const invalidNumberResult = AspectNode.create({
 				title: "Test aspect",
 				owner: "user@domain.com",
@@ -592,27 +592,27 @@ describe("AspectNode", () => {
 					name: "number_mimetype_prop",
 					title: "Number Mimetype Property",
 					type: "number",
-					stringMimetype: "application/json",
+					contentType: "application/json",
 				}],
 			});
 
 			expect(invalidNumberResult.isLeft()).toBe(true);
 			expect(invalidNumberResult.value).toBeInstanceOf(ValidationError);
 
-			// Invalid case: file type with stringMimetype (file should use its own mimetype handling)
-			const invalidFileResult = AspectNode.create({
+			// Invalid case: non-string type with contentType
+			const invalidObjectResult = AspectNode.create({
 				title: "Test aspect",
 				owner: "user@domain.com",
 				properties: [{
 					name: "file_string_mimetype_prop",
 					title: "File String Mimetype Property",
-					type: "file",
-					stringMimetype: "application/json",
+					type: "object",
+					contentType: "application/json",
 				}],
 			});
 
-			expect(invalidFileResult.isLeft()).toBe(true);
-			expect(invalidFileResult.value).toBeInstanceOf(ValidationError);
+			expect(invalidObjectResult.isLeft()).toBe(true);
+			expect(invalidObjectResult.value).toBeInstanceOf(ValidationError);
 		});
 
 		it("Default value should be valid according to all property constraints", () => {

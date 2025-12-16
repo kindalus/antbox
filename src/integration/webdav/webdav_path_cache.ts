@@ -80,6 +80,7 @@ export class WebDAVPathCache {
 	readonly #ttlMs: number;
 	readonly #tenantIsolation: boolean;
 	readonly #userIsolation: boolean;
+	#accessCounter = 0;
 
 	// Statistics
 	#hits = 0;
@@ -111,6 +112,11 @@ export class WebDAVPathCache {
 	#isExpired(entry: CacheEntry): boolean {
 		const now = Date.now();
 		return (now - entry.timestamp) > this.#ttlMs;
+	}
+
+	#nextAccess(): number {
+		this.#accessCounter++;
+		return this.#accessCounter;
 	}
 
 	/**
@@ -158,7 +164,7 @@ export class WebDAVPathCache {
 		}
 
 		// Update last access time for LRU
-		entry.lastAccess = Date.now();
+		entry.lastAccess = this.#nextAccess();
 		this.#hits++;
 
 		return entry.node;
@@ -181,10 +187,11 @@ export class WebDAVPathCache {
 		}
 
 		const now = Date.now();
+		const lastAccess = this.#nextAccess();
 		this.#cache.set(key, {
 			node,
 			timestamp: now,
-			lastAccess: now,
+			lastAccess,
 			tenantName,
 			userId,
 		});

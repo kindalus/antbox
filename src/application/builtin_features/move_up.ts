@@ -1,5 +1,3 @@
-import type { AuthenticationContext } from "application/authentication_context.ts";
-import type { NodeService } from "application/node_service.ts";
 import type { RunContext } from "domain/features/feature_run_context.ts";
 import { Folders } from "domain/nodes/folders.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
@@ -56,21 +54,13 @@ const moveUp: Feature = {
 		if (!uuids || !Array.isArray(uuids) || uuids.length === 0) {
 			throw new Error("Node UUIDs parameter 'uuids' is required");
 		}
-		const newParentOrErr = await getNewParent(
-			ctx.authenticationContext,
-			ctx.nodeService,
-			uuids[0],
-		);
+		const newParentOrErr = await getNewParent(ctx.nodeService, uuids[0]);
 
 		if (newParentOrErr.isLeft()) {
 			throw newParentOrErr.value;
 		}
 
-		const toUpdateTask = updateTaskPredicate(
-			ctx.authenticationContext,
-			ctx.nodeService,
-			newParentOrErr.value,
-		);
+		const toUpdateTask = updateTaskPredicate(ctx.nodeService, newParentOrErr.value);
 
 		const taskPromises = uuids.map(toUpdateTask);
 
@@ -85,11 +75,10 @@ const moveUp: Feature = {
 };
 
 function updateTaskPredicate(
-	ctx: AuthenticationContext,
-	nodeService: NodeService,
+	nodeService: RunContext["nodeService"],
 	parent: string,
 ) {
-	return (uuid: string) => nodeService.update(ctx, uuid, { parent });
+	return (uuid: string) => nodeService.update(uuid, { parent });
 }
 
 function errorResultsOnly(voidOrErr: Either<AntboxError, unknown>): boolean {
@@ -97,11 +86,10 @@ function errorResultsOnly(voidOrErr: Either<AntboxError, unknown>): boolean {
 }
 
 async function getNewParent(
-	ctx: AuthenticationContext,
-	nodeService: NodeService,
+	nodeService: RunContext["nodeService"],
 	uuid: string,
 ): Promise<Either<NodeNotFoundError, string>> {
-	const nodeOrErr = await nodeService.get(ctx, uuid);
+	const nodeOrErr = await nodeService.get(uuid);
 
 	if (nodeOrErr.isLeft()) {
 		return left(nodeOrErr.value);
@@ -111,7 +99,7 @@ async function getNewParent(
 		return left(new NodeNotFoundError("Already at root folder"));
 	}
 
-	const firstParentOrErr = await nodeService.get(ctx, nodeOrErr.value.parent!);
+	const firstParentOrErr = await nodeService.get(nodeOrErr.value.parent!);
 
 	if (firstParentOrErr.isLeft()) {
 		return left(firstParentOrErr.value);

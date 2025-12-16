@@ -3,6 +3,7 @@ import { loadTemplate, TEMPLATES } from "api/templates/index.ts";
 import { builtinFeatures } from "./builtin_features/index.ts";
 import { FeatureDTO, toFeatureDTO } from "./feature_dto.ts";
 import { NodeService } from "./node_service.ts";
+import { NodeServiceProxy } from "./node_service_proxy.ts";
 import { UsersGroupsService } from "./users_groups_service.ts";
 import type { Feature } from "domain/features/feature.ts";
 import { featureToFile, featureToNodeMetadata, fileToFeature } from "domain/features/feature.ts";
@@ -755,7 +756,7 @@ export class FeatureService {
 		}
 
 		const runnables = actionsOrErr.value
-			.filter((a) => NodesFilters.satisfiedBy(criteria, a as NodeLike).isRight())
+			.filter((a) => NodesFilters.satisfiedBy(criteria, a as unknown as NodeLike).isRight())
 			.map((a) => this.#getNodeAsRunnableFeature(ctx, a.uuid));
 
 		const featuresOrErrs = await Promise.all(runnables);
@@ -853,7 +854,7 @@ export class FeatureService {
 
 		const runContext: RunContext = {
 			authenticationContext: authContext,
-			nodeService: this.#nodeService,
+			nodeService: new NodeServiceProxy(this.#nodeService, authContext),
 		};
 
 		// Validate parameters
@@ -906,7 +907,7 @@ export class FeatureService {
 
 			const runContext: RunContext = {
 				authenticationContext: actionContext,
-				nodeService: this.#nodeService,
+				nodeService: new NodeServiceProxy(this.#nodeService, actionContext),
 			};
 
 			try {
@@ -950,7 +951,7 @@ export class FeatureService {
 
 			const runContext: RunContext = {
 				authenticationContext: actionContext,
-				nodeService: this.#nodeService,
+				nodeService: new NodeServiceProxy(this.#nodeService, actionContext),
 			};
 
 			try {
@@ -992,7 +993,7 @@ export class FeatureService {
 
 			const runContext: RunContext = {
 				authenticationContext: actionContext,
-				nodeService: this.#nodeService,
+				nodeService: new NodeServiceProxy(this.#nodeService, actionContext),
 			};
 
 			try {

@@ -254,7 +254,7 @@ export interface AuthenticationContext {
 
 export interface RunContext {
 	authenticationContext: AuthenticationContext;
-	nodeService: NodeService;
+	nodeService: NodeServiceProxy;
 }
 
 export interface AntboxError {
@@ -306,72 +306,46 @@ export interface NodeMetadata {
 	unlockAuthorizedGroups?: UUID[];
 }
 
-export interface NodeService {
-	get(
-		ctx: AuthenticationContext,
-		uuid: UUID,
-	): Promise<Either<AntboxError, NodeMetadata>>;
-	list(
-		ctx: AuthenticationContext,
-		parent?: UUID,
-	): Promise<Either<AntboxError, NodeMetadata[]>>;
+/**
+ * NodeServiceProxy is what Features receive at runtime.
+ *
+ * It forwards every call to the real NodeService using the bound AuthenticationContext, so
+ * user-authored code cannot supply arbitrary credentials.
+ */
+export interface NodeServiceProxy {
+	get(uuid: UUID): Promise<Either<AntboxError, NodeMetadata>>;
+	list(parent?: UUID): Promise<Either<AntboxError, NodeMetadata[]>>;
 	find(
-		ctx: AuthenticationContext,
 		filters: NodeFilters | string,
 		pageSize?: number,
 		pageToken?: number,
 	): Promise<Either<AntboxError, NodeFilterResult>>;
 	breadcrumbs(
-		ctx: AuthenticationContext,
 		uuid: UUID,
 	): Promise<Either<AntboxError, Array<{ uuid: UUID; title: string }>>>;
 
 	create(
-		ctx: AuthenticationContext,
 		metadata: Partial<NodeMetadata>,
 	): Promise<Either<AntboxError, NodeMetadata>>;
 	createFile(
-		ctx: AuthenticationContext,
 		file: File,
 		metadata: Partial<NodeMetadata>,
 	): Promise<Either<AntboxError, NodeMetadata>>;
 
 	update(
-		ctx: AuthenticationContext,
 		uuid: UUID,
 		metadata: Partial<NodeMetadata>,
 	): Promise<Either<AntboxError, void>>;
-	updateFile(
-		ctx: AuthenticationContext,
-		uuid: UUID,
-		file: File,
-	): Promise<Either<AntboxError, void>>;
-	delete(
-		ctx: AuthenticationContext,
-		uuid: UUID,
-	): Promise<Either<AntboxError, void>>;
-	export(
-		ctx: AuthenticationContext,
-		uuid: UUID,
-	): Promise<Either<AntboxError, File>>;
-	copy(
-		ctx: AuthenticationContext,
-		uuid: UUID,
-		parent: UUID,
-	): Promise<Either<AntboxError, NodeMetadata>>;
-	duplicate(
-		ctx: AuthenticationContext,
-		uuid: UUID,
-	): Promise<Either<AntboxError, NodeMetadata>>;
+	updateFile(uuid: UUID, file: File): Promise<Either<AntboxError, void>>;
+	delete(uuid: UUID): Promise<Either<AntboxError, void>>;
+	export(uuid: UUID): Promise<Either<AntboxError, File>>;
+	copy(uuid: UUID, parent: UUID): Promise<Either<AntboxError, NodeMetadata>>;
+	duplicate(uuid: UUID): Promise<Either<AntboxError, NodeMetadata>>;
 	lock(
-		ctx: AuthenticationContext,
 		uuid: UUID,
 		unlockAuthorizedGroups?: UUID[],
 	): Promise<Either<AntboxError, void>>;
-	unlock(
-		ctx: AuthenticationContext,
-		uuid: UUID,
-	): Promise<Either<AntboxError, void>>;
+	unlock(uuid: UUID): Promise<Either<AntboxError, void>>;
 }
 
 /**
@@ -518,10 +492,7 @@ export default {
 		const results = {};
 
 		for (const uuid of args.uuids) {
-			const nodeOrErr = await ctx.nodeService.get(
-				ctx.authenticationContext,
-				uuid,
-			);
+			const nodeOrErr = await ctx.nodeService.get(uuid);
 			if (nodeOrErr.isLeft()) continue;
 			const node = nodeOrErr.value;
 
@@ -601,10 +572,7 @@ export default {
 	returnContentType: "text/html", // Hint for client rendering
 
 	run: async (ctx, args) => {
-		const nodeResult = await ctx.nodeService.get(
-			ctx.authenticationContext,
-			args.uuid,
-		);
+		const nodeResult = await ctx.nodeService.get(args.uuid);
 		if (nodeResult.isLeft()) return "<h1>Node not found</h1>";
 		const node = nodeResult.value;
 
@@ -694,10 +662,7 @@ export default {
 
 	run: async (ctx, args) => {
 		for (const uuid of args.uuids) {
-			const nodeResult = await ctx.nodeService.get(
-				ctx.authenticationContext,
-				uuid,
-			);
+			const nodeResult = await ctx.nodeService.get(uuid);
 			if (nodeResult.isLeft()) {
 				console.error(`Failed to get node ${uuid} for logging.`);
 				continue;

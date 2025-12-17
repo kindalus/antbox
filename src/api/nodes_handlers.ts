@@ -50,6 +50,7 @@ export function createHandler(tenants: AntboxTenant[]): HttpHandler {
 		async (req: Request): Promise<Response> => {
 			const service = getTenant(req, tenants).nodeService;
 			const metadata = await req.json();
+
 			if (!metadata?.mimetype) {
 				return Promise.resolve(
 					new Response("{ mimetype } not given", { status: 400 }),

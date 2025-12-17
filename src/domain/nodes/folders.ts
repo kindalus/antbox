@@ -24,35 +24,43 @@ export class Folders {
 		Folders.WORKFLOWS_FOLDER_UUID,
 	];
 
-	static isRootFolder(node: FolderNode): boolean {
-		return node.uuid === Folders.ROOT_FOLDER_UUID;
+	static isRootFolder(node: string | FolderNode): boolean {
+		const uuid = typeof node === "string" ? node : node.uuid;
+		return uuid === Folders.ROOT_FOLDER_UUID;
 	}
 
-	static isSystemRootFolder(node: FolderNode): boolean {
-		return node.uuid === Folders.SYSTEM_FOLDER_UUID;
+	static isSystemRootFolder(node: string | FolderNode): boolean {
+		const uuid = typeof node === "string" ? node : node.uuid;
+		return uuid === Folders.SYSTEM_FOLDER_UUID;
 	}
 
-	static isAspectsFolder(node: FolderNode): boolean {
-		return node.uuid === Folders.ASPECTS_FOLDER_UUID;
+	static isAspectsFolder(node: string | FolderNode): boolean {
+		const uuid = typeof node === "string" ? node : node.uuid;
+		return uuid === Folders.ASPECTS_FOLDER_UUID;
 	}
 
-	static isApiKeysFolder(node: FolderNode): boolean {
-		return node.uuid === Folders.API_KEYS_FOLDER_UUID;
+	static isApiKeysFolder(node: string | FolderNode): boolean {
+		const uuid = typeof node === "string" ? node : node.uuid;
+		return uuid === Folders.API_KEYS_FOLDER_UUID;
 	}
 
-	static isFeaturesFolder(node: FolderNode): boolean {
-		return node.uuid === Folders.FEATURES_FOLDER_UUID;
+	static isFeaturesFolder(node: string | FolderNode): boolean {
+		const uuid = typeof node === "string" ? node : node.uuid;
+		return uuid === Folders.FEATURES_FOLDER_UUID;
 	}
 
-	static isAgentsFolder(node: FolderNode): boolean {
-		return node.uuid === Folders.AGENTS_FOLDER_UUID;
+	static isAgentsFolder(node: string | FolderNode): boolean {
+		const uuid = typeof node === "string" ? node : node.uuid;
+		return uuid === Folders.AGENTS_FOLDER_UUID;
 	}
 
-	static isWorkflowsFolder(node: FolderNode): boolean {
-		return node.uuid === Folders.WORKFLOWS_FOLDER_UUID;
+	static isWorkflowsFolder(node: string | FolderNode): boolean {
+		const uuid = typeof node === "string" ? node : node.uuid;
+		return uuid === Folders.WORKFLOWS_FOLDER_UUID;
 	}
 
-	static isSystemFolder(uuid: string): boolean {
+	static isSystemFolder(node: string | FolderNode): boolean {
+		const uuid = typeof node === "string" ? node : node.uuid;
 		return Folders.SYSTEM_FOLDERS_UUID.some((folder) => folder === uuid);
 	}
 

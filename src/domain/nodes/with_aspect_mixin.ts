@@ -44,10 +44,25 @@ export function WithAspectMixin<TBase extends Constructor>(Base: TBase) {
 
 		update(metadata: NodeMetadata): Either<ValidationError, void> {
 			this._aspects = metadata.aspects ?? this._aspects;
-			this._properties = (metadata.properties as NodeProperties) ??
-				this._properties;
-
 			this._related = metadata.related ?? this._related;
+
+			const updateProperties = metadata.properties ||
+				metadata.aspects?.length && (this._aspects.length ?? 0) != metadata.aspects?.length;
+
+			if (!updateProperties) {
+				return super.update(metadata);
+			}
+
+			const properties: Record<string, unknown> = {
+				...this._properties,
+				...metadata.properties,
+			};
+
+			Object.entries(properties)
+				.filter(([k, v]) => !((v ?? false) && this._aspects.includes(k.split(":")[0])))
+				.forEach(([k]) => delete properties[k]);
+
+			this._properties = properties;
 
 			return super.update(metadata);
 		}

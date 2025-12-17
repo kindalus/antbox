@@ -134,13 +134,19 @@ async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
 	// Create other core services
 	const aspectService = new AspectService(nodeService);
 	const usersGroupsService = new UsersGroupsService(nodeService);
-	const featureService = new FeatureService(nodeService, usersGroupsService, ocrModel);
+	const featureService = new FeatureService({
+		nodeService,
+		usersGroupsService,
+		ocrModel,
+		eventBus,
+	});
 
 	const apiKeyService = new ApiKeyService(nodeService);
 
 	const workflowService = new WorkflowService({
 		nodeService,
-		workflowInstanceRepository: workflowInstanceRepository ?? new InmemWorkflowInstanceRepository(),
+		workflowInstanceRepository: workflowInstanceRepository ??
+			new InmemWorkflowInstanceRepository(),
 		featureService,
 	});
 

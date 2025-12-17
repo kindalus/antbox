@@ -1,7 +1,7 @@
 import { AspectNode, type AspectProperty } from "domain/aspects/aspect_node.ts";
 import { Aspects } from "domain/aspects/aspects.ts";
 import { NodeFactory } from "domain/node_factory.ts";
-import type { AspectableNode, FileLikeNode, NodeLike } from "domain/node_like.ts";
+import type { AspectableNode, NodeLike } from "domain/node_like.ts";
 import { FileNode } from "domain/nodes/file_node.ts";
 import { FolderNode } from "domain/nodes/folder_node.ts";
 import { FolderNotFoundError } from "domain/nodes/folder_not_found_error.ts";
@@ -10,7 +10,6 @@ import { MetaNode } from "domain/nodes/meta_node.ts";
 import { Node, type Permission } from "domain/nodes/node.ts";
 import { NodeCreatedEvent } from "domain/nodes/node_created_event.ts";
 import { NodeDeletedEvent } from "domain/nodes/node_deleted_event.ts";
-import { NodeUpdateChanges, NodeUpdatedEvent } from "domain/nodes/node_updated_event.ts";
 import {
 	isNodeFilters2D,
 	type NodeFilter,
@@ -18,7 +17,13 @@ import {
 	type NodeFilters1D,
 	type NodeFilters2D,
 } from "domain/nodes/node_filter.ts";
+import { NodeUpdateChanges, NodeUpdatedEvent } from "domain/nodes/node_updated_event.ts";
 
+import type { AuthenticationContext } from "./authentication_context.ts";
+import { builtinFolders, SYSTEM_FOLDER, SYSTEM_FOLDERS } from "./builtin_folders/index.ts";
+import { isPrincipalAllowedTo } from "./is_principal_allowed_to.ts";
+import type { NodeServiceContext } from "./node_service_context.ts";
+import { FeatureNode, FeatureParameter } from "domain/features/feature_node.ts";
 import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import type { NodeProperties } from "domain/nodes/node_properties.ts";
@@ -32,26 +37,15 @@ import { Users } from "domain/users_groups/users.ts";
 import { AntboxError, BadRequestError, ForbiddenError, UnknownError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
 import { FidGenerator } from "shared/fid_generator.ts";
+import { Specification, specificationFn } from "shared/specification.ts";
 import { UuidGenerator } from "shared/uuid_generator.ts";
 import { ValidationError } from "shared/validation_error.ts";
-import type { AuthenticationContext } from "application/authentication_context.ts";
-import {
-	builtinFolders,
-	SYSTEM_FOLDER,
-	SYSTEM_FOLDERS,
-} from "application/builtin_folders/index.ts";
-import { isPrincipalAllowedTo } from "application/is_principal_allowed_to.ts";
-import type { NodeServiceContext } from "application/node_service_context.ts";
-import { Specification, specificationFn } from "shared/specification.ts";
+import { builtinAgents } from "./builtin_agents/index.ts";
 import { builtinAspects } from "./builtin_aspects/index.ts";
+import { builtinFeatures } from "./builtin_features/index.ts";
 import { builtinGroups } from "./builtin_groups/index.ts";
 import { builtinUsers } from "./builtin_users/index.ts";
-import { builtinAgents } from "./builtin_agents/index.ts";
-import { FeatureNode, FeatureParameter } from "domain/features/feature_node.ts";
 import { ParentFolderUpdateHandler } from "./parent_folder_update_handler.ts";
-import { builtinFeatures } from "./builtin_features/index.ts";
-import { ConnectionCheckOutFailedEvent } from "mongodb";
-import { log } from "node:console";
 
 // TODO: Implements throwing events
 
@@ -117,10 +111,10 @@ export class NodeService {
 		return this.createFile(ctx, fileOrErr.value, metadata) as Promise<Either<AntboxError, Node>>;
 	}
 
-	async create(
+	async #createNodeInRepository(
 		ctx: AuthenticationContext,
 		metadata: Partial<NodeMetadata>,
-	): Promise<Either<AntboxError, NodeMetadata>> {
+	): Promise<Either<AntboxError, NodeLike>> {
 		const uuid = metadata.uuid ?? UuidGenerator.generate();
 
 		if (!metadata.parent) {
@@ -200,6 +194,19 @@ export class NodeService {
 			return left(voidOrErr.value);
 		}
 
+		return right(nodeOrErr.value);
+	}
+
+	async create(
+		ctx: AuthenticationContext,
+		metadata: Partial<NodeMetadata>,
+	): Promise<Either<AntboxError, NodeMetadata>> {
+		const nodeOrErr = await this.#createNodeInRepository(ctx, metadata);
+
+		if (nodeOrErr.isLeft()) {
+			return left(nodeOrErr.value);
+		}
+
 		// Publish NodeCreatedEvent
 		const evt = new NodeCreatedEvent(ctx.principal.email, ctx.tenant, nodeOrErr.value.metadata);
 		this.context.bus.publish(evt);
@@ -223,13 +230,15 @@ export class NodeService {
 			useFileType = false;
 		}
 
-		const nodeOrErr = await this.create(ctx, {
+		const fileMetadata = {
 			...metadata,
 			title: metadata.title ?? file.name,
 			fid: metadata.fid ?? FidGenerator.generate(metadata.title ?? file.name),
 			mimetype: useFileType ? file.type : metadata.mimetype,
 			size: file.size,
-		});
+		};
+
+		const nodeOrErr = await this.#createNodeInRepository(ctx, fileMetadata);
 
 		if (nodeOrErr.isLeft()) {
 			return left(nodeOrErr.value);
@@ -285,7 +294,11 @@ export class NodeService {
 		if (!Nodes.isFolder(nodeOrErr.value)) {
 			const v = await this.context.repository.delete(uuid);
 			if (v.isRight()) {
-				const evt = new NodeDeletedEvent(ctx.principal.email, ctx.tenant, nodeOrErr.value.metadata);
+				const evt = new NodeDeletedEvent(
+					ctx.principal.email,
+					ctx.tenant,
+					nodeOrErr.value.metadata,
+				);
 				this.context.bus.publish(evt);
 			}
 			return v;
@@ -311,7 +324,11 @@ export class NodeService {
 		const v = await this.context.repository.delete(uuid);
 
 		if (v.isRight()) {
-			const evt = new NodeDeletedEvent(ctx.principal.email, ctx.tenant, nodeOrErr.value.metadata);
+			const evt = new NodeDeletedEvent(
+				ctx.principal.email,
+				ctx.tenant,
+				nodeOrErr.value.metadata,
+			);
 			this.context.bus.publish(evt);
 		}
 
@@ -847,8 +864,16 @@ export class NodeService {
 			return left(new NodeNotFoundError(uuid));
 		}
 
-		if (this.#mapAntboxMimetypes(nodeOrErr.value.mimetype) !== file.type) {
-			return left(new BadRequestError("Mimetype mismatch"));
+		const mappedMimetype = this.#mapAntboxMimetypes(nodeOrErr.value.mimetype);
+		if (
+			mappedMimetype !== file.type && !mappedMimetype.endsWith("/javascript") &&
+			!file.type.endsWith("/javascript")
+		) {
+			return left(
+				new BadRequestError(
+					`Mimetype mismatch ${mappedMimetype} vs ${file.type}`,
+				),
+			);
 		}
 
 		await this.context.storage.write(uuid, file, {

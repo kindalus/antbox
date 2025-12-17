@@ -101,11 +101,11 @@ describe("FeatureService", () => {
 			if (getResult.isRight()) {
 				const feature = getResult.value;
 				console.log("Retrieved feature:", {
-					name: feature.name,
+					name: feature.title,
 					description: feature.description,
 					uuid: feature.uuid,
 				});
-				expect(feature.name).toBe("Updated Test feature");
+				expect(feature.title).toBe("Updated Test feature");
 			}
 		});
 		it("should validate Feature must have uuid", async () => {
@@ -582,7 +582,7 @@ describe("FeatureService", () => {
 
 			if (getResult.isRight()) {
 				const feature = getResult.value;
-				expect(feature.name).toBe("Complex Feature");
+				expect(feature.title).toBe("Complex Feature");
 				expect(feature.runOnCreates).toBe(true);
 				expect(feature.runAs).toBe(Groups.ADMINS_GROUP_UUID);
 				expect(feature.groupsAllowed).toEqual(["admins", "editors"]);
@@ -927,7 +927,7 @@ describe("FeatureService", () => {
 			const result = await service.get(adminAuthContext, "test-feature-uuid");
 			expect(result.isRight()).toBeTruthy();
 			if (result.isRight()) {
-				expect(result.value.name).toBe("Test feature");
+				expect(result.value.title).toBe("Test feature");
 			}
 		});
 
@@ -987,7 +987,7 @@ describe("FeatureService", () => {
 			if (result.isRight()) {
 				const features = result.value;
 				expect(features.length).toBeGreaterThan(0);
-				const testFeature = features.find((f) => f.name === "Test feature");
+				const testFeature = features.find((f) => f.title === "Test feature");
 				expect(testFeature).toBeDefined();
 			}
 		});
@@ -1668,11 +1668,7 @@ const createService = async () => {
 	const eventBus = new InMemoryEventBus();
 
 	const nodeService = new NodeService({ repository, storage, bus: eventBus });
-	const usersGroupsService = new UsersGroupsService({
-		repository,
-		storage,
-		bus: eventBus,
-	});
+	const usersGroupsService = new UsersGroupsService(nodeService);
 	const ocrModel = new DeterministicModel("");
 
 	await usersGroupsService.createUser(adminAuthContext, {
@@ -1681,7 +1677,7 @@ const createService = async () => {
 		groups: [Groups.ADMINS_GROUP_UUID],
 	});
 
-	return new FeatureService(nodeService, usersGroupsService, ocrModel);
+	return new FeatureService({ nodeService, usersGroupsService, ocrModel, eventBus });
 };
 
 interface TestResult {

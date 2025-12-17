@@ -15,29 +15,17 @@ export class ParentFolderUpdateHandler
 	constructor(private readonly context: NodeServiceContext) {}
 
 	handle(event: NodeCreatedEvent | NodeDeletedEvent | NodeUpdatedEvent): void {
-		// Handle async operations in a non-blocking way
-		this.handleAsync(event).catch((error) => {
-			console.error(
-				`ParentFolderUpdateHandler: Error handling ${event.eventId}:`,
-				error,
-			);
-		});
-	}
-
-	private async handleAsync(
-		event: NodeCreatedEvent | NodeDeletedEvent | NodeUpdatedEvent,
-	): Promise<void> {
-		try {
-			if (event.eventId === "NodeUpdatedEvent") {
-				await this.handleNodeUpdated(event as NodeUpdatedEvent);
-			} else {
-				await this.handleNodeCreatedOrDeleted(event as NodeCreatedEvent | NodeDeletedEvent);
-			}
-		} catch (error) {
-			// Log error but don't throw to avoid disrupting the main operation
+		const errorHandler = <T>(error: T) =>
 			console.error(
 				`ParentFolderUpdateHandler: Unexpected error handling ${event.eventId}:`,
 				error,
+			);
+
+		if (event.eventId === "NodeUpdatedEvent") {
+			this.handleNodeUpdated(event as NodeUpdatedEvent).catch(errorHandler);
+		} else {
+			this.handleNodeCreatedOrDeleted(event as NodeCreatedEvent | NodeDeletedEvent).catch(
+				errorHandler,
 			);
 		}
 	}
@@ -82,7 +70,7 @@ export class ParentFolderUpdateHandler
 		_context = "",
 	): Promise<void> {
 		// Don't update the root folder as it's a built-in folder
-		if (parentUuid === Folders.ROOT_FOLDER_UUID) {
+		if (Folders.isRootFolder(parentUuid) || Folders.isSystemFolder(parentUuid)) {
 			return;
 		}
 

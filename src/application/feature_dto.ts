@@ -5,7 +5,7 @@ import { NodeMetadata } from "domain/nodes/node_metadata.ts";
 
 export interface FeatureDTO {
 	uuid: string;
-	name: string;
+	title: string;
 	description: string;
 	exposeAction: boolean;
 	runOnCreates: boolean;
@@ -35,11 +35,9 @@ export interface FeatureDTO {
 }
 
 export function toFeatureDTO(node: FeatureNode | Feature | NodeMetadata): FeatureDTO {
-	const name = Object.hasOwn(node, "name") ? (node as Feature).name : (node as NodeMetadata).title;
-
 	return {
 		uuid: node.uuid,
-		name,
+		title: node.title,
 		description: node.description || "",
 		exposeAction: node.exposeAction || false,
 		runOnCreates: node.runOnCreates || false,

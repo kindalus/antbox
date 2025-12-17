@@ -10,7 +10,7 @@ import { Users } from "../users_groups/users.ts";
 
 export interface Feature {
 	uuid: string;
-	name: string;
+	title: string;
 	description: string;
 	exposeAction: boolean;
 	runOnCreates: boolean;
@@ -74,7 +74,7 @@ export function featureToNodeMetadata(
 ): NodeMetadata {
 	return {
 		uuid: feature.uuid,
-		title: feature.name,
+		title: feature.title,
 		description: feature.description || "",
 		parent: Folders.FEATURES_FOLDER_UUID,
 		mimetype: Nodes.FEATURE_MIMETYPE,
@@ -93,11 +93,11 @@ export function featureToNodeMetadata(
 		returnContentType: feature.returnContentType,
 		owner: owner!,
 		tags: feature.tags,
-	};
+	} as NodeMetadata;
 }
 
 export function fromFeature(feat: Feature): FeatureNode {
-	const metadata = { ...feat, title: feat.name, owner: Users.ROOT_USER_EMAIL };
+	const metadata = { ...feat, owner: Users.ROOT_USER_EMAIL };
 
 	return FeatureNode.create(metadata).right;
 }
@@ -107,7 +107,7 @@ export function featureToFile(feature: Feature): File {
 
 	const content = `export default {
 uuid: ${JSON.stringify(feature.uuid)},
-name: ${JSON.stringify(feature.name)},
+name: ${JSON.stringify(feature.title)},
 description: ${JSON.stringify(feature.description)},
 exposeAction: ${feature.exposeAction},
 exposeAITool: ${feature.exposeAITool},
@@ -131,7 +131,7 @@ run: ${runFunction}
 
 	return new File(
 		[content],
-		`${feature.name}.js`,
+		`${feature.title}.js`,
 		{ type: "application/vnd.antbox.feature" },
 	);
 }
@@ -168,8 +168,8 @@ export async function fileToFeature(
 				return left(new BadRequestError("Feature must have a uuid"));
 			}
 
-			if (!func.name) {
-				return left(new BadRequestError("Feature must have a name"));
+			if (!func.title) {
+				return left(new BadRequestError("Feature must have a title"));
 			}
 
 			if (!func.run || typeof func.run !== "function") {

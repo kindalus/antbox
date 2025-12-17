@@ -7,7 +7,7 @@ import { Feature } from "domain/features/feature.ts";
 
 const moveUp: Feature = {
 	uuid: "move_up",
-	name: "Move Up",
+	title: "Move Up",
 	description: "Move nodes one level up in the folder hierarchy",
 	exposeAction: true,
 	runOnCreates: false,

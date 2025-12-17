@@ -37,9 +37,12 @@ export interface FeatureParameter {
 }
 
 export class FeatureNode extends FileMixin(Node) {
-	readonly parameters: FeatureParameter[];
+	_parameters: FeatureParameter[];
+	get parameters(): FeatureParameter[] {
+		return this._parameters;
+	}
 
-	readonly returnType:
+	_returnType:
 		| "string"
 		| "number"
 		| "boolean"
@@ -47,23 +50,71 @@ export class FeatureNode extends FileMixin(Node) {
 		| "object"
 		| "file"
 		| "void";
-	readonly returnDescription?: string;
-	readonly returnContentType?: string;
 
-	readonly runAs?: string;
-	readonly groupsAllowed: string[];
+	get returnType():
+		| "string"
+		| "number"
+		| "boolean"
+		| "array"
+		| "object"
+		| "file"
+		| "void" {
+		return this._returnType;
+	}
+
+	_returnDescription?: string;
+	get returnDescription(): string | undefined {
+		return this._returnDescription;
+	}
+	_returnContentType?: string;
+	get returnContentType(): string | undefined {
+		return this._returnContentType;
+	}
+
+	_runAs?: string;
+	get runAs(): string | undefined {
+		return this._runAs;
+	}
+	_groupsAllowed: string[];
+	get groupsAllowed(): string[] {
+		return this._groupsAllowed;
+	}
 
 	// Action exposure and action only execution settings
 	// It is mandatory to have a parameter callled uuids of type `array` and arrayType `string`
-	readonly exposeAction: boolean;
-	readonly filters: NodeFilters;
-	readonly runOnUpdates: boolean;
-	readonly runOnDeletes: boolean;
-	readonly runManually: boolean;
-	readonly runOnCreates: boolean;
+	_exposeAction: boolean;
+	get exposeAction(): boolean {
+		return this._exposeAction;
+	}
+	_filters: NodeFilters;
+	get filters(): NodeFilters {
+		return this._filters;
+	}
+	_runOnUpdates: boolean;
+	get runOnUpdates(): boolean {
+		return this._runOnUpdates;
+	}
+	_runOnDeletes: boolean;
+	get runOnDeletes(): boolean {
+		return this._runOnDeletes;
+	}
+	_runManually: boolean;
+	get runManually(): boolean {
+		return this._runManually;
+	}
+	_runOnCreates: boolean;
+	get runOnCreates(): boolean {
+		return this._runOnCreates;
+	}
 
-	readonly exposeExtension: boolean;
-	readonly exposeAITool: boolean;
+	_exposeExtension: boolean;
+	get exposeExtension(): boolean {
+		return this._exposeExtension;
+	}
+	_exposeAITool: boolean;
+	get exposeAITool(): boolean {
+		return this._exposeAITool;
+	}
 
 	constructor(metadata: Partial<NodeMetadata>) {
 		super({
@@ -72,22 +123,22 @@ export class FeatureNode extends FileMixin(Node) {
 			parent: Folders.FEATURES_FOLDER_UUID,
 		});
 
-		this.parameters = metadata.parameters ?? [];
-		this.filters = metadata.filters ?? [] as NodeFilters;
-		this.returnType = metadata.returnType ?? "void";
-		this.returnDescription = metadata.returnDescription!;
-		this.returnContentType = metadata.returnContentType!;
-		this.runAs = metadata.runAs;
-		this.groupsAllowed = metadata.groupsAllowed ?? [];
+		this._parameters = metadata.parameters ?? [];
+		this._filters = metadata.filters ?? [] as NodeFilters;
+		this._returnType = metadata.returnType ?? "void";
+		this._returnDescription = metadata.returnDescription!;
+		this._returnContentType = metadata.returnContentType!;
+		this._runAs = metadata.runAs;
+		this._groupsAllowed = metadata.groupsAllowed ?? [];
 
-		this.exposeAction = metadata.exposeAction ?? false;
-		this.runOnCreates = this.exposeAction ? metadata.runOnCreates ?? false : false;
-		this.runOnUpdates = metadata.exposeAction ? metadata.runOnUpdates ?? false : false;
-		this.runOnDeletes = this.exposeAction ? metadata.runOnDeletes ?? false : false;
-		this.runManually = metadata.exposeAction ? metadata.runManually ?? true : true;
+		this._exposeAction = metadata.exposeAction ?? false;
+		this._runOnCreates = this._exposeAction ? metadata.runOnCreates ?? false : false;
+		this._runOnUpdates = metadata.exposeAction ? metadata.runOnUpdates ?? false : false;
+		this._runOnDeletes = this._exposeAction ? metadata.runOnDeletes ?? false : false;
+		this._runManually = metadata.exposeAction ? metadata.runManually ?? true : true;
 
-		this.exposeExtension = metadata.exposeExtension ?? false;
-		this.exposeAITool = metadata.exposeAITool ?? false;
+		this._exposeExtension = metadata.exposeExtension ?? false;
+		this._exposeAITool = metadata.exposeAITool ?? false;
 
 		this._validateFeatureNode();
 	}
@@ -100,6 +151,23 @@ export class FeatureNode extends FileMixin(Node) {
 			mimetype: Nodes.FEATURE_MIMETYPE,
 			parent: Folders.FEATURES_FOLDER_UUID,
 		});
+
+		this._parameters = metadata.parameters ?? this._parameters;
+		this._filters = metadata.filters ?? this._filters;
+		this._returnType = metadata.returnType ?? this._returnType;
+		this._returnDescription = metadata.returnDescription ?? this._returnDescription;
+		this._returnContentType = metadata.returnContentType ?? this._returnContentType;
+		this._runAs = metadata.runAs ?? this._runAs;
+		this._groupsAllowed = metadata.groupsAllowed ?? this._groupsAllowed;
+
+		this._exposeAction = metadata.exposeAction ?? this._exposeAction;
+		this._runOnCreates = metadata.runOnCreates ?? this._runOnCreates;
+		this._runOnUpdates = metadata.runOnUpdates ?? this._runOnUpdates;
+		this._runOnDeletes = metadata.runOnDeletes ?? this._runOnDeletes;
+		this._runManually = metadata.runManually ?? this._runManually;
+
+		this._exposeExtension = metadata.exposeExtension ?? this._exposeExtension;
+		this._exposeAITool = metadata.exposeAITool ?? this._exposeAITool;
 
 		try {
 			this._validateFeatureNode();

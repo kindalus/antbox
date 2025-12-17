@@ -1,10 +1,5 @@
 // deno-lint-ignore-file no-case-declarations
 import { loadTemplate, TEMPLATES } from "api/templates/index.ts";
-import { builtinFeatures } from "./builtin_features/index.ts";
-import { FeatureDTO, toFeatureDTO } from "./feature_dto.ts";
-import { NodeService } from "./node_service.ts";
-import { NodeServiceProxy } from "./node_service_proxy.ts";
-import { UsersGroupsService } from "./users_groups_service.ts";
 import type { Feature } from "domain/features/feature.ts";
 import { featureToFile, featureToNodeMetadata, fileToFeature } from "domain/features/feature.ts";
 import { FeatureNode } from "domain/features/feature_node.ts";
@@ -25,10 +20,18 @@ import { Groups } from "domain/users_groups/groups.ts";
 import { Users } from "domain/users_groups/users.ts";
 import { AntboxError, BadRequestError, ForbiddenError, UnknownError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
+import { EventBus } from "shared/event_bus.ts";
 import { ValidationError } from "shared/validation_error.ts";
 import { DOCS, loadDoc } from "../../docs/index.ts";
 import { AIModel } from "./ai_model.ts";
 import { type AuthenticationContext } from "./authentication_context.ts";
+import { builtinFeatures } from "./builtin_features/index.ts";
+import { FeatureDTO, toFeatureDTO } from "./feature_dto.ts";
+import { NodeService } from "./node_service.ts";
+import { NodeServiceProxy } from "./node_service_proxy.ts";
+import { UsersGroupsService } from "./users_groups_service.ts";
+import { allowedNodeEnvironmentFlags } from "node:process";
+import { win32 } from "node:path/win32";
 
 type RecordKey = [string, string];
 interface RunnableRecord {
@@ -36,44 +39,52 @@ interface RunnableRecord {
 	timestamp: number;
 }
 
+interface FeatureServiceContext {
+	nodeService: NodeService;
+	usersGroupsService: UsersGroupsService;
+	ocrModel?: AIModel;
+	eventBus: EventBus;
+}
+
 export class FeatureService {
 	static #runnable: Map<RecordKey, RunnableRecord> = new Map();
 
 	readonly #nodeService: NodeService;
-	readonly #authService: UsersGroupsService;
+	readonly #usersGroupsService: UsersGroupsService;
 	readonly #ocrModel?: AIModel;
 
 	constructor(
-		nodeService: NodeService,
-		authService: UsersGroupsService,
-		ocrModel?: AIModel,
+		ctx: FeatureServiceContext,
 	) {
-		this.#nodeService = nodeService;
-		this.#authService = authService;
-		this.#ocrModel = ocrModel;
+		this.#nodeService = ctx.nodeService;
+		this.#usersGroupsService = ctx.usersGroupsService;
+		this.#ocrModel = ctx.ocrModel;
 
 		// Register event handlers for domain-wide triggers
-		this.#nodeService["context"].bus.subscribe(NodeCreatedEvent.EVENT_ID, {
-			handle: (evt: NodeCreatedEvent) => this.#runAutomaticFeaturesForCreates(evt),
+		// AUTOMATIC TRIGGERS
+		ctx.eventBus.subscribe(NodeCreatedEvent.EVENT_ID, {
+			handle: (evt: NodeCreatedEvent) => this.#runOnCreate(evt),
 		});
 
-		this.#nodeService["context"].bus.subscribe(NodeUpdatedEvent.EVENT_ID, {
-			handle: (evt: NodeUpdatedEvent) => this.#runAutomaticFeaturesForUpdates(evt),
+		ctx.eventBus.subscribe(NodeUpdatedEvent.EVENT_ID, {
+			handle: (evt: NodeUpdatedEvent) => this.#runOnUpdate(evt),
 		});
 
-		this.#nodeService["context"].bus.subscribe(NodeDeletedEvent.EVENT_ID, {
-			handle: (evt: NodeDeletedEvent) => this.#runAutomaticFeaturesForDeletes(evt),
-		});
-		this.#nodeService["context"].bus.subscribe(NodeCreatedEvent.EVENT_ID, {
-			handle: (evt: NodeCreatedEvent) => this.#runOnCreateScripts(evt),
+		ctx.eventBus.subscribe(NodeDeletedEvent.EVENT_ID, {
+			handle: (evt: NodeDeletedEvent) => this.#runOnDelete(evt),
 		});
 
-		this.#nodeService["context"].bus.subscribe(NodeUpdatedEvent.EVENT_ID, {
-			handle: (evt: NodeUpdatedEvent) => this.#runOnUpdatedScripts(evt),
+		// FOLDER HOOKS
+		ctx.eventBus.subscribe(NodeCreatedEvent.EVENT_ID, {
+			handle: (evt: NodeCreatedEvent) => this.#runOnCreateFolderHooks(evt),
 		});
 
-		this.#nodeService["context"].bus.subscribe(NodeDeletedEvent.EVENT_ID, {
-			handle: (evt: NodeDeletedEvent) => this.#runOnDeleteScripts(evt),
+		ctx.eventBus.subscribe(NodeUpdatedEvent.EVENT_ID, {
+			handle: (evt: NodeUpdatedEvent) => this.#runOnUpdatedFolderHooks(evt),
+		});
+
+		ctx.eventBus.subscribe(NodeDeletedEvent.EVENT_ID, {
+			handle: (evt: NodeDeletedEvent) => this.#runOnDeleteFolderHooks(evt),
 		});
 	}
 
@@ -92,7 +103,7 @@ export class FeatureService {
 
 		// Validate that runAs group exists if specified
 		if (feature.runAs) {
-			const groupOrErr = await this.#authService.getGroup(
+			const groupOrErr = await this.#usersGroupsService.getGroup(
 				UsersGroupsService.elevatedContext,
 				feature.runAs,
 			);
@@ -108,14 +119,23 @@ export class FeatureService {
 		const nodeOrErr = await this.#nodeService.get(ctx, feature.uuid);
 
 		if (nodeOrErr.isLeft()) {
-			return this.#nodeService.createFile(ctx, file, {
+			const createResult = await this.#nodeService.createFile(ctx, file, {
 				...metadata,
 				uuid: feature.uuid,
 				parent: Folders.FEATURES_FOLDER_UUID,
-			}) as unknown as Promise<Either<AntboxError, FeatureDTO>>;
+			});
+
+			if (createResult.isLeft()) {
+				return left(createResult.value);
+			}
+
+			return right(toFeatureDTO(createResult.value));
 		}
 
-		await this.#nodeService.updateFile(ctx, feature.uuid, file);
+		const updateFileResult = await this.#nodeService.updateFile(ctx, feature.uuid, file);
+		if (updateFileResult.isLeft()) {
+			return left(updateFileResult.value);
+		}
 
 		// Update the node metadata with new action properties
 		const updateResult = await this.#nodeService.update(
@@ -350,7 +370,7 @@ export class FeatureService {
 
 		const dtos = [...featureNodes, ...builtinFeatures]
 			.map(toFeatureDTO)
-			.sort((a, b) => a.name.localeCompare(b.name));
+			.sort((a, b) => a.title.localeCompare(b.title));
 
 		if (
 			ctx.principal.email === Users.ROOT_USER_EMAIL ||
@@ -429,7 +449,6 @@ export class FeatureService {
 		}
 
 		// Filter node UUIDs based on the feature's filter criteria
-		const spec = NodesFilters.nodeSpecificationFrom(feature.filters);
 		const nodesOrErrs = await Promise.all(uuids.map((uuid) => this.#nodeService.get(ctx, uuid)));
 
 		// Helper to filter out error results and log warnings
@@ -443,8 +462,10 @@ export class FeatureService {
 		// Extract successfully retrieved nodes, apply filters, get UUIDs
 		const nodes = nodesOrErrs.filter(filterAndLog)
 			.map((n) => n.value as NodeMetadata)
-			.filter((n) => spec.isSatisfiedBy(n as unknown as NodeLike).isRight())
+			.filter((n) => NodesFilters.satisfiedBy(feature.filters, n as NodeLike).isRight())
 			.map((n) => n.uuid!);
+
+		console.log("Nodes", nodes);
 
 		try {
 			// Track concurrent action executions
@@ -876,7 +897,7 @@ export class FeatureService {
 		}
 	}
 
-	async #runAutomaticFeaturesForCreates(evt: NodeCreatedEvent) {
+	async #runOnCreate(evt: NodeCreatedEvent) {
 		const runCriteria: NodeFilters = [["runOnCreates", "==", true]];
 
 		const actions = await this.#getAutomaticActions(runCriteria);
@@ -918,7 +939,7 @@ export class FeatureService {
 		}
 	}
 
-	async #runAutomaticFeaturesForUpdates(
+	async #runOnUpdate(
 		evt: NodeUpdatedEvent,
 	) {
 		const runCriteria: NodeFilters = [["runOnUpdates", "==", true]];
@@ -962,7 +983,7 @@ export class FeatureService {
 		}
 	}
 
-	async #runAutomaticFeaturesForDeletes(evt: NodeDeletedEvent) {
+	async #runOnDelete(evt: NodeDeletedEvent) {
 		const runCriteria: NodeFilters = [["runOnDeletes", "==", true]];
 
 		const actions = await this.#getAutomaticActions(runCriteria);
@@ -1004,7 +1025,7 @@ export class FeatureService {
 		}
 	}
 
-	async #runOnDeleteScripts(evt: NodeDeletedEvent) {
+	async #runOnDeleteFolderHooks(evt: NodeDeletedEvent) {
 		if (evt.payload.parent === Folders.ROOT_FOLDER_UUID) {
 			return;
 		}
@@ -1059,7 +1080,7 @@ export class FeatureService {
 		}
 	}
 
-	async #runOnCreateScripts(evt: NodeCreatedEvent) {
+	async #runOnCreateFolderHooks(evt: NodeCreatedEvent) {
 		if (evt.payload.parent === Folders.ROOT_FOLDER_UUID) {
 			return;
 		}
@@ -1120,7 +1141,7 @@ export class FeatureService {
 		}
 	}
 
-	async #runOnUpdatedScripts(
+	async #runOnUpdatedFolderHooks(
 		evt: NodeUpdatedEvent,
 	) {
 		const node = await this.#nodeService.get(

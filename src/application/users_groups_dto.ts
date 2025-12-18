@@ -1,6 +1,7 @@
 import { UserNode } from "domain/users_groups/user_node.ts";
 import type { AuthenticationContext } from "./authentication_context.ts";
 import { GroupNode } from "domain/users_groups/group_node.ts";
+import { Users } from "domain/users_groups/users.ts";
 
 export interface UserDTO {
 	uuid: string;
@@ -12,6 +13,7 @@ export interface UserDTO {
 	hasWhatsapp?: boolean;
 	createdTime: string;
 	modifiedTime: string;
+	active: boolean;
 }
 
 export interface GroupDTO {
@@ -21,35 +23,36 @@ export interface GroupDTO {
 	modifiedTime: string;
 }
 
-export function nodeToUser(metadata: UserNode): UserDTO {
+export function toUserDTO(metadata: UserNode): UserDTO {
 	return {
 		uuid: metadata.uuid,
 		name: metadata.title,
 		email: metadata.email,
 		group: metadata.group,
-		groups: [...metadata.groups],
+		groups: [...(metadata.groups ?? [])],
 		phone: metadata.phone,
 		hasWhatsapp: metadata.hasWhatsapp,
 		createdTime: metadata.createdTime,
 		modifiedTime: metadata.modifiedTime,
+		active: metadata.active,
 	};
 }
 
-export function userToNode(
-	ctx: AuthenticationContext,
-	metadata: UserDTO,
+export function fromUserDTO(
+	dto: UserDTO,
 ): UserNode {
-	const groups = new Set(metadata.groups ?? []);
+	const groups = new Set(dto.groups ?? []);
 
 	return UserNode.create({
-		uuid: metadata.uuid,
-		title: metadata.name,
-		email: metadata.email,
-		owner: ctx.principal.email,
-		group: metadata.group,
+		uuid: dto.uuid,
+		title: dto.name,
+		email: dto.email,
+		owner: Users.ROOT_USER_EMAIL,
+		group: dto.group,
 		groups: Array.from(groups),
-		phone: metadata.phone,
-		hasWhatsapp: metadata.phone ? (metadata.hasWhatsapp ?? false) : false,
+		phone: dto.phone,
+		hasWhatsapp: dto.phone ? (dto.hasWhatsapp ?? false) : false,
+		active: dto.active ?? true,
 	}).right;
 }
 

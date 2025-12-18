@@ -465,8 +465,6 @@ export class FeatureService {
 			.filter((n) => NodesFilters.satisfiedBy(feature.filters, n as NodeLike).isRight())
 			.map((n) => n.uuid!);
 
-		console.log("Nodes", nodes);
-
 		try {
 			// Track concurrent action executions
 			FeatureService.#incRunnable([uuid, "action"]);

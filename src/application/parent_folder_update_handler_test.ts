@@ -247,7 +247,6 @@ describe("ParentFolderUpdateHandler", () => {
 			// Test passes if no errors are thrown
 			expect(true).toBe(true);
 		});
-
 	});
 
 	describe("handleNodeDeleted", () => {
@@ -311,7 +310,6 @@ describe("ParentFolderUpdateHandler", () => {
 			const diffInSeconds = (now.getTime() - modifiedTime.getTime()) / 1000;
 			expect(diffInSeconds).toBeLessThan(5);
 		});
-
 	});
 
 	describe("handleNodeUpdated", () => {
@@ -598,7 +596,5 @@ describe("ParentFolderUpdateHandler", () => {
 			const diffInSeconds = (now.getTime() - modifiedTime.getTime()) / 1000;
 			expect(diffInSeconds).toBeLessThan(5);
 		});
-
 	});
 });
-

@@ -16,6 +16,8 @@ import { NodeLike } from "domain/node_like.ts";
 import { FeatureNode } from "domain/features/feature_node.ts";
 import { AgentNode } from "./ai/agent_node.ts";
 import { WorkflowNode } from "./workflows/workflow_node.ts";
+import { Node } from "./nodes/node.ts";
+import { UserNode } from "./users_groups/user_node.ts";
 
 export class NodeFactory {
 	static from<T extends NodeLike>(
@@ -36,6 +38,10 @@ export class NodeFactory {
 
 			case Nodes.FOLDER_MIMETYPE:
 				createFn = FolderNode.create;
+				break;
+
+			case Nodes.USER_MIMETYPE:
+				createFn = UserNode.create;
 				break;
 
 			case Nodes.GROUP_MIMETYPE:

@@ -13,7 +13,8 @@ import { UserNotFoundError } from "domain/users_groups/user_not_found_error.ts";
 import { Users } from "domain/users_groups/users.ts";
 import type { AuthenticationContext } from "./authentication_context.ts";
 import { UsersGroupsService } from "./users_groups_service.ts";
-import type { UsersGroupsContext } from "./users_groups_service_context.ts";
+import { NodeService } from "./node_service.ts";
+import type { NodeServiceContext } from "./node_service_context.ts";
 import { errToMsg } from "shared/test_helpers.ts";
 
 describe("UsersGroupsService", () => {
@@ -33,7 +34,7 @@ describe("UsersGroupsService", () => {
 			await service.createUser(authCtx, {
 				name: "The title",
 				email: "july@gmail.com",
-				groups: ["--admins--", "--users--"],
+				groups: ["--admins--", "--test-users-group--"],
 			});
 
 			const userOrErr = await service.getUser(authCtx, "july@gmail.com");
@@ -56,7 +57,7 @@ describe("UsersGroupsService", () => {
 			await service.createUser(authCtx, {
 				name: "The title",
 				email: "kend@gmail.com",
-				groups: ["--admins--", "--users--"],
+				groups: ["--admins--", "--test-users-group--"],
 			});
 
 			const userOrErr = await service.getUser(authCtx, "kend@gmail.com");
@@ -111,14 +112,14 @@ describe("UsersGroupsService", () => {
 				tenant: "default",
 				principal: {
 					email: "stevy@gmail.com",
-					groups: ["--users--", Groups.ADMINS_GROUP_UUID],
+					groups: ["--test-users-group--", Groups.ADMINS_GROUP_UUID],
 				},
 			};
 
 			await service.createUser(authCtx, {
 				name: "The title",
 				email: "steven@gmail.com",
-				groups: ["--admins--", "--users--"],
+				groups: ["--admins--", "--test-users-group--"],
 			});
 
 			const userOrErr = await service.getUser(authCtx, "steven@gmail.com");
@@ -199,7 +200,7 @@ const firstGoupNode: GroupNode = GroupNode.create({
 }).right;
 
 const secondGoupNode: GroupNode = GroupNode.create({
-	uuid: "--users--",
+	uuid: "--test-users-group--",
 	title: "The second title",
 	owner: Users.ROOT_USER_EMAIL,
 }).right;
@@ -219,10 +220,13 @@ const authCtx: AuthenticationContext = {
 };
 
 const usersGroupsService = (
-	opts: Partial<UsersGroupsContext> = { repository },
-) =>
-	new UsersGroupsService({
+	opts: Partial<NodeServiceContext> = { repository },
+) => {
+	const nodeService = new NodeService({
 		storage: opts.storage ?? new InMemoryStorageProvider(),
 		repository: opts.repository ?? new InMemoryNodeRepository(),
 		bus: opts.bus ?? new InMemoryEventBus(),
 	});
+
+	return new UsersGroupsService(nodeService);
+};

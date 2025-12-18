@@ -8,6 +8,9 @@ import { ValidationError } from "shared/validation_error.ts";
 import { z } from "zod";
 import { toPropertyError } from "../validation_schemas.ts";
 
+// TODO: added `active` property to user node
+// non active users cannot login
+
 const UserValidationSchema = z.object({
 	// Title must have at least first name and last name
 	title: z.string().regex(
@@ -19,6 +22,7 @@ const UserValidationSchema = z.object({
 	groups: z.array(z.string()),
 	phone: z.string().optional(),
 	hasWhatsapp: z.boolean(),
+	active: z.boolean(),
 });
 
 export class UserNode extends Node {
@@ -27,6 +31,7 @@ export class UserNode extends Node {
 	protected _groups: string[];
 	protected _phone?: string;
 	protected _hasWhatsapp: boolean;
+	protected _active: boolean;
 
 	static create(
 		metadata: Partial<NodeMetadata> = {},
@@ -51,6 +56,7 @@ export class UserNode extends Node {
 		this._email = metadata.email!;
 		this._phone = metadata?.phone;
 		this._hasWhatsapp = metadata?.phone ? (metadata?.hasWhatsapp ?? false) : false;
+		this._active = metadata?.active ?? true;
 
 		this._validateUserNode();
 	}
@@ -63,6 +69,7 @@ export class UserNode extends Node {
 			groups: this._groups ?? [],
 			phone: this._phone,
 			hasWhatsapp: this._hasWhatsapp,
+			active: this._active,
 		};
 	}
 
@@ -82,6 +89,7 @@ export class UserNode extends Node {
 		this._groups = metadata?.groups ?? this._groups;
 		this._phone = metadata?.phone ?? this._phone;
 		this._hasWhatsapp = metadata?.phone ? (metadata?.hasWhatsapp ?? this._hasWhatsapp) : false;
+		this._active = metadata?.active ?? this._active;
 
 		try {
 			this._validateUserNode();
@@ -111,6 +119,11 @@ export class UserNode extends Node {
 			throw ValidationError.from(...errors);
 		}
 	}
+
+	get active(): boolean {
+		return this._active;
+	}
+
 	get email(): string {
 		return this._email;
 	}

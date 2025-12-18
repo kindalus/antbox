@@ -1,54 +1,54 @@
 {
-  "imports": {
-    "adapters/": "./src/adapters/",
-    "api/": "./src/api/",
-    "application/": "./src/application/",
-    "domain/": "./src/domain/",
-    "setup/": "./src/setup/",
-    "shared/": "./src/shared/",
-    "integration/": "./src/integration/",
+	"imports": {
+		"adapters/": "./src/adapters/",
+		"api/": "./src/api/",
+		"application/": "./src/application/",
+		"domain/": "./src/domain/",
+		"setup/": "./src/setup/",
+		"shared/": "./src/shared/",
+		"integration/": "./src/integration/",
 
-    "bdd": "jsr:@std/testing@1.0.16/bdd",
+		"bdd": "jsr:@std/testing@1.0.16/bdd",
 
-    "expect": "jsr:@std/expect@1.0.17",
-    "fs": "jsr:@std/fs@1.0.19",
+		"expect": "jsr:@std/expect@1.0.17",
+		"fs": "jsr:@std/fs@1.0.19",
 
-    "path": "jsr:@std/path@1.1.2",
-    "mock": "jsr:@std/testing@1.0.16/mock",
-    "toml": "jsr:@std/toml@1.0.11",
+		"path": "jsr:@std/path@1.1.2",
+		"mock": "jsr:@std/testing@1.0.16/mock",
+		"toml": "jsr:@std/toml@1.0.11",
 
-    "@googleapis/drive": "npm:@googleapis/drive@18.0.0",
-    "@google/genai": "npm:@google/genai@1.25.0",
-    "@oak/oak": "jsr:@oak/oak@17.1.6",
-    "commander": "npm:commander@14.0.1",
-    "crypto": "node:crypto",
-    "jose": "npm:jose@6.1.0",
-    "jsdom": "npm:jsdom@27.0.0",
-    "marked": "npm:marked@16.4.0",
-    "mongodb": "npm:mongodb@6.20.0",
-    "pouchdb": "npm:pouchdb@9.0.0",
-    "pouchdb-find": "npm:pouchdb-find@9.0.0",
-    "s3": "jsr:@hk/s3@0.1.0",
-    "zod": "npm:zod@4.1.12"
-  },
-  "tasks": {
-    "test": "deno test --allow-all --reporter=tap --unstable-raw-imports",
-    "test:pretty": "COLUMNS=300 deno test --allow-all --reporter=pretty --unstable-raw-imports",
-    "test:full": "COLUMNS=300 deno test --allow-all --reporter=pretty --unstable-raw-imports",
-    "test:verbose": "deno test --allow-all --reporter=tap --parallel=false --unstable-raw-imports",
-    "test:watch": "deno test --allow-all --reporter=tap --watch --unstable-raw-imports",
-    "test:coverage": "deno test --allow-all --reporter=tap --coverage --unstable-raw-imports",
-    "test:services": "deno test --allow-all --reporter=tap --unstable-raw-imports src/application/action_service_test.ts src/application/feature_service_test.ts src/application/extension_service_test.ts",
-    "test:services:pretty": "COLUMNS=300 deno test --allow-all --reporter=pretty --unstable-raw-imports src/application/action_service_test.ts src/application/feature_service_test.ts src/application/extension_service_test.ts",
-    "test-node-repository": "deno run -A ./src/adapters/run_node_repository_tests.ts",
-    "test-storage-provider": "deno run -A ./src/adapters/run_storage_provider_tests.ts"
-  },
-  "nodeModulesDir": "auto",
-  "fmt": {
-    "useTabs": true,
-    "lineWidth": 100,
-    "indentWidth": 3,
-    "semiColons": true,
-    "singleQuote": false
-  }
+		"@googleapis/drive": "npm:@googleapis/drive@18.0.0",
+		"@google/genai": "npm:@google/genai@1.25.0",
+		"@oak/oak": "jsr:@oak/oak@17.1.6",
+		"commander": "npm:commander@14.0.1",
+		"crypto": "node:crypto",
+		"jose": "npm:jose@6.1.0",
+		"jsdom": "npm:jsdom@27.0.0",
+		"marked": "npm:marked@16.4.0",
+		"mongodb": "npm:mongodb@6.20.0",
+		"pouchdb": "npm:pouchdb@9.0.0",
+		"pouchdb-find": "npm:pouchdb-find@9.0.0",
+		"s3": "jsr:@hk/s3@0.1.0",
+		"zod": "npm:zod@4.1.12"
+	},
+	"tasks": {
+		"test": "deno test --allow-all --reporter=tap --unstable-raw-imports",
+		"test:pretty": "COLUMNS=300 deno test --allow-all --reporter=pretty --unstable-raw-imports",
+		"test:full": "COLUMNS=300 deno test --allow-all --reporter=pretty --unstable-raw-imports",
+		"test:verbose": "deno test --allow-all --reporter=tap --parallel=false --unstable-raw-imports",
+		"test:watch": "deno test --allow-all --reporter=tap --watch --unstable-raw-imports",
+		"test:coverage": "deno test --allow-all --reporter=tap --coverage --unstable-raw-imports",
+		"test:services": "deno test --allow-all --reporter=tap --unstable-raw-imports src/application/action_service_test.ts src/application/feature_service_test.ts src/application/extension_service_test.ts",
+		"test:services:pretty": "COLUMNS=300 deno test --allow-all --reporter=pretty --unstable-raw-imports src/application/action_service_test.ts src/application/feature_service_test.ts src/application/extension_service_test.ts",
+		"test-node-repository": "deno run -A ./src/adapters/run_node_repository_tests.ts",
+		"test-storage-provider": "deno run -A ./src/adapters/run_storage_provider_tests.ts"
+	},
+	"nodeModulesDir": "auto",
+	"fmt": {
+		"useTabs": true,
+		"lineWidth": 100,
+		"indentWidth": 3,
+		"semiColons": true,
+		"singleQuote": false
+	}
 }

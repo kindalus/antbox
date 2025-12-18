@@ -28,12 +28,8 @@ export default {
 		if (rootItemsOrErr.isRight()) {
 			const items = rootItemsOrErr.value;
 			rootCount = items.length;
-			fileCount = items.filter((n) =>
-				n.mimetype !== "application/vnd.antbox.folder"
-			).length;
-			folderCount = items.filter((n) =>
-				n.mimetype === "application/vnd.antbox.folder"
-			).length;
+			fileCount = items.filter((n) => n.mimetype !== "application/vnd.antbox.folder").length;
+			folderCount = items.filter((n) => n.mimetype === "application/vnd.antbox.folder").length;
 		}
 
 		// 2. Current Date

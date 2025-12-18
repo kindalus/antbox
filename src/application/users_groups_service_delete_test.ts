@@ -1,7 +1,8 @@
 import { describe, it } from "bdd";
 import { expect } from "expect";
 import { UsersGroupsService } from "./users_groups_service.ts";
-import type { UsersGroupsContext } from "./users_groups_service_context.ts";
+import { NodeService } from "./node_service.ts";
+import type { NodeServiceContext } from "./node_service_context.ts";
 import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider.ts";
 import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository.ts";
 import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus.ts";
@@ -21,10 +22,10 @@ describe("UsersGroupsService", () => {
 			const createdUserOrErr = await service.createUser(authCtx, {
 				name: "The title",
 				email: "debora@gmail.com",
-				groups: ["--users--"],
+				groups: ["--test-users-group--"],
 			});
 
-			const voidOrErr = await service.deleteUser(createdUserOrErr.right.uuid!);
+			const voidOrErr = await service.deleteUser(authCtx, createdUserOrErr.right.uuid!);
 
 			expect(voidOrErr.isRight(), errToMsg(voidOrErr.value)).toBeTruthy();
 
@@ -40,7 +41,7 @@ describe("UsersGroupsService", () => {
 		it("should return error if user not found", async () => {
 			const service = usersGroupsService();
 
-			const deletedUserOrErr = await service.deleteUser("any-delete-uuid");
+			const deletedUserOrErr = await service.deleteUser(authCtx, "any-delete-uuid");
 
 			expect(deletedUserOrErr.isLeft(), errToMsg(deletedUserOrErr.value))
 				.toBeTruthy();
@@ -50,7 +51,7 @@ describe("UsersGroupsService", () => {
 		it("should not delete builtin root user", async () => {
 			const service = usersGroupsService();
 
-			const deletedUserOrErr = await service.deleteUser(Users.ROOT_USER_UUID);
+			const deletedUserOrErr = await service.deleteUser(authCtx, Users.ROOT_USER_UUID);
 
 			expect(deletedUserOrErr.isLeft(), errToMsg(deletedUserOrErr.value))
 				.toBeTruthy();
@@ -61,6 +62,7 @@ describe("UsersGroupsService", () => {
 			const service = usersGroupsService();
 
 			const deletedUserOrErr = await service.deleteUser(
+				authCtx,
 				Users.ANONYMOUS_USER_UUID,
 			);
 
@@ -118,7 +120,7 @@ const authCtx: AuthenticationContext = {
 };
 
 const goupNode: GroupNode = GroupNode.create({
-	uuid: "--users--",
+	uuid: "--test-users-group--",
 	title: "The title",
 	owner: Users.ROOT_USER_EMAIL,
 }).right;
@@ -127,13 +129,16 @@ const repository = new InMemoryNodeRepository();
 repository.add(goupNode);
 
 const usersGroupsService = (
-	opts: Partial<UsersGroupsContext> = { repository },
-) =>
-	new UsersGroupsService({
+	opts: Partial<NodeServiceContext> = { repository },
+) => {
+	const nodeService = new NodeService({
 		storage: opts.storage ?? new InMemoryStorageProvider(),
 		repository: opts.repository ?? new InMemoryNodeRepository(),
 		bus: opts.bus ?? new InMemoryEventBus(),
 	});
+
+	return new UsersGroupsService(nodeService);
+};
 
 const errToMsg = (err: unknown) => {
 	if (err instanceof Error) {

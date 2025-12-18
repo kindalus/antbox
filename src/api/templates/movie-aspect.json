@@ -1,361 +1,361 @@
 {
-  "title": "Movie",
-  "description": "Aspect for cataloging movies and films with comprehensive metadata including production details, cast, technical specifications, and personal tracking information.",
-  "filters": [["mimetype", "match", "video/.*"]],
-  "properties": [
-    {
-      "name": "original_title",
-      "title": "Original Title",
-      "type": "string",
-      "required": true,
-      "searchable": true
-    },
-    {
-      "name": "release_year",
-      "title": "Release Year",
-      "type": "number",
-      "required": true,
-      "searchable": true
-    },
-    {
-      "name": "duration_minutes",
-      "title": "Duration (Minutes)",
-      "type": "number",
-      "required": false
-    },
-    {
-      "name": "plot_summary",
-      "title": "Plot Summary",
-      "type": "string",
-      "required": false,
-      "searchable": true
-    },
-    {
-      "name": "genre",
-      "title": "Genre",
-      "type": "array",
-      "arrayType": "string",
-      "required": false,
-      "searchable": true,
-      "validationList": [
-        "Action",
-        "Adventure",
-        "Animation",
-        "Biography",
-        "Comedy",
-        "Crime",
-        "Documentary",
-        "Drama",
-        "Family",
-        "Fantasy",
-        "Horror",
-        "Musical",
-        "Mystery",
-        "Romance",
-        "Sci-Fi",
-        "Thriller",
-        "War",
-        "Western"
-      ]
-    },
-    {
-      "name": "mpaa_rating",
-      "title": "MPAA Rating",
-      "type": "string",
-      "required": false,
-      "validationList": ["G", "PG", "PG-13", "R", "NC-17", "NR", "Unrated"]
-    },
-    {
-      "name": "imdb_rating",
-      "title": "IMDb Rating",
-      "type": "number",
-      "required": false
-    },
-    {
-      "name": "rotten_tomatoes_score",
-      "title": "Rotten Tomatoes Score",
-      "type": "number",
-      "required": false
-    },
-    {
-      "name": "director",
-      "title": "Director",
-      "type": "string",
-      "required": false,
-      "searchable": true
-    },
-    {
-      "name": "producer",
-      "title": "Producer",
-      "type": "array",
-      "arrayType": "string",
-      "required": false,
-      "searchable": true
-    },
-    {
-      "name": "screenplay_writer",
-      "title": "Screenplay Writer",
-      "type": "array",
-      "arrayType": "string",
-      "required": false,
-      "searchable": true
-    },
-    {
-      "name": "production_studio",
-      "title": "Production Studio",
-      "type": "string",
-      "required": false,
-      "searchable": true
-    },
-    {
-      "name": "distribution_studio",
-      "title": "Distribution Studio",
-      "type": "string",
-      "required": false,
-      "searchable": true
-    },
-    {
-      "name": "budget_usd",
-      "title": "Production Budget (USD)",
-      "type": "number",
-      "required": false
-    },
-    {
-      "name": "box_office_gross_usd",
-      "title": "Box Office Gross (USD)",
-      "type": "number",
-      "required": false
-    },
-    {
-      "name": "lead_actors",
-      "title": "Lead Actors",
-      "type": "array",
-      "arrayType": "string",
-      "required": false,
-      "searchable": true
-    },
-    {
-      "name": "supporting_actors",
-      "title": "Supporting Actors",
-      "type": "array",
-      "arrayType": "string",
-      "required": false,
-      "searchable": true
-    },
-    {
-      "name": "aspect_ratio",
-      "title": "Aspect Ratio",
-      "type": "string",
-      "required": false,
-      "validationList": [
-        "1.33:1 (4:3)",
-        "1.78:1 (16:9)",
-        "1.85:1",
-        "2.35:1 (Cinemascope)",
-        "2.39:1 (Anamorphic)",
-        "2.76:1 (Ultra Panavision)"
-      ]
-    },
-    {
-      "name": "color_format",
-      "title": "Color Format",
-      "type": "string",
-      "required": false,
-      "validationList": [
-        "Black and White",
-        "Color",
-        "Sepia",
-        "Technicolor",
-        "HDR",
-        "Dolby Vision"
-      ]
-    },
-    {
-      "name": "sound_format",
-      "title": "Sound Format",
-      "type": "array",
-      "arrayType": "string",
-      "required": false,
-      "validationList": [
-        "Mono",
-        "Stereo",
-        "Dolby Surround",
-        "Dolby Digital 5.1",
-        "Dolby Digital 7.1",
-        "DTS",
-        "Dolby Atmos",
-        "IMAX Enhanced"
-      ]
-    },
-    {
-      "name": "video_resolution",
-      "title": "Video Resolution",
-      "type": "string",
-      "required": false,
-      "validationList": [
-        "480p (SD)",
-        "720p (HD)",
-        "1080p (Full HD)",
-        "1440p (2K)",
-        "2160p (4K UHD)",
-        "4320p (8K)"
-      ]
-    },
-    {
-      "name": "language",
-      "title": "Primary Language",
-      "type": "string",
-      "required": false,
-      "searchable": true
-    },
-    {
-      "name": "subtitles_available",
-      "title": "Available Subtitles",
-      "type": "array",
-      "arrayType": "string",
-      "required": false
-    },
-    {
-      "name": "content_warnings",
-      "title": "Content Warnings",
-      "type": "array",
-      "arrayType": "string",
-      "required": false,
-      "validationList": [
-        "Violence",
-        "Strong Language",
-        "Sexual Content",
-        "Drug Use",
-        "Alcohol Use",
-        "Smoking",
-        "Frightening Scenes",
-        "Flashing Lights"
-      ]
-    },
-    {
-      "name": "theatrical_release_date",
-      "title": "Theatrical Release Date",
-      "type": "string",
-      "required": false
-    },
-    {
-      "name": "digital_release_date",
-      "title": "Digital Release Date",
-      "type": "string",
-      "required": false
-    },
-    {
-      "name": "streaming_platforms",
-      "title": "Available on Streaming Platforms",
-      "type": "array",
-      "arrayType": "string",
-      "required": false
-    },
-    {
-      "name": "physical_media_formats",
-      "title": "Physical Media Formats",
-      "type": "array",
-      "arrayType": "string",
-      "required": false,
-      "validationList": [
-        "DVD",
-        "Blu-ray",
-        "4K Ultra HD Blu-ray",
-        "VHS",
-        "Digital Download"
-      ]
-    },
-    {
-      "name": "collection_name",
-      "title": "Collection/Series Name",
-      "type": "string",
-      "required": false,
-      "searchable": true
-    },
-    {
-      "name": "sequel_number",
-      "title": "Sequel/Part Number",
-      "type": "number",
-      "required": false
-    },
-    {
-      "name": "acquisition_date",
-      "title": "Date Acquired",
-      "type": "string",
-      "required": false
-    },
-    {
-      "name": "acquisition_source",
-      "title": "Acquisition Source",
-      "type": "string",
-      "required": false,
-      "validationList": [
-        "Purchase",
-        "Digital Download",
-        "Streaming Service",
-        "Library",
-        "Gift",
-        "Rental"
-      ]
-    },
-    {
-      "name": "storage_location",
-      "title": "Physical Storage Location",
-      "type": "string",
-      "required": false
-    },
-    {
-      "name": "imdb_id",
-      "title": "IMDb ID",
-      "type": "string",
-      "required": false,
-      "validationRegex": "^tt\\d{7,8}$"
-    },
-    {
-      "name": "tmdb_id",
-      "title": "The Movie Database (TMDb) ID",
-      "type": "string",
-      "required": false
-    },
-    {
-      "name": "external_urls",
-      "title": "External Reference URLs",
-      "type": "array",
-      "arrayType": "string",
-      "required": false
-    },
-    {
-      "name": "personal_rating",
-      "title": "Personal Rating (1-10)",
-      "type": "number",
-      "required": false
-    },
-    {
-      "name": "watch_status",
-      "title": "Watch Status",
-      "type": "string",
-      "required": false,
-      "validationList": [
-        "Not Watched",
-        "Watched",
-        "Currently Watching",
-        "Plan to Watch",
-        "Dropped",
-        "Rewatching"
-      ]
-    },
-    {
-      "name": "personal_notes",
-      "title": "Personal Notes",
-      "type": "string",
-      "required": false
-    },
-    {
-      "name": "favorite",
-      "title": "Marked as Favorite",
-      "type": "boolean",
-      "required": false,
-      "default": false
-    }
-  ]
+	"title": "Movie",
+	"description": "Aspect for cataloging movies and films with comprehensive metadata including production details, cast, technical specifications, and personal tracking information.",
+	"filters": [["mimetype", "match", "video/.*"]],
+	"properties": [
+		{
+			"name": "original_title",
+			"title": "Original Title",
+			"type": "string",
+			"required": true,
+			"searchable": true
+		},
+		{
+			"name": "release_year",
+			"title": "Release Year",
+			"type": "number",
+			"required": true,
+			"searchable": true
+		},
+		{
+			"name": "duration_minutes",
+			"title": "Duration (Minutes)",
+			"type": "number",
+			"required": false
+		},
+		{
+			"name": "plot_summary",
+			"title": "Plot Summary",
+			"type": "string",
+			"required": false,
+			"searchable": true
+		},
+		{
+			"name": "genre",
+			"title": "Genre",
+			"type": "array",
+			"arrayType": "string",
+			"required": false,
+			"searchable": true,
+			"validationList": [
+				"Action",
+				"Adventure",
+				"Animation",
+				"Biography",
+				"Comedy",
+				"Crime",
+				"Documentary",
+				"Drama",
+				"Family",
+				"Fantasy",
+				"Horror",
+				"Musical",
+				"Mystery",
+				"Romance",
+				"Sci-Fi",
+				"Thriller",
+				"War",
+				"Western"
+			]
+		},
+		{
+			"name": "mpaa_rating",
+			"title": "MPAA Rating",
+			"type": "string",
+			"required": false,
+			"validationList": ["G", "PG", "PG-13", "R", "NC-17", "NR", "Unrated"]
+		},
+		{
+			"name": "imdb_rating",
+			"title": "IMDb Rating",
+			"type": "number",
+			"required": false
+		},
+		{
+			"name": "rotten_tomatoes_score",
+			"title": "Rotten Tomatoes Score",
+			"type": "number",
+			"required": false
+		},
+		{
+			"name": "director",
+			"title": "Director",
+			"type": "string",
+			"required": false,
+			"searchable": true
+		},
+		{
+			"name": "producer",
+			"title": "Producer",
+			"type": "array",
+			"arrayType": "string",
+			"required": false,
+			"searchable": true
+		},
+		{
+			"name": "screenplay_writer",
+			"title": "Screenplay Writer",
+			"type": "array",
+			"arrayType": "string",
+			"required": false,
+			"searchable": true
+		},
+		{
+			"name": "production_studio",
+			"title": "Production Studio",
+			"type": "string",
+			"required": false,
+			"searchable": true
+		},
+		{
+			"name": "distribution_studio",
+			"title": "Distribution Studio",
+			"type": "string",
+			"required": false,
+			"searchable": true
+		},
+		{
+			"name": "budget_usd",
+			"title": "Production Budget (USD)",
+			"type": "number",
+			"required": false
+		},
+		{
+			"name": "box_office_gross_usd",
+			"title": "Box Office Gross (USD)",
+			"type": "number",
+			"required": false
+		},
+		{
+			"name": "lead_actors",
+			"title": "Lead Actors",
+			"type": "array",
+			"arrayType": "string",
+			"required": false,
+			"searchable": true
+		},
+		{
+			"name": "supporting_actors",
+			"title": "Supporting Actors",
+			"type": "array",
+			"arrayType": "string",
+			"required": false,
+			"searchable": true
+		},
+		{
+			"name": "aspect_ratio",
+			"title": "Aspect Ratio",
+			"type": "string",
+			"required": false,
+			"validationList": [
+				"1.33:1 (4:3)",
+				"1.78:1 (16:9)",
+				"1.85:1",
+				"2.35:1 (Cinemascope)",
+				"2.39:1 (Anamorphic)",
+				"2.76:1 (Ultra Panavision)"
+			]
+		},
+		{
+			"name": "color_format",
+			"title": "Color Format",
+			"type": "string",
+			"required": false,
+			"validationList": [
+				"Black and White",
+				"Color",
+				"Sepia",
+				"Technicolor",
+				"HDR",
+				"Dolby Vision"
+			]
+		},
+		{
+			"name": "sound_format",
+			"title": "Sound Format",
+			"type": "array",
+			"arrayType": "string",
+			"required": false,
+			"validationList": [
+				"Mono",
+				"Stereo",
+				"Dolby Surround",
+				"Dolby Digital 5.1",
+				"Dolby Digital 7.1",
+				"DTS",
+				"Dolby Atmos",
+				"IMAX Enhanced"
+			]
+		},
+		{
+			"name": "video_resolution",
+			"title": "Video Resolution",
+			"type": "string",
+			"required": false,
+			"validationList": [
+				"480p (SD)",
+				"720p (HD)",
+				"1080p (Full HD)",
+				"1440p (2K)",
+				"2160p (4K UHD)",
+				"4320p (8K)"
+			]
+		},
+		{
+			"name": "language",
+			"title": "Primary Language",
+			"type": "string",
+			"required": false,
+			"searchable": true
+		},
+		{
+			"name": "subtitles_available",
+			"title": "Available Subtitles",
+			"type": "array",
+			"arrayType": "string",
+			"required": false
+		},
+		{
+			"name": "content_warnings",
+			"title": "Content Warnings",
+			"type": "array",
+			"arrayType": "string",
+			"required": false,
+			"validationList": [
+				"Violence",
+				"Strong Language",
+				"Sexual Content",
+				"Drug Use",
+				"Alcohol Use",
+				"Smoking",
+				"Frightening Scenes",
+				"Flashing Lights"
+			]
+		},
+		{
+			"name": "theatrical_release_date",
+			"title": "Theatrical Release Date",
+			"type": "string",
+			"required": false
+		},
+		{
+			"name": "digital_release_date",
+			"title": "Digital Release Date",
+			"type": "string",
+			"required": false
+		},
+		{
+			"name": "streaming_platforms",
+			"title": "Available on Streaming Platforms",
+			"type": "array",
+			"arrayType": "string",
+			"required": false
+		},
+		{
+			"name": "physical_media_formats",
+			"title": "Physical Media Formats",
+			"type": "array",
+			"arrayType": "string",
+			"required": false,
+			"validationList": [
+				"DVD",
+				"Blu-ray",
+				"4K Ultra HD Blu-ray",
+				"VHS",
+				"Digital Download"
+			]
+		},
+		{
+			"name": "collection_name",
+			"title": "Collection/Series Name",
+			"type": "string",
+			"required": false,
+			"searchable": true
+		},
+		{
+			"name": "sequel_number",
+			"title": "Sequel/Part Number",
+			"type": "number",
+			"required": false
+		},
+		{
+			"name": "acquisition_date",
+			"title": "Date Acquired",
+			"type": "string",
+			"required": false
+		},
+		{
+			"name": "acquisition_source",
+			"title": "Acquisition Source",
+			"type": "string",
+			"required": false,
+			"validationList": [
+				"Purchase",
+				"Digital Download",
+				"Streaming Service",
+				"Library",
+				"Gift",
+				"Rental"
+			]
+		},
+		{
+			"name": "storage_location",
+			"title": "Physical Storage Location",
+			"type": "string",
+			"required": false
+		},
+		{
+			"name": "imdb_id",
+			"title": "IMDb ID",
+			"type": "string",
+			"required": false,
+			"validationRegex": "^tt\\d{7,8}$"
+		},
+		{
+			"name": "tmdb_id",
+			"title": "The Movie Database (TMDb) ID",
+			"type": "string",
+			"required": false
+		},
+		{
+			"name": "external_urls",
+			"title": "External Reference URLs",
+			"type": "array",
+			"arrayType": "string",
+			"required": false
+		},
+		{
+			"name": "personal_rating",
+			"title": "Personal Rating (1-10)",
+			"type": "number",
+			"required": false
+		},
+		{
+			"name": "watch_status",
+			"title": "Watch Status",
+			"type": "string",
+			"required": false,
+			"validationList": [
+				"Not Watched",
+				"Watched",
+				"Currently Watching",
+				"Plan to Watch",
+				"Dropped",
+				"Rewatching"
+			]
+		},
+		{
+			"name": "personal_notes",
+			"title": "Personal Notes",
+			"type": "string",
+			"required": false
+		},
+		{
+			"name": "favorite",
+			"title": "Marked as Favorite",
+			"type": "boolean",
+			"required": false,
+			"default": false
+		}
+	]
 }

@@ -27,8 +27,7 @@ export default function buildMongodbWorkflowInstanceRepository(
 		>;
 }
 
-export class MongodbWorkflowInstanceRepository
-	implements WorkflowInstanceRepository {
+export class MongodbWorkflowInstanceRepository implements WorkflowInstanceRepository {
 	static readonly COLLECTION_NAME = "workflow_instances";
 
 	readonly #db: string;
@@ -157,9 +156,7 @@ export class MongodbWorkflowInstanceRepository
 		workflowDefinitionUuid?: string,
 	): Promise<Either<AntboxError, WorkflowInstance[]>> {
 		try {
-			const filter: Document = workflowDefinitionUuid
-				? { workflowDefinitionUuid }
-				: {};
+			const filter: Document = workflowDefinitionUuid ? { workflowDefinitionUuid } : {};
 
 			const docs = await this.#collection.find(filter).toArray();
 

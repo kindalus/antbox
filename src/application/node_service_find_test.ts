@@ -166,7 +166,8 @@ describe("NodeService", () => {
 
 			expect(listOrErr.isRight(), errToMsg(listOrErr.value)).toBeTruthy();
 			expect(listOrErr.right.map((n) => n.uuid).sort()).toEqual(
-				Folders.SYSTEM_FOLDERS_UUID.filter((uuid) => uuid !== Folders.SYSTEM_FOLDER_UUID).sort(),
+				Folders.SYSTEM_FOLDERS_UUID.filter((uuid) => uuid !== Folders.SYSTEM_FOLDER_UUID)
+					.sort(),
 			);
 		});
 

@@ -9,8 +9,7 @@ export class WorkflowInstanceNotFoundError extends AntboxError {
 	}
 }
 
-export class InmemWorkflowInstanceRepository
-	implements WorkflowInstanceRepository {
+export class InmemWorkflowInstanceRepository implements WorkflowInstanceRepository {
 	#instances: Map<string, WorkflowInstance> = new Map();
 
 	async add(instance: WorkflowInstance): Promise<Either<AntboxError, void>> {

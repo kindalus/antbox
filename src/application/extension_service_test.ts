@@ -15,8 +15,8 @@ import { DeterministicModel } from "adapters/models/deterministic.ts";
 describe("FeatureService", () => {
 	describe("createOrReplace", () => {
 		it("should allow file parameters for Extensions", async () => {
-				const service = await createService();
-				const fileExtensionContent = `
+			const service = await createService();
+			const fileExtensionContent = `
 		      export default {
 		        uuid: "file-extension-uuid",
 		        name: "File Extension",
@@ -44,29 +44,29 @@ describe("FeatureService", () => {
 		      };
 		    `;
 
-				const result = await service.createOrReplace(
-					adminAuthContext,
-					new File([fileExtensionContent], "file-extension.js", {
-						type: "application/javascript",
-					}),
-				);
+			const result = await service.createOrReplace(
+				adminAuthContext,
+				new File([fileExtensionContent], "file-extension.js", {
+					type: "application/javascript",
+				}),
+			);
 
-				expect(result.isRight()).toBeTruthy();
-			});
+			expect(result.isRight()).toBeTruthy();
+		});
 	});
 
 	describe("listExtensions", () => {
 		it("listExtensions should return only Extensions", async () => {
-				const service = await createService();
+			const service = await createService();
 
-				(await service.createOrReplace(
-					adminAuthContext,
-					new File([testExtensionContent], "test-extension.js", {
-						type: "application/javascript",
-					}),
-				)).right;
+			(await service.createOrReplace(
+				adminAuthContext,
+				new File([testExtensionContent], "test-extension.js", {
+					type: "application/javascript",
+				}),
+			)).right;
 
-				const actionContent = `
+			const actionContent = `
 		      export default {
 		        uuid: "test-action-uuid",
 		        name: "Test Action",
@@ -93,23 +93,23 @@ describe("FeatureService", () => {
 		      };
 		    `;
 
-				(await service.createOrReplace(
-					adminAuthContext,
-					new File([actionContent], "action.js", {
-						type: "application/javascript",
-					}),
-				)).right;
+			(await service.createOrReplace(
+				adminAuthContext,
+				new File([actionContent], "action.js", {
+					type: "application/javascript",
+				}),
+			)).right;
 
-				const extensionsResult = await service.listExtensions(adminAuthContext);
+			const extensionsResult = await service.listExtensions(adminAuthContext);
 
-				expect(extensionsResult.isRight()).toBeTruthy();
-				if (extensionsResult.isRight()) {
-					const extensions = extensionsResult.value;
-					expect(extensions.length).toBeGreaterThan(0);
-					const testExtension = extensions.find((ext) => ext.uuid === "test-extension-uuid");
-					expect(testExtension).toBeDefined();
-				}
-			});
+			expect(extensionsResult.isRight()).toBeTruthy();
+			if (extensionsResult.isRight()) {
+				const extensions = extensionsResult.value;
+				expect(extensions.length).toBeGreaterThan(0);
+				const testExtension = extensions.find((ext) => ext.uuid === "test-extension-uuid");
+				expect(testExtension).toBeDefined();
+			}
+		});
 	});
 
 	describe("runExtension", () => {
@@ -124,7 +124,11 @@ describe("FeatureService", () => {
 			)).right;
 
 			const request = new Request("http://localhost/test");
-			const response = await service.runExtension(adminAuthContext, "test-extension-uuid", request);
+			const response = await service.runExtension(
+				adminAuthContext,
+				"test-extension-uuid",
+				request,
+			);
 
 			expect(response).toBeInstanceOf(Response);
 			expect(response.status).toBe(200);
@@ -133,8 +137,8 @@ describe("FeatureService", () => {
 		});
 
 		it("runExtension should handle POST requests with body", async () => {
-				const service = await createService();
-				const postExtensionContent = `
+			const service = await createService();
+			const postExtensionContent = `
 		      export default {
 		        uuid: "post-extension-uuid",
 		        name: "POST Extension",
@@ -155,31 +159,31 @@ describe("FeatureService", () => {
 		      };
 		    `;
 
-				await service.createOrReplace(
-					adminAuthContext,
-					new File([postExtensionContent], "post-extension.js", {
-						type: "application/javascript",
-					}),
-				);
+			await service.createOrReplace(
+				adminAuthContext,
+				new File([postExtensionContent], "post-extension.js", {
+					type: "application/javascript",
+				}),
+			);
 
-				const postData = { name: "test", value: 123 };
-				const postRequest = new Request("http://localhost/test", {
-					method: "POST",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify(postData),
-				});
-
-				const response = await service.runExtension(
-					adminAuthContext,
-					"post-extension-uuid",
-					postRequest,
-				);
-
-				expect(response.status).toBe(200);
-				const result = await response.json();
-				expect(result.received).toEqual(postData);
-				expect(result.method).toBe("POST");
+			const postData = { name: "test", value: 123 };
+			const postRequest = new Request("http://localhost/test", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify(postData),
 			});
+
+			const response = await service.runExtension(
+				adminAuthContext,
+				"post-extension-uuid",
+				postRequest,
+			);
+
+			expect(response.status).toBe(200);
+			const result = await response.json();
+			expect(result.received).toEqual(postData);
+			expect(result.method).toBe("POST");
+		});
 		it("runExtension should return error for non-existent Extension", async () => {
 			const service = await createService();
 
@@ -190,9 +194,9 @@ describe("FeatureService", () => {
 		});
 
 		it("runExtension should return error for non-Extension Feature", async () => {
-				const service = await createService();
+			const service = await createService();
 
-				const actionContent = `
+			const actionContent = `
 		      export default {
 		        uuid: "action-not-extension-uuid",
 		        name: "Action Not Extension",
@@ -219,27 +223,27 @@ describe("FeatureService", () => {
 		      };
 		    `;
 
-				await service.createOrReplace(
-					adminAuthContext,
-					new File([actionContent], "action.js", {
-						type: "application/javascript",
-					}),
-				);
+			await service.createOrReplace(
+				adminAuthContext,
+				new File([actionContent], "action.js", {
+					type: "application/javascript",
+				}),
+			);
 
-				const request = new Request("http://localhost/test");
-				const response = await service.runExtension(
-					adminAuthContext,
-					"action-not-extension-uuid",
-					request,
-				);
+			const request = new Request("http://localhost/test");
+			const response = await service.runExtension(
+				adminAuthContext,
+				"action-not-extension-uuid",
+				request,
+			);
 
-				expect(response.status).toBe(400);
-				const text = await response.text();
-				expect(text).toContain("not exposed as extension");
-			});
+			expect(response.status).toBe(400);
+			const text = await response.text();
+			expect(text).toContain("not exposed as extension");
+		});
 		it("runExtension should enforce groupsAllowed permissions", async () => {
-				const service = await createService();
-				const restrictedExtensionContent = `
+			const service = await createService();
+			const restrictedExtensionContent = `
 		      export default {
 		        uuid: "restricted-extension-uuid",
 		        name: "Restricted Extension",
@@ -257,34 +261,34 @@ describe("FeatureService", () => {
 		      };
 		    `;
 
-				await service.createOrReplace(
-					adminAuthContext,
-					new File([restrictedExtensionContent], "restricted-extension.js", {
-						type: "application/javascript",
-					}),
-				);
+			await service.createOrReplace(
+				adminAuthContext,
+				new File([restrictedExtensionContent], "restricted-extension.js", {
+					type: "application/javascript",
+				}),
+			);
 
-				const request1 = new Request("http://localhost/test");
-				const response1 = await service.runExtension(
-					editorAuthContext,
-					"restricted-extension-uuid",
-					request1,
-				);
-				expect(response1.status).toBe(404);
+			const request1 = new Request("http://localhost/test");
+			const response1 = await service.runExtension(
+				editorAuthContext,
+				"restricted-extension-uuid",
+				request1,
+			);
+			expect(response1.status).toBe(404);
 
-				const request2 = new Request("http://localhost/test");
-				const response2 = await service.runExtension(
-					adminAuthContext,
-					"restricted-extension-uuid",
-					request2,
-				);
-				expect(response2.status).toBe(200);
-				const text = await response2.text();
-				expect(text).toBe("Admin only content");
-			});
+			const request2 = new Request("http://localhost/test");
+			const response2 = await service.runExtension(
+				adminAuthContext,
+				"restricted-extension-uuid",
+				request2,
+			);
+			expect(response2.status).toBe(200);
+			const text = await response2.text();
+			expect(text).toBe("Admin only content");
+		});
 		it("should allow Extensions with empty groupsAllowed (public access)", async () => {
-				const service = await createService();
-				const publicExtensionContent = `
+			const service = await createService();
+			const publicExtensionContent = `
 		      export default {
 		        uuid: "public-extension-uuid",
 		        name: "Public Extension",
@@ -305,25 +309,25 @@ describe("FeatureService", () => {
 		      };
 		    `;
 
-				await service.createOrReplace(
-					adminAuthContext,
-					new File([publicExtensionContent], "public-extension.js", {
-						type: "application/javascript",
-					}),
-				);
+			await service.createOrReplace(
+				adminAuthContext,
+				new File([publicExtensionContent], "public-extension.js", {
+					type: "application/javascript",
+				}),
+			);
 
-				// Test with editor (should fail - returns 404 since they can't see it without being in allowed groups)
-				const request = new Request("http://localhost/test");
-				const response = await service.runExtension(
-					editorAuthContext,
-					"public-extension-uuid",
-					request,
-				);
-				expect(response.status).toBe(404);
-			});
+			// Test with editor (should fail - returns 404 since they can't see it without being in allowed groups)
+			const request = new Request("http://localhost/test");
+			const response = await service.runExtension(
+				editorAuthContext,
+				"public-extension-uuid",
+				request,
+			);
+			expect(response.status).toBe(404);
+		});
 		it("runExtension should handle Extension runtime errors gracefully", async () => {
-				const service = await createService();
-				const errorExtensionContent = `
+			const service = await createService();
+			const errorExtensionContent = `
 		      export default {
 		        uuid: "error-extension-uuid",
 		        name: "Error Extension",
@@ -341,27 +345,27 @@ describe("FeatureService", () => {
 		      };
 		    `;
 
-				await service.createOrReplace(
-					adminAuthContext,
-					new File([errorExtensionContent], "error-extension.js", {
-						type: "application/javascript",
-					}),
-				);
+			await service.createOrReplace(
+				adminAuthContext,
+				new File([errorExtensionContent], "error-extension.js", {
+					type: "application/javascript",
+				}),
+			);
 
-				const request = new Request("http://localhost/test");
-				const response = await service.runExtension(
-					adminAuthContext,
-					"error-extension-uuid",
-					request,
-				);
+			const request = new Request("http://localhost/test");
+			const response = await service.runExtension(
+				adminAuthContext,
+				"error-extension-uuid",
+				request,
+			);
 
-				expect(response.status).toBe(500);
-				const text = await response.text();
-				expect(text).toContain("Something went wrong in extension");
-			});
+			expect(response.status).toBe(500);
+			const text = await response.text();
+			expect(text).toContain("Something went wrong in extension");
+		});
 		it("should handle Extension that returns object with correct returnType", async () => {
-				const service = await createService();
-				const validResponseContent = `
+			const service = await createService();
+			const validResponseContent = `
 		      export default {
 		        uuid: "valid-response-uuid",
 		        name: "Valid Response Extension",
@@ -379,24 +383,24 @@ describe("FeatureService", () => {
 		      };
 		    `;
 
-				await service.createOrReplace(
-					adminAuthContext,
-					new File([validResponseContent], "valid-response.js", {
-						type: "application/javascript",
-					}),
-				);
+			await service.createOrReplace(
+				adminAuthContext,
+				new File([validResponseContent], "valid-response.js", {
+					type: "application/javascript",
+				}),
+			);
 
-				const request = new Request("http://localhost/test");
-				const response = await service.runExtension(
-					adminAuthContext,
-					"valid-response-uuid",
-					request,
-				);
+			const request = new Request("http://localhost/test");
+			const response = await service.runExtension(
+				adminAuthContext,
+				"valid-response-uuid",
+				request,
+			);
 
-				expect(response.status).toBe(200);
-				const result = await response.json();
-				expect(result.message).toBe("This is a valid object response");
-			});
+			expect(response.status).toBe(200);
+			const result = await response.json();
+			expect(result.message).toBe("This is a valid object response");
+		});
 	});
 });
 

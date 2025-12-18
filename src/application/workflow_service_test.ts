@@ -34,7 +34,10 @@ describe("WorkflowService", () => {
 		};
 	}
 
-	function createAuthContext(email: string, groups: string[] = [Groups.ADMINS_GROUP_UUID]): AuthenticationContext {
+	function createAuthContext(
+		email: string,
+		groups: string[] = [Groups.ADMINS_GROUP_UUID],
+	): AuthenticationContext {
 		return {
 			principal: {
 				email,
@@ -45,7 +48,10 @@ describe("WorkflowService", () => {
 		};
 	}
 
-	function createNonAdminAuthContext(email: string, groups: string[] = ["users"]): AuthenticationContext {
+	function createNonAdminAuthContext(
+		email: string,
+		groups: string[] = ["users"],
+	): AuthenticationContext {
 		return {
 			principal: {
 				email,
@@ -56,7 +62,10 @@ describe("WorkflowService", () => {
 		};
 	}
 
-	async function createTestFolder(nodeService: NodeService, authCtx: AuthenticationContext): Promise<string> {
+	async function createTestFolder(
+		nodeService: NodeService,
+		authCtx: AuthenticationContext,
+	): Promise<string> {
 		const folderOrErr = await nodeService.create(authCtx, {
 			title: "Test Folder",
 			mimetype: Nodes.FOLDER_MIMETYPE,
@@ -71,7 +80,10 @@ describe("WorkflowService", () => {
 		return folderOrErr.right.uuid;
 	}
 
-	async function createWorkflowsFolder(nodeService: NodeService, authCtx: AuthenticationContext): Promise<void> {
+	async function createWorkflowsFolder(
+		nodeService: NodeService,
+		authCtx: AuthenticationContext,
+	): Promise<void> {
 		await nodeService.create(authCtx, {
 			uuid: Folders.WORKFLOWS_FOLDER_UUID,
 			title: "Workflows",
@@ -86,7 +98,10 @@ describe("WorkflowService", () => {
 		});
 	}
 
-	async function createWorkflowDefinition(nodeService: NodeService, authCtx: AuthenticationContext): Promise<string> {
+	async function createWorkflowDefinition(
+		nodeService: NodeService,
+		authCtx: AuthenticationContext,
+	): Promise<string> {
 		const workflowOrErr = WorkflowNode.create({
 			title: "Test Workflow",
 			owner: authCtx.principal.email,
@@ -215,7 +230,11 @@ describe("WorkflowService", () => {
 				parent: folderUuid,
 			});
 
-			const instanceOrErr = await service.startWorkflow(authCtx, nodeOrErr.right.uuid, "non-existent-uuid");
+			const instanceOrErr = await service.startWorkflow(
+				authCtx,
+				nodeOrErr.right.uuid,
+				"non-existent-uuid",
+			);
 
 			expect(instanceOrErr.isLeft()).toBe(true);
 		});
@@ -271,7 +290,12 @@ describe("WorkflowService", () => {
 			await service.startWorkflow(authCtx, nodeUuid, workflowDefUuid);
 
 			// Transition from draft to review
-			const transitionOrErr = await service.transition(authCtx, nodeUuid, "submit", "Submitting for review");
+			const transitionOrErr = await service.transition(
+				authCtx,
+				nodeUuid,
+				"submit",
+				"Submitting for review",
+			);
 
 			expect(transitionOrErr.isRight()).toBe(true);
 

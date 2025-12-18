@@ -1,2359 +1,2359 @@
 openapi: 3.1.0
 info:
-  title: Antbox API
-  version: "2.0.0"
-  description: REST API for Antbox
+   title: Antbox API
+   version: "2.0.0"
+   description: REST API for Antbox
 servers:
-  - url: /v2
-    description: API server
+   - url: /v2
+     description: API server
 security:
-  - bearerAuth: []
-  - cookieAuth: []
-  - apiKeyHeader: []
-  - apiKeyQuery: []
+   - bearerAuth: []
+   - cookieAuth: []
+   - apiKeyHeader: []
+   - apiKeyQuery: []
 tags:
-  - name: actions
-    description: Operations related to actions
-  - name: agents
-    description: Operations related to AI agents
-  - name: api-keys
-    description: Operations related to API keys
-  - name: aspects
-    description: Operations related to aspects
-  - name: docs
-    description: API documentation
-  - name: extensions
-    description: Operations related to extensions
-  - name: features
-    description: Operations related to features
-  - name: groups
-    description: Operations related to user groups
-  - name: login
-    description: Authentication operations
-  - name: nodes
-    description: Operations related to nodes (files, folders, etc.)
-  - name: templates
-    description: Operations related to templates
-  - name: users
-    description: Operations related to users
-  - name: workflows
-    description: Operations related to workflow instances
+   - name: actions
+     description: Operations related to actions
+   - name: agents
+     description: Operations related to AI agents
+   - name: api-keys
+     description: Operations related to API keys
+   - name: aspects
+     description: Operations related to aspects
+   - name: docs
+     description: API documentation
+   - name: extensions
+     description: Operations related to extensions
+   - name: features
+     description: Operations related to features
+   - name: groups
+     description: Operations related to user groups
+   - name: login
+     description: Authentication operations
+   - name: nodes
+     description: Operations related to nodes (files, folders, etc.)
+   - name: templates
+     description: Operations related to templates
+   - name: users
+     description: Operations related to users
+   - name: workflows
+     description: Operations related to workflow instances
 paths:
-  /actions:
-    get:
-      tags:
-        - actions
-      summary: List available actions
-      operationId: listActions
-      responses:
-        "200":
-          description: A list of action nodes
-          content:
-            application/json:
+   /actions:
+      get:
+         tags:
+            - actions
+         summary: List available actions
+         operationId: listActions
+         responses:
+            "200":
+               description: A list of action nodes
+               content:
+                  application/json:
+                     schema:
+                        type: array
+                        items:
+                           $ref: "#/components/schemas/NodeMetadata"
+            default:
+               $ref: "#/components/responses/Error"
+   "/actions/{uuid}/-/run":
+      post:
+         tags:
+            - actions
+         summary: Run an action
+         operationId: runAction
+         parameters:
+            - $ref: "#/components/parameters/UUID"
+         requestBody:
+            required: true
+            content:
+               application/json:
+                  schema:
+                     type: object
+                     properties:
+                        uuids:
+                           type: array
+                           items:
+                              type: string
+                              format: uuid
+                        parameters:
+                           type: object
+                           additionalProperties: true
+         responses:
+            "200":
+               description: Action executed successfully. The response shape depends on the feature's returnType (string, number, boolean, array, object, file, or void).
+               content:
+                  application/json:
+                     schema:
+                        $ref: "#/components/schemas/FeatureActionResult"
+                  application/octet-stream:
+                     schema:
+                        type: string
+                        format: binary
+            default:
+               $ref: "#/components/responses/Error"
+   /agents:
+      get:
+         tags:
+            - agents
+         summary: List all agents
+         operationId: listAgents
+         responses:
+            "200":
+               description: A list of agents
+               content:
+                  application/json:
+                     schema:
+                        type: array
+                        items:
+                           $ref: "#/components/schemas/Agent"
+            default:
+               $ref: "#/components/responses/Error"
+   "/agents/-/upload":
+      post:
+         tags:
+            - agents
+         summary: Create or replace an agent
+         operationId: createOrReplaceAgent
+         requestBody:
+            required: true
+            content:
+               multipart/form-data:
+                  schema:
+                     type: object
+                     properties:
+                        file:
+                           type: string
+                           format: binary
+                           description: A JSON file containing the agent's metadata.
+         responses:
+            "200":
+               description: Agent created or replaced successfully
+               content:
+                  application/json:
+                     schema:
+                        $ref: "#/components/schemas/Agent"
+            default:
+               $ref: "#/components/responses/Error"
+   "/agents/rag/-/chat":
+      post:
+         tags:
+            - agents
+         summary: Chat with the RAG service
+         operationId: ragChat
+         requestBody:
+            required: true
+            content:
+               application/json:
+                  schema:
+                     type: object
+                     required:
+                        - text
+                     properties:
+                        text:
+                           type: string
+                        options:
+                           type: object
+                           additionalProperties: true
+         responses:
+            "200":
+               description: RAG chat response
+               content:
+                  application/json:
+                     schema:
+                        type: object
+            default:
+               $ref: "#/components/responses/Error"
+   "/agents/{uuid}":
+      get:
+         tags:
+            - agents
+         summary: Get an agent
+         operationId: getAgent
+         parameters:
+            - $ref: "#/components/parameters/UUID"
+         responses:
+            "200":
+               description: Agent details
+               content:
+                  application/json:
+                     schema:
+                        $ref: "#/components/schemas/Agent"
+            default:
+               $ref: "#/components/responses/Error"
+      delete:
+         tags:
+            - agents
+         summary: Delete an agent
+         operationId: deleteAgent
+         parameters:
+            - $ref: "#/components/parameters/UUID"
+         responses:
+            "204":
+               description: Agent deleted successfully
+            default:
+               $ref: "#/components/responses/Error"
+   "/agents/{uuid}/-/answer":
+      post:
+         tags:
+            - agents
+         summary: Get a structured answer from an agent
+         operationId: answer
+         parameters:
+            - $ref: "#/components/parameters/UUID"
+         requestBody:
+            required: true
+            content:
+               application/json:
+                  schema:
+                     type: object
+                     required:
+                        - text
+                     properties:
+                        text:
+                           type: string
+                        options:
+                           $ref: "#/components/schemas/AnswerOptions"
+         responses:
+            "200":
+               description: Agent answer
+               content:
+                  application/json:
+                     schema:
+                        type: object
+            default:
+               $ref: "#/components/responses/Error"
+   "/agents/{uuid}/-/chat":
+      post:
+         tags:
+            - agents
+         summary: Chat with an agent
+         operationId: chat
+         parameters:
+            - $ref: "#/components/parameters/UUID"
+         requestBody:
+            required: true
+            content:
+               application/json:
+                  schema:
+                     type: object
+                     required:
+                        - text
+                     properties:
+                        text:
+                           type: string
+                        options:
+                           $ref: "#/components/schemas/ChatOptions"
+         responses:
+            "200":
+               description: Agent chat response
+               content:
+                  application/json:
+                     schema:
+                        type: object
+            default:
+               $ref: "#/components/responses/Error"
+   /api-keys:
+      get:
+         tags:
+            - api-keys
+         summary: List API keys
+         operationId: listApiKeys
+         responses:
+            "200":
+               description: A list of API keys
+               content:
+                  application/json:
+                     schema:
+                        type: array
+                        items:
+                           $ref: "#/components/schemas/ApiKey"
+            default:
+               $ref: "#/components/responses/Error"
+      post:
+         tags:
+            - api-keys
+         summary: Create an API key
+         operationId: createApiKey
+         requestBody:
+            required: true
+            content:
+               application/json:
+                  schema:
+                     type: object
+                     required:
+                        - group
+                     properties:
+                        group:
+                           type: string
+                           format: uuid
+                        description:
+                           type: string
+         responses:
+            "201":
+               description: API key created
+               content:
+                  application/json:
+                     schema:
+                        $ref: "#/components/schemas/ApiKey"
+            default:
+               $ref: "#/components/responses/Error"
+   "/api-keys/{uuid}":
+      get:
+         tags:
+            - api-keys
+         summary: Get an API key
+         operationId: getApiKey
+         parameters:
+            - $ref: "#/components/parameters/UUID"
+         responses:
+            "200":
+               description: API key details
+               content:
+                  application/json:
+                     schema:
+                        $ref: "#/components/schemas/ApiKey"
+            default:
+               $ref: "#/components/responses/Error"
+      delete:
+         tags:
+            - api-keys
+         summary: Delete an API key
+         operationId: deleteApiKey
+         parameters:
+            - $ref: "#/components/parameters/UUID"
+         responses:
+            "204":
+               description: API key deleted
+            default:
+               $ref: "#/components/responses/Error"
+   /aspects:
+      get:
+         tags:
+            - aspects
+         summary: List aspects
+         operationId: listAspects
+         responses:
+            "200":
+               description: A list of aspects
+               content:
+                  application/json:
+                     schema:
+                        type: array
+                        items:
+                           $ref: "#/components/schemas/Aspect"
+            default:
+               $ref: "#/components/responses/Error"
+   "/aspects/-/upload":
+      post:
+         tags:
+            - aspects
+         summary: Create or replace an aspect
+         operationId: createOrReplaceAspect
+         requestBody:
+            required: true
+            content:
+               multipart/form-data:
+                  schema:
+                     type: object
+                     properties:
+                        file:
+                           type: string
+                           format: binary
+                           description: A JSON file containing the aspect's metadata.
+         responses:
+            "200":
+               description: Aspect created or replaced successfully
+               content:
+                  application/json:
+                     schema:
+                        $ref: "#/components/schemas/Aspect"
+            default:
+               $ref: "#/components/responses/Error"
+   "/aspects/{uuid}":
+      get:
+         tags:
+            - aspects
+         summary: Get an aspect
+         operationId: getAspect
+         parameters:
+            - $ref: "#/components/parameters/UUID"
+         responses:
+            "200":
+               description: Aspect details
+               content:
+                  application/json:
+                     schema:
+                        $ref: "#/components/schemas/Aspect"
+            default:
+               $ref: "#/components/responses/Error"
+      delete:
+         tags:
+            - aspects
+         summary: Delete an aspect
+         operationId: deleteAspect
+         parameters:
+            - $ref: "#/components/parameters/UUID"
+         responses:
+            "204":
+               description: Aspect deleted
+            default:
+               $ref: "#/components/responses/Error"
+   "/aspects/{uuid}/-/export":
+      get:
+         tags:
+            - aspects
+         summary: Export an aspect
+         operationId: exportAspect
+         parameters:
+            - $ref: "#/components/parameters/UUID"
+         responses:
+            "200":
+               description: Aspect exported successfully
+               content:
+                  application/json:
+                     schema:
+                        type: string
+                        format: binary
+            default:
+               $ref: "#/components/responses/Error"
+   /docs:
+      get:
+         tags:
+            - docs
+         summary: List available documentation
+         operationId: listDocs
+         responses:
+            "200":
+               description: A list of available documentation
+               content:
+                  application/json:
+                     schema:
+                        type: array
+                        items:
+                           $ref: "#/components/schemas/DocInfo"
+            default:
+               $ref: "#/components/responses/Error"
+   "/docs/openapi.yaml":
+      get:
+         tags:
+            - docs
+         summary: Get OpenAPI specification
+         operationId: getOpenApiSpec
+         responses:
+            "200":
+               description: OpenAPI specification file
+               content:
+                  application/yaml:
+                     schema:
+                        type: string
+   "/docs/{uuid}":
+      get:
+         tags:
+            - docs
+         summary: Get a document
+         operationId: getDoc
+         parameters:
+            - $ref: "#/components/parameters/UUID"
+         responses:
+            "200":
+               description: Document content
+               content:
+                  text/markdown:
+                     schema:
+                        type: string
+                  text/html:
+                     schema:
+                        type: string
+            default:
+               $ref: "#/components/responses/Error"
+   /extensions:
+      get:
+         tags:
+            - extensions
+         summary: List all extensions
+         operationId: listExtensions
+         responses:
+            "200":
+               description: A list of extensions
+               content:
+                  application/json:
+                     schema:
+                        type: array
+                        items:
+                           $ref: "#/components/schemas/NodeMetadata"
+            default:
+               $ref: "#/components/responses/Error"
+   "/extensions/{uuid}/-/exec":
+      post:
+         tags:
+            - extensions
+         summary: Run an extension
+         operationId: runExtension
+         parameters:
+            - $ref: "#/components/parameters/UUID"
+         requestBody:
+            content:
+               application/json:
+                  schema:
+                     type: object
+                     additionalProperties: true
+         responses:
+            "200":
+               description: Extension run result
+               content:
+                  application/json:
+                     schema:
+                        type: object
+            default:
+               $ref: "#/components/responses/Error"
+   /features:
+      get:
+         tags:
+            - features
+         summary: List features
+         operationId: listFeatures
+         responses:
+            "200":
+               description: A list of features
+               content:
+                  application/json:
+                     schema:
+                        type: array
+                        items:
+                           $ref: "#/components/schemas/FeatureNode"
+            default:
+               $ref: "#/components/responses/Error"
+   "/features/-/upload":
+      post:
+         tags:
+            - features
+         summary: Create or replace a feature
+         operationId: createOrReplaceFeature
+         requestBody:
+            required: true
+            content:
+               multipart/form-data:
+                  schema:
+                     type: object
+                     properties:
+                        file:
+                           type: string
+                           format: binary
+                           description: A JSON file containing the feature's metadata.
+         responses:
+            "200":
+               description: Feature created or replaced successfully
+               content:
+                  application/json:
+                     schema:
+                        $ref: "#/components/schemas/FeatureNode"
+            default:
+               $ref: "#/components/responses/Error"
+   "/features/{uuid}":
+      get:
+         tags:
+            - features
+         summary: Get a feature
+         operationId: getFeature
+         parameters:
+            - $ref: "#/components/parameters/UUID"
+         responses:
+            "200":
+               description: Feature details
+               content:
+                  application/json:
+                     schema:
+                        $ref: "#/components/schemas/FeatureNode"
+            default:
+               $ref: "#/components/responses/Error"
+      delete:
+         tags:
+            - features
+         summary: Delete a feature
+         operationId: deleteFeature
+         parameters:
+            - $ref: "#/components/parameters/UUID"
+         responses:
+            "204":
+               description: Feature deleted
+            default:
+               $ref: "#/components/responses/Error"
+   "/features/{uuid}/-/export":
+      get:
+         tags:
+            - features
+         summary: Export a feature
+         operationId: exportFeature
+         parameters:
+            - $ref: "#/components/parameters/UUID"
+         responses:
+            "200":
+               description: Feature exported successfully
+               content:
+                  application/json:
+                     schema:
+                        type: string
+                        format: binary
+            default:
+               $ref: "#/components/responses/Error"
+   /groups:
+      get:
+         tags:
+            - groups
+         summary: List groups
+         operationId: listGroups
+         responses:
+            "200":
+               description: A list of groups
+               content:
+                  application/json:
+                     schema:
+                        type: array
+                        items:
+                           $ref: "#/components/schemas/NodeMetadata"
+            default:
+               $ref: "#/components/responses/Error"
+      post:
+         tags:
+            - groups
+         summary: Create a group
+         operationId: createGroup
+         requestBody:
+            required: true
+            content:
+               application/json:
+                  schema:
+                     type: object
+                     required:
+                        - title
+                     properties:
+                        title:
+                           type: string
+                        description:
+                           type: string
+         responses:
+            "201":
+               description: Group created
+               content:
+                  application/json:
+                     schema:
+                        $ref: "#/components/schemas/NodeMetadata"
+            default:
+               $ref: "#/components/responses/Error"
+   "/groups/{uuid}":
+      get:
+         tags:
+            - groups
+         summary: Get a group
+         operationId: getGroup
+         parameters:
+            - $ref: "#/components/parameters/UUID"
+         responses:
+            "200":
+               description: Group details
+               content:
+                  application/json:
+                     schema:
+                        $ref: "#/components/schemas/NodeMetadata"
+            default:
+               $ref: "#/components/responses/Error"
+      patch:
+         tags:
+            - groups
+         summary: Update a group
+         operationId: updateGroup
+         parameters:
+            - $ref: "#/components/parameters/UUID"
+         requestBody:
+            required: true
+            content:
+               application/json:
+                  schema:
+                     type: object
+                     properties:
+                        title:
+                           type: string
+                        description:
+                           type: string
+         responses:
+            "200":
+               description: Group updated
+               content:
+                  application/json:
+                     schema:
+                        $ref: "#/components/schemas/NodeMetadata"
+            default:
+               $ref: "#/components/responses/Error"
+      delete:
+         tags:
+            - groups
+         summary: Delete a group
+         operationId: deleteGroup
+         parameters:
+            - $ref: "#/components/parameters/UUID"
+         responses:
+            "204":
+               description: Group deleted
+            default:
+               $ref: "#/components/responses/Error"
+   "/login/root":
+      post:
+         tags:
+            - login
+         summary: Root login
+         operationId: rootLogin
+         requestBody:
+            required: true
+            content:
+               text/plain:
+                  schema:
+                     type: string
+                     description: SHA-256 encoded root password
+         responses:
+            "200":
+               description: Login successful. Returns JWT in response body and sets HTTP-only cookie.
+               headers:
+                  Set-Cookie:
+                     description: HTTP-only authentication cookie (token=<jwt>)
+                     schema:
+                        type: string
+                        example: "token=<jwt>; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=14400"
+               content:
+                  application/json:
+                     schema:
+                        type: object
+                        properties:
+                           jwt:
+                              type: string
+                              description: JWT token valid for 4 hours
+            "401":
+               description: Unauthorized
+               content:
+                  application/json:
+                     schema:
+                        $ref: "#/components/schemas/AntboxError"
+   "/login/logout":
+      post:
+         tags:
+            - login
+         summary: Logout
+         operationId: logout
+         description: Clears the authentication cookie. Can be called with any authentication method.
+         responses:
+            "200":
+               description: Logout successful
+               headers:
+                  Set-Cookie:
+                     description: Expired cookie to clear authentication
+                     schema:
+                        type: string
+                        example: "token=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0"
+               content:
+                  application/json:
+                     schema:
+                        type: object
+                        properties:
+                           message:
+                              type: string
+                              example: "Logged out successfully"
+   "/login/me":
+      get:
+         tags:
+            - login
+         summary: Get current authenticated user
+         operationId: getCurrentUser
+         security:
+            - bearerAuth: []
+            - cookieAuth: []
+            - apiKeyHeader: []
+            - apiKeyQuery: []
+         responses:
+            "200":
+               description: Returns the authenticated user's profile
+               content:
+                  application/json:
+                     schema:
+                        type: object
+                        properties:
+                           email:
+                              type: string
+                              format: email
+                           name:
+                              type: string
+                           groups:
+                              type: array
+                              items:
+                                 type: string
+            "401":
+               description: Unauthorized
+               content:
+                  application/json:
+                     schema:
+                        $ref: "#/components/schemas/AntboxError"
+   /nodes:
+      get:
+         tags:
+            - nodes
+         summary: List nodes
+         operationId: listNodes
+         parameters:
+            - name: parent
+              in: query
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/NodeMetadata"
-        default:
-          $ref: "#/components/responses/Error"
-  "/actions/{uuid}/-/run":
-    post:
-      tags:
-        - actions
-      summary: Run an action
-      operationId: runAction
-      parameters:
-        - $ref: "#/components/parameters/UUID"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                uuids:
-                  type: array
-                  items:
-                    type: string
-                    format: uuid
-                parameters:
-                  type: object
-                  additionalProperties: true
-      responses:
-        "200":
-          description: Action executed successfully. The response shape depends on the feature's returnType (string, number, boolean, array, object, file, or void).
-          content:
-            application/json:
+                 type: string
+                 format: uuid
+         responses:
+            "200":
+               description: A list of nodes
+               content:
+                  application/json:
+                     schema:
+                        type: array
+                        items:
+                           $ref: "#/components/schemas/NodeMetadata"
+            default:
+               $ref: "#/components/responses/Error"
+      post:
+         tags:
+            - nodes
+         summary: Create a node
+         operationId: createNode
+         requestBody:
+            required: true
+            content:
+               application/json:
+                  schema:
+                     $ref: "#/components/schemas/NodeMetadata"
+         responses:
+            "201":
+               description: Node created
+               content:
+                  application/json:
+                     schema:
+                        $ref: "#/components/schemas/NodeMetadata"
+            default:
+               $ref: "#/components/responses/Error"
+   "/nodes/-/find":
+      post:
+         tags:
+            - nodes
+         summary: Find nodes
+         operationId: findNodes
+         requestBody:
+            required: true
+            content:
+               application/json:
+                  schema:
+                     oneOf:
+                        - type: string
+                        - $ref: "#/components/schemas/NodeFilters"
+                     pageSize:
+                        type: integer
+                     pageToken:
+                        type: string
+         responses:
+            "200":
+               description: A list of nodes
+               content:
+                  application/json:
+                     schema:
+                        type: array
+                        items:
+                           $ref: "#/components/schemas/NodeMetadata"
+            default:
+               $ref: "#/components/responses/Error"
+   "/nodes/-/upload":
+      post:
+         tags:
+            - nodes
+         summary: Create a file node
+         operationId: createFileNode
+         requestBody:
+            required: true
+            content:
+               multipart/form-data:
+                  schema:
+                     type: object
+                     required:
+                        - metadata
+                        - file
+                     properties:
+                        metadata:
+                           $ref: "#/components/schemas/NodeMetadata"
+                        file:
+                           type: string
+                           format: binary
+         responses:
+            "201":
+               description: File node created
+               content:
+                  application/json:
+                     schema:
+                        $ref: "#/components/schemas/NodeMetadata"
+            default:
+               $ref: "#/components/responses/Error"
+   "/nodes/{uuid}":
+      get:
+         tags:
+            - nodes
+         summary: Get a node
+         operationId: getNode
+         parameters:
+            - $ref: "#/components/parameters/UUID"
+         responses:
+            "200":
+               description: Node details
+               content:
+                  application/json:
+                     schema:
+                        $ref: "#/components/schemas/NodeMetadata"
+            default:
+               $ref: "#/components/responses/Error"
+      patch:
+         tags:
+            - nodes
+         summary: Update a node
+         operationId: updateNode
+         parameters:
+            - $ref: "#/components/parameters/UUID"
+         requestBody:
+            required: true
+            content:
+               application/json:
+                  schema:
+                     $ref: "#/components/schemas/NodeMetadata"
+         responses:
+            "200":
+               description: Node updated
+               content:
+                  application/json:
+                     schema:
+                        $ref: "#/components/schemas/NodeMetadata"
+            default:
+               $ref: "#/components/responses/Error"
+      delete:
+         tags:
+            - nodes
+         summary: Delete a node
+         operationId: deleteNode
+         parameters:
+            - $ref: "#/components/parameters/UUID"
+         responses:
+            "204":
+               description: Node deleted
+            default:
+               $ref: "#/components/responses/Error"
+   "/nodes/{uuid}/-/breadcrumbs":
+      get:
+         tags:
+            - nodes
+         summary: Get node breadcrumbs
+         operationId: getNodeBreadcrumbs
+         parameters:
+            - $ref: "#/components/parameters/UUID"
+         responses:
+            "200":
+               description: A list of breadcrumb nodes
+               content:
+                  application/json:
+                     schema:
+                        type: array
+                        items:
+                           $ref: "#/components/schemas/NodeMetadata"
+            default:
+               $ref: "#/components/responses/Error"
+   "/nodes/{uuid}/-/copy":
+      post:
+         tags:
+            - nodes
+         summary: Copy a node
+         operationId: copyNode
+         parameters:
+            - $ref: "#/components/parameters/UUID"
+         requestBody:
+            required: true
+            content:
+               application/json:
+                  schema:
+                     type: object
+                     required:
+                        - to
+                     properties:
+                        to:
+                           type: string
+                           format: uuid
+         responses:
+            "200":
+               description: Node copied
+            default:
+               $ref: "#/components/responses/Error"
+   "/nodes/{uuid}/-/duplicate":
+      get:
+         tags:
+            - nodes
+         summary: Duplicate a node
+         operationId: duplicateNode
+         parameters:
+            - $ref: "#/components/parameters/UUID"
+         responses:
+            "200":
+               description: Node duplicated
+               content:
+                  application/json:
+                     schema:
+                        $ref: "#/components/schemas/NodeMetadata"
+            default:
+               $ref: "#/components/responses/Error"
+   "/nodes/{uuid}/-/evaluate":
+      get:
+         tags:
+            - nodes
+         summary: Evaluate a smart folder
+         operationId: evaluateNode
+         parameters:
+            - $ref: "#/components/parameters/UUID"
+         responses:
+            "200":
+               description: A list of evaluated nodes
+               content:
+                  application/json:
+                     schema:
+                        type: array
+                        items:
+                           $ref: "#/components/schemas/NodeMetadata"
+            default:
+               $ref: "#/components/responses/Error"
+   "/nodes/{uuid}/-/export":
+      get:
+         tags:
+            - nodes
+         summary: Export a node
+         operationId: exportNode
+         parameters:
+            - $ref: "#/components/parameters/UUID"
+         responses:
+            "200":
+               description: Node content
+               content:
+                  application/octet-stream:
+                     schema:
+                        type: string
+                        format: binary
+            default:
+               $ref: "#/components/responses/Error"
+   "/nodes/{uuid}/-/lock":
+      post:
+         tags:
+            - nodes
+         summary: Lock a node
+         description: Lock a node to prevent modifications by unauthorized users
+         operationId: lockNode
+         parameters:
+            - $ref: "#/components/parameters/UUID"
+         responses:
+            "200":
+               description: Node locked successfully
+            default:
+               $ref: "#/components/responses/Error"
+   "/nodes/{uuid}/-/unlock":
+      post:
+         tags:
+            - nodes
+         summary: Unlock a node
+         description: Unlock a previously locked node (requires authorization)
+         operationId: unlockNode
+         parameters:
+            - $ref: "#/components/parameters/UUID"
+         responses:
+            "200":
+               description: Node unlocked successfully
+            default:
+               $ref: "#/components/responses/Error"
+   "/nodes/{uuid}/-/upload":
+      put:
+         tags:
+            - nodes
+         summary: Update node content
+         operationId: updateNodeContent
+         parameters:
+            - $ref: "#/components/parameters/UUID"
+         requestBody:
+            required: true
+            content:
+               multipart/form-data:
+                  schema:
+                     type: object
+                     required:
+                        - file
+                     properties:
+                        file:
+                           type: string
+                           format: binary
+         responses:
+            "204":
+               description: Content updated
+            default:
+               $ref: "#/components/responses/Error"
+   /templates:
+      get:
+         tags:
+            - templates
+         summary: List all templates
+         operationId: listTemplates
+         responses:
+            "200":
+               description: A list of templates
+               content:
+                  application/json:
+                     schema:
+                        type: array
+                        items:
+                           $ref: "#/components/schemas/TemplateInfo"
+            default:
+               $ref: "#/components/responses/Error"
+   "/templates/{uuid}":
+      get:
+         tags:
+            - templates
+         summary: Get a template
+         operationId: getTemplate
+         parameters:
+            - $ref: "#/components/parameters/UUID"
+         responses:
+            "200":
+               description: Template content
+               content:
+                  text/plain:
+                     schema:
+                        type: string
+            default:
+               $ref: "#/components/responses/Error"
+   /users:
+      get:
+         tags:
+            - users
+         summary: List users
+         operationId: listUsers
+         responses:
+            "200":
+               description: A list of users
+               content:
+                  application/json:
+                     schema:
+                        type: array
+                        items:
+                           $ref: "#/components/schemas/NodeMetadata"
+            default:
+               $ref: "#/components/responses/Error"
+      post:
+         tags:
+            - users
+         summary: Create a user
+         operationId: createUser
+         requestBody:
+            required: true
+            content:
+               application/json:
+                  schema:
+                     $ref: "#/components/schemas/NodeMetadata"
+         responses:
+            "201":
+               description: User created
+               content:
+                  application/json:
+                     schema:
+                        $ref: "#/components/schemas/NodeMetadata"
+            default:
+               $ref: "#/components/responses/Error"
+   "/users/{email}":
+      get:
+         tags:
+            - users
+         summary: Get a user by email
+         operationId: getUserByEmail
+         parameters:
+            - name: email
+              in: path
+              required: true
               schema:
-                $ref: "#/components/schemas/FeatureActionResult"
-            application/octet-stream:
+                 type: string
+                 format: email
+         responses:
+            "200":
+               description: User details
+               content:
+                  application/json:
+                     schema:
+                        $ref: "#/components/schemas/NodeMetadata"
+            default:
+               $ref: "#/components/responses/Error"
+      put:
+         tags:
+            - users
+         summary: Update a user by email
+         operationId: updateUserByEmail
+         parameters:
+            - name: email
+              in: path
+              required: true
               schema:
-                type: string
-                format: binary
-        default:
-          $ref: "#/components/responses/Error"
-  /agents:
-    get:
-      tags:
-        - agents
-      summary: List all agents
-      operationId: listAgents
-      responses:
-        "200":
-          description: A list of agents
-          content:
-            application/json:
+                 type: string
+                 format: email
+         requestBody:
+            required: true
+            content:
+               application/json:
+                  schema:
+                     $ref: "#/components/schemas/NodeMetadata"
+         responses:
+            "200":
+               description: User updated
+               content:
+                  application/json:
+                     schema:
+                        $ref: "#/components/schemas/NodeMetadata"
+            default:
+               $ref: "#/components/responses/Error"
+   "/users/{uuid}":
+      get:
+         tags:
+            - users
+         summary: Get a user
+         operationId: getUser
+         parameters:
+            - $ref: "#/components/parameters/UUID"
+         responses:
+            "200":
+               description: User details
+               content:
+                  application/json:
+                     schema:
+                        $ref: "#/components/schemas/NodeMetadata"
+            default:
+               $ref: "#/components/responses/Error"
+      delete:
+         tags:
+            - users
+         summary: Delete a user
+         operationId: deleteUser
+         parameters:
+            - $ref: "#/components/parameters/UUID"
+         responses:
+            "204":
+               description: User deleted
+            default:
+               $ref: "#/components/responses/Error"
+   /workflows/instances:
+      get:
+         tags:
+            - workflows
+         summary: Find active workflow instances
+         operationId: findActiveWorkflows
+         parameters:
+            - name: workflowDefinitionUuid
+              in: query
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Agent"
-        default:
-          $ref: "#/components/responses/Error"
-  "/agents/-/upload":
-    post:
-      tags:
-        - agents
-      summary: Create or replace an agent
-      operationId: createOrReplaceAgent
-      requestBody:
-        required: true
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              properties:
-                file:
-                  type: string
-                  format: binary
-                  description: A JSON file containing the agent's metadata.
-      responses:
-        "200":
-          description: Agent created or replaced successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Agent"
-        default:
-          $ref: "#/components/responses/Error"
-  "/agents/rag/-/chat":
-    post:
-      tags:
-        - agents
-      summary: Chat with the RAG service
-      operationId: ragChat
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - text
-              properties:
-                text:
-                  type: string
-                options:
-                  type: object
-                  additionalProperties: true
-      responses:
-        "200":
-          description: RAG chat response
-          content:
-            application/json:
-              schema:
-                type: object
-        default:
-          $ref: "#/components/responses/Error"
-  "/agents/{uuid}":
-    get:
-      tags:
-        - agents
-      summary: Get an agent
-      operationId: getAgent
-      parameters:
-        - $ref: "#/components/parameters/UUID"
-      responses:
-        "200":
-          description: Agent details
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Agent"
-        default:
-          $ref: "#/components/responses/Error"
-    delete:
-      tags:
-        - agents
-      summary: Delete an agent
-      operationId: deleteAgent
-      parameters:
-        - $ref: "#/components/parameters/UUID"
-      responses:
-        "204":
-          description: Agent deleted successfully
-        default:
-          $ref: "#/components/responses/Error"
-  "/agents/{uuid}/-/answer":
-    post:
-      tags:
-        - agents
-      summary: Get a structured answer from an agent
-      operationId: answer
-      parameters:
-        - $ref: "#/components/parameters/UUID"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - text
-              properties:
-                text:
-                  type: string
-                options:
-                  $ref: "#/components/schemas/AnswerOptions"
-      responses:
-        "200":
-          description: Agent answer
-          content:
-            application/json:
-              schema:
-                type: object
-        default:
-          $ref: "#/components/responses/Error"
-  "/agents/{uuid}/-/chat":
-    post:
-      tags:
-        - agents
-      summary: Chat with an agent
-      operationId: chat
-      parameters:
-        - $ref: "#/components/parameters/UUID"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - text
-              properties:
-                text:
-                  type: string
-                options:
-                  $ref: "#/components/schemas/ChatOptions"
-      responses:
-        "200":
-          description: Agent chat response
-          content:
-            application/json:
-              schema:
-                type: object
-        default:
-          $ref: "#/components/responses/Error"
-  /api-keys:
-    get:
-      tags:
-        - api-keys
-      summary: List API keys
-      operationId: listApiKeys
-      responses:
-        "200":
-          description: A list of API keys
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/ApiKey"
-        default:
-          $ref: "#/components/responses/Error"
-    post:
-      tags:
-        - api-keys
-      summary: Create an API key
-      operationId: createApiKey
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - group
-              properties:
-                group:
-                  type: string
-                  format: uuid
-                description:
-                  type: string
-      responses:
-        "201":
-          description: API key created
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiKey"
-        default:
-          $ref: "#/components/responses/Error"
-  "/api-keys/{uuid}":
-    get:
-      tags:
-        - api-keys
-      summary: Get an API key
-      operationId: getApiKey
-      parameters:
-        - $ref: "#/components/parameters/UUID"
-      responses:
-        "200":
-          description: API key details
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiKey"
-        default:
-          $ref: "#/components/responses/Error"
-    delete:
-      tags:
-        - api-keys
-      summary: Delete an API key
-      operationId: deleteApiKey
-      parameters:
-        - $ref: "#/components/parameters/UUID"
-      responses:
-        "204":
-          description: API key deleted
-        default:
-          $ref: "#/components/responses/Error"
-  /aspects:
-    get:
-      tags:
-        - aspects
-      summary: List aspects
-      operationId: listAspects
-      responses:
-        "200":
-          description: A list of aspects
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Aspect"
-        default:
-          $ref: "#/components/responses/Error"
-  "/aspects/-/upload":
-    post:
-      tags:
-        - aspects
-      summary: Create or replace an aspect
-      operationId: createOrReplaceAspect
-      requestBody:
-        required: true
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              properties:
-                file:
-                  type: string
-                  format: binary
-                  description: A JSON file containing the aspect's metadata.
-      responses:
-        "200":
-          description: Aspect created or replaced successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Aspect"
-        default:
-          $ref: "#/components/responses/Error"
-  "/aspects/{uuid}":
-    get:
-      tags:
-        - aspects
-      summary: Get an aspect
-      operationId: getAspect
-      parameters:
-        - $ref: "#/components/parameters/UUID"
-      responses:
-        "200":
-          description: Aspect details
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Aspect"
-        default:
-          $ref: "#/components/responses/Error"
-    delete:
-      tags:
-        - aspects
-      summary: Delete an aspect
-      operationId: deleteAspect
-      parameters:
-        - $ref: "#/components/parameters/UUID"
-      responses:
-        "204":
-          description: Aspect deleted
-        default:
-          $ref: "#/components/responses/Error"
-  "/aspects/{uuid}/-/export":
-    get:
-      tags:
-        - aspects
-      summary: Export an aspect
-      operationId: exportAspect
-      parameters:
-        - $ref: "#/components/parameters/UUID"
-      responses:
-        "200":
-          description: Aspect exported successfully
-          content:
-            application/json:
-              schema:
-                type: string
-                format: binary
-        default:
-          $ref: "#/components/responses/Error"
-  /docs:
-    get:
-      tags:
-        - docs
-      summary: List available documentation
-      operationId: listDocs
-      responses:
-        "200":
-          description: A list of available documentation
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/DocInfo"
-        default:
-          $ref: "#/components/responses/Error"
-  "/docs/openapi.yaml":
-    get:
-      tags:
-        - docs
-      summary: Get OpenAPI specification
-      operationId: getOpenApiSpec
-      responses:
-        "200":
-          description: OpenAPI specification file
-          content:
-            application/yaml:
-              schema:
-                type: string
-  "/docs/{uuid}":
-    get:
-      tags:
-        - docs
-      summary: Get a document
-      operationId: getDoc
-      parameters:
-        - $ref: "#/components/parameters/UUID"
-      responses:
-        "200":
-          description: Document content
-          content:
-            text/markdown:
-              schema:
-                type: string
-            text/html:
-              schema:
-                type: string
-        default:
-          $ref: "#/components/responses/Error"
-  /extensions:
-    get:
-      tags:
-        - extensions
-      summary: List all extensions
-      operationId: listExtensions
-      responses:
-        "200":
-          description: A list of extensions
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/NodeMetadata"
-        default:
-          $ref: "#/components/responses/Error"
-  "/extensions/{uuid}/-/exec":
-    post:
-      tags:
-        - extensions
-      summary: Run an extension
-      operationId: runExtension
-      parameters:
-        - $ref: "#/components/parameters/UUID"
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              additionalProperties: true
-      responses:
-        "200":
-          description: Extension run result
-          content:
-            application/json:
-              schema:
-                type: object
-        default:
-          $ref: "#/components/responses/Error"
-  /features:
-    get:
-      tags:
-        - features
-      summary: List features
-      operationId: listFeatures
-      responses:
-        "200":
-          description: A list of features
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/FeatureNode"
-        default:
-          $ref: "#/components/responses/Error"
-  "/features/-/upload":
-    post:
-      tags:
-        - features
-      summary: Create or replace a feature
-      operationId: createOrReplaceFeature
-      requestBody:
-        required: true
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              properties:
-                file:
-                  type: string
-                  format: binary
-                  description: A JSON file containing the feature's metadata.
-      responses:
-        "200":
-          description: Feature created or replaced successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/FeatureNode"
-        default:
-          $ref: "#/components/responses/Error"
-  "/features/{uuid}":
-    get:
-      tags:
-        - features
-      summary: Get a feature
-      operationId: getFeature
-      parameters:
-        - $ref: "#/components/parameters/UUID"
-      responses:
-        "200":
-          description: Feature details
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/FeatureNode"
-        default:
-          $ref: "#/components/responses/Error"
-    delete:
-      tags:
-        - features
-      summary: Delete a feature
-      operationId: deleteFeature
-      parameters:
-        - $ref: "#/components/parameters/UUID"
-      responses:
-        "204":
-          description: Feature deleted
-        default:
-          $ref: "#/components/responses/Error"
-  "/features/{uuid}/-/export":
-    get:
-      tags:
-        - features
-      summary: Export a feature
-      operationId: exportFeature
-      parameters:
-        - $ref: "#/components/parameters/UUID"
-      responses:
-        "200":
-          description: Feature exported successfully
-          content:
-            application/json:
-              schema:
-                type: string
-                format: binary
-        default:
-          $ref: "#/components/responses/Error"
-  /groups:
-    get:
-      tags:
-        - groups
-      summary: List groups
-      operationId: listGroups
-      responses:
-        "200":
-          description: A list of groups
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/NodeMetadata"
-        default:
-          $ref: "#/components/responses/Error"
-    post:
-      tags:
-        - groups
-      summary: Create a group
-      operationId: createGroup
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - title
-              properties:
-                title:
-                  type: string
-                description:
-                  type: string
-      responses:
-        "201":
-          description: Group created
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/NodeMetadata"
-        default:
-          $ref: "#/components/responses/Error"
-  "/groups/{uuid}":
-    get:
-      tags:
-        - groups
-      summary: Get a group
-      operationId: getGroup
-      parameters:
-        - $ref: "#/components/parameters/UUID"
-      responses:
-        "200":
-          description: Group details
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/NodeMetadata"
-        default:
-          $ref: "#/components/responses/Error"
-    patch:
-      tags:
-        - groups
-      summary: Update a group
-      operationId: updateGroup
-      parameters:
-        - $ref: "#/components/parameters/UUID"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                title:
-                  type: string
-                description:
-                  type: string
-      responses:
-        "200":
-          description: Group updated
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/NodeMetadata"
-        default:
-          $ref: "#/components/responses/Error"
-    delete:
-      tags:
-        - groups
-      summary: Delete a group
-      operationId: deleteGroup
-      parameters:
-        - $ref: "#/components/parameters/UUID"
-      responses:
-        "204":
-          description: Group deleted
-        default:
-          $ref: "#/components/responses/Error"
-  "/login/root":
-    post:
-      tags:
-        - login
-      summary: Root login
-      operationId: rootLogin
-      requestBody:
-        required: true
-        content:
-          text/plain:
-            schema:
-              type: string
-              description: SHA-256 encoded root password
-      responses:
-        "200":
-          description: Login successful. Returns JWT in response body and sets HTTP-only cookie.
-          headers:
-            Set-Cookie:
-              description: HTTP-only authentication cookie (token=<jwt>)
-              schema:
-                type: string
-                example: "token=<jwt>; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=14400"
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  jwt:
-                    type: string
-                    description: JWT token valid for 4 hours
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AntboxError"
-  "/login/logout":
-    post:
-      tags:
-        - login
-      summary: Logout
-      operationId: logout
-      description: Clears the authentication cookie. Can be called with any authentication method.
-      responses:
-        "200":
-          description: Logout successful
-          headers:
-            Set-Cookie:
-              description: Expired cookie to clear authentication
-              schema:
-                type: string
-                example: "token=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0"
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                    example: "Logged out successfully"
-  "/login/me":
-    get:
-      tags:
-        - login
-      summary: Get current authenticated user
-      operationId: getCurrentUser
-      security:
-        - bearerAuth: []
-        - cookieAuth: []
-        - apiKeyHeader: []
-        - apiKeyQuery: []
-      responses:
-        "200":
-          description: Returns the authenticated user's profile
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  email:
-                    type: string
-                    format: email
-                  name:
-                    type: string
-                  groups:
-                    type: array
-                    items:
-                      type: string
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AntboxError"
-  /nodes:
-    get:
-      tags:
-        - nodes
-      summary: List nodes
-      operationId: listNodes
-      parameters:
-        - name: parent
-          in: query
-          schema:
-            type: string
-            format: uuid
-      responses:
-        "200":
-          description: A list of nodes
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/NodeMetadata"
-        default:
-          $ref: "#/components/responses/Error"
-    post:
-      tags:
-        - nodes
-      summary: Create a node
-      operationId: createNode
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/NodeMetadata"
-      responses:
-        "201":
-          description: Node created
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/NodeMetadata"
-        default:
-          $ref: "#/components/responses/Error"
-  "/nodes/-/find":
-    post:
-      tags:
-        - nodes
-      summary: Find nodes
-      operationId: findNodes
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              oneOf:
-                - type: string
-                - $ref: "#/components/schemas/NodeFilters"
-              pageSize:
-                type: integer
-              pageToken:
-                type: string
-      responses:
-        "200":
-          description: A list of nodes
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/NodeMetadata"
-        default:
-          $ref: "#/components/responses/Error"
-  "/nodes/-/upload":
-    post:
-      tags:
-        - nodes
-      summary: Create a file node
-      operationId: createFileNode
-      requestBody:
-        required: true
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              required:
-                - metadata
-                - file
-              properties:
-                metadata:
-                  $ref: "#/components/schemas/NodeMetadata"
-                file:
-                  type: string
-                  format: binary
-      responses:
-        "201":
-          description: File node created
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/NodeMetadata"
-        default:
-          $ref: "#/components/responses/Error"
-  "/nodes/{uuid}":
-    get:
-      tags:
-        - nodes
-      summary: Get a node
-      operationId: getNode
-      parameters:
-        - $ref: "#/components/parameters/UUID"
-      responses:
-        "200":
-          description: Node details
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/NodeMetadata"
-        default:
-          $ref: "#/components/responses/Error"
-    patch:
-      tags:
-        - nodes
-      summary: Update a node
-      operationId: updateNode
-      parameters:
-        - $ref: "#/components/parameters/UUID"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/NodeMetadata"
-      responses:
-        "200":
-          description: Node updated
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/NodeMetadata"
-        default:
-          $ref: "#/components/responses/Error"
-    delete:
-      tags:
-        - nodes
-      summary: Delete a node
-      operationId: deleteNode
-      parameters:
-        - $ref: "#/components/parameters/UUID"
-      responses:
-        "204":
-          description: Node deleted
-        default:
-          $ref: "#/components/responses/Error"
-  "/nodes/{uuid}/-/breadcrumbs":
-    get:
-      tags:
-        - nodes
-      summary: Get node breadcrumbs
-      operationId: getNodeBreadcrumbs
-      parameters:
-        - $ref: "#/components/parameters/UUID"
-      responses:
-        "200":
-          description: A list of breadcrumb nodes
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/NodeMetadata"
-        default:
-          $ref: "#/components/responses/Error"
-  "/nodes/{uuid}/-/copy":
-    post:
-      tags:
-        - nodes
-      summary: Copy a node
-      operationId: copyNode
-      parameters:
-        - $ref: "#/components/parameters/UUID"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - to
-              properties:
-                to:
-                  type: string
-                  format: uuid
-      responses:
-        "200":
-          description: Node copied
-        default:
-          $ref: "#/components/responses/Error"
-  "/nodes/{uuid}/-/duplicate":
-    get:
-      tags:
-        - nodes
-      summary: Duplicate a node
-      operationId: duplicateNode
-      parameters:
-        - $ref: "#/components/parameters/UUID"
-      responses:
-        "200":
-          description: Node duplicated
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/NodeMetadata"
-        default:
-          $ref: "#/components/responses/Error"
-  "/nodes/{uuid}/-/evaluate":
-    get:
-      tags:
-        - nodes
-      summary: Evaluate a smart folder
-      operationId: evaluateNode
-      parameters:
-        - $ref: "#/components/parameters/UUID"
-      responses:
-        "200":
-          description: A list of evaluated nodes
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/NodeMetadata"
-        default:
-          $ref: "#/components/responses/Error"
-  "/nodes/{uuid}/-/export":
-    get:
-      tags:
-        - nodes
-      summary: Export a node
-      operationId: exportNode
-      parameters:
-        - $ref: "#/components/parameters/UUID"
-      responses:
-        "200":
-          description: Node content
-          content:
-            application/octet-stream:
-              schema:
-                type: string
-                format: binary
-        default:
-          $ref: "#/components/responses/Error"
-  "/nodes/{uuid}/-/lock":
-    post:
-      tags:
-        - nodes
-      summary: Lock a node
-      description: Lock a node to prevent modifications by unauthorized users
-      operationId: lockNode
-      parameters:
-        - $ref: "#/components/parameters/UUID"
-      responses:
-        "200":
-          description: Node locked successfully
-        default:
-          $ref: "#/components/responses/Error"
-  "/nodes/{uuid}/-/unlock":
-    post:
-      tags:
-        - nodes
-      summary: Unlock a node
-      description: Unlock a previously locked node (requires authorization)
-      operationId: unlockNode
-      parameters:
-        - $ref: "#/components/parameters/UUID"
-      responses:
-        "200":
-          description: Node unlocked successfully
-        default:
-          $ref: "#/components/responses/Error"
-  "/nodes/{uuid}/-/upload":
-    put:
-      tags:
-        - nodes
-      summary: Update node content
-      operationId: updateNodeContent
-      parameters:
-        - $ref: "#/components/parameters/UUID"
-      requestBody:
-        required: true
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              required:
-                - file
-              properties:
-                file:
-                  type: string
-                  format: binary
-      responses:
-        "204":
-          description: Content updated
-        default:
-          $ref: "#/components/responses/Error"
-  /templates:
-    get:
-      tags:
-        - templates
-      summary: List all templates
-      operationId: listTemplates
-      responses:
-        "200":
-          description: A list of templates
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/TemplateInfo"
-        default:
-          $ref: "#/components/responses/Error"
-  "/templates/{uuid}":
-    get:
-      tags:
-        - templates
-      summary: Get a template
-      operationId: getTemplate
-      parameters:
-        - $ref: "#/components/parameters/UUID"
-      responses:
-        "200":
-          description: Template content
-          content:
-            text/plain:
-              schema:
-                type: string
-        default:
-          $ref: "#/components/responses/Error"
-  /users:
-    get:
-      tags:
-        - users
-      summary: List users
-      operationId: listUsers
-      responses:
-        "200":
-          description: A list of users
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/NodeMetadata"
-        default:
-          $ref: "#/components/responses/Error"
-    post:
-      tags:
-        - users
-      summary: Create a user
-      operationId: createUser
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/NodeMetadata"
-      responses:
-        "201":
-          description: User created
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/NodeMetadata"
-        default:
-          $ref: "#/components/responses/Error"
-  "/users/{email}":
-    get:
-      tags:
-        - users
-      summary: Get a user by email
-      operationId: getUserByEmail
-      parameters:
-        - name: email
-          in: path
-          required: true
-          schema:
-            type: string
-            format: email
-      responses:
-        "200":
-          description: User details
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/NodeMetadata"
-        default:
-          $ref: "#/components/responses/Error"
-    put:
-      tags:
-        - users
-      summary: Update a user by email
-      operationId: updateUserByEmail
-      parameters:
-        - name: email
-          in: path
-          required: true
-          schema:
-            type: string
-            format: email
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/NodeMetadata"
-      responses:
-        "200":
-          description: User updated
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/NodeMetadata"
-        default:
-          $ref: "#/components/responses/Error"
-  "/users/{uuid}":
-    get:
-      tags:
-        - users
-      summary: Get a user
-      operationId: getUser
-      parameters:
-        - $ref: "#/components/parameters/UUID"
-      responses:
-        "200":
-          description: User details
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/NodeMetadata"
-        default:
-          $ref: "#/components/responses/Error"
-    delete:
-      tags:
-        - users
-      summary: Delete a user
-      operationId: deleteUser
-      parameters:
-        - $ref: "#/components/parameters/UUID"
-      responses:
-        "204":
-          description: User deleted
-        default:
-          $ref: "#/components/responses/Error"
-  /workflows/instances:
-    get:
-      tags:
-        - workflows
-      summary: Find active workflow instances
-      operationId: findActiveWorkflows
-      parameters:
-        - name: workflowDefinitionUuid
-          in: query
-          schema:
-            type: string
-            format: uuid
-          description: Optional workflow definition UUID to filter instances
-      responses:
-        "200":
-          description: A list of active workflow instances
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/WorkflowInstance"
-        default:
-          $ref: "#/components/responses/Error"
-  "/workflows/instances/{uuid}":
-    get:
-      tags:
-        - workflows
-      summary: Get a workflow instance by node UUID
-      operationId: getWorkflowInstance
-      parameters:
-        - $ref: "#/components/parameters/UUID"
-      responses:
-        "200":
-          description: Workflow instance details
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/WorkflowInstance"
-        default:
-          $ref: "#/components/responses/Error"
-  "/workflows/instances/{uuid}/-/start":
-    post:
-      tags:
-        - workflows
-      summary: Start a workflow instance for a node
-      operationId: startWorkflow
-      parameters:
-        - $ref: "#/components/parameters/UUID"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - workflowDefinitionUuid
-              properties:
-                workflowDefinitionUuid:
-                  type: string
-                  format: uuid
-                  description: UUID of the workflow definition node
-      responses:
-        "200":
-          description: Workflow instance started successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/WorkflowInstance"
-        default:
-          $ref: "#/components/responses/Error"
-  "/workflows/instances/{uuid}/-/transition":
-    post:
-      tags:
-        - workflows
-      summary: Transition a workflow instance to a new state
-      operationId: transitionWorkflow
-      parameters:
-        - $ref: "#/components/parameters/UUID"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - signal
-              properties:
-                signal:
-                  type: string
-                  description: The signal/event that triggers the transition
-                message:
-                  type: string
-                  description: Optional message describing the transition
-      responses:
-        "200":
-          description: Workflow transitioned successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/WorkflowInstance"
-        default:
-          $ref: "#/components/responses/Error"
-  /workflows/definitions:
-    get:
-      tags:
-        - workflows
-      summary: List all workflow definitions
-      operationId: listWorkflowDefinitions
-      responses:
-        "200":
-          description: A list of workflow definitions
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/WorkflowDefinition"
-        default:
-          $ref: "#/components/responses/Error"
-    post:
-      tags:
-        - workflows
-      summary: Create or replace a workflow definition
-      operationId: createOrReplaceWorkflowDefinition
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - title
-                - states
-                - availableStateNames
-              properties:
-                uuid:
-                  type: string
-                  format: uuid
-                  description: Optional UUID for update, omit for create
-                title:
-                  type: string
-                  description: Workflow definition title
-                description:
-                  type: string
-                  description: Workflow definition description
-                states:
-                  type: array
-                  description: Array of workflow states
-                  items:
-                    $ref: "#/components/schemas/WorkflowState"
-                availableStateNames:
-                  type: array
-                  description: Array of all state names in the workflow
-                  items:
-                    type: string
-                filters:
-                  $ref: "#/components/schemas/NodeFilters"
-                  description: Optional filters to restrict which nodes can use this workflow. Empty filters allow all nodes.
-      responses:
-        "200":
-          description: Workflow definition created or updated successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/WorkflowDefinition"
-        default:
-          $ref: "#/components/responses/Error"
-  "/workflows/definitions/{uuid}":
-    get:
-      tags:
-        - workflows
-      summary: Get a workflow definition
-      operationId: getWorkflowDefinition
-      parameters:
-        - $ref: "#/components/parameters/UUID"
-      responses:
-        "200":
-          description: Workflow definition details
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/WorkflowDefinition"
-        default:
-          $ref: "#/components/responses/Error"
-    delete:
-      tags:
-        - workflows
-      summary: Delete a workflow definition
-      operationId: deleteWorkflowDefinition
-      description: Deletes a workflow definition. Fails if active instances exist.
-      parameters:
-        - $ref: "#/components/parameters/UUID"
-      responses:
-        "204":
-          description: Workflow definition deleted successfully
-        "400":
-          description: Cannot delete - active instances exist
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AntboxError"
-        default:
-          $ref: "#/components/responses/Error"
-  "/workflows/definitions/{uuid}/-/export":
-    get:
-      tags:
-        - workflows
-      summary: Export a workflow definition
-      operationId: exportWorkflowDefinition
-      parameters:
-        - $ref: "#/components/parameters/UUID"
-      responses:
-        "200":
-          description: Workflow definition exported successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/WorkflowDefinition"
-        default:
-          $ref: "#/components/responses/Error"
+                 type: string
+                 format: uuid
+              description: Optional workflow definition UUID to filter instances
+         responses:
+            "200":
+               description: A list of active workflow instances
+               content:
+                  application/json:
+                     schema:
+                        type: array
+                        items:
+                           $ref: "#/components/schemas/WorkflowInstance"
+            default:
+               $ref: "#/components/responses/Error"
+   "/workflows/instances/{uuid}":
+      get:
+         tags:
+            - workflows
+         summary: Get a workflow instance by node UUID
+         operationId: getWorkflowInstance
+         parameters:
+            - $ref: "#/components/parameters/UUID"
+         responses:
+            "200":
+               description: Workflow instance details
+               content:
+                  application/json:
+                     schema:
+                        $ref: "#/components/schemas/WorkflowInstance"
+            default:
+               $ref: "#/components/responses/Error"
+   "/workflows/instances/{uuid}/-/start":
+      post:
+         tags:
+            - workflows
+         summary: Start a workflow instance for a node
+         operationId: startWorkflow
+         parameters:
+            - $ref: "#/components/parameters/UUID"
+         requestBody:
+            required: true
+            content:
+               application/json:
+                  schema:
+                     type: object
+                     required:
+                        - workflowDefinitionUuid
+                     properties:
+                        workflowDefinitionUuid:
+                           type: string
+                           format: uuid
+                           description: UUID of the workflow definition node
+         responses:
+            "200":
+               description: Workflow instance started successfully
+               content:
+                  application/json:
+                     schema:
+                        $ref: "#/components/schemas/WorkflowInstance"
+            default:
+               $ref: "#/components/responses/Error"
+   "/workflows/instances/{uuid}/-/transition":
+      post:
+         tags:
+            - workflows
+         summary: Transition a workflow instance to a new state
+         operationId: transitionWorkflow
+         parameters:
+            - $ref: "#/components/parameters/UUID"
+         requestBody:
+            required: true
+            content:
+               application/json:
+                  schema:
+                     type: object
+                     required:
+                        - signal
+                     properties:
+                        signal:
+                           type: string
+                           description: The signal/event that triggers the transition
+                        message:
+                           type: string
+                           description: Optional message describing the transition
+         responses:
+            "200":
+               description: Workflow transitioned successfully
+               content:
+                  application/json:
+                     schema:
+                        $ref: "#/components/schemas/WorkflowInstance"
+            default:
+               $ref: "#/components/responses/Error"
+   /workflows/definitions:
+      get:
+         tags:
+            - workflows
+         summary: List all workflow definitions
+         operationId: listWorkflowDefinitions
+         responses:
+            "200":
+               description: A list of workflow definitions
+               content:
+                  application/json:
+                     schema:
+                        type: array
+                        items:
+                           $ref: "#/components/schemas/WorkflowDefinition"
+            default:
+               $ref: "#/components/responses/Error"
+      post:
+         tags:
+            - workflows
+         summary: Create or replace a workflow definition
+         operationId: createOrReplaceWorkflowDefinition
+         requestBody:
+            required: true
+            content:
+               application/json:
+                  schema:
+                     type: object
+                     required:
+                        - title
+                        - states
+                        - availableStateNames
+                     properties:
+                        uuid:
+                           type: string
+                           format: uuid
+                           description: Optional UUID for update, omit for create
+                        title:
+                           type: string
+                           description: Workflow definition title
+                        description:
+                           type: string
+                           description: Workflow definition description
+                        states:
+                           type: array
+                           description: Array of workflow states
+                           items:
+                              $ref: "#/components/schemas/WorkflowState"
+                        availableStateNames:
+                           type: array
+                           description: Array of all state names in the workflow
+                           items:
+                              type: string
+                        filters:
+                           $ref: "#/components/schemas/NodeFilters"
+                           description: Optional filters to restrict which nodes can use this workflow. Empty filters allow all nodes.
+         responses:
+            "200":
+               description: Workflow definition created or updated successfully
+               content:
+                  application/json:
+                     schema:
+                        $ref: "#/components/schemas/WorkflowDefinition"
+            default:
+               $ref: "#/components/responses/Error"
+   "/workflows/definitions/{uuid}":
+      get:
+         tags:
+            - workflows
+         summary: Get a workflow definition
+         operationId: getWorkflowDefinition
+         parameters:
+            - $ref: "#/components/parameters/UUID"
+         responses:
+            "200":
+               description: Workflow definition details
+               content:
+                  application/json:
+                     schema:
+                        $ref: "#/components/schemas/WorkflowDefinition"
+            default:
+               $ref: "#/components/responses/Error"
+      delete:
+         tags:
+            - workflows
+         summary: Delete a workflow definition
+         operationId: deleteWorkflowDefinition
+         description: Deletes a workflow definition. Fails if active instances exist.
+         parameters:
+            - $ref: "#/components/parameters/UUID"
+         responses:
+            "204":
+               description: Workflow definition deleted successfully
+            "400":
+               description: Cannot delete - active instances exist
+               content:
+                  application/json:
+                     schema:
+                        $ref: "#/components/schemas/AntboxError"
+            default:
+               $ref: "#/components/responses/Error"
+   "/workflows/definitions/{uuid}/-/export":
+      get:
+         tags:
+            - workflows
+         summary: Export a workflow definition
+         operationId: exportWorkflowDefinition
+         parameters:
+            - $ref: "#/components/parameters/UUID"
+         responses:
+            "200":
+               description: Workflow definition exported successfully
+               content:
+                  application/json:
+                     schema:
+                        $ref: "#/components/schemas/WorkflowDefinition"
+            default:
+               $ref: "#/components/responses/Error"
 components:
-  schemas:
-    Agent:
-      type: object
-      required:
-        - uuid
-        - title
-        - description
-        - owner
-        - createdTime
-        - modifiedTime
-        - model
-        - temperature
-        - maxTokens
-        - reasoning
-        - useTools
-        - systemInstructions
-      properties:
-        uuid:
-          type: string
-          format: uuid
-        title:
-          type: string
-        description:
-          type: string
-        owner:
-          type: string
-          format: uuid
-        createdTime:
-          type: string
-          format: date-time
-        modifiedTime:
-          type: string
-          format: date-time
-        model:
-          type: string
-        temperature:
-          type: number
-        maxTokens:
-          type: integer
-        reasoning:
-          type: boolean
-        useTools:
-          type: boolean
-        systemInstructions:
-          type: string
-        structuredAnswer:
-          type: string
-    ApiKey:
-      type: object
-      required:
-        - uuid
-        - group
-        - owner
-      properties:
-        uuid:
-          type: string
-          format: uuid
-        group:
-          type: string
-          format: uuid
-        owner:
-          type: string
-          format: email
-        description:
-          type: string
-        secret:
-          type: string
-    AntboxError:
-      type: object
-      required:
-        - errorCode
-        - message
-      properties:
-        errorCode:
-          type: string
-        message:
-          type: string
-    ApiKeyNode:
-      type: object
-      allOf:
-        - $ref: "#/components/schemas/BaseNode"
-      properties:
-        group:
-          type: string
-          format: uuid
-        secret:
-          type: string
-    AspectNode:
-      type: object
-      allOf:
-        - $ref: "#/components/schemas/BaseNode"
-      properties:
-        filters:
-          type: array
-          items:
-            type: object
-        properties:
-          type: array
-          items:
-            $ref: "#/components/schemas/AspectProperty"
-    AspectProperty:
-      type: object
-      required:
-        - name
-        - title
-        - type
-      properties:
-        name:
-          type: string
-        title:
-          type: string
-        type:
-          type: string
-          enum:
-            ["uuid", "string", "number", "boolean", "object", "array", "file"]
-        arrayType:
-          type: string
-          enum: ["string", "number", "uuid", "object"]
-        stringMimetype:
-          type: string
-        readonly:
-          type: boolean
-        validationRegex:
-          type: string
-        validationList:
-          type: array
-          items:
-            type: string
-        validationFilters:
-          type: array
-          items:
-            type: object
-        required:
-          type: boolean
-        searchable:
-          type: boolean
-        default:
-          type: object
-          nullable: true
-    AnswerOptions:
-      type: object
-      properties:
-        context:
-          type: object
-          additionalProperties: true
-    Aspect:
-      type: object
-      required:
-        - uuid
-        - title
-      properties:
-        uuid:
-          type: string
-          format: uuid
-        title:
-          type: string
-        description:
-          type: string
-        filters:
-          type: array
-          items:
-            type: array
-            items:
-              type: object
-        properties:
-          type: object
-          additionalProperties:
-            type: object
+   schemas:
+      Agent:
+         type: object
+         required:
+            - uuid
+            - title
+            - description
+            - owner
+            - createdTime
+            - modifiedTime
+            - model
+            - temperature
+            - maxTokens
+            - reasoning
+            - useTools
+            - systemInstructions
+         properties:
+            uuid:
+               type: string
+               format: uuid
+            title:
+               type: string
+            description:
+               type: string
+            owner:
+               type: string
+               format: uuid
+            createdTime:
+               type: string
+               format: date-time
+            modifiedTime:
+               type: string
+               format: date-time
+            model:
+               type: string
+            temperature:
+               type: number
+            maxTokens:
+               type: integer
+            reasoning:
+               type: boolean
+            useTools:
+               type: boolean
+            systemInstructions:
+               type: string
+            structuredAnswer:
+               type: string
+      ApiKey:
+         type: object
+         required:
+            - uuid
+            - group
+            - owner
+         properties:
+            uuid:
+               type: string
+               format: uuid
+            group:
+               type: string
+               format: uuid
+            owner:
+               type: string
+               format: email
+            description:
+               type: string
+            secret:
+               type: string
+      AntboxError:
+         type: object
+         required:
+            - errorCode
+            - message
+         properties:
+            errorCode:
+               type: string
+            message:
+               type: string
+      ApiKeyNode:
+         type: object
+         allOf:
+            - $ref: "#/components/schemas/BaseNode"
+         properties:
+            group:
+               type: string
+               format: uuid
+            secret:
+               type: string
+      AspectNode:
+         type: object
+         allOf:
+            - $ref: "#/components/schemas/BaseNode"
+         properties:
+            filters:
+               type: array
+               items:
+                  type: object
             properties:
-              type:
-                type: string
-              title:
-                type: string
-              description:
-                type: string
-              required:
-                type: boolean
-              readonly:
-                type: boolean
-              default:
-                type: object
-    ChatOptions:
-      type: object
-      properties:
-        context:
-          type: object
-          additionalProperties: true
-        parent:
-          type: string
-          format: uuid
-    DocInfo:
-      type: object
-      required:
-        - id
-        - title
-        - mimetype
-      properties:
-        id:
-          type: string
-        title:
-          type: string
-        mimetype:
-          type: string
-    FeatureNode:
-      type: object
-      allOf:
-        - $ref: "#/components/schemas/BaseNode"
-      properties:
-        size:
-          type: integer
-        name:
-          type: string
-        exposeAction:
-          type: boolean
-        runOnCreates:
-          type: boolean
-        runOnUpdates:
-          type: boolean
-        runManually:
-          type: boolean
-        filters:
-          type: array
-          items:
-            type: array
-            items:
-              type: object
-        exposeExtension:
-          type: boolean
-        exposeAITool:
-          type: boolean
-        runAs:
-          type: string
-        groupsAllowed:
-          type: array
-          items:
-            type: string
-            format: uuid
-        parameters:
-          type: array
-          items:
-            $ref: "#/components/schemas/FeatureParameter"
-        returnType:
-          type: string
-          enum:
-            - string
-            - number
-            - boolean
-            - array
-            - object
-            - file
-            - void
-        returnDescription:
-          type: string
-        returnContentType:
-          type: string
-    FeatureActionResult:
-      description: Result payload returned when running a feature action. The concrete shape depends on the feature's declared returnType.
-      nullable: true
-      oneOf:
-        - type: object
-        - type: array
-          items: {}
-        - type: string
-        - type: number
-        - type: boolean
-    FeatureParameter:
-      type: object
-      required:
-        - name
-        - type
-        - required
-      properties:
-        name:
-          type: string
-        type:
-          type: string
-          enum: ["string", "number", "boolean", "object", "array", "file"]
-        arrayType:
-          type: string
-          enum: ["string", "number", "file", "object"]
-        contentType:
-          type: string
-        required:
-          type: boolean
-        description:
-          type: string
-        defaultValue:
-          type: object
-          nullable: true
-    FilterOperator:
-      type: string
-      description: The comparison or logical operator for filtering.
-      enum:
-        - "=="
-        - "<="
-        - ">="
-        - "<"
-        - ">"
-        - "!="
-        - "~=" # Note: OpenAPI does not enforce unique enums, but listing "~=" twice is non-standard.
-        - "in"
-        - "not-in"
-        - "match"
-        - "contains"
-        - "contains-all"
-        - "contains-any"
-        - "not-contains"
-        - "contains-none"
+               type: array
+               items:
+                  $ref: "#/components/schemas/AspectProperty"
+      AspectProperty:
+         type: object
+         required:
+            - name
+            - title
+            - type
+         properties:
+            name:
+               type: string
+            title:
+               type: string
+            type:
+               type: string
+               enum:
+                  ["uuid", "string", "number", "boolean", "object", "array", "file"]
+            arrayType:
+               type: string
+               enum: ["string", "number", "uuid", "object"]
+            stringMimetype:
+               type: string
+            readonly:
+               type: boolean
+            validationRegex:
+               type: string
+            validationList:
+               type: array
+               items:
+                  type: string
+            validationFilters:
+               type: array
+               items:
+                  type: object
+            required:
+               type: boolean
+            searchable:
+               type: boolean
+            default:
+               type: object
+               nullable: true
+      AnswerOptions:
+         type: object
+         properties:
+            context:
+               type: object
+               additionalProperties: true
+      Aspect:
+         type: object
+         required:
+            - uuid
+            - title
+         properties:
+            uuid:
+               type: string
+               format: uuid
+            title:
+               type: string
+            description:
+               type: string
+            filters:
+               type: array
+               items:
+                  type: array
+                  items:
+                     type: object
+            properties:
+               type: object
+               additionalProperties:
+                  type: object
+                  properties:
+                     type:
+                        type: string
+                     title:
+                        type: string
+                     description:
+                        type: string
+                     required:
+                        type: boolean
+                     readonly:
+                        type: boolean
+                     default:
+                        type: object
+      ChatOptions:
+         type: object
+         properties:
+            context:
+               type: object
+               additionalProperties: true
+            parent:
+               type: string
+               format: uuid
+      DocInfo:
+         type: object
+         required:
+            - id
+            - title
+            - mimetype
+         properties:
+            id:
+               type: string
+            title:
+               type: string
+            mimetype:
+               type: string
+      FeatureNode:
+         type: object
+         allOf:
+            - $ref: "#/components/schemas/BaseNode"
+         properties:
+            size:
+               type: integer
+            name:
+               type: string
+            exposeAction:
+               type: boolean
+            runOnCreates:
+               type: boolean
+            runOnUpdates:
+               type: boolean
+            runManually:
+               type: boolean
+            filters:
+               type: array
+               items:
+                  type: array
+                  items:
+                     type: object
+            exposeExtension:
+               type: boolean
+            exposeAITool:
+               type: boolean
+            runAs:
+               type: string
+            groupsAllowed:
+               type: array
+               items:
+                  type: string
+                  format: uuid
+            parameters:
+               type: array
+               items:
+                  $ref: "#/components/schemas/FeatureParameter"
+            returnType:
+               type: string
+               enum:
+                  - string
+                  - number
+                  - boolean
+                  - array
+                  - object
+                  - file
+                  - void
+            returnDescription:
+               type: string
+            returnContentType:
+               type: string
+      FeatureActionResult:
+         description: Result payload returned when running a feature action. The concrete shape depends on the feature's declared returnType.
+         nullable: true
+         oneOf:
+            - type: object
+            - type: array
+              items: {}
+            - type: string
+            - type: number
+            - type: boolean
+      FeatureParameter:
+         type: object
+         required:
+            - name
+            - type
+            - required
+         properties:
+            name:
+               type: string
+            type:
+               type: string
+               enum: ["string", "number", "boolean", "object", "array", "file"]
+            arrayType:
+               type: string
+               enum: ["string", "number", "file", "object"]
+            contentType:
+               type: string
+            required:
+               type: boolean
+            description:
+               type: string
+            defaultValue:
+               type: object
+               nullable: true
+      FilterOperator:
+         type: string
+         description: The comparison or logical operator for filtering.
+         enum:
+            - "=="
+            - "<="
+            - ">="
+            - "<"
+            - ">"
+            - "!="
+            - "~=" # Note: OpenAPI does not enforce unique enums, but listing "~=" twice is non-standard.
+            - "in"
+            - "not-in"
+            - "match"
+            - "contains"
+            - "contains-all"
+            - "contains-any"
+            - "not-contains"
+            - "contains-none"
 
-    NodeFilter:
-      type: array
-      description: A single filter tuple #: [field: string, operator: FilterOperator, value: unknown].
-      # Represents a tuple (fixed length array with different types for each item)
-      items:
-        - type: string # field: string
-        - $ref: "#/components/schemas/FilterOperator" # operator: FilterOperator
-        - {} # value: unknown (empty schema allows any type)
-      minItems: 3
-      maxItems: 3
+      NodeFilter:
+         type: array
+         description: A single filter tuple #: [field: string, operator: FilterOperator, value: unknown].
+         # Represents a tuple (fixed length array with different types for each item)
+         items:
+            - type: string # field: string
+            - $ref: "#/components/schemas/FilterOperator" # operator: FilterOperator
+            - {} # value: unknown (empty schema allows any type)
+         minItems: 3
+         maxItems: 3
 
-    NodeFilters1D:
-      type: array
-      description: An array of NodeFilter tuples (AND/OR logic implied by the endpoint).
-      items:
-        $ref: "#/components/schemas/NodeFilter"
+      NodeFilters1D:
+         type: array
+         description: An array of NodeFilter tuples (AND/OR logic implied by the endpoint).
+         items:
+            $ref: "#/components/schemas/NodeFilter"
 
-    NodeFilters2D:
-      type: array
-      description: An array of NodeFilters1D arrays (representing nested logic, e.g., OR groups of AND filters).
-      items:
-        $ref: "#/components/schemas/NodeFilters1D"
+      NodeFilters2D:
+         type: array
+         description: An array of NodeFilters1D arrays (representing nested logic, e.g., OR groups of AND filters).
+         items:
+            $ref: "#/components/schemas/NodeFilters1D"
 
-    NodeFilters:
-      description: Either a 1D array of filters or a 2D array of filters.
-      oneOf:
-        - $ref: "#/components/schemas/NodeFilters1D"
-        - $ref: "#/components/schemas/NodeFilters2D"
-    Permission:
-      type: string
-      enum:
-        - Read
-        - Write
-        - Export
-    Permissions:
-      type: object
-      properties:
-        group:
-          type: array
-          items:
-            $ref: "#/components/schemas/Permission"
-        authenticated:
-          type: array
-          items:
-            $ref: "#/components/schemas/Permission"
-        anonymous:
-          type: array
-          items:
-            $ref: "#/components/schemas/Permission"
-        advanced:
-          type: object
-          additionalProperties:
-            type: array
-            items:
-              $ref: "#/components/schemas/Permission"
-    BaseNode:
-      type: object
-      required:
-        - uuid
-        - fid
-        - title
-        - mimetype
-        - parent
-        - createdTime
-        - modifiedTime
-        - owner
-      properties:
-        uuid:
-          type: string
-          format: uuid
-        fid:
-          type: string
-        title:
-          type: string
-        description:
-          type: string
-        mimetype:
-          type: string
-        parent:
-          type: string
-          format: uuid
-        createdTime:
-          type: string
-          format: date-time
-        modifiedTime:
-          type: string
-          format: date-time
-        owner:
-          type: string
-          format: email
-        fulltext:
-          type: string
-        permissions:
-          $ref: "#/components/schemas/Permissions"
-        locked:
-          type: boolean
-          description: Indicates if the node is locked
-          default: false
-        lockedBy:
-          type: string
-          format: email
-          description: Email of the user who locked the node
-        unlockAuthorizedGroups:
-          type: array
-          items:
+      NodeFilters:
+         description: Either a 1D array of filters or a 2D array of filters.
+         oneOf:
+            - $ref: "#/components/schemas/NodeFilters1D"
+            - $ref: "#/components/schemas/NodeFilters2D"
+      Permission:
+         type: string
+         enum:
+            - Read
+            - Write
+            - Export
+      Permissions:
+         type: object
+         properties:
+            group:
+               type: array
+               items:
+                  $ref: "#/components/schemas/Permission"
+            authenticated:
+               type: array
+               items:
+                  $ref: "#/components/schemas/Permission"
+            anonymous:
+               type: array
+               items:
+                  $ref: "#/components/schemas/Permission"
+            advanced:
+               type: object
+               additionalProperties:
+                  type: array
+                  items:
+                     $ref: "#/components/schemas/Permission"
+      BaseNode:
+         type: object
+         required:
+            - uuid
+            - fid
+            - title
+            - mimetype
+            - parent
+            - createdTime
+            - modifiedTime
+            - owner
+         properties:
+            uuid:
+               type: string
+               format: uuid
+            fid:
+               type: string
+            title:
+               type: string
+            description:
+               type: string
+            mimetype:
+               type: string
+            parent:
+               type: string
+               format: uuid
+            createdTime:
+               type: string
+               format: date-time
+            modifiedTime:
+               type: string
+               format: date-time
+            owner:
+               type: string
+               format: email
+            fulltext:
+               type: string
+            permissions:
+               $ref: "#/components/schemas/Permissions"
+            locked:
+               type: boolean
+               description: Indicates if the node is locked
+               default: false
+            lockedBy:
+               type: string
+               format: email
+               description: Email of the user who locked the node
+            unlockAuthorizedGroups:
+               type: array
+               items:
+                  type: string
+                  format: uuid
+               description: UUIDs of groups authorized to unlock this node
+               default: []
+      FileNode:
+         type: object
+         allOf:
+            - $ref: "#/components/schemas/BaseNode"
+         properties:
+            size:
+               type: integer
+            aspects:
+               type: array
+               items:
+                  type: string
+                  format: uuid
+            properties:
+               type: object
+               additionalProperties: true
+            tags:
+               type: array
+               items:
+                  type: string
+            related:
+               type: array
+               items:
+                  type: string
+                  format: uuid
+      FolderNode:
+         type: object
+         allOf:
+            - $ref: "#/components/schemas/BaseNode"
+         properties:
+            aspects:
+               type: array
+               items:
+                  type: string
+                  format: uuid
+            filters:
+               type: array
+               items:
+                  type: object
+            group:
+               type: string
+               format: uuid
+            onCreate:
+               type: array
+               items:
+                  type: string
+            onDelete:
+               type: array
+               items:
+                  type: string
+            onUpdate:
+               type: array
+               items:
+                  type: string
+            permissions:
+               $ref: "#/components/schemas/Permissions"
+            properties:
+               type: object
+               additionalProperties: true
+            related:
+               type: array
+               items:
+                  type: string
+                  format: uuid
+            tags:
+               type: array
+               items:
+                  type: string
+      GroupNode:
+         type: object
+         allOf:
+            - $ref: "#/components/schemas/BaseNode"
+      MetaNode:
+         type: object
+         allOf:
+            - $ref: "#/components/schemas/BaseNode"
+         properties:
+            aspects:
+               type: array
+               items:
+                  type: string
+                  format: uuid
+            properties:
+               type: object
+               additionalProperties: true
+            related:
+               type: array
+               items:
+                  type: string
+                  format: uuid
+            tags:
+               type: array
+               items:
+                  type: string
+      SmartFolderNode:
+         type: object
+         allOf:
+            - $ref: "#/components/schemas/BaseNode"
+         properties:
+            filters:
+               type: array
+               items:
+                  type: object
+      UserNode:
+         type: object
+         allOf:
+            - $ref: "#/components/schemas/BaseNode"
+         properties:
+            email:
+               type: string
+               format: email
+            group:
+               type: string
+               format: uuid
+            groups:
+               type: array
+               items:
+                  type: string
+                  format: uuid
+      NodeLike:
+         oneOf:
+            - $ref: "#/components/schemas/ApiKeyNode"
+            - $ref: "#/components/schemas/AspectNode"
+            - $ref: "#/components/schemas/FeatureNode"
+            - $ref: "#/components/schemas/FileNode"
+            - $ref: "#/components/schemas/FolderNode"
+            - $ref: "#/components/schemas/GroupNode"
+            - $ref: "#/components/schemas/MetaNode"
+            - $ref: "#/components/schemas/SmartFolderNode"
+            - $ref: "#/components/schemas/UserNode"
+      NodeMetadata:
+         type: object
+         properties:
+            uuid:
+               type: string
+               format: uuid
+            fid:
+               type: string
+            title:
+               type: string
+            name:
+               type: string
+            description:
+               type: string
+            mimetype:
+               type: string
+            size:
+               type: integer
+            parent:
+               type: string
+               format: uuid
+            createdTime:
+               type: string
+               format: date-time
+            modifiedTime:
+               type: string
+               format: date-time
+            owner:
+               type: string
+               format: email
+            aspects:
+               type: array
+               items:
+                  type: string
+                  format: uuid
+            tags:
+               type: array
+               items:
+                  type: string
+            related:
+               type: array
+               items:
+                  type: string
+                  format: uuid
+            properties:
+               type: object
+               additionalProperties: true
+            fulltext:
+               type: string
+            filters:
+               type: object
+            group:
+               type: string
+               format: uuid
+            groups:
+               type: array
+               items:
+                  type: string
+                  format: uuid
+            email:
+               type: string
+               format: email
+            phone:
+               type: string
+               description: Optional phone number
+            hasWhatsapp:
+               type: boolean
+               description: Whether the phone number has WhatsApp (always false if phone is not provided)
+            secret:
+               type: string
+            onCreate:
+               type: array
+               items:
+                  type: string
+            onUpdate:
+               type: array
+               items:
+                  type: string
+            onDelete:
+               type: array
+               items:
+                  type: string
+            permissions:
+               $ref: "#/components/schemas/Permissions"
+            runManually:
+               type: boolean
+            runAs:
+               type: string
+            parameters:
+               type: array
+               items:
+                  $ref: "#/components/schemas/FeatureParameter"
+            returnType:
+               type: string
+               enum:
+                  ["string", "number", "boolean", "array", "object", "file", "void"]
+            returnDescription:
+               type: string
+            returnContentType:
+               type: string
+            groupsAllowed:
+               type: array
+               items:
+                  type: string
+                  format: uuid
+            runOnCreates:
+               type: boolean
+            runOnUpdates:
+               type: boolean
+            runOnDeletes:
+               type: boolean
+            exposeAction:
+               type: boolean
+            exposeExtension:
+               type: boolean
+            exposeAITool:
+               type: boolean
+            model:
+               type: string
+            temperature:
+               type: number
+            maxTokens:
+               type: integer
+            reasoning:
+               type: boolean
+            useTools:
+               type: boolean
+            systemInstructions:
+               type: string
+            structuredAnswer:
+               type: string
+      TemplateInfo:
+         type: object
+         required:
+            - id
+            - title
+            - mimetype
+         properties:
+            id:
+               type: string
+            title:
+               type: string
+            mimetype:
+               type: string
+      WorkflowDefinition:
+         type: object
+         required:
+            - uuid
+            - title
+            - description
+            - owner
+            - createdTime
+            - modifiedTime
+            - states
+            - availableStateNames
+            - filters
+         properties:
+            uuid:
+               type: string
+               format: uuid
+               description: Unique identifier for the workflow definition
+            title:
+               type: string
+               description: Workflow definition title
+            description:
+               type: string
+               description: Workflow definition description
+            owner:
+               type: string
+               format: email
+               description: Email of the workflow definition owner
+            createdTime:
+               type: string
+               format: date-time
+               description: When the workflow definition was created
+            modifiedTime:
+               type: string
+               format: date-time
+               description: When the workflow definition was last modified
+            states:
+               type: array
+               description: Array of workflow states
+               items:
+                  $ref: "#/components/schemas/WorkflowState"
+            availableStateNames:
+               type: array
+               description: Array of all state names in the workflow
+               items:
+                  type: string
+            filters:
+               $ref: "#/components/schemas/NodeFilters"
+               description: Filters to restrict which nodes can use this workflow. Empty filters allow all nodes.
+      WorkflowState:
+         type: object
+         required:
+            - name
+         properties:
+            name:
+               type: string
+               description: Unique name of the state (e.g., "Draft", "In Review")
+            isInitial:
+               type: boolean
+               description: Is this where new items start?
+            isFinal:
+               type: boolean
+               description: Is the workflow complete when reaching this state?
+            onEnter:
+               type: array
+               description: IDs/Names of actions to execute when entering this state
+               items:
+                  type: string
+            onExit:
+               type: array
+               description: IDs/Names of actions to execute before leaving this state
+               items:
+                  type: string
+            transitions:
+               type: array
+               description: The possible paths out of this state
+               items:
+                  $ref: "#/components/schemas/WorkflowTransition"
+      WorkflowTransition:
+         type: object
+         required:
+            - signal
+            - targetState
+         properties:
+            signal:
+               type: string
+               description: The signal/event name that triggers this transition
+            targetState:
+               type: string
+               description: The name of the destination state
+            filters:
+               type: array
+               description: Guard conditions - transition only valid if node satisfies these filters
+               items:
+                  type: array
+                  items: {}
+            actions:
+               type: array
+               description: IDs/Names of actions to execute during the transition
+               items:
+                  type: string
+            groupsAllowed:
+               type: array
+               description: List of groups allowed to execute this transition
+               items:
+                  type: string
+                  format: uuid
+      WorkflowInstance:
+         type: object
+         required:
+            - uuid
+            - workflowDefinitionUuid
+            - nodeUuid
+            - currentStateName
+            - history
+         properties:
+            uuid:
+               type: string
+               format: uuid
+               description: Unique identifier for the workflow instance
+            workflowDefinitionUuid:
+               type: string
+               format: uuid
+               description: UUID of the workflow definition node
+            nodeUuid:
+               type: string
+               format: uuid
+               description: UUID of the node this workflow is attached to
+            currentStateName:
+               type: string
+               description: Name of the current state in the workflow
+            history:
+               type: array
+               description: History of state transitions
+               items:
+                  $ref: "#/components/schemas/WorkflowTransitionHistory"
+      WorkflowTransitionHistory:
+         type: object
+         required:
+            - from
+            - to
+            - signal
+            - timestamp
+            - user
+         properties:
+            from:
+               type: string
+               description: Previous state name
+            to:
+               type: string
+               description: New state name
+            signal:
+               type: string
+               description: Signal/event that triggered the transition
+            timestamp:
+               type: string
+               format: date-time
+               description: When the transition occurred
+            user:
+               type: string
+               format: email
+               description: Email of the user who triggered the transition
+            message:
+               type: string
+               description: Optional message describing the transition
+   securitySchemes:
+      bearerAuth:
+         type: http
+         scheme: bearer
+         bearerFormat: JWT
+         description: "JWT token in Authorization header (Priority 2)"
+      cookieAuth:
+         type: apiKey
+         in: cookie
+         name: token
+         description: "JWT token in HTTP-only cookie (Priority 3). Automatically sent by browser for same-origin requests."
+      apiKeyHeader:
+         type: apiKey
+         in: header
+         name: Authorization
+         description: "API key in Authorization header format: 'ApiKey <key>' (Priority 1)"
+      apiKeyQuery:
+         type: apiKey
+         in: query
+         name: api_key
+         description: "API key in query parameter (Priority 4)"
+   parameters:
+      UUID:
+         name: uuid
+         in: path
+         required: true
+         schema:
             type: string
             format: uuid
-          description: UUIDs of groups authorized to unlock this node
-          default: []
-    FileNode:
-      type: object
-      allOf:
-        - $ref: "#/components/schemas/BaseNode"
-      properties:
-        size:
-          type: integer
-        aspects:
-          type: array
-          items:
-            type: string
-            format: uuid
-        properties:
-          type: object
-          additionalProperties: true
-        tags:
-          type: array
-          items:
-            type: string
-        related:
-          type: array
-          items:
-            type: string
-            format: uuid
-    FolderNode:
-      type: object
-      allOf:
-        - $ref: "#/components/schemas/BaseNode"
-      properties:
-        aspects:
-          type: array
-          items:
-            type: string
-            format: uuid
-        filters:
-          type: array
-          items:
-            type: object
-        group:
-          type: string
-          format: uuid
-        onCreate:
-          type: array
-          items:
-            type: string
-        onDelete:
-          type: array
-          items:
-            type: string
-        onUpdate:
-          type: array
-          items:
-            type: string
-        permissions:
-          $ref: "#/components/schemas/Permissions"
-        properties:
-          type: object
-          additionalProperties: true
-        related:
-          type: array
-          items:
-            type: string
-            format: uuid
-        tags:
-          type: array
-          items:
-            type: string
-    GroupNode:
-      type: object
-      allOf:
-        - $ref: "#/components/schemas/BaseNode"
-    MetaNode:
-      type: object
-      allOf:
-        - $ref: "#/components/schemas/BaseNode"
-      properties:
-        aspects:
-          type: array
-          items:
-            type: string
-            format: uuid
-        properties:
-          type: object
-          additionalProperties: true
-        related:
-          type: array
-          items:
-            type: string
-            format: uuid
-        tags:
-          type: array
-          items:
-            type: string
-    SmartFolderNode:
-      type: object
-      allOf:
-        - $ref: "#/components/schemas/BaseNode"
-      properties:
-        filters:
-          type: array
-          items:
-            type: object
-    UserNode:
-      type: object
-      allOf:
-        - $ref: "#/components/schemas/BaseNode"
-      properties:
-        email:
-          type: string
-          format: email
-        group:
-          type: string
-          format: uuid
-        groups:
-          type: array
-          items:
-            type: string
-            format: uuid
-    NodeLike:
-      oneOf:
-        - $ref: "#/components/schemas/ApiKeyNode"
-        - $ref: "#/components/schemas/AspectNode"
-        - $ref: "#/components/schemas/FeatureNode"
-        - $ref: "#/components/schemas/FileNode"
-        - $ref: "#/components/schemas/FolderNode"
-        - $ref: "#/components/schemas/GroupNode"
-        - $ref: "#/components/schemas/MetaNode"
-        - $ref: "#/components/schemas/SmartFolderNode"
-        - $ref: "#/components/schemas/UserNode"
-    NodeMetadata:
-      type: object
-      properties:
-        uuid:
-          type: string
-          format: uuid
-        fid:
-          type: string
-        title:
-          type: string
-        name:
-          type: string
-        description:
-          type: string
-        mimetype:
-          type: string
-        size:
-          type: integer
-        parent:
-          type: string
-          format: uuid
-        createdTime:
-          type: string
-          format: date-time
-        modifiedTime:
-          type: string
-          format: date-time
-        owner:
-          type: string
-          format: email
-        aspects:
-          type: array
-          items:
-            type: string
-            format: uuid
-        tags:
-          type: array
-          items:
-            type: string
-        related:
-          type: array
-          items:
-            type: string
-            format: uuid
-        properties:
-          type: object
-          additionalProperties: true
-        fulltext:
-          type: string
-        filters:
-          type: object
-        group:
-          type: string
-          format: uuid
-        groups:
-          type: array
-          items:
-            type: string
-            format: uuid
-        email:
-          type: string
-          format: email
-        phone:
-          type: string
-          description: Optional phone number
-        hasWhatsapp:
-          type: boolean
-          description: Whether the phone number has WhatsApp (always false if phone is not provided)
-        secret:
-          type: string
-        onCreate:
-          type: array
-          items:
-            type: string
-        onUpdate:
-          type: array
-          items:
-            type: string
-        onDelete:
-          type: array
-          items:
-            type: string
-        permissions:
-          $ref: "#/components/schemas/Permissions"
-        runManually:
-          type: boolean
-        runAs:
-          type: string
-        parameters:
-          type: array
-          items:
-            $ref: "#/components/schemas/FeatureParameter"
-        returnType:
-          type: string
-          enum:
-            ["string", "number", "boolean", "array", "object", "file", "void"]
-        returnDescription:
-          type: string
-        returnContentType:
-          type: string
-        groupsAllowed:
-          type: array
-          items:
-            type: string
-            format: uuid
-        runOnCreates:
-          type: boolean
-        runOnUpdates:
-          type: boolean
-        runOnDeletes:
-          type: boolean
-        exposeAction:
-          type: boolean
-        exposeExtension:
-          type: boolean
-        exposeAITool:
-          type: boolean
-        model:
-          type: string
-        temperature:
-          type: number
-        maxTokens:
-          type: integer
-        reasoning:
-          type: boolean
-        useTools:
-          type: boolean
-        systemInstructions:
-          type: string
-        structuredAnswer:
-          type: string
-    TemplateInfo:
-      type: object
-      required:
-        - id
-        - title
-        - mimetype
-      properties:
-        id:
-          type: string
-        title:
-          type: string
-        mimetype:
-          type: string
-    WorkflowDefinition:
-      type: object
-      required:
-        - uuid
-        - title
-        - description
-        - owner
-        - createdTime
-        - modifiedTime
-        - states
-        - availableStateNames
-        - filters
-      properties:
-        uuid:
-          type: string
-          format: uuid
-          description: Unique identifier for the workflow definition
-        title:
-          type: string
-          description: Workflow definition title
-        description:
-          type: string
-          description: Workflow definition description
-        owner:
-          type: string
-          format: email
-          description: Email of the workflow definition owner
-        createdTime:
-          type: string
-          format: date-time
-          description: When the workflow definition was created
-        modifiedTime:
-          type: string
-          format: date-time
-          description: When the workflow definition was last modified
-        states:
-          type: array
-          description: Array of workflow states
-          items:
-            $ref: "#/components/schemas/WorkflowState"
-        availableStateNames:
-          type: array
-          description: Array of all state names in the workflow
-          items:
-            type: string
-        filters:
-          $ref: "#/components/schemas/NodeFilters"
-          description: Filters to restrict which nodes can use this workflow. Empty filters allow all nodes.
-    WorkflowState:
-      type: object
-      required:
-        - name
-      properties:
-        name:
-          type: string
-          description: Unique name of the state (e.g., "Draft", "In Review")
-        isInitial:
-          type: boolean
-          description: Is this where new items start?
-        isFinal:
-          type: boolean
-          description: Is the workflow complete when reaching this state?
-        onEnter:
-          type: array
-          description: IDs/Names of actions to execute when entering this state
-          items:
-            type: string
-        onExit:
-          type: array
-          description: IDs/Names of actions to execute before leaving this state
-          items:
-            type: string
-        transitions:
-          type: array
-          description: The possible paths out of this state
-          items:
-            $ref: "#/components/schemas/WorkflowTransition"
-    WorkflowTransition:
-      type: object
-      required:
-        - signal
-        - targetState
-      properties:
-        signal:
-          type: string
-          description: The signal/event name that triggers this transition
-        targetState:
-          type: string
-          description: The name of the destination state
-        filters:
-          type: array
-          description: Guard conditions - transition only valid if node satisfies these filters
-          items:
-            type: array
-            items: {}
-        actions:
-          type: array
-          description: IDs/Names of actions to execute during the transition
-          items:
-            type: string
-        groupsAllowed:
-          type: array
-          description: List of groups allowed to execute this transition
-          items:
-            type: string
-            format: uuid
-    WorkflowInstance:
-      type: object
-      required:
-        - uuid
-        - workflowDefinitionUuid
-        - nodeUuid
-        - currentStateName
-        - history
-      properties:
-        uuid:
-          type: string
-          format: uuid
-          description: Unique identifier for the workflow instance
-        workflowDefinitionUuid:
-          type: string
-          format: uuid
-          description: UUID of the workflow definition node
-        nodeUuid:
-          type: string
-          format: uuid
-          description: UUID of the node this workflow is attached to
-        currentStateName:
-          type: string
-          description: Name of the current state in the workflow
-        history:
-          type: array
-          description: History of state transitions
-          items:
-            $ref: "#/components/schemas/WorkflowTransitionHistory"
-    WorkflowTransitionHistory:
-      type: object
-      required:
-        - from
-        - to
-        - signal
-        - timestamp
-        - user
-      properties:
-        from:
-          type: string
-          description: Previous state name
-        to:
-          type: string
-          description: New state name
-        signal:
-          type: string
-          description: Signal/event that triggered the transition
-        timestamp:
-          type: string
-          format: date-time
-          description: When the transition occurred
-        user:
-          type: string
-          format: email
-          description: Email of the user who triggered the transition
-        message:
-          type: string
-          description: Optional message describing the transition
-  securitySchemes:
-    bearerAuth:
-      type: http
-      scheme: bearer
-      bearerFormat: JWT
-      description: "JWT token in Authorization header (Priority 2)"
-    cookieAuth:
-      type: apiKey
-      in: cookie
-      name: token
-      description: "JWT token in HTTP-only cookie (Priority 3). Automatically sent by browser for same-origin requests."
-    apiKeyHeader:
-      type: apiKey
-      in: header
-      name: Authorization
-      description: "API key in Authorization header format: 'ApiKey <key>' (Priority 1)"
-    apiKeyQuery:
-      type: apiKey
-      in: query
-      name: api_key
-      description: "API key in query parameter (Priority 4)"
-  parameters:
-    UUID:
-      name: uuid
-      in: path
-      required: true
-      schema:
-        type: string
-        format: uuid
-  responses:
-    Error:
-      description: Error
-      content:
-        application/json:
-          schema:
-            $ref: "#/components/schemas/AntboxError"
+   responses:
+      Error:
+         description: Error
+         content:
+            application/json:
+               schema:
+                  $ref: "#/components/schemas/AntboxError"

@@ -13,10 +13,11 @@ import { ValidationError } from "shared/validation_error.ts";
 import type { AuthenticationContext } from "./authentication_context.ts";
 import { ADMINS_GROUP, builtinGroups } from "./builtin_groups/index.ts";
 import { ANONYMOUS_USER, builtinUsers, ROOT_USER } from "./builtin_users/index.ts";
-import { type GroupDTO, nodeToGroup, nodeToUser, type UserDTO } from "./users_groups_dto.ts";
+import { type GroupDTO, nodeToGroup, toUserDTO, type UserDTO } from "./users_groups_dto.ts";
 
 import type { NodeService } from "./node_service.ts";
 import type { NodeLike } from "domain/node_like.ts";
+import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
 
 export class UsersGroupsService {
 	static elevatedContext: AuthenticationContext = {
@@ -43,24 +44,14 @@ export class UsersGroupsService {
 			return left(ValidationError.from(new UserExistsError(metadata.email!)));
 		}
 
-		const groups = new Set(metadata.groups ?? []);
+		const uniqueGroups = Array.from(new Set(metadata.groups ?? []));
+		const group = uniqueGroups[0];
+		const groups = uniqueGroups.slice(1);
 
-		const userOrErr = UserNode.create({
-			...metadata,
-			title: metadata.name,
-			owner: ctx.principal.email,
-			group: Array.from(groups)[0],
-			groups: Array.from(groups).slice(1),
-		});
+		if (uniqueGroups.length > 0) {
+			const batch = uniqueGroups.map((g) => this.getGroup(ctx, g));
 
-		if (userOrErr.isLeft()) {
-			return left(userOrErr.value);
-		}
-
-		if (groups.size > 0) {
-			const batch = metadata.groups?.map((group) => this.getGroup(ctx, group));
-
-			const groupsOrErr = await Promise.all(batch!);
+			const groupsOrErr = await Promise.all(batch);
 
 			const groupsErr = groupsOrErr.filter((groupOrErr) => groupOrErr.isLeft());
 
@@ -70,14 +61,21 @@ export class UsersGroupsService {
 			}
 		}
 
-		const user = userOrErr.value;
+		const userOrErr = await this.service.create(ctx, {
+			...metadata,
+			title: metadata.name,
+			group,
+			groups,
+			owner: ctx.principal.email,
+			parent: Folders.USERS_FOLDER_UUID,
+			mimetype: Nodes.USER_MIMETYPE,
+		});
 
-		const voidOrErr = await this.service.create(ctx, user.metadata);
-		if (voidOrErr.isLeft()) {
-			return left(voidOrErr.value);
+		if (userOrErr.isLeft()) {
+			return left(userOrErr.value);
 		}
 
-		return right(nodeToUser(user));
+		return right(toUserDTO(userOrErr.value as UserNode));
 	}
 
 	async getUser(
@@ -86,12 +84,12 @@ export class UsersGroupsService {
 	): Promise<Either<AntboxError, UserDTO>> {
 		if (email === Users.ROOT_USER_EMAIL) {
 			return (await this.#hasAdminGroup(ctx))
-				? right(nodeToUser(ROOT_USER))
+				? right(toUserDTO(ROOT_USER))
 				: left(new ForbiddenError());
 		}
 
 		if (email === Users.ANONYMOUS_USER_EMAIL) {
-			return right(nodeToUser(ANONYMOUS_USER));
+			return right(toUserDTO(ANONYMOUS_USER));
 		}
 
 		const result = await this.service.find(ctx, [
@@ -106,12 +104,10 @@ export class UsersGroupsService {
 		const node = result.value.nodes[0] as UserNode;
 
 		if (node.email === ctx.principal.email) {
-			return right(nodeToUser(node));
+			return right(toUserDTO(node));
 		}
 
-		return (await this.#hasAdminGroup(ctx))
-			? right(nodeToUser(node))
-			: left(new ForbiddenError());
+		return (await this.#hasAdminGroup(ctx)) ? right(toUserDTO(node)) : left(new ForbiddenError());
 	}
 
 	async updateUser(
@@ -130,7 +126,15 @@ export class UsersGroupsService {
 			return left(existingOrErr.value);
 		}
 
-		const voidOrErr = await this.service.update(ctx, existingOrErr.value.uuid, metadata);
+		const updateMetadata: Partial<NodeMetadata> = {
+			...metadata,
+		};
+
+		if (metadata.name) {
+			updateMetadata.title = metadata.name;
+		}
+
+		const voidOrErr = await this.service.update(ctx, existingOrErr.value.uuid, updateMetadata);
 		if (voidOrErr.isLeft()) {
 			return left(voidOrErr.value);
 		}
@@ -166,8 +170,8 @@ export class UsersGroupsService {
 			return left(usersOrErr.value);
 		}
 
-		const users = (usersOrErr.value.nodes as UserNode[]).map(nodeToUser);
-		const sytemUsers = builtinUsers.map(nodeToUser);
+		const users = (usersOrErr.value.nodes as UserNode[]).map(toUserDTO);
+		const sytemUsers = builtinUsers.map(toUserDTO);
 
 		return right(
 			[...users, ...sytemUsers].sort((a, b) => a.name.localeCompare(b.name)),
@@ -182,7 +186,7 @@ export class UsersGroupsService {
 
 	async createGroup(
 		ctx: AuthenticationContext,
-		metadata: GroupDTO,
+		metadata: Partial<GroupDTO>,
 	): Promise<Either<AntboxError, GroupDTO>> {
 		const groupOrErr = GroupNode.create({
 			...metadata,

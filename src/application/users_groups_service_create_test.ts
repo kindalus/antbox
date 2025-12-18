@@ -3,7 +3,6 @@ import { expect } from "expect";
 import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider.ts";
 import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository.ts";
 import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus.ts";
-import type { UsersGroupsContext } from "./users_groups_service_context.ts";
 import { ValidationError } from "shared/validation_error.ts";
 import { UserExistsError } from "domain/users_groups/user_exists_error.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
@@ -15,6 +14,8 @@ import type { AuthenticationContext } from "./authentication_context.ts";
 import { Groups } from "domain/users_groups/groups.ts";
 import { UserNode } from "domain/users_groups/user_node.ts";
 import { UsersGroupsService } from "application/users_groups_service.ts";
+import { NodeService } from "./node_service.ts";
+import type { NodeServiceContext } from "./node_service_context.ts";
 
 describe("UsersGroupsService", () => {
 	describe("createUser", () => {
@@ -24,7 +25,7 @@ describe("UsersGroupsService", () => {
 			await service.createUser(authCtx, {
 				name: "The title",
 				email: "joane@gmail.com",
-				groups: ["--admins--", "--users--"],
+				groups: ["--admins--", "--test-users-group--"],
 			});
 
 			const userOrErr = await service.getUser(authCtx, "joane@gmail.com");
@@ -40,7 +41,7 @@ describe("UsersGroupsService", () => {
 			await service.createUser(authCtx, {
 				name: "The title",
 				email: "duck@gmail.com",
-				groups: ["--users--", "--admins--", "--admins--", "--ultimate--"],
+				groups: ["--test-users-group--", "--admins--", "--admins--", "--ultimate--"],
 			});
 
 			const userOrErr = await service.getUser(authCtx, "duck@gmail.com");
@@ -59,13 +60,13 @@ describe("UsersGroupsService", () => {
 			await service.createUser(authCtx, {
 				name: "The title",
 				email: "tyrion@gmail.com",
-				groups: ["--admins--", "--users--"],
+				groups: ["--admins--", "--test-users-group--"],
 			});
 
 			const userOrErr = await service.createUser(authCtx, {
 				name: "The title",
 				email: "tyrion@gmail.com",
-				groups: ["--admins--", "--users--"],
+				groups: ["--admins--", "--test-users-group--"],
 			});
 
 			expect(userOrErr.isLeft(), errToMsg(userOrErr.value)).toBeTruthy();
@@ -134,7 +135,7 @@ const firstGoupNode: GroupNode = GroupNode.create({
 }).right;
 
 const secondGoupNode: GroupNode = GroupNode.create({
-	uuid: "--users--",
+	uuid: "--test-users-group--",
 	title: "The second title",
 	owner: Users.ROOT_USER_EMAIL,
 }).right;
@@ -152,13 +153,16 @@ repository.add(secondGoupNode);
 repository.add(thirdGoupNode);
 
 const usersGroupsService = (
-	opts: Partial<UsersGroupsContext> = { repository },
-) =>
-	new UsersGroupsService({
+	opts: Partial<NodeServiceContext> = { repository },
+) => {
+	const nodeService = new NodeService({
 		storage: opts.storage ?? new InMemoryStorageProvider(),
 		repository: opts.repository ?? new InMemoryNodeRepository(),
 		bus: opts.bus ?? new InMemoryEventBus(),
 	});
+
+	return new UsersGroupsService(nodeService);
+};
 
 const errToMsg = (
 	// deno-lint-ignore no-explicit-any

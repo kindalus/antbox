@@ -31,6 +31,7 @@ export interface NodeMetadata {
 	phone?: string;
 	hasWhatsapp?: boolean;
 	secret?: string;
+	active?: boolean;
 
 	onCreate?: string[];
 	onUpdate?: string[];

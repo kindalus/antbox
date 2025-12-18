@@ -1,6 +1,5 @@
 import { describe, it } from "bdd";
 import { expect } from "expect";
-import type { UsersGroupsContext } from "./users_groups_service_context.ts";
 import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus.ts";
 import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository.ts";
 import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider.ts";
@@ -13,6 +12,8 @@ import { UserNotFoundError } from "domain/users_groups/user_not_found_error.ts";
 import GroupNotFoundError from "domain/users_groups/group_not_found_error.ts";
 import { BadRequestError } from "shared/antbox_error.ts";
 import { errToMsg } from "shared/test_helpers.ts";
+import { NodeService } from "./node_service.ts";
+import type { NodeServiceContext } from "./node_service_context.ts";
 
 describe("UsersGroupsService", () => {
 	describe("updateUser", () => {
@@ -22,7 +23,7 @@ describe("UsersGroupsService", () => {
 			const createdUserOrErr = await service.createUser(authCtx, {
 				name: "The Name",
 				email: "dennis@gmail.com",
-				groups: ["--users--"],
+				groups: ["--test-users-group--"],
 			});
 
 			const voidOrErr = await service.updateUser(
@@ -43,7 +44,7 @@ describe("UsersGroupsService", () => {
 			const createdUserOrErr = await service.createUser(authCtx, {
 				name: "The Name",
 				email: "bale@gmail.com",
-				groups: ["--users--"],
+				groups: ["--test-users-group--"],
 			});
 
 			const voidOrErr = await service.updateUser(
@@ -139,7 +140,7 @@ describe("UsersGroupsService", () => {
 				name: "The title",
 				uuid: "doily-uuid",
 				email: "doily@gmail.com",
-				groups: ["--users--"],
+				groups: ["--test-users-group--"],
 			})).right;
 
 			const voidOrErr = await service.updateGroup(authCtx, "doily-uuid", {
@@ -175,7 +176,7 @@ const authCtx: AuthenticationContext = {
 };
 
 const goupNode: GroupNode = GroupNode.create({
-	uuid: "--users--",
+	uuid: "--test-users-group--",
 	title: "The title",
 	owner: Users.ROOT_USER_EMAIL,
 }).right;
@@ -184,10 +185,13 @@ const repository = new InMemoryNodeRepository();
 repository.add(goupNode);
 
 const usersGroupsService = (
-	opts: Partial<UsersGroupsContext> = { repository: repository },
-) =>
-	new UsersGroupsService({
+	opts: Partial<NodeServiceContext> = { repository: repository },
+) => {
+	const nodeService = new NodeService({
 		storage: opts.storage ?? new InMemoryStorageProvider(),
 		repository: opts.repository ?? new InMemoryNodeRepository(),
 		bus: opts.bus ?? new InMemoryEventBus(),
 	});
+
+	return new UsersGroupsService(nodeService);
+};

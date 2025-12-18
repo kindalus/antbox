@@ -1,6 +1,7 @@
 # Authentication
 
-Antbox provides multiple authentication methods to secure your content and API access. This guide covers all supported authentication methods and best practices.
+Antbox provides multiple authentication methods to secure your content and API access. This guide
+covers all supported authentication methods and best practices.
 
 ## Overview
 
@@ -19,6 +20,7 @@ Antbox supports four authentication methods with a defined priority order:
 The most common method for API clients and SPAs.
 
 **Login:**
+
 ```bash
 curl -X POST http://localhost:7180/login/root \
   -H "Content-Type: text/plain" \
@@ -26,13 +28,15 @@ curl -X POST http://localhost:7180/login/root \
 ```
 
 **Response:**
+
 ```json
 {
-  "jwt": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+	"jwt": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
 }
 ```
 
 **Usage:**
+
 ```bash
 curl http://localhost:7180/v2/nodes \
   -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
@@ -41,6 +45,7 @@ curl http://localhost:7180/v2/nodes \
 **Token Expiration:** 4 hours
 
 **Best for:**
+
 - Mobile apps
 - Single-page applications (SPAs)
 - Server-to-server communication
@@ -51,6 +56,7 @@ curl http://localhost:7180/v2/nodes \
 Secure, automatic authentication for web applications.
 
 **Login:**
+
 ```bash
 curl -X POST http://localhost:7180/login/root \
   -H "Content-Type: text/plain" \
@@ -59,41 +65,47 @@ curl -X POST http://localhost:7180/login/root \
 ```
 
 The server automatically sets an HTTP-only cookie:
+
 ```
 Set-Cookie: token=<jwt>; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=14400
 ```
 
 **Usage (same-origin):**
+
 ```javascript
 // Browser automatically sends cookie - no headers needed!
-fetch('/v2/nodes')
-  .then(res => res.json())
-  .then(data => console.log(data));
+fetch("/v2/nodes")
+	.then((res) => res.json())
+	.then((data) => console.log(data));
 ```
 
 **Usage (cross-origin):**
+
 ```javascript
 // Must explicitly include credentials
-fetch('https://api.antbox.com/v2/nodes', {
-  credentials: 'include'  // Required for cross-origin requests
+fetch("https://api.antbox.com/v2/nodes", {
+	credentials: "include", // Required for cross-origin requests
 })
-  .then(res => res.json())
-  .then(data => console.log(data));
+	.then((res) => res.json())
+	.then((data) => console.log(data));
 ```
 
 **Logout:**
+
 ```bash
 curl -X POST http://localhost:7180/login/logout \
   -b cookies.txt
 ```
 
 **Cookie Attributes:**
+
 - `HttpOnly` - JavaScript cannot access (XSS protection)
 - `Secure` - Only sent over HTTPS
 - `SameSite=Strict` - CSRF protection for same-origin requests
 - `Max-Age=14400` - 4 hours (matches JWT expiration)
 
 **Best for:**
+
 - Traditional web applications
 - Same-origin SPAs
 - Better security against XSS attacks
@@ -103,23 +115,27 @@ curl -X POST http://localhost:7180/login/logout \
 Long-lived credentials for programmatic access.
 
 **Header Format (Recommended):**
+
 ```bash
 curl http://localhost:7180/v2/nodes \
   -H "Authorization: ApiKey your-api-key-here"
 ```
 
 **Query Parameter Format (Fallback):**
+
 ```bash
 curl "http://localhost:7180/v2/nodes?api_key=your-api-key-here"
 ```
 
 **Best for:**
+
 - Third-party integrations
 - Webhooks
 - CI/CD pipelines
 - Service accounts
 
-**Note:** API keys take highest priority and override other authentication methods in the same request.
+**Note:** API keys take highest priority and override other authentication methods in the same
+request.
 
 ### 4. Anonymous Access
 
@@ -129,12 +145,13 @@ Access public resources without authentication.
 curl http://localhost:7180/v2/nodes?parent=public-folder-uuid
 ```
 
-**Permissions:**
-Anonymous users can access resources where the folder's `permissions.anonymous` includes the required permission (`Read`, `Write`, or `Export`).
+**Permissions:** Anonymous users can access resources where the folder's `permissions.anonymous`
+includes the required permission (`Read`, `Write`, or `Export`).
 
 ## Authentication Priority
 
-When multiple authentication methods are provided in a single request, Antbox uses this priority order:
+When multiple authentication methods are provided in a single request, Antbox uses this priority
+order:
 
 ```
 1. Authorization: ApiKey <key>     ← Highest priority
@@ -154,7 +171,7 @@ Cookies are automatically sent with no additional configuration:
 
 ```javascript
 // From https://api.antbox.com to https://api.antbox.com
-fetch('/v2/nodes')  // Cookie automatically included ✓
+fetch("/v2/nodes"); // Cookie automatically included ✓
 ```
 
 ### Cross-Origin Requests
@@ -162,13 +179,15 @@ fetch('/v2/nodes')  // Cookie automatically included ✓
 For cross-origin requests with cookies, you must:
 
 1. **Client-side:** Use `credentials: 'include'`
+
 ```javascript
-fetch('https://api.antbox.com/v2/nodes', {
-  credentials: 'include'
-})
+fetch("https://api.antbox.com/v2/nodes", {
+	credentials: "include",
+});
 ```
 
 2. **Server-side:** Antbox automatically sets proper CORS headers:
+
 ```
 Access-Control-Allow-Origin: <your-origin>
 Access-Control-Allow-Credentials: true
@@ -211,13 +230,15 @@ Access-Control-Allow-Credentials: true
 **JWT Expiration:** 4 hours from issuance
 
 When a token expires:
+
 1. API returns `401 Unauthorized`
 2. Client must re-authenticate via `/login/root`
 3. New JWT is issued
 
 **Cookie Expiration:** Automatically expires with JWT (4 hours)
 
-**Current Limitation:** Antbox does not yet support refresh tokens. Users must re-authenticate after token expiration.
+**Current Limitation:** Antbox does not yet support refresh tokens. Users must re-authenticate after
+token expiration.
 
 ## Multi-Tenancy
 
@@ -228,6 +249,7 @@ Authentication is tenant-specific. Specify the tenant via:
 3. **Default:** First tenant in configuration
 
 **Example:**
+
 ```bash
 curl http://localhost:7180/v2/nodes \
   -H "Authorization: Bearer <jwt>" \
@@ -240,36 +262,36 @@ curl http://localhost:7180/v2/nodes \
 
 ```javascript
 // Login
-const password = await sha256('demo');
-const response = await fetch('/login/root', {
-  method: 'POST',
-  body: password
+const password = await sha256("demo");
+const response = await fetch("/login/root", {
+	method: "POST",
+	body: password,
 });
 
 // Cookie automatically set by browser
 // All subsequent requests automatically authenticated
-const nodes = await fetch('/v2/nodes').then(r => r.json());
+const nodes = await fetch("/v2/nodes").then((r) => r.json());
 ```
 
 ### Scenario 2: Mobile App
 
 ```javascript
 // Login
-const response = await fetch('https://api.antbox.com/login/root', {
-  method: 'POST',
-  body: hashedPassword
+const response = await fetch("https://api.antbox.com/login/root", {
+	method: "POST",
+	body: hashedPassword,
 });
 const { jwt } = await response.json();
 
 // Store JWT securely
-await SecureStore.setItemAsync('auth_token', jwt);
+await SecureStore.setItemAsync("auth_token", jwt);
 
 // Use JWT in requests
-const nodes = await fetch('https://api.antbox.com/v2/nodes', {
-  headers: {
-    'Authorization': `Bearer ${jwt}`
-  }
-}).then(r => r.json());
+const nodes = await fetch("https://api.antbox.com/v2/nodes", {
+	headers: {
+		"Authorization": `Bearer ${jwt}`,
+	},
+}).then((r) => r.json());
 ```
 
 ### Scenario 3: Server-to-Server
@@ -284,18 +306,20 @@ curl https://api.antbox.com/v2/nodes \
 
 ```javascript
 // No authentication needed for public folders
-const publicDocs = await fetch('/v2/nodes?parent=public-folder-uuid')
-  .then(r => r.json());
+const publicDocs = await fetch("/v2/nodes?parent=public-folder-uuid")
+	.then((r) => r.json());
 ```
 
 ## API Endpoints
 
 ### Login
+
 - **POST** `/login/root` - Root user login
   - Body: SHA-256 hashed password (plain text)
   - Returns: JWT in response body + Sets cookie
 
 ### Logout
+
 - **POST** `/login/logout` - Clear authentication cookie
   - Returns: Success message
 
@@ -306,6 +330,7 @@ const publicDocs = await fetch('/v2/nodes?parent=public-folder-uuid')
 **Cause:** Token expired or invalid
 
 **Solution:**
+
 ```bash
 # Re-authenticate
 curl -X POST http://localhost:7180/login/root \
@@ -318,16 +343,16 @@ curl -X POST http://localhost:7180/login/root \
 **Cause:** Cross-origin without `credentials: 'include'`
 
 **Solution:**
+
 ```javascript
-fetch(url, { credentials: 'include' })
+fetch(url, { credentials: "include" });
 ```
 
 ### "403 Forbidden" Error
 
 **Cause:** Authenticated but insufficient permissions
 
-**Solution:**
-Check folder permissions or user groups.
+**Solution:** Check folder permissions or user groups.
 
 ## Next Steps
 

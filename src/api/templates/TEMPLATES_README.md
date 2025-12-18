@@ -1,15 +1,20 @@
 # Antbox Templates
 
-This directory contains example templates for creating various types of features and components in Antbox. These templates demonstrate best practices and provide starting points for common use cases.
+This directory contains example templates for creating various types of features and components in
+Antbox. These templates demonstrate best practices and provide starting points for common use cases.
 
 ## Overview
 
 The templates include:
 
-1. **Actions** - Server-side JavaScript that implements the Feature interface and processes selected nodes
-2. **Extensions** - Server-side JavaScript that implements the Feature interface and serves as custom API endpoints
-3. **Aspects** - JSON configurations that define metadata schemas for categorizing and enriching content
-4. **AI Agents** - JSON configurations that define conversational AI assistants with specialized capabilities
+1. **Actions** - Server-side JavaScript that implements the Feature interface and processes selected
+   nodes
+2. **Extensions** - Server-side JavaScript that implements the Feature interface and serves as
+   custom API endpoints
+3. **Aspects** - JSON configurations that define metadata schemas for categorizing and enriching
+   content
+4. **AI Agents** - JSON configurations that define conversational AI assistants with specialized
+   capabilities
 
 ## Templates Included
 
@@ -115,7 +120,8 @@ GET /extensions/folder-content-summary?folderId=<uuid>
 
 ### 1. Upload Features
 
-Upload feature JavaScript files to the `/features` endpoint. The Feature interface implementation includes all necessary metadata:
+Upload feature JavaScript files to the `/features` endpoint. The Feature interface implementation
+includes all necessary metadata:
 
 ```bash
 # Upload the action
@@ -157,7 +163,8 @@ curl -X POST /agents \
 
 ### Modifying Features
 
-1. **Change Filters:** Update the `filters` array in the Feature object to target different file types
+1. **Change Filters:** Update the `filters` array in the Feature object to target different file
+   types
 2. **Adjust Permissions:** Modify `groupsAllowed` and `runAs` to control access
 3. **Update Logic:** Edit the `run` method to change processing behavior
 
@@ -191,12 +198,12 @@ Example new property:
 
 ```json
 {
-  "name": "custom_field",
-  "title": "Custom Field",
-  "type": "string",
-  "required": false,
-  "searchable": true,
-  "validationRegex": "^[A-Z]{3}-\\d{4}$"
+	"name": "custom_field",
+	"title": "Custom Field",
+	"type": "string",
+	"required": false,
+	"searchable": true,
+	"validationRegex": "^[A-Z]{3}-\\d{4}$"
 }
 ```
 
@@ -242,19 +249,19 @@ Example new property:
 
 ```javascript
 try {
-  const result = await someOperation();
-  if (result.isLeft()) {
-    return {
-      success: false,
-      error: result.value.message,
-    };
-  }
-  // Process success case
+	const result = await someOperation();
+	if (result.isLeft()) {
+		return {
+			success: false,
+			error: result.value.message,
+		};
+	}
+	// Process success case
 } catch (error) {
-  return {
-    success: false,
-    error: `Unexpected error: ${error.message}`,
-  };
+	return {
+		success: false,
+		error: `Unexpected error: ${error.message}`,
+	};
 }
 ```
 
@@ -264,18 +271,18 @@ try {
 // Inside the Feature's run method
 const results = [];
 for (const nodeUuid of args.uuids || []) {
-  const nodeResult = await nodeService.get(authenticationContext, nodeUuid);
+	const nodeResult = await nodeService.get(authenticationContext, nodeUuid);
 
-  if (nodeResult.isRight()) {
-    // Process node
-    const processed = await processNode(nodeResult.value);
-    results.push(processed);
-  } else {
-    results.push({
-      uuid: nodeUuid,
-      error: "Failed to fetch node",
-    });
-  }
+	if (nodeResult.isRight()) {
+		// Process node
+		const processed = await processNode(nodeResult.value);
+		results.push(processed);
+	} else {
+		results.push({
+			uuid: nodeUuid,
+			error: "Failed to fetch node",
+		});
+	}
 }
 ```
 
@@ -283,7 +290,7 @@ for (const nodeUuid of args.uuids || []) {
 
 ```javascript
 function generatePage(data) {
-  return `
+	return `
 <!DOCTYPE html>
 <html>
 <head>

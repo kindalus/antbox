@@ -29,7 +29,10 @@ describe("NodeService - Lock/Unlock", () => {
 		};
 	}
 
-	function createAuthContext(email: string, groups: string[] = [Groups.ADMINS_GROUP_UUID]): AuthenticationContext {
+	function createAuthContext(
+		email: string,
+		groups: string[] = [Groups.ADMINS_GROUP_UUID],
+	): AuthenticationContext {
 		return {
 			principal: {
 				email,
@@ -40,7 +43,10 @@ describe("NodeService - Lock/Unlock", () => {
 		};
 	}
 
-	function createNonAdminAuthContext(email: string, groups: string[] = ["users"]): AuthenticationContext {
+	function createNonAdminAuthContext(
+		email: string,
+		groups: string[] = ["users"],
+	): AuthenticationContext {
 		return {
 			principal: {
 				email,
@@ -51,7 +57,10 @@ describe("NodeService - Lock/Unlock", () => {
 		};
 	}
 
-	async function createTestFolder(service: NodeService, authCtx: AuthenticationContext): Promise<string> {
+	async function createTestFolder(
+		service: NodeService,
+		authCtx: AuthenticationContext,
+	): Promise<string> {
 		const folderOrErr = await service.create(authCtx, {
 			title: "Test Folder",
 			mimetype: Nodes.FOLDER_MIMETYPE,

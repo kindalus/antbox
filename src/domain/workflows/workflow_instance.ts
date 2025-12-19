@@ -1,3 +1,19 @@
+import type { WorkflowState } from "domain/workflows/workflow_node.ts";
+
+/**
+ * A snapshot of the workflow definition as it existed when the instance started.
+ * This protects running instances from changes to the underlying workflow definition.
+ */
+export interface WorkflowDefinitionSnapshot {
+	uuid: string;
+	title: string;
+	description: string;
+	createdTime: string;
+	modifiedTime: string;
+	states: WorkflowState[];
+	availableStateNames: string[];
+}
+
 /**
  * Represents a running workflow attached to a specific Node.
  * This is the runtime instance that tracks the current state of a node as it moves through a workflow.
@@ -11,6 +27,13 @@ export interface WorkflowInstance {
 	 * References a WorkflowNode that defines the states and transitions.
 	 */
 	workflowDefinitionUuid: string;
+
+	/**
+	 * Snapshot of the workflow definition at the time the instance started.
+	 * Optional for backwards compatibility with persisted instances created
+	 * before workflow snapshots existed.
+	 */
+	workflowDefinition?: WorkflowDefinitionSnapshot;
 
 	/**
 	 * The UUID of the Node (file/data) being processed by this workflow.

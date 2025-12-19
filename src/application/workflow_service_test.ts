@@ -185,6 +185,16 @@ describe("WorkflowService", () => {
 			expect(instance.workflowDefinitionUuid).toBe(workflowDefUuid);
 			expect(instance.currentStateName).toBe("draft");
 			expect(instance.history).toEqual([]);
+
+			// Snapshot is stored internally on the persisted instance (not exposed via DTO)
+			const storedOrErr = await context.workflowInstanceRepository.getByNodeUuid(nodeUuid);
+			expect(storedOrErr.isRight()).toBe(true);
+			expect(storedOrErr.right.workflowDefinition?.uuid).toBe(workflowDefUuid);
+			expect(storedOrErr.right.workflowDefinition?.states.map((s) => s.name)).toEqual([
+				"draft",
+				"review",
+				"approved",
+			]);
 		});
 
 		it("should lock the node when starting a workflow", async () => {

@@ -1,6 +1,7 @@
 import { Router } from "@oak/oak";
 import type { AntboxTenant } from "api/antbox_tenant.ts";
 import {
+	cancelWorkflowHandler,
 	createOrReplaceWorkflowDefinitionHandler,
 	deleteWorkflowDefinitionHandler,
 	exportWorkflowDefinitionHandler,
@@ -14,20 +15,36 @@ import {
 import { adapt } from "./adapt.ts";
 
 export default function (tenants: AntboxTenant[]): Router {
-	const router = new Router({ prefix: "/workflows" });
+	const router = new Router();
 
 	// Workflow instance operations
-	router.get("/instances", adapt(findActiveWorkflowsHandler(tenants)));
-	router.post("/instances/:uuid/-/start", adapt(startWorkflowHandler(tenants)));
-	router.post("/instances/:uuid/-/transition", adapt(transitionWorkflowHandler(tenants)));
-	router.get("/instances/:uuid", adapt(getWorkflowInstanceHandler(tenants)));
+	router.get("/workflow-instances", adapt(findActiveWorkflowsHandler(tenants)));
+	router.post("/workflow-instances/:uuid/-/start", adapt(startWorkflowHandler(tenants)));
+	router.post(
+		"/workflow-instances/:uuid/-/transition",
+		adapt(transitionWorkflowHandler(tenants)),
+	);
+	router.post(
+		"/workflow-instances/:uuid/-/cancel",
+		adapt(cancelWorkflowHandler(tenants)),
+	);
+	router.get("/workflow-instances/:uuid", adapt(getWorkflowInstanceHandler(tenants)));
 
 	// Workflow definition CRUD operations
-	router.get("/definitions", adapt(listWorkflowDefinitionsHandler(tenants)));
-	router.post("/definitions", adapt(createOrReplaceWorkflowDefinitionHandler(tenants)));
-	router.get("/definitions/:uuid", adapt(getWorkflowDefinitionHandler(tenants)));
-	router.delete("/definitions/:uuid", adapt(deleteWorkflowDefinitionHandler(tenants)));
-	router.get("/definitions/:uuid/-/export", adapt(exportWorkflowDefinitionHandler(tenants)));
+	router.get("/workflow-definitions", adapt(listWorkflowDefinitionsHandler(tenants)));
+	router.post(
+		"/workflow-definitions",
+		adapt(createOrReplaceWorkflowDefinitionHandler(tenants)),
+	);
+	router.get("/workflow-definitions/:uuid", adapt(getWorkflowDefinitionHandler(tenants)));
+	router.delete(
+		"/workflow-definitions/:uuid",
+		adapt(deleteWorkflowDefinitionHandler(tenants)),
+	);
+	router.get(
+		"/workflow-definitions/:uuid/-/export",
+		adapt(exportWorkflowDefinitionHandler(tenants)),
+	);
 
 	return router;
 }

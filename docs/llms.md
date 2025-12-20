@@ -48,15 +48,15 @@ All artifacts inherit from this structure.
 
 ```typescript
 interface Node {
-	uuid: string; // Unique ID (UUID v4). Auto-generated if missing.
-	title: string; // Name of the node. Min 3 chars.
-	description?: string; // Optional description.
-	mimetype: string; // Discriminator for node type.
-	parent: string; // UUID of parent folder. Root is 'ROOT_FOLDER_UUID'.
-	owner: string; // Email of the owner (usually auto-filled).
-	tags?: string[]; // Classification tags.
-	createdTime?: string; // ISO Date. Read-only.
-	modifiedTime?: string; // ISO Date. Read-only.
+  uuid: string; // Unique ID (UUID v4). Auto-generated if missing.
+  title: string; // Name of the node. Min 3 chars.
+  description?: string; // Optional description.
+  mimetype: string; // Discriminator for node type.
+  parent: string; // UUID of parent folder. Root is 'ROOT_FOLDER_UUID'.
+  owner: string; // Email of the owner (usually auto-filled).
+  tags?: string[]; // Classification tags.
+  createdTime?: string; // ISO Date. Read-only.
+  modifiedTime?: string; // ISO Date. Read-only.
 }
 ```
 
@@ -70,21 +70,21 @@ A folder that can contain other nodes, define access control, and enforce automa
 
 ```typescript
 interface FolderNode extends Node {
-	// Access Control
-	permissions?: {
-		group: ("Read" | "Write" | "Export")[]; // Permissions for the owner group
-		authenticated: ("Read" | "Write" | "Export")[]; // Permissions for any logged-in user
-		anonymous: ("Read" | "Write" | "Export")[]; // Public permissions
-		advanced?: Record<string, Permission[]>; // Specific user/group permissions
-	};
+  // Access Control
+  permissions?: {
+    group: ("Read" | "Write" | "Export")[]; // Permissions for the owner group
+    authenticated: ("Read" | "Write" | "Export")[]; // Permissions for any logged-in user
+    anonymous: ("Read" | "Write" | "Export")[]; // Public permissions
+    advanced?: Record<string, Permission[]>; // Specific user/group permissions
+  };
 
-	// Automation Hooks (UUIDs of Workflows/Features)
-	onCreate?: string[];
-	onUpdate?: string[];
-	onDelete?: string[];
+  // Automation Hooks (UUIDs of Workflows/Features)
+  onCreate?: string[];
+  onUpdate?: string[];
+  onDelete?: string[];
 
-	// Smart Folder Logic (accepts specific mimetypes, auto-tags, etc.)
-	filters?: NodeFilter[];
+  // Smart Folder Logic (accepts specific mimetypes, auto-tags, etc.)
+  filters?: NodeFilter[];
 }
 ```
 
@@ -103,23 +103,23 @@ consider splitting them into multiple, more focused aspects.
 
 ```typescript
 interface AspectNode extends Node {
-	// Node.uuid is the identifier for the aspect type (e.g., "invoice", "legal-review")
-	properties: AspectProperty[];
+  // Node.uuid is the identifier for the aspect type (e.g., "invoice", "legal-review")
+  properties: AspectProperty[];
 }
 
 interface AspectProperty {
-	name: string; // (e.g., "invoice-date", "amount")
-	title: string; // Human readable label
-	type: "string" | "number" | "boolean" | "uuid" | "date" | "object" | "array";
-	arrayType?: "string" | "number" | "uuid" | "object"; // Required if type is 'array'
-	contentType?: string; // Only when type is "string" (e.g., "text/markdown", "text/html", "application/json")
+  name: string; // (e.g., "invoice-date", "amount")
+  title: string; // Human readable label
+  type: "string" | "number" | "boolean" | "uuid" | "date" | "object" | "array";
+  arrayType?: "string" | "number" | "uuid" | "object"; // Required if type is 'array'
+  contentType?: string; // Only when type is "string" (e.g., "text/markdown", "text/html", "application/json")
 
-	required?: boolean;
-	default?: any;
+  required?: boolean;
+  default?: any;
 
-	// Validation
-	validationRegex?: string; // For string types
-	validationList?: string[]; // Enum values for string types, it is recommended to used CamelCase ou SNAKE_CASE in capitals
+  // Validation
+  validationRegex?: string; // For string types
+  validationList?: string[]; // Enum values for string types, it is recommended to used CamelCase ou SNAKE_CASE in capitals
 }
 ```
 
@@ -134,11 +134,11 @@ interface AspectProperty {
 ```typescript
 // Example: a node decorated with the "invoice-data" aspect
 const nodeUpdate = {
-	aspects: ["invoice-data"],
-	properties: {
-		"invoice-data:amount": 1000,
-		"invoice-data:currency": "USD",
-	},
+  aspects: ["invoice-data"],
+  properties: {
+    "invoice-data:amount": 1000,
+    "invoice-data:currency": "USD",
+  },
 };
 ```
 
@@ -158,79 +158,79 @@ A Feature can be one or more of the following:
 ```typescript
 // The Node metadata structure for creating a FeatureNode
 interface FeatureNodePayload extends Node {
-	// The `title` is the feature's display name.
+  // The `title` is the feature's display name.
 
-	// Configuration
-	exposeAction: boolean;
-	exposeExtension: boolean;
-	exposeAITool: boolean;
+  // Configuration
+  exposeAction: boolean;
+  exposeExtension: boolean;
+  exposeAITool: boolean;
 
-	// Triggers (Only valid if exposeAction is true)
-	runOnCreates: boolean;
-	runOnUpdates: boolean;
-	runOnDeletes: boolean;
-	runManually: boolean;
-	filters: NodeFilter[]; // Scope for triggers or availability
+  // Triggers (Only valid if exposeAction is true)
+  runOnCreates: boolean;
+  runOnUpdates: boolean;
+  runOnDeletes: boolean;
+  runManually: boolean;
+  filters: NodeFilter[]; // Scope for triggers or availability
 
-	// Security
-	groupsAllowed: string[]; // Access control
-	runAs?: string; // "system" or user email. Defaults to caller.
+  // Security
+  groupsAllowed: string[]; // Access control
+  runAs?: string; // "system" or user email. Defaults to caller.
 
-	// Interface Definition
-	parameters: FeatureParameter[];
-	returnType:
-		| "string"
-		| "number"
-		| "boolean"
-		| "array"
-		| "object"
-		| "file"
-		| "void";
-	returnContentType?: string; // Hint for client (e.g., "text/html", "application/json")
+  // Interface Definition
+  parameters: FeatureParameter[];
+  returnType:
+    | "string"
+    | "number"
+    | "boolean"
+    | "array"
+    | "object"
+    | "file"
+    | "void";
+  returnContentType?: string; // Hint for client (e.g., "text/html", "application/json")
 }
 
 interface FeatureParameter {
-	name: string;
-	type: "string" | "number" | "boolean" | "object" | "array" | "file";
-	arrayType?: "string" | "number" | "file" | "object";
-	required: boolean;
-	description?: string;
-	defaultValue?: any;
+  name: string;
+  type: "string" | "number" | "boolean" | "object" | "array" | "file";
+  arrayType?: "string" | "number" | "file" | "object";
+  required: boolean;
+  description?: string;
+  defaultValue?: any;
 }
 
 // Full Feature Interface (Internal Representation of the executed code)
 export interface Feature {
-	uuid: string;
-	title: string; // The feature's display name
-	description: string;
+  uuid: string;
+  title: string; // The feature's display name
+  description: string;
 
-	exposeAction: boolean;
-	exposeExtension: boolean;
-	exposeAITool: boolean;
+  exposeAction: boolean;
+  exposeExtension: boolean;
+  exposeAITool: boolean;
 
-	runOnCreates: boolean;
-	runOnUpdates: boolean;
-	runOnDeletes: boolean;
-	runManually: boolean;
-	filters: NodeFilter[];
+  runOnCreates: boolean;
+  runOnUpdates: boolean;
+  runOnDeletes: boolean;
+  runManually: boolean;
+  filters: NodeFilter[];
 
-	groupsAllowed: string[];
-	runAs?: string;
+  groupsAllowed: string[];
+  runAs?: string;
 
-	parameters: FeatureParameter[];
-	returnType:
-		| "string"
-		| "number"
-		| "boolean"
-		| "array"
-		| "object"
-		| "file"
-		| "void";
-	returnDescription?: string;
-	returnContentType?: string;
-	tags?: string[];
+  parameters: FeatureParameter[];
+  returnType:
+    | "string"
+    | "number"
+    | "boolean"
+    | "array"
+    | "object"
+    | "file"
+    | "void";
+  returnDescription?: string;
+  returnContentType?: string;
+  tags?: string[];
 
-	run(ctx: RunContext, args: FeatureRunArgs): Promise<unknown>;
+  run(ctx: RunContext, args: FeatureRunArgs): Promise<unknown>;
 }
 ```
 
@@ -242,68 +242,89 @@ export interface Feature {
 export type UUID = string;
 
 export interface Principal {
-	email: string;
-	groups: string[];
+  email: string;
+  groups: string[];
 }
 
 export interface AuthenticationContext {
-	tenant: string;
-	principal: Principal;
-	mode: "Direct" | "Action" | "AI";
+  tenant: string;
+  principal: Principal;
+  mode: "Direct" | "Action" | "AI";
 }
 
 export interface RunContext {
-	authenticationContext: AuthenticationContext;
-	nodeService: NodeServiceProxy;
+  authenticationContext: AuthenticationContext;
+  nodeService: NodeServiceProxy;
 }
 
 export interface AntboxError {
-	name: string;
-	message: string;
+  name: string;
+  message: string;
 }
 
 export type Either<L, R> = Left<L, R> | Right<L, R>;
 
 export interface Left<L, R> {
-	value: L;
-	isLeft(): this is Left<L, R>;
-	isRight(): this is Right<L, R>;
+  value: L;
+  isLeft(): this is Left<L, R>;
+  isRight(): this is Right<L, R>;
 }
 
 export interface Right<L, R> {
-	value: R;
-	isLeft(): this is Left<L, R>;
-	isRight(): this is Right<L, R>;
+  value: R;
+  isLeft(): this is Left<L, R>;
+  isRight(): this is Right<L, R>;
 }
 
-export type NodeFilter = [field: string, op: string, value: unknown];
+export type FilterOperator =
+  | "=="
+  | "<="
+  | ">="
+  | "<"
+  | ">"
+  | "!="
+  | "~="
+  | "in"
+  | "not-in"
+  | "match"
+  | "contains"
+  | "contains-all"
+  | "contains-any"
+  | "not-contains"
+  | "contains-none";
+
+export type NodeFilter = [
+  field: string,
+  operator: FilterOperator,
+  value: unknown,
+];
 export type NodeFilters = NodeFilter[] | NodeFilter[][];
 
 export interface NodeFilterResult {
-	pageToken: number;
-	pageSize: number;
-	nodes: NodeMetadata[];
-	scores?: Record<string, number>;
+  pageToken: number;
+  pageSize: number;
+  nodes: NodeMetadata[];
+  scores?: Record<string, number>;
 }
 
 export interface NodeMetadata {
-	uuid: UUID;
-	fid: string;
-	title: string;
-	description?: string;
-	mimetype: string;
-	parent: UUID;
-	owner: string;
-	createdTime: string;
-	modifiedTime: string;
-	size?: number;
-	aspects?: UUID[];
-	tags?: string[];
-	related?: UUID[];
-	properties?: Record<string, unknown>;
-	locked?: boolean;
-	lockedBy?: string;
-	unlockAuthorizedGroups?: UUID[];
+  uuid: UUID;
+  fid: string;
+  title: string;
+  description?: string;
+  mimetype: string;
+  parent: UUID;
+  owner: string;
+  createdTime: string;
+  modifiedTime: string;
+  size?: number;
+  aspects?: UUID[];
+  tags?: string[];
+  related?: UUID[];
+  properties?: Record<string, unknown>;
+  locked?: boolean;
+  lockedBy?: string;
+  unlockAuthorizedGroups?: UUID[];
 }
 
 /**
@@ -313,39 +334,39 @@ export interface NodeMetadata {
  * user-authored code cannot supply arbitrary credentials.
  */
 export interface NodeServiceProxy {
-	get(uuid: UUID): Promise<Either<AntboxError, NodeMetadata>>;
-	list(parent?: UUID): Promise<Either<AntboxError, NodeMetadata[]>>;
-	find(
-		filters: NodeFilters | string,
-		pageSize?: number,
-		pageToken?: number,
-	): Promise<Either<AntboxError, NodeFilterResult>>;
-	breadcrumbs(
-		uuid: UUID,
-	): Promise<Either<AntboxError, Array<{ uuid: UUID; title: string }>>>;
+  get(uuid: UUID): Promise<Either<AntboxError, NodeMetadata>>;
+  list(parent?: UUID): Promise<Either<AntboxError, NodeMetadata[]>>;
+  find(
+    filters: NodeFilters | string,
+    pageSize?: number,
+    pageToken?: number,
+  ): Promise<Either<AntboxError, NodeFilterResult>>;
+  breadcrumbs(
+    uuid: UUID,
+  ): Promise<Either<AntboxError, Array<{ uuid: UUID; title: string }>>>;
 
-	create(
-		metadata: Partial<NodeMetadata>,
-	): Promise<Either<AntboxError, NodeMetadata>>;
-	createFile(
-		file: File,
-		metadata: Partial<NodeMetadata>,
-	): Promise<Either<AntboxError, NodeMetadata>>;
+  create(
+    metadata: Partial<NodeMetadata>,
+  ): Promise<Either<AntboxError, NodeMetadata>>;
+  createFile(
+    file: File,
+    metadata: Partial<NodeMetadata>,
+  ): Promise<Either<AntboxError, NodeMetadata>>;
 
-	update(
-		uuid: UUID,
-		metadata: Partial<NodeMetadata>,
-	): Promise<Either<AntboxError, void>>;
-	updateFile(uuid: UUID, file: File): Promise<Either<AntboxError, void>>;
-	delete(uuid: UUID): Promise<Either<AntboxError, void>>;
-	export(uuid: UUID): Promise<Either<AntboxError, File>>;
-	copy(uuid: UUID, parent: UUID): Promise<Either<AntboxError, NodeMetadata>>;
-	duplicate(uuid: UUID): Promise<Either<AntboxError, NodeMetadata>>;
-	lock(
-		uuid: UUID,
-		unlockAuthorizedGroups?: UUID[],
-	): Promise<Either<AntboxError, void>>;
-	unlock(uuid: UUID): Promise<Either<AntboxError, void>>;
+  update(
+    uuid: UUID,
+    metadata: Partial<NodeMetadata>,
+  ): Promise<Either<AntboxError, void>>;
+  updateFile(uuid: UUID, file: File): Promise<Either<AntboxError, void>>;
+  delete(uuid: UUID): Promise<Either<AntboxError, void>>;
+  export(uuid: UUID): Promise<Either<AntboxError, File>>;
+  copy(uuid: UUID, parent: UUID): Promise<Either<AntboxError, NodeMetadata>>;
+  duplicate(uuid: UUID): Promise<Either<AntboxError, NodeMetadata>>;
+  lock(
+    uuid: UUID,
+    unlockAuthorizedGroups?: UUID[],
+  ): Promise<Either<AntboxError, void>>;
+  unlock(uuid: UUID): Promise<Either<AntboxError, void>>;
 }
 
 /**
@@ -355,15 +376,15 @@ export interface NodeServiceProxy {
  * - AI tools: parameters provided by the tool call
  */
 export interface FeatureRunArgs extends Record<string, unknown> {
-	/**
-	 * Present when executed as an Action (manual or automatic).
-	 * Contains the UUIDs of the nodes the action should apply to.
-	 */
-	uuids?: UUID[];
+  /**
+   * Present when executed as an Action (manual or automatic).
+   * Contains the UUIDs of the nodes the action should apply to.
+   */
+  uuids?: UUID[];
 }
 
 export interface ActionRunArgs extends FeatureRunArgs {
-	uuids: UUID[];
+  uuids: UUID[];
 }
 ```
 
@@ -374,15 +395,15 @@ An AI configuration that acts as a specialized assistant. **Mimetype:**
 
 ```typescript
 interface AgentNode extends Node {
-	model: string; // LLM Model ID (e.g., "gpt-4", "gemini-pro")
-	temperature: number; // 0.0 to 2.0
-	maxTokens: number; // Output limit
+  model: string; // LLM Model ID (e.g., "gpt-4", "gemini-pro")
+  temperature: number; // 0.0 to 2.0
+  maxTokens: number; // Output limit
 
-	reasoning: boolean; // Enable chain-of-thought/reasoning steps
-	useTools: boolean; // Allow access to Features with exposeAITool: true
+  reasoning: boolean; // Enable chain-of-thought/reasoning steps
+  useTools: boolean; // Allow access to Features with exposeAITool: true
 
-	systemInstructions: string; // The core prompt/persona of the agent
-	structuredAnswer?: string; // Optional JSON schema for enforcing output format
+  systemInstructions: string; // The core prompt/persona of the agent
+  structuredAnswer?: string; // Optional JSON schema for enforcing output format
 }
 ```
 
@@ -392,25 +413,40 @@ interface AgentNode extends Node {
 
 Used to define scopes for Features, Smart Folders, and Searches.
 
-**Format**: `[Field, Operator, Value]`
+**Core format**: `[field, operator, value]`
 
-- **Simple (AND)**: `[[Filter1], [Filter2]]`
-- **Complex (OR of ANDs)**: `[[FilterA, FilterB], [FilterC]]` -> `(A && B) || C`
+**JSON forms**:
+
+- **1D (AND)**: `[[field, op, value], [field, op, value]]` -> `A && B`
+- **2D (OR of AND groups)**: `[[[...], [...]], [[...]]]` -> `(A && B) || C`
+
+**String form** (accepted by `NodeServiceProxy.find`):
+
+- **AND** is `,` and **OR** is `|`
+- Values can be quoted with `"` (to include spaces, commas, or `|`)
+- Array-value operators require parentheses, e.g. `tags in ("a tag",b,c)`
 
 **Operators**:
 
-- `==`, `!=`: Equality
-- `<`, `>`, `<=`, `>=`: Comparison
-- `contains`: String substring or Array membership
-- `in`, `not-in`: Value in list
-- `match`: Regex match
-- `~=`: Like (case-insensitive)
+- `==`, `!=`: Equality / inequality
+- `<`, `<=`, `>`, `>=`: Comparisons (numbers, dates, or strings; backend-dependent)
+- `in`, `not-in`: Field value is (not) in the provided list (value must be an array / `(a,b,c)`)
+- `contains`: Field value (array) contains a single value (common array fields: `aspects`, `tags`, `related`)
+- `not-contains`: Field value (array) does not contain a single value
+- `contains-all`: Field value (array) contains every value in the provided list
+- `contains-any`: Field value (array) contains at least one value in the provided list
+- `contains-none`: Negated `contains-all` (true if at least one value from the list is missing)
+- `match`: Regex-style match (case-insensitive in `NodesFilters`; whitespace is treated as a wildcard)
+- `~=`: Case-insensitive regex match in DB-backed filtering; currently a no-op in `NodesFilters.satisfiedBy`
 
 **Examples**:
 
 - _File is a PDF_: `['mimetype', '==', 'application/pdf']`
 - _Has 'Invoice' Aspect_: `['aspects', 'contains', 'invoice-data']`
 - _Amount > 1000_: `['invoice-data:amount', '>', 1000]`
+- _Tags in a set (string form)_: `tags in ("paid","overdue")`
+- _Must have all tags (string form)_: `tags contains-all ("invoice","finance")`
+- _PDF or PNG (string form)_: `mimetype==application/pdf|mimetype==image/png`
 
 ---
 
@@ -423,31 +459,31 @@ Used to define scopes for Features, Smart Folders, and Searches.
 ```typescript
 // AspectNode Payload
 const legalAspect = {
-	uuid: "legal-review", // kebab-case
-	title: "Legal Review Data",
-	mimetype: "application/vnd.antbox.aspect",
-	parent: "ASPECTS_FOLDER_UUID",
-	properties: [
-		{
-			name: "status",
-			title: "Review Status",
-			type: "string",
-			validationList: ["Draft", "Under Review", "Approved", "Rejected"],
-			default: "Draft",
-			required: true,
-		},
-		{
-			name: "reviewer",
-			title: "Assigned Attorney",
-			type: "string", // Email
-			validationRegex: "^[\\w-\\.]+@([\\w-]+\\.)+[\\w-]{2,4}$",
-		},
-		{
-			name: "review-date",
-			title: "Review Date",
-			type: "date",
-		},
-	],
+  uuid: "legal-review", // kebab-case
+  title: "Legal Review Data",
+  mimetype: "application/vnd.antbox.aspect",
+  parent: "ASPECTS_FOLDER_UUID",
+  properties: [
+    {
+      name: "status",
+      title: "Review Status",
+      type: "string",
+      validationList: ["Draft", "Under Review", "Approved", "Rejected"],
+      default: "Draft",
+      required: true,
+    },
+    {
+      name: "reviewer",
+      title: "Assigned Attorney",
+      type: "string", // Email
+      validationRegex: "^[\\w-\\.]+@([\\w-]+\\.)+[\\w-]{2,4}$",
+    },
+    {
+      name: "review-date",
+      title: "Review Date",
+      type: "date",
+    },
+  ],
 };
 ```
 
@@ -459,53 +495,54 @@ const legalAspect = {
 
 ```javascript
 export default {
-	uuid: "analyzeContract", // camelCase
-	title: "Analyze Contract Clauses", // This will be the feature's name
-	description: "Extracts liability and termination clauses from legal documents.",
+  uuid: "analyzeContract", // camelCase
+  title: "Analyze Contract Clauses", // This will be the feature's name
+  description:
+    "Extracts liability and termination clauses from legal documents.",
 
-	// Exposed as Action (for UI buttons) and AI Tool (for Agents)
-	exposeAction: true,
-	exposeAITool: true,
-	exposeExtension: false,
+  // Exposed as Action (for UI buttons) and AI Tool (for Agents)
+  exposeAction: true,
+  exposeAITool: true,
+  exposeExtension: false,
 
-	// Available only for PDFs
-	filters: [["mimetype", "==", "application/pdf"]],
+  // Available only for PDFs
+  filters: [["mimetype", "==", "application/pdf"]],
 
-	// Manual trigger only
-	runManually: true,
-	runOnCreates: false,
-	runOnUpdates: false,
+  // Manual trigger only
+  runManually: true,
+  runOnCreates: false,
+  runOnUpdates: false,
 
-	parameters: [
-		{
-			name: "uuids",
-			type: "array",
-			arrayType: "string",
-			required: true,
-			description: "List of contract Node UUIDs",
-		},
-	],
+  parameters: [
+    {
+      name: "uuids",
+      type: "array",
+      arrayType: "string",
+      required: true,
+      description: "List of contract Node UUIDs",
+    },
+  ],
 
-	returnType: "object",
+  returnType: "object",
 
-	run: async (ctx, args) => {
-		const results = {};
+  run: async (ctx, args) => {
+    const results = {};
 
-		for (const uuid of args.uuids) {
-			const nodeOrErr = await ctx.nodeService.get(uuid);
-			if (nodeOrErr.isLeft()) continue;
-			const node = nodeOrErr.value;
+    for (const uuid of args.uuids) {
+      const nodeOrErr = await ctx.nodeService.get(uuid);
+      if (nodeOrErr.isLeft()) continue;
+      const node = nodeOrErr.value;
 
-			// Pseudo-code: In a real scenario, this might call an LLM service or OCR
-			// ctx provides services like: ctx.llm, ctx.storage, etc.
-			results[uuid] = {
-				liabilityClause: "Found on page 3...",
-				terminationClause: "Found on page 9...",
-			};
-		}
+      // Pseudo-code: In a real scenario, this might call an LLM service or OCR
+      // ctx provides services like: ctx.llm, ctx.storage, etc.
+      results[uuid] = {
+        liabilityClause: "Found on page 3...",
+        terminationClause: "Found on page 9...",
+      };
+    }
 
-		return results;
-	},
+    return results;
+  },
 };
 ```
 
@@ -516,18 +553,18 @@ export default {
 ```typescript
 // AgentNode Payload
 const legalAgent = {
-	title: "Legal Assistant",
-	mimetype: "application/vnd.antbox.agent",
-	parent: "AGENTS_FOLDER_UUID",
+  title: "Legal Assistant",
+  mimetype: "application/vnd.antbox.agent",
+  parent: "AGENTS_FOLDER_UUID",
 
-	model: "gpt-4-turbo",
-	temperature: 0.2, // Low temperature for precision
-	maxTokens: 4000,
+  model: "gpt-4-turbo",
+  temperature: 0.2, // Low temperature for precision
+  maxTokens: 4000,
 
-	reasoning: true, // Enable step-by-step thinking
-	useTools: true, // Allow it to call "analyzeContract"
+  reasoning: true, // Enable step-by-step thinking
+  useTools: true, // Allow it to call "analyzeContract"
 
-	systemInstructions: `
+  systemInstructions: `
     You are a senior legal assistant. 
     Your goal is to help users understand contract risks.
     
@@ -549,34 +586,34 @@ const legalAgent = {
 
 ```javascript
 export default {
-	uuid: "nodeReport",
-	title: "Node Report", // This will be the feature's name
-	description: "Generates an HTML table of node properties",
+  uuid: "nodeReport",
+  title: "Node Report", // This will be the feature's name
+  description: "Generates an HTML table of node properties",
 
-	exposeAction: false,
-	exposeAITool: false,
-	exposeExtension: true, // Exposed as extension
+  exposeAction: false,
+  exposeAITool: false,
+  exposeExtension: true, // Exposed as extension
 
-	filters: [], // Available for all nodes
+  filters: [], // Available for all nodes
 
-	parameters: [
-		{
-			name: "uuid",
-			type: "string",
-			required: true,
-			description: "The UUID of the node",
-		},
-	],
+  parameters: [
+    {
+      name: "uuid",
+      type: "string",
+      required: true,
+      description: "The UUID of the node",
+    },
+  ],
 
-	returnType: "string",
-	returnContentType: "text/html", // Hint for client rendering
+  returnType: "string",
+  returnContentType: "text/html", // Hint for client rendering
 
-	run: async (ctx, args) => {
-		const nodeResult = await ctx.nodeService.get(args.uuid);
-		if (nodeResult.isLeft()) return "<h1>Node not found</h1>";
-		const node = nodeResult.value;
+  run: async (ctx, args) => {
+    const nodeResult = await ctx.nodeService.get(args.uuid);
+    if (nodeResult.isLeft()) return "<h1>Node not found</h1>";
+    const node = nodeResult.value;
 
-		return `
+    return `
       <div class="report">
         <h2>${node.title}</h2>
         <table>
@@ -586,7 +623,7 @@ export default {
         </table>
       </div>
     `;
-	},
+  },
 };
 ```
 
@@ -598,27 +635,27 @@ using a 'tag' action.
 ```typescript
 // FolderNode Payload
 const imageFolder = {
-	title: "My Image Folder",
-	mimetype: "application/vnd.antbox.folder",
-	parent: "ROOT_FOLDER_UUID", // Or any parent folder UUID
+  title: "My Image Folder",
+  mimetype: "application/vnd.antbox.folder",
+  parent: "ROOT_FOLDER_UUID", // Or any parent folder UUID
 
-	filters: [
-		["mimetype", "contains", "image/"], // Only accept image mimetypes
-	],
+  filters: [
+    ["mimetype", "contains", "image/"], // Only accept image mimetypes
+  ],
 
-	onCreate: [
-		// Assuming a 'tag' feature exists (uuid: 'tagNode')
-		// This action would take the created node's UUID and add a tag.
-		"tagNode",
-	],
+  onCreate: [
+    // Assuming a 'tag' feature exists (uuid: 'tagNode')
+    // This action would take the created node's UUID and add a tag.
+    "tagNode",
+  ],
 
-	// Custom metadata for the 'tag' action on create
-	// This demonstrates how onCreate actions can receive additional context
-	onCreateConfig: {
-		tagNode: {
-			tag: "with: images",
-		},
-	},
+  // Custom metadata for the 'tag' action on create
+  // This demonstrates how onCreate actions can receive additional context
+  onCreateConfig: {
+    tagNode: {
+      tag: "with: images",
+    },
+  },
 };
 ```
 
@@ -631,47 +668,47 @@ platform.
 
 ```javascript
 export default {
-	uuid: "logPdfCreation", // camelCase
-	title: "Log PDF Creation", // This will be the feature's name
-	description: "Logs to console when a PDF is created",
+  uuid: "logPdfCreation", // camelCase
+  title: "Log PDF Creation", // This will be the feature's name
+  description: "Logs to console when a PDF is created",
 
-	exposeAction: true, // Needs to be an action to use 'runOnCreates'
-	exposeAITool: false,
-	exposeExtension: false,
+  exposeAction: true, // Needs to be an action to use 'runOnCreates'
+  exposeAITool: false,
+  exposeExtension: false,
 
-	runManually: false, // Not meant for manual execution
-	runOnCreates: true, // Trigger on node creation
-	runOnUpdates: false,
-	runOnDeletes: false,
+  runManually: false, // Not meant for manual execution
+  runOnCreates: true, // Trigger on node creation
+  runOnUpdates: false,
+  runOnDeletes: false,
 
-	filters: [
-		["mimetype", "==", "application/pdf"], // Only trigger for PDFs
-	],
+  filters: [
+    ["mimetype", "==", "application/pdf"], // Only trigger for PDFs
+  ],
 
-	parameters: [
-		{
-			name: "uuids",
-			type: "array",
-			arrayType: "string",
-			required: true,
-			description: "UUIDs of created PDFs",
-		},
-	],
+  parameters: [
+    {
+      name: "uuids",
+      type: "array",
+      arrayType: "string",
+      required: true,
+      description: "UUIDs of created PDFs",
+    },
+  ],
 
-	returnType: "void",
+  returnType: "void",
 
-	run: async (ctx, args) => {
-		for (const uuid of args.uuids) {
-			const nodeResult = await ctx.nodeService.get(uuid);
-			if (nodeResult.isLeft()) {
-				console.error(`Failed to get node ${uuid} for logging.`);
-				continue;
-			}
-			const node = nodeResult.value;
-			console.log(
-				`[AUTOMATED ACTION] New PDF created: "${node.title}" (UUID: ${uuid})`,
-			);
-		}
-	},
+  run: async (ctx, args) => {
+    for (const uuid of args.uuids) {
+      const nodeResult = await ctx.nodeService.get(uuid);
+      if (nodeResult.isLeft()) {
+        console.error(`Failed to get node ${uuid} for logging.`);
+        continue;
+      }
+      const node = nodeResult.value;
+      console.log(
+        `[AUTOMATED ACTION] New PDF created: "${node.title}" (UUID: ${uuid})`,
+      );
+    }
+  },
 };
 ```

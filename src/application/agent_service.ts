@@ -382,10 +382,8 @@ export class AgentService {
 			}
 
 			// Initialize conversation history with previous turns + new message
-			let currentHistory: ChatHistory = [
-				...(options?.history || []),
-				{ role: "user", parts: [{ text }] },
-			];
+			const originalHistory: ChatHistory = [...(options?.history || [])];
+			let currentHistory = [...originalHistory];
 
 			// Prepare tools that the agent can call
 			const tools = await this.#prepareTools(authContext, agent);
@@ -417,14 +415,21 @@ export class AgentService {
 					return left(chatResult.value);
 				}
 
-				// Add model response to history
-				currentHistory = [...currentHistory, chatResult.value];
-
 				// Check if response has text - if so, return early
 				const hasText = chatResult.value.parts.some((part) => part.text && part.text.trim());
 				if (hasText) {
-					return right(currentHistory);
+					// Add model response to history
+					originalHistory.push({ role: "user", parts: [{ text }] });
+					originalHistory.push(chatResult.value);
+
+					return right(originalHistory);
 				}
+
+				// Add model response to history
+				if (currentHistory.length === originalHistory.length) {
+					currentHistory.push({ role: "user", parts: [{ text }] });
+				}
+				currentHistory.push(chatResult.value);
 
 				// Extract tool calls from the response
 				const toolCalls = this.#extractToolCalls(chatResult.value);

@@ -91,8 +91,9 @@ export class WorkflowNode extends Node {
 	readonly states: WorkflowState[];
 	readonly availableStateNames: string[];
 	readonly filters: NodeFilters;
+	readonly groupsAllowed: string[];
 
-	constructor(metadata: NodeMetadata) {
+	constructor(metadata: Partial<NodeMetadata>) {
 		super({
 			...metadata,
 			mimetype: Nodes.WORKFLOW_MIMETYPE,
@@ -102,6 +103,7 @@ export class WorkflowNode extends Node {
 		this.states = metadata.states ?? [];
 		this.availableStateNames = metadata.availableStateNames ?? [];
 		this.filters = metadata.filters ?? [];
+		this.groupsAllowed = metadata.groupsAllowed ?? [];
 
 		this._validateWorkflowNode();
 	}
@@ -132,6 +134,7 @@ export class WorkflowNode extends Node {
 			states: this.states,
 			availableStateNames: this.availableStateNames,
 			filters: this.filters,
+			groupsAllowed: this.groupsAllowed,
 		};
 	}
 

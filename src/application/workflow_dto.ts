@@ -11,6 +11,7 @@ export interface WorkflowDTO {
 	states: WorkflowState[];
 	availableStateNames: string[];
 	filters: NodeFilters;
+	groupsAllowed: string[];
 }
 
 export function toWorkflowDTO(node: WorkflowNode): WorkflowDTO {
@@ -24,5 +25,6 @@ export function toWorkflowDTO(node: WorkflowNode): WorkflowDTO {
 		states: node.states,
 		availableStateNames: node.availableStateNames,
 		filters: node.filters,
+		groupsAllowed: node.groupsAllowed,
 	};
 }

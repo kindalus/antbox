@@ -29,6 +29,7 @@ export class WorkflowService {
 		authCtx: AuthenticationContext,
 		nodeUuid: string,
 		workflowDefinitionUuid: string,
+		groupsAllowedOverride?: string[],
 	): Promise<Either<AntboxError, WorkflowInstanceDTO>> {
 		// Check if node already has a workflow instance
 		const existingInstanceOrErr = await this.#context.workflowInstanceRepository.getByNodeUuid(
@@ -78,6 +79,7 @@ export class WorkflowService {
 			modifiedTime: workflowDefOrErr.value.modifiedTime,
 			states: workflowDefOrErr.value.states,
 			availableStateNames: workflowDefOrErr.value.availableStateNames,
+			groupsAllowed: workflowDefOrErr.value.groupsAllowed,
 		});
 		const workflowInstance: WorkflowInstance = {
 			uuid: UuidGenerator.generate(),
@@ -86,7 +88,11 @@ export class WorkflowService {
 			workflowDefinition: workflowDefinitionSnapshot,
 			currentStateName: workflowDefOrErr.value.states.find((s) => s.isInitial)!.name,
 			running: true,
+			cancelled: false,
 			history: [],
+			groupsAllowed: groupsAllowedOverride ?? workflowDefOrErr.value.groupsAllowed,
+			owner: authCtx.principal.email,
+			startedTime: new Date().toISOString(),
 		};
 
 		// Guard for initial state
@@ -138,6 +144,16 @@ export class WorkflowService {
 		}
 		const instance = instanceOrErr.value;
 
+		// Check if user is allowed to access this instance
+		if (!this.#canUserAccessInstance(authCtx, instance)) {
+			return left(new ForbiddenError());
+		}
+
+		// Check if instance is cancelled
+		if (instance.cancelled) {
+			return left(new BadRequestError("Cannot transition a cancelled workflow instance"));
+		}
+
 		// Resolve workflow definition snapshot (prefer instance snapshot so mid-flight definition
 		// edits don't affect the running instance).
 		let workflowDef = instance.workflowDefinition;
@@ -158,9 +174,15 @@ export class WorkflowService {
 				modifiedTime: workflowDefOrErr.value.modifiedTime,
 				states: workflowDefOrErr.value.states,
 				availableStateNames: workflowDefOrErr.value.availableStateNames,
+				groupsAllowed: workflowDefOrErr.value.groupsAllowed,
 			});
 
 			instance.workflowDefinition = workflowDef;
+
+			// Backfill groupsAllowed if missing
+			if (!instance.groupsAllowed) {
+				instance.groupsAllowed = workflowDefOrErr.value.groupsAllowed;
+			}
 		}
 
 		// Get the node that will be attached to the workflow
@@ -274,6 +296,55 @@ export class WorkflowService {
 		return right(toWorkflowInstanceDTO(instance));
 	}
 
+	async cancelWorkflow(
+		authCtx: AuthenticationContext,
+		nodeUuid: string,
+	): Promise<Either<AntboxError, WorkflowInstanceDTO>> {
+		// Get workflow instance
+		const instanceOrErr = await this.#context.workflowInstanceRepository.getByNodeUuid(nodeUuid);
+		if (instanceOrErr.isLeft()) {
+			return left(instanceOrErr.value);
+		}
+		const instance = instanceOrErr.value;
+
+		// Check if user is allowed to cancel this instance
+		// Only the owner or admins can cancel
+		const isAdmin = authCtx.principal.groups.includes("--admins--");
+		const isOwner = instance.owner === authCtx.principal.email;
+
+		if (!isAdmin && !isOwner) {
+			return left(new ForbiddenError());
+		}
+
+		// Check if instance is already cancelled or finished
+		if (instance.cancelled) {
+			return left(new BadRequestError("Workflow instance is already cancelled"));
+		}
+
+		if (!instance.running) {
+			return left(new BadRequestError("Workflow instance is not running"));
+		}
+
+		// Mark as cancelled
+		instance.cancelled = true;
+		instance.running = false;
+
+		// Save updated instance
+		const updateOrErr = await this.#context.workflowInstanceRepository.update(instance);
+		if (updateOrErr.isLeft()) {
+			return left(updateOrErr.value);
+		}
+
+		// Unlock the node
+		await this.#context.nodeService.unlock(authCtx, nodeUuid);
+		await this.#context.nodeService.update(authCtx, nodeUuid, {
+			workflowState: null as unknown as string,
+			workflowInstanceUuid: null as unknown as string,
+		});
+
+		return right(toWorkflowInstanceDTO(instance));
+	}
+
 	async getInstance(
 		authCtx: AuthenticationContext,
 		nodeUuid: string,
@@ -291,6 +362,11 @@ export class WorkflowService {
 
 		const instance = instanceOrErr.value;
 
+		// Check if user is allowed to view this instance
+		if (!this.#canUserAccessInstance(authCtx, instance)) {
+			return left(new ForbiddenError());
+		}
+
 		// Best-effort backfill for instances created before snapshots existed.
 		if (!instance.workflowDefinition) {
 			const workflowDefOrErr = await this.getWorkflowDefinition(
@@ -306,7 +382,13 @@ export class WorkflowService {
 					modifiedTime: workflowDefOrErr.value.modifiedTime,
 					states: workflowDefOrErr.value.states,
 					availableStateNames: workflowDefOrErr.value.availableStateNames,
+					groupsAllowed: workflowDefOrErr.value.groupsAllowed,
 				});
+
+				// Backfill groupsAllowed if missing
+				if (!instance.groupsAllowed) {
+					instance.groupsAllowed = workflowDefOrErr.value.groupsAllowed;
+				}
 
 				// Ignore backfill failures; the instance is still returned.
 				await this.#context.workflowInstanceRepository.update(instance);
@@ -346,6 +428,11 @@ export class WorkflowService {
 		const activeInstances: WorkflowInstance[] = [];
 
 		for (const instance of instances) {
+			// Check if user is allowed to access this instance
+			if (!this.#canUserAccessInstance(authCtx, instance)) {
+				continue;
+			}
+
 			// If admin, include all running instances without needing the workflow definition.
 			if (isAdmin) {
 				activeInstances.push(instance);
@@ -381,6 +468,26 @@ export class WorkflowService {
 		}
 
 		return right(activeInstances.map(toWorkflowInstanceDTO));
+	}
+
+	#canUserAccessInstance(
+		authCtx: AuthenticationContext,
+		instance: WorkflowInstance,
+	): boolean {
+		// Admins can access all instances
+		if (authCtx.principal.groups.includes("--admins--")) {
+			return true;
+		}
+
+		// If no groupsAllowed specified, all users can access
+		if (!instance.groupsAllowed || instance.groupsAllowed.length === 0) {
+			return true;
+		}
+
+		// Check if user belongs to any of the allowed groups
+		return instance.groupsAllowed.some((allowedGroup) =>
+			authCtx.principal.groups.includes(allowedGroup)
+		);
 	}
 
 	#canUserTransitionInState(

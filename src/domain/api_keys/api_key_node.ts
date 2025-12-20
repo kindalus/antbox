@@ -29,7 +29,7 @@ export class ApiKeyNode extends Node {
 		}
 	}
 
-	private constructor(metadata: NodeMetadata) {
+	private constructor(metadata: Partial<NodeMetadata>) {
 		super({
 			...metadata,
 			mimetype: Nodes.API_KEY_MIMETYPE,

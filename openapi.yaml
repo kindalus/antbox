@@ -1306,6 +1306,12 @@ paths:
                   type: string
                   format: uuid
                   description: UUID of the workflow definition node
+                groupsAllowed:
+                  type: array
+                  description: Optional override for groups allowed to view and interact with this workflow instance. If not specified, uses the workflow definition's groupsAllowed. If empty array, all users can access.
+                  items:
+                    type: string
+                    format: uuid
       responses:
         "200":
           description: Workflow instance started successfully
@@ -1345,6 +1351,36 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/WorkflowInstance"
+        default:
+          $ref: "#/components/responses/Error"
+  "/workflow-instances/{uuid}/-/cancel":
+    post:
+      tags:
+        - workflows
+      summary: Cancel a running workflow instance
+      description: Only the workflow owner or users in the --admins-- group can cancel a workflow instance
+      operationId: cancelWorkflow
+      parameters:
+        - $ref: "#/components/parameters/UUID"
+      responses:
+        "200":
+          description: Workflow cancelled successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkflowInstance"
+        "400":
+          description: Bad request - workflow is already cancelled or not running
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AntboxError"
+        "403":
+          description: Forbidden - user is not the owner or admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AntboxError"
         default:
           $ref: "#/components/responses/Error"
   /workflow-definitions:
@@ -1403,6 +1439,12 @@ paths:
                 filters:
                   $ref: "#/components/schemas/NodeFilters"
                   description: Optional filters to restrict which nodes can use this workflow. Empty filters allow all nodes.
+                groupsAllowed:
+                  type: array
+                  description: Optional list of groups allowed to start and view workflow instances. If empty or omitted, all users can start and view instances.
+                  items:
+                    type: string
+                    format: uuid
       responses:
         "200":
           description: Workflow definition created or updated successfully
@@ -2169,6 +2211,7 @@ components:
         - states
         - availableStateNames
         - filters
+        - groupsAllowed
       properties:
         uuid:
           type: string
@@ -2205,6 +2248,12 @@ components:
         filters:
           $ref: "#/components/schemas/NodeFilters"
           description: Filters to restrict which nodes can use this workflow. Empty filters allow all nodes.
+        groupsAllowed:
+          type: array
+          description: List of groups allowed to start and view workflow instances. If empty, all users can start and view instances.
+          items:
+            type: string
+            format: uuid
     WorkflowState:
       type: object
       required:
@@ -2271,6 +2320,10 @@ components:
         - nodeUuid
         - currentStateName
         - running
+        - cancelled
+        - groupsAllowed
+        - owner
+        - startedTime
       properties:
         uuid:
           type: string
@@ -2289,12 +2342,29 @@ components:
           description: Name of the current state in the workflow
         running:
           type: boolean
-          description: Whether the workflow is still running (false when a final state is reached)
+          description: Whether the workflow is still running (false when a final state is reached or cancelled)
+        cancelled:
+          type: boolean
+          description: Whether this workflow instance has been cancelled. A cancelled workflow stops running and cannot be transitioned further.
         history:
           type: array
           description: History of state transitions
           items:
             $ref: "#/components/schemas/WorkflowTransitionHistory"
+        groupsAllowed:
+          type: array
+          description: List of groups allowed to view and interact with this workflow instance. If empty, all users can view and interact with it. Copied from workflow definition at start time, but can be overridden.
+          items:
+            type: string
+            format: uuid
+        owner:
+          type: string
+          format: email
+          description: Email of the user who started this workflow instance
+        startedTime:
+          type: string
+          format: date-time
+          description: Timestamp when this workflow instance was started
     WorkflowTransitionHistory:
       type: object
       required:

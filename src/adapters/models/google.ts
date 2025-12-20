@@ -514,15 +514,12 @@ export class GoogleAPIError extends AntboxError {
  */
 const VALID_MODELS = [
 	// Gemini 2.X models (LLM with tools, files, reasoning)
-	"gemini-2.0-flash",
 	"gemini-2.5-flash",
-	"gemini-2.5-flash-lite",
-	"gemini-2.0-pro",
 	"gemini-2.5-pro",
 	"gemma-3-12b-it",
 	// Embedding models
 	"text-embedding-004",
-	"text-embedding-preview-0815",
+	"text-embedding-0815",
 	"embedding-001",
 ];
 
@@ -530,10 +527,7 @@ const VALID_MODELS = [
  * Models that support tools/function calling
  */
 const MODELS_WITH_TOOLS = [
-	"gemini-2.0-flash",
 	"gemini-2.5-flash",
-	"gemini-2.5-flash-lite",
-	"gemini-2.0-pro",
 	"gemini-2.5-pro",
 	"gemma-3-12b-it",
 ];
@@ -542,10 +536,7 @@ const MODELS_WITH_TOOLS = [
  * Models that support reasoning/thinking mode
  */
 const MODELS_WITH_REASONING = [
-	"gemini-2.0-flash",
 	"gemini-2.5-flash",
-	"gemini-2.5-flash-lite",
-	"gemini-2.0-pro",
 	"gemini-2.5-pro",
 ];
 
@@ -564,10 +555,7 @@ const MODELS_WITH_FILES = [
  * Models that provide LLM capabilities
  */
 const MODELS_WITH_LLM = [
-	"gemini-2.0-flash",
 	"gemini-2.5-flash",
-	"gemini-2.5-flash-lite",
-	"gemini-2.0-pro",
 	"gemini-2.5-pro",
 	"gemma-3-12b-it",
 ];
@@ -577,7 +565,7 @@ const MODELS_WITH_LLM = [
  */
 const MODELS_WITH_EMBEDDINGS = [
 	"text-embedding-004",
-	"text-embedding-preview-0815",
+	"text-embedding-0815",
 	"embedding-001",
 ];
 

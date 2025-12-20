@@ -40,6 +40,7 @@ export function startWorkflowHandler(tenants: AntboxTenant[]): HttpHandler {
 						getAuthenticationContext(req),
 						params.uuid,
 						body.workflowDefinitionUuid,
+						body.groupsAllowed,
 					)
 					.then(processServiceResult)
 					.catch(processError);
@@ -108,6 +109,31 @@ export function getWorkflowInstanceHandler(tenants: AntboxTenant[]): HttpHandler
 
 			return service!
 				.getInstance(getAuthenticationContext(req), params.uuid)
+				.then(processServiceResult)
+				.catch(processError);
+		},
+	);
+}
+
+export function cancelWorkflowHandler(tenants: AntboxTenant[]): HttpHandler {
+	return defaultMiddlewareChain(
+		tenants,
+		(req: Request): Promise<Response> => {
+			const tenant = getTenant(req, tenants);
+			const service = tenant.workflowService;
+
+			const unavailableResponse = checkServiceAvailability(service, "Workflow service");
+			if (unavailableResponse) {
+				return Promise.resolve(unavailableResponse);
+			}
+
+			const params = getParams(req);
+			if (!params.uuid) {
+				return Promise.resolve(sendBadRequest({ error: "{ uuid } not given" }));
+			}
+
+			return service!
+				.cancelWorkflow(getAuthenticationContext(req), params.uuid)
 				.then(processServiceResult)
 				.catch(processError);
 		},

@@ -12,6 +12,7 @@ export interface WorkflowDefinitionSnapshot {
 	modifiedTime: string;
 	states: WorkflowState[];
 	availableStateNames: string[];
+	groupsAllowed: string[];
 }
 
 /**
@@ -54,6 +55,29 @@ export interface WorkflowInstance {
 	history?: WorkflowTransitionHistory[];
 
 	running: boolean;
+
+	/**
+	 * Whether this workflow instance has been cancelled.
+	 * A cancelled workflow stops running and cannot be transitioned further.
+	 */
+	cancelled: boolean;
+
+	/**
+	 * List of groups allowed to view and interact with this workflow instance.
+	 * If empty, all users can view and interact with the instance.
+	 * Copied from workflow definition at start time, but can be overridden.
+	 */
+	groupsAllowed: string[];
+
+	/**
+	 * Email of the user who started this workflow instance.
+	 */
+	owner: string;
+
+	/**
+	 * Timestamp when this workflow instance was started.
+	 */
+	startedTime: string;
 }
 
 /**

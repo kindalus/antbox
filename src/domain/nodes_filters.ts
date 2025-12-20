@@ -56,7 +56,7 @@ export class NodesFilters {
 
 			return left(
 				ValidationError.from(
-					new BadRequestError("Node doesn't satisfy filters"),
+					new BadRequestError(`Node doesn't satisfy filters`),
 				),
 			);
 		});

@@ -46,6 +46,7 @@ import { builtinFeatures } from "./builtin_features/index.ts";
 import { builtinGroups } from "./builtin_groups/index.ts";
 import { builtinUsers } from "./builtin_users/index.ts";
 import { ParentFolderUpdateHandler } from "./parent_folder_update_handler.ts";
+import { resolveHttpAuthRuntimeConfig } from "npm:@aws-sdk/client-s3@^3.744.0";
 
 // TODO: Implements throwing events
 
@@ -168,6 +169,9 @@ export class NodeService {
 			);
 
 			if (errs.isLeft()) {
+				console.debug("Node doesn't satisfy filters");
+				console.debug(errs.value);
+				console.debug("=========================");
 				return left(errs.value);
 			}
 		}
@@ -175,9 +179,11 @@ export class NodeService {
 		const filtersSatisfied = NodesFilters.satisfiedBy(
 			parentOrErr.value.filters,
 			nodeOrErr.value,
-		).isRight();
-		if (!filtersSatisfied) {
-			return left(new BadRequestError("Node does not satisfy parent filters"));
+		);
+		if (filtersSatisfied.isLeft()) {
+			return left(
+				new BadRequestError(`Node does not satisfy parent filters: ${filtersSatisfied.value}`),
+			);
 		}
 
 		const featureOrErr = this.#validateFeature(nodeOrErr.value);
@@ -1263,9 +1269,16 @@ export class NodeService {
 
 		// If validationFilters are defined, also check filter compliance
 		if (property.validationFilters && property.validationFilters.length > 0) {
-			const spec = NodesFilters.nodeSpecificationFrom(
-				property.validationFilters,
-			);
+			// TODO This code calls spec directly so it can verify @filters, will remove them for now
+			let filters = isNodeFilters2D(property.validationFilters)
+				? property.validationFilters
+				: [property.validationFilters];
+
+			filters = filters.map((f) => {
+				return f.filter((f1) => !f1[0].startsWith("@"));
+			});
+
+			const spec = NodesFilters.nodeSpecificationFrom(filters);
 
 			const results = nodesOrErrs.map((n) => spec.isSatisfiedBy(n.right));
 			const notComply = results.filter((r) => r.isLeft());

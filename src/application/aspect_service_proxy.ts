@@ -26,4 +26,8 @@ export class AspectServiceProxy {
 	listAspects() {
 		return this.#aspectService.list(this.#ctx);
 	}
+
+	get(uuid: string) {
+		return this.#aspectService.get(this.#ctx, uuid);
+	}
 }

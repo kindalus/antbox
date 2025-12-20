@@ -366,8 +366,6 @@ export class AgentService {
 			// Prepare tools that the agent can call
 			const tools = await this.#prepareTools(authContext, agent);
 
-			console.debug("TOOLS: ", JSON.stringify(tools, null, 2));
-
 			// Tool calling loop: continue until we get a text response
 			while (true) {
 				// Execute chat via AI model
@@ -418,8 +416,6 @@ export class AgentService {
 					return right(currentHistory);
 				}
 
-				console.debug("\n\n==>Tool calls:", JSON.stringify(toolCalls, null, 2));
-
 				// Execute tool calls and add results to history
 				const toolExecutionResult = await this.#executeToolCalls(
 					authContext,
@@ -434,6 +430,11 @@ export class AgentService {
 				// Add tool messages to history
 				const toolMessages = toolExecutionResult.value;
 				currentHistory = [...currentHistory, ...toolMessages];
+
+				console.debug("History");
+				console.debug("======================================>");
+				console.debug(JSON.stringify(currentHistory, null, 2));
+				console.debug("<======================================");
 			}
 		} catch (error) {
 			return left(new AntboxError("AgentChatError", `Agent chat failed: ${error}`));

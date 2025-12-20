@@ -67,7 +67,7 @@ function generateSdkList(features: FeatureDTO[]): string {
 		"unlock",
 	];
 
-	const aspectsMethods = ["listAspects"];
+	const aspectsMethods = ["get", "listAspects"];
 
 	const customMethods = features.map((f) => f.title);
 
@@ -324,6 +324,13 @@ function generateAspectsDocumentation(): string {
  * AspectServiceProxy - Service for managing aspects in the system
  */
 interface AspectServiceProxy {
+	/**
+	 * Get a specific aspect by UUID
+	 * @param uuid - UUID of the aspect to retrieve
+	 * @returns Either<NodeNotFoundError, AspectDTO>
+	 */
+	get(uuid: string): Promise<Either<NodeNotFoundError, AspectDTO>>;
+
 	/**
 	 * List all aspects
 	 * @returns Promise<AspectDTO[]>

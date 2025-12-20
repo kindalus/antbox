@@ -24,9 +24,17 @@ The function must return a Promise<string>
 
 Example:
 export default async function({ nodes, aspects, custom }) {
-  const result = await nodes.find([["mimetype", "==", "application/pdf"]]);
+  // Find all aspects
+  const allAspects = await aspects.listAspects();
+  const targetAspect = allAspects.find(a => a.title.includes('Cliente'));
+
+  if (!targetAspect) return JSON.stringify({ error: 'Aspect not found' });
+
+  // Find nodes with that aspect
+  const result = await nodes.find([["aspects", "contains", targetAspect.uuid]]);
   if (result.isLeft()) return JSON.stringify({ error: result.value.message });
-  return JSON.stringify({ count: result.value.nodes.length });
+
+  return JSON.stringify({ count: result.value.nodes.length, nodes: result.value.nodes });
 }`,
 	parameters: [
 		{
@@ -59,6 +67,10 @@ export function createRunCodeTool(
 	};
 
 	return async function runCode(code: string): Promise<string> {
+		console.debug("runCode");
+		console.debug("======================================>");
+		console.debug(code);
+
 		try {
 			// Create a data URL module with the user's code
 			// The code must export a default function
@@ -94,6 +106,9 @@ export function createRunCodeTool(
 				message: error instanceof Error ? error.message : String(error),
 				stack: error instanceof Error ? error.stack : undefined,
 			};
+
+			console.debug("RESULT ===> ", JSON.stringify(errorObj, null, 2));
+			console.debug("<======================================");
 
 			return JSON.stringify(errorObj, null, 2);
 		}

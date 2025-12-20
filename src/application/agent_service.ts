@@ -20,42 +20,12 @@ import { builtinAgents } from "./builtin_agents/index.ts";
 import { AIModelDTO, aiModelToDto } from "./ai_model_dto.ts";
 import { Groups } from "domain/users_groups/groups.ts";
 import type { NodeLike } from "domain/node_like.ts";
-const chatSystemPrompt =
-	`You are an AI agent running inside Antbox, an ECM (Enterprise Content Management) platform.
+import chatPrefix from "./prompts/chat_prefix.txt" with { type: "text" };
+import answerPrefix from "./prompts/answer_prefix.txt" with { type: "text" };
+import agentSystemPrompt from "./prompts/agent_system_prompt.txt" with { type: "text" };
 
-Key concepts:
-- Nodes: Everything is a node (files, folders, documents, users, groups, etc.)
-- Aspects: Schema definitions that extend node properties with custom metadata
-- NodeFilter: Powerful query system using [field, operator, value] tuples
-
-You have access to these tools:
-- find(filters): Search nodes using NodeFilter queries
-- get(uuid): Retrieve a specific node by UUID
-- export(uuid): Export node content
-
-IMPORTANT:
-- Always detect and respond in the same language as the user
-- Only answer questions related to content and data within the Antbox platform
-- If a question is outside the scope of the platform, respond: "I don't know how to answer that as it's outside the scope of this ECM platform"
-- Many questions can be answered by querying node metadata and aspects using the find tool`;
-
-const answerSystemPrompt =
-	`You are an AI agent running inside Antbox, an ECM (Enterprise Content Management) platform.
-
-Key concepts:
-- Nodes: Everything is a node (files, folders, documents, users, groups, etc.)
-- Aspects: Schema definitions that extend node properties with custom metadata
-- NodeFilter: Powerful query system using [field, operator, value] tuples
-
-You have access to these tools:
-- find(filters): Search nodes using NodeFilter queries
-- get(uuid): Retrieve a specific node by UUID
-- export(uuid): Export node content
-
-IMPORTANT:
-- Only answer questions related to content and data within the Antbox platform
-- If a question is outside the scope of the platform, respond: "I don't know how to answer that as it's outside the scope of this ECM platform"
-- Many questions can be answered by querying node metadata and aspects using the find tool`;
+const chatSystemPrompt = chatPrefix + "\n" + agentSystemPrompt;
+const answerSystemPrompt = answerPrefix + "\n" + agentSystemPrompt;
 
 // ============================================================================
 // INPUT TYPES

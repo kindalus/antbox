@@ -15,7 +15,6 @@ import { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import { AgentDTO, fromAgentDTO, toAgentDTO } from "application/agent_dto.ts";
 import { modelFrom } from "adapters/model_configuration_parser.ts";
-import { BUILTIN_AGENT_TOOLS } from "./builtin_features/agent_tools.ts";
 import { builtinAgents } from "./builtin_agents/index.ts";
 import { AIModelDTO, aiModelToDto } from "./ai_model_dto.ts";
 import { Groups } from "domain/users_groups/groups.ts";
@@ -23,6 +22,11 @@ import type { NodeLike } from "domain/node_like.ts";
 import chatPrefix from "./prompts/chat_prefix.txt" with { type: "text" };
 import answerPrefix from "./prompts/answer_prefix.txt" with { type: "text" };
 import agentSystemPrompt from "./prompts/agent_system_prompt.txt" with { type: "text" };
+import { createGetSdkDocumentationTool } from "./internal_ai_tools/get_sdk_documentation.ts";
+import { createRunCodeTool } from "./internal_ai_tools/run_code.ts";
+import { NodeServiceProxy } from "./node_service_proxy.ts";
+import { AspectServiceProxy } from "./aspect_service_proxy.ts";
+import { AspectService } from "./aspect_service.ts";
 
 const chatSystemPrompt = chatPrefix + "\n" + agentSystemPrompt;
 const answerSystemPrompt = answerPrefix + "\n" + agentSystemPrompt;
@@ -60,6 +64,7 @@ export class AgentService {
 	constructor(
 		private readonly nodeService: NodeService,
 		private readonly featureService: FeatureService,
+		private readonly aspectService: AspectService,
 		private readonly defaultModel: AIModel,
 		private readonly models: AIModel[],
 	) {}
@@ -597,17 +602,41 @@ export class AgentService {
 			return undefined;
 		}
 
-		// Add all available custom tools
-		const result = await this.#getAllAvailableTools(authContext);
+		// Return only the internal AI tools
+		const internalTools: Partial<FeatureDTO>[] = [
+			{
+				uuid: "getSdkDocumentation",
+				title: "getSdkDocumentation",
+				description:
+					"Get SDK documentation in TypeScript declaration format. Call without arguments to list all SDKs, or pass a SDK name ('nodes', 'aspects', 'custom') to get detailed documentation.",
+				parameters: [
+					{
+						name: "sdkName",
+						type: "string",
+						required: false,
+						description: "Optional SDK name to get detailed documentation for",
+					},
+				],
+				returnType: "string",
+			},
+			{
+				uuid: "runCode",
+				title: "runCode",
+				description:
+					"Execute JavaScript/TypeScript code to interact with the platform. The code must export a default async function that receives { nodes, aspects, custom } SDKs and returns a Promise<string>.",
+				parameters: [
+					{
+						name: "code",
+						type: "string",
+						required: true,
+						description: "JavaScript/TypeScript code to execute",
+					},
+				],
+				returnType: "string",
+			},
+		];
 
-		if (result.isLeft()) {
-			return undefined;
-		}
-
-		const finalTools = [...BUILTIN_AGENT_TOOLS, ...result.value]
-			.map((t) => ({ ...t, name: t.uuid }));
-
-		return finalTools;
+		return internalTools;
 	}
 
 	#extractToolCalls(message: ChatMessage): Array<{ name: string; args: Record<string, unknown> }> {
@@ -621,12 +650,25 @@ export class AgentService {
 	): Promise<Either<AntboxError, ChatMessage[]>> {
 		const messages: ChatMessage[] = [];
 
+		// Create SDK instances for tool execution
+		const nodeServiceProxy = new NodeServiceProxy(this.nodeService, authContext);
+		const aspectServiceProxy = new AspectServiceProxy(this.aspectService, authContext);
+
+		// Get custom features for documentation
+		const customFeaturesResult = await this.featureService.listAITools(authContext);
+		const customFeatures = customFeaturesResult.isRight() ? customFeaturesResult.value : [];
+
+		// Create tool instances
+		const getSdkDocumentation = createGetSdkDocumentationTool(customFeatures);
+		const runCode = createRunCodeTool(nodeServiceProxy, aspectServiceProxy, {});
+
 		for (const toolCall of toolCalls) {
 			// Find the tool in available tools
-			const tool = availableTools.find((t) => t.name === toolCall.name);
-			const toolId = tool?.uuid;
+			const tool = availableTools.find((t) =>
+				t.uuid === toolCall.name || t.title === toolCall.name
+			);
 
-			if (!tool || !toolId) {
+			if (!tool) {
 				messages.push({
 					role: "tool",
 					parts: [{
@@ -639,38 +681,36 @@ export class AgentService {
 				continue;
 			}
 
-			// Create AI authentication context for tool execution
-			const aiAuthContext: AuthenticationContext = {
-				tenant: authContext.tenant,
-				principal: authContext.principal,
-				mode: "AI",
-			};
+			try {
+				let resultText: string;
 
-			// Execute the tool via FeatureService
-			const executeResult = await this.featureService.runAITool(
-				aiAuthContext,
-				toolId,
-				toolCall.args,
-			);
+				// Execute internal tools directly
+				if (toolCall.name === "getSdkDocumentation") {
+					const sdkName = toolCall.args.sdkName as string | undefined;
+					resultText = getSdkDocumentation(sdkName);
+				} else if (toolCall.name === "runCode") {
+					const code = toolCall.args.code as string;
+					if (!code) {
+						throw new Error("Code parameter is required");
+					}
+					resultText = await runCode(code);
+				} else {
+					throw new Error(`Unknown tool: ${toolCall.name}`);
+				}
 
-			// Add result to messages
-			if (executeResult.isLeft()) {
+				messages.push({
+					role: "tool",
+					parts: [{ toolResponse: { name: toolCall.name, text: resultText } }],
+				});
+			} catch (error) {
 				messages.push({
 					role: "tool",
 					parts: [{
 						toolResponse: {
 							name: toolCall.name,
-							text: `Error executing ${toolCall.name}: ${executeResult.value.message}`,
+							text: `Error: ${error instanceof Error ? error.message : String(error)}`,
 						},
 					}],
-				});
-			} else {
-				const result = executeResult.value;
-				const resultText = typeof result === "string" ? result : JSON.stringify(result);
-
-				messages.push({
-					role: "tool",
-					parts: [{ toolResponse: { name: toolCall.name, text: resultText } }],
 				});
 			}
 		}
@@ -718,21 +758,6 @@ export class AgentService {
 			// This provides better resilience and enables testing
 			console.warn(`Falling back to default model instance for ${modelName}`);
 			return this.defaultModel;
-		}
-	}
-
-	/**
-	 * Get all available AI tools for the authenticated user
-	 */
-	#getAllAvailableTools(
-		authContext: AuthenticationContext,
-	): Promise<Either<AntboxError, Partial<FeatureDTO>[]>> {
-		try {
-			return this.featureService.listAITools(authContext);
-		} catch (error) {
-			return Promise.resolve(left(
-				new AntboxError("ToolRetrievalError", `Failed to get available tools: ${error}`),
-			));
 		}
 	}
 }

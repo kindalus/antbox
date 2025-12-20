@@ -231,7 +231,9 @@ describe("AgentService", () => {
 		agentService = new AgentService(
 			nodeService as any,
 			featureService as any,
+			{} as any, // aspectService mock
 			aiModel, // default model instance
+			[], // models array
 		);
 
 		nodeService.clear();

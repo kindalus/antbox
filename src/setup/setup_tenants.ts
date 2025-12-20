@@ -166,7 +166,13 @@ async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
 		});
 
 		// Create AgentService
-		agentService = new AgentService(nodeService, featureService, defaultModel, models ?? []);
+		agentService = new AgentService(
+			nodeService,
+			featureService,
+			aspectService,
+			defaultModel,
+			models ?? [],
+		);
 
 		// Create RAGService
 		ragService = new RAGService(nodeService, agentService);

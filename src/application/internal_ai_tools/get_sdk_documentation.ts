@@ -382,10 +382,10 @@ interface Custom {
 	const methods = features.map((feature) => {
 		const params = feature.parameters.map((param) => {
 			const optional = !param.required ? "?" : "";
-			let type = param.type;
+			let type: string = param.type;
 
 			if (type === "array" && param.arrayType) {
-				type = `${param.arrayType}[]`;
+				type = `Array<${param.arrayType}>`;
 			}
 
 			const description = param.description ? ` - ${param.description}` : "";
@@ -407,16 +407,16 @@ interface Custom {
 		};
 
 		const returnType = returnTypeMap[feature.returnType] || "unknown";
-		const returnDesc = feature.returnDescription
-			? `\t * @returns ${returnDesc}`
+		const returnDesc: string = feature.returnDescription
+			? `\t * @returns ${feature.returnDescription}`
 			: `\t * @returns Promise<${returnType}>`;
 
 		const paramSignature = feature.parameters.map((param) => {
 			const optional = !param.required ? "?" : "";
-			let type = param.type;
+			let type: string = param.type;
 
 			if (type === "array" && param.arrayType) {
-				type = `${param.arrayType}[]`;
+				type = `Array<${param.arrayType}>`;
 			}
 
 			return `${param.name}${optional}: ${type}`;

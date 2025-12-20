@@ -89,15 +89,18 @@ export function createRunCodeTool(
 			}
 
 			// Execute the function with the SDKs
-			const result = await defaultFn(sdks);
+			let result = await defaultFn(sdks);
 
 			// Handle the result based on its type
-			if (typeof result === "string") {
-				return result;
+			if (typeof result !== "string") {
+				result = JSON.stringify(result, null, 2);
 			}
 
+			console.debug("RESULT ===> ", result);
+			console.debug("<======================================");
+
 			// Convert objects to JSON string
-			return JSON.stringify(result, null, 2);
+			return result;
 		} catch (error) {
 			// Convert error to JSON string with stack trace
 			const errorObj = {

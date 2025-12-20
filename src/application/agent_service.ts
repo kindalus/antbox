@@ -430,11 +430,6 @@ export class AgentService {
 				// Add tool messages to history
 				const toolMessages = toolExecutionResult.value;
 				currentHistory = [...currentHistory, ...toolMessages];
-
-				console.debug("History");
-				console.debug("======================================>");
-				console.debug(JSON.stringify(currentHistory, null, 2));
-				console.debug("<======================================");
 			}
 		} catch (error) {
 			return left(new AntboxError("AgentChatError", `Agent chat failed: ${error}`));

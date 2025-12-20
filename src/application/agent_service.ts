@@ -418,6 +418,8 @@ export class AgentService {
 					return right(currentHistory);
 				}
 
+				console.debug("\n\n==>Tool calls:", JSON.stringify(toolCalls, null, 2));
+
 				// Execute tool calls and add results to history
 				const toolExecutionResult = await this.#executeToolCalls(
 					authContext,

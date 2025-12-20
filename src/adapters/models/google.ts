@@ -416,7 +416,7 @@ export class GoogleModel implements AIModel {
 			.map((param) => param.name);
 
 		return {
-			name: feature.name!,
+			name: feature.uuid!,
 			description: feature.description || "",
 			parameters,
 		};

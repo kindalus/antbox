@@ -17,13 +17,23 @@ export const RUN_CODE_TOOL: Partial<FeatureDTO> = {
 	uuid: "runCode",
 	title: "runCode",
 	description:
-		"Execute JavaScript/TypeScript code to interact with the platform. The code must export a default async function that receives { nodes, aspects, custom } SDKs and returns a Promise<string>.",
+		`Execute JavaScript/TypeScript code to interact with the platform. The code must be an ESM (ECMAScript Module) that exports a single default async function.
+
+The function receives an object with three SDKs: { nodes, aspects, custom }
+The function must return a Promise<string>
+
+Example:
+export default async function({ nodes, aspects, custom }) {
+  const result = await nodes.find([["mimetype", "==", "application/pdf"]]);
+  if (result.isLeft()) return JSON.stringify({ error: result.value.message });
+  return JSON.stringify({ count: result.value.nodes.length });
+}`,
 	parameters: [
 		{
 			name: "code",
 			type: "string",
 			required: true,
-			description: "JavaScript/TypeScript code to execute",
+			description: "ESM JavaScript/TypeScript module code with a default export function",
 		},
 	],
 	returnType: "string",

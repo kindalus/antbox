@@ -3,6 +3,25 @@ import type { FeatureDTO } from "application/feature_dto.ts";
 export type GetSdkDocumentationFunction = (sdkName?: string) => string;
 
 /**
+ * FeatureDTO definition for the getSdkDocumentation tool
+ */
+export const GET_SDK_DOCUMENTATION_TOOL: Partial<FeatureDTO> = {
+	uuid: "getSdkDocumentation",
+	title: "getSdkDocumentation",
+	description:
+		"Get SDK documentation in TypeScript declaration format. Call without arguments to list all SDKs, or pass a SDK name ('nodes', 'aspects', 'custom') to get detailed documentation.",
+	parameters: [
+		{
+			name: "sdkName",
+			type: "string",
+			required: false,
+			description: "Optional SDK name to get detailed documentation for",
+		},
+	],
+	returnType: "string",
+};
+
+/**
  * Factory function that creates a getSdkDocumentation tool with bound custom features.
  *
  * @param features - List of FeatureDTO objects that represent custom SDK methods

@@ -1,5 +1,6 @@
 import type { NodeServiceProxy } from "application/node_service_proxy.ts";
 import type { AspectServiceProxy } from "application/aspect_service_proxy.ts";
+import type { FeatureDTO } from "application/feature_dto.ts";
 
 export interface RunCodeSDKs {
 	nodes: NodeServiceProxy;
@@ -8,6 +9,25 @@ export interface RunCodeSDKs {
 }
 
 export type RunCodeFunction = (code: string) => Promise<string>;
+
+/**
+ * FeatureDTO definition for the runCode tool
+ */
+export const RUN_CODE_TOOL: Partial<FeatureDTO> = {
+	uuid: "runCode",
+	title: "runCode",
+	description:
+		"Execute JavaScript/TypeScript code to interact with the platform. The code must export a default async function that receives { nodes, aspects, custom } SDKs and returns a Promise<string>.",
+	parameters: [
+		{
+			name: "code",
+			type: "string",
+			required: true,
+			description: "JavaScript/TypeScript code to execute",
+		},
+	],
+	returnType: "string",
+};
 
 /**
  * Factory function that creates a runCode tool with bound SDK instances.

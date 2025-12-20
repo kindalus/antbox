@@ -22,8 +22,11 @@ import type { NodeLike } from "domain/node_like.ts";
 import chatPrefix from "./prompts/chat_prefix.txt" with { type: "text" };
 import answerPrefix from "./prompts/answer_prefix.txt" with { type: "text" };
 import agentSystemPrompt from "./prompts/agent_system_prompt.txt" with { type: "text" };
-import { createGetSdkDocumentationTool } from "./internal_ai_tools/get_sdk_documentation.ts";
-import { createRunCodeTool } from "./internal_ai_tools/run_code.ts";
+import {
+	createGetSdkDocumentationTool,
+	GET_SDK_DOCUMENTATION_TOOL,
+} from "./internal_ai_tools/get_sdk_documentation.ts";
+import { createRunCodeTool, RUN_CODE_TOOL } from "./internal_ai_tools/run_code.ts";
 import { NodeServiceProxy } from "./node_service_proxy.ts";
 import { AspectServiceProxy } from "./aspect_service_proxy.ts";
 import { AspectService } from "./aspect_service.ts";
@@ -363,6 +366,8 @@ export class AgentService {
 			// Prepare tools that the agent can call
 			const tools = await this.#prepareTools(authContext, agent);
 
+			console.debug("TOOLS: ", JSON.stringify(tools, null, 2));
+
 			// Tool calling loop: continue until we get a text response
 			while (true) {
 				// Execute chat via AI model
@@ -603,40 +608,7 @@ export class AgentService {
 		}
 
 		// Return only the internal AI tools
-		const internalTools: Partial<FeatureDTO>[] = [
-			{
-				uuid: "getSdkDocumentation",
-				title: "getSdkDocumentation",
-				description:
-					"Get SDK documentation in TypeScript declaration format. Call without arguments to list all SDKs, or pass a SDK name ('nodes', 'aspects', 'custom') to get detailed documentation.",
-				parameters: [
-					{
-						name: "sdkName",
-						type: "string",
-						required: false,
-						description: "Optional SDK name to get detailed documentation for",
-					},
-				],
-				returnType: "string",
-			},
-			{
-				uuid: "runCode",
-				title: "runCode",
-				description:
-					"Execute JavaScript/TypeScript code to interact with the platform. The code must export a default async function that receives { nodes, aspects, custom } SDKs and returns a Promise<string>.",
-				parameters: [
-					{
-						name: "code",
-						type: "string",
-						required: true,
-						description: "JavaScript/TypeScript code to execute",
-					},
-				],
-				returnType: "string",
-			},
-		];
-
-		return internalTools;
+		return [GET_SDK_DOCUMENTATION_TOOL, RUN_CODE_TOOL];
 	}
 
 	#extractToolCalls(message: ChatMessage): Array<{ name: string; args: Record<string, unknown> }> {

@@ -1,70 +1,179 @@
-import { type AntboxError, BadRequestError, UnknownError } from "shared/antbox_error.ts";
+import { type AntboxError, BadRequestError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
 import type { AuthenticationContext } from "application/authentication_context.ts";
 import type { NodeService } from "application/node_service.ts";
-import { Nodes } from "domain/nodes/nodes.ts";
-import type { ArticleServiceContext } from "application/article_service_context.ts";
-import { parse } from "marked";
-import { JSDOM } from "jsdom";
-
-import { ARTICLE_ASPECT } from "./builtin_aspects/index.ts";
-import { FileNode } from "domain/nodes/file_node.ts";
+import {
+	ArticleNode,
+	type ArticleProperties,
+	type LocaleMap,
+} from "domain/articles/article_node.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
-import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
+import {
+	type LocalizedArticleDTO,
+	type RawArticleDTO,
+	selectLocalizedString,
+	toLocalizedArticleDTO,
+	toRawArticleDTO,
+} from "application/article_dto.ts";
 import type { NodeLike } from "domain/node_like.ts";
+import { Nodes } from "domain/nodes/nodes.ts";
+import { FidGenerator } from "shared/fid_generator.ts";
 
-/**
- * ArticleService manages documents with mimetypes "text/html", "text/plain", or "text/markdown"
- * that have the builtin aspect --article--.
- *
- * Key features:
- * - get() method returns HTML string (text/html), converting from source format if needed
- * - Automatically converts markdown and text/plain to HTML
- * - Supports multilingual content via HTML templates with lang attributes
- * - Optional lang parameter in get() filters content by language template
- */
 export class ArticleService {
-	constructor(
-		private readonly context: ArticleServiceContext,
-		private readonly nodeService: NodeService,
-	) {}
+	constructor(private readonly nodeService: NodeService) {}
 
 	async createOrReplace(
 		ctx: AuthenticationContext,
-		file: File,
-		metadata: { uuid: string; title: string; description?: string; parent: string },
-	): Promise<Either<AntboxError, NodeMetadata>> {
-		if (!["text/html", "text/plain", "text/markdown"].includes(file.type)) {
-			return left(new BadRequestError(`Invalid file mimetype: : ${file.type}`));
-		}
-
+		metadata: Partial<RawArticleDTO>,
+	): Promise<Either<AntboxError, RawArticleDTO>> {
 		if (!metadata.uuid) {
 			return left(new BadRequestError("Article UUID is required"));
 		}
 
-		const nodeOrErr = await this.nodeService.get(ctx, metadata.uuid);
-		if (nodeOrErr.isLeft()) {
-			// Create new article
-			const aspects = [ARTICLE_ASPECT.uuid];
-			const createOrErr = await this.nodeService.createFile(ctx, file, { ...metadata, aspects });
-
-			if (createOrErr.isLeft()) {
-				return left(createOrErr.value);
-			}
-
-			return right(createOrErr.value);
+		if (!metadata.articleTitle || !metadata.articleResume || !metadata.articleBody) {
+			return left(
+				new BadRequestError("articleTitle, articleResume, and articleBody are required"),
+			);
 		}
 
-		return this.#update(ctx, file, metadata);
+		if (!metadata.articleAuthor) {
+			return left(new BadRequestError("articleAuthor is required"));
+		}
+
+		const nodeOrErr = await this.get(ctx, metadata.uuid);
+		if (nodeOrErr.isLeft()) {
+			return this.#create(ctx, metadata as RawArticleDTO);
+		}
+
+		return this.#update(ctx, metadata.uuid, metadata as RawArticleDTO);
+	}
+
+	async #create(
+		ctx: AuthenticationContext,
+		metadata: RawArticleDTO,
+	): Promise<Either<AntboxError, RawArticleDTO>> {
+		const articleFid = metadata.articleFid || this.#generateArticleFid(metadata.articleTitle);
+
+		const properties: ArticleProperties = {
+			articleTitle: metadata.articleTitle,
+			articleFid,
+			articleResume: metadata.articleResume,
+			articleBody: metadata.articleBody,
+			articleAuthor: metadata.articleAuthor,
+		};
+
+		const title = metadata.title || selectLocalizedString(metadata.articleTitle, "pt");
+
+		const nodeOrErr = ArticleNode.create({
+			uuid: metadata.uuid,
+			title,
+			description: metadata.description,
+			parent: metadata.parent,
+			owner: ctx.principal.email,
+			properties,
+		});
+
+		if (nodeOrErr.isLeft()) {
+			return left(nodeOrErr.value);
+		}
+
+		const article = nodeOrErr.value;
+
+		const createOrErr = await this.nodeService.create(ctx, article.metadata);
+		if (createOrErr.isLeft()) {
+			return left(createOrErr.value);
+		}
+
+		return right(toRawArticleDTO(article));
+	}
+
+	async #update(
+		ctx: AuthenticationContext,
+		uuid: string,
+		metadata: Partial<RawArticleDTO>,
+	): Promise<Either<AntboxError, RawArticleDTO>> {
+		const properties: Partial<ArticleProperties> = {};
+
+		if (metadata.articleTitle) {
+			properties.articleTitle = metadata.articleTitle;
+			if (!metadata.articleFid) {
+				properties.articleFid = this.#generateArticleFid(metadata.articleTitle);
+			}
+		}
+
+		if (metadata.articleFid) {
+			properties.articleFid = metadata.articleFid;
+		}
+
+		if (metadata.articleResume) {
+			properties.articleResume = metadata.articleResume;
+		}
+		if (metadata.articleBody) {
+			properties.articleBody = metadata.articleBody;
+		}
+		if (metadata.articleAuthor) {
+			properties.articleAuthor = metadata.articleAuthor;
+		}
+
+		const title = metadata.title ||
+			(metadata.articleTitle ? selectLocalizedString(metadata.articleTitle, "pt") : undefined);
+
+		const updateOrErr = await this.nodeService.update(ctx, uuid, {
+			title,
+			description: metadata.description,
+			parent: metadata.parent,
+			properties,
+		});
+
+		if (updateOrErr.isLeft()) {
+			return left(updateOrErr.value);
+		}
+
+		const articleOrErr = await this.get(ctx, uuid);
+		if (articleOrErr.isLeft()) {
+			return left(articleOrErr.value);
+		}
+
+		return right(articleOrErr.value);
 	}
 
 	async get(
 		ctx: AuthenticationContext,
 		uuid: string,
-		lang?: "pt" | "en" | "fr" | "es",
-	): Promise<Either<AntboxError, string>> {
-		if (lang) {
-			return this.#getByLang(ctx, uuid, lang);
+	): Promise<Either<AntboxError, RawArticleDTO>> {
+		const nodeOrErr = await this.nodeService.get(ctx, uuid);
+
+		if (nodeOrErr.isLeft()) {
+			return left(nodeOrErr.value);
+		}
+
+		const node = nodeOrErr.value;
+
+		if (!Nodes.isArticle(node as unknown as NodeLike)) {
+			return left(new NodeNotFoundError(uuid));
+		}
+
+		const articleOrErr = ArticleNode.create({
+			...node,
+			properties: node.properties as ArticleProperties,
+		});
+
+		if (articleOrErr.isLeft()) {
+			return left(articleOrErr.value);
+		}
+
+		return right(toRawArticleDTO(articleOrErr.value));
+	}
+
+	async getLocalized(
+		ctx: AuthenticationContext,
+		uuid: string,
+		locale: string,
+	): Promise<Either<AntboxError, LocalizedArticleDTO>> {
+		const articleOrErr = await this.get(ctx, uuid);
+
+		if (articleOrErr.isLeft()) {
+			return left(articleOrErr.value);
 		}
 
 		const nodeOrErr = await this.nodeService.get(ctx, uuid);
@@ -72,95 +181,61 @@ export class ArticleService {
 			return left(nodeOrErr.value);
 		}
 
-		const node = nodeOrErr.value;
+		const articleNodeOrErr = ArticleNode.create({
+			...nodeOrErr.value,
+			properties: nodeOrErr.value.properties as ArticleProperties,
+		});
 
-		const fileTextOrErr = await this.#getFileText(ctx, uuid);
-		if (fileTextOrErr.isLeft()) {
-			return left(fileTextOrErr.value);
+		if (articleNodeOrErr.isLeft()) {
+			return left(articleNodeOrErr.value);
 		}
 
-		const fileText = fileTextOrErr.value;
-
-		if (Nodes.isMarkdown(node as unknown as NodeLike)) {
-			const html = await this.#markdownToHtml(fileText);
-			return right(html);
-		}
-
-		if (Nodes.isHtml(node as unknown as NodeLike)) {
-			return right(fileText);
-		}
-
-		if (Nodes.isTextPlain(node as unknown as NodeLike)) {
-			const html = await this.#textPlainToHtml(fileText);
-			return right(html);
-		}
-
-		if (!Nodes.isArticle(node as unknown as NodeLike)) {
-			return left(new NodeNotFoundError(uuid));
-		}
-
-		return right(fileText);
+		return right(toLocalizedArticleDTO(articleNodeOrErr.value, locale));
 	}
 
-	async #getByLang(
+	async getLocalizedByFid(
 		ctx: AuthenticationContext,
-		uuid: string,
-		lang: "pt" | "en" | "fr" | "es",
-	): Promise<Either<AntboxError, string>> {
-		const htmlOrErr = await this.get(ctx, uuid);
-		if (htmlOrErr.isLeft()) {
-			return left(htmlOrErr.value);
+		fid: string,
+		locale: string,
+	): Promise<Either<AntboxError, LocalizedArticleDTO>> {
+		const articlesOrErrs = await this.nodeService.find(
+			ctx,
+			[
+				["mimetype", "==", "application/vnd.antbox.article"],
+			],
+			Number.MAX_SAFE_INTEGER,
+		);
+
+		if (articlesOrErrs.isLeft()) {
+			return left(articlesOrErrs.value);
 		}
 
-		if (!["pt", "en", "es", "fr"].includes(lang)) {
-			return left(new NodeNotFoundError(uuid));
-		}
+		for (const node of articlesOrErrs.value.nodes) {
+			const props = node.metadata.properties as ArticleProperties;
+			if (props.articleFid && props.articleFid[locale] === fid) {
+				const articleNodeOrErr = ArticleNode.create({
+					...node.metadata,
+					properties: props,
+				});
 
-		const html = htmlOrErr.value;
+				if (articleNodeOrErr.isLeft()) {
+					continue;
+				}
 
-		try {
-			const dom = new JSDOM(html);
-			const document = dom.window.document;
-
-			if (!document) {
-				console.error("Error parsing file text to DOM");
-				return right(html);
+				return right(toLocalizedArticleDTO(articleNodeOrErr.value, locale));
 			}
-
-			const contentElement = document.querySelector(`template[lang='${lang}']`)?.innerHTML ??
-				document.querySelector("template:not([lang])")?.innerHTML ??
-				document.querySelector("body")?.innerHTML;
-
-			return right(contentElement ?? html);
-		} catch (e) {
-			console.error("Error parsing file text to DOM: ", e);
-			return left(new UnknownError("Error parsing file text to DOM"));
 		}
+
+		return left(
+			new NodeNotFoundError(`Article with fid '${fid}' and locale '${locale}' not found`),
+		);
 	}
 
-	async delete(
-		ctx: AuthenticationContext,
-		uuid: string,
-	): Promise<Either<AntboxError, void>> {
-		const nodeOrErr = await this.nodeService.get(ctx, uuid);
-
-		if (nodeOrErr.isLeft()) {
-			return left(nodeOrErr.value);
-		}
-
-		const node = nodeOrErr.value;
-		if (!Nodes.isArticle(node as unknown as NodeLike)) {
-			return left(new NodeNotFoundError(uuid));
-		}
-
-		return this.nodeService.delete(ctx, uuid);
-	}
-
-	async list(ctx: AuthenticationContext): Promise<NodeMetadata[]> {
+	async list(ctx: AuthenticationContext): Promise<RawArticleDTO[]> {
 		const nodesOrErrs = await this.nodeService.find(
 			ctx,
 			[
-				["aspects", "contains", ARTICLE_ASPECT.uuid],
+				["mimetype", "==", "application/vnd.antbox.article"],
 			],
 			Number.MAX_SAFE_INTEGER,
 		);
@@ -170,92 +245,35 @@ export class ArticleService {
 			return [];
 		}
 
-		return nodesOrErrs.value.nodes.map((n) => n.metadata);
+		return nodesOrErrs.value.nodes
+			.map((n) => {
+				const articleOrErr = ArticleNode.create({
+					...n.metadata,
+					properties: n.metadata.properties as ArticleProperties,
+				});
+				return articleOrErr.isRight() ? toRawArticleDTO(articleOrErr.value) : null;
+			})
+			.filter((a): a is RawArticleDTO => a !== null);
 	}
 
-	async #markdownToHtml(value: string): Promise<string> {
-		try {
-			const html = await parse(value);
-			return html;
-		} catch (error) {
-			console.error(
-				`Error in parsing markdown to html: ${JSON.stringify(error)}`,
-			);
-			return "";
-		}
-	}
-
-	async #textPlainToHtml(value: string): Promise<string> {
-		try {
-			const html = await parse(value);
-			return html;
-		} catch (error) {
-			console.error(
-				`Error in parsing text plain to html: ${JSON.stringify(error)}`,
-			);
-			return "";
-		}
-	}
-
-	async #getFileText(
+	async delete(
 		ctx: AuthenticationContext,
 		uuid: string,
-	): Promise<Either<AntboxError, string>> {
-		const fileOrErr = await this.nodeService.export(ctx, uuid);
-		if (fileOrErr.isLeft()) {
-			return left(fileOrErr.value);
-		}
+	): Promise<Either<AntboxError, void>> {
+		const nodeOrErr = await this.get(ctx, uuid);
 
-		const fileText = await fileOrErr.value.text();
-
-		return right(fileText);
-	}
-
-	async #update(
-		ctx: AuthenticationContext,
-		file: File,
-		metadata: { uuid: string; title: string; description?: string; parent: string },
-	): Promise<Either<AntboxError, NodeMetadata>> {
-		const nodeOrErr = await this.nodeService.get(ctx, metadata.uuid);
 		if (nodeOrErr.isLeft()) {
 			return left(nodeOrErr.value);
 		}
 
-		const existingNode = nodeOrErr.value;
+		return this.nodeService.delete(ctx, uuid);
+	}
 
-		const createOrErr = FileNode.create({
-			...metadata,
-			owner: ctx.principal.email,
-			size: file.size,
-			mimetype: file.type,
-			aspects: existingNode.aspects,
-		});
-
-		if (createOrErr.isLeft()) {
-			return left(createOrErr.value);
+	#generateArticleFid(articleTitle: LocaleMap): LocaleMap {
+		const articleFid: LocaleMap = {};
+		for (const [locale, title] of Object.entries(articleTitle)) {
+			articleFid[locale] = FidGenerator.generate(title);
 		}
-
-		const article = createOrErr.value;
-
-		const updateFileOrErr = await this.context.storage.write(
-			article.uuid,
-			file,
-			{
-				title: article.title,
-				mimetype: article.mimetype,
-				parent: article.parent,
-			},
-		);
-
-		if (updateFileOrErr.isLeft()) {
-			return left(updateFileOrErr.value);
-		}
-
-		const voidOrErr = await this.context.repository.add(article);
-		if (voidOrErr.isLeft()) {
-			return left(voidOrErr.value);
-		}
-
-		return right(article.metadata);
+		return articleFid;
 	}
 }

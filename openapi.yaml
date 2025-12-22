@@ -18,6 +18,8 @@ tags:
     description: Operations related to AI agents
   - name: api-keys
     description: Operations related to API keys
+  - name: articles
+    description: Operations related to articles (internationalized content)
   - name: aspects
     description: Operations related to aspects
   - name: docs
@@ -415,6 +417,132 @@ paths:
               schema:
                 type: string
                 format: binary
+        default:
+          $ref: "#/components/responses/Error"
+  /articles:
+    get:
+      tags:
+        - articles
+      summary: List all articles
+      operationId: listArticles
+      responses:
+        "200":
+          description: A list of articles
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RawArticleDTO"
+        default:
+          $ref: "#/components/responses/Error"
+    post:
+      tags:
+        - articles
+      summary: Create or replace an article
+      operationId: createOrReplaceArticle
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: A JSON file containing the article's metadata with internationalized fields.
+      responses:
+        "200":
+          description: Article created or replaced successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RawArticleDTO"
+        default:
+          $ref: "#/components/responses/Error"
+  "/articles/{uuid}":
+    get:
+      tags:
+        - articles
+      summary: Get an article (raw with all translations)
+      operationId: getArticle
+      parameters:
+        - $ref: "#/components/parameters/UUID"
+      responses:
+        "200":
+          description: Article details with all locale maps
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RawArticleDTO"
+        default:
+          $ref: "#/components/responses/Error"
+    delete:
+      tags:
+        - articles
+      summary: Delete an article
+      operationId: deleteArticle
+      parameters:
+        - $ref: "#/components/parameters/UUID"
+      responses:
+        "200":
+          description: Article deleted successfully
+        default:
+          $ref: "#/components/responses/Error"
+  "/articles/{uuid}/-/localized":
+    get:
+      tags:
+        - articles
+      summary: Get a localized article
+      operationId: getLocalizedArticle
+      description: Returns article with flattened strings based on locale fallback (requested → pt → en → first available)
+      parameters:
+        - $ref: "#/components/parameters/UUID"
+        - name: locale
+          in: query
+          required: false
+          schema:
+            type: string
+            default: pt
+          description: Locale code (e.g., pt, en, fr, es)
+      responses:
+        "200":
+          description: Localized article with flattened string fields
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LocalizedArticleDTO"
+        default:
+          $ref: "#/components/responses/Error"
+  "/articles/-/fid/{fid}":
+    get:
+      tags:
+        - articles
+      summary: Get a localized article by FID
+      operationId: getArticleByFid
+      description: Finds an article by its localized FID and returns the localized version
+      parameters:
+        - name: fid
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The friendly ID (FID) in the specified locale
+        - name: locale
+          in: query
+          required: false
+          schema:
+            type: string
+            default: pt
+          description: Locale code (e.g., pt, en, fr, es)
+      responses:
+        "200":
+          description: Localized article found by FID
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LocalizedArticleDTO"
         default:
           $ref: "#/components/responses/Error"
   /docs:
@@ -2463,6 +2591,127 @@ components:
         message:
           type: string
           description: Optional message describing the transition
+    LocaleMap:
+      type: object
+      description: A map of locale codes to localized strings
+      additionalProperties:
+        type: string
+      example:
+        pt: "Olá Mundo"
+        en: "Hello World"
+        fr: "Bonjour le Monde"
+    RawArticleDTO:
+      type: object
+      required:
+        - uuid
+        - title
+        - articleTitle
+        - articleFid
+        - articleResume
+        - articleBody
+        - articleAuthor
+        - parent
+        - createdTime
+        - modifiedTime
+        - owner
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          description: Unique identifier for the article
+        title:
+          type: string
+          description: Node title (auto-generated from articleTitle if not provided)
+        description:
+          type: string
+          description: Optional description
+        articleTitle:
+          $ref: "#/components/schemas/LocaleMap"
+          description: Article title in multiple locales
+        articleFid:
+          $ref: "#/components/schemas/LocaleMap"
+          description: Friendly ID in multiple locales (auto-generated from articleTitle if not provided)
+        articleResume:
+          $ref: "#/components/schemas/LocaleMap"
+          description: Article summary/resume in multiple locales
+        articleBody:
+          $ref: "#/components/schemas/LocaleMap"
+          description: Article body content in multiple locales
+        articleAuthor:
+          type: string
+          description: Article author (not localized)
+        parent:
+          type: string
+          format: uuid
+          description: Parent folder UUID
+        createdTime:
+          type: string
+          format: date-time
+          description: Creation timestamp
+        modifiedTime:
+          type: string
+          format: date-time
+          description: Last modification timestamp
+        owner:
+          type: string
+          format: email
+          description: Owner email
+    LocalizedArticleDTO:
+      type: object
+      required:
+        - uuid
+        - title
+        - articleTitle
+        - articleFid
+        - articleResume
+        - articleBody
+        - articleAuthor
+        - parent
+        - createdTime
+        - modifiedTime
+        - owner
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          description: Unique identifier for the article
+        title:
+          type: string
+          description: Node title
+        description:
+          type: string
+          description: Optional description
+        articleTitle:
+          type: string
+          description: Localized article title (selected by fallback logic)
+        articleFid:
+          type: string
+          description: Localized friendly ID (selected by fallback logic)
+        articleResume:
+          type: string
+          description: Localized article summary (selected by fallback logic)
+        articleBody:
+          type: string
+          description: Localized article body (selected by fallback logic)
+        articleAuthor:
+          type: string
+          description: Article author (not localized)
+        parent:
+          type: string
+          format: uuid
+          description: Parent folder UUID
+        createdTime:
+          type: string
+          format: date-time
+          description: Creation timestamp
+        modifiedTime:
+          type: string
+          format: date-time
+          description: Last modification timestamp
+        owner:
+          type: string
+          format: email
+          description: Owner email
   securitySchemes:
     bearerAuth:
       type: http

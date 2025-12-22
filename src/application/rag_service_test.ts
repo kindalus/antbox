@@ -92,7 +92,7 @@ describe("RAGService", () => {
 					"search across the entire platform content",
 				);
 				expect(mockAgentService.lastChatInput.options.instructions).toContain(
-					'":content", "~="',
+					'prefix your query with "?"',
 				);
 			}
 		});
@@ -126,7 +126,7 @@ describe("RAGService", () => {
 			if (result.isRight()) {
 				const instructions = mockAgentService.lastChatInput.options.instructions;
 				expect(instructions).toContain("semantic/conceptual queries");
-				expect(instructions).toContain('[":content", "~=", "user query"]');
+				expect(instructions).toContain('"?user query"');
 				expect(instructions).toContain("find(filters)");
 				expect(instructions).toContain("get(uuid)");
 				expect(instructions).toContain("export(uuid)");

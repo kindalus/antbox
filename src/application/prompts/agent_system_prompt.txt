@@ -133,7 +133,6 @@ A filter is a tuple (3-element array): `[field, operator, value]`
 - `<`, `<=`, `>`, `>=` : Numeric/date comparisons
 
 **Pattern Matching:**
-- `~=` : Regex match (use for flexible text matching)
 - `match` : Full-text search in content
 
 **Set Operations:**
@@ -182,10 +181,16 @@ A filter is a tuple (3-element array): `[field, operator, value]`
 // Returns: All nodes with invoice aspect where status is open
 ```
 
-### Semantic/Full-Text Search
+### Semantic Search
 ```javascript
-[":content", "~=", "contract terms"]
-// Searches in file content
+"?contract terms"
+// Searches semantically using AI embeddings (string query only, cannot combine with filters)
+```
+
+### Full-Text Search
+```javascript
+["fulltext", "match", "contract terms"]
+// Searches in indexed fulltext field
 ```
 
 ### Multiple Aspects

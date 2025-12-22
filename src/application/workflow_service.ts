@@ -17,6 +17,8 @@ import { NodesFilters } from "domain/nodes_filters.ts";
 import { builtinWorkflows } from "./builtin_workflows/index.ts";
 import type { NodeLike } from "domain/node_like.ts";
 import { toWorkflowInstanceDTO, type WorkflowInstanceDTO } from "./workflow_instance_dto.ts";
+import { Users } from "domain/users_groups/users.ts";
+import { Groups } from "domain/users_groups/groups.ts";
 
 export class WorkflowService {
 	#context: WorkflowServiceContext;
@@ -345,17 +347,154 @@ export class WorkflowService {
 		return right(toWorkflowInstanceDTO(instance));
 	}
 
-	async getInstance(
+	async updateNode(
 		authCtx: AuthenticationContext,
 		nodeUuid: string,
-	): Promise<Either<AntboxError, WorkflowInstanceDTO>> {
-		// Verify user has access to the node
-		const nodeOrErr = await this.#context.nodeService.get(authCtx, nodeUuid);
-		if (nodeOrErr.isLeft()) {
-			return left(nodeOrErr.value);
+		metadata: Partial<NodeMetadata>,
+	): Promise<Either<AntboxError, void>> {
+		// Get workflow instance
+		const instanceOrErr = await this.#context.workflowInstanceRepository.getByNodeUuid(nodeUuid);
+		if (instanceOrErr.isLeft()) {
+			return left(instanceOrErr.value);
+		}
+		const instance = instanceOrErr.value;
+
+		// Check if user is allowed to access this instance
+		if (!this.#canUserAccessInstance(authCtx, instance)) {
+			return left(new ForbiddenError());
 		}
 
+		// Check if instance is cancelled or not running
+		if (instance.cancelled || !instance.running) {
+			return left(
+				new BadRequestError("Cannot update node in a cancelled or completed workflow"),
+			);
+		}
+
+		// Get workflow definition to check current state permissions
+		let workflowDef = instance.workflowDefinition;
+		if (!workflowDef) {
+			const workflowDefOrErr = await this.getWorkflowDefinition(
+				authCtx,
+				instance.workflowDefinitionUuid,
+			);
+			if (workflowDefOrErr.isLeft()) {
+				return left(workflowDefOrErr.value);
+			}
+			workflowDef = workflowDefOrErr.value;
+		}
+
+		// Find current state
+		const currentState = workflowDef.states.find((s) => s.name === instance.currentStateName);
+		if (!currentState) {
+			return left(
+				new AntboxError(
+					"InvalidState",
+					`Current state ${instance.currentStateName} not found in workflow definition`,
+				),
+			);
+		}
+
+		// Check if user is in allowed groups for modification
+		if (!this.#canUserModifyInState(authCtx, currentState, instance.groupsAllowed)) {
+			return left(new ForbiddenError());
+		}
+
+		// Create workflow-instance context
+		const workflowInstanceCtx: AuthenticationContext = {
+			tenant: authCtx.tenant,
+			principal: {
+				email: Users.WORKFLOW_INSTANCE_USER_EMAIL,
+				groups: [Groups.ADMINS_GROUP_UUID],
+			},
+			mode: authCtx.mode,
+		};
+
+		// Call node service with workflow-instance credentials
+		return await this.#context.nodeService.update(
+			workflowInstanceCtx,
+			nodeUuid,
+			metadata,
+		);
+	}
+
+	async updateNodeFile(
+		authCtx: AuthenticationContext,
+		nodeUuid: string,
+		file: File,
+	): Promise<Either<AntboxError, void>> {
+		// Get workflow instance
 		const instanceOrErr = await this.#context.workflowInstanceRepository.getByNodeUuid(nodeUuid);
+		if (instanceOrErr.isLeft()) {
+			return left(instanceOrErr.value);
+		}
+		const instance = instanceOrErr.value;
+
+		// Check if user is allowed to access this instance
+		if (!this.#canUserAccessInstance(authCtx, instance)) {
+			return left(new ForbiddenError());
+		}
+
+		// Check if instance is cancelled or not running
+		if (instance.cancelled || !instance.running) {
+			return left(
+				new BadRequestError("Cannot update node file in a cancelled or completed workflow"),
+			);
+		}
+
+		// Get workflow definition to check current state permissions
+		let workflowDef = instance.workflowDefinition;
+		if (!workflowDef) {
+			const workflowDefOrErr = await this.getWorkflowDefinition(
+				authCtx,
+				instance.workflowDefinitionUuid,
+			);
+			if (workflowDefOrErr.isLeft()) {
+				return left(workflowDefOrErr.value);
+			}
+			workflowDef = workflowDefOrErr.value;
+		}
+
+		// Find current state
+		const currentState = workflowDef.states.find((s) => s.name === instance.currentStateName);
+		if (!currentState) {
+			return left(
+				new AntboxError(
+					"InvalidState",
+					`Current state ${instance.currentStateName} not found in workflow definition`,
+				),
+			);
+		}
+
+		// Check if user is in allowed groups for modification
+		if (!this.#canUserModifyInState(authCtx, currentState, instance.groupsAllowed)) {
+			return left(new ForbiddenError());
+		}
+
+		// Create workflow-instance context
+		const workflowInstanceCtx: AuthenticationContext = {
+			tenant: authCtx.tenant,
+			principal: {
+				email: Users.WORKFLOW_INSTANCE_USER_EMAIL,
+				groups: [Groups.ADMINS_GROUP_UUID],
+			},
+			mode: authCtx.mode,
+		};
+
+		// Call node service with workflow-instance credentials
+		return await this.#context.nodeService.updateFile(
+			workflowInstanceCtx,
+			nodeUuid,
+			file,
+		);
+	}
+
+	async getInstance(
+		authCtx: AuthenticationContext,
+		uuid: string,
+	): Promise<Either<AntboxError, WorkflowInstanceDTO>> {
+		// Load the workflow instance by its UUID
+		const instanceOrErr = await this.#context.workflowInstanceRepository.getByUuid(uuid);
 		if (instanceOrErr.isLeft()) {
 			return left(instanceOrErr.value);
 		}
@@ -510,6 +649,28 @@ export class WorkflowService {
 				authCtx.principal.groups.includes(allowedGroup)
 			);
 		});
+	}
+
+	#canUserModifyInState(
+		authCtx: AuthenticationContext,
+		state: { groupsAllowedToModify?: string[] },
+		workflowGroupsAllowed?: string[],
+	): boolean {
+		// Admins can always modify
+		if (authCtx.principal.groups.includes(Groups.ADMINS_GROUP_UUID)) {
+			return true;
+		}
+
+		// Use state's groupsAllowedToModify if specified, otherwise use workflow's groupsAllowed
+		const allowedGroups = state.groupsAllowedToModify || workflowGroupsAllowed || [];
+
+		// If no groups specified, all users can modify
+		if (allowedGroups.length === 0) {
+			return true;
+		}
+
+		// Check if user belongs to any of the allowed groups
+		return allowedGroups.some((allowedGroup) => authCtx.principal.groups.includes(allowedGroup));
 	}
 
 	/**

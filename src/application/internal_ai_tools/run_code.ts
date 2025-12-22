@@ -67,10 +67,6 @@ export function createRunCodeTool(
 	};
 
 	return async function runCode(code: string): Promise<string> {
-		console.debug("runCode");
-		console.debug("======================================>");
-		console.debug(code);
-
 		try {
 			// Create a data URL module with the user's code
 			// The code must export a default function
@@ -96,9 +92,6 @@ export function createRunCodeTool(
 				result = JSON.stringify(result, null, 2);
 			}
 
-			console.debug("RESULT ===> ", result);
-			console.debug("<======================================");
-
 			// Convert objects to JSON string
 			return result;
 		} catch (error) {
@@ -109,9 +102,6 @@ export function createRunCodeTool(
 				message: error instanceof Error ? error.message : String(error),
 				stack: error instanceof Error ? error.stack : undefined,
 			};
-
-			console.debug("RESULT ===> ", JSON.stringify(errorObj, null, 2));
-			console.debug("<======================================");
 
 			return JSON.stringify(errorObj, null, 2);
 		}

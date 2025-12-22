@@ -20,4 +20,27 @@ export const ROOT_USER = UserNode.create({
 	groups: [Groups.ADMINS_GROUP_UUID],
 }).value as UserNode;
 
-export const builtinUsers: UserNode[] = [ROOT_USER, ANONYMOUS_USER];
+export const LOCK_SYSTEM_USER = UserNode.create({
+	uuid: Users.LOCK_SYSTEM_USER_UUID,
+	email: Users.LOCK_SYSTEM_USER_EMAIL,
+	title: "Lock System",
+	owner: Users.ROOT_USER_EMAIL,
+	group: Groups.ADMINS_GROUP_UUID,
+	groups: [Groups.ADMINS_GROUP_UUID],
+}).value as UserNode;
+
+export const WORKFLOW_INSTANCE_USER = UserNode.create({
+	uuid: Users.WORKFLOW_INSTANCE_USER_UUID,
+	email: Users.WORKFLOW_INSTANCE_USER_EMAIL,
+	title: "Workflow Instance",
+	owner: Users.ROOT_USER_EMAIL,
+	group: Groups.ADMINS_GROUP_UUID,
+	groups: [Groups.ADMINS_GROUP_UUID],
+}).value as UserNode;
+
+export const builtinUsers: UserNode[] = [
+	ROOT_USER,
+	ANONYMOUS_USER,
+	LOCK_SYSTEM_USER,
+	WORKFLOW_INSTANCE_USER,
+];

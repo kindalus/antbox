@@ -287,3 +287,74 @@ export function exportWorkflowDefinitionHandler(tenants: AntboxTenant[]): HttpHa
 		},
 	);
 }
+
+// ============================================================================
+// WORKFLOW NODE UPDATE HANDLERS
+// ============================================================================
+
+export function updateWorkflowNodeHandler(tenants: AntboxTenant[]): HttpHandler {
+	return defaultMiddlewareChain(
+		tenants,
+		async (req: Request): Promise<Response> => {
+			const tenant = getTenant(req, tenants);
+			const service = tenant.workflowService;
+
+			const unavailableResponse = checkServiceAvailability(service, "Workflow service");
+			if (unavailableResponse) {
+				return Promise.resolve(unavailableResponse);
+			}
+
+			const params = getParams(req);
+			if (!params.uuid) {
+				return sendBadRequest({ error: "{ uuid } not given" });
+			}
+
+			try {
+				const metadata = await req.json();
+
+				return await service!
+					.updateNode(getAuthenticationContext(req), params.uuid, metadata)
+					.then(processServiceResult)
+					.catch(processError);
+			} catch (_error) {
+				return sendBadRequest({ error: "Invalid JSON body" });
+			}
+		},
+	);
+}
+
+export function updateWorkflowNodeFileHandler(tenants: AntboxTenant[]): HttpHandler {
+	return defaultMiddlewareChain(
+		tenants,
+		async (req: Request): Promise<Response> => {
+			const tenant = getTenant(req, tenants);
+			const service = tenant.workflowService;
+
+			const unavailableResponse = checkServiceAvailability(service, "Workflow service");
+			if (unavailableResponse) {
+				return Promise.resolve(unavailableResponse);
+			}
+
+			const params = getParams(req);
+			if (!params.uuid) {
+				return sendBadRequest({ error: "{ uuid } not given" });
+			}
+
+			try {
+				const formData = await req.formData();
+				const file = formData.get("file") as File;
+
+				if (!file) {
+					return sendBadRequest({ error: "{ file } not given in form data" });
+				}
+
+				return await service!
+					.updateNodeFile(getAuthenticationContext(req), params.uuid, file)
+					.then(processServiceResult)
+					.catch(processError);
+			} catch (_error) {
+				return sendBadRequest({ error: "Invalid multipart/form-data body" });
+			}
+		},
+	);
+}

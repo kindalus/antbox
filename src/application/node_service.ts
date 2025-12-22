@@ -21,8 +21,9 @@ import { NodeUpdateChanges, NodeUpdatedEvent } from "domain/nodes/node_updated_e
 
 import type { AuthenticationContext } from "./authentication_context.ts";
 import { builtinFolders, SYSTEM_FOLDER, SYSTEM_FOLDERS } from "./builtin_folders/index.ts";
-import { isPrincipalAllowedTo } from "./is_principal_allowed_to.ts";
 import type { NodeServiceContext } from "./node_service_context.ts";
+import { AuthorizationService } from "./authorization_service.ts";
+import { FindService } from "./find_service.ts";
 import { FeatureNode, FeatureParameter } from "domain/features/feature_node.ts";
 import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
@@ -46,7 +47,6 @@ import { builtinFeatures } from "./builtin_features/index.ts";
 import { builtinGroups } from "./builtin_groups/index.ts";
 import { builtinUsers } from "./builtin_users/index.ts";
 import { ParentFolderUpdateHandler } from "./parent_folder_update_handler.ts";
-import { resolveHttpAuthRuntimeConfig } from "npm:@aws-sdk/client-s3@^3.744.0";
 
 // TODO: Implements throwing events
 
@@ -64,8 +64,14 @@ import { resolveHttpAuthRuntimeConfig } from "npm:@aws-sdk/client-s3@^3.744.0";
  */
 export class NodeService {
 	private readonly parentFolderUpdateHandler: ParentFolderUpdateHandler;
+	private readonly authorizationService: AuthorizationService;
+	private readonly findService: FindService;
 
 	constructor(private readonly context: NodeServiceContext) {
+		// Initialize services
+		this.authorizationService = new AuthorizationService();
+		this.findService = new FindService(this.context, this.authorizationService);
+
 		// Initialize the parent folder update handler
 		this.parentFolderUpdateHandler = new ParentFolderUpdateHandler(this.context);
 
@@ -143,7 +149,11 @@ export class NodeService {
 			return left(nodeOrErr.value);
 		}
 
-		const allowedOrErr = isPrincipalAllowedTo(ctx, parentOrErr.value, "Write");
+		const allowedOrErr = this.authorizationService.isPrincipalAllowedTo(
+			ctx,
+			parentOrErr.value,
+			"Write",
+		);
 		if (allowedOrErr.isLeft()) {
 			return left(allowedOrErr.value);
 		}
@@ -169,9 +179,6 @@ export class NodeService {
 			);
 
 			if (errs.isLeft()) {
-				console.debug("Node doesn't satisfy filters");
-				console.debug(errs.value);
-				console.debug("=========================");
 				return left(errs.value);
 			}
 		}
@@ -276,6 +283,15 @@ export class NodeService {
 			return left(nodeOrErr.value);
 		}
 
+		// Prevent deletion of nodes involved in a workflow
+		if (nodeOrErr.value.metadata.workflowInstanceUuid) {
+			return left(
+				new BadRequestError(
+					"Cannot delete node involved in a workflow instance. Cancel or complete the workflow first.",
+				),
+			);
+		}
+
 		const parentOrErr = await this.#getBuiltinFolderOrFromRepository(
 			nodeOrErr.value.parent,
 		);
@@ -285,7 +301,11 @@ export class NodeService {
 			);
 		}
 
-		const allowedOrErr = isPrincipalAllowedTo(ctx, parentOrErr.value, "Write");
+		const allowedOrErr = this.authorizationService.isPrincipalAllowedTo(
+			ctx,
+			parentOrErr.value,
+			"Write",
+		);
 		if (allowedOrErr.isLeft()) {
 			return left(allowedOrErr.value);
 		}
@@ -397,7 +417,11 @@ export class NodeService {
 			);
 		}
 
-		const allowedOrErr = isPrincipalAllowedTo(ctx, parentOrErr.value, "Export");
+		const allowedOrErr = this.authorizationService.isPrincipalAllowedTo(
+			ctx,
+			parentOrErr.value,
+			"Export",
+		);
 		if (allowedOrErr.isLeft()) {
 			return left(allowedOrErr.value);
 		}
@@ -453,50 +477,13 @@ export class NodeService {
 
 	/**
 	 * Finds nodes based on filters, with support for semantic search and permission checks.
-	 *
-	 * This is a complex method that performs multiple stages of processing:
-	 *
-	 * 1. **String Parsing Stage**: If filters are provided as a string:
-	 *    - Attempts to parse it as structured filters
-	 *    - Falls back to content search if parsing fails
-	 *
-	 * 2. **Semantic Search Stage**: Detects semantic search operators (~= on :content)
-	 *    - Uses vector embeddings to find semantically similar content
-	 *    - Replaces semantic filter with UUID-based filter from results
-	 *    - Preserves relevance scores for ranking
-	 *
-	 * 3. **Permission Resolution Stage**: Transforms filters to respect permissions
-	 *    - Adds permission constraints based on user's authentication context
-	 *    - Ensures users only see nodes they have "Read" access to
-	 *    - Expands filters to include permission checks
-	 *
-	 * 4. **Special Filter Resolution Stage**: Resolves special "@" filters
-	 *    - Processes dynamic filters like "@me" (current user)
-	 *    - Handles async resolution of filter values
-	 *    - Filters out any failed resolutions
-	 *
-	 * 5. **Repository Query Stage**: Executes the processed filters
-	 *    - Applies pagination (pageSize, pageToken)
-	 *    - Returns matching nodes with metadata
-	 *    - Attaches semantic search scores if applicable
+	 * This method delegates to the FindService for all finding logic.
 	 *
 	 * @param ctx - Authentication context for permission checks
 	 * @param filters - NodeFilters (structured) or string (for parsing/content search)
 	 * @param pageSize - Number of results per page (default: 20)
 	 * @param pageToken - Page number for pagination (default: 1)
 	 * @returns Either an error or the filtered node results with pagination info
-	 *
-	 * @example
-	 * ```typescript
-	 * // Structured filter
-	 * const result = await nodeService.find(ctx, [["mimetype", "==", "image/png"]], 10, 1);
-	 *
-	 * // String content search
-	 * const result = await nodeService.find(ctx, "meeting notes", 20, 1);
-	 *
-	 * // Semantic search
-	 * const result = await nodeService.find(ctx, [[":content", "~=", "documents about AI"]], 50, 1);
-	 * ```
 	 */
 	async find(
 		ctx: AuthenticationContext,
@@ -504,57 +491,7 @@ export class NodeService {
 		pageSize = 20,
 		pageToken = 1,
 	): Promise<Either<AntboxError, NodeFilterResult>> {
-		// Stage 1: Handle string-based filters
-		if (typeof filters === "string") {
-			const filtersOrErr = NodesFilters.parse(filters);
-
-			if (filtersOrErr.isRight()) {
-				return this.find(ctx, filtersOrErr.value, pageSize, pageToken);
-			}
-
-			console.debug("defaulting to content search");
-			return this.find(ctx, [[":content", "~=", filters]], pageSize, pageToken);
-		}
-
-		// Normalize filters to 2D array format
-		filters = isNodeFilters2D(filters) ? filters : [filters];
-
-		// Stage 2: Semantic search detection and execution
-		const semanticSearchResult = await this.#extractAndPerformSemanticSearch(filters, ctx.tenant);
-
-		if (semanticSearchResult) {
-			// Replace semantic filter with UUID-based filter from vector search results
-			filters = this.#addUuidFilterToFilters(
-				this.#removeSemanticSearchFilter(filters),
-				semanticSearchResult.uuids,
-			);
-		}
-
-		// Stage 3: Add permission constraints to filters
-		const stage1 = filters.reduce(
-			this.#toFiltersWithPermissionsResolved(ctx, "Read"),
-			[],
-		);
-
-		// Stage 4: Resolve special "@" filters (async operations)
-		const batch = stage1.map((f) => this.#toFiltersWithAtResolved(f));
-		const stage2 = await Promise.allSettled(batch);
-		const stage3 = stage2.filter((r) => r.status === "fulfilled").map((r) => r.value);
-		const processedFilters = stage3.filter((f) => f.length);
-
-		// Stage 5: Execute repository query with processed filters
-		const r = await this.context.repository.filter(
-			processedFilters,
-			pageSize,
-			pageToken,
-		);
-
-		// Attach semantic search scores if available
-		if (semanticSearchResult) {
-			r.scores = semanticSearchResult.scores;
-		}
-
-		return right(r);
+		return this.findService.find(ctx, filters, pageSize, pageToken);
 	}
 
 	async get(
@@ -567,7 +504,11 @@ export class NodeService {
 		}
 
 		if (Nodes.isFolder(nodeOrErr.value)) {
-			const allowedOrErr = isPrincipalAllowedTo(ctx, nodeOrErr.value, "Read");
+			const allowedOrErr = this.authorizationService.isPrincipalAllowedTo(
+				ctx,
+				nodeOrErr.value,
+				"Read",
+			);
 			if (allowedOrErr.isLeft()) {
 				return left(allowedOrErr.value);
 			}
@@ -584,7 +525,11 @@ export class NodeService {
 			);
 		}
 
-		const allowedOrErr = isPrincipalAllowedTo(ctx, parentOrErr.value, "Read");
+		const allowedOrErr = this.authorizationService.isPrincipalAllowedTo(
+			ctx,
+			parentOrErr.value,
+			"Read",
+		);
 		if (allowedOrErr.isLeft()) {
 			return left(allowedOrErr.value);
 		}
@@ -612,7 +557,11 @@ export class NodeService {
 			return left(parentOrErr.value);
 		}
 
-		const allowedOrErr = isPrincipalAllowedTo(ctx, parentOrErr.value, "Read");
+		const allowedOrErr = this.authorizationService.isPrincipalAllowedTo(
+			ctx,
+			parentOrErr.value,
+			"Read",
+		);
 		if (allowedOrErr.isLeft()) {
 			return left(allowedOrErr.value);
 		}
@@ -728,7 +677,7 @@ export class NodeService {
 			);
 		}
 
-		const allowedOrErr = isPrincipalAllowedTo(
+		const allowedOrErr = this.authorizationService.isPrincipalAllowedTo(
 			ctx,
 			currentParentOrErr.value,
 			"Write",
@@ -741,6 +690,18 @@ export class NodeService {
 		const lockCheckOrErr = this.#checkNodeLock(ctx, nodeOrErr.value);
 		if (lockCheckOrErr.isLeft()) {
 			return left(lockCheckOrErr.value);
+		}
+
+		// Check if node is involved in a workflow
+		// Only workflow-instance user can modify nodes in a workflow
+		if (nodeOrErr.value.metadata.workflowInstanceUuid) {
+			if (ctx.principal.email !== Users.WORKFLOW_INSTANCE_USER_EMAIL) {
+				return left(
+					new BadRequestError(
+						"Cannot modify node involved in a workflow instance. Use workflow transitions to modify.",
+					),
+				);
+			}
 		}
 
 		if (Nodes.isApikey(nodeOrErr.value)) {
@@ -920,7 +881,11 @@ export class NodeService {
 			);
 		}
 
-		const allowedOrErr = isPrincipalAllowedTo(ctx, parentOrErr.value, "Write");
+		const allowedOrErr = this.authorizationService.isPrincipalAllowedTo(
+			ctx,
+			parentOrErr.value,
+			"Write",
+		);
 		if (allowedOrErr.isLeft()) {
 			return left(allowedOrErr.value);
 		}
@@ -939,6 +904,33 @@ export class NodeService {
 		const updateResult = await this.context.repository.update(node);
 		if (updateResult.isLeft()) {
 			return left(updateResult.value);
+		}
+
+		// If it's a folder, lock all children with LOCK_SYSTEM_USER
+		if (Nodes.isFolder(node)) {
+			const children = await this.context.repository.filter([[
+				"parent",
+				"==",
+				uuid,
+			]]);
+
+			// Create lock-system context
+			const lockSystemCtx: AuthenticationContext = {
+				tenant: ctx.tenant,
+				principal: {
+					email: Users.LOCK_SYSTEM_USER_EMAIL,
+					groups: [Groups.ADMINS_GROUP_UUID],
+				},
+				mode: ctx.mode,
+			};
+
+			// Lock all children recursively
+			for (const child of children.nodes) {
+				// Skip if already locked
+				if (!child.locked) {
+					await this.lock(lockSystemCtx, child.uuid, []);
+				}
+			}
 		}
 
 		return right(undefined);
@@ -960,6 +952,19 @@ export class NodeService {
 			return left(new BadRequestError("Node is not locked"));
 		}
 
+		// Prevent direct unlock of nodes locked by LOCK_SYSTEM_USER
+		// These can only be unlocked by unlocking the parent folder
+		if (
+			node.lockedBy === Users.LOCK_SYSTEM_USER_EMAIL &&
+			ctx.principal.email !== Users.LOCK_SYSTEM_USER_EMAIL
+		) {
+			return left(
+				new BadRequestError(
+					"Cannot unlock this node directly. It was locked by the system when a parent folder was locked. Unlock the parent folder instead.",
+				),
+			);
+		}
+
 		// Check if user is authorized to unlock
 		const canUnlock = this.#canUnlockNode(ctx, node);
 		if (!canUnlock) {
@@ -978,6 +983,32 @@ export class NodeService {
 		const updateResult = await this.context.repository.update(node);
 		if (updateResult.isLeft()) {
 			return left(updateResult.value);
+		}
+
+		// If it's a folder, unlock all children locked by LOCK_SYSTEM_USER
+		if (Nodes.isFolder(node)) {
+			const children = await this.context.repository.filter([[
+				"parent",
+				"==",
+				uuid,
+			]]);
+
+			// Create lock-system context
+			const lockSystemCtx: AuthenticationContext = {
+				tenant: ctx.tenant,
+				principal: {
+					email: Users.LOCK_SYSTEM_USER_EMAIL,
+					groups: [Groups.ADMINS_GROUP_UUID],
+				},
+				mode: ctx.mode,
+			};
+
+			// Unlock all children locked by LOCK_SYSTEM_USER recursively
+			for (const child of children.nodes) {
+				if (child.locked && child.lockedBy === Users.LOCK_SYSTEM_USER_EMAIL) {
+					await this.unlock(lockSystemCtx, child.uuid);
+				}
+			}
 		}
 
 		return right(undefined);
@@ -1134,53 +1165,6 @@ export class NodeService {
 		return right(foundAspects);
 	}
 
-	async #toFiltersWithAtResolved(f: NodeFilters1D): Promise<NodeFilters1D> {
-		if (!f.some((f) => f[0].startsWith("@"))) {
-			return f;
-		}
-
-		const [at, filters] = f.reduce(
-			(acc, cur) => {
-				if (cur[0].startsWith("@")) {
-					acc[0].push([cur[0].substring(1), cur[1], cur[2]]);
-					return acc;
-				}
-
-				acc[1].push(cur);
-				return acc;
-			},
-			[[], []] as [NodeFilters1D, NodeFilters1D],
-		);
-
-		at.push(["mimetype", "==", Nodes.FOLDER_MIMETYPE]);
-
-		const parentFilter = filters.find((f) => f[0] === "parent");
-		if (parentFilter) {
-			at.push(["uuid", parentFilter[1], parentFilter[2]]);
-		}
-
-		// Since system folders are not stored in the repository, we need to handle them separately
-		const spec = NodesFilters.nodeSpecificationFrom(at);
-		const sysFolders = builtinFolders.filter((f) => spec.isSatisfiedBy(f).isRight());
-
-		const result = await this.context.repository.filter(
-			at,
-			Number.MAX_SAFE_INTEGER,
-			1,
-		);
-		const parentList = [
-			...result.nodes.map((n) => n.uuid),
-			...sysFolders.map((n) => n.uuid),
-		];
-
-		if (parentList.length === 0) {
-			return [];
-		}
-
-		const cleanFilters = filters.filter((f) => f[0] !== "parent");
-		return [...cleanFilters, ["parent", "in", parentList]];
-	}
-
 	async #validateNodeAspectsThenUpdate(
 		ctx: AuthenticationContext,
 		node: FileNode | FolderNode | MetaNode,
@@ -1270,13 +1254,13 @@ export class NodeService {
 		// If validationFilters are defined, also check filter compliance
 		if (property.validationFilters && property.validationFilters.length > 0) {
 			// TODO This code calls spec directly so it can verify @filters, will remove them for now
-			let filters = isNodeFilters2D(property.validationFilters)
+			let filters: NodeFilters2D = isNodeFilters2D(property.validationFilters)
 				? property.validationFilters
 				: [property.validationFilters];
 
 			filters = filters.map((f) => {
-				return f.filter((f1) => !f1[0].startsWith("@"));
-			});
+				return f.filter((f1: NodeFilter) => !f1[0].startsWith("@"));
+			}) as NodeFilters2D;
 
 			const spec = NodesFilters.nodeSpecificationFrom(filters);
 
@@ -1306,46 +1290,6 @@ export class NodeService {
 		if (value || value === false) {
 			accProperties[key] = value;
 		}
-	}
-
-	#addAnonymousPermissionFilters(f: NodeFilters2D, p: Permission) {
-		this.#addPermissionFilters(f, [["permissions.anonymous", "contains", p]]);
-	}
-
-	#addAuthenticatedPermissionFilters(
-		ctx: AuthenticationContext,
-		f: NodeFilters2D,
-		p: Permission,
-	) {
-		this.#addPermissionFilters(f, [[
-			"permissions.authenticated",
-			"contains",
-			p,
-		]]);
-		this.#addPermissionFilters(f, [["owner", "==", ctx.principal.email]]);
-		this.#addPermissionFilters(f, [
-			["group", "==", ctx.principal.groups[0]],
-			["permissions.group", "contains", p],
-		]);
-
-		ctx.principal.groups.forEach((g) => {
-			this.#addPermissionFilters(f, [[
-				`permissions.advanced.${g}`,
-				"contains",
-				p,
-			]]);
-		});
-	}
-
-	#addPermissionFilters(f: NodeFilters2D, filters: NodeFilter[]) {
-		f.push([...filters, ["mimetype", "==", Nodes.FOLDER_MIMETYPE]]);
-
-		f.push([
-			...filters.map((
-				[field, operator, value],
-			): NodeFilter => [`@${field}`, operator, value]),
-			["mimetype", "!=", Nodes.FOLDER_MIMETYPE],
-		]);
 	}
 
 	#aspectToProperties(aspect: AspectNode): AspectProperty[] {
@@ -1419,37 +1363,6 @@ export class NodeService {
 		};
 
 		return mimetypeMap[mimetype] ?? mimetype;
-	}
-
-	#toFiltersWithPermissionsResolved(
-		ctx: AuthenticationContext,
-		permission: Permission,
-	): (acc: NodeFilters2D, cur: NodeFilters1D) => NodeFilters2D {
-		if (ctx.principal.groups.includes(Groups.ADMINS_GROUP_UUID)) {
-			return (acc: NodeFilters2D, cur: NodeFilters1D) => {
-				acc.push(cur);
-				return acc;
-			};
-		}
-
-		const permissionFilters: NodeFilters2D = [];
-		this.#addAnonymousPermissionFilters(permissionFilters, permission);
-
-		if (ctx.principal.email !== Users.ANONYMOUS_USER_EMAIL) {
-			this.#addAuthenticatedPermissionFilters(
-				ctx,
-				permissionFilters,
-				permission,
-			);
-		}
-
-		return (acc: NodeFilters2D, cur: NodeFilters1D) => {
-			for (const j of permissionFilters) {
-				acc.push([...cur, ...j]);
-			}
-
-			return acc;
-		};
 	}
 
 	#validateFeature(node: NodeLike): Either<AntboxError, void> {
@@ -1595,90 +1508,6 @@ export class NodeService {
 		// This validation would need runtime checking, but we document the expectation
 
 		return null;
-	}
-
-	async #extractAndPerformSemanticSearch(
-		filters: NodeFilters2D,
-		_tenant: string,
-	): Promise<{ uuids: string[]; scores: Record<string, number>; query: string } | null> {
-		// Check if AI features are available
-		if (!this.context.vectorDatabase || !this.context.embeddingModel) {
-			return null;
-		}
-
-		// Look for semantic search filter: [":content", "~=", "query text"]
-		let semanticQuery: string | null = null;
-
-		for (const filterGroup of filters) {
-			for (const filter of filterGroup) {
-				if (filter[0] === ":content" && filter[1] === "~=") {
-					semanticQuery = String(filter[2]);
-					break;
-				}
-			}
-			if (semanticQuery) break;
-		}
-
-		if (!semanticQuery) {
-			return null;
-		}
-
-		try {
-			// Generate embedding for query using embedding model
-			const embeddingsOrErr = await this.context.embeddingModel.embed([semanticQuery]);
-			if (embeddingsOrErr.isLeft()) {
-				console.error("Failed to generate embedding for query:", embeddingsOrErr.value);
-				return null;
-			}
-
-			const queryEmbedding = embeddingsOrErr.value[0];
-
-			// Search vector database
-			const searchOrErr = await this.context.vectorDatabase.search(
-				queryEmbedding,
-				100, // topK - return top 100 results
-			);
-
-			if (searchOrErr.isLeft()) {
-				console.error("Vector database search failed:", searchOrErr.value);
-				return null;
-			}
-
-			const results = searchOrErr.value;
-			const uuids = results.map((r) => r.nodeUuid);
-			const scores: Record<string, number> = {};
-			for (const result of results) {
-				scores[result.nodeUuid] = result.score;
-			}
-
-			return { uuids, scores, query: semanticQuery };
-		} catch (error) {
-			console.error("Semantic search failed:", error);
-			return null;
-		}
-	}
-
-	#removeSemanticSearchFilter(filters: NodeFilters2D): NodeFilters2D {
-		return filters.map((filterGroup) =>
-			filterGroup.filter((filter) => !(filter[0] === ":content" && filter[1] === "~="))
-		).filter((filterGroup) => filterGroup.length > 0);
-	}
-
-	#addUuidFilterToFilters(filters: NodeFilters2D, uuids: string[]): NodeFilters2D {
-		if (uuids.length === 0) {
-			// No results from semantic search, return filter that matches nothing
-			return [[["uuid", "==", "@@semantic-search-no-results@@"]]];
-		}
-
-		if (filters.length === 0) {
-			return [[["uuid", "in", uuids] as NodeFilter]];
-		}
-
-		// Add UUID filter to each filter group (AND condition)
-		return filters.map((filterGroup) => [
-			...filterGroup,
-			["uuid", "in", uuids] as NodeFilter,
-		]);
 	}
 
 	#canUnlockNode(ctx: AuthenticationContext, node: NodeLike): boolean {

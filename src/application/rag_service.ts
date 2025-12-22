@@ -104,19 +104,19 @@ You are operating in RAG (Retrieval-Augmented Generation) mode for knowledge dis
 ${scopeInfo}
 
 SEARCH STRATEGY:
-1. For semantic/conceptual queries, use the find tool with semantic search: [":content", "~=", "user query"]
+1. For semantic/conceptual queries, use the find tool with semantic search by prefixing your query with "?": "?user query"
 2. For specific metadata searches, use targeted filters like: ["title", "contains", "keyword"] or ["mimetype", "==", "application/pdf"]
-3. Always combine semantic and metadata filters when appropriate
+3. For fulltext searches without semantic understanding, use: ["fulltext", "match", "keyword"]
 4. If initial search returns no results, try broader keyword searches using ["title", "contains", "keyword"] filters
 
 SEARCH TOOLS AVAILABLE:
-- find(filters): Search nodes using NodeFilter queries with semantic (~=) and metadata operators
+- find(filters): Search nodes using string queries (prefix with ? for semantic search) or NodeFilter arrays for metadata filtering
 - get(uuid): Retrieve specific node details by UUID
 - export(uuid): Get full content of a specific node
 
 RESPONSE GUIDELINES:
 - Always search for information before responding to user queries
-- Use semantic search ([":content", "~=", query]) as your primary method
+- Use semantic search ("?query") as your primary method for conceptual questions
 - Include relevant document UUIDs and titles in your responses
 - If you find relevant documents, use get() or export() to retrieve more details when needed
 - Be specific about what information you found and what sources it came from`;

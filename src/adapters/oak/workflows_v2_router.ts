@@ -11,6 +11,8 @@ import {
 	listWorkflowDefinitionsHandler,
 	startWorkflowHandler,
 	transitionWorkflowHandler,
+	updateWorkflowNodeFileHandler,
+	updateWorkflowNodeHandler,
 } from "api/workflow_handlers.ts";
 import { adapt } from "./adapt.ts";
 
@@ -29,6 +31,11 @@ export default function (tenants: AntboxTenant[]): Router {
 		adapt(cancelWorkflowHandler(tenants)),
 	);
 	router.get("/workflow-instances/:uuid", adapt(getWorkflowInstanceHandler(tenants)));
+	router.patch("/workflow-instances/:uuid/-/update", adapt(updateWorkflowNodeHandler(tenants)));
+	router.put(
+		"/workflow-instances/:uuid/-/update-file",
+		adapt(updateWorkflowNodeFileHandler(tenants)),
+	);
 
 	// Workflow definition CRUD operations
 	router.get("/workflow-definitions", adapt(listWorkflowDefinitionsHandler(tenants)));

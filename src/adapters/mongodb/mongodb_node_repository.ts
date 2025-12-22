@@ -205,7 +205,6 @@ const operatorMap: Record<FilterOperator, (f: NodeFilter) => Filter<Document>> =
 	">=": ([f, _o, v]) => ({ [f]: { $gte: v } }),
 	"<": ([f, _o, v]) => ({ [f]: { $lt: v } }),
 	"<=": ([f, _o, v]) => ({ [f]: { $lte: v } }),
-	"~=": ([f, _o, v]) => ({ [f]: { $regex: v, $options: "i" } }),
 	in: ([f, _o, v]) => ({ [f]: { $in: v } }),
 	"not-in": ([f, _o, v]) => ({ [f]: { $nin: v } }),
 	contains: ([f, _o, v]) => ({ [f]: { $all: [v] } }),

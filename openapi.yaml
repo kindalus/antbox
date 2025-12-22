@@ -1383,6 +1383,76 @@ paths:
                 $ref: "#/components/schemas/AntboxError"
         default:
           $ref: "#/components/responses/Error"
+  /workflow-instances/{uuid}/-/update:
+    patch:
+      tags:
+        - workflows
+      summary: Update a node involved in a workflow instance
+      description: Update node metadata for a node that is part of an active workflow. Only users in groups allowed to modify in the current state can perform updates.
+      operationId: updateWorkflowNode
+      parameters:
+        - $ref: "#/components/parameters/UUID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NodeMetadata"
+      responses:
+        "200":
+          description: Node updated successfully
+        "400":
+          description: Bad request - workflow is cancelled or completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AntboxError"
+        "403":
+          description: Forbidden - user not allowed to modify node in current state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AntboxError"
+        default:
+          $ref: "#/components/responses/Error"
+  /workflow-instances/{uuid}/-/update-file:
+    put:
+      tags:
+        - workflows
+      summary: Update file content of a node involved in a workflow instance
+      description: Update file content for a file node that is part of an active workflow. Only users in groups allowed to modify in the current state can perform updates.
+      operationId: updateWorkflowNodeFile
+      parameters:
+        - $ref: "#/components/parameters/UUID"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        "200":
+          description: File updated successfully
+        "400":
+          description: Bad request - workflow is cancelled or completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AntboxError"
+        "403":
+          description: Forbidden - user not allowed to modify node in current state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AntboxError"
+        default:
+          $ref: "#/components/responses/Error"
   /workflow-definitions:
     get:
       tags:
@@ -1807,7 +1877,6 @@ components:
         - "<"
         - ">"
         - "!="
-        - "~=" # Note: OpenAPI does not enforce unique enums, but listing "~=" twice is non-standard.
         - "in"
         - "not-in"
         - "match"

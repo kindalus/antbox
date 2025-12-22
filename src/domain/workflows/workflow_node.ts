@@ -47,6 +47,11 @@ export interface WorkflowState {
 	 */
 	name: string;
 
+	/** * List of groups allowed to modify the node in this state.
+	 * If not specified or empty, uses the workflow's groupsAllowed.
+	 */
+	groupsAllowedToModify?: string[];
+
 	/** * Is this where new items start?
 	 */
 	isInitial?: boolean;

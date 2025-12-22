@@ -283,7 +283,6 @@ export type FilterOperator =
   | "<"
   | ">"
   | "!="
-  | "~="
   | "in"
   | "not-in"
   | "match"
@@ -437,7 +436,6 @@ Used to define scopes for Features, Smart Folders, and Searches.
 - `contains-any`: Field value (array) contains at least one value in the provided list
 - `contains-none`: Negated `contains-all` (true if at least one value from the list is missing)
 - `match`: Regex-style match (case-insensitive in `NodesFilters`; whitespace is treated as a wildcard)
-- `~=`: Case-insensitive regex match in DB-backed filtering; currently a no-op in `NodesFilters.satisfiedBy`
 
 **Examples**:
 
@@ -640,7 +638,7 @@ const imageFolder = {
   parent: "ROOT_FOLDER_UUID", // Or any parent folder UUID
 
   filters: [
-    ["mimetype", "contains", "image/"], // Only accept image mimetypes
+    ["mimetype", "match", "image/"], // Only accept image mimetypes
   ],
 
   onCreate: [

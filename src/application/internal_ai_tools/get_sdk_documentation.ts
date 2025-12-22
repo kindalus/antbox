@@ -215,7 +215,6 @@ type FilterOperator =
 	| "<"
 	| ">"
 	| "!="
-	| "~="
 	| "in"
 	| "not-in"
 	| "match"
@@ -367,7 +366,6 @@ type FilterOperator =
 	| "<"
 	| ">"
 	| "!="
-	| "~="
 	| "in"
 	| "not-in"
 	| "match"
@@ -380,7 +378,7 @@ type FilterOperator =
 type NodeFilter = [field: string, operator: FilterOperator, value: unknown];
 type NodeFilters1D = NodeFilter[];
 type NodeFilters2D = NodeFilters1D[];
-type NodeFilters = NodeFilters1D | NodeFilters2D;
+type NodeFilters = NodeFilters1D | NodeFilters2D | string;
 
 interface FeatureParameter {
 	name: string;

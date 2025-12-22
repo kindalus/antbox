@@ -79,6 +79,11 @@ export class NodesFilters {
 		const [field, operator, target] = filter;
 		const satisfiesFn = filterFns[operator];
 
+		if (!satisfiesFn) {
+			console.error(`Invalid filter operator: ${operator}`);
+			return () => false;
+		}
+
 		return (node) => {
 			const fieldValue = NodesFilters.#getFieldValue(node, field);
 
@@ -107,7 +112,6 @@ export class NodesFilters {
 type FilterFn = <T>(a: T, b: T) => boolean;
 
 const filterFns: Record<FilterOperator, FilterFn> = {
-	"~=": (_a, _b) => true,
 	"==": (a, b) => a === b,
 	"<=": (a, b) => a <= b,
 	">=": (a, b) => a >= b,
@@ -151,7 +155,6 @@ const OPERATORS: FilterOperator[] = [
 	"<=",
 	">=",
 	"!=",
-	"~=",
 	"in",
 	"<",
 	">",

@@ -430,11 +430,7 @@ const createService = async () => {
 	const eventBus = new InMemoryEventBus();
 
 	const nodeService = new NodeService({ repository, storage, bus: eventBus });
-	const usersGroupsService = new UsersGroupsService({
-		repository,
-		storage,
-		bus: eventBus,
-	});
+	const usersGroupsService = new UsersGroupsService(nodeService);
 	const ocrModel = new DeterministicModel("");
 
 	await usersGroupsService.createUser(adminAuthContext, {

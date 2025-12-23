@@ -10,6 +10,8 @@ import type { EventBus } from "shared/event_bus.ts";
 import type { Event } from "shared/event.ts";
 import type { EventHandler } from "shared/event_handler.ts";
 import { NodeService } from "./node_service.ts";
+import { FeatureService } from "./feature_service.ts";
+import { UsersGroupsService } from "./users_groups_service.ts";
 import { Groups } from "domain/users_groups/groups.ts";
 import { Folders } from "domain/nodes/folders.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
@@ -24,13 +26,23 @@ class MockEventBus implements EventBus {
 
 describe("WorkflowService", () => {
 	function createContext(): WorkflowServiceContext {
+		const eventBus = new MockEventBus();
+		const nodeService = new NodeService({
+			repository: new InMemoryNodeRepository(),
+			storage: new InMemoryStorageProvider(),
+			bus: eventBus,
+		});
+		const usersGroupsService = new UsersGroupsService(nodeService);
+		const featureService = new FeatureService({
+			nodeService,
+			usersGroupsService,
+			eventBus,
+		});
+
 		return {
 			workflowInstanceRepository: new InmemWorkflowInstanceRepository(),
-			nodeService: new NodeService({
-				repository: new InMemoryNodeRepository(),
-				storage: new InMemoryStorageProvider(),
-				bus: new MockEventBus(),
-			}),
+			nodeService,
+			featureService,
 		};
 	}
 

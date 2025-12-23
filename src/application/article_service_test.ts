@@ -19,77 +19,93 @@ describe("ArticleService", () => {
 		it("createOrReplace should create a article", async () => {
 			const service = createService();
 
-			const file = new File(["<p>Content</p>"], "javascript", {
-				type: "text/html",
-			});
-
-			const articleOrErr = await service.createOrReplace(adminAuthContext, file, {
+			const articleOrErr = await service.createOrReplace(adminAuthContext, {
 				uuid: "--uuid--",
 				title: "javascript",
 				description: "The description",
 				parent: "--parent--",
+				articleAuthor: "test@example.com",
+				properties: {
+					en: {
+						articleTitle: "JavaScript",
+						articleFid: "javascript-fid",
+						articleResume: "A resume",
+						articleBody: "<p>Content</p>",
+					},
+				},
 			});
 
 			expect(articleOrErr.isRight(), errMsg(articleOrErr.value)).toBeTruthy();
 			expect(articleOrErr.right.title).toBe("javascript");
 			expect(articleOrErr.right.parent).toBe("--parent--");
 			expect(articleOrErr.right.description).toBe("The description");
-			expect(articleOrErr.right.size).toBe(file.size);
 		});
 
 		it("createOrReplace should replace existing article", async () => {
 			const service = createService();
 
-			const file = new File(["<p>Content</p>"], "javascript", {
-				type: "text/html",
-			});
-
-			await service.createOrReplace(adminAuthContext, file, articleDummy);
-
-			const newFile = new File(["<p>There is more things here</p>"], "python", {
-				type: "text/html",
-			});
-
-			const articleOrErr = await service.createOrReplace(
-				adminAuthContext,
-				newFile,
-				{
-					...articleDummy,
-					title: "Now python",
-					description: "New Desc",
+			await service.createOrReplace(adminAuthContext, {
+				...articleDummy,
+				properties: {
+					en: {
+						articleTitle: "JavaScript",
+						articleFid: "js-fid",
+						articleResume: "Resume",
+						articleBody: "<p>Content</p>",
+					},
 				},
-			);
+			});
+
+			const articleOrErr = await service.createOrReplace(adminAuthContext, {
+				...articleDummy,
+				title: "Now python",
+				description: "New Desc",
+				properties: {
+					en: {
+						articleTitle: "Python",
+						articleFid: "python-fid",
+						articleResume: "New Resume",
+						articleBody: "<p>There is more things here</p>",
+					},
+				},
+			});
 
 			expect(articleOrErr.isRight(), errMsg(articleOrErr.value)).toBeTruthy();
 			expect(articleOrErr.right.title).toBe("Now python");
 			expect(articleOrErr.right.description).toBe("New Desc");
-			expect(articleOrErr.right.size).toBe(newFile.size);
 		});
 
 		it("createOrReplace should return error if uuid not provided", async () => {
 			const service = createService();
 
-			const articleOrErr = await service.createOrReplace(adminAuthContext, file, {
+			const articleOrErr = await service.createOrReplace(adminAuthContext, {
 				uuid: "",
 				title: "Title",
 				parent: "--parent--",
+				articleAuthor: "test@example.com",
+				properties: {
+					en: {
+						articleTitle: "Title",
+						articleFid: "title-fid",
+						articleResume: "Resume",
+						articleBody: "Body",
+					},
+				},
 			});
 
 			expect(articleOrErr.isLeft(), errMsg(articleOrErr.value)).toBeTruthy();
 			expect(articleOrErr.value).toBeInstanceOf(BadRequestError);
 		});
 
-		it("createOrReplace should return error if file mimetype is invalid", async () => {
+		it("createOrReplace should return error if properties are missing", async () => {
 			const service = createService();
 
-			const file = new File(["<p>Content</p>"], "javascript", {
-				type: "application/json",
-			});
-
-			const articleOrErr = await service.createOrReplace(adminAuthContext, file, {
+			const articleOrErr = await service.createOrReplace(adminAuthContext, {
 				uuid: "--uuid--",
 				title: "Title",
 				parent: "--parent--",
+				articleAuthor: "test@example.com",
+				properties: {},
 			});
 
 			expect(articleOrErr.isLeft(), errMsg(articleOrErr.value)).toBeTruthy();
@@ -98,24 +114,28 @@ describe("ArticleService", () => {
 	});
 
 	describe("get", () => {
-		it("get should return HTML content", async () => {
+		it("get should return article", async () => {
 			const service = createService();
 
-			const file = new File(["<p>Content</p>"], "javascript", {
-				type: "text/html",
-			});
-
-			await service.createOrReplace(adminAuthContext, file, {
+			await service.createOrReplace(adminAuthContext, {
 				uuid: "--uuid--",
 				title: "javascript",
 				description: "The description",
 				parent: "--parent--",
+				articleAuthor: "test@example.com",
+				properties: {
+					en: {
+						articleTitle: "JavaScript",
+						articleFid: "js-fid",
+						articleResume: "Resume",
+						articleBody: "<p>Content</p>",
+					},
+				},
 			});
 
-			const htmlOrErr = await service.get(adminAuthContext, "--uuid--");
+			const articleOrErr = await service.get(adminAuthContext, "--uuid--");
 
-			expect(htmlOrErr.isRight(), errMsg(htmlOrErr.value)).toBeTruthy();
-			expect(htmlOrErr.right).toBe("<p>Content</p>");
+			expect(articleOrErr.isRight(), errMsg(articleOrErr.value)).toBeTruthy();
 		});
 
 		it("get should return HTML content if mimetype is 'text/html' ", async () => {
@@ -169,93 +189,102 @@ describe("ArticleService", () => {
 			expect(htmlOrErr.value).toBeInstanceOf(NodeNotFoundError);
 		});
 
-		it("get with lang parameter should return HTML filtered by language", async () => {
+		it("get should return article with properties", async () => {
 			const service = createService();
 
-			const file = new File([html], "filename", {
-				type: "text/html",
-			});
-
-			await service.createOrReplace(adminAuthContext, file, {
+			await service.createOrReplace(adminAuthContext, {
 				uuid: "--unique--",
 				title: "Title",
 				description: "Description",
 				parent: "--parent--",
+				articleAuthor: "test@example.com",
+				properties: {
+					en: {
+						articleTitle: "Article Title (EN)",
+						articleFid: "en-fid",
+						articleResume: "Resume",
+						articleBody: "<p>Content</p>",
+					},
+				},
 			});
 
-			const htmlOrErr = await service.get(
-				adminAuthContext,
-				"--unique--",
-				"en",
-			);
+			const articleOrErr = await service.get(adminAuthContext, "--unique--");
 
-			expect(htmlOrErr.isRight(), errMsg(htmlOrErr.value)).toBeTruthy();
-			expect(htmlOrErr.right.includes("Article Title (EN)")).toBeTruthy();
+			expect(articleOrErr.isRight(), errMsg(articleOrErr.value)).toBeTruthy();
+			expect(articleOrErr.right.properties.en.articleTitle).toBe("Article Title (EN)");
 		});
 
-		it("get should return HTML string for HTML article", async () => {
+		it("get should return article data", async () => {
 			const service = createService();
 
-			await service.createOrReplace(adminAuthContext, file, articleDummy);
+			await service.createOrReplace(adminAuthContext, {
+				...articleDummy,
+				properties: {
+					en: {
+						articleTitle: "Title",
+						articleFid: "fid",
+						articleResume: "Resume",
+						articleBody: "<p>Body</p>",
+					},
+				},
+			});
 
-			const htmlOrErr = await service.get(adminAuthContext, articleDummy.uuid);
+			const articleOrErr = await service.get(adminAuthContext, articleDummy.uuid);
 
-			expect(htmlOrErr.isRight(), errMsg(htmlOrErr.value)).toBeTruthy();
-			expect(htmlOrErr.right).toBe("<p>Content</p>");
+			expect(articleOrErr.isRight(), errMsg(articleOrErr.value)).toBeTruthy();
+			expect(articleOrErr.right.uuid).toBe(articleDummy.uuid);
 		});
 
-		it("get should convert markdown article to HTML string", async () => {
+		it("get should return article with markdown content", async () => {
 			const service = createService();
 
-			const markdownFile = new File(
-				["# Hello World\n\nThis is **bold** text."],
-				"article.md",
-				{ type: "text/markdown" },
-			);
-
-			await service.createOrReplace(adminAuthContext, markdownFile, {
+			await service.createOrReplace(adminAuthContext, {
 				uuid: "--markdown-export--",
 				title: "Markdown Article",
 				description: "A markdown article",
 				parent: "--parent--",
+				articleAuthor: "test@example.com",
+				properties: {
+					en: {
+						articleTitle: "Hello World",
+						articleFid: "hello-fid",
+						articleResume: "Resume",
+						articleBody: "# Hello World\n\nThis is **bold** text.",
+					},
+				},
 			});
 
-			const htmlOrErr = await service.get(
-				adminAuthContext,
-				"--markdown-export--",
-			);
+			const articleOrErr = await service.get(adminAuthContext, "--markdown-export--");
 
-			expect(htmlOrErr.isRight(), errMsg(htmlOrErr.value)).toBeTruthy();
-			expect(htmlOrErr.right).toContain("<h1>");
-			expect(htmlOrErr.right).toContain("Hello World");
-			expect(htmlOrErr.right).toContain("<strong>bold</strong>");
+			expect(articleOrErr.isRight(), errMsg(articleOrErr.value)).toBeTruthy();
+			expect(articleOrErr.right.properties.en.articleBody).toContain("Hello World");
 		});
 
-		it("get should convert plain text article to HTML string", async () => {
+		it("get should return article with plain text content", async () => {
 			const service = createService();
 
-			const textFile = new File(
-				["First paragraph\n\nSecond paragraph\n\nThird paragraph"],
-				"article.txt",
-				{ type: "text/plain" },
-			);
-
-			await service.createOrReplace(adminAuthContext, textFile, {
+			await service.createOrReplace(adminAuthContext, {
 				uuid: "--text-export--",
 				title: "Text Article",
 				description: "A plain text article",
 				parent: "--parent--",
+				articleAuthor: "test@example.com",
+				properties: {
+					en: {
+						articleTitle: "Text Article",
+						articleFid: "text-fid",
+						articleResume: "Resume",
+						articleBody: "First paragraph\n\nSecond paragraph\n\nThird paragraph",
+					},
+				},
 			});
 
-			const htmlOrErr = await service.get(
-				adminAuthContext,
-				"--text-export--",
-			);
+			const articleOrErr = await service.get(adminAuthContext, "--text-export--");
 
-			expect(htmlOrErr.isRight(), errMsg(htmlOrErr.value)).toBeTruthy();
-			expect(htmlOrErr.right).toContain("<p>First paragraph</p>");
-			expect(htmlOrErr.right).toContain("<p>Second paragraph</p>");
-			expect(htmlOrErr.right).toContain("<p>Third paragraph</p>");
+			expect(articleOrErr.isRight(), errMsg(articleOrErr.value)).toBeTruthy();
+			expect(articleOrErr.right.properties.en.articleBody).toContain("First paragraph");
+			expect(articleOrErr.right.properties.en.articleBody).toContain("Second paragraph");
+			expect(articleOrErr.right.properties.en.articleBody).toContain("Third paragraph");
 		});
 	});
 
@@ -263,7 +292,17 @@ describe("ArticleService", () => {
 		it("delete should remove an article", async () => {
 			const service = createService();
 
-			await service.createOrReplace(adminAuthContext, file, articleDummy);
+			await service.createOrReplace(adminAuthContext, {
+				...articleDummy,
+				properties: {
+					en: {
+						articleTitle: "Title",
+						articleFid: "fid",
+						articleResume: "Resume",
+						articleBody: "Body",
+					},
+				},
+			});
 
 			const deleteOrErr = await service.delete(
 				adminAuthContext,
@@ -275,7 +314,17 @@ describe("ArticleService", () => {
 		it("delete should return error if node not found", async () => {
 			const service = createService();
 
-			await service.createOrReplace(adminAuthContext, file, articleDummy);
+			await service.createOrReplace(adminAuthContext, {
+				...articleDummy,
+				properties: {
+					en: {
+						articleTitle: "Title",
+						articleFid: "fid",
+						articleResume: "Resume",
+						articleBody: "Body",
+					},
+				},
+			});
 
 			const deleteOrErr = await service.delete(adminAuthContext, "--any uuid--");
 			expect(deleteOrErr.isLeft(), errMsg(deleteOrErr.value)).toBeTruthy();
@@ -287,23 +336,37 @@ describe("ArticleService", () => {
 		it("list should list all articles", async () => {
 			const service = createService();
 
-			const file = new File(["<p>Content</p>"], "javascript", {
-				type: "text/html",
-			});
-
-			(await service.createOrReplace(adminAuthContext, file, {
+			await service.createOrReplace(adminAuthContext, {
 				uuid: "--uuid--",
 				title: "javascript",
 				description: "The description",
 				parent: "--parent--",
-			})).right;
+				articleAuthor: "test@example.com",
+				properties: {
+					en: {
+						articleTitle: "JavaScript",
+						articleFid: "js-fid",
+						articleResume: "Resume",
+						articleBody: "Body",
+					},
+				},
+			});
 
-			(await service.createOrReplace(adminAuthContext, file, {
+			await service.createOrReplace(adminAuthContext, {
 				uuid: "--new-uuid--",
 				title: "python",
 				description: "The description",
 				parent: "--parent--",
-			})).right;
+				articleAuthor: "test@example.com",
+				properties: {
+					en: {
+						articleTitle: "Python",
+						articleFid: "py-fid",
+						articleResume: "Resume",
+						articleBody: "Body",
+					},
+				},
+			});
 
 			const articles = await service.list(adminAuthContext);
 
@@ -325,6 +388,7 @@ describe("ArticleService", () => {
 		title: "javascript",
 		description: "The description",
 		parent: "--parent--",
+		articleAuthor: "test@example.com",
 	};
 
 	function createService() {

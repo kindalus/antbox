@@ -104,6 +104,7 @@ class MockFeatureService {
 			exposeAction: false,
 			runOnCreates: false,
 			runOnUpdates: false,
+			runOnDeletes: false,
 			runManually: true,
 			filters: [],
 			exposeExtension: false,

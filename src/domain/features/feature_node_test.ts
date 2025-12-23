@@ -8,10 +8,9 @@ import type { NodeFilters } from "domain/nodes/node_filter.ts";
 
 describe("FeatureNode", () => {
 	describe("create", () => {
-		it("should initialize with name override", () => {
+		it("should initialize with title", () => {
 			const result = FeatureNode.create({
-				title: "Test Feature Title",
-				name: "custom_feature_name",
+				title: "custom_feature_name",
 				parent: Folders.FEATURES_FOLDER_UUID,
 				owner: "user@domain.com",
 				mimetype: Nodes.FEATURE_MIMETYPE,
@@ -686,8 +685,7 @@ describe("FeatureNode", () => {
 			const filters: NodeFilters = [["mimetype", "==", "text/plain"]];
 
 			const result = FeatureNode.create({
-				title: "Full Feature",
-				name: "full_feature",
+				title: "full_feature",
 				owner: "user@domain.com",
 				description: "A complete feature",
 				exposeAction: false,
@@ -743,8 +741,7 @@ describe("FeatureNode", () => {
 			const filters: NodeFilters = [["title", "contains", "test"]];
 
 			const result = FeatureNode.create({
-				title: "Metadata Test",
-				name: "metadata_test",
+				title: "metadata_test",
 				parent: Folders.FEATURES_FOLDER_UUID,
 				owner: "user@domain.com",
 				mimetype: Nodes.FEATURE_MIMETYPE,

@@ -1,15 +1,15 @@
+import type { AuditEventDTO } from "domain/audit/audit_event.ts";
 import type { EventStoreRepository } from "domain/audit/event_store_repository.ts";
-import type { AuditEvent, AuditEventDTO } from "domain/audit/audit_event.ts";
-import type { EventBus } from "shared/event_bus.ts";
-import type { Event } from "shared/event.ts";
 import { NodeCreatedEvent } from "domain/nodes/node_created_event.ts";
-import { NodeUpdatedEvent } from "domain/nodes/node_updated_event.ts";
 import { NodeDeletedEvent } from "domain/nodes/node_deleted_event.ts";
 import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
-import type { AuthenticationContext } from "./authentication_context.ts";
+import { NodeUpdatedEvent } from "domain/nodes/node_updated_event.ts";
 import { Groups } from "domain/users_groups/groups.ts";
-import { type Either, left, right } from "shared/either.ts";
 import { type AntboxError, ForbiddenError } from "shared/antbox_error.ts";
+import { type Either, left, right } from "shared/either.ts";
+import type { EventBus } from "shared/event_bus.ts";
+import { eventHandlerFunc } from "shared/event_handler.ts";
+import type { AuthenticationContext } from "./authentication_context.ts";
 
 export interface DeletedNodeInfo {
 	uuid: string;
@@ -29,17 +29,17 @@ export class AuditLoggingService {
 	#subscribeToEvents(): void {
 		this.eventBus.subscribe(
 			NodeCreatedEvent.EVENT_ID,
-			(event: Event) => this.#handleNodeCreated(event as NodeCreatedEvent),
+			eventHandlerFunc(this.#handleNodeCreated),
 		);
 
 		this.eventBus.subscribe(
 			NodeUpdatedEvent.EVENT_ID,
-			(event: Event) => this.#handleNodeUpdated(event as NodeUpdatedEvent),
+			eventHandlerFunc(this.#handleNodeUpdated),
 		);
 
 		this.eventBus.subscribe(
 			NodeDeletedEvent.EVENT_ID,
-			(event: Event) => this.#handleNodeDeleted(event as NodeDeletedEvent),
+			eventHandlerFunc(this.#handleNodeDeleted),
 		);
 	}
 
@@ -53,7 +53,6 @@ export class AuditLoggingService {
 			userEmail: event.userEmail,
 			tenant: event.tenant,
 			payload: event.payload,
-			sequence: 0,
 		}).catch((err) => {
 			console.error("Error appending NodeCreatedEvent to audit log:", err);
 		});
@@ -69,7 +68,6 @@ export class AuditLoggingService {
 			userEmail: event.userEmail,
 			tenant: event.tenant,
 			payload: event.payload,
-			sequence: 0,
 		}).catch((err) => {
 			console.error("Error appending NodeUpdatedEvent to audit log:", err);
 		});
@@ -85,7 +83,6 @@ export class AuditLoggingService {
 			userEmail: event.userEmail,
 			tenant: event.tenant,
 			payload: event.payload,
-			sequence: 0,
 		}).catch((err) => {
 			console.error("Error appending NodeDeletedEvent to audit log:", err);
 		});
@@ -107,7 +104,7 @@ export class AuditLoggingService {
 		mimetype: string,
 	): Promise<Either<AntboxError, AuditEventDTO[]>> {
 		if (!this.#isAdmin(ctx)) {
-			return left(new ForbiddenError("Only administrators can access audit logs"));
+			return left(new ForbiddenError());
 		}
 
 		const streamOrErr = await this.repository.getStream(uuid, mimetype);
@@ -135,7 +132,7 @@ export class AuditLoggingService {
 		mimetype: string,
 	): Promise<Either<AntboxError, DeletedNodeInfo[]>> {
 		if (!this.#isAdmin(ctx)) {
-			return left(new ForbiddenError("Only administrators can access audit logs"));
+			return left(new ForbiddenError());
 		}
 
 		const streamsOrErr = await this.repository.getStreamsByMimetype(mimetype);

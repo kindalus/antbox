@@ -1,19 +1,18 @@
-import { beforeAll, describe, it } from "bdd";
-import { expect } from "expect";
-import { Users } from "domain/users_groups/users.ts";
-import { Groups } from "domain/users_groups/groups.ts";
-import { Folders } from "domain/nodes/folders.ts";
-import type { AuthenticationContext } from "./authentication_context.ts";
-import { NodeService } from "./node_service.ts";
-import type { NodeServiceContext } from "./node_service_context.ts";
+import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus.ts";
 import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository.ts";
 import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider.ts";
-import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus.ts";
 import { InMemoryVectorDatabase } from "adapters/inmem/inmem_vector_database.ts";
 import { DeterministicModel } from "adapters/models/deterministic.ts";
-import { EmbeddingService } from "./embedding_service.ts";
+import { builtinFolders } from "./builtin_folders/index.ts";
+import { beforeAll, describe, it } from "bdd";
+import { Folders } from "domain/nodes/folders.ts";
 import type { NodeFilters1D } from "domain/nodes/node_filter.ts";
-import { builtinFolders } from "application/builtin_folders/index.ts";
+import { Groups } from "domain/users_groups/groups.ts";
+import { Users } from "domain/users_groups/users.ts";
+import { expect } from "expect";
+import type { AuthenticationContext } from "./authentication_context.ts";
+import { EmbeddingService } from "./embedding_service.ts";
+import { NodeService } from "./node_service.ts";
 
 const authCtx: AuthenticationContext = {
 	mode: "Direct",
@@ -67,7 +66,7 @@ beforeAll(async () => {
 	});
 
 	// Create test documents
-	const doc1 = await service.createFile(
+	await service.createFile(
 		authCtx,
 		new File(
 			["This is a comprehensive guide about machine learning and artificial intelligence"],
@@ -82,7 +81,7 @@ beforeAll(async () => {
 		},
 	);
 
-	const doc2 = await service.createFile(
+	await service.createFile(
 		authCtx,
 		new File(
 			["Introduction to deep learning and neural networks for beginners"],
@@ -97,7 +96,7 @@ beforeAll(async () => {
 		},
 	);
 
-	const doc3 = await service.createFile(
+	await service.createFile(
 		authCtx,
 		new File(
 			["A collection of delicious cooking recipes and culinary tips"],

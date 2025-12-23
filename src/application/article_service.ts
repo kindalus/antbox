@@ -136,7 +136,7 @@ export class ArticleService {
 			return left(new NodeNotFoundError(uuid));
 		}
 
-		const articleOrErr = ArticleNode.create(node as any);
+		const articleOrErr = ArticleNode.create(node);
 
 		if (articleOrErr.isLeft()) {
 			return left(articleOrErr.value);
@@ -161,7 +161,7 @@ export class ArticleService {
 			return left(nodeOrErr.value);
 		}
 
-		const articleNodeOrErr = ArticleNode.create(nodeOrErr.value as any);
+		const articleNodeOrErr = ArticleNode.create(nodeOrErr.value);
 
 		if (articleNodeOrErr.isLeft()) {
 			return left(articleNodeOrErr.value);
@@ -188,7 +188,7 @@ export class ArticleService {
 		}
 
 		for (const node of articlesOrErrs.value.nodes) {
-			const metadata = node.metadata as any;
+			const metadata = node.metadata;
 			const articleProperties = metadata.articleProperties as ArticlePropertiesMap;
 
 			if (articleProperties && articleProperties[locale]?.articleFid === fid) {
@@ -223,7 +223,7 @@ export class ArticleService {
 
 		return nodesOrErrs.value.nodes
 			.map((n) => {
-				const articleOrErr = ArticleNode.create(n.metadata as any);
+				const articleOrErr = ArticleNode.create(n.metadata);
 				return articleOrErr.isRight() ? toRawArticleDTO(articleOrErr.value) : null;
 			})
 			.filter((a): a is RawArticleDTO => a !== null);

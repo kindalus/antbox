@@ -7,7 +7,7 @@ import { FolderNode } from "domain/nodes/folder_node.ts";
 import { FolderNotFoundError } from "domain/nodes/folder_not_found_error.ts";
 import { Folders } from "domain/nodes/folders.ts";
 import { MetaNode } from "domain/nodes/meta_node.ts";
-import { Node, type Permission } from "domain/nodes/node.ts";
+import { Node} from "domain/nodes/node.ts";
 import { NodeCreatedEvent } from "domain/nodes/node_created_event.ts";
 import { NodeDeletedEvent } from "domain/nodes/node_deleted_event.ts";
 import {

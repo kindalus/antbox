@@ -25,5 +25,6 @@ export interface TenantConfiguration {
 	storage?: ModuleConfiguration;
 	repository?: ModuleConfiguration;
 	workflowInstanceRepository?: ModuleConfiguration;
+	eventStoreRepository?: ModuleConfiguration;
 	ai?: AIConfiguration;
 }

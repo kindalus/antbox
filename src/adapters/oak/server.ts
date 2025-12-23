@@ -13,6 +13,8 @@ import templatesRouter from "adapters/oak/templates_v2_router.ts";
 import docsRouter from "adapters/oak/docs_v2_router.ts";
 import aiModelRouter from "adapters/oak/ai_models_v2_router.ts";
 import workflowsRouter from "adapters/oak/workflows_v2_router.ts";
+import articlesRouter from "adapters/oak/articles_v2_router.ts";
+import auditRouter from "adapters/oak/audit_v2_router.ts";
 import cmisRouter from "adapters/oak/cmis_router.ts";
 
 import type { AntboxTenant } from "api/antbox_tenant.ts";
@@ -40,6 +42,8 @@ export default function setupOakServer(
 	const login = loginRouter(tenants);
 	const aiModels = aiModelRouter(tenants);
 	const workflows = workflowsRouter(tenants);
+	const articles = articlesRouter(tenants);
+	const audit = auditRouter(tenants);
 	const cmis = cmisRouter(tenants);
 
 	const v2 = new Router({ prefix: "/v2" });
@@ -58,6 +62,8 @@ export default function setupOakServer(
 	v2.use(login.routes(), login.allowedMethods());
 	v2.use(aiModels.routes(), aiModels.allowedMethods());
 	v2.use(workflows.routes(), workflows.allowedMethods());
+	v2.use(articles.routes(), articles.allowedMethods());
+	v2.use(audit.routes(), audit.allowedMethods());
 
 	app.use(v2.routes(), v2.allowedMethods());
 	app.use(cmis.routes(), cmis.allowedMethods());

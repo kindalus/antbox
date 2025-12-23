@@ -598,7 +598,7 @@ export class AgentService {
 	}
 
 	async #prepareTools(
-		authContext: AuthenticationContext,
+		_authContext: AuthenticationContext,
 		agent: AgentDTO,
 	): Promise<Partial<FeatureDTO>[] | undefined> {
 		if (!agent.useTools) {

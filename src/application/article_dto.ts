@@ -1,13 +1,14 @@
-import type { ArticleNode, ArticleProperties, LocaleMap } from "domain/articles/article_node.ts";
+import type { ArticleNode } from "domain/articles/article_node.ts";
+import type {
+	ArticleProperties,
+	ArticlePropertiesMap,
+} from "domain/articles/article_properties.ts";
 
 export interface RawArticleDTO {
 	uuid: string;
 	title: string;
 	description?: string;
-	articleTitle: LocaleMap;
-	articleFid: LocaleMap;
-	articleResume: LocaleMap;
-	articleBody: LocaleMap;
+	properties: ArticlePropertiesMap;
 	articleAuthor: string;
 	parent: string;
 	createdTime: string;
@@ -31,16 +32,12 @@ export interface LocalizedArticleDTO {
 }
 
 export function toRawArticleDTO(node: ArticleNode): RawArticleDTO {
-	const props = node.articleProperties;
 	return {
 		uuid: node.uuid,
 		title: node.title,
 		description: node.description,
-		articleTitle: props.articleTitle,
-		articleFid: props.articleFid,
-		articleResume: props.articleResume,
-		articleBody: props.articleBody,
-		articleAuthor: props.articleAuthor,
+		properties: node.articleProperties,
+		articleAuthor: node.articleAuthor,
 		parent: node.parent,
 		createdTime: node.createdTime,
 		modifiedTime: node.modifiedTime,
@@ -52,16 +49,18 @@ export function toLocalizedArticleDTO(
 	node: ArticleNode,
 	locale: string,
 ): LocalizedArticleDTO {
-	const props = node.articleProperties;
+	const localizedProps = node.articleProperties;
+	const props = selectLocalizedProperties(localizedProps, locale);
+
 	return {
 		uuid: node.uuid,
 		title: node.title,
 		description: node.description,
-		articleTitle: selectLocalizedString(props.articleTitle, locale),
-		articleFid: selectLocalizedString(props.articleFid, locale),
-		articleResume: selectLocalizedString(props.articleResume, locale),
-		articleBody: selectLocalizedString(props.articleBody, locale),
-		articleAuthor: props.articleAuthor,
+		articleTitle: props.articleTitle,
+		articleFid: props.articleFid,
+		articleResume: props.articleResume,
+		articleBody: props.articleBody,
+		articleAuthor: node.articleAuthor,
 		parent: node.parent,
 		createdTime: node.createdTime,
 		modifiedTime: node.modifiedTime,
@@ -69,7 +68,10 @@ export function toLocalizedArticleDTO(
 	};
 }
 
-export function selectLocalizedString(localeMap: LocaleMap, locale: string): string {
+export function selectLocalizedProperties(
+	localeMap: ArticlePropertiesMap,
+	locale: string,
+): ArticleProperties {
 	if (localeMap[locale]) {
 		return localeMap[locale];
 	}
@@ -87,5 +89,10 @@ export function selectLocalizedString(localeMap: LocaleMap, locale: string): str
 		return localeMap[firstKey];
 	}
 
-	return "";
+	return {
+		articleTitle: "",
+		articleFid: "",
+		articleResume: "",
+		articleBody: "",
+	};
 }

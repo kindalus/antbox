@@ -1,22 +1,19 @@
-import { type AntboxError, BadRequestError } from "shared/antbox_error.ts";
-import { type Either, left, right } from "shared/either.ts";
-import type { AuthenticationContext } from "application/authentication_context.ts";
-import type { NodeService } from "application/node_service.ts";
-import {
-	ArticleNode,
-	type ArticleProperties,
-	type LocaleMap,
-} from "domain/articles/article_node.ts";
-import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import {
 	type LocalizedArticleDTO,
 	type RawArticleDTO,
-	selectLocalizedString,
+	selectLocalizedProperties,
 	toLocalizedArticleDTO,
 	toRawArticleDTO,
-} from "application/article_dto.ts";
+} from "./article_dto.ts";
+import type { AuthenticationContext } from "./authentication_context.ts";
+import type { NodeService } from "./node_service.ts";
+import { ArticleNode } from "domain/articles/article_node.ts";
+import { type ArticlePropertiesMap } from "domain/articles/article_properties.ts";
 import type { NodeLike } from "domain/node_like.ts";
+import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
+import { type AntboxError, BadRequestError } from "shared/antbox_error.ts";
+import { type Either, left, right } from "shared/either.ts";
 import { FidGenerator } from "shared/fid_generator.ts";
 
 export class ArticleService {
@@ -30,10 +27,8 @@ export class ArticleService {
 			return left(new BadRequestError("Article UUID is required"));
 		}
 
-		if (!metadata.articleTitle || !metadata.articleResume || !metadata.articleBody) {
-			return left(
-				new BadRequestError("articleTitle, articleResume, and articleBody are required"),
-			);
+		if (!metadata.properties || Object.keys(metadata.properties).length === 0) {
+			return left(new BadRequestError("Article properties are required"));
 		}
 
 		if (!metadata.articleAuthor) {
@@ -52,17 +47,12 @@ export class ArticleService {
 		ctx: AuthenticationContext,
 		metadata: RawArticleDTO,
 	): Promise<Either<AntboxError, RawArticleDTO>> {
-		const articleFid = metadata.articleFid || this.#generateArticleFid(metadata.articleTitle);
+		// Generate articleFid for each locale if not provided
+		const articleProperties = this.#ensureArticleFids(metadata.properties);
 
-		const properties: ArticleProperties = {
-			articleTitle: metadata.articleTitle,
-			articleFid,
-			articleResume: metadata.articleResume,
-			articleBody: metadata.articleBody,
-			articleAuthor: metadata.articleAuthor,
-		};
-
-		const title = metadata.title || selectLocalizedString(metadata.articleTitle, "pt");
+		// Get title from first available locale (pt -> en -> first available)
+		const props = selectLocalizedProperties(articleProperties, "pt");
+		const title = metadata.title || props.articleTitle;
 
 		const nodeOrErr = ArticleNode.create({
 			uuid: metadata.uuid,
@@ -70,7 +60,8 @@ export class ArticleService {
 			description: metadata.description,
 			parent: metadata.parent,
 			owner: ctx.principal.email,
-			properties,
+			articleProperties,
+			articleAuthor: metadata.articleAuthor,
 		});
 
 		if (nodeOrErr.isLeft()) {
@@ -92,37 +83,29 @@ export class ArticleService {
 		uuid: string,
 		metadata: Partial<RawArticleDTO>,
 	): Promise<Either<AntboxError, RawArticleDTO>> {
-		const properties: Partial<ArticleProperties> = {};
-
-		if (metadata.articleTitle) {
-			properties.articleTitle = metadata.articleTitle;
-			if (!metadata.articleFid) {
-				properties.articleFid = this.#generateArticleFid(metadata.articleTitle);
-			}
+		// Get existing article to merge properties
+		const existingOrErr = await this.get(ctx, uuid);
+		if (existingOrErr.isLeft()) {
+			return left(existingOrErr.value);
 		}
 
-		if (metadata.articleFid) {
-			properties.articleFid = metadata.articleFid;
-		}
+		const existing = existingOrErr.value;
 
-		if (metadata.articleResume) {
-			properties.articleResume = metadata.articleResume;
-		}
-		if (metadata.articleBody) {
-			properties.articleBody = metadata.articleBody;
-		}
-		if (metadata.articleAuthor) {
-			properties.articleAuthor = metadata.articleAuthor;
-		}
+		// Merge the properties
+		const articleProperties = metadata.properties
+			? this.#ensureArticleFids(metadata.properties)
+			: existing.properties;
+		const articleAuthor = metadata.articleAuthor || existing.articleAuthor;
 
 		const title = metadata.title ||
-			(metadata.articleTitle ? selectLocalizedString(metadata.articleTitle, "pt") : undefined);
+			selectLocalizedProperties(articleProperties, "pt").articleTitle;
 
 		const updateOrErr = await this.nodeService.update(ctx, uuid, {
 			title,
 			description: metadata.description,
 			parent: metadata.parent,
-			properties,
+			articleProperties,
+			articleAuthor,
 		});
 
 		if (updateOrErr.isLeft()) {
@@ -153,10 +136,7 @@ export class ArticleService {
 			return left(new NodeNotFoundError(uuid));
 		}
 
-		const articleOrErr = ArticleNode.create({
-			...node,
-			properties: node.properties as ArticleProperties,
-		});
+		const articleOrErr = ArticleNode.create(node as any);
 
 		if (articleOrErr.isLeft()) {
 			return left(articleOrErr.value);
@@ -181,10 +161,7 @@ export class ArticleService {
 			return left(nodeOrErr.value);
 		}
 
-		const articleNodeOrErr = ArticleNode.create({
-			...nodeOrErr.value,
-			properties: nodeOrErr.value.properties as ArticleProperties,
-		});
+		const articleNodeOrErr = ArticleNode.create(nodeOrErr.value as any);
 
 		if (articleNodeOrErr.isLeft()) {
 			return left(articleNodeOrErr.value);
@@ -211,12 +188,11 @@ export class ArticleService {
 		}
 
 		for (const node of articlesOrErrs.value.nodes) {
-			const props = node.metadata.properties as ArticleProperties;
-			if (props.articleFid && props.articleFid[locale] === fid) {
-				const articleNodeOrErr = ArticleNode.create({
-					...node.metadata,
-					properties: props,
-				});
+			const metadata = node.metadata as any;
+			const articleProperties = metadata.articleProperties as ArticlePropertiesMap;
+
+			if (articleProperties && articleProperties[locale]?.articleFid === fid) {
+				const articleNodeOrErr = ArticleNode.create(metadata);
 
 				if (articleNodeOrErr.isLeft()) {
 					continue;
@@ -247,10 +223,7 @@ export class ArticleService {
 
 		return nodesOrErrs.value.nodes
 			.map((n) => {
-				const articleOrErr = ArticleNode.create({
-					...n.metadata,
-					properties: n.metadata.properties as ArticleProperties,
-				});
+				const articleOrErr = ArticleNode.create(n.metadata as any);
 				return articleOrErr.isRight() ? toRawArticleDTO(articleOrErr.value) : null;
 			})
 			.filter((a): a is RawArticleDTO => a !== null);
@@ -269,11 +242,16 @@ export class ArticleService {
 		return this.nodeService.delete(ctx, uuid);
 	}
 
-	#generateArticleFid(articleTitle: LocaleMap): LocaleMap {
-		const articleFid: LocaleMap = {};
-		for (const [locale, title] of Object.entries(articleTitle)) {
-			articleFid[locale] = FidGenerator.generate(title);
+	#ensureArticleFids(properties: ArticlePropertiesMap): ArticlePropertiesMap {
+		const result: ArticlePropertiesMap = {};
+
+		for (const [locale, props] of Object.entries(properties)) {
+			result[locale] = {
+				...props,
+				articleFid: props.articleFid || FidGenerator.generate(props.articleTitle),
+			};
 		}
-		return articleFid;
+
+		return result;
 	}
 }

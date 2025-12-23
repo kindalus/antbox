@@ -9,6 +9,8 @@ import type { RAGService } from "application/rag_service.ts";
 import type { AIModel } from "application/ai_model.ts";
 import type { UsersGroupsService } from "application/users_groups_service.ts";
 import type { WorkflowService } from "application/workflow_service.ts";
+import type { AuditLoggingService } from "application/audit_logging_service.ts";
+import type { ArticleService } from "application/article_service.ts";
 
 export interface AntboxTenant {
 	name: string;
@@ -20,6 +22,8 @@ export interface AntboxTenant {
 	featureService: FeatureService;
 	apiKeyService: ApiKeyService;
 	usersGroupsService: UsersGroupsService;
+	articleService: ArticleService;
+	auditLoggingService: AuditLoggingService;
 	workflowService?: WorkflowService;
 	embeddingService?: EmbeddingService;
 	vectorDatabase?: VectorDatabase;

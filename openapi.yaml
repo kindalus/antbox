@@ -22,6 +22,8 @@ tags:
     description: Operations related to articles (internationalized content)
   - name: aspects
     description: Operations related to aspects
+  - name: audit
+    description: Audit logging operations (admin-only)
   - name: docs
     description: API documentation
   - name: extensions
@@ -543,6 +545,69 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/LocalizedArticleDTO"
+        default:
+          $ref: "#/components/responses/Error"
+  "/audit/{uuid}":
+    get:
+      tags:
+        - audit
+      summary: Get audit log for a node
+      operationId: getAuditLog
+      description: Returns all audit events for a specific node. Admin-only access.
+      parameters:
+        - $ref: "#/components/parameters/UUID"
+        - name: mimetype
+          in: query
+          required: true
+          schema:
+            type: string
+          description: The mimetype of the node (e.g., application/json, text/html)
+      responses:
+        "200":
+          description: Audit events for the node
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AuditEventDTO"
+        "403":
+          description: Forbidden - user is not an administrator
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AntboxError"
+        default:
+          $ref: "#/components/responses/Error"
+  "/audit/-/deleted":
+    get:
+      tags:
+        - audit
+      summary: Get deleted nodes by mimetype
+      operationId: getDeletedNodes
+      description: Returns information about all deleted nodes of a specific mimetype. Admin-only access.
+      parameters:
+        - name: mimetype
+          in: query
+          required: true
+          schema:
+            type: string
+          description: The mimetype to filter deleted nodes (e.g., application/json)
+      responses:
+        "200":
+          description: List of deleted nodes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DeletedNodeInfo"
+        "403":
+          description: Forbidden - user is not an administrator
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AntboxError"
         default:
           $ref: "#/components/responses/Error"
   /docs:
@@ -2591,24 +2656,48 @@ components:
         message:
           type: string
           description: Optional message describing the transition
-    LocaleMap:
+    ArticleProperties:
       type: object
-      description: A map of locale codes to localized strings
+      required:
+        - articleTitle
+        - articleFid
+        - articleResume
+        - articleBody
+      properties:
+        articleTitle:
+          type: string
+          description: Article title
+        articleFid:
+          type: string
+          description: Friendly ID (auto-generated from articleTitle if not provided)
+        articleResume:
+          type: string
+          description: Article summary/resume
+        articleBody:
+          type: string
+          description: Article body content
+    ArticlePropertiesMap:
+      type: object
+      description: A map of locale codes to ArticleProperties
       additionalProperties:
-        type: string
+        $ref: "#/components/schemas/ArticleProperties"
       example:
-        pt: "Olá Mundo"
-        en: "Hello World"
-        fr: "Bonjour le Monde"
+        pt:
+          articleTitle: "Olá Mundo"
+          articleFid: "ola-mundo"
+          articleResume: "Este é um resumo"
+          articleBody: "Conteúdo completo do artigo"
+        en:
+          articleTitle: "Hello World"
+          articleFid: "hello-world"
+          articleResume: "This is a summary"
+          articleBody: "Full article content"
     RawArticleDTO:
       type: object
       required:
         - uuid
         - title
-        - articleTitle
-        - articleFid
-        - articleResume
-        - articleBody
+        - properties
         - articleAuthor
         - parent
         - createdTime
@@ -2621,22 +2710,13 @@ components:
           description: Unique identifier for the article
         title:
           type: string
-          description: Node title (auto-generated from articleTitle if not provided)
+          description: Node title (auto-generated from articleTitle in pt locale if not provided)
         description:
           type: string
           description: Optional description
-        articleTitle:
-          $ref: "#/components/schemas/LocaleMap"
-          description: Article title in multiple locales
-        articleFid:
-          $ref: "#/components/schemas/LocaleMap"
-          description: Friendly ID in multiple locales (auto-generated from articleTitle if not provided)
-        articleResume:
-          $ref: "#/components/schemas/LocaleMap"
-          description: Article summary/resume in multiple locales
-        articleBody:
-          $ref: "#/components/schemas/LocaleMap"
-          description: Article body content in multiple locales
+        properties:
+          $ref: "#/components/schemas/ArticlePropertiesMap"
+          description: Article properties organized by locale
         articleAuthor:
           type: string
           description: Article author (not localized)
@@ -2712,6 +2792,73 @@ components:
           type: string
           format: email
           description: Owner email
+    AuditEventDTO:
+      type: object
+      required:
+        - streamId
+        - eventId
+        - eventType
+        - occurredOn
+        - userEmail
+        - tenant
+        - payload
+        - sequence
+      properties:
+        streamId:
+          type: string
+          format: uuid
+          description: The UUID of the node this event belongs to
+        eventId:
+          type: string
+          format: uuid
+          description: Unique identifier for this event
+        eventType:
+          type: string
+          description: Type of event (e.g., NodeCreatedEvent, NodeUpdatedEvent, NodeDeletedEvent)
+          enum:
+            - NodeCreatedEvent
+            - NodeUpdatedEvent
+            - NodeDeletedEvent
+        occurredOn:
+          type: string
+          format: date-time
+          description: When the event occurred
+        userEmail:
+          type: string
+          format: email
+          description: Email of the user who triggered the event
+        tenant:
+          type: string
+          description: Tenant identifier
+        payload:
+          type: object
+          description: Event-specific payload (NodeMetadata for create/delete, NodeUpdateChanges for update)
+        sequence:
+          type: integer
+          description: Sequence number of the event in the stream (starts at 0)
+    DeletedNodeInfo:
+      type: object
+      required:
+        - uuid
+        - title
+        - deletedAt
+        - deletedBy
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          description: UUID of the deleted node
+        title:
+          type: string
+          description: Title of the node (from creation event)
+        deletedAt:
+          type: string
+          format: date-time
+          description: When the node was deleted
+        deletedBy:
+          type: string
+          format: email
+          description: Email of the user who deleted the node
   securitySchemes:
     bearerAuth:
       type: http

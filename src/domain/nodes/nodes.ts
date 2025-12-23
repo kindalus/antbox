@@ -10,7 +10,6 @@ import { ApiKeyNode } from "domain/api_keys/api_key_node.ts";
 import { FeatureNode } from "domain/features/feature_node.ts";
 import { AgentNode } from "domain/ai/agent_node.ts";
 import { WorkflowNode } from "domain/workflows/workflow_node.ts";
-import { ARTICLE_ASPECT } from "application/builtin_aspects/index.ts";
 import { NodeMetadata } from "./node_metadata.ts";
 
 export class Nodes {
@@ -27,6 +26,7 @@ export class Nodes {
 	static API_KEY_MIMETYPE = "application/vnd.antbox.apikey";
 	static AGENT_MIMETYPE = "application/vnd.antbox.agent";
 	static WORKFLOW_MIMETYPE = "application/vnd.antbox.workflow";
+	static ARTICLE_MIMETYPE = "application/vnd.antbox.article";
 
 	static SYSTEM_MIMETYPES = [
 		Nodes.ASPECT_MIMETYPE,
@@ -109,7 +109,7 @@ export class Nodes {
 	}
 
 	static isArticle(node: NodeLike | NodeMetadata): node is FileNode {
-		return Nodes.hasAspects(node) && node.aspects?.includes(ARTICLE_ASPECT.uuid);
+		return node.mimetype === Nodes.ARTICLE_MIMETYPE;
 	}
 
 	static isJavascript(file: File) {

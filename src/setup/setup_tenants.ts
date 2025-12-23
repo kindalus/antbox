@@ -2,11 +2,13 @@ import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus.ts";
 import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository.ts";
 import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider.ts";
 import { InmemWorkflowInstanceRepository } from "adapters/inmem/inmem_workflow_instance_repository.ts";
+import { InMemoryEventStoreRepository } from "adapters/inmem/inmem_event_store_repository.ts";
 import type { AntboxTenant } from "api/antbox_tenant.ts";
 import type { ServerConfiguration, TenantConfiguration } from "api/http_server_configuration.ts";
 import { NodeService } from "application/node_service.ts";
 import type { StorageProvider } from "application/storage_provider.ts";
 import type { NodeRepository } from "domain/nodes/node_repository.ts";
+import type { EventStoreRepository } from "domain/audit/event_store_repository.ts";
 import { JWK, ROOT_PASSWD, SYMMETRIC_KEY } from "./server_defaults.ts";
 import { providerFrom } from "adapters/module_configuration_parser.ts";
 import { modelFrom } from "adapters/model_configuration_parser.ts";
@@ -14,6 +16,8 @@ import { AspectService } from "application/aspect_service.ts";
 import { FeatureService } from "application/feature_service.ts";
 import { UsersGroupsService } from "application/users_groups_service.ts";
 import { ApiKeyService } from "application/api_key_service.ts";
+import { ArticleService } from "application/article_service.ts";
+import { AuditLoggingService } from "application/audit_logging_service.ts";
 import type { VectorDatabase } from "application/vector_database.ts";
 import type { AIModel } from "application/ai_model.ts";
 import { EmbeddingService } from "application/embedding_service.ts";
@@ -40,6 +44,9 @@ async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
 	const storage = await providerFrom<StorageProvider>(cfg?.storage);
 	const workflowInstanceRepository = await providerFrom<WorkflowInstanceRepository>(
 		cfg?.workflowInstanceRepository,
+	);
+	const eventStoreRepository = await providerFrom<EventStoreRepository>(
+		cfg?.eventStoreRepository,
 	);
 	const eventBus = new InMemoryEventBus();
 
@@ -150,6 +157,13 @@ async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
 		featureService,
 	});
 
+	const articleService = new ArticleService(nodeService);
+
+	const auditLoggingService = new AuditLoggingService(
+		eventStoreRepository ?? new InMemoryEventStoreRepository(),
+		eventBus,
+	);
+
 	// Build AI-related services AFTER NodeService and core services
 	let embeddingService: EmbeddingService | undefined;
 	let agentService: AgentService | undefined;
@@ -186,6 +200,8 @@ async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
 		featureService,
 		apiKeyService,
 		usersGroupsService,
+		articleService,
+		auditLoggingService,
 		rootPasswd: passwd,
 		rawJwk,
 		embeddingService,

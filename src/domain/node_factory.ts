@@ -5,19 +5,19 @@ import { ApiKeyNode } from "./api_keys/api_key_node.ts";
 import { AspectNode } from "./aspects/aspect_node.ts";
 import { GroupNode } from "./users_groups/group_node.ts";
 
+import { NodeLike } from "./node_like.ts";
 import { FileNode } from "./nodes/file_node.ts";
 import { FolderNode } from "./nodes/folder_node.ts";
 import { MetaNode } from "./nodes/meta_node.ts";
 import { type NodeMetadata } from "./nodes/node_metadata.ts";
 import { Nodes } from "./nodes/nodes.ts";
 import { SmartFolderNode } from "./nodes/smart_folder_node.ts";
-import { NodeLike } from "domain/node_like.ts";
 
-import { FeatureNode } from "domain/features/feature_node.ts";
+import { FeatureNode } from "./features/feature_node.ts";
 import { AgentNode } from "./ai/agent_node.ts";
-import { WorkflowNode } from "./workflows/workflow_node.ts";
-import { Node } from "./nodes/node.ts";
 import { UserNode } from "./users_groups/user_node.ts";
+import { WorkflowNode } from "./workflows/workflow_node.ts";
+import { ArticleNode } from "./articles/article_node.ts";
 
 export class NodeFactory {
 	static from<T extends NodeLike>(
@@ -64,6 +64,10 @@ export class NodeFactory {
 				break;
 			case Nodes.WORKFLOW_MIMETYPE:
 				createFn = WorkflowNode.create;
+				break;
+
+			case Nodes.ARTICLE_MIMETYPE:
+				createFn = ArticleNode.create;
 				break;
 
 			default:

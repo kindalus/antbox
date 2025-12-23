@@ -5,6 +5,7 @@ import { type NodeProperties } from "domain/nodes/node_properties.ts";
 
 import { FeatureParameter } from "domain/features/feature_node.ts";
 import { WorkflowState } from "domain/workflows/workflow_node.ts";
+import { type ArticlePropertiesMap } from "../articles/article_properties.ts";
 
 export interface NodeMetadata {
 	uuid: string;
@@ -83,4 +84,8 @@ export interface NodeMetadata {
 	// Workflow related properties
 	workflowInstanceUuid?: string;
 	workflowState?: string;
+
+	// Article related properties
+	articleProperties?: ArticlePropertiesMap;
+	articleAuthor?: string;
 }

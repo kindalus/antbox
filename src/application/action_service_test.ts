@@ -33,7 +33,7 @@ describe("Action Service", () => {
 
 			if (result.isRight()) {
 				const features = result.value;
-				const testAction = features.find((f) => f.name === "Test Action");
+				const testAction = features.find((f) => f.title === "Test Action");
 				expect(testAction).toBeDefined();
 				if (testAction) {
 					expect(testAction.exposeAction).toBe(true);
@@ -1106,7 +1106,7 @@ const createService = async () => {
 		groups: ["--editors--"],
 	});
 
-	return new FeatureService(nodeService, usersGroupsService, ocrModel);
+	return new FeatureService({ nodeService, usersGroupsService, ocrModel, eventBus });
 };
 
 const adminAuthContext: AuthenticationContext = {

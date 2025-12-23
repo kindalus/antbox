@@ -99,7 +99,7 @@ class MockFeatureService {
 		// Add some test features
 		this.features.set("feature-1", {
 			uuid: "feature-1",
-			name: "search",
+			title: "search",
 			description: "Search for content",
 			exposeAction: false,
 			runOnCreates: false,
@@ -136,7 +136,7 @@ class MockFeatureService {
 			.filter((feature) => feature.exposeAITool)
 			.map((feature) => ({
 				uuid: feature.uuid,
-				title: feature.name,
+				title: feature.title,
 				mimetype: "application/vnd.antbox.feature",
 			}));
 

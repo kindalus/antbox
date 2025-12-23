@@ -449,7 +449,7 @@ const createService = async () => {
 		groups: ["--group-1--"],
 	});
 
-	return new FeatureService(nodeService, usersGroupsService, ocrModel);
+	return new FeatureService({ nodeService, usersGroupsService, ocrModel, eventBus });
 };
 
 const adminAuthContext: AuthenticationContext = {

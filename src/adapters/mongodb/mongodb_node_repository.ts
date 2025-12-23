@@ -61,7 +61,7 @@ export class MongodbNodeRepository implements NodeRepository {
 				return left(new NodeNotFoundError(uuid));
 			}
 
-			return right(this.#toNodeLike(doc));
+			return right(this.#toNodeLike(doc as NodeDbModel));
 		} catch (err) {
 			// deno-lint-ignore no-explicit-any
 			return left(new MongodbError((err as any).message));

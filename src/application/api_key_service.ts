@@ -34,7 +34,7 @@ export class ApiKeyService {
 			return left(groupsOrErr.value);
 		}
 
-		const metadata: NodeMetadata = {
+		const metadata: Partial<NodeMetadata> = {
 			secret: UuidGenerator.generate().concat(UuidGenerator.generate()),
 			group,
 			mimetype: Nodes.API_KEY_MIMETYPE,

@@ -28,6 +28,7 @@ export interface FeatureDTO {
 		| "boolean"
 		| "array"
 		| "object"
+		| "uuid"
 		| "file"
 		| "void";
 	returnDescription?: string;

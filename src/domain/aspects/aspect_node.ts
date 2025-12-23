@@ -278,7 +278,7 @@ export interface AspectProperty {
 	name: string;
 	title: string;
 
-	type: "uuid" | "string" | "number" | "boolean" | "object" | "array";
+	type: "uuid" | "string" | "number" | "boolean" | "object" | "array" | "file";
 	arrayType?: "string" | "number" | "uuid";
 	contentType?: string;
 

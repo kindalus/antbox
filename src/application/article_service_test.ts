@@ -173,11 +173,12 @@ describe("ArticleService", () => {
 		it("get should convert text/plain to HTML paragraphs", async () => {
 			const service = createService();
 
-			const htmlOrErr = await service.get(adminAuthContext, "--txt--");
+			const articleOrErr = await service.get(adminAuthContext, "--txt--");
 
-			expect(htmlOrErr.isRight(), errMsg(htmlOrErr.value)).toBeTruthy();
-			expect(htmlOrErr.right.startsWith("<p>")).toBeTruthy();
-			expect(htmlOrErr.right).toContain("The Title");
+			expect(articleOrErr.isRight(), errMsg(articleOrErr.value)).toBeTruthy();
+			const article = articleOrErr.right;
+			expect(article.properties.en.articleBody.startsWith("<p>")).toBeTruthy();
+			expect(article.properties.en.articleTitle).toContain("The Title");
 		});
 
 		it("get should return error if node is not article", async () => {
@@ -511,10 +512,7 @@ describe("ArticleService", () => {
 		const eventBus = new InMemoryEventBus();
 		const nodeService = new NodeService({ repository, storage, bus: eventBus });
 
-		return new ArticleService(
-			{ repository, storage, bus: eventBus },
-			nodeService,
-		);
+		return new ArticleService(nodeService);
 	}
 
 	function errMsg(err: unknown): string {

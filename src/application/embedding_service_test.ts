@@ -124,7 +124,6 @@ describe("EmbeddingService", () => {
 			// Verify embedding was stored
 			const searchResult = await vectorDatabase.search(
 				new Array(1536).fill(0),
-				"test-tenant",
 				10,
 			);
 			expect(searchResult.isRight()).toBe(true);
@@ -173,7 +172,6 @@ describe("EmbeddingService", () => {
 			// Verify no embedding was stored
 			const searchResult = await vectorDatabase.search(
 				new Array(1536).fill(0),
-				"test-tenant",
 				10,
 			);
 			expect(searchResult.isRight()).toBe(true);
@@ -215,7 +213,6 @@ describe("EmbeddingService", () => {
 			// Verify no embedding was stored
 			const searchResult = await vectorDatabase.search(
 				new Array(1536).fill(0),
-				"test-tenant",
 				10,
 			);
 			expect(searchResult.isRight()).toBe(true);
@@ -259,7 +256,6 @@ describe("EmbeddingService", () => {
 			// Verify no embedding was stored
 			const searchResult = await vectorDatabase.search(
 				new Array(1536).fill(0),
-				"test-tenant",
 				10,
 			);
 			expect(searchResult.isRight()).toBe(true);
@@ -321,7 +317,6 @@ describe("EmbeddingService", () => {
 			// Verify embedding exists (should be updated)
 			const searchResult = await vectorDatabase.search(
 				new Array(1536).fill(0),
-				"test-tenant",
 				10,
 			);
 			expect(searchResult.isRight()).toBe(true);
@@ -370,7 +365,6 @@ describe("EmbeddingService", () => {
 			// Verify embedding was created
 			let searchResult = await vectorDatabase.search(
 				new Array(1536).fill(0),
-				"test-tenant",
 				10,
 			);
 			expect(searchResult.isRight()).toBe(true);
@@ -407,7 +401,6 @@ describe("EmbeddingService", () => {
 			// Verify embedding was deleted
 			searchResult = await vectorDatabase.search(
 				new Array(1536).fill(0),
-				"test-tenant",
 				10,
 			);
 			expect(searchResult.isRight()).toBe(true);
@@ -454,7 +447,6 @@ describe("EmbeddingService", () => {
 			// Verify embedding exists
 			let searchResult = await vectorDatabase.search(
 				new Array(1536).fill(0),
-				"test-tenant",
 				10,
 			);
 			expect(searchResult.isRight()).toBe(true);
@@ -494,7 +486,6 @@ describe("EmbeddingService", () => {
 			// Verify embedding was deleted
 			searchResult = await vectorDatabase.search(
 				new Array(1536).fill(0),
-				"test-tenant",
 				10,
 			);
 			expect(searchResult.isRight()).toBe(true);
@@ -543,7 +534,6 @@ describe("EmbeddingService", () => {
 			// Verify embedding exists
 			let searchResult = await vectorDatabase.search(
 				new Array(1536).fill(0),
-				"test-tenant",
 				10,
 			);
 			expect(searchResult.isRight()).toBe(true);
@@ -558,7 +548,6 @@ describe("EmbeddingService", () => {
 			// Verify embedding was deleted
 			searchResult = await vectorDatabase.search(
 				new Array(1536).fill(0),
-				"test-tenant",
 				10,
 			);
 			expect(searchResult.isRight()).toBe(true);

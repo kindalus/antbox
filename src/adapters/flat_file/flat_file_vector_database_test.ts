@@ -35,7 +35,6 @@ describe("FlatFileVectorDatabase", () => {
 				const reloadedDb = await createDb(baseDir);
 				const searchResult = await reloadedDb.search(
 					entry.vector,
-					entry.metadata.tenant,
 					1,
 				);
 
@@ -84,14 +83,16 @@ describe("FlatFileVectorDatabase", () => {
 				const batchResult = await db.upsertBatch(entries);
 				expect(batchResult.isRight()).toBe(true);
 
-				const searchResult = await db.search([1, 0, 0], "tenant-a", 5, {
-					mimetype: "text/plain",
-				});
+				const searchResult = await db.search([1, 0, 0], 5);
 
 				expect(searchResult.isRight()).toBe(true);
 				if (searchResult.isRight()) {
-					expect(searchResult.value.length).toBe(1);
-					expect(searchResult.value[0].id).toBe("batch-1");
+					// Both entries will be returned, filter by mimetype in the test
+					const plainTextResults = searchResult.value.filter(
+						(r) => r.metadata.mimetype === "text/plain",
+					);
+					expect(plainTextResults.length).toBe(1);
+					expect(plainTextResults[0].id).toBe("batch-1");
 				}
 			} finally {
 				await Deno.remove(baseDir, { recursive: true });
@@ -147,7 +148,7 @@ describe("FlatFileVectorDatabase", () => {
 				expect(deleteResult.isRight()).toBe(true);
 
 				const reloadedDb = await createDb(baseDir);
-				const searchAll = await reloadedDb.search([1, 0, 0], "tenant-a", 10);
+				const searchAll = await reloadedDb.search([1, 0, 0], 10);
 				expect(searchAll.isRight()).toBe(true);
 				if (searchAll.isRight()) {
 					expect(searchAll.value.find((entry: { id: string }) => entry.id === "delete-1"))
@@ -158,7 +159,7 @@ describe("FlatFileVectorDatabase", () => {
 				expect(deleteByNodeResult.isRight()).toBe(true);
 
 				const finalDb = await createDb(baseDir);
-				const finalSearch = await finalDb.search([1, 0, 0], "tenant-a", 10);
+				const finalSearch = await finalDb.search([1, 0, 0], 10);
 				expect(finalSearch.isRight()).toBe(true);
 				if (finalSearch.isRight()) {
 					expect(finalSearch.value.length).toBe(0);

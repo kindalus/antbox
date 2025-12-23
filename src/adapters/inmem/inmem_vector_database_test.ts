@@ -122,7 +122,7 @@ describe("InMemoryVectorDatabase", () => {
 
 			// Query with vector similar to test-1
 			const queryVector = [0.9, 0.1, 0.0];
-			const result = await db.search(queryVector, "tenant-1", 2);
+			const result = await db.search(queryVector, 2);
 
 			expect(result.isRight()).toBe(true);
 			if (result.isRight()) {
@@ -161,12 +161,14 @@ describe("InMemoryVectorDatabase", () => {
 			});
 
 			const queryVector = [1.0, 0.0, 0.0];
-			const result = await db.search(queryVector, "tenant-1", 10);
+			const result = await db.search(queryVector, 10);
 
 			expect(result.isRight()).toBe(true);
 			if (result.isRight()) {
-				expect(result.value.length).toBe(1);
-				expect(result.value[0].metadata.tenant).toBe("tenant-1");
+				// Filter by tenant in the test since API no longer supports tenant filtering
+				const tenant1Results = result.value.filter((r) => r.metadata.tenant === "tenant-1");
+				expect(tenant1Results.length).toBe(1);
+				expect(tenant1Results[0].metadata.tenant).toBe("tenant-1");
 			}
 		});
 
@@ -198,12 +200,16 @@ describe("InMemoryVectorDatabase", () => {
 			});
 
 			const queryVector = [1.0, 0.0, 0.0];
-			const result = await db.search(queryVector, "tenant-1", 10, { mimetype: "text/plain" });
+			const result = await db.search(queryVector, 10);
 
 			expect(result.isRight()).toBe(true);
 			if (result.isRight()) {
-				expect(result.value.length).toBe(1);
-				expect(result.value[0].metadata.mimetype).toBe("text/plain");
+				// Filter by mimetype in the test since API no longer supports metadata filtering
+				const plainTextResults = result.value.filter((r) =>
+					r.metadata.mimetype === "text/plain"
+				);
+				expect(plainTextResults.length).toBe(1);
+				expect(plainTextResults[0].metadata.mimetype).toBe("text/plain");
 			}
 		});
 
@@ -226,7 +232,7 @@ describe("InMemoryVectorDatabase", () => {
 			}
 
 			const queryVector = [0.5, 0.5, 0.5];
-			const result = await db.search(queryVector, "tenant-1", 3);
+			const result = await db.search(queryVector, 3);
 
 			expect(result.isRight()).toBe(true);
 			if (result.isRight()) {

@@ -154,7 +154,7 @@ class GoogleDriveStorageProvider implements StorageProvider {
 	}
 
 	async #handleNodeUpdated(evt: NodeUpdatedEvent) {
-		if (!evt.payload.parent && !evt.payload.title) {
+		if (!evt.payload.newValues.parent && !evt.payload.newValues.title) {
 			return;
 		}
 
@@ -166,8 +166,8 @@ class GoogleDriveStorageProvider implements StorageProvider {
 
 		const requestBody: Record<string, string | string[]> = {};
 
-		if (evt.payload.parent) {
-			const newParentOrErr = await this.#getDriveMedata(evt.payload.parent);
+		if (evt.payload.newValues.parent) {
+			const newParentOrErr = await this.#getDriveMedata(evt.payload.newValues.parent);
 			if (newParentOrErr.isLeft()) {
 				console.error(newParentOrErr.value.message);
 				return;
@@ -177,8 +177,8 @@ class GoogleDriveStorageProvider implements StorageProvider {
 			requestBody["addParents"] = newParentOrErr.value.id;
 		}
 
-		if (evt.payload.title) {
-			requestBody["name"] = evt.payload.title;
+		if (evt.payload.newValues.title) {
+			requestBody["name"] = evt.payload.newValues.title;
 		}
 
 		this.#drive.files

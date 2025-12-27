@@ -125,7 +125,7 @@ async function migrateChildren(
 	dstRepo: NodeRepository,
 	srcStorage: StorageProvider,
 	dstStorage: StorageProvider,
-	uuid = Folders.ROOT_FOLDER_UUID,
+	uuid = Nodes.ROOT_FOLDER_UUID,
 ): Promise<void> {
 	const children = await srcRepo?.filter(
 		[["parent", "==", uuid]],

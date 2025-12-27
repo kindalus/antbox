@@ -1,18 +1,18 @@
 import { AuthenticationContext } from "application/authentication_context.ts";
-import { AspectService } from "application/aspect_service.ts";
+import { AspectsService } from "application/aspects_service.ts";
 
 /**
- * A per-request wrapper around AspectService that binds an AuthenticationContext.
+ * A per-request wrapper around AspectsService that binds an AuthenticationContext.
  *
  * This prevents user-authored Features from supplying an arbitrary AuthenticationContext
- * when calling AspectService methods.
+ * when calling AspectsService methods.
  */
 export class AspectServiceProxy {
-	readonly #aspectService: AspectService;
+	readonly #aspectsService: AspectsService;
 	readonly #ctx: AuthenticationContext;
 
-	constructor(aspectService: AspectService, authenticationContext: AuthenticationContext) {
-		this.#aspectService = aspectService;
+	constructor(aspectsService: AspectsService, authenticationContext: AuthenticationContext) {
+		this.#aspectsService = aspectsService;
 		this.#ctx = {
 			tenant: authenticationContext.tenant,
 			mode: authenticationContext.mode,
@@ -24,10 +24,10 @@ export class AspectServiceProxy {
 	}
 
 	listAspects() {
-		return this.#aspectService.list(this.#ctx);
+		return this.#aspectsService.listAspects(this.#ctx);
 	}
 
 	get(uuid: string) {
-		return this.#aspectService.get(this.#ctx, uuid);
+		return this.#aspectsService.getAspect(this.#ctx, uuid);
 	}
 }

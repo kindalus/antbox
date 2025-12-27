@@ -3,6 +3,7 @@ import { expect } from "expect";
 
 import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository.ts";
 import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider.ts";
+import { InMemoryConfigurationRepository } from "adapters/inmem/inmem_configuration_repository.ts";
 import { FileNode } from "domain/nodes/file_node.ts";
 import { NodeService } from "./node_service.ts";
 import type { AuthenticationContext } from "./authentication_context.ts";
@@ -11,7 +12,6 @@ import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import { Users } from "domain/users_groups/users.ts";
 import { ForbiddenError } from "shared/antbox_error.ts";
 import { FolderNode } from "domain/nodes/folder_node.ts";
-import { Folders } from "domain/nodes/folders.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import { NodeFileNotFoundError } from "domain/nodes/node_file_not_found_error.ts";
 import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus.ts";
@@ -24,7 +24,7 @@ describe("NodeService", () => {
 				title: "title",
 				mimetype: "application/pdf",
 				size: 123,
-				parent: Folders.ROOT_FOLDER_UUID,
+				parent: Nodes.ROOT_FOLDER_UUID,
 				owner: "owner@antbox.io",
 			}).right;
 
@@ -35,12 +35,13 @@ describe("NodeService", () => {
 				storage: new InMemoryStorageProvider(),
 				repository,
 				bus: new InMemoryEventBus(),
+				configRepo: new InMemoryConfigurationRepository(),
 			});
 
 			const nodeOrErr = await service.get(authCtx, node.uuid);
 
 			expect(nodeOrErr.isRight(), errToMsg(nodeOrErr.value)).toBeTruthy();
-			expect(nodeOrErr.right).toEqual(node);
+			expect(nodeOrErr.right).toEqual(node.metadata);
 		});
 
 		it("should return if uuid is in fid format", async () => {
@@ -49,7 +50,7 @@ describe("NodeService", () => {
 				title: "Folder 1",
 				fid: "fid-1",
 				mimetype: Nodes.FOLDER_MIMETYPE,
-				parent: Folders.ROOT_FOLDER_UUID,
+				parent: Nodes.ROOT_FOLDER_UUID,
 			});
 
 			const nodeOrErr = await service.get(authCtx, "--fid--fid-1");
@@ -64,6 +65,7 @@ describe("NodeService", () => {
 				storage: new InMemoryStorageProvider(),
 				repository,
 				bus: new InMemoryEventBus(),
+				configRepo: new InMemoryConfigurationRepository(),
 			});
 
 			const nodeOrErr = await service.get(authCtx, "not-found");
@@ -113,6 +115,7 @@ describe("NodeService", () => {
 				storage: new InMemoryStorageProvider(),
 				repository,
 				bus: new InMemoryEventBus(),
+				configRepo: new InMemoryConfigurationRepository(),
 			});
 
 			const nodeOrErr = await service.get(authCtx, node.uuid);
@@ -129,7 +132,7 @@ describe("NodeService", () => {
 				uuid: "parent-uuid",
 				title: "Documents",
 				mimetype: Nodes.FOLDER_MIMETYPE,
-				parent: Folders.ROOT_FOLDER_UUID,
+				parent: Nodes.ROOT_FOLDER_UUID,
 			});
 
 			await service.createFile(authCtx, file, {
@@ -158,7 +161,7 @@ describe("NodeService", () => {
 				uuid: "parent-uuid",
 				title: "Documents",
 				mimetype: Nodes.FOLDER_MIMETYPE,
-				parent: Folders.ROOT_FOLDER_UUID,
+				parent: Nodes.ROOT_FOLDER_UUID,
 				permissions: {
 					anonymous: [],
 					group: ["Read"],
@@ -189,13 +192,14 @@ describe("NodeService", () => {
 				storage: new InMemoryStorageProvider(),
 				repository,
 				bus: new InMemoryEventBus(),
+				configRepo: new InMemoryConfigurationRepository(),
 			});
 
 			await service.create(authCtx, {
 				uuid: "puuid",
 				title: "Folder",
 				mimetype: Nodes.FOLDER_MIMETYPE,
-				parent: Folders.ROOT_FOLDER_UUID,
+				parent: Nodes.ROOT_FOLDER_UUID,
 			});
 
 			await service.create(authCtx, {
@@ -234,6 +238,7 @@ const nodeService = () =>
 		storage: new InMemoryStorageProvider(),
 		repository: new InMemoryNodeRepository(),
 		bus: new InMemoryEventBus(),
+		configRepo: new InMemoryConfigurationRepository(),
 	});
 
 const file = new File(["xxxxxxx"], "file.pdf", { type: "application/pdf" });

@@ -6,13 +6,14 @@ import { NodeDeletedEvent } from "domain/nodes/node_deleted_event.ts";
 import { type NodeUpdateChanges, NodeUpdatedEvent } from "domain/nodes/node_updated_event.ts";
 import { FileNode } from "domain/nodes/file_node.ts";
 import { FolderNode } from "domain/nodes/folder_node.ts";
-import { Folders } from "domain/nodes/folders.ts";
 import { left, right } from "shared/either.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import type { NodeServiceContext } from "./node_service_context.ts";
 import type { NodeRepository } from "domain/nodes/node_repository.ts";
 import type { EventBus } from "shared/event_bus.ts";
 import type { StorageProvider } from "./storage_provider.ts";
+import { Nodes } from "domain/nodes/nodes.ts";
+import { InMemoryConfigurationRepository } from "adapters/inmem/inmem_configuration_repository.ts";
 
 // Mock implementations
 class MockNodeRepository {
@@ -65,6 +66,7 @@ function createMockContext(): NodeServiceContext {
 		repository: new MockNodeRepository() as unknown as NodeRepository,
 		storage: new MockStorageProvider() as unknown as StorageProvider,
 		bus: new MockEventBus() as unknown as EventBus,
+		configRepo: new InMemoryConfigurationRepository(),
 	};
 }
 
@@ -140,7 +142,7 @@ describe("ParentFolderUpdateHandler", () => {
 				uuid: "child-file-uuid",
 				title: "child.txt",
 				mimetype: "text/plain",
-				parent: Folders.ROOT_FOLDER_UUID,
+				parent: Nodes.ROOT_FOLDER_UUID,
 				owner: "test@example.com",
 			});
 

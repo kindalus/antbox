@@ -19,7 +19,7 @@ export function listExtensionsHandler(tenants: AntboxTenant[]): HttpHandler {
 		tenants,
 		(req: Request): Promise<Response> => {
 			const tenant = getTenant(req, tenants);
-			const service = tenant.featureService;
+			const service = tenant.featuresService;
 
 			const unavailableResponse = checkServiceAvailability(service, "Feature service");
 			if (unavailableResponse) {
@@ -39,7 +39,7 @@ export function runExtensionHandler(tenants: AntboxTenant[]): HttpHandler {
 		tenants,
 		async (req: Request): Promise<Response> => {
 			const tenant = getTenant(req, tenants);
-			const service = tenant.featureService;
+			const service = tenant.featuresService;
 
 			const unavailableResponse = checkServiceAvailability(service, "Feature service");
 			if (unavailableResponse) {

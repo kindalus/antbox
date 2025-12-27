@@ -1,12 +1,13 @@
 import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus.ts";
+import { InMemoryConfigurationRepository } from "adapters/inmem/inmem_configuration_repository.ts";
 import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository.ts";
 import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider.ts";
 import { InMemoryVectorDatabase } from "adapters/inmem/inmem_vector_database.ts";
 import { DeterministicModel } from "adapters/models/deterministic.ts";
-import { builtinFolders } from "./builtin_folders/index.ts";
+// builtinFolders removed - only ROOT_FOLDER exists and it's created in NodeService
 import { beforeAll, describe, it } from "bdd";
-import { Folders } from "domain/nodes/folders.ts";
 import type { NodeFilters1D } from "domain/nodes/node_filter.ts";
+import { Nodes } from "domain/nodes/nodes.ts";
 import { Groups } from "domain/users_groups/groups.ts";
 import { Users } from "domain/users_groups/users.ts";
 import { expect } from "expect";
@@ -37,13 +38,14 @@ beforeAll(async () => {
 	const bus = new InMemoryEventBus();
 
 	// Add builtin folders to repository
-	builtinFolders.forEach((folder) => repository.add(folder));
+	// builtinFolders removed - ROOT_FOLDER is now handled by NodeService
 
 	// Create NodeService with AI features
 	service = new NodeService({
 		repository,
 		storage,
 		bus,
+		configRepo: new InMemoryConfigurationRepository(),
 		vectorDatabase,
 		embeddingModel,
 	});
@@ -62,7 +64,7 @@ beforeAll(async () => {
 		uuid: "test-folder-uuid",
 		title: "Test Documents",
 		mimetype: "application/vnd.antbox.folder",
-		parent: Folders.ROOT_FOLDER_UUID,
+		parent: Nodes.ROOT_FOLDER_UUID,
 	});
 
 	// Create test documents

@@ -1,7 +1,6 @@
 import { describe, it } from "bdd";
 import { expect } from "expect";
 import { ValidationError } from "shared/validation_error.ts";
-import { Folders } from "./folders.ts";
 import { Nodes } from "./nodes.ts";
 import { SmartFolderNode } from "./smart_folder_node.ts";
 
@@ -10,7 +9,7 @@ describe("SmartFolderNode", () => {
 		it("should initialize", () => {
 			const result = SmartFolderNode.create({
 				title: "New smart folder",
-				parent: Folders.ROOT_FOLDER_UUID,
+				parent: Nodes.ROOT_FOLDER_UUID,
 				owner: "user@domain.com",
 				filters: [["title", "==", "example"]],
 			});
@@ -18,7 +17,7 @@ describe("SmartFolderNode", () => {
 			const smartFolderNode = result.right;
 			expect(Nodes.isSmartFolder(smartFolderNode)).toBe(true);
 			expect(smartFolderNode.title).toBe("New smart folder");
-			expect(smartFolderNode.parent).toBe(Folders.ROOT_FOLDER_UUID);
+			expect(smartFolderNode.parent).toBe(Nodes.ROOT_FOLDER_UUID);
 			expect(smartFolderNode.owner).toBe("user@domain.com");
 			expect(smartFolderNode.filters).toEqual([["title", "==", "example"]]);
 		});
@@ -26,7 +25,7 @@ describe("SmartFolderNode", () => {
 		it("should return error if filters is missing", () => {
 			const result = SmartFolderNode.create({
 				title: "New smart folder",
-				parent: Folders.ROOT_FOLDER_UUID,
+				parent: Nodes.ROOT_FOLDER_UUID,
 				owner: "user@domain.com",
 			});
 
@@ -37,7 +36,7 @@ describe("SmartFolderNode", () => {
 		it("should not change createdTime", () => {
 			const createResult = SmartFolderNode.create({
 				title: "Initial smart folder",
-				parent: Folders.ROOT_FOLDER_UUID,
+				parent: Nodes.ROOT_FOLDER_UUID,
 				owner: "user@domain.com",
 				filters: [["title", "==", "example"]],
 			});
@@ -57,7 +56,7 @@ describe("SmartFolderNode", () => {
 		it("should modify the title, fid, parent and filters", async () => {
 			const createResult = SmartFolderNode.create({
 				title: "Initial smart folder",
-				parent: Folders.ROOT_FOLDER_UUID,
+				parent: Nodes.ROOT_FOLDER_UUID,
 				owner: "user@domain.com",
 				filters: [["title", "==", "example"]],
 			});
@@ -87,7 +86,7 @@ describe("SmartFolderNode", () => {
 		it("should return error if title is missing", () => {
 			const smartFolderNodeOrErr = SmartFolderNode.create({
 				title: "Initial smart folder",
-				parent: Folders.ROOT_FOLDER_UUID,
+				parent: Nodes.ROOT_FOLDER_UUID,
 				owner: "user@domain.com",
 				filters: [["title", "==", "example"]],
 			});
@@ -102,7 +101,7 @@ describe("SmartFolderNode", () => {
 		it("should not update filters", () => {
 			const createResult = SmartFolderNode.create({
 				title: "Initial Smart Folder",
-				parent: Folders.ROOT_FOLDER_UUID,
+				parent: Nodes.ROOT_FOLDER_UUID,
 				owner: "user@domain.com",
 				filters: [["title", "==", "example"]],
 			});

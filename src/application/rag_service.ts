@@ -2,7 +2,7 @@ import { Either, left, right } from "shared/either.ts";
 import { AntboxError } from "shared/antbox_error.ts";
 import { AuthenticationContext } from "application/authentication_context.ts";
 import { NodeService } from "application/node_service.ts";
-import { AgentService } from "application/agent_service.ts";
+import { AgentsService } from "application/agents_service.ts";
 import { ChatHistory } from "domain/ai/chat_message.ts";
 import { NodeMetadata } from "domain/nodes/node_metadata.ts";
 
@@ -33,7 +33,7 @@ const RAG_AGENT_UUID = "--rag-agent--";
 export class RAGService {
 	constructor(
 		private readonly nodeService: NodeService,
-		private readonly agentService: AgentService,
+		private readonly agentsService: AgentsService,
 	) {}
 
 	/**
@@ -58,7 +58,7 @@ export class RAGService {
 			}
 
 			// Delegate to RAG agent with enhanced instructions
-			const agentChatResult = await this.agentService.chat(
+			const agentChatResult = await this.agentsService.chat(
 				authContext,
 				RAG_AGENT_UUID,
 				text,

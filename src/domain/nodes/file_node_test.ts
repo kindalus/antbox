@@ -2,7 +2,6 @@ import { describe, it } from "bdd";
 import { expect } from "expect";
 import { ValidationError } from "shared/validation_error.ts";
 import { FileNode } from "./file_node.ts";
-import { Folders } from "./folders.ts";
 import { Nodes } from "./nodes.ts";
 
 describe("FileNode", () => {
@@ -10,7 +9,7 @@ describe("FileNode", () => {
 		it("should initialize", () => {
 			const result = FileNode.create({
 				title: "New file",
-				parent: Folders.ROOT_FOLDER_UUID,
+				parent: Nodes.ROOT_FOLDER_UUID,
 				owner: "user@domain.com",
 				mimetype: "application/pdf",
 			});
@@ -19,7 +18,7 @@ describe("FileNode", () => {
 			const fileNode = result.right;
 			expect(Nodes.isFile(fileNode)).toBe(true);
 			expect(fileNode.title).toBe("New file");
-			expect(fileNode.parent).toBe(Folders.ROOT_FOLDER_UUID);
+			expect(fileNode.parent).toBe(Nodes.ROOT_FOLDER_UUID);
 			expect(fileNode.owner).toBe("user@domain.com");
 			expect(fileNode.mimetype).toBe("application/pdf");
 		});
@@ -27,7 +26,7 @@ describe("FileNode", () => {
 		it("should set the mimetype to 'application/javascript' if given 'text/javascript'", () => {
 			const result = FileNode.create({
 				title: "New file",
-				parent: Folders.ROOT_FOLDER_UUID,
+				parent: Nodes.ROOT_FOLDER_UUID,
 				owner: "user@domain.com",
 				mimetype: "text/javascript",
 			});
@@ -39,7 +38,7 @@ describe("FileNode", () => {
 		it("should return error if mimetype is missing", () => {
 			const result = FileNode.create({
 				title: "New file",
-				parent: Folders.ROOT_FOLDER_UUID,
+				parent: Nodes.ROOT_FOLDER_UUID,
 				owner: "user@domain.com",
 			});
 			expect(result.isLeft()).toBe(true);
@@ -51,7 +50,7 @@ describe("FileNode", () => {
 		it("should modify the title, fid, description and parent ", async () => {
 			const createResult = FileNode.create({
 				title: "Initial File",
-				parent: Folders.ROOT_FOLDER_UUID,
+				parent: Nodes.ROOT_FOLDER_UUID,
 				owner: "user@domain.com",
 				mimetype: "application/pdf",
 			});

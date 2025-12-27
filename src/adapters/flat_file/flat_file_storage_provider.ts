@@ -16,14 +16,12 @@ export default function buildFlatFileStorageProvider(
 
 class FlatFileStorageProvider implements StorageProvider {
 	readonly #path: string;
-	mimetype: string;
 
 	/**
 	 * @param baseDir Raíz do repositorio de ficheiros
 	 */
 	constructor(baseDir: string) {
 		this.#path = baseDir;
-		this.mimetype = "";
 
 		if (!fileExistsSync(this.#path)) {
 			Deno.mkdirSync(this.#path, { recursive: true });
@@ -33,9 +31,10 @@ class FlatFileStorageProvider implements StorageProvider {
 	async read(uuid: string): Promise<Either<AntboxError, File>> {
 		try {
 			const filePath = this.#buildFilePath(uuid);
+			const mimetype = this.#readMimetype(uuid);
 
 			const b = await Deno.readFile(filePath);
-			const a = new File([b], uuid, { type: this.mimetype });
+			const a = new File([b], uuid, { type: mimetype });
 
 			return right(a);
 		} catch (e) {
@@ -46,37 +45,41 @@ class FlatFileStorageProvider implements StorageProvider {
 
 	async delete(uuid: string): Promise<Either<AntboxError, void>> {
 		const path = this.#buildFilePath(uuid);
+		const mimetypePath = this.#buildMimetypePath(uuid);
 
 		try {
-			return right(await Deno.remove(path));
+			await Deno.remove(path);
+			if (fileExistsSync(mimetypePath)) {
+				await Deno.remove(mimetypePath);
+			}
+			return right(undefined);
 		} catch (e) {
 			const err = error(uuid, (e as Record<string, string>).message);
 			return left(new NodeFileNotFoundError(err as unknown as string));
 		}
 	}
 
-	write(
+	async write(
 		uuid: string,
 		file: File,
-		_opt: never,
+		_opts?: never,
 	): Promise<Either<AntboxError, void>> {
 		const folderPath = this.#buildFileFolderPath(uuid);
 		const filePath = this.#buildFilePath(uuid);
+		const mimetypePath = this.#buildMimetypePath(uuid);
 
 		if (!fileExistsSync(folderPath)) {
 			Deno.mkdirSync(folderPath, { recursive: true });
 		}
 
-		this.mimetype = file.type;
-
-		return file
-			.arrayBuffer()
-			.then((buffer) => new Uint8Array(buffer))
-			.then((buffer) => Deno.writeFileSync(filePath, buffer, {}))
-			.then(right)
-			.catch((e) => left(error(uuid, e.message))) as Promise<
-				Either<AntboxError, void>
-			>;
+		try {
+			const buffer = new Uint8Array(await file.arrayBuffer());
+			await Deno.writeFile(filePath, buffer, {});
+			await Deno.writeTextFile(mimetypePath, file.type ?? "");
+			return right(undefined);
+		} catch (e) {
+			return left(error(uuid, (e as Error).message));
+		}
 	}
 
 	list(): Promise<string[]> {
@@ -97,6 +100,19 @@ class FlatFileStorageProvider implements StorageProvider {
 
 	#buildFilePath(uuid: string) {
 		return join(this.#buildFileFolderPath(uuid), uuid);
+	}
+
+	#buildMimetypePath(uuid: string) {
+		return join(this.#buildFileFolderPath(uuid), `${uuid}.mimetype`);
+	}
+
+	#readMimetype(uuid: string): string {
+		const mimetypePath = this.#buildMimetypePath(uuid);
+		if (!fileExistsSync(mimetypePath)) {
+			return "";
+		}
+
+		return Deno.readTextFileSync(mimetypePath).trim();
 	}
 }
 

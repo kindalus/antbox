@@ -1,25 +1,25 @@
 import { describe, it } from "bdd";
 import { expect } from "expect";
 import { Aspects } from "./aspects.ts";
-import { AspectNode, type AspectProperty } from "./aspect_node.ts";
+import type { AspectData, AspectProperty } from "domain/configuration/aspect_data.ts";
 import { ValidationError } from "shared/validation_error.ts";
-import { Folders } from "domain/nodes/folders.ts";
+import { Nodes } from "domain/nodes/nodes.ts";
 import type { AspectableNode } from "domain/node_like.ts";
 import { FileNode } from "domain/nodes/file_node.ts";
+import { UuidGenerator } from "shared/uuid_generator.ts";
 
-// Helper function to create a mock AspectNode
-function createMockAspectNode(properties: AspectProperty[] = []): AspectNode {
-	const result = AspectNode.create({
+// Helper function to create a mock AspectData
+function createMockAspectData(properties: AspectProperty[] = []): AspectData {
+	const now = new Date().toISOString();
+	return {
+		uuid: UuidGenerator.generate(),
 		title: "Test Aspect",
-		owner: "test@example.com",
+		description: "Test aspect for testing",
+		filters: [],
 		properties: properties,
-	});
-
-	if (result.isLeft()) {
-		throw new Error("Failed to create mock AspectNode");
-	}
-
-	return result.right;
+		createdTime: now,
+		modifiedTime: now,
+	};
 }
 
 // Helper function to create a mock AspectableNode
@@ -29,7 +29,7 @@ function createMockAspectableNode(
 	const result = FileNode.create({
 		title: "Mock Node",
 		mimetype: "application/json",
-		parent: Folders.ROOT_FOLDER_UUID,
+		parent: Nodes.ROOT_FOLDER_UUID,
 		owner: "test@example.com",
 		properties: properties,
 	});
@@ -50,7 +50,7 @@ describe("Aspects", () => {
 				type: "string",
 			};
 
-			const aspect = createMockAspectNode([property]);
+			const aspect = createMockAspectData([property]);
 			const propertyName = Aspects.propertyName(aspect, property);
 
 			expect(propertyName).toBe(`${aspect.uuid}:test_property`);
@@ -63,7 +63,7 @@ describe("Aspects", () => {
 				{ name: "uuid_prop", title: "UUID", type: "uuid" },
 			];
 
-			const aspect = createMockAspectNode(properties);
+			const aspect = createMockAspectData(properties);
 
 			expect(Aspects.propertyName(aspect, properties[0])).toBe(
 				`${aspect.uuid}:simple_name`,
@@ -79,7 +79,7 @@ describe("Aspects", () => {
 
 	describe("specificationFrom", () => {
 		it("should return always-true specification for aspect with no properties", () => {
-			const aspect = createMockAspectNode([]);
+			const aspect = createMockAspectData([]);
 			const specification = Aspects.specificationFrom(aspect);
 
 			const node = createMockAspectableNode();
@@ -98,7 +98,7 @@ describe("Aspects", () => {
 				required: false,
 			};
 
-			const aspect = createMockAspectNode([property]);
+			const aspect = createMockAspectData([property]);
 			const specification = Aspects.specificationFrom(aspect);
 
 			const node = createMockAspectableNode();
@@ -115,7 +115,7 @@ describe("Aspects", () => {
 				{ name: "prop2", title: "Property 2", type: "number", required: false },
 			];
 
-			const aspect = createMockAspectNode(properties);
+			const aspect = createMockAspectData(properties);
 			const specification = Aspects.specificationFrom(aspect);
 
 			const node = createMockAspectableNode();
@@ -134,7 +134,7 @@ describe("Aspects", () => {
 				required: true,
 			};
 
-			const aspect = createMockAspectNode([property]);
+			const aspect = createMockAspectData([property]);
 			const specification = Aspects.specificationFrom(aspect);
 			const propertyName = Aspects.propertyName(aspect, property);
 
@@ -164,7 +164,7 @@ describe("Aspects", () => {
 				required: true,
 			};
 
-			const aspect = createMockAspectNode([property]);
+			const aspect = createMockAspectData([property]);
 			const specification = Aspects.specificationFrom(aspect);
 			const propertyName = Aspects.propertyName(aspect, property);
 
@@ -187,7 +187,7 @@ describe("Aspects", () => {
 				required: false,
 			};
 
-			const aspect = createMockAspectNode([property]);
+			const aspect = createMockAspectData([property]);
 			const specification = Aspects.specificationFrom(aspect);
 			const propertyName = Aspects.propertyName(aspect, property);
 
@@ -217,7 +217,7 @@ describe("Aspects", () => {
 				required: false,
 			};
 
-			const aspect = createMockAspectNode([property]);
+			const aspect = createMockAspectData([property]);
 			const specification = Aspects.specificationFrom(aspect);
 			const propertyName = Aspects.propertyName(aspect, property);
 
@@ -247,7 +247,7 @@ describe("Aspects", () => {
 				required: false,
 			};
 
-			const aspect = createMockAspectNode([property]);
+			const aspect = createMockAspectData([property]);
 			const specification = Aspects.specificationFrom(aspect);
 			const propertyName = Aspects.propertyName(aspect, property);
 
@@ -285,7 +285,7 @@ describe("Aspects", () => {
 				required: false,
 			};
 
-			const aspect = createMockAspectNode([property]);
+			const aspect = createMockAspectData([property]);
 			const specification = Aspects.specificationFrom(aspect);
 			const propertyName = Aspects.propertyName(aspect, property);
 
@@ -322,7 +322,7 @@ describe("Aspects", () => {
 				{ name: "file_prop", title: "File Property", type: "file" },
 			];
 
-			const aspect = createMockAspectNode(properties);
+			const aspect = createMockAspectData(properties);
 			const specification = Aspects.specificationFrom(aspect);
 
 			const node = createMockAspectableNode({
@@ -356,7 +356,7 @@ describe("Aspects", () => {
 				},
 			];
 
-			const aspect = createMockAspectNode(properties);
+			const aspect = createMockAspectData(properties);
 			const specification = Aspects.specificationFrom(aspect);
 
 			// Test with all valid properties
@@ -395,7 +395,7 @@ describe("Aspects", () => {
 				type: "string",
 			};
 
-			const aspect = createMockAspectNode([property]);
+			const aspect = createMockAspectData([property]);
 			const propertyName = Aspects.propertyName(aspect, property);
 
 			expect(propertyName).toBe(`${aspect.uuid}:`);
@@ -409,7 +409,7 @@ describe("Aspects", () => {
 				validationList: ["apple", "banana", "cherry"],
 			};
 
-			const aspect = createMockAspectNode([property]);
+			const aspect = createMockAspectData([property]);
 			const specification = Aspects.specificationFrom(aspect);
 			const propertyName = Aspects.propertyName(aspect, property);
 
@@ -439,7 +439,7 @@ describe("Aspects", () => {
 				validationList: ["apple", "banana", "cherry"],
 			};
 
-			const aspect = createMockAspectNode([property]);
+			const aspect = createMockAspectData([property]);
 			const specification = Aspects.specificationFrom(aspect);
 			const propertyName = Aspects.propertyName(aspect, property);
 
@@ -468,7 +468,7 @@ describe("Aspects", () => {
 				validationRegex: "^[a-z]+$",
 			};
 
-			const aspect = createMockAspectNode([property]);
+			const aspect = createMockAspectData([property]);
 			const specification = Aspects.specificationFrom(aspect);
 			const propertyName = Aspects.propertyName(aspect, property);
 
@@ -498,7 +498,7 @@ describe("Aspects", () => {
 				validationRegex: "^[a-z]+$",
 			};
 
-			const aspect = createMockAspectNode([property]);
+			const aspect = createMockAspectData([property]);
 			const specification = Aspects.specificationFrom(aspect);
 			const propertyName = Aspects.propertyName(aspect, property);
 
@@ -529,36 +529,6 @@ describe("Aspects", () => {
 			expect(typeof Aspects.specificationFrom).toBe("function");
 		});
 
-		it("creation should fail for invalid property constraints", () => {
-			// Test that number type with validationList fails
-			const numberWithListResult = AspectNode.create({
-				title: "Test Aspect",
-				owner: "test@example.com",
-				properties: [{
-					name: "list_prop_number",
-					title: "List Property Number",
-					type: "number",
-					validationList: ["1", "2"],
-				}],
-			});
-
-			expect(numberWithListResult.isLeft()).toBe(true);
-			expect(numberWithListResult.value).toBeInstanceOf(ValidationError);
-
-			// Test that boolean type with validationRegex fails
-			const booleanWithRegexResult = AspectNode.create({
-				title: "Test Aspect",
-				owner: "test@example.com",
-				properties: [{
-					name: "regex_prop_boolean",
-					title: "Regex Property Boolean",
-					type: "boolean",
-					validationRegex: "true",
-				}],
-			});
-
-			expect(booleanWithRegexResult.isLeft()).toBe(true);
-			expect(booleanWithRegexResult.value).toBeInstanceOf(ValidationError);
-		});
+		// Removed test for AspectNode creation validation - AspectData is now validated by Zod schema in AspectsService
 	});
 });

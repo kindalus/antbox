@@ -1,4 +1,4 @@
-import type { WorkflowState } from "domain/workflows/workflow_node.ts";
+import type { WorkflowState } from "domain/configuration/workflow_data.ts";
 
 /**
  * A snapshot of the workflow definition as it existed when the instance started.

@@ -11,8 +11,10 @@ export function listHandler(tenants: AntboxTenant[]): HttpHandler {
 	return defaultMiddlewareChain(
 		tenants,
 		(req: Request): Promise<Response> => {
-			const service = getTenant(req, tenants).aspectService;
-			return service.list(getAuthenticationContext(req)).then(sendOK);
+			const service = getTenant(req, tenants).aspectsService;
+			return service.listAspects(getAuthenticationContext(req))
+				.then(processServiceResult)
+				.catch(processError);
 		},
 	);
 }
@@ -21,7 +23,7 @@ export function getHandler(tenants: AntboxTenant[]): HttpHandler {
 	return defaultMiddlewareChain(
 		tenants,
 		(req: Request): Promise<Response> => {
-			const service = getTenant(req, tenants).aspectService;
+			const service = getTenant(req, tenants).aspectsService;
 			const params = getParams(req);
 			if (!params.uuid) {
 				return Promise.resolve(
@@ -29,7 +31,7 @@ export function getHandler(tenants: AntboxTenant[]): HttpHandler {
 				);
 			}
 
-			return service.get(getAuthenticationContext(req), params.uuid)
+			return service.getAspect(getAuthenticationContext(req), params.uuid)
 				.then(processServiceResult)
 				.catch(processError);
 		},
@@ -40,7 +42,7 @@ export function deleteHandler(tenants: AntboxTenant[]): HttpHandler {
 	return defaultMiddlewareChain(
 		tenants,
 		(req: Request): Promise<Response> => {
-			const service = getTenant(req, tenants).aspectService;
+			const service = getTenant(req, tenants).aspectsService;
 			const params = getParams(req);
 			if (!params.uuid) {
 				return Promise.resolve(
@@ -49,7 +51,7 @@ export function deleteHandler(tenants: AntboxTenant[]): HttpHandler {
 			}
 
 			return service
-				.delete(getAuthenticationContext(req), params.uuid)
+				.deleteAspect(getAuthenticationContext(req), params.uuid)
 				.then(processServiceResult)
 				.catch(processError);
 		},
@@ -59,8 +61,8 @@ export function deleteHandler(tenants: AntboxTenant[]): HttpHandler {
 export function exportHandler(tenants: AntboxTenant[]): HttpHandler {
 	return defaultMiddlewareChain(
 		tenants,
-		(req: Request): Promise<Response> => {
-			const service = getTenant(req, tenants).aspectService;
+		async (req: Request): Promise<Response> => {
+			const service = getTenant(req, tenants).aspectsService;
 			const params = getParams(req);
 			if (!params.uuid) {
 				return Promise.resolve(
@@ -68,25 +70,22 @@ export function exportHandler(tenants: AntboxTenant[]): HttpHandler {
 				);
 			}
 
-			return Promise.all([
-				service.get(getAuthenticationContext(req), params.uuid),
-				service.export(getAuthenticationContext(req), params.uuid),
-			])
-				.then(([node, blob]) => {
-					if (node.isLeft()) {
-						return processError(node.value);
-					}
+			const aspectOrErr = await service.getAspect(getAuthenticationContext(req), params.uuid);
 
-					if (blob.isLeft()) {
-						return processError(blob.value);
-					}
+			if (aspectOrErr.isLeft()) {
+				return processError(aspectOrErr.value);
+			}
 
-					const response = new Response(blob.value);
-					response.headers.set("Content-Type", blob.value.type);
-					response.headers.set("Content-length", blob.value.size.toString());
-					return response;
-				})
-				.catch(processError);
+			const aspect = aspectOrErr.value;
+			const filename = `${aspect.title.replace(/[^a-z0-9]/gi, "_").toLowerCase()}.json`;
+			const json = JSON.stringify(aspect, null, 2);
+			const blob = new Blob([json], { type: "application/json" });
+
+			const response = new Response(blob);
+			response.headers.set("Content-Type", "application/json");
+			response.headers.set("Content-Disposition", `attachment; filename="${filename}"`);
+			response.headers.set("Content-Length", blob.size.toString());
+			return response;
 		},
 	);
 }
@@ -95,29 +94,11 @@ export function createOrReplaceHandler(tenants: AntboxTenant[]): HttpHandler {
 	return defaultMiddlewareChain(
 		tenants,
 		async (req: Request): Promise<Response> => {
-			const service = getTenant(req, tenants).aspectService;
-
-			const formdata = await req.formData();
-			const file = formdata.get("file") as File;
-			let metadata;
-
-			try {
-				metadata = JSON.parse(await file.text());
-
-				if (!metadata) {
-					return new Response("Missing metadata", { status: 400 });
-				}
-			} catch (_error) {
-				console.error(_error);
-				return new Response("Invalid metadata", { status: 400 });
-			}
-
-			if (!metadata.uuid) {
-				metadata.uuid = file.name.substring(0, file.name.lastIndexOf("."));
-			}
+			const service = getTenant(req, tenants).aspectsService;
+			const metadata = await req.json();
 
 			return service
-				.createOrReplace(getAuthenticationContext(req), metadata)
+				.createAspect(getAuthenticationContext(req), metadata)
 				.then(processServiceResult)
 				.catch(processError);
 		},

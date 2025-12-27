@@ -2,12 +2,12 @@ import { Either, left, right } from "shared/either.ts";
 import { AntboxError } from "shared/antbox_error.ts";
 import type { AIModel, Embedding } from "application/ai_model.ts";
 import { ChatHistory, ChatMessage, ToolCall, ToolResponse } from "domain/ai/chat_message.ts";
-import { FeatureDTO } from "application/feature_dto.ts";
-import {
+import type {
+	FeatureData,
 	FeatureParameter,
 	FeatureParameterArrayType,
 	FeatureParameterType,
-} from "domain/features/feature_node.ts";
+} from "domain/configuration/feature_data.ts";
 import {
 	Content,
 	FunctionDeclaration,
@@ -142,7 +142,7 @@ export class GoogleModel implements AIModel {
 		options?: {
 			systemPrompt?: string;
 			history?: ChatHistory;
-			tools?: Partial<FeatureDTO>[];
+			tools?: Partial<FeatureData>[];
 			files?: File[];
 			temperature?: number;
 			maxTokens?: number;
@@ -190,7 +190,7 @@ export class GoogleModel implements AIModel {
 	#buildGenerateContentConfig(options: {
 		systemPrompt?: string;
 		history?: ChatHistory;
-		tools?: Partial<FeatureDTO>[];
+		tools?: Partial<FeatureData>[];
 		files?: File[];
 		temperature?: number;
 		maxTokens?: number;
@@ -270,7 +270,7 @@ export class GoogleModel implements AIModel {
 		input: string | ChatMessage,
 		options?: {
 			systemPrompt?: string;
-			tools?: Partial<FeatureDTO>[];
+			tools?: Partial<FeatureData>[];
 			files?: File[];
 			temperature?: number;
 			maxTokens?: number;
@@ -397,23 +397,23 @@ export class GoogleModel implements AIModel {
 	}
 
 	/**
-	 * Convert Antbox FeatureDTO array to Google function declarations
+	 * Convert Antbox FeatureData array to Google function declarations
 	 */
-	static #toFunctionDeclaration(feature: Partial<FeatureDTO>): FunctionDeclaration {
+	static #toFunctionDeclaration(feature: Partial<FeatureData>): FunctionDeclaration {
 		const parameters: Schema = {
 			type: Type.OBJECT,
 		};
 
 		parameters.properties = feature.parameters
 			?.map(GoogleModel.#toPropertySchema)
-			.reduce((acc, cur) => {
+			.reduce((acc: Record<string, Schema>, cur: [string, Schema]) => {
 				acc[cur[0]] = cur[1];
 				return acc;
 			}, {} as Record<string, Schema>);
 
 		parameters.required = feature.parameters
-			?.filter((param) => param.required)
-			.map((param) => param.name);
+			?.filter((param: FeatureParameter) => param.required)
+			.map((param: FeatureParameter) => param.name);
 
 		return {
 			name: feature.uuid!,

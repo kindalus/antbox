@@ -3,9 +3,9 @@ import { AuthenticationContext } from "application/authentication_context.ts";
 import { Either, left, right } from "shared/either.ts";
 import { AntboxError } from "shared/antbox_error.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
-import { Folders } from "domain/nodes/folders.ts";
 import { webdavPathCache } from "./webdav_path_cache.ts";
 import { NodeMetadata } from "domain/nodes/node_metadata.ts";
+import { Nodes } from "domain/nodes/nodes.ts";
 
 function pathsMatch(pathA: string[], pathB: string[]): boolean {
 	return (
@@ -44,7 +44,7 @@ export async function resolvePath(
 
 	// Cache miss or no tenant - resolve from database
 	if (normalizedPath === "/") {
-		const rootResult = await service.get(authContext, Folders.ROOT_FOLDER_UUID);
+		const rootResult = await service.get(authContext, Nodes.ROOT_FOLDER_UUID);
 		if (rootResult.isRight() && tenantName) {
 			webdavPathCache.set(tenantName, authContext.principal.email, "/", rootResult.value);
 		}

@@ -3,12 +3,12 @@ import { expect, fn } from "expect";
 import { NodeService } from "./node_service.ts";
 import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository.ts";
 import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider.ts";
+import { InMemoryConfigurationRepository } from "adapters/inmem/inmem_configuration_repository.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import type { AuthenticationContext } from "./authentication_context.ts";
 import { Groups } from "domain/users_groups/groups.ts";
 import { ForbiddenError } from "shared/antbox_error.ts";
 import type { NodeServiceContext } from "./node_service_context.ts";
-import { Folders } from "domain/nodes/folders.ts";
 import { FileNode } from "domain/nodes/file_node.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus.ts";
@@ -22,7 +22,7 @@ describe("NodeService", () => {
 				title: "Node to delete",
 				mimetype: Nodes.SMART_FOLDER_MIMETYPE,
 				owner: "tester@domain.com",
-				parent: Folders.ROOT_FOLDER_UUID,
+				parent: Nodes.ROOT_FOLDER_UUID,
 			}).right;
 
 			// const bus: EventBus = new InMemoryEventBus();
@@ -61,7 +61,7 @@ describe("NodeService", () => {
 			const folder = await service.create(authCtx, {
 				title: "Folder to delete",
 				mimetype: Nodes.FOLDER_MIMETYPE,
-				parent: Folders.ROOT_FOLDER_UUID,
+				parent: Nodes.ROOT_FOLDER_UUID,
 			});
 
 			const child = await service.create(authCtx, {
@@ -84,7 +84,7 @@ describe("NodeService", () => {
 			const parent = await service.create(authCtx, {
 				title: "Parent",
 				mimetype: "application/vnd.antbox.folder",
-				parent: Folders.ROOT_FOLDER_UUID,
+				parent: Nodes.ROOT_FOLDER_UUID,
 			});
 
 			const node = await service.create(authCtx, {
@@ -123,4 +123,5 @@ const nodeService = (opts: Partial<NodeServiceContext> = {}) =>
 		storage: opts.storage ?? new InMemoryStorageProvider(),
 		repository: opts.repository ?? new InMemoryNodeRepository(),
 		bus: opts.bus ?? new InMemoryEventBus(),
+		configRepo: opts.configRepo ?? new InMemoryConfigurationRepository(),
 	});

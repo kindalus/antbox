@@ -6,7 +6,7 @@ export class InMemoryEventBus implements EventBus {
 	#handlers: Record<string, EventHandler<Event>[]> = {};
 
 	publish(event: Event): void {
-		setTimeout(() => this.#handleAsync(event), 2000);
+		queueMicrotask(() => void this.#handleAsync(event));
 	}
 
 	#handleAsync(event: Event): Promise<void> {

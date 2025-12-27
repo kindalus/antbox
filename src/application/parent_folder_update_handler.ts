@@ -3,7 +3,7 @@ import type { NodeCreatedEvent } from "domain/nodes/node_created_event.ts";
 import type { NodeDeletedEvent } from "domain/nodes/node_deleted_event.ts";
 import type { NodeUpdatedEvent } from "domain/nodes/node_updated_event.ts";
 import type { NodeServiceContext } from "./node_service_context.ts";
-import { Folders } from "domain/nodes/folders.ts";
+import { Nodes } from "domain/nodes/nodes.ts";
 
 /**
  * Event handler that updates parent folder modification times when nodes are created, updated, or deleted.
@@ -70,7 +70,7 @@ export class ParentFolderUpdateHandler
 		_context = "",
 	): Promise<void> {
 		// Don't update the root folder as it's a built-in folder
-		if (Folders.isRootFolder(parentUuid) || Folders.isSystemFolder(parentUuid)) {
+		if (parentUuid === Nodes.ROOT_FOLDER_UUID) {
 			return;
 		}
 

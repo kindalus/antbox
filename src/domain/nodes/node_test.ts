@@ -1,9 +1,9 @@
 import { describe, it } from "bdd";
 import { expect } from "expect";
 import { Node } from "./node.ts";
-import { Folders } from "./folders.ts";
 import { ValidationError } from "shared/validation_error.ts";
 import { FidGenerator } from "shared/fid_generator.ts";
+import { Nodes } from "./nodes.ts";
 
 describe("Node", () => {
 	describe("constructor", () => {
@@ -11,13 +11,13 @@ describe("Node", () => {
 			const node = new Node({
 				title: "New node",
 				mimetype: "application/json",
-				parent: Folders.ROOT_FOLDER_UUID,
+				parent: Nodes.ROOT_FOLDER_UUID,
 				owner: "user@domain.com",
 			});
 
 			expect(node.title).toBe("New node");
 			expect(node.mimetype).toBe("application/json");
-			expect(node.parent).toBe(Folders.ROOT_FOLDER_UUID);
+			expect(node.parent).toBe(Nodes.ROOT_FOLDER_UUID);
 			expect(node.owner).toBe("user@domain.com");
 		});
 
@@ -25,7 +25,7 @@ describe("Node", () => {
 			const node = new Node({
 				title: "Node with generated fid",
 				mimetype: "application/json",
-				parent: Folders.ROOT_FOLDER_UUID,
+				parent: Nodes.ROOT_FOLDER_UUID,
 				owner: "user@domain.com",
 			});
 
@@ -39,7 +39,7 @@ describe("Node", () => {
 					title: "",
 					mimetype: "application/json",
 					owner: "user",
-					parent: Folders.ROOT_FOLDER_UUID,
+					parent: Nodes.ROOT_FOLDER_UUID,
 				});
 			}).toThrow();
 		});
@@ -50,7 +50,7 @@ describe("Node", () => {
 					title: "Title",
 					mimetype: "",
 					owner: "user",
-					parent: Folders.ROOT_FOLDER_UUID,
+					parent: Nodes.ROOT_FOLDER_UUID,
 				});
 			}).toThrow();
 		});
@@ -72,7 +72,7 @@ describe("Node", () => {
 					title: "Title",
 					mimetype: "application/json",
 					owner: "",
-					parent: Folders.ROOT_FOLDER_UUID,
+					parent: Nodes.ROOT_FOLDER_UUID,
 				});
 			}).toThrow();
 		});
@@ -154,7 +154,7 @@ describe("Node", () => {
 		it("should generate fid if empty", () => {
 			const node = new Node({
 				title: "Initial File",
-				parent: Folders.ROOT_FOLDER_UUID,
+				parent: Nodes.ROOT_FOLDER_UUID,
 				owner: "user@domain.com",
 				mimetype: "application/pdf",
 			});

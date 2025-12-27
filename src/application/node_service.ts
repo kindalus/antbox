@@ -1,30 +1,25 @@
-import { AspectNode, type AspectProperty } from "domain/aspects/aspect_node.ts";
 import { Aspects } from "domain/aspects/aspects.ts";
+import type { AspectData, AspectProperty } from "domain/configuration/aspect_data.ts";
 import { NodeFactory } from "domain/node_factory.ts";
 import type { AspectableNode, NodeLike } from "domain/node_like.ts";
 import { FileNode } from "domain/nodes/file_node.ts";
 import { FolderNode } from "domain/nodes/folder_node.ts";
 import { FolderNotFoundError } from "domain/nodes/folder_not_found_error.ts";
-import { Folders } from "domain/nodes/folders.ts";
+
 import { MetaNode } from "domain/nodes/meta_node.ts";
-import { Node} from "domain/nodes/node.ts";
+import { Node } from "domain/nodes/node.ts";
 import { NodeCreatedEvent } from "domain/nodes/node_created_event.ts";
 import { NodeDeletedEvent } from "domain/nodes/node_deleted_event.ts";
 import {
 	isNodeFilters2D,
 	type NodeFilter,
 	type NodeFilters,
-	type NodeFilters1D,
 	type NodeFilters2D,
 } from "domain/nodes/node_filter.ts";
 import { NodeUpdateChanges, NodeUpdatedEvent } from "domain/nodes/node_updated_event.ts";
 
 import type { AuthenticationContext } from "./authentication_context.ts";
-import { builtinFolders, SYSTEM_FOLDER, SYSTEM_FOLDERS } from "./builtin_folders/index.ts";
-import type { NodeServiceContext } from "./node_service_context.ts";
-import { AuthorizationService } from "./authorization_service.ts";
-import { FindService } from "./find_service.ts";
-import { FeatureNode, FeatureParameter } from "domain/features/feature_node.ts";
+
 import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import type { NodeProperties } from "domain/nodes/node_properties.ts";
@@ -41,11 +36,10 @@ import { FidGenerator } from "shared/fid_generator.ts";
 import { Specification, specificationFn } from "shared/specification.ts";
 import { UuidGenerator } from "shared/uuid_generator.ts";
 import { ValidationError } from "shared/validation_error.ts";
-import { builtinAgents } from "./builtin_agents/index.ts";
-import { builtinAspects } from "./builtin_aspects/index.ts";
-import { builtinFeatures } from "./builtin_features/index.ts";
-import { builtinGroups } from "./builtin_groups/index.ts";
-import { builtinUsers } from "./builtin_users/index.ts";
+import { AuthorizationService } from "./authorization_service.ts";
+import { FindService } from "./find_service.ts";
+import type { NodeServiceContext } from "./node_service_context.ts";
+
 import { ParentFolderUpdateHandler } from "./parent_folder_update_handler.ts";
 
 // TODO: Implements throwing events
@@ -193,11 +187,6 @@ export class NodeService {
 			);
 		}
 
-		const featureOrErr = this.#validateFeature(nodeOrErr.value);
-		if (featureOrErr.isLeft()) {
-			return left(featureOrErr.value);
-		}
-
 		nodeOrErr.value.update({
 			fulltext: await this.#calculateFulltext(ctx, nodeOrErr.value),
 		});
@@ -232,22 +221,20 @@ export class NodeService {
 		file: File,
 		metadata: Partial<NodeMetadata>,
 	): Promise<Either<AntboxError, NodeMetadata>> {
-		let useFileType = file.type &&
-			(!metadata.mimetype || metadata.mimetype !== Nodes.FEATURE_MIMETYPE);
+		const fileType = file.type === "text/javascript" ? "application/javascript" : file.type;
+		const requestedType = metadata.mimetype === "text/javascript"
+			? "application/javascript"
+			: metadata.mimetype;
 
-		if (
-			metadata.mimetype !== Nodes.FEATURE_MIMETYPE &&
-			(metadata.mimetype === "text/javascript" || file.type === "text/javascript")
-		) {
-			metadata.mimetype = "application/javascript";
-			useFileType = false;
-		}
+		const shouldPreferRequestedType = Boolean(
+			requestedType && (metadata.exposeAction || metadata.exposeExtension || metadata.exposeAITool),
+		);
 
 		const fileMetadata = {
 			...metadata,
 			title: metadata.title ?? file.name,
 			fid: metadata.fid ?? FidGenerator.generate(metadata.title ?? file.name),
-			mimetype: useFileType ? file.type : metadata.mimetype,
+			mimetype: shouldPreferRequestedType ? requestedType : (fileType || requestedType),
 			size: file.size,
 		};
 
@@ -432,14 +419,6 @@ export class NodeService {
 		}
 
 		const type = this.#mapAntboxMimetypes(nodeOrErr.value.mimetype);
-		if (Nodes.isAction(nodeOrErr.value)) {
-			return right(
-				new File([fileOrErr.value], nodeOrErr.value.title.concat(".js"), {
-					type,
-				}),
-			);
-		}
-
 		return right(
 			new File([fileOrErr.value], nodeOrErr.value.title, { type }),
 		);
@@ -539,7 +518,7 @@ export class NodeService {
 
 	async list(
 		ctx: AuthenticationContext,
-		parent = Folders.ROOT_FOLDER_UUID,
+		parent = Nodes.ROOT_FOLDER_UUID,
 	): Promise<Either<FolderNotFoundError | ForbiddenError, NodeMetadata[]>> {
 		const [parentOrErr, nodeOrErr] = await Promise.all([
 			this.#getBuiltinFolderOrFromRepository(parent),
@@ -566,10 +545,6 @@ export class NodeService {
 			return left(allowedOrErr.value);
 		}
 
-		if (Folders.isSystemRootFolder(parentOrErr.value)) {
-			return right(this.#listSystemRootFolder());
-		}
-
 		const nodesOrErr = await this.find(
 			ctx,
 			[["parent", "==", parentOrErr.value.uuid]],
@@ -582,10 +557,6 @@ export class NodeService {
 		}
 
 		const nodes = nodesOrErr.value.nodes;
-
-		if (parent === Folders.ROOT_FOLDER_UUID) {
-			nodes.push(SYSTEM_FOLDER);
-		}
 
 		nodes.sort((a, b) => {
 			if (Nodes.isFolderLike(a) && Nodes.isFolderLike(b)) {
@@ -623,7 +594,7 @@ export class NodeService {
 		let currentUuid = nodeOrErr.value.parent;
 
 		// Traverse up the folder hierarchy
-		while (currentUuid && currentUuid !== Folders.ROOT_FOLDER_UUID) {
+		while (currentUuid && currentUuid !== Nodes.ROOT_FOLDER_UUID) {
 			const currentNodeOrErr = await this.#getBuiltinFolderOrFromRepository(currentUuid);
 
 			if (currentNodeOrErr.isLeft()) {
@@ -640,9 +611,9 @@ export class NodeService {
 		}
 
 		// Add root folder at the beginning if not already there
-		if (breadcrumbs.length === 0 || breadcrumbs[0].uuid !== Folders.ROOT_FOLDER_UUID) {
+		if (breadcrumbs.length === 0 || breadcrumbs[0].uuid !== Nodes.ROOT_FOLDER_UUID) {
 			breadcrumbs.unshift({
-				uuid: Folders.ROOT_FOLDER_UUID,
+				uuid: Nodes.ROOT_FOLDER_UUID,
 				title: "Root",
 			});
 		}
@@ -704,10 +675,6 @@ export class NodeService {
 			}
 		}
 
-		if (Nodes.isApikey(nodeOrErr.value)) {
-			return left(new BadRequestError("Cannot update apikey"));
-		}
-
 		if (Nodes.isFileLike(nodeOrErr.value)) {
 			const newNodeOrErr = NodeFactory.from({
 				...nodeOrErr.value.metadata,
@@ -719,7 +686,20 @@ export class NodeService {
 			nodeOrErr = newNodeOrErr;
 		}
 
-		const voidOrErr = nodeOrErr.value.update(metadata);
+		let safeMetadata: Partial<NodeMetadata> = metadata;
+
+		// Merge properties to avoid accidentally dropping unspecified properties
+		if (safeMetadata.properties && Nodes.hasAspects(nodeOrErr.value)) {
+			const currentProperties = (nodeOrErr.value as AspectableNode).properties || {};
+			safeMetadata = {
+				...safeMetadata,
+				properties: { ...currentProperties, ...safeMetadata.properties },
+			};
+		}
+
+		safeMetadata = await this.#filterReadonlyProperties(ctx, nodeOrErr.value, safeMetadata);
+
+		const voidOrErr = nodeOrErr.value.update(safeMetadata);
 		if (voidOrErr.isLeft()) {
 			return left(voidOrErr.value);
 		}
@@ -786,11 +766,6 @@ export class NodeService {
 			}
 		}
 
-		const featureOrErr = this.#validateFeature(nodeOrErr.value);
-		if (featureOrErr.isLeft()) {
-			return left(featureOrErr.value);
-		}
-
 		nodeOrErr.value.update({
 			fulltext: await this.#calculateFulltext(ctx, nodeOrErr.value),
 		});
@@ -802,7 +777,7 @@ export class NodeService {
 			const changes: NodeUpdateChanges = {
 				uuid: nodeOrErr.value.uuid,
 				oldValues,
-				newValues: metadata,
+				newValues: safeMetadata,
 			};
 
 			// Publish NodeUpdatedEvent
@@ -1066,18 +1041,27 @@ export class NodeService {
 	async #getBuiltinFolderOrFromRepository(
 		uuid: string,
 	): Promise<Either<NodeNotFoundError, FolderNode>> {
-		const filters: NodeFilters1D = [];
-		if (Nodes.isFid(uuid)) {
-			filters.push(["fid", "==", Nodes.uuidToFid(uuid)]);
-		} else {
-			filters.push(["uuid", "==", uuid]);
-		}
-
-		const builtinFolder = builtinFolders.find((n) =>
-			NodesFilters.satisfiedBy(filters, n).isRight()
-		);
-		if (builtinFolder) {
-			return right(builtinFolder);
+		// Check if it's the root folder
+		if (uuid === Nodes.ROOT_FOLDER_UUID || uuid === Nodes.uuidToFid(Nodes.ROOT_FOLDER_UUID)) {
+			const rootFolder = FolderNode.create({
+				uuid: Nodes.ROOT_FOLDER_UUID,
+				fid: Nodes.ROOT_FOLDER_UUID,
+				title: "Root",
+				parent: Nodes.ROOT_FOLDER_UUID,
+				owner: Users.ROOT_USER_EMAIL,
+				group: Groups.ADMINS_GROUP_UUID,
+				filters: [["mimetype", "in", [
+					Nodes.FOLDER_MIMETYPE,
+					Nodes.SMART_FOLDER_MIMETYPE,
+				]]],
+				permissions: {
+					group: ["Read", "Write", "Export"],
+					authenticated: ["Read"],
+					anonymous: [],
+					advanced: {},
+				},
+			}).right;
+			return right(rootFolder);
 		}
 
 		const nodeOrErr = await this.#getFromRepository(uuid);
@@ -1092,27 +1076,31 @@ export class NodeService {
 		return right(nodeOrErr.value);
 	}
 
-	#getBuiltinNodeOrFromRepository(
+	async #getBuiltinNodeOrFromRepository(
 		uuid: string,
 	): Promise<Either<NodeNotFoundError, NodeLike>> {
+		// Check if it's the root folder
 		const key = Nodes.isFid(uuid) ? Nodes.uuidToFid(uuid) : uuid;
-		const predicate = Nodes.isFid(uuid)
-			? (f: NodeLike) => f.fid === key
-			: (f: NodeLike) => f.uuid === key;
-
-		const builtinNodes: NodeLike[] = [
-			...builtinFolders,
-			...builtinAspects,
-			...builtinGroups,
-			...builtinUsers,
-
-			...builtinAgents,
-			...builtinFeatures,
-		];
-		const builtinNode = builtinNodes.find(predicate);
-
-		if (builtinNode) {
-			return Promise.resolve(right(builtinNode));
+		if (key === Nodes.ROOT_FOLDER_UUID) {
+			const rootFolder = FolderNode.create({
+				uuid: Nodes.ROOT_FOLDER_UUID,
+				fid: Nodes.ROOT_FOLDER_UUID,
+				title: "Root",
+				parent: Nodes.ROOT_FOLDER_UUID,
+				owner: Users.ROOT_USER_EMAIL,
+				group: Groups.ADMINS_GROUP_UUID,
+				filters: [["mimetype", "in", [
+					Nodes.FOLDER_MIMETYPE,
+					Nodes.SMART_FOLDER_MIMETYPE,
+				]]],
+				permissions: {
+					group: ["Read", "Write", "Export"],
+					authenticated: ["Read"],
+					anonymous: [],
+					advanced: {},
+				},
+			}).right;
+			return right(rootFolder);
 		}
 
 		return this.#getFromRepository(uuid);
@@ -1131,25 +1119,25 @@ export class NodeService {
 	async #getNodeAspects(
 		ctx: AuthenticationContext,
 		node: FileNode | FolderNode | MetaNode,
-	): Promise<Either<ValidationError, AspectNode[]>> {
+	): Promise<Either<ValidationError, AspectData[]>> {
 		if (!node.aspects || node.aspects.length === 0) {
 			return right([]);
 		}
 
-		const nodesOrErrs = await Promise.all(
-			node.aspects.map((a) => this.get(ctx, a)),
+		const aspectsOrErrs = await Promise.all(
+			node.aspects.map((uuid) => this.context.configRepo.get("aspects", uuid)),
 		);
 
 		// Check if any aspects were not found
 		const missingAspects: string[] = [];
-		const foundAspects: AspectNode[] = [];
+		const foundAspects: AspectData[] = [];
 
-		for (let i = 0; i < nodesOrErrs.length; i++) {
-			const nodeOrErr = nodesOrErrs[i];
-			if (nodeOrErr.isLeft()) {
+		for (let i = 0; i < aspectsOrErrs.length; i++) {
+			const aspectOrErr = aspectsOrErrs[i];
+			if (aspectOrErr.isLeft()) {
 				missingAspects.push(node.aspects![i]);
 			} else {
-				foundAspects.push(nodeOrErr.value as AspectNode);
+				foundAspects.push(aspectOrErr.value);
 			}
 		}
 
@@ -1168,7 +1156,7 @@ export class NodeService {
 	async #validateNodeAspectsThenUpdate(
 		ctx: AuthenticationContext,
 		node: FileNode | FolderNode | MetaNode,
-		aspects: AspectNode[],
+		aspects: AspectData[],
 	): Promise<Either<ValidationError, void>> {
 		if (!aspects.length) {
 			node.update({ aspects: [], properties: {} });
@@ -1196,9 +1184,10 @@ export class NodeService {
 			if (!uuidProperties.length) continue;
 
 			const v = uuidProperties.map((p) => {
-				const value = (accProps[`${a.uuid}:${p.name}`] ?? p.default) as
+				const value = (accProps[`${a.uuid}:${p.name}`] ?? p.defaultValue) as
 					| string
-					| string[];
+					| string[]
+					| undefined;
 				return this.#validateUUIDProperty(ctx, p, value);
 			});
 
@@ -1223,7 +1212,7 @@ export class NodeService {
 	async #validateUUIDProperty(
 		_auth: AuthenticationContext,
 		property: AspectProperty,
-		values: string | string[],
+		values: string | string[] | undefined,
 	): Promise<Specification<NodeLike>> {
 		if (property.type !== "uuid" && property.arrayType !== "uuid") {
 			console.warn(
@@ -1285,28 +1274,24 @@ export class NodeService {
 		property: AspectProperty,
 		key: string,
 	) {
-		const value = curProperties[key] ?? property.default ?? undefined;
+		const value = curProperties[key] ?? property.defaultValue ?? undefined;
 
-		if (value || value === false) {
+		if (value !== undefined) {
 			accProperties[key] = value;
 		}
 	}
 
-	#aspectToProperties(aspect: AspectNode): AspectProperty[] {
+	#aspectToProperties(aspect: AspectData): AspectProperty[] {
 		return aspect.properties.map((p) => {
 			return { ...p, name: `${aspect.uuid}:${p.name}` };
 		});
 	}
 
-	#listSystemRootFolder(): FolderNode[] {
-		return SYSTEM_FOLDERS;
-	}
-
 	async #filterReadonlyProperties(
 		ctx: AuthenticationContext,
 		node: NodeLike,
-		metadata: NodeMetadata,
-	): Promise<NodeMetadata> {
+		metadata: Partial<NodeMetadata>,
+	): Promise<Partial<NodeMetadata>> {
 		// If no properties are being updated, return metadata as-is
 		if (!metadata.properties) {
 			return metadata;
@@ -1357,157 +1342,11 @@ export class NodeService {
 	}
 
 	#mapAntboxMimetypes(mimetype: string): string {
-		const mimetypeMap = {
-			[Nodes.FEATURE_MIMETYPE]: "application/javascript",
+		const mimetypeMap: Record<string, string> = {
 			[Nodes.SMART_FOLDER_MIMETYPE]: "application/json",
 		};
 
 		return mimetypeMap[mimetype] ?? mimetype;
-	}
-
-	#validateFeature(node: NodeLike): Either<AntboxError, void> {
-		if (!Nodes.isFeature(node)) {
-			return right(undefined);
-		}
-
-		const feature = node as FeatureNode; // Cast to access feature properties
-		const exposureCount = [
-			feature.exposeAction,
-			feature.exposeExtension,
-			feature.exposeAITool,
-		].filter(Boolean).length;
-
-		// Feature must expose at least one subtype
-		if (exposureCount === 0) {
-			return left(
-				new BadRequestError(
-					"Feature must expose at least one subtype (exposeAction, exposeExtension, or exposeAITool must be true)",
-				),
-			);
-		}
-
-		// Validate parameters structure if present
-		if (feature.parameters && Array.isArray(feature.parameters)) {
-			for (const param of feature.parameters) {
-				if (!param.name || typeof param.name !== "string") {
-					return left(
-						new BadRequestError(
-							"Feature parameter must have a valid 'name' field",
-						),
-					);
-				}
-				if (!param.type || typeof param.type !== "string") {
-					return left(
-						new BadRequestError(
-							`Feature parameter '${param.name}' must have a valid 'type' field`,
-						),
-					);
-				}
-			}
-		}
-
-		// Action-specific validation
-		if (feature.exposeAction) {
-			const validationErr = this.#validateActionFeature(feature);
-			if (validationErr) return left(validationErr);
-		}
-
-		// Extension-specific validation
-		if (feature.exposeExtension) {
-			const validationErr = this.#validateExtensionFeature(feature);
-			if (validationErr) return left(validationErr);
-		}
-
-		// AI Tool-specific validation
-		if (feature.exposeAITool) {
-			const validationErr = this.#validateAIToolFeature(feature);
-			if (validationErr) return left(validationErr);
-		}
-
-		return right(undefined);
-	}
-
-	#validateActionFeature(feature: FeatureNode): BadRequestError | null {
-		// Actions must have parameters
-		if (!feature.parameters || !Array.isArray(feature.parameters)) {
-			return new BadRequestError(
-				"Feature with exposeAction=true must have parameters array",
-			);
-		}
-
-		// Actions must have uuids parameter
-		const uuidsParam = feature.parameters.find((p: FeatureParameter) => p.name === "uuids");
-		if (!uuidsParam) {
-			return new BadRequestError(
-				"Feature with exposeAction=true must have a uuids parameter",
-			);
-		}
-
-		// uuids parameter must be array of strings
-		if (uuidsParam.type !== "array") {
-			return new BadRequestError(
-				"Action uuids parameter must be of type 'array'",
-			);
-		}
-
-		if (uuidsParam.arrayType !== "string") {
-			return new BadRequestError(
-				"Action uuids parameter must be array of strings (arrayType: 'string')",
-			);
-		}
-
-		// Actions cannot have file parameters
-		const hasFileParam = feature.parameters.some((p: FeatureParameter) => p.type === "file");
-		if (hasFileParam) {
-			return new BadRequestError(
-				"Actions cannot have file parameters",
-			);
-		}
-
-		return null;
-	}
-
-	#validateExtensionFeature(feature: FeatureNode): BadRequestError | null {
-		// Extensions cannot have uuids parameter unless they're also Actions
-		if (feature.parameters && Array.isArray(feature.parameters)) {
-			const hasUuidsParam = feature.parameters.some((p: FeatureParameter) => p.name === "uuids");
-			if (hasUuidsParam && !feature.exposeAction) {
-				return new BadRequestError(
-					"Extensions cannot have uuids parameter (Action-specific)",
-				);
-			}
-		}
-
-		// Extensions can have file parameters (this is allowed)
-		// Extensions have different run signature: (request) => Response
-		// This validation would need runtime checking, but we document the expectation
-
-		return null;
-	}
-
-	#validateAIToolFeature(feature: FeatureNode): BadRequestError | null {
-		// AI Tools cannot have uuids parameter unless they're also Actions
-		if (feature.parameters && Array.isArray(feature.parameters)) {
-			const hasUuidsParam = feature.parameters.some((p: FeatureParameter) => p.name === "uuids");
-			if (hasUuidsParam && !feature.exposeAction) {
-				return new BadRequestError(
-					"AI Tools cannot have uuids parameter (Action-specific)",
-				);
-			}
-
-			// AI Tools cannot have file parameters
-			const hasFileParam = feature.parameters.some((p: FeatureParameter) => p.type === "file");
-			if (hasFileParam) {
-				return new BadRequestError(
-					"AI Tools cannot have file parameters",
-				);
-			}
-		}
-
-		// AI Tools have different run signature: (context, params) => any
-		// This validation would need runtime checking, but we document the expectation
-
-		return null;
 	}
 
 	#canUnlockNode(ctx: AuthenticationContext, node: NodeLike): boolean {
@@ -1520,7 +1359,7 @@ export class NodeService {
 		const userGroups = ctx.principal.groups;
 		const authorizedGroups = node.unlockAuthorizedGroups || [];
 
-		return authorizedGroups.some((group) => userGroups.includes(group));
+		return authorizedGroups.some((group: string) => userGroups.includes(group));
 	}
 
 	#checkNodeLock(ctx: AuthenticationContext, node: NodeLike): Either<BadRequestError, void> {

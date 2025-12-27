@@ -2,25 +2,26 @@ import { beforeAll, describe, it } from "bdd";
 import { expect } from "expect";
 import { Users } from "domain/users_groups/users.ts";
 import { Groups } from "domain/users_groups/groups.ts";
-import { Folders } from "domain/nodes/folders.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
-import { ForbiddenError } from "shared/antbox_error.ts";
+import { UnauthorizedError } from "shared/antbox_error.ts";
 import type { AuthenticationContext } from "./authentication_context.ts";
 import { NodeService } from "./node_service.ts";
 import type { NodeServiceContext } from "./node_service_context.ts";
 import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository.ts";
 import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider.ts";
+import { InMemoryConfigurationRepository } from "adapters/inmem/inmem_configuration_repository.ts";
 import { SmartFolderNodeNotFoundError } from "domain/nodes/smart_folder_node_not_found_error.ts";
 import type { NodeFilters1D, NodeFilters2D } from "domain/nodes/node_filter.ts";
 import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus.ts";
-import type { AspectProperties } from "domain/aspects/aspect_node.ts";
 import { AspectableNode } from "domain/node_like.ts";
+import type { AspectProperty } from "domain/configuration/aspect_data.ts";
 
 const nodeService = (opts: Partial<NodeServiceContext> = {}) => {
 	const service = new NodeService({
 		repository: opts.repository ?? new InMemoryNodeRepository(),
 		storage: opts.storage ?? new InMemoryStorageProvider(),
 		bus: opts.bus ?? new InMemoryEventBus(),
+		configRepo: opts.configRepo ?? new InMemoryConfigurationRepository(),
 	});
 
 	return service;
@@ -53,11 +54,48 @@ const financeCtx: AuthenticationContext = {
 	},
 };
 
-const service = nodeService();
+const configRepo = new InMemoryConfigurationRepository();
+const service = nodeService({ configRepo });
 
 beforeAll(async () => {
+	await seedAspects(configRepo);
 	await loadData(service);
 });
+
+async function seedAspects(configRepo: InMemoryConfigurationRepository): Promise<void> {
+	const now = new Date().toISOString();
+
+	const opeProperties: AspectProperty[] = [
+		{ name: "date", title: "Date", type: "string" },
+		{ name: "amount", title: "Amount", type: "number" },
+		{ name: "company", title: "Company", type: "string" },
+	];
+
+	const posicaoFinanceiraProperties: AspectProperty[] = [
+		{ name: "date", title: "Date", type: "string" },
+		{ name: "amount", title: "Amount", type: "number" },
+	];
+
+	await configRepo.save("aspects", {
+		uuid: "ope-aspect",
+		title: "OPE",
+		description: "OPE aspect",
+		filters: [],
+		properties: opeProperties,
+		createdTime: now,
+		modifiedTime: now,
+	});
+
+	await configRepo.save("aspects", {
+		uuid: "posicao-financeira",
+		title: "Posição Financeira",
+		description: "Posição financeira aspect",
+		filters: [],
+		properties: posicaoFinanceiraProperties,
+		createdTime: now,
+		modifiedTime: now,
+	});
+}
 
 describe("NodeService", () => {
 	describe("find", () => {
@@ -109,7 +147,7 @@ describe("NodeService", () => {
 		});
 
 		it("should not return files without read permission", async () => {
-			const filters: NodeFilters1D = [["parent", "==", Folders.ROOT_FOLDER_UUID]];
+			const filters: NodeFilters1D = [["parent", "==", Nodes.ROOT_FOLDER_UUID]];
 			const result = await service.find(financeCtx, filters);
 
 			expect(result.isRight(), errToMsg(result.value)).toBeTruthy();
@@ -119,7 +157,7 @@ describe("NodeService", () => {
 
 	describe("list", () => {
 		it("should list all nodes in the root folder", async () => {
-			const listOrErr = await service.list(authCtx, Folders.ROOT_FOLDER_UUID);
+			const listOrErr = await service.list(authCtx, Nodes.ROOT_FOLDER_UUID);
 
 			expect(listOrErr.isRight(), errToMsg(listOrErr.value)).toBeTruthy();
 			expect(listOrErr.right.length).toBeGreaterThan(0);
@@ -139,37 +177,21 @@ describe("NodeService", () => {
 			]);
 		});
 
-		it("should not list nodes in 'Data Warehouse' folder for anonymous user", async () => {
-			const listOrErr = await service.list(anonymousCtx, "data-warehouse-uuid");
+			it("should not list nodes in 'Data Warehouse' folder for anonymous user", async () => {
+				const listOrErr = await service.list(anonymousCtx, "data-warehouse-uuid");
 
-			expect(listOrErr.isLeft()).toBeTruthy();
-			expect(listOrErr.value).toBeInstanceOf(ForbiddenError);
-		});
+				expect(listOrErr.isLeft()).toBeTruthy();
+				expect(listOrErr.value).toBeInstanceOf(UnauthorizedError);
+			});
 
-		it("should list public nodes in 'Marca' folder for anonymous user", async () => {
-			const listOrErr = await service.list(anonymousCtx, "marca-uuid");
+			it("should list public nodes in 'Marca' folder for anonymous user", async () => {
+				const listOrErr = await service.list(anonymousCtx, "marca-uuid");
 
-			expect(listOrErr.isRight(), errToMsg(listOrErr.value)).toBeTruthy();
-			expect(listOrErr.right.length).toBe(6);
-		});
+				expect(listOrErr.isRight(), errToMsg(listOrErr.value)).toBeTruthy();
+				expect(listOrErr.right.length).toBe(7);
+			});
 
-		it("should include system root folder when listing root folder", async () => {
-			const listOrErr = await service.list(authCtx, Folders.ROOT_FOLDER_UUID);
-
-			expect(listOrErr.isRight(), errToMsg(listOrErr.value)).toBeTruthy();
-			expect(listOrErr.right.some((n) => n.uuid === Folders.SYSTEM_FOLDER_UUID))
-				.toBeTruthy();
-		});
-
-		it("should list all system folders when listing system root folder", async () => {
-			const listOrErr = await service.list(authCtx, Folders.SYSTEM_FOLDER_UUID);
-
-			expect(listOrErr.isRight(), errToMsg(listOrErr.value)).toBeTruthy();
-			expect(listOrErr.right.map((n) => n.uuid).sort()).toEqual(
-				Folders.SYSTEM_FOLDERS_UUID.filter((uuid) => uuid !== Folders.SYSTEM_FOLDER_UUID)
-					.sort(),
-			);
-		});
+		// Removed tests for system folders - configuration items are no longer stored as nodes
 
 		it("should not show nodes that the user cannot read", async () => {
 			const listOrErr = await service.list(anonymousCtx, "vetify-logotipo-uuid");
@@ -228,99 +250,11 @@ function errToMsg(err: unknown): string {
 }
 
 async function loadData(service: NodeService): Promise<void> {
-	/*
-The folder 'Contabilidade' is secret and only the 'accounting' group has 'Read' access to it.
-Folder 'Marca' is public and everyone has 'Read' access to it, but only the 'admin' group
-has 'Write' access.
-Folder 'Posições Financeiras' is only accessible by the 'finance' group.
-There's an Aspect named 'OPE' that is contained in all OPE files. It contais date, amount and
-company fields.
-There's an Aspect named 'Posição Financeira' that is contained in all Posição Financeira files.
-It contais date and amount fields.
-In the ROOT Folders theres one aditional SmartFolder names 'Posição Financeira 2024' that contains
-all 'Posição Financeira' files from 2024.
-
-├── Contabilidade [accounting][RWE,,]
-│   ├── Balancete Vetify - Nov-2023.pdf
-│   └── RELATÓRIO E CONTAS VETIFY,LDA 2022 (1).pdf
-├── Data Warehouse
-│   ├── vetify_sales_dw-20240329.sql
-│   ├── vetify_sales_dw-20240507.sql
-│   ├── vetify_sales_dw-202409013.sql
-│   ├── vetify_sales_dw-20241222.sql
-│   └── vetify_sales_dw-20250106.sql
-├── Importação
-│   ├── Alvará Comercial.pdf
-│   ├── CCT-2024-10-09.pdf
-│   ├── CRC.pdf
-│   ├── Certidao138740CN2024.pdf
-│   ├── Licença Higio - 2024.pdf
-│   ├── NIF.pdf
-│   ├── OPEs
-│   │   ├── 2022-09-07 - OPE NOVAVET.pdf
-│   │   ├── 2022-12-06 - OPE WEPHARM.pdf
-│   │   ├── 2023-01-12 - OPE GEOFRETE.pdf
-│   │   ├── 2023-03-01- OPE ROYAL CANIN.pdf
-│   │   └── 2023-03-31 - OPE NOVAVET.pdf
-│   ├── Pauta Aduaneira - 2019.pdf
-│   ├── Pauta Aduaneira.pdf
-│   ├── REI.pdf
-│   └── Termo de Compromisso Operação Cambial de Mercadoria.pdf
-├── Marca
-│   ├── Background Zoom-1.jpg
-│   ├── Background Zoom-1.xcf
-│   ├── Background Zoom-2.jpg
-│   ├── Background Zoom-2.xcf
-│   ├── Carimbo - Vetify.png
-│   ├── Carimbo - Vetify.svg
-│   └── Vetify_Logotipo
-│       └── PNG
-│           ├── Icone
-│           │   ├── vetify_icone_cor.png
-│           │   └── vetify_icone_negativo.png
-│           └── Logo
-│               ├── vetify_logo_cor.png
-│               └── vetify_logo_negativo.png
-└── Posição Financeira [finance][RWE,,]
-    ├── Posição Financeira - 2023-03-21.pdf
-    ├── Posição Financeira - 2023-12-28.pdf
-    ├── Posição Financeira - 2024-09-29.pdf
-    ├── Posição Financeira - 2024-12-08.pdf
-    ├── Posição Financeira - 2025-01-05.pdf
-    └── Posição Financeira - 2025-02-01.pdf
-
-  */
-
-	// Create OPE aspect
-	(await service.create(authCtx, {
-		uuid: "ope-aspect",
-		title: "OPE",
-		mimetype: Nodes.ASPECT_MIMETYPE,
-		parent: Folders.ASPECTS_FOLDER_UUID,
-		properties: [
-			{ name: "date", title: "Date", type: "date", required: true },
-			{ name: "amount", title: "Amount", type: "number", required: true },
-			{ name: "company", title: "Company", type: "string", required: true },
-		] as AspectProperties,
-	})).right;
-
-	// Create Posição Financeira aspect
-	await service.create(authCtx, {
-		uuid: "posicao-financeira",
-		title: "Posição Financeira",
-		mimetype: Nodes.ASPECT_MIMETYPE,
-		parent: Folders.ASPECTS_FOLDER_UUID,
-		properties: [
-			{ name: "date", title: "Date", type: "date", required: true },
-			{ name: "amount", title: "Amount", type: "number", required: true },
-		] as AspectProperties,
-	});
-
 	await service.create(authCtx, {
 		uuid: "contabilidade-uuid",
 		title: "Contabilidade",
 		mimetype: Nodes.FOLDER_MIMETYPE,
-		parent: Folders.ROOT_FOLDER_UUID,
+		parent: Nodes.ROOT_FOLDER_UUID,
 		group: "accounting",
 		permissions: {
 			group: ["Read"],
@@ -346,7 +280,7 @@ all 'Posição Financeira' files from 2024.
 		uuid: "data-warehouse-uuid",
 		title: "Data Warehouse",
 		mimetype: Nodes.FOLDER_MIMETYPE,
-		parent: Folders.ROOT_FOLDER_UUID,
+		parent: Nodes.ROOT_FOLDER_UUID,
 	});
 
 	await service.create(authCtx, {
@@ -383,7 +317,7 @@ all 'Posição Financeira' files from 2024.
 		uuid: "importacao-uuid",
 		title: "Importação",
 		mimetype: Nodes.FOLDER_MIMETYPE,
-		parent: Folders.ROOT_FOLDER_UUID,
+		parent: Nodes.ROOT_FOLDER_UUID,
 	});
 
 	await service.create(authCtx, {
@@ -513,7 +447,7 @@ all 'Posição Financeira' files from 2024.
 		uuid: "marca-uuid",
 		title: "Marca",
 		mimetype: Nodes.FOLDER_MIMETYPE,
-		parent: Folders.ROOT_FOLDER_UUID,
+		parent: Nodes.ROOT_FOLDER_UUID,
 		permissions: {
 			group: [],
 			authenticated: [],
@@ -613,7 +547,7 @@ all 'Posição Financeira' files from 2024.
 		uuid: "posicao-financeira-uuid",
 		title: "Posições Financeiras",
 		mimetype: Nodes.FOLDER_MIMETYPE,
-		parent: Folders.ROOT_FOLDER_UUID,
+		parent: Nodes.ROOT_FOLDER_UUID,
 		group: "finance",
 		permissions: {
 			group: ["Read"],
@@ -696,7 +630,7 @@ all 'Posição Financeira' files from 2024.
 		uuid: "posicao-financeira-2024-uuid",
 		title: "Posição Financeira 2024",
 		mimetype: Nodes.SMART_FOLDER_MIMETYPE,
-		parent: Folders.ROOT_FOLDER_UUID,
+		parent: Nodes.ROOT_FOLDER_UUID,
 		filters: [
 			["aspects", "contains", "posicao-financeira"],
 			["properties.posicao-financeira:date", ">=", "2024-01-01"],

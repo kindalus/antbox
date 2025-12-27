@@ -1,11 +1,11 @@
-import type { FeatureDTO } from "application/feature_dto.ts";
+import type { FeatureData, FeatureParameter } from "domain/configuration/feature_data.ts";
 
 export type GetSdkDocumentationFunction = (sdkName?: string) => string;
 
 /**
- * FeatureDTO definition for the getSdkDocumentation tool
+ * FeatureData definition for the getSdkDocumentation tool
  */
-export const GET_SDK_DOCUMENTATION_TOOL: Partial<FeatureDTO> = {
+export const GET_SDK_DOCUMENTATION_TOOL: Partial<FeatureData> = {
 	uuid: "getSdkDocumentation",
 	title: "getSdkDocumentation",
 	description:
@@ -24,11 +24,11 @@ export const GET_SDK_DOCUMENTATION_TOOL: Partial<FeatureDTO> = {
 /**
  * Factory function that creates a getSdkDocumentation tool with bound custom features.
  *
- * @param features - List of FeatureDTO objects that represent custom SDK methods
+ * @param features - List of FeatureData objects that represent custom SDK methods
  * @returns A function that returns SDK documentation in TypeScript declaration format
  */
 export function createGetSdkDocumentationTool(
-	features: FeatureDTO[],
+	features: FeatureData[],
 ): GetSdkDocumentationFunction {
 	return function getSdkDocumentation(sdkName?: string): string {
 		if (!sdkName) {
@@ -48,7 +48,7 @@ export function createGetSdkDocumentationTool(
 	};
 }
 
-function generateSdkList(features: FeatureDTO[]): string {
+function generateSdkList(features: FeatureData[]): string {
 	const nodesMethods = [
 		"copy",
 		"create",
@@ -392,7 +392,7 @@ interface FeatureParameter {
 `;
 }
 
-function generateCustomDocumentation(features: FeatureDTO[]): string {
+function generateCustomDocumentation(features: FeatureData[]): string {
 	if (features.length === 0) {
 		return `/**
  * Custom SDK - No custom features available
@@ -404,7 +404,7 @@ interface Custom {
 	}
 
 	const methods = features.map((feature) => {
-		const params = feature.parameters.map((param) => {
+		const params = feature.parameters.map((param: FeatureParameter) => {
 			const optional = !param.required ? "?" : "";
 			let type: string = param.type;
 
@@ -435,7 +435,7 @@ interface Custom {
 			? `\t * @returns ${feature.returnDescription}`
 			: `\t * @returns Promise<${returnType}>`;
 
-		const paramSignature = feature.parameters.map((param) => {
+		const paramSignature = feature.parameters.map((param: FeatureParameter) => {
 			const optional = !param.required ? "?" : "";
 			let type: string = param.type;
 

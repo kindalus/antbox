@@ -11,9 +11,11 @@ import { NodesFilters } from "domain/nodes_filters.ts";
 import type { NodeFilterResult } from "domain/nodes/node_repository.ts";
 import { AntboxError } from "shared/antbox_error.ts";
 import { Either, right } from "shared/either.ts";
-import { builtinFolders } from "./builtin_folders/index.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import type { AuthorizationService } from "./authorization_service.ts";
+import { FolderNode } from "domain/nodes/folder_node.ts";
+import { Users } from "domain/users_groups/users.ts";
+import { Groups } from "domain/users_groups/groups.ts";
 
 /**
  * Service responsible for finding nodes in the repository.
@@ -246,9 +248,28 @@ export class FindService {
 			at.push(["uuid", parentFilter[1], parentFilter[2]]);
 		}
 
-		// Since system folders are not stored in the repository, we need to handle them separately
+		// Since the root folder is not stored in the repository, we need to handle it separately
 		const spec = NodesFilters.nodeSpecificationFrom(at);
-		const sysFolders = builtinFolders.filter((f) => spec.isSatisfiedBy(f).isRight());
+		const rootFolder = FolderNode.create({
+			uuid: Nodes.ROOT_FOLDER_UUID,
+			fid: Nodes.ROOT_FOLDER_UUID,
+			title: "Root",
+			parent: Nodes.ROOT_FOLDER_UUID,
+			owner: Users.ROOT_USER_EMAIL,
+			group: Groups.ADMINS_GROUP_UUID,
+			filters: [["mimetype", "in", [
+				Nodes.FOLDER_MIMETYPE,
+				Nodes.SMART_FOLDER_MIMETYPE,
+			]]],
+			permissions: {
+				group: ["Read", "Write", "Export"],
+				authenticated: ["Read"],
+				anonymous: [],
+				advanced: {},
+			},
+		}).right;
+
+		const sysFolders = spec.isSatisfiedBy(rootFolder).isRight() ? [rootFolder] : [];
 
 		const result = await this.context.repository.filter(
 			at,

@@ -1,12 +1,8 @@
-import { FeatureNode, FeatureParameter } from "domain/features/feature_node.ts";
-import { NodeMetadata } from "domain/nodes/node_metadata.ts";
+import { FeatureParameter } from "domain/configuration/feature_data.ts";
 import { NodeFilter } from "domain/nodes/node_filter.ts";
-import { Folders } from "domain/nodes/folders.ts";
-import { Nodes } from "domain/nodes/nodes.ts";
 import { AntboxError, BadRequestError } from "shared/antbox_error.ts";
 import { Either, left, right } from "shared/either.ts";
 import { RunContext } from "domain/features/feature_run_context.ts";
-import { Users } from "../users_groups/users.ts";
 
 export interface Feature {
 	uuid: string;
@@ -66,40 +62,6 @@ export interface FeatureMetadata {
 	returnDescription?: string;
 	returnContentType?: string;
 	tags: string[];
-}
-
-export function featureToNodeMetadata(
-	feature: Feature,
-	owner?: string,
-): NodeMetadata {
-	return {
-		uuid: feature.uuid,
-		title: feature.title,
-		description: feature.description || "",
-		parent: Folders.FEATURES_FOLDER_UUID,
-		mimetype: Nodes.FEATURE_MIMETYPE,
-		exposeAction: feature.exposeAction,
-		runOnCreates: feature.runOnCreates,
-		runOnUpdates: feature.runOnUpdates,
-		runManually: feature.runManually,
-		filters: feature.filters,
-		exposeExtension: feature.exposeExtension,
-		exposeAITool: feature.exposeAITool,
-		runAs: feature.runAs,
-		groupsAllowed: feature.groupsAllowed,
-		parameters: feature.parameters,
-		returnType: feature.returnType,
-		returnDescription: feature.returnDescription,
-		returnContentType: feature.returnContentType,
-		owner: owner!,
-		tags: feature.tags,
-	} as NodeMetadata;
-}
-
-export function fromFeature(feat: Feature): FeatureNode {
-	const metadata = { ...feat, owner: Users.ROOT_USER_EMAIL };
-
-	return FeatureNode.create(metadata).right;
 }
 
 export function featureToFile(feature: Feature): File {

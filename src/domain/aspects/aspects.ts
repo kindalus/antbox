@@ -1,4 +1,4 @@
-import { AspectNode, type AspectProperty } from "./aspect_node.ts";
+import type { AspectData, AspectProperty } from "domain/configuration/aspect_data.ts";
 import type { AspectableNode } from "domain/node_like.ts";
 import { left, right } from "shared/either.ts";
 import { ValidationError } from "shared/validation_error.ts";
@@ -14,8 +14,10 @@ import {
 } from "domain/nodes/property_errors.ts";
 
 export class Aspects {
-	static specificationFrom(aspect: AspectNode): Specification<AspectableNode> {
-		const specs = aspect.properties.map((p) => Aspects.#propertySpecificationFrom(aspect, p));
+	static specificationFrom(aspect: AspectData): Specification<AspectableNode> {
+		const specs = aspect.properties.map((p: AspectProperty) =>
+			Aspects.#propertySpecificationFrom(aspect, p)
+		);
 
 		if (!specs.length) {
 			return specificationFn((_n) => right(true));
@@ -29,12 +31,12 @@ export class Aspects {
 		return andSpecification(s1, s2, ...sn);
 	}
 
-	static propertyName(aspect: AspectNode, property: AspectProperty): string {
+	static propertyName(aspect: AspectData, property: AspectProperty): string {
 		return `${aspect.uuid}:${property.name}`;
 	}
 
 	static #propertySpecificationFrom(
-		aspect: AspectNode,
+		aspect: AspectData,
 		property: AspectProperty,
 	): Specification<AspectableNode> {
 		const name = Aspects.propertyName(aspect, property);

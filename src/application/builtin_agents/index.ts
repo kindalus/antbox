@@ -1,6 +1,6 @@
-import { AgentNode } from "domain/ai/agent_node.ts";
+import { AgentData } from "domain/configuration/agent_data.ts";
 import { ragAgent } from "./rag_agent.ts";
 
-export const builtinAgents: AgentNode[] = [
+export const builtinAgents: AgentData[] = [
 	ragAgent,
 ];

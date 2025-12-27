@@ -17,18 +17,21 @@ export function createOrReplaceHandler(tenants: AntboxTenant[]): HttpHandler {
 		tenants,
 		async (req: Request): Promise<Response> => {
 			const tenant = getTenant(req, tenants);
-			const service = tenant.featureService;
+			const service = tenant.featuresService;
 
 			const unavailableResponse = checkServiceAvailability(service, "Feature service");
 			if (unavailableResponse) {
 				return Promise.resolve(unavailableResponse);
 			}
 
-			const formdata = await req.formData();
-			const file = formdata.get("file") as File;
+			const metadata = await req.json();
+
+			if (!metadata.module) {
+				return sendBadRequest({ error: "{ module } not given" });
+			}
 
 			return service
-				.createOrReplace(getAuthenticationContext(req), file)
+				.createFeature(getAuthenticationContext(req), metadata)
 				.then(processServiceCreateResult)
 				.catch(processError);
 		},
@@ -40,7 +43,7 @@ export function getFeatureHandler(tenants: AntboxTenant[]): HttpHandler {
 		tenants,
 		async (req: Request): Promise<Response> => {
 			const tenant = getTenant(req, tenants);
-			const service = tenant.featureService;
+			const service = tenant.featuresService;
 
 			const unavailableResponse = checkServiceAvailability(service, "Feature service");
 			if (unavailableResponse) {
@@ -53,7 +56,7 @@ export function getFeatureHandler(tenants: AntboxTenant[]): HttpHandler {
 			}
 
 			return await service
-				.get(getAuthenticationContext(req), params.uuid)
+				.getFeature(getAuthenticationContext(req), params.uuid)
 				.then(processServiceResult)
 				.catch(processError);
 		},
@@ -64,7 +67,7 @@ export function listFeaturesHandler(tenants: AntboxTenant[]): HttpHandler {
 	return defaultMiddlewareChain(
 		tenants,
 		(req: Request): Promise<Response> => {
-			const service = getTenant(req, tenants).featureService;
+			const service = getTenant(req, tenants).featuresService;
 
 			const unavailableResponse = checkServiceAvailability(service, "Feature service");
 			if (unavailableResponse) {
@@ -83,7 +86,7 @@ export function deleteFeatureHandler(tenants: AntboxTenant[]): HttpHandler {
 	return defaultMiddlewareChain(
 		tenants,
 		(req: Request): Promise<Response> => {
-			const service = getTenant(req, tenants).featureService;
+			const service = getTenant(req, tenants).featuresService;
 			const params = getParams(req);
 
 			const unavailableResponse = checkServiceAvailability(service, "Feature service");
@@ -96,7 +99,7 @@ export function deleteFeatureHandler(tenants: AntboxTenant[]): HttpHandler {
 			}
 
 			return service
-				.delete(getAuthenticationContext(req), params.uuid)
+				.deleteFeature(getAuthenticationContext(req), params.uuid)
 				.then(processServiceResult)
 				.catch(processError);
 		},
@@ -107,11 +110,8 @@ export function exportFeatureHandler(tenants: AntboxTenant[]): HttpHandler {
 	return defaultMiddlewareChain(
 		tenants,
 		async (req: Request): Promise<Response> => {
-			const service = getTenant(req, tenants).nodeService;
+			const service = getTenant(req, tenants).featuresService;
 			const params = getParams(req);
-			if (!params.uuid) {
-				return new Response("{ uuid } not given", { status: 400 });
-			}
 
 			const unavailableResponse = checkServiceAvailability(service, "Feature service");
 			if (unavailableResponse) {
@@ -122,16 +122,20 @@ export function exportFeatureHandler(tenants: AntboxTenant[]): HttpHandler {
 				return Promise.resolve(sendBadRequest({ error: "{ uuid } not given" }));
 			}
 
-			const fileOrErr = await service
-				.export(getAuthenticationContext(req), params.uuid);
+			const featureOrErr = await service.getFeature(getAuthenticationContext(req), params.uuid);
 
-			if (fileOrErr.isLeft()) {
-				return processError(fileOrErr.value);
+			if (featureOrErr.isLeft()) {
+				return processError(featureOrErr.value);
 			}
 
-			const response = new Response(fileOrErr.value);
-			response.headers.set("Content-Type", fileOrErr.value.type);
-			response.headers.set("Content-length", fileOrErr.value.size.toString());
+			const feature = featureOrErr.value;
+			const filename = `${feature.title.replace(/[^a-z0-9]/gi, "_").toLowerCase()}.js`;
+			const blob = new Blob([feature.module], { type: "application/javascript" });
+
+			const response = new Response(blob);
+			response.headers.set("Content-Type", "application/javascript");
+			response.headers.set("Content-Disposition", `attachment; filename="${filename}"`);
+			response.headers.set("Content-Length", blob.size.toString());
 			return response;
 		},
 	);

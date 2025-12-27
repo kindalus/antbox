@@ -6,7 +6,6 @@ import { getTenant } from "./get_tenant.ts";
 import { type HttpHandler, sendBadRequest } from "./handler.ts";
 import { processError } from "./process_error.ts";
 import { processServiceResult } from "./process_service_result.ts";
-import { checkServiceAvailability } from "./service_availability.ts";
 
 // ============================================================================
 // WORKFLOW INSTANCE HANDLERS
@@ -17,12 +16,7 @@ export function startWorkflowHandler(tenants: AntboxTenant[]): HttpHandler {
 		tenants,
 		async (req: Request): Promise<Response> => {
 			const tenant = getTenant(req, tenants);
-			const service = tenant.workflowService;
-
-			const unavailableResponse = checkServiceAvailability(service, "Workflow service");
-			if (unavailableResponse) {
-				return Promise.resolve(unavailableResponse);
-			}
+			const service = tenant.workflowInstancesService;
 
 			const params = getParams(req);
 			if (!params.uuid) {
@@ -35,7 +29,7 @@ export function startWorkflowHandler(tenants: AntboxTenant[]): HttpHandler {
 					return sendBadRequest({ error: "{ workflowDefinitionUuid } not given" });
 				}
 
-				return await service!
+				return await service
 					.startWorkflow(
 						getAuthenticationContext(req),
 						params.uuid,
@@ -56,12 +50,7 @@ export function transitionWorkflowHandler(tenants: AntboxTenant[]): HttpHandler 
 		tenants,
 		async (req: Request): Promise<Response> => {
 			const tenant = getTenant(req, tenants);
-			const service = tenant.workflowService;
-
-			const unavailableResponse = checkServiceAvailability(service, "Workflow service");
-			if (unavailableResponse) {
-				return Promise.resolve(unavailableResponse);
-			}
+			const service = tenant.workflowInstancesService;
 
 			const params = getParams(req);
 			if (!params.uuid) {
@@ -74,7 +63,7 @@ export function transitionWorkflowHandler(tenants: AntboxTenant[]): HttpHandler 
 					return sendBadRequest({ error: "{ signal } not given" });
 				}
 
-				return await service!
+				return await service
 					.transition(
 						getAuthenticationContext(req),
 						params.uuid,
@@ -95,20 +84,15 @@ export function getWorkflowInstanceHandler(tenants: AntboxTenant[]): HttpHandler
 		tenants,
 		(req: Request): Promise<Response> => {
 			const tenant = getTenant(req, tenants);
-			const service = tenant.workflowService;
-
-			const unavailableResponse = checkServiceAvailability(service, "Workflow service");
-			if (unavailableResponse) {
-				return Promise.resolve(unavailableResponse);
-			}
+			const service = tenant.workflowInstancesService;
 
 			const params = getParams(req);
 			if (!params.uuid) {
 				return Promise.resolve(sendBadRequest({ error: "{ uuid } not given" }));
 			}
 
-			return service!
-				.getInstance(getAuthenticationContext(req), params.uuid)
+			return service
+				.getWorkflowInstance(getAuthenticationContext(req), params.uuid)
 				.then(processServiceResult)
 				.catch(processError);
 		},
@@ -120,19 +104,14 @@ export function cancelWorkflowHandler(tenants: AntboxTenant[]): HttpHandler {
 		tenants,
 		(req: Request): Promise<Response> => {
 			const tenant = getTenant(req, tenants);
-			const service = tenant.workflowService;
-
-			const unavailableResponse = checkServiceAvailability(service, "Workflow service");
-			if (unavailableResponse) {
-				return Promise.resolve(unavailableResponse);
-			}
+			const service = tenant.workflowInstancesService;
 
 			const params = getParams(req);
 			if (!params.uuid) {
 				return Promise.resolve(sendBadRequest({ error: "{ uuid } not given" }));
 			}
 
-			return service!
+			return service
 				.cancelWorkflow(getAuthenticationContext(req), params.uuid)
 				.then(processServiceResult)
 				.catch(processError);
@@ -145,17 +124,12 @@ export function findActiveWorkflowsHandler(tenants: AntboxTenant[]): HttpHandler
 		tenants,
 		(req: Request): Promise<Response> => {
 			const tenant = getTenant(req, tenants);
-			const service = tenant.workflowService;
-
-			const unavailableResponse = checkServiceAvailability(service, "Workflow service");
-			if (unavailableResponse) {
-				return Promise.resolve(unavailableResponse);
-			}
+			const service = tenant.workflowInstancesService;
 
 			const url = new URL(req.url);
 			const workflowDefinitionUuid = url.searchParams.get("workflowDefinitionUuid") || undefined;
 
-			return service!
+			return service
 				.findActiveInstances(getAuthenticationContext(req), workflowDefinitionUuid)
 				.then(processServiceResult)
 				.catch(processError);
@@ -172,17 +146,12 @@ export function createOrReplaceWorkflowDefinitionHandler(tenants: AntboxTenant[]
 		tenants,
 		async (req: Request): Promise<Response> => {
 			const tenant = getTenant(req, tenants);
-			const service = tenant.workflowService;
-
-			const unavailableResponse = checkServiceAvailability(service, "Workflow service");
-			if (unavailableResponse) {
-				return Promise.resolve(unavailableResponse);
-			}
+			const service = tenant.workflowsService;
 
 			try {
 				const metadata = await req.json();
 
-				return await service!
+				return await service
 					.createOrReplaceWorkflow(getAuthenticationContext(req), metadata)
 					.then(processServiceResult)
 					.catch(processError);
@@ -198,20 +167,15 @@ export function getWorkflowDefinitionHandler(tenants: AntboxTenant[]): HttpHandl
 		tenants,
 		(req: Request): Promise<Response> => {
 			const tenant = getTenant(req, tenants);
-			const service = tenant.workflowService;
-
-			const unavailableResponse = checkServiceAvailability(service, "Workflow service");
-			if (unavailableResponse) {
-				return Promise.resolve(unavailableResponse);
-			}
+			const service = tenant.workflowsService;
 
 			const params = getParams(req);
 			if (!params.uuid) {
 				return Promise.resolve(sendBadRequest({ error: "{ uuid } not given" }));
 			}
 
-			return service!
-				.getWorkflowDefinition(getAuthenticationContext(req), params.uuid)
+			return service
+				.getWorkflow(getAuthenticationContext(req), params.uuid)
 				.then(processServiceResult)
 				.catch(processError);
 		},
@@ -223,15 +187,10 @@ export function listWorkflowDefinitionsHandler(tenants: AntboxTenant[]): HttpHan
 		tenants,
 		(req: Request): Promise<Response> => {
 			const tenant = getTenant(req, tenants);
-			const service = tenant.workflowService;
+			const service = tenant.workflowsService;
 
-			const unavailableResponse = checkServiceAvailability(service, "Workflow service");
-			if (unavailableResponse) {
-				return Promise.resolve(unavailableResponse);
-			}
-
-			return service!
-				.listWorkflowDefinitions(getAuthenticationContext(req))
+			return service
+				.listWorkflows(getAuthenticationContext(req))
 				.then(processServiceResult)
 				.catch(processError);
 		},
@@ -243,20 +202,15 @@ export function deleteWorkflowDefinitionHandler(tenants: AntboxTenant[]): HttpHa
 		tenants,
 		(req: Request): Promise<Response> => {
 			const tenant = getTenant(req, tenants);
-			const service = tenant.workflowService;
-
-			const unavailableResponse = checkServiceAvailability(service, "Workflow service");
-			if (unavailableResponse) {
-				return Promise.resolve(unavailableResponse);
-			}
+			const service = tenant.workflowsService;
 
 			const params = getParams(req);
 			if (!params.uuid) {
 				return Promise.resolve(sendBadRequest({ error: "{ uuid } not given" }));
 			}
 
-			return service!
-				.deleteWorkflowDefinition(getAuthenticationContext(req), params.uuid)
+			return service
+				.deleteWorkflow(getAuthenticationContext(req), params.uuid)
 				.then(processServiceResult)
 				.catch(processError);
 		},
@@ -268,20 +222,15 @@ export function exportWorkflowDefinitionHandler(tenants: AntboxTenant[]): HttpHa
 		tenants,
 		(req: Request): Promise<Response> => {
 			const tenant = getTenant(req, tenants);
-			const service = tenant.workflowService;
-
-			const unavailableResponse = checkServiceAvailability(service, "Workflow service");
-			if (unavailableResponse) {
-				return Promise.resolve(unavailableResponse);
-			}
+			const service = tenant.workflowsService;
 
 			const params = getParams(req);
 			if (!params.uuid) {
 				return Promise.resolve(sendBadRequest({ error: "{ uuid } not given" }));
 			}
 
-			return service!
-				.exportWorkflowDefinition(getAuthenticationContext(req), params.uuid)
+			return service
+				.getWorkflow(getAuthenticationContext(req), params.uuid)
 				.then(processServiceResult)
 				.catch(processError);
 		},
@@ -297,12 +246,7 @@ export function updateWorkflowNodeHandler(tenants: AntboxTenant[]): HttpHandler 
 		tenants,
 		async (req: Request): Promise<Response> => {
 			const tenant = getTenant(req, tenants);
-			const service = tenant.workflowService;
-
-			const unavailableResponse = checkServiceAvailability(service, "Workflow service");
-			if (unavailableResponse) {
-				return Promise.resolve(unavailableResponse);
-			}
+			const service = tenant.workflowInstancesService;
 
 			const params = getParams(req);
 			if (!params.uuid) {
@@ -312,7 +256,7 @@ export function updateWorkflowNodeHandler(tenants: AntboxTenant[]): HttpHandler 
 			try {
 				const metadata = await req.json();
 
-				return await service!
+				return await service
 					.updateNode(getAuthenticationContext(req), params.uuid, metadata)
 					.then(processServiceResult)
 					.catch(processError);
@@ -328,12 +272,7 @@ export function updateWorkflowNodeFileHandler(tenants: AntboxTenant[]): HttpHand
 		tenants,
 		async (req: Request): Promise<Response> => {
 			const tenant = getTenant(req, tenants);
-			const service = tenant.workflowService;
-
-			const unavailableResponse = checkServiceAvailability(service, "Workflow service");
-			if (unavailableResponse) {
-				return Promise.resolve(unavailableResponse);
-			}
+			const service = tenant.workflowInstancesService;
 
 			const params = getParams(req);
 			if (!params.uuid) {
@@ -348,7 +287,7 @@ export function updateWorkflowNodeFileHandler(tenants: AntboxTenant[]): HttpHand
 					return sendBadRequest({ error: "{ file } not given in form data" });
 				}
 
-				return await service!
+				return await service
 					.updateNodeFile(getAuthenticationContext(req), params.uuid, file)
 					.then(processServiceResult)
 					.catch(processError);

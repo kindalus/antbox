@@ -42,29 +42,38 @@ export function WithAspectMixin<TBase extends Constructor>(Base: TBase) {
 			};
 		}
 
-		update(metadata: NodeMetadata): Either<ValidationError, void> {
-			this._aspects = metadata.aspects ?? this._aspects;
+		update(metadata: Partial<NodeMetadata>): Either<ValidationError, void> {
+			const nextAspects = metadata.aspects ?? this._aspects;
 			this._related = metadata.related ?? this._related;
+			this._aspects = nextAspects;
 
-			const updateProperties = metadata.properties ||
-				metadata.aspects?.length && (this._aspects.length ?? 0) != metadata.aspects?.length;
+			const shouldUpdateProperties = metadata.properties !== undefined ||
+				metadata.aspects !== undefined;
 
-			if (!updateProperties) {
-				return super.update(metadata);
+			if (shouldUpdateProperties) {
+				const nextProperties: NodeProperties = {};
+				const baseProperties = (metadata.properties ?? this._properties) as Record<
+					string,
+					unknown
+				>;
+
+				for (const [key, value] of Object.entries(baseProperties)) {
+					if (value === undefined) {
+						continue;
+					}
+
+					const aspectPrefix = key.split(":")[0];
+					if (!nextAspects.includes(aspectPrefix)) {
+						continue;
+					}
+
+					nextProperties[key] = value;
+				}
+
+				this._properties = nextProperties;
 			}
 
-			const properties: Record<string, unknown> = {
-				...this._properties,
-				...metadata.properties,
-			};
-
-			Object.entries(properties)
-				.filter(([k, v]) => !((v ?? false) && this._aspects.includes(k.split(":")[0])))
-				.forEach(([k]) => delete properties[k]);
-
-			this._properties = properties;
-
-			return super.update(metadata);
+			return super.update(metadata as NodeMetadata);
 		}
 	};
 }

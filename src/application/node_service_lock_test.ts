@@ -3,12 +3,12 @@ import { expect } from "jsr:@std/expect";
 import { NodeService } from "./node_service.ts";
 import type { NodeServiceContext } from "./node_service_context.ts";
 import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository.ts";
+import { InMemoryConfigurationRepository } from "adapters/inmem/inmem_configuration_repository.ts";
 import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider.ts";
 import type { EventBus } from "shared/event_bus.ts";
 import type { Event } from "shared/event.ts";
 import type { EventHandler } from "shared/event_handler.ts";
 import type { AuthenticationContext } from "./authentication_context.ts";
-import { Folders } from "domain/nodes/folders.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import { Users } from "domain/users_groups/users.ts";
 import { Groups } from "domain/users_groups/groups.ts";
@@ -26,6 +26,7 @@ describe("NodeService - Lock/Unlock", () => {
 			repository: new InMemoryNodeRepository(),
 			storage: new InMemoryStorageProvider(),
 			bus: new MockEventBus(),
+			configRepo: new InMemoryConfigurationRepository(),
 		};
 	}
 
@@ -64,7 +65,7 @@ describe("NodeService - Lock/Unlock", () => {
 		const folderOrErr = await service.create(authCtx, {
 			title: "Test Folder",
 			mimetype: Nodes.FOLDER_MIMETYPE,
-			parent: Folders.ROOT_FOLDER_UUID,
+			parent: Nodes.ROOT_FOLDER_UUID,
 			permissions: {
 				group: ["Read", "Write", "Export"],
 				authenticated: ["Read", "Write", "Export"],

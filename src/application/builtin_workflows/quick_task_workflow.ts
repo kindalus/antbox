@@ -1,7 +1,4 @@
-import { WorkflowNode, WorkflowState } from "domain/workflows/workflow_node.ts";
-import { Folders } from "domain/nodes/folders.ts";
-import { Nodes } from "domain/nodes/nodes.ts";
-import { Users } from "domain/users_groups/users.ts";
+import { WorkflowData, WorkflowState } from "domain/configuration/workflow_data.ts";
 
 /**
  * Quick Task Workflow (2 states, sequential)
@@ -29,15 +26,14 @@ const states: WorkflowState[] = [
 	},
 ];
 
-export const QUICK_TASK_WORKFLOW = new WorkflowNode({
+export const QUICK_TASK_WORKFLOW: WorkflowData = {
 	uuid: QUICK_TASK_WORKFLOW_UUID,
 	title: "Quick Task",
 	description: "A simple sequential workflow: Open → Done.",
-	mimetype: Nodes.WORKFLOW_MIMETYPE,
-	parent: Folders.WORKFLOWS_FOLDER_UUID,
-	owner: Users.ROOT_USER_EMAIL,
-
 	states,
 	availableStateNames: states.map((s) => s.name),
 	filters: [], // Applies to all nodes
-});
+	groupsAllowed: [],
+	createdTime: new Date().toISOString(),
+	modifiedTime: new Date().toISOString(),
+};

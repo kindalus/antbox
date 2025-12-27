@@ -5,13 +5,12 @@ import { type NodeRepository } from "domain/nodes/node_repository.ts";
 import { FolderNode } from "domain/nodes/folder_node.ts";
 import { FileNode } from "domain/nodes/file_node.ts";
 import { UuidGenerator } from "shared/uuid_generator.ts";
-import { AspectNode } from "domain/aspects/aspect_node.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import type { Either } from "shared/either.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 
 let repo: NodeRepository;
-const uuids = Array.from({ length: 5 }, () => UuidGenerator.generate());
+const uuids = Array.from({ length: 4 }, () => UuidGenerator.generate());
 
 beforeAll(async () => {
 	const args = Deno.env.get("TEST_PARAMS")?.split(";");
@@ -193,12 +192,6 @@ async function populateDb() {
 			fid: "image-jpg",
 			title: "Image.jpg",
 			mimetype: "image/jpeg",
-			owner,
-			group,
-		}),
-		AspectNode.create({
-			uuid: uuids[4],
-			title: "Aspect 1",
 			owner,
 			group,
 		}),

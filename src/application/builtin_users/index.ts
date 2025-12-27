@@ -1,44 +1,52 @@
 import { Groups } from "domain/users_groups/groups.ts";
-import { UserNode } from "domain/users_groups/user_node.ts";
+import { UserData } from "domain/configuration/user_data.ts";
 import { Users } from "domain/users_groups/users.ts";
 
-export const ANONYMOUS_USER = UserNode.create({
-	uuid: Users.ANONYMOUS_USER_UUID,
+export const ANONYMOUS_USER: UserData = {
 	email: Users.ANONYMOUS_USER_EMAIL,
-	owner: Users.ANONYMOUS_USER_EMAIL,
 	title: "anonymous",
 	group: Groups.ANONYMOUS_GROUP_UUID,
 	groups: [Groups.ANONYMOUS_GROUP_UUID],
-}).right;
+	hasWhatsapp: false,
+	active: true,
+	createdTime: new Date().toISOString(),
+	modifiedTime: new Date().toISOString(),
+};
 
-export const ROOT_USER = UserNode.create({
-	uuid: Users.ROOT_USER_UUID,
+export const ROOT_USER: UserData = {
 	email: Users.ROOT_USER_EMAIL,
 	title: "root",
-	owner: Users.ROOT_USER_EMAIL,
 	group: Groups.ADMINS_GROUP_UUID,
 	groups: [Groups.ADMINS_GROUP_UUID],
-}).value as UserNode;
+	hasWhatsapp: false,
+	active: true,
+	createdTime: new Date().toISOString(),
+	modifiedTime: new Date().toISOString(),
+};
 
-export const LOCK_SYSTEM_USER = UserNode.create({
-	uuid: Users.LOCK_SYSTEM_USER_UUID,
+export const LOCK_SYSTEM_USER: UserData = {
 	email: Users.LOCK_SYSTEM_USER_EMAIL,
 	title: "Lock System",
-	owner: Users.ROOT_USER_EMAIL,
 	group: Groups.ADMINS_GROUP_UUID,
 	groups: [Groups.ADMINS_GROUP_UUID],
-}).value as UserNode;
+	hasWhatsapp: false,
+	active: true,
+	createdTime: new Date().toISOString(),
+	modifiedTime: new Date().toISOString(),
+};
 
-export const WORKFLOW_INSTANCE_USER = UserNode.create({
-	uuid: Users.WORKFLOW_INSTANCE_USER_UUID,
+export const WORKFLOW_INSTANCE_USER: UserData = {
 	email: Users.WORKFLOW_INSTANCE_USER_EMAIL,
 	title: "Workflow Instance",
-	owner: Users.ROOT_USER_EMAIL,
 	group: Groups.ADMINS_GROUP_UUID,
 	groups: [Groups.ADMINS_GROUP_UUID],
-}).value as UserNode;
+	hasWhatsapp: false,
+	active: true,
+	createdTime: new Date().toISOString(),
+	modifiedTime: new Date().toISOString(),
+};
 
-export const builtinUsers: UserNode[] = [
+export const builtinUsers: UserData[] = [
 	ROOT_USER,
 	ANONYMOUS_USER,
 	LOCK_SYSTEM_USER,

@@ -1,6 +1,6 @@
 import type { RunContext } from "domain/features/feature_run_context.ts";
-import { Folders } from "domain/nodes/folders.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
+import { Nodes } from "domain/nodes/nodes.ts";
 import { AntboxError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
 import { Feature } from "domain/features/feature.ts";
@@ -19,12 +19,7 @@ const moveUp: Feature = {
 			"parent",
 			"not-in",
 			[
-				Folders.ASPECTS_FOLDER_UUID,
-				Folders.FEATURES_FOLDER_UUID,
-				Folders.GROUPS_FOLDER_UUID,
-				Folders.ROOT_FOLDER_UUID,
-				Folders.SYSTEM_FOLDER_UUID,
-				Folders.USERS_FOLDER_UUID,
+				Nodes.ROOT_FOLDER_UUID,
 			],
 		],
 	],
@@ -95,7 +90,7 @@ async function getNewParent(
 		return left(nodeOrErr.value);
 	}
 
-	if (Folders.ROOT_FOLDER_UUID === nodeOrErr.value.parent) {
+	if (Nodes.ROOT_FOLDER_UUID === nodeOrErr.value.parent) {
 		return left(new NodeNotFoundError("Already at root folder"));
 	}
 

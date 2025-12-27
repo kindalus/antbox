@@ -18,7 +18,7 @@ export function createApiKeyHandler(tenants: AntboxTenant[]): HttpHandler {
 		tenants,
 		async (req: Request): Promise<Response> => {
 			const tenant = getTenant(req, tenants);
-			const service = tenant.apiKeyService;
+			const service = tenant.apiKeysService;
 
 			const unavailableResponse = checkServiceAvailability(service, "API Key service");
 			if (unavailableResponse) {
@@ -31,7 +31,12 @@ export function createApiKeyHandler(tenants: AntboxTenant[]): HttpHandler {
 			}
 
 			return service
-				.create(getAuthenticationContext(req), body.group, body.description)
+				.createApiKey(getAuthenticationContext(req), {
+					title: body.title || "API Key",
+					group: body.group,
+					description: body.description,
+					active: body.active ?? true,
+				})
 				.then(processServiceCreateResult)
 				.catch(processError);
 		},
@@ -43,7 +48,7 @@ export function getApiKeyHandler(tenants: AntboxTenant[]): HttpHandler {
 		tenants,
 		async (req: Request): Promise<Response> => {
 			const tenant = getTenant(req, tenants);
-			const service = tenant.apiKeyService;
+			const service = tenant.apiKeysService;
 
 			const unavailableResponse = checkServiceAvailability(service, "API Key service");
 			if (unavailableResponse) {
@@ -56,7 +61,7 @@ export function getApiKeyHandler(tenants: AntboxTenant[]): HttpHandler {
 			}
 
 			return service
-				.get(params.uuid)
+				.getApiKey(getAuthenticationContext(req), params.uuid)
 				.then(processServiceResult)
 				.catch(processError);
 		},
@@ -68,18 +73,17 @@ export function listApiKeysHandler(tenants: AntboxTenant[]): HttpHandler {
 		tenants,
 		async (req: Request): Promise<Response> => {
 			const tenant = getTenant(req, tenants);
-			const service = tenant.apiKeyService;
+			const service = tenant.apiKeysService;
 
 			const unavailableResponse = checkServiceAvailability(service, "API Key service");
 			if (unavailableResponse) {
 				return Promise.resolve(unavailableResponse);
 			}
 
-			const apiKeys = await service.list(getAuthenticationContext(req));
-			return new Response(JSON.stringify(apiKeys), {
-				status: 200,
-				headers: { "Content-Type": "application/json" },
-			});
+			return service
+				.listApiKeys(getAuthenticationContext(req))
+				.then(processServiceResult)
+				.catch(processError);
 		},
 	);
 }
@@ -89,7 +93,7 @@ export function deleteApiKeyHandler(tenants: AntboxTenant[]): HttpHandler {
 		tenants,
 		async (req: Request): Promise<Response> => {
 			const tenant = getTenant(req, tenants);
-			const service = tenant.apiKeyService;
+			const service = tenant.apiKeysService;
 
 			const unavailableResponse = checkServiceAvailability(service, "API Key service");
 			if (unavailableResponse) {
@@ -102,7 +106,7 @@ export function deleteApiKeyHandler(tenants: AntboxTenant[]): HttpHandler {
 			}
 
 			return service
-				.delete(getAuthenticationContext(req), params.uuid)
+				.deleteApiKey(getAuthenticationContext(req), params.uuid)
 				.then(processServiceResult)
 				.catch(processError);
 		},

@@ -1,5 +1,5 @@
-import { ApiKeyService } from "application/api_key_service.ts";
-import { UsersGroupsService } from "application/users_groups_service.ts";
+import { ApiKeysService } from "application/api_keys_service.ts";
+import { UsersService } from "application/users_service.ts";
 import type { AuthenticationContext, Principal } from "application/authentication_context.ts";
 import { Groups } from "domain/users_groups/groups.ts";
 import { Users } from "domain/users_groups/users.ts";
@@ -17,8 +17,8 @@ export function authenticationMiddleware(
 	return (next: HttpHandler) => {
 		const jwks = new Map<string, KeyObject | Uint8Array>();
 		const secrets = new Map<string, Uint8Array>();
-		const usersGroupsServices = new Map<string, UsersGroupsService>();
-		const apiKeyServices = new Map<string, ApiKeyService>();
+		const usersServices = new Map<string, UsersService>();
+		const apiKeysServices = new Map<string, ApiKeysService>();
 
 		tenants.forEach(async (tenant) => {
 			const jwkOrErr = await importJwkKey(tenant.rawJwk as unknown as JWK);
@@ -32,8 +32,8 @@ export function authenticationMiddleware(
 
 			jwks.set(tenant.name, jwk);
 			secrets.set(tenant.name, secret);
-			usersGroupsServices.set(tenant.name, tenant.usersGroupsService);
-			apiKeyServices.set(tenant.name, tenant.apiKeyService);
+			usersServices.set(tenant.name, tenant.usersService);
+			apiKeysServices.set(tenant.name, tenant.apiKeysService);
 		});
 
 		return async (req: Request) => {
@@ -41,8 +41,8 @@ export function authenticationMiddleware(
 
 			const apiKey = getApiKey(req);
 			if (apiKey) {
-				const apiKeyService = apiKeyServices.get(tenantName);
-				await authenticateApiKey(apiKeyService!, req, apiKey);
+				const apiKeysService = apiKeysServices.get(tenantName);
+				await authenticateApiKey(apiKeysService!, req, apiKey);
 				return next(req);
 			}
 
@@ -64,9 +64,9 @@ export function authenticationMiddleware(
 				return next(req);
 			}
 
-			const authService = usersGroupsServices.get(tenantName)!;
+			const usersService = usersServices.get(tenantName)!;
 			const jwk = jwks.get(tenantName)!;
-			await authenticateToken(jwk, authService, req, token);
+			await authenticateToken(jwk, usersService, req, token);
 			return next(req);
 		};
 	};
@@ -135,11 +135,11 @@ async function authenticateRoot(
 }
 
 async function authenticateApiKey(
-	apiKeysService: ApiKeyService,
+	apiKeysService: ApiKeysService,
 	req: Request,
 	apiKey: string,
 ) {
-	const apiKeyOrErr = await apiKeysService.getBySecret(apiKey);
+	const apiKeyOrErr = await apiKeysService.getApiKeyBySecret(apiKey);
 	if (apiKeyOrErr.isLeft()) {
 		return storeAnonymous(req);
 	}
@@ -149,7 +149,7 @@ async function authenticateApiKey(
 
 async function authenticateToken(
 	jwk: KeyObject | Uint8Array,
-	authService: UsersGroupsService,
+	usersService: UsersService,
 	req: Request,
 	token: string,
 ) {
@@ -158,8 +158,8 @@ async function authenticateToken(
 		return storeAnonymous(req);
 	}
 
-	// TODO: Fix this
-	const userOrErr = await authService.getUser(
+	// TODO: Fix this - use elevated context
+	const userOrErr = await usersService.getUser(
 		undefined as unknown as AuthenticationContext,
 		tokenOrErr.value.payload.email,
 	);

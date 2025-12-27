@@ -1,7 +1,7 @@
 import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus.ts";
 import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository.ts";
 import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider.ts";
-import { InmemWorkflowInstanceRepository } from "adapters/inmem/inmem_workflow_instance_repository.ts";
+import { InMemoryConfigurationRepository } from "adapters/inmem/inmem_configuration_repository.ts";
 
 import type { AntboxTenant } from "api/antbox_tenant.ts";
 import type { ServerConfiguration, TenantConfiguration } from "api/http_server_configuration.ts";
@@ -12,21 +12,23 @@ import type { EventStoreRepository } from "domain/audit/event_store_repository.t
 import { JWK, ROOT_PASSWD, SYMMETRIC_KEY } from "./server_defaults.ts";
 import { providerFrom } from "adapters/module_configuration_parser.ts";
 import { modelFrom } from "adapters/model_configuration_parser.ts";
-import { AspectService } from "application/aspect_service.ts";
-import { FeatureService } from "application/feature_service.ts";
-import { UsersGroupsService } from "application/users_groups_service.ts";
-import { ApiKeyService } from "application/api_key_service.ts";
+import { FeaturesService } from "application/features_service.ts";
 import { ArticleService } from "application/article_service.ts";
 import { AuditLoggingService } from "application/audit_logging_service.ts";
+import { GroupsService } from "application/groups_service.ts";
+import { UsersService } from "application/users_service.ts";
+import { ApiKeysService } from "application/api_keys_service.ts";
+import { AspectsService } from "application/aspects_service.ts";
+import { WorkflowsService } from "application/workflows_service.ts";
+import { WorkflowInstancesService } from "application/workflow_instances_service.ts";
+import { AgentsService } from "application/agents_service.ts";
 import type { VectorDatabase } from "application/vector_database.ts";
 import type { AIModel } from "application/ai_model.ts";
 import { EmbeddingService } from "application/embedding_service.ts";
-import { AgentService } from "application/agent_service.ts";
+
 import { RAGService } from "application/rag_service.ts";
 
 import { resolve } from "path";
-import { WorkflowService } from "application/workflow_service.ts";
-import { WorkflowInstanceRepository } from "domain/workflows/workflow_instance_repository.ts";
 import { registerCacheInvalidationHandlers } from "integration/webdav/webdav_cache_invalidation_handler.ts";
 
 export function setupTenants(
@@ -42,9 +44,6 @@ async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
 	const rawJwk = await loadJwk(cfg?.jwk);
 	const repository = await providerFrom<NodeRepository>(cfg?.repository);
 	const storage = await providerFrom<StorageProvider>(cfg?.storage);
-	const workflowInstanceRepository = await providerFrom<WorkflowInstanceRepository>(
-		cfg?.workflowInstanceRepository,
-	);
 	const eventStoreRepository = await providerFrom<EventStoreRepository>(
 		cfg?.eventStoreRepository,
 	);
@@ -56,6 +55,9 @@ async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
 	}
 
 	const eventBus = new InMemoryEventBus();
+
+	// Create ConfigurationRepository
+	const configurationRepository = new InMemoryConfigurationRepository();
 
 	// Validate and load AI components FIRST if AI is enabled
 	let vectorDatabase: VectorDatabase | undefined;
@@ -138,6 +140,7 @@ async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
 		repository: repository ?? new InMemoryNodeRepository(),
 		storage: storage ?? new InMemoryStorageProvider(),
 		bus: eventBus,
+		configRepo: configurationRepository,
 		vectorDatabase,
 		embeddingModel,
 	});
@@ -145,24 +148,28 @@ async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
 	// Register WebDAV cache invalidation handlers
 	registerCacheInvalidationHandlers(eventBus);
 
-	// Create other core services
-	const aspectService = new AspectService(nodeService);
-	const usersGroupsService = new UsersGroupsService(nodeService);
-	const featureService = new FeatureService({
+	// Create configuration services
+	const groupsService = new GroupsService(configurationRepository);
+	const usersService = new UsersService(configurationRepository);
+	const apiKeysService = new ApiKeysService(configurationRepository);
+	const aspectsService = new AspectsService(configurationRepository);
+	const workflowsService = new WorkflowsService(configurationRepository);
+
+	// Create FeaturesService with execution dependencies
+	const featuresService = new FeaturesService({
+		configRepo: configurationRepository,
 		nodeService,
-		usersGroupsService,
 		ocrModel,
 		eventBus,
 	});
 
-	const apiKeyService = new ApiKeyService(nodeService);
-
-	const workflowService = new WorkflowService({
+	// Create WorkflowInstancesService with all dependencies (after workflowsService and featuresService are created)
+	const workflowInstancesService = new WorkflowInstancesService(
+		configurationRepository,
 		nodeService,
-		workflowInstanceRepository: workflowInstanceRepository ??
-			new InmemWorkflowInstanceRepository(),
-		featureService,
-	});
+		workflowsService,
+		featuresService,
+	);
 
 	const articleService = new ArticleService(nodeService);
 
@@ -171,12 +178,22 @@ async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
 		eventBus,
 	);
 
-	// Build AI-related services AFTER NodeService and core services
+	// Create AgentsService with AI dependencies
+	let agentsService: AgentsService;
 	let embeddingService: EmbeddingService | undefined;
-	let agentService: AgentService | undefined;
 	let ragService: RAGService | undefined;
 
 	if (cfg.ai?.enabled && vectorDatabase && embeddingModel && ocrModel && defaultModel) {
+		// Create AgentsService with AI execution capabilities
+		agentsService = new AgentsService(
+			configurationRepository,
+			nodeService,
+			featuresService,
+			aspectsService,
+			defaultModel,
+			models ?? [],
+		);
+
 		// Create EmbeddingService
 		embeddingService = new EmbeddingService({
 			embeddingModel,
@@ -186,39 +203,46 @@ async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
 			bus: eventBus,
 		});
 
-		// Create AgentService
-		agentService = new AgentService(
+		// Create RAGService - uses new AgentsService
+		ragService = new RAGService(nodeService, agentsService);
+	} else {
+		// Create AgentsService without AI capabilities (CRUD only)
+		agentsService = new AgentsService(
+			configurationRepository,
 			nodeService,
-			featureService,
-			aspectService,
-			defaultModel,
-			models ?? [],
+			featuresService,
+			aspectsService,
+			undefined as any, // No default model
+			[],
 		);
-
-		// Create RAGService
-		ragService = new RAGService(nodeService, agentService);
 	}
 
 	return {
 		name: cfg.name,
 		rootPasswd: passwd,
+		rawJwk,
+		symmetricKey,
 
-		agentService,
-		apiKeyService,
+		// Configuration Repository
+		configurationRepository,
+
+		// Services
+		agentsService,
+		apiKeysService,
 		articleService,
-		aspectService,
+		aspectsService,
 		auditLoggingService,
 		defaultModel,
 		embeddingService,
-		featureService,
+		featuresService,
+		groupsService,
 		models,
 		nodeService,
 		ragService,
-		rawJwk,
-		symmetricKey,
-		usersGroupsService,
+		usersService,
 		vectorDatabase,
-		workflowService,
+		workflowsService,
+		workflowInstancesService,
 	};
 }
 

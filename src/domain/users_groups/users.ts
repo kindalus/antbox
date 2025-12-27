@@ -1,5 +1,5 @@
 import { Groups } from "./groups.ts";
-import { UserNode } from "./user_node.ts";
+import { UserData } from "domain/configuration/user_data.ts";
 
 export class Users {
 	static ANONYMOUS_USER_UUID = "--anonymous--";
@@ -13,24 +13,23 @@ export class Users {
 	static WORKFLOW_INSTANCE_USER_UUID = "--workflow-instance--";
 	static WORKFLOW_INSTANCE_USER_EMAIL = "workflow-instance@antbox.io";
 
-	static isRoot(user: UserNode): boolean {
-		return user.uuid === Users.ROOT_USER_UUID;
+	static isRoot(user: UserData): boolean {
+		return user.email === Users.ROOT_USER_EMAIL;
 	}
 
-	static isAdmin(user: UserNode): boolean {
-		return user.group === Groups.ADMINS_GROUP_UUID ||
-			user.groups.includes(Groups.ADMINS_GROUP_UUID);
+	static isAdmin(user: UserData): boolean {
+		return user.groups.includes(Groups.ADMINS_GROUP_UUID);
 	}
 
-	static isAnonymous(user: UserNode): boolean {
-		return user.uuid === Users.ANONYMOUS_USER_UUID;
+	static isAnonymous(user: UserData): boolean {
+		return user.email === Users.ANONYMOUS_USER_EMAIL;
 	}
 
-	static isLockSystem(user: UserNode): boolean {
-		return user.uuid === Users.LOCK_SYSTEM_USER_UUID;
+	static isLockSystem(user: UserData): boolean {
+		return user.email === Users.LOCK_SYSTEM_USER_EMAIL;
 	}
 
-	static isWorkflowInstance(user: UserNode): boolean {
-		return user.uuid === Users.WORKFLOW_INSTANCE_USER_UUID;
+	static isWorkflowInstance(user: UserData): boolean {
+		return user.email === Users.WORKFLOW_INSTANCE_USER_EMAIL;
 	}
 }

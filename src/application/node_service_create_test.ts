@@ -6,16 +6,16 @@ import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository.ts"
 import type { AuthenticationContext } from "./authentication_context.ts";
 import { FolderNode } from "domain/nodes/folder_node.ts";
 import type { FileLikeNode } from "domain/node_like.ts";
-import { Folders } from "domain/nodes/folders.ts";
 import { BadRequestError } from "shared/antbox_error.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import type { Permissions } from "domain/nodes/node.ts";
 import { ValidationError } from "shared/validation_error.ts";
 import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus.ts";
 import type { NodeServiceContext } from "./node_service_context.ts";
-import type { AspectProperties } from "domain/aspects/aspect_node.ts";
+import type { AspectProperty } from "domain/configuration/aspect_data.ts";
 import { ADMINS_GROUP } from "application/builtin_groups/index.ts";
 import { Left, Right } from "shared/either.ts";
+import { InMemoryConfigurationRepository } from "adapters/inmem/inmem_configuration_repository.ts";
 
 describe("NodeService.create", () => {
 	it("should create a node and persist the metadata", async () => {
@@ -25,7 +25,7 @@ describe("NodeService.create", () => {
 			uuid: "--parent--",
 			title: "Folder 1",
 			mimetype: Nodes.FOLDER_MIMETYPE,
-			parent: Folders.ROOT_FOLDER_UUID,
+			parent: Nodes.ROOT_FOLDER_UUID,
 		});
 
 		await service.create(authCtx, {
@@ -44,30 +44,32 @@ describe("NodeService.create", () => {
 	});
 
 	it("should return an error when properties are inconsistent with aspect specifications", async () => {
-		const service = nodeService();
+		const configRepo = new InMemoryConfigurationRepository();
+		const service = nodeService({ configRepo });
 
-		const props: AspectProperties = [{
+		const props: AspectProperty[] = [{
 			name: "amount",
 			title: "Amount",
 			type: "number",
 		}];
 
-		// Create aspect with string property type
-		(
-			await service.create(authCtx, {
-				uuid: "invoice",
-				title: "Invoice",
-				mimetype: Nodes.ASPECT_MIMETYPE,
-				parent: Folders.ASPECTS_FOLDER_UUID,
-				properties: props,
-			})
-		).right;
+		// Create aspect in configuration repository
+		const now = new Date().toISOString();
+		await configRepo.save("aspects", {
+			uuid: "invoice",
+			title: "Invoice",
+			description: "Invoice aspect",
+			filters: [],
+			properties: props,
+			createdTime: now,
+			modifiedTime: now,
+		});
 
 		// Try to create node with invalid property value type
 		const nodeOrErr = await service.create(authCtx, {
 			title: "Invalid Node",
 			mimetype: Nodes.FOLDER_MIMETYPE,
-			parent: Folders.ROOT_FOLDER_UUID,
+			parent: Nodes.ROOT_FOLDER_UUID,
 			aspects: ["invoice"],
 			properties: {
 				"invoice:amount": "Invalid value",
@@ -79,28 +81,32 @@ describe("NodeService.create", () => {
 	});
 
 	it("should ignore properties that are not defined in any node aspect", async () => {
-		const service = nodeService();
+		const configRepo = new InMemoryConfigurationRepository();
+		const service = nodeService({ configRepo });
 
-		const props: AspectProperties = [{
+		const props: AspectProperty[] = [{
 			name: "amount",
 			title: "Amount",
 			type: "number",
 		}];
 
-		// Create aspect with number property
-		await service.create(authCtx, {
+		// Create aspect in configuration repository
+		const now = new Date().toISOString();
+		await configRepo.save("aspects", {
 			uuid: "invoice",
 			title: "Invoice",
-			mimetype: Nodes.ASPECT_MIMETYPE,
-			parent: Folders.ASPECTS_FOLDER_UUID,
+			description: "Invoice aspect",
+			filters: [],
 			properties: props,
+			createdTime: now,
+			modifiedTime: now,
 		});
 
 		// Create node with valid aspect property and undefined properties
 		const nodeOrErr = await service.create(authCtx, {
 			title: "Test Node",
 			mimetype: Nodes.FOLDER_MIMETYPE,
-			parent: Folders.ROOT_FOLDER_UUID,
+			parent: Nodes.ROOT_FOLDER_UUID,
 			aspects: ["invoice"],
 			properties: {
 				"invoice:amount": 1000, // valid property
@@ -135,7 +141,7 @@ describe("NodeService.create", () => {
 		const nodeOrErr = await service.create(authCtx, {
 			title: "Test Node",
 			mimetype: Nodes.FOLDER_MIMETYPE,
-			parent: Folders.ROOT_FOLDER_UUID,
+			parent: Nodes.ROOT_FOLDER_UUID,
 			aspects: ["nonexistent-aspect"],
 			properties: {
 				"nonexistent-aspect:property": "value",
@@ -158,7 +164,7 @@ describe("NodeService.create", () => {
 		const node = await service.create(authCtx, {
 			title: "Folder 1",
 			mimetype: Nodes.FOLDER_MIMETYPE,
-			parent: Folders.ROOT_FOLDER_UUID,
+			parent: Nodes.ROOT_FOLDER_UUID,
 			permissions,
 		});
 
@@ -180,7 +186,7 @@ describe("NodeService.create", () => {
 			uuid: "--parent--",
 			title: "Parent Folder",
 			mimetype: Nodes.FOLDER_MIMETYPE,
-			parent: Folders.ROOT_FOLDER_UUID,
+			parent: Nodes.ROOT_FOLDER_UUID,
 			permissions,
 		});
 
@@ -199,7 +205,7 @@ describe("NodeService.create", () => {
 		const nodeOrErr = await service.create(authCtx, {
 			title: "Unique Title",
 			mimetype: Nodes.FOLDER_MIMETYPE,
-			parent: Folders.ROOT_FOLDER_UUID,
+			parent: Nodes.ROOT_FOLDER_UUID,
 		});
 
 		expect(nodeOrErr.isRight(), errToMsg(nodeOrErr.value)).toBeTruthy();
@@ -209,7 +215,7 @@ describe("NodeService.create", () => {
 
 	it("should convey to folder children restrictions", async () => {
 		const nodeOrErr = await nodeService().createFile(authCtx, dummyFile, {
-			parent: Folders.ROOT_FOLDER_UUID,
+			parent: Nodes.ROOT_FOLDER_UUID,
 		});
 
 		expect(nodeOrErr.isLeft(), errToMsg(nodeOrErr.value)).toBeTruthy();
@@ -256,7 +262,7 @@ describe("NodeService.createFile", () => {
 			uuid: "--parent--",
 			title: "Folder",
 			mimetype: Nodes.FOLDER_MIMETYPE,
-			parent: Folders.ROOT_FOLDER_UUID,
+			parent: Nodes.ROOT_FOLDER_UUID,
 		});
 
 		const nodeOrErr = await service.createFile(authCtx, dummyFile, {
@@ -274,7 +280,7 @@ describe("NodeService.createFile", () => {
 		const parent = await service.create(authCtx, {
 			title: "Folder",
 			mimetype: Nodes.FOLDER_MIMETYPE,
-			parent: Folders.ROOT_FOLDER_UUID,
+			parent: Nodes.ROOT_FOLDER_UUID,
 		});
 
 		const fileNode = await service.createFile(authCtx, dummyFile, {
@@ -292,7 +298,7 @@ describe("NodeService.createFile", () => {
 			uuid: "--parent--",
 			title: "Folder",
 			mimetype: Nodes.FOLDER_MIMETYPE,
-			parent: Folders.ROOT_FOLDER_UUID,
+			parent: Nodes.ROOT_FOLDER_UUID,
 		});
 
 		const nodeOrErr = await service.createFile(authCtx, dummyFile, {
@@ -312,17 +318,17 @@ describe("NodeService.createFile", () => {
 			uuid: "--parent--",
 			title: "Parent Folder",
 			mimetype: Nodes.FOLDER_MIMETYPE,
-			parent: Folders.ROOT_FOLDER_UUID,
+			parent: Nodes.ROOT_FOLDER_UUID,
 		});
 
 		const nodeOrErr = await service.createFile(authCtx, dummyFile, {
 			parent: "--parent--",
 			exposeExtension: true,
-			mimetype: Nodes.FEATURE_MIMETYPE,
+			mimetype: "application/javascript",
 		});
 
 		expect(nodeOrErr.isRight(), errToMsg(nodeOrErr.value)).toBeTruthy();
-		expect(nodeOrErr.right.mimetype).toBe(Nodes.FEATURE_MIMETYPE);
+		expect(nodeOrErr.right.mimetype).toBe("application/javascript");
 	});
 
 	it("should not create embeddings for zero-size files", async () => {
@@ -331,7 +337,7 @@ describe("NodeService.createFile", () => {
 			uuid: "--parent--",
 			title: "Folder",
 			mimetype: Nodes.FOLDER_MIMETYPE,
-			parent: Folders.ROOT_FOLDER_UUID,
+			parent: Nodes.ROOT_FOLDER_UUID,
 		});
 
 		const emptyFile = new File([], "empty.txt", {
@@ -354,7 +360,7 @@ describe("NodeService.duplicate", () => {
 		const parent = await service.create(authCtx, {
 			title: "Folder",
 			mimetype: Nodes.FOLDER_MIMETYPE,
-			parent: Folders.ROOT_FOLDER_UUID,
+			parent: Nodes.ROOT_FOLDER_UUID,
 		});
 		const node = await service.create(authCtx, {
 			title: "Meta File",
@@ -377,7 +383,7 @@ describe("NodeService.duplicate", () => {
 		const parent = await service.create(authCtx, {
 			title: "Folder",
 			mimetype: Nodes.FOLDER_MIMETYPE,
-			parent: Folders.ROOT_FOLDER_UUID,
+			parent: Nodes.ROOT_FOLDER_UUID,
 		});
 		const node = await service.createFile(authCtx, dummyFile, {
 			parent: parent.right.uuid,
@@ -399,7 +405,7 @@ describe("NodeService.duplicate", () => {
 		const parent = await service.create(authCtx, {
 			title: "Folder",
 			mimetype: Nodes.FOLDER_MIMETYPE,
-			parent: Folders.ROOT_FOLDER_UUID,
+			parent: Nodes.ROOT_FOLDER_UUID,
 		});
 		const folder = await service.create(authCtx, {
 			title: "Folder to Duplicate",
@@ -420,12 +426,12 @@ describe("NodeService.copy", () => {
 		const parent1 = await service.create(authCtx, {
 			title: "Parent Folder 1",
 			mimetype: Nodes.FOLDER_MIMETYPE,
-			parent: Folders.ROOT_FOLDER_UUID,
+			parent: Nodes.ROOT_FOLDER_UUID,
 		});
 		const parent2 = await service.create(authCtx, {
 			title: "Parent Folder 2",
 			mimetype: Nodes.FOLDER_MIMETYPE,
-			parent: Folders.ROOT_FOLDER_UUID,
+			parent: Nodes.ROOT_FOLDER_UUID,
 		});
 		const node = await service.create(authCtx, {
 			title: "Meta File",
@@ -451,7 +457,7 @@ describe("NodeService.copy", () => {
 		const parent = await service.create(authCtx, {
 			title: "Parent Folder",
 			mimetype: Nodes.FOLDER_MIMETYPE,
-			parent: Folders.ROOT_FOLDER_UUID,
+			parent: Nodes.ROOT_FOLDER_UUID,
 		});
 		const folder = await service.create(authCtx, {
 			title: "Folder to Copy",
@@ -474,12 +480,12 @@ describe("NodeService.copy", () => {
 		const parent1 = await service.create(authCtx, {
 			title: "Parent Folder 1",
 			mimetype: Nodes.FOLDER_MIMETYPE,
-			parent: Folders.ROOT_FOLDER_UUID,
+			parent: Nodes.ROOT_FOLDER_UUID,
 		});
 		const parent2 = await service.create(authCtx, {
 			title: "Parent Folder 2",
 			mimetype: Nodes.FOLDER_MIMETYPE,
-			parent: Folders.ROOT_FOLDER_UUID,
+			parent: Nodes.ROOT_FOLDER_UUID,
 		});
 		const node = await service.createFile(authCtx, dummyFile, {
 			parent: parent1.right.uuid,
@@ -515,33 +521,49 @@ const errToMsg = (err: unknown) => {
 
 	return JSON.stringify(v, null, 3);
 };
+
+// Helper to create an aspect in the configuration repository
+const createAspect = async (
+	configRepo: InMemoryConfigurationRepository,
+	uuid: string,
+	title: string,
+	properties: AspectProperty[],
+) => {
+	const now = new Date().toISOString();
+	await configRepo.save("aspects", {
+		uuid,
+		title,
+		description: `${title} aspect`,
+		filters: [],
+		properties,
+		createdTime: now,
+		modifiedTime: now,
+	});
+};
+
 const nodeService = (opts: Partial<NodeServiceContext> = {}) =>
 	new NodeService({
 		storage: opts.storage ?? new InMemoryStorageProvider(),
 		repository: opts.repository ?? new InMemoryNodeRepository(),
 		bus: opts.bus ?? new InMemoryEventBus(),
+		configRepo: opts.configRepo ?? new InMemoryConfigurationRepository(),
 	});
 
 const dummyFile = new File(["Ola"], "ola.txt", { type: "text/plain" });
 
 describe("NodeService.create - UUID property validation", () => {
 	it("should return error when uuid property references non-existing node", async () => {
-		const service = nodeService();
+		const configRepo = new InMemoryConfigurationRepository();
+		const service = nodeService({ configRepo });
 
-		const props: AspectProperties = [{
+		const props: AspectProperty[] = [{
 			name: "reference_prop",
 			title: "Reference Property",
 			type: "uuid",
 		}];
 
-		// Create aspect with uuid property
-		await service.create(authCtx, {
-			uuid: "reference-aspect",
-			title: "Reference Aspect",
-			mimetype: Nodes.ASPECT_MIMETYPE,
-			parent: Folders.ASPECTS_FOLDER_UUID,
-			properties: props,
-		});
+		// Create aspect in configuration repository
+		await createAspect(configRepo, "reference-aspect", "Reference Aspect", props);
 
 		// Try to create node with non-existing uuid reference
 		const nodeOrErr = await service.create(authCtx, {
@@ -551,7 +573,7 @@ describe("NodeService.create - UUID property validation", () => {
 			properties: {
 				"reference-aspect:reference_prop": "non-existing-node-uuid",
 			},
-			parent: Folders.ROOT_FOLDER_UUID,
+			parent: Nodes.ROOT_FOLDER_UUID,
 		});
 
 		expect(nodeOrErr.isLeft()).toBeTruthy();
@@ -559,30 +581,25 @@ describe("NodeService.create - UUID property validation", () => {
 	});
 
 	it("should create node when uuid property references existing node", async () => {
-		const service = nodeService();
+		const configRepo = new InMemoryConfigurationRepository();
+		const service = nodeService({ configRepo });
 
 		// Create a target node to reference
 		const _targetNodeOrErr = await service.create(authCtx, {
 			uuid: "target-node-uuid",
 			title: "Target Node",
 			mimetype: Nodes.FOLDER_MIMETYPE,
-			parent: Folders.ROOT_FOLDER_UUID,
+			parent: Nodes.ROOT_FOLDER_UUID,
 		});
 
-		const props: AspectProperties = [{
+		const props: AspectProperty[] = [{
 			name: "reference_prop",
 			title: "Reference Property",
 			type: "uuid",
 		}];
 
-		// Create aspect with uuid property
-		await service.create(authCtx, {
-			uuid: "reference-aspect",
-			title: "Reference Aspect",
-			mimetype: Nodes.ASPECT_MIMETYPE,
-			parent: Folders.ASPECTS_FOLDER_UUID,
-			properties: props,
-		});
+		// Create aspect in configuration repository
+		await createAspect(configRepo, "reference-aspect", "Reference Aspect", props);
 
 		// Create node with existing uuid reference
 		const nodeOrErr = await service.create(authCtx, {
@@ -592,24 +609,25 @@ describe("NodeService.create - UUID property validation", () => {
 			properties: {
 				"reference-aspect:reference_prop": "target-node-uuid",
 			},
-			parent: Folders.ROOT_FOLDER_UUID,
+			parent: Nodes.ROOT_FOLDER_UUID,
 		});
 
 		expect(nodeOrErr.isRight(), errToMsg(nodeOrErr.value)).toBeTruthy();
 	});
 
 	it("should return error when uuid array property has non-existing node references", async () => {
-		const service = nodeService();
+		const configRepo = new InMemoryConfigurationRepository();
+		const service = nodeService({ configRepo });
 
 		// Create one existing target node
 		await service.create(authCtx, {
 			uuid: "existing-node-uuid",
 			title: "Existing Node",
 			mimetype: Nodes.FOLDER_MIMETYPE,
-			parent: Folders.ROOT_FOLDER_UUID,
+			parent: Nodes.ROOT_FOLDER_UUID,
 		});
 
-		const props: AspectProperties = [{
+		const props: AspectProperty[] = [{
 			name: "references_prop",
 			title: "References Property",
 			type: "array",
@@ -617,19 +635,13 @@ describe("NodeService.create - UUID property validation", () => {
 		}];
 
 		// Create aspect with uuid array property
-		await service.create(authCtx, {
-			uuid: "references-aspect",
-			title: "References Aspect",
-			mimetype: Nodes.ASPECT_MIMETYPE,
-			parent: Folders.ASPECTS_FOLDER_UUID,
-			properties: props,
-		});
+		await createAspect(configRepo, "references-aspect", "References Aspect", props);
 
 		// Try to create node with mix of existing and non-existing uuid references
 		const nodeOrErr = await service.create(authCtx, {
 			title: "Test Node",
 			mimetype: Nodes.FOLDER_MIMETYPE,
-			parent: Folders.ROOT_FOLDER_UUID,
+			parent: Nodes.ROOT_FOLDER_UUID,
 			aspects: ["references-aspect"],
 			properties: {
 				"references-aspect:references_prop": [
@@ -644,24 +656,25 @@ describe("NodeService.create - UUID property validation", () => {
 	});
 
 	it("should create node when uuid array property has all existing node references", async () => {
-		const service = nodeService();
+		const configRepo = new InMemoryConfigurationRepository();
+		const service = nodeService({ configRepo });
 
 		// Create target nodes to reference
 		await service.create(authCtx, {
 			uuid: "target-node-1",
 			title: "Target Node 1",
 			mimetype: Nodes.FOLDER_MIMETYPE,
-			parent: Folders.ROOT_FOLDER_UUID,
+			parent: Nodes.ROOT_FOLDER_UUID,
 		});
 
 		await service.create(authCtx, {
 			uuid: "target-node-2",
 			title: "Target Node 2",
 			mimetype: Nodes.FOLDER_MIMETYPE,
-			parent: Folders.ROOT_FOLDER_UUID,
+			parent: Nodes.ROOT_FOLDER_UUID,
 		});
 
-		const props: AspectProperties = [{
+		const props: AspectProperty[] = [{
 			name: "references_prop",
 			title: "References Property",
 			type: "array",
@@ -669,13 +682,7 @@ describe("NodeService.create - UUID property validation", () => {
 		}];
 
 		// Create aspect with uuid array property
-		await service.create(authCtx, {
-			uuid: "references-aspect",
-			title: "References Aspect",
-			mimetype: Nodes.ASPECT_MIMETYPE,
-			parent: Folders.ASPECTS_FOLDER_UUID,
-			properties: props,
-		});
+		await createAspect(configRepo, "references-aspect", "References Aspect", props);
 
 		// Create node with all existing uuid references
 		const nodeOrErr = await service.create(authCtx, {
@@ -685,21 +692,22 @@ describe("NodeService.create - UUID property validation", () => {
 			properties: {
 				"references-aspect:references_prop": ["target-node-1", "target-node-2"],
 			},
-			parent: Folders.ROOT_FOLDER_UUID,
+			parent: Nodes.ROOT_FOLDER_UUID,
 		});
 
 		expect(nodeOrErr.isRight(), errToMsg(nodeOrErr.value)).toBeTruthy();
 	});
 
 	it("should return error when uuid property with validationFilters references non-complying node", async () => {
-		const service = nodeService();
+		const configRepo = new InMemoryConfigurationRepository();
+		const service = nodeService({ configRepo });
 
 		// Create a file node (not a folder)
 		const file = new File(["content"], "test.txt", { type: "text/plain" });
 		const parent = await service.create(authCtx, {
 			title: "Parent Folder",
 			mimetype: Nodes.FOLDER_MIMETYPE,
-			parent: Folders.ROOT_FOLDER_UUID,
+			parent: Nodes.ROOT_FOLDER_UUID,
 		});
 
 		const _fileNodeOrErr = await service.createFile(authCtx, file, {
@@ -707,7 +715,7 @@ describe("NodeService.create - UUID property validation", () => {
 			parent: parent.right.uuid,
 		});
 
-		const props: AspectProperties = [{
+		const props: AspectProperty[] = [{
 			name: "folder_reference_prop",
 			title: "Folder Reference Property",
 			type: "uuid",
@@ -715,13 +723,7 @@ describe("NodeService.create - UUID property validation", () => {
 		}];
 
 		// Create aspect with filtered uuid property
-		await service.create(authCtx, {
-			uuid: "filtered-aspect",
-			title: "Filtered Aspect",
-			mimetype: Nodes.ASPECT_MIMETYPE,
-			parent: Folders.ASPECTS_FOLDER_UUID,
-			properties: props,
-		});
+		await createAspect(configRepo, "filtered-aspect", "Filtered Aspect", props);
 
 		// Try to create node referencing file node when filter expects folder
 		const nodeOrErr = await service.create(authCtx, {
@@ -731,7 +733,7 @@ describe("NodeService.create - UUID property validation", () => {
 			properties: {
 				"filtered-aspect:folder_reference_prop": "file-node-uuid",
 			},
-			parent: Folders.ROOT_FOLDER_UUID,
+			parent: Nodes.ROOT_FOLDER_UUID,
 		});
 
 		expect(nodeOrErr.isLeft()).toBeTruthy();
@@ -739,17 +741,18 @@ describe("NodeService.create - UUID property validation", () => {
 	});
 
 	it("should create node when uuid property with validationFilters references complying node", async () => {
-		const service = nodeService();
+		const configRepo = new InMemoryConfigurationRepository();
+		const service = nodeService({ configRepo });
 
 		// Create a folder node
 		const _folderNodeOrErr = await service.create(authCtx, {
 			uuid: "folder-node-uuid",
 			title: "Target Folder",
 			mimetype: Nodes.FOLDER_MIMETYPE,
-			parent: Folders.ROOT_FOLDER_UUID,
+			parent: Nodes.ROOT_FOLDER_UUID,
 		});
 
-		const props: AspectProperties = [{
+		const props: AspectProperty[] = [{
 			name: "folder_reference_prop",
 			title: "Folder Reference Property",
 			type: "uuid",
@@ -757,13 +760,7 @@ describe("NodeService.create - UUID property validation", () => {
 		}];
 
 		// Create aspect with filtered uuid property
-		await service.create(authCtx, {
-			uuid: "filtered-aspect",
-			title: "Filtered Aspect",
-			mimetype: Nodes.ASPECT_MIMETYPE,
-			parent: Folders.ASPECTS_FOLDER_UUID,
-			properties: props,
-		});
+		await createAspect(configRepo, "filtered-aspect", "Filtered Aspect", props);
 
 		// Create node referencing folder node when filter expects folder
 		const nodeOrErr = await service.create(authCtx, {
@@ -773,27 +770,28 @@ describe("NodeService.create - UUID property validation", () => {
 			properties: {
 				"filtered-aspect:folder_reference_prop": "folder-node-uuid",
 			},
-			parent: Folders.ROOT_FOLDER_UUID,
+			parent: Nodes.ROOT_FOLDER_UUID,
 		});
 
 		expect(nodeOrErr.isRight(), errToMsg(nodeOrErr.value)).toBeTruthy();
 	});
 
 	it("should return error when uuid array property with validationFilters has non-complying nodes", async () => {
-		const service = nodeService();
+		const configRepo = new InMemoryConfigurationRepository();
+		const service = nodeService({ configRepo });
 
 		// Create a folder node and a file node
 		const _folderNodeOrErr = await service.create(authCtx, {
 			uuid: "folder-node-uuid",
 			title: "Target Folder",
 			mimetype: Nodes.FOLDER_MIMETYPE,
-			parent: Folders.ROOT_FOLDER_UUID,
+			parent: Nodes.ROOT_FOLDER_UUID,
 		});
 
 		const parent = await service.create(authCtx, {
 			title: "Parent Folder",
 			mimetype: Nodes.FOLDER_MIMETYPE,
-			parent: Folders.ROOT_FOLDER_UUID,
+			parent: Nodes.ROOT_FOLDER_UUID,
 		});
 
 		const file = new File(["content"], "test.txt", { type: "text/plain" });
@@ -802,7 +800,7 @@ describe("NodeService.create - UUID property validation", () => {
 			parent: parent.right.uuid,
 		});
 
-		const props: AspectProperties = [{
+		const props: AspectProperty[] = [{
 			name: "folder_references_prop",
 			title: "Folder References Property",
 			type: "array",
@@ -811,19 +809,18 @@ describe("NodeService.create - UUID property validation", () => {
 		}];
 
 		// Create aspect with filtered uuid array property
-		await service.create(authCtx, {
-			uuid: "filtered-references-aspect",
-			title: "Filtered References Aspect",
-			mimetype: Nodes.ASPECT_MIMETYPE,
-			parent: Folders.ASPECTS_FOLDER_UUID,
-			properties: props,
-		});
+		await createAspect(
+			configRepo,
+			"filtered-references-aspect",
+			"Filtered References Aspect",
+			props,
+		);
 
 		// Try to create node with mix of complying and non-complying references
 		const nodeOrErr = await service.create(authCtx, {
 			title: "Test Node",
 			mimetype: Nodes.FOLDER_MIMETYPE,
-			parent: Folders.ROOT_FOLDER_UUID,
+			parent: Nodes.ROOT_FOLDER_UUID,
 			aspects: ["filtered-references-aspect"],
 			properties: {
 				"filtered-references-aspect:folder_references_prop": [
@@ -838,24 +835,25 @@ describe("NodeService.create - UUID property validation", () => {
 	});
 
 	it("should create node when uuid array property with validationFilters has all complying nodes", async () => {
-		const service = nodeService();
+		const configRepo = new InMemoryConfigurationRepository();
+		const service = nodeService({ configRepo });
 
 		// Create two folder nodes
 		await service.create(authCtx, {
 			uuid: "folder-node-1",
 			title: "Target Folder 1",
 			mimetype: Nodes.FOLDER_MIMETYPE,
-			parent: Folders.ROOT_FOLDER_UUID,
+			parent: Nodes.ROOT_FOLDER_UUID,
 		});
 
 		await service.create(authCtx, {
 			uuid: "folder-node-2",
 			title: "Target Folder 2",
 			mimetype: Nodes.FOLDER_MIMETYPE,
-			parent: Folders.ROOT_FOLDER_UUID,
+			parent: Nodes.ROOT_FOLDER_UUID,
 		});
 
-		const props: AspectProperties = [{
+		const props: AspectProperty[] = [{
 			name: "folder_references_prop",
 			title: "Folder References Property",
 			type: "array",
@@ -864,19 +862,18 @@ describe("NodeService.create - UUID property validation", () => {
 		}];
 
 		// Create aspect with filtered uuid array property
-		await service.create(authCtx, {
-			uuid: "filtered-references-aspect",
-			title: "Filtered References Aspect",
-			mimetype: Nodes.ASPECT_MIMETYPE,
-			parent: Folders.ASPECTS_FOLDER_UUID,
-			properties: props,
-		});
+		await createAspect(
+			configRepo,
+			"filtered-references-aspect",
+			"Filtered References Aspect",
+			props,
+		);
 
 		// Create node with all complying references
 		const nodeOrErr = await service.create(authCtx, {
 			title: "Test Node",
 			mimetype: Nodes.FOLDER_MIMETYPE,
-			parent: Folders.ROOT_FOLDER_UUID,
+			parent: Nodes.ROOT_FOLDER_UUID,
 			aspects: ["filtered-references-aspect"],
 			properties: {
 				"filtered-references-aspect:folder_references_prop": [
@@ -890,17 +887,18 @@ describe("NodeService.create - UUID property validation", () => {
 	});
 
 	it("should return error when uuid property with complex validationFilters references non-complying node", async () => {
-		const service = nodeService();
+		const configRepo = new InMemoryConfigurationRepository();
+		const service = nodeService({ configRepo });
 
 		// Create a folder node without "Project" in title
 		await service.create(authCtx, {
 			uuid: "regular-folder-uuid",
 			title: "Regular Folder",
 			mimetype: Nodes.FOLDER_MIMETYPE,
-			parent: Folders.ROOT_FOLDER_UUID,
+			parent: Nodes.ROOT_FOLDER_UUID,
 		});
 
-		const props: AspectProperties = [{
+		const props: AspectProperty[] = [{
 			name: "project_folder_prop",
 			title: "Project Folder Property",
 			type: "uuid",
@@ -911,13 +909,7 @@ describe("NodeService.create - UUID property validation", () => {
 		}];
 
 		// Create aspect with complex filtered uuid property
-		await service.create(authCtx, {
-			uuid: "complex-filtered-aspect",
-			title: "Complex Filtered Aspect",
-			mimetype: Nodes.ASPECT_MIMETYPE,
-			parent: Folders.ASPECTS_FOLDER_UUID,
-			properties: props,
-		});
+		await createAspect(configRepo, "complex-filtered-aspect", "Complex Filtered Aspect", props);
 
 		// Try to create node referencing folder that doesn't match title filter
 		const nodeOrErr = await service.create(authCtx, {
@@ -927,7 +919,7 @@ describe("NodeService.create - UUID property validation", () => {
 			properties: {
 				"complex-filtered-aspect:project_folder_prop": "regular-folder-uuid",
 			},
-			parent: Folders.ROOT_FOLDER_UUID,
+			parent: Nodes.ROOT_FOLDER_UUID,
 		});
 
 		expect(nodeOrErr.isLeft()).toBeTruthy();

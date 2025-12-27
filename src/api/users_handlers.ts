@@ -17,7 +17,7 @@ export function createUserHandler(tenants: AntboxTenant[]): HttpHandler {
 		tenants,
 		async (req: Request): Promise<Response> => {
 			const tenant = getTenant(req, tenants);
-			const service = tenant.usersGroupsService;
+			const service = tenant.usersService;
 
 			const unavailableResponse = checkServiceAvailability(service, "Users service");
 			if (unavailableResponse) {
@@ -42,7 +42,7 @@ export function getUserHandler(tenants: AntboxTenant[]): HttpHandler {
 		tenants,
 		async (req: Request): Promise<Response> => {
 			const tenant = getTenant(req, tenants);
-			const service = tenant.usersGroupsService;
+			const service = tenant.usersService;
 
 			const unavailableResponse = checkServiceAvailability(service, "Users service");
 			if (unavailableResponse) {
@@ -67,7 +67,7 @@ export function updateUserHandler(tenants: AntboxTenant[]): HttpHandler {
 		tenants,
 		async (req: Request): Promise<Response> => {
 			const tenant = getTenant(req, tenants);
-			const service = tenant.usersGroupsService;
+			const service = tenant.usersService;
 
 			const unavailableResponse = checkServiceAvailability(service, "Users service");
 			if (unavailableResponse) {
@@ -93,7 +93,7 @@ export function deleteUserHandler(tenants: AntboxTenant[]): HttpHandler {
 		tenants,
 		async (req: Request): Promise<Response> => {
 			const tenant = getTenant(req, tenants);
-			const service = tenant.usersGroupsService;
+			const service = tenant.usersService;
 
 			const unavailableResponse = checkServiceAvailability(service, "Users service");
 			if (unavailableResponse) {
@@ -101,12 +101,12 @@ export function deleteUserHandler(tenants: AntboxTenant[]): HttpHandler {
 			}
 
 			const params = getParams(req);
-			if (!params.uuid) {
-				return sendBadRequest({ error: "{ uuid } not given" });
+			if (!params.email) {
+				return sendBadRequest({ error: "{ email } not given" });
 			}
 
 			return service
-				.deleteUser(getAuthenticationContext(req), params.uuid)
+				.deleteUser(getAuthenticationContext(req), params.email)
 				.then(processServiceResult)
 				.catch(processError);
 		},
@@ -118,7 +118,7 @@ export function listUsersHandler(tenants: AntboxTenant[]): HttpHandler {
 		tenants,
 		async (req: Request): Promise<Response> => {
 			const tenant = getTenant(req, tenants);
-			const service = tenant.usersGroupsService;
+			const service = tenant.usersService;
 
 			const unavailableResponse = checkServiceAvailability(service, "Users service");
 			if (unavailableResponse) {

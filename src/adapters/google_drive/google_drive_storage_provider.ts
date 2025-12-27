@@ -1,7 +1,6 @@
 import { auth, drive, drive_v3 } from "@googleapis/drive";
 import type { StorageProvider, WriteFileOpts } from "application/storage_provider.ts";
 import type { DuplicatedNodeError } from "domain/nodes/duplicated_node_error.ts";
-import { Folders } from "domain/nodes/folders.ts";
 import { NodeCreatedEvent } from "domain/nodes/node_created_event.ts";
 import { NodeDeletedEvent } from "domain/nodes/node_deleted_event.ts";
 import { NodeFileNotFoundError } from "domain/nodes/node_file_not_found_error.ts";
@@ -118,7 +117,7 @@ class GoogleDriveStorageProvider implements StorageProvider {
 
 		const id = res.data.id!;
 
-		if (metadataOrError.isLeft() && opts.parent !== Folders.ROOT_FOLDER_UUID) {
+		if (metadataOrError.isLeft() && opts.parent !== Nodes.ROOT_FOLDER_UUID) {
 			await this.#updateParentFolderId(id, opts.parent);
 		}
 
@@ -211,7 +210,7 @@ class GoogleDriveStorageProvider implements StorageProvider {
 
 		let parentId = this.#rootFolderId;
 
-		if (evt.payload.parent !== Folders.ROOT_FOLDER_UUID) {
+		if (evt.payload.parent !== Nodes.ROOT_FOLDER_UUID) {
 			const parentOrErr = await this.#getDriveMedata(evt.payload.parent);
 			if (parentOrErr.isLeft()) {
 				console.error(parentOrErr.value.message);

@@ -1,7 +1,7 @@
 import { Either } from "shared/either.ts";
 import { AntboxError } from "shared/antbox_error.ts";
 import { ChatHistory, ChatMessage } from "domain/ai/chat_message.ts";
-import { FeatureDTO } from "application/feature_dto.ts";
+import type { FeatureData } from "domain/configuration/feature_data.ts";
 
 /**
  * Represents a vector embedding - an array of numbers representing
@@ -70,7 +70,7 @@ export interface AIModel {
 		options?: {
 			systemPrompt?: string;
 			history?: ChatHistory;
-			tools?: Partial<FeatureDTO>[];
+			tools?: Partial<FeatureData>[];
 			files?: File[];
 			temperature?: number;
 			maxTokens?: number;
@@ -92,7 +92,7 @@ export interface AIModel {
 		input: string | ChatMessage,
 		options?: {
 			systemPrompt?: string;
-			tools?: Partial<FeatureDTO>[];
+			tools?: Partial<FeatureData>[];
 			files?: File[];
 			temperature?: number;
 			maxTokens?: number;

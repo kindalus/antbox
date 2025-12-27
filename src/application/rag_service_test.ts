@@ -1,7 +1,7 @@
 import { beforeEach, describe, it } from "jsr:@std/testing/bdd";
 import { expect } from "jsr:@std/expect";
 import { RAGService } from "./rag_service.ts";
-import { AgentService } from "./agent_service.ts";
+import type { AgentsService } from "./agents_service.ts";
 import { AuthenticationContext, Principal } from "./authentication_context.ts";
 import { Either, left, right } from "shared/either.ts";
 import { AntboxError } from "shared/antbox_error.ts";
@@ -11,7 +11,7 @@ import { ChatHistory } from "domain/ai/chat_message.ts";
 // MOCK IMPLEMENTATIONS
 // ============================================================================
 
-class MockAgentService implements Partial<AgentService> {
+class MockAgentService implements Partial<AgentsService> {
 	public lastChatInput: any = null;
 
 	async chat(
@@ -92,7 +92,7 @@ describe("RAGService", () => {
 					"search across the entire platform content",
 				);
 				expect(mockAgentService.lastChatInput.options.instructions).toContain(
-					'prefix your query with "?"',
+					'prefixing your query with "?"',
 				);
 			}
 		});

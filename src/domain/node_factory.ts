@@ -1,10 +1,6 @@
 import { type Either } from "shared/either.ts";
 import { ValidationError } from "shared/validation_error.ts";
 
-import { ApiKeyNode } from "./api_keys/api_key_node.ts";
-import { AspectNode } from "./aspects/aspect_node.ts";
-import { GroupNode } from "./users_groups/group_node.ts";
-
 import { NodeLike } from "./node_like.ts";
 import { FileNode } from "./nodes/file_node.ts";
 import { FolderNode } from "./nodes/folder_node.ts";
@@ -12,11 +8,6 @@ import { MetaNode } from "./nodes/meta_node.ts";
 import { type NodeMetadata } from "./nodes/node_metadata.ts";
 import { Nodes } from "./nodes/nodes.ts";
 import { SmartFolderNode } from "./nodes/smart_folder_node.ts";
-
-import { FeatureNode } from "./features/feature_node.ts";
-import { AgentNode } from "./ai/agent_node.ts";
-import { UserNode } from "./users_groups/user_node.ts";
-import { WorkflowNode } from "./workflows/workflow_node.ts";
 import { ArticleNode } from "./articles/article_node.ts";
 
 export class NodeFactory {
@@ -28,24 +19,8 @@ export class NodeFactory {
 		) => Either<ValidationError, NodeLike>;
 
 		switch (metadata.mimetype) {
-			case Nodes.API_KEY_MIMETYPE:
-				createFn = ApiKeyNode.create;
-				break;
-
-			case Nodes.ASPECT_MIMETYPE:
-				createFn = AspectNode.create;
-				break;
-
 			case Nodes.FOLDER_MIMETYPE:
 				createFn = FolderNode.create;
-				break;
-
-			case Nodes.USER_MIMETYPE:
-				createFn = UserNode.create;
-				break;
-
-			case Nodes.GROUP_MIMETYPE:
-				createFn = GroupNode.create;
 				break;
 
 			case Nodes.META_NODE_MIMETYPE:
@@ -54,16 +29,6 @@ export class NodeFactory {
 
 			case Nodes.SMART_FOLDER_MIMETYPE:
 				createFn = SmartFolderNode.create;
-				break;
-
-			case Nodes.FEATURE_MIMETYPE:
-				createFn = FeatureNode.create;
-				break;
-			case Nodes.AGENT_MIMETYPE:
-				createFn = AgentNode.create;
-				break;
-			case Nodes.WORKFLOW_MIMETYPE:
-				createFn = WorkflowNode.create;
 				break;
 
 			case Nodes.ARTICLE_MIMETYPE:

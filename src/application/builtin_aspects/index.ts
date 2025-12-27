@@ -1,3 +1,3 @@
-import { AspectNode } from "domain/aspects/aspect_node.ts";
+import type { AspectData } from "domain/configuration/aspect_data.ts";
 
-export const builtinAspects: AspectNode[] = [];
+export const builtinAspects: AspectData[] = [];

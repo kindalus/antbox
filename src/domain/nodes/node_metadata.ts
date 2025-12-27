@@ -1,11 +1,9 @@
-import { AspectProperties } from "domain/aspects/aspect_node.ts";
 import { type Permissions } from "domain/nodes/node.ts";
 import { type NodeFilters } from "domain/nodes/node_filter.ts";
 import { type NodeProperties } from "domain/nodes/node_properties.ts";
-
-import { FeatureParameter } from "domain/features/feature_node.ts";
-import { WorkflowState } from "domain/workflows/workflow_node.ts";
 import { type ArticlePropertiesMap } from "../articles/article_properties.ts";
+import type { FeatureParameter } from "domain/configuration/feature_data.ts";
+import type { WorkflowState } from "domain/configuration/workflow_data.ts";
 
 export interface NodeMetadata {
 	uuid: string;
@@ -21,7 +19,7 @@ export interface NodeMetadata {
 	aspects?: string[];
 	tags?: string[];
 	related?: string[];
-	properties?: NodeProperties | AspectProperties;
+	properties?: NodeProperties;
 	fulltext?: string;
 
 	filters?: NodeFilters;

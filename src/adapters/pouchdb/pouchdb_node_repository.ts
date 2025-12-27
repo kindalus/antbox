@@ -17,7 +17,6 @@ import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import type { NodeProperties } from "domain/nodes/node_properties.ts";
 import { DuplicatedNodeError } from "domain/nodes/duplicated_node_error.ts";
-import { AspectProperty } from "domain/aspects/aspect_node.ts";
 import { Permissions } from "domain/nodes/node.ts";
 
 type Provider = "CouchDb" | "PouchDb";
@@ -78,7 +77,7 @@ interface NodeDbModel {
 	aspects?: string[];
 	tags?: string[];
 	related?: string[];
-	properties?: NodeProperties | AspectProperty[];
+	properties?: NodeProperties;
 	fulltext: string;
 
 	xfilters: NodeFilters;

@@ -82,7 +82,7 @@ export function meHandler(tenants: AntboxTenant[]): HttpHandler {
 				return sendUnauthorized();
 			}
 
-			const userOrErr = await tenant.usersGroupsService.getUser(
+			const userOrErr = await tenant.usersService.getUser(
 				ctx,
 				ctx.principal.email,
 			);
@@ -91,9 +91,9 @@ export function meHandler(tenants: AntboxTenant[]): HttpHandler {
 				return sendUnauthorized();
 			}
 
-			const { email, name, groups } = userOrErr.value;
+			const { email, title, groups } = userOrErr.value;
 
-			return sendOK({ email, name, groups });
+			return sendOK({ email, name: title, groups });
 		},
 	);
 }

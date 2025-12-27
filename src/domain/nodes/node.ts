@@ -1,11 +1,11 @@
 import { type Either, left, right } from "shared/either.ts";
 import { FidGenerator } from "shared/fid_generator.ts";
 import { ValidationError } from "shared/validation_error.ts";
-import { Folders } from "./folders.ts";
 import { type NodeMetadata } from "./node_metadata.ts";
 import { UuidGenerator } from "shared/uuid_generator.ts";
 import { z } from "zod";
 import { toPropertyError, uuid } from "../validation_schemas.ts";
+import { Nodes } from "./nodes.ts";
 
 const NodeValidationSchema = z.object({
 	uuid: uuid().min(1, "Node.uuid is required"),
@@ -26,7 +26,7 @@ export class Node {
 	protected _fid: string;
 	protected _title: string;
 	protected _description?: string;
-	protected _parent = Folders.ROOT_FOLDER_UUID;
+	protected _parent = Nodes.ROOT_FOLDER_UUID;
 	protected _modifiedTime: string;
 	protected _fulltext: string;
 	protected _tags: string[];
@@ -42,7 +42,7 @@ export class Node {
 		this._fid = metadata?.fid ?? "";
 		this._title = metadata?.title ?? "";
 		this._description = metadata?.description;
-		this._parent = metadata?.parent ?? Folders.ROOT_FOLDER_UUID;
+		this._parent = metadata?.parent ?? Nodes.ROOT_FOLDER_UUID;
 		this._createdTime = metadata?.createdTime ?? new Date().toISOString();
 		this._modifiedTime = metadata?.modifiedTime ?? new Date().toISOString();
 		this._tags = metadata?.tags ?? [];

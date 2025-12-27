@@ -17,7 +17,7 @@ export function createGroupHandler(tenants: AntboxTenant[]): HttpHandler {
 		tenants,
 		async (req: Request): Promise<Response> => {
 			const tenant = getTenant(req, tenants);
-			const service = tenant.usersGroupsService;
+			const service = tenant.groupsService;
 
 			const unavailableResponse = checkServiceAvailability(service, "Groups service");
 			if (unavailableResponse) {
@@ -42,7 +42,7 @@ export function getGroupHandler(tenants: AntboxTenant[]): HttpHandler {
 		tenants,
 		async (req: Request): Promise<Response> => {
 			const tenant = getTenant(req, tenants);
-			const service = tenant.usersGroupsService;
+			const service = tenant.groupsService;
 
 			const unavailableResponse = checkServiceAvailability(service, "Groups service");
 			if (unavailableResponse) {
@@ -62,38 +62,12 @@ export function getGroupHandler(tenants: AntboxTenant[]): HttpHandler {
 	);
 }
 
-export function updateGroupHandler(tenants: AntboxTenant[]): HttpHandler {
-	return defaultMiddlewareChain(
-		tenants,
-		async (req: Request): Promise<Response> => {
-			const tenant = getTenant(req, tenants);
-			const service = tenant.usersGroupsService;
-
-			const unavailableResponse = checkServiceAvailability(service, "Groups service");
-			if (unavailableResponse) {
-				return Promise.resolve(unavailableResponse);
-			}
-
-			const params = getParams(req);
-			if (!params.uuid) {
-				return sendBadRequest({ error: "{ uuid } not given" });
-			}
-
-			const metadata = await req.json();
-			return service
-				.updateGroup(getAuthenticationContext(req), params.uuid, metadata)
-				.then(processServiceResult)
-				.catch(processError);
-		},
-	);
-}
-
 export function deleteGroupHandler(tenants: AntboxTenant[]): HttpHandler {
 	return defaultMiddlewareChain(
 		tenants,
 		async (req: Request): Promise<Response> => {
 			const tenant = getTenant(req, tenants);
-			const service = tenant.usersGroupsService;
+			const service = tenant.groupsService;
 
 			const unavailableResponse = checkServiceAvailability(service, "Groups service");
 			if (unavailableResponse) {
@@ -118,7 +92,7 @@ export function listGroupsHandler(tenants: AntboxTenant[]): HttpHandler {
 		tenants,
 		async (req: Request): Promise<Response> => {
 			const tenant = getTenant(req, tenants);
-			const service = tenant.usersGroupsService;
+			const service = tenant.groupsService;
 
 			const unavailableResponse = checkServiceAvailability(service, "Groups service");
 			if (unavailableResponse) {

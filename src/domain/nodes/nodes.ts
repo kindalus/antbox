@@ -1,42 +1,19 @@
-import { AspectNode } from "domain/aspects/aspect_node.ts";
-import { GroupNode } from "domain/users_groups/group_node.ts";
-import { UserNode } from "domain/users_groups/user_node.ts";
 import { FileNode } from "./file_node.ts";
 import { FolderNode } from "./folder_node.ts";
 import { MetaNode } from "./meta_node.ts";
 import { SmartFolderNode } from "./smart_folder_node.ts";
 import type { NodeLike } from "domain/node_like.ts";
-import { ApiKeyNode } from "domain/api_keys/api_key_node.ts";
-import { FeatureNode } from "domain/features/feature_node.ts";
-import { AgentNode } from "domain/ai/agent_node.ts";
-import { WorkflowNode } from "domain/workflows/workflow_node.ts";
 import { NodeMetadata } from "./node_metadata.ts";
 
 export class Nodes {
 	static FID_PREFIX = "--fid--";
 
+	static ROOT_FOLDER_UUID = "--root--";
+
 	static FOLDER_MIMETYPE = "application/vnd.antbox.folder";
 	static META_NODE_MIMETYPE = "application/vnd.antbox.metanode";
 	static SMART_FOLDER_MIMETYPE = "application/vnd.antbox.smartfolder";
-	static ASPECT_MIMETYPE = "application/vnd.antbox.aspect";
-
-	static FEATURE_MIMETYPE = "application/vnd.antbox.feature";
-	static USER_MIMETYPE = "application/vnd.antbox.user";
-	static GROUP_MIMETYPE = "application/vnd.antbox.group";
-	static API_KEY_MIMETYPE = "application/vnd.antbox.apikey";
-	static AGENT_MIMETYPE = "application/vnd.antbox.agent";
-	static WORKFLOW_MIMETYPE = "application/vnd.antbox.workflow";
 	static ARTICLE_MIMETYPE = "application/vnd.antbox.article";
-
-	static SYSTEM_MIMETYPES = [
-		Nodes.ASPECT_MIMETYPE,
-		Nodes.FEATURE_MIMETYPE,
-		Nodes.USER_MIMETYPE,
-		Nodes.GROUP_MIMETYPE,
-		Nodes.API_KEY_MIMETYPE,
-		Nodes.AGENT_MIMETYPE,
-		Nodes.WORKFLOW_MIMETYPE,
-	];
 
 	static fidToUuid(fid: string): string {
 		return `${Nodes.FID_PREFIX}${fid}`;
@@ -54,14 +31,6 @@ export class Nodes {
 		return node.mimetype === Nodes.FOLDER_MIMETYPE;
 	}
 
-	static isUser(node: NodeLike | NodeMetadata): node is UserNode {
-		return node.mimetype === Nodes.USER_MIMETYPE;
-	}
-
-	static isApikey(node: NodeLike | NodeMetadata): node is ApiKeyNode {
-		return node.mimetype === Nodes.API_KEY_MIMETYPE;
-	}
-
 	static isSmartFolder(node: NodeLike | NodeMetadata): node is SmartFolderNode {
 		return node.mimetype === Nodes.SMART_FOLDER_MIMETYPE;
 	}
@@ -69,43 +38,8 @@ export class Nodes {
 		return Nodes.isFolder(node) || Nodes.isSmartFolder(node);
 	}
 
-	static isAspect(node: NodeLike | NodeMetadata): node is AspectNode {
-		return node.mimetype === Nodes.ASPECT_MIMETYPE;
-	}
-
 	static isMetaNode(node: NodeLike | NodeMetadata): node is MetaNode {
 		return node.mimetype === Nodes.META_NODE_MIMETYPE;
-	}
-
-	static isFeature(node: NodeLike | NodeMetadata): node is FeatureNode {
-		return node.mimetype === Nodes.FEATURE_MIMETYPE;
-	}
-
-	static isAction(node: NodeLike | NodeMetadata): node is FeatureNode {
-		return node.mimetype === Nodes.FEATURE_MIMETYPE &&
-			(node as FeatureNode).exposeAction;
-	}
-
-	static isExt(node: NodeLike | NodeMetadata): node is FeatureNode {
-		return node.mimetype === Nodes.FEATURE_MIMETYPE &&
-			(node as FeatureNode).exposeExtension;
-	}
-
-	static isAITool(node: NodeLike | NodeMetadata): node is FeatureNode {
-		return node.mimetype === Nodes.FEATURE_MIMETYPE &&
-			(node as FeatureNode).exposeAITool;
-	}
-
-	static isAgent(node: NodeLike | NodeMetadata): node is AgentNode {
-		return node.mimetype === Nodes.AGENT_MIMETYPE;
-	}
-
-	static isWorkflow(node: NodeLike | NodeMetadata): node is WorkflowNode {
-		return node.mimetype === Nodes.WORKFLOW_MIMETYPE;
-	}
-
-	static isGroup(node: NodeLike | NodeMetadata): node is GroupNode {
-		return node.mimetype === Nodes.GROUP_MIMETYPE;
 	}
 
 	static isArticle(node: NodeLike | NodeMetadata): node is FileNode {
@@ -129,14 +63,8 @@ export class Nodes {
 
 	static isFileLike(
 		node: NodeLike | NodeMetadata,
-	): node is FileNode | FeatureNode {
-		return (
-			Nodes.isFile(node) ||
-			Nodes.isExt(node) ||
-			Nodes.isAction(node) ||
-			Nodes.isFeature(node) ||
-			Nodes.isArticle(node)
-		);
+	): node is FileNode {
+		return Nodes.isFile(node);
 	}
 
 	static isTextPlain(node: NodeLike | NodeMetadata) {

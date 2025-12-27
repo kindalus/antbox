@@ -9,7 +9,7 @@ import { isEmbeddingsSupportedMimetype } from "./embeddings_supported_mimetypes.
 import { AntboxError } from "shared/antbox_error.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import type { NodeService } from "application/node_service.ts";
-import { UsersGroupsService } from "application/users_groups_service.ts";
+import { createElevatedContext } from "application/elevated_context.ts";
 import type { EventBus } from "shared/event_bus.ts";
 
 export interface EmbeddingServiceContext {
@@ -75,7 +75,7 @@ export class EmbeddingService {
 	async handleNodeUpdated(event: NodeUpdatedEvent): Promise<void> {
 		// Get the full node using elevated context
 		const nodeOrErr = await this.context.nodeService.get(
-			UsersGroupsService.elevatedContext,
+			createElevatedContext(event.tenant),
 			event.payload.uuid,
 		);
 
@@ -134,7 +134,7 @@ export class EmbeddingService {
 	async #generateAndStoreEmbedding(node: FileNode, tenant: string): Promise<void> {
 		// Read file content using NodeService export method
 		const fileOrErr = await this.context.nodeService.export(
-			UsersGroupsService.elevatedContext,
+			createElevatedContext(),
 			node.uuid,
 		);
 

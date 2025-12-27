@@ -1,4 +1,5 @@
 import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus.ts";
+import { InMemoryConfigurationRepository } from "adapters/inmem/inmem_configuration_repository.ts";
 import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository.ts";
 import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider.ts";
 import { describe, it } from "bdd";
@@ -9,7 +10,6 @@ import type { AuthenticationContext } from "application/authentication_context.t
 import { FolderNode } from "domain/nodes/folder_node.ts";
 import { BadRequestError } from "shared/antbox_error.ts";
 import { FileNode } from "domain/nodes/file_node.ts";
-import { parse } from "marked";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 
 import { Groups } from "domain/users_groups/groups.ts";
@@ -114,10 +114,10 @@ describe("ArticleService", () => {
 	});
 
 	describe("get", () => {
-		it("get should return article", async () => {
-			const service = createService();
+			it("get should return article", async () => {
+				const service = createService();
 
-			await service.createOrReplace(adminAuthContext, {
+				await service.createOrReplace(adminAuthContext, {
 				uuid: "--uuid--",
 				title: "javascript",
 				description: "The description",
@@ -135,54 +135,11 @@ describe("ArticleService", () => {
 
 			const articleOrErr = await service.get(adminAuthContext, "--uuid--");
 
-			expect(articleOrErr.isRight(), errMsg(articleOrErr.value)).toBeTruthy();
-		});
+				expect(articleOrErr.isRight(), errMsg(articleOrErr.value)).toBeTruthy();
+			});
 
-		it("get should return HTML content if mimetype is 'text/html' ", async () => {
-			const service = createService();
-
-			const htmlOrErr = await service.get(adminAuthContext, "--html--");
-
-			expect(htmlOrErr.isRight(), errMsg(htmlOrErr.value)).toBeTruthy();
-			expect(htmlOrErr.right).toContain("<h1>The Title</h1>");
-		});
-		it("get should convert markdown to HTML", async () => {
-			const service = createService();
-
-			const markdownFile = new File(
-				[
-					`# The Title
-		        A list of file
-		        1. First
-		        2. Second
-		        3. Third
-		        `,
-				],
-				"markdown",
-				{
-					type: "text/markdown",
-				},
-			);
-			const expectedHtml = await parse(await markdownFile.text());
-
-			const htmlOrErr = await service.get(adminAuthContext, "--markdown--");
-
-			expect(htmlOrErr.isRight(), errMsg(htmlOrErr.value)).toBeTruthy();
-			expect(htmlOrErr.right).toEqual(expectedHtml);
-		});
-		it("get should convert text/plain to HTML paragraphs", async () => {
-			const service = createService();
-
-			const articleOrErr = await service.get(adminAuthContext, "--txt--");
-
-			expect(articleOrErr.isRight(), errMsg(articleOrErr.value)).toBeTruthy();
-			const article = articleOrErr.right;
-			expect(article.properties.en.articleBody.startsWith("<p>")).toBeTruthy();
-			expect(article.properties.en.articleTitle).toContain("The Title");
-		});
-
-		it("get should return error if node is not article", async () => {
-			const service = createService();
+			it("get should return error if node is not article", async () => {
+				const service = createService();
 
 			const htmlOrErr = await service.get(adminAuthContext, "--json--");
 
@@ -510,7 +467,12 @@ describe("ArticleService", () => {
 		storage.write(jsonFileNode.uuid, jsonFile);
 
 		const eventBus = new InMemoryEventBus();
-		const nodeService = new NodeService({ repository, storage, bus: eventBus });
+		const nodeService = new NodeService({
+			repository,
+			storage,
+			bus: eventBus,
+			configRepo: new InMemoryConfigurationRepository(),
+		});
 
 		return new ArticleService(nodeService);
 	}

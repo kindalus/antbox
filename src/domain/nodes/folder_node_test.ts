@@ -2,7 +2,6 @@ import { describe, it } from "bdd";
 import { expect } from "expect";
 import { ValidationError } from "shared/validation_error.ts";
 import { FolderNode } from "./folder_node.ts";
-import { Folders } from "./folders.ts";
 import { Nodes } from "./nodes.ts";
 import type { Permission } from "./node.ts";
 import type { NodeMetadata } from "./node_metadata.ts";
@@ -12,7 +11,7 @@ describe("FolderNode", () => {
 		it("should initialize", () => {
 			const result = FolderNode.create({
 				title: "New folder",
-				parent: Folders.ROOT_FOLDER_UUID,
+				parent: Nodes.ROOT_FOLDER_UUID,
 				owner: "user@domain.com",
 				group: "group-1",
 			});
@@ -21,7 +20,7 @@ describe("FolderNode", () => {
 			const folderNode = result.right;
 			expect(Nodes.isFolder(folderNode)).toBe(true);
 			expect(folderNode.title).toBe("New folder");
-			expect(folderNode.parent).toBe(Folders.ROOT_FOLDER_UUID);
+			expect(folderNode.parent).toBe(Nodes.ROOT_FOLDER_UUID);
 			expect(folderNode.owner).toBe("user@domain.com");
 			expect(folderNode.group).toBe("group-1");
 		});
@@ -31,7 +30,7 @@ describe("FolderNode", () => {
 				title: "Title",
 				mimetype: "application/json",
 				owner: "user@domain.com",
-				parent: Folders.ROOT_FOLDER_UUID,
+				parent: Nodes.ROOT_FOLDER_UUID,
 				group: "group-1",
 			});
 
@@ -44,7 +43,7 @@ describe("FolderNode", () => {
 				{
 					title: "Title",
 					owner: "user@domain.com",
-					parent: Folders.ROOT_FOLDER_UUID,
+					parent: Nodes.ROOT_FOLDER_UUID,
 					group: "group-1",
 					permissions: {
 						anonymous: undefined as unknown as Permission[],
@@ -58,7 +57,7 @@ describe("FolderNode", () => {
 				{
 					title: "Title",
 					owner: "user@domain.com",
-					parent: Folders.ROOT_FOLDER_UUID,
+					parent: Nodes.ROOT_FOLDER_UUID,
 					group: "group-1",
 					permissions: {
 						anonymous: [],
@@ -81,7 +80,7 @@ describe("FolderNode", () => {
 		it("should not change createdTime", () => {
 			const createResult = FolderNode.create({
 				title: "Initial Folder",
-				parent: Folders.ROOT_FOLDER_UUID,
+				parent: Nodes.ROOT_FOLDER_UUID,
 				owner: "user@domain.com",
 				group: "group-1",
 			});
@@ -98,7 +97,7 @@ describe("FolderNode", () => {
 		it("should modify the title, fid, description, permissions and parent ", async () => {
 			const createResult = FolderNode.create({
 				title: "Initial Folder",
-				parent: Folders.ROOT_FOLDER_UUID,
+				parent: Nodes.ROOT_FOLDER_UUID,
 				owner: "user@domain.com",
 				group: "group-1",
 			});
@@ -141,7 +140,7 @@ describe("FolderNode", () => {
 		it("should not update group", () => {
 			const createResult = FolderNode.create({
 				title: "Valid Folder",
-				parent: Folders.ROOT_FOLDER_UUID,
+				parent: Nodes.ROOT_FOLDER_UUID,
 				owner: "user@domain.com",
 				group: "group-1",
 			});
@@ -157,7 +156,7 @@ describe("FolderNode", () => {
 		it("should return error if group is missing", () => {
 			const result = FolderNode.create({
 				title: "New folder",
-				parent: Folders.ROOT_FOLDER_UUID,
+				parent: Nodes.ROOT_FOLDER_UUID,
 				owner: "user@domain.com",
 			});
 			expect(result.isLeft()).toBe(true);
@@ -167,7 +166,7 @@ describe("FolderNode", () => {
 		it("should return error if update results in invalid title", () => {
 			const createResult = FolderNode.create({
 				title: "Valid title",
-				parent: Folders.ROOT_FOLDER_UUID,
+				parent: Nodes.ROOT_FOLDER_UUID,
 				owner: "user@domain.com",
 				group: "group-1",
 			});

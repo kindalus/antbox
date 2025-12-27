@@ -32,7 +32,7 @@ beforeAll(async () => {
 describe("filter", () => {
 	test("get all nodes", async () => {
 		const nodes = await repo.filter([]);
-		expect(nodes.nodes.length).toBe(5);
+		expect(nodes.nodes.length).toBe(4);
 	});
 
 	test("get folders only", async () => {
@@ -53,10 +53,10 @@ describe("filter", () => {
 
 	test("get all nodes, second page", async () => {
 		let result = await repo.filter([]);
-		expect(result.nodes.length).toBe(5);
+		expect(result.nodes.length).toBe(4);
 
 		result = await repo.filter([], 4, 2);
-		expect(result.nodes.length).toBe(1);
+		expect(result.nodes.length).toBe(0);
 	});
 });
 
@@ -64,8 +64,8 @@ describe("getById", () => {
 	test("should find", async () => {
 		const testCases = [
 			[uuids[0], Nodes.FOLDER_MIMETYPE, "Folder 1"],
+			[uuids[2], "application/pdf", "Essay.pdf"],
 			[uuids[3], "image/jpeg", "Image.jpg"],
-			[uuids[4], Nodes.ASPECT_MIMETYPE, "Aspect 1"],
 		];
 
 		for (const [uuid, mimetype, title] of testCases) {

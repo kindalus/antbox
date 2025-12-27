@@ -8,7 +8,7 @@ import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import { NodeUpdatedEvent } from "domain/nodes/node_updated_event.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import { createReadStream } from "node:fs";
-import { AntboxError, BadRequestError, UnknownError } from "shared/antbox_error.ts";
+import { AntboxError, UnknownError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
 import { type Event } from "shared/event.ts";
 import { type EventHandler } from "shared/event_handler.ts";
@@ -125,22 +125,11 @@ class GoogleDriveStorageProvider implements StorageProvider {
 	}
 
 	async #updateParentFolderId(fileId: string, parent: string) {
-		let parentMetadataOrError = await this.#getDriveMedata(parent);
+		const parentMetadataOrError = await this.#getDriveMedata(parent);
 
 		if (parentMetadataOrError.isLeft()) {
-			const res = await this.#createSystemFolderIfApplicable(parent);
-
-			if (res.isLeft()) {
-				console.error(res.value);
-				return;
-			}
-
-			parentMetadataOrError = await this.#getDriveMedata(parent);
-
-			if (parentMetadataOrError.isLeft()) {
-				console.error(parentMetadataOrError.value.message);
-				return;
-			}
+			console.error(parentMetadataOrError.value.message);
+			return;
 		}
 
 		this.#drive.files
@@ -298,24 +287,6 @@ class GoogleDriveStorageProvider implements StorageProvider {
 		const { id, mimeType, name, parents, trashed } = files[0];
 
 		return right({ id, mimeType, name, parents, trashed } as DriveMetada);
-	}
-
-	async #createSystemFolderIfApplicable(uuid: string) {
-		if (!Folders.isSystemFolder(uuid)) {
-			return left(new BadRequestError("Invalid system folder uuid"));
-		}
-
-		const res = await this.#createGoogleDriveFolder(
-			uuid,
-			uuid,
-			this.#rootFolderId,
-		);
-
-		if (!res || res.status !== 200) {
-			return left(new UnknownError("Error creating system folder"));
-		}
-
-		return right(undefined);
 	}
 }
 

@@ -29,17 +29,17 @@ export class AuditLoggingService {
 	#subscribeToEvents(): void {
 		this.eventBus.subscribe(
 			NodeCreatedEvent.EVENT_ID,
-			eventHandlerFunc(this.#handleNodeCreated),
+			eventHandlerFunc((e: NodeCreatedEvent) => this.#handleNodeCreated(e)),
 		);
 
 		this.eventBus.subscribe(
 			NodeUpdatedEvent.EVENT_ID,
-			eventHandlerFunc(this.#handleNodeUpdated),
+			eventHandlerFunc((e: NodeUpdatedEvent) => this.#handleNodeUpdated(e)),
 		);
 
 		this.eventBus.subscribe(
 			NodeDeletedEvent.EVENT_ID,
-			eventHandlerFunc(this.#handleNodeDeleted),
+			eventHandlerFunc((e: NodeDeletedEvent) => this.#handleNodeDeleted(e)),
 		);
 	}
 

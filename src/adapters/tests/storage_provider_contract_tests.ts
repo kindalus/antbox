@@ -1,7 +1,7 @@
 import { beforeAll, describe, test } from "bdd";
 import { expect } from "expect";
 import { AntboxError } from "shared/antbox_error.ts";
-import { type StorageProvider } from "application/storage_provider.ts";
+import { type StorageProvider } from "application/nodes/storage_provider.ts";
 import { UuidGenerator } from "shared/uuid_generator.ts";
 import { providerFrom } from "../module_configuration_parser.ts";
 

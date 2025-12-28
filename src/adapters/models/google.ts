@@ -1,6 +1,6 @@
 import { Either, left, right } from "shared/either.ts";
 import { AntboxError } from "shared/antbox_error.ts";
-import type { AIModel, Embedding } from "application/ai_model.ts";
+import type { AIModel, Embedding } from "application/ai/ai_model.ts";
 import { ChatHistory, ChatMessage, ToolCall, ToolResponse } from "domain/ai/chat_message.ts";
 import type {
 	FeatureData,

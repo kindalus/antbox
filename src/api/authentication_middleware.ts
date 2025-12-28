@@ -1,6 +1,6 @@
-import { ApiKeysService } from "application/api_keys_service.ts";
-import { UsersService } from "application/users_service.ts";
-import type { AuthenticationContext, Principal } from "application/authentication_context.ts";
+import { ApiKeysService } from "application/security/api_keys_service.ts";
+import { UsersService } from "application/security/users_service.ts";
+import type { AuthenticationContext, Principal } from "application/security/authentication_context.ts";
 import { Groups } from "domain/users_groups/groups.ts";
 import { Users } from "domain/users_groups/users.ts";
 import { type Either, left, right } from "shared/either.ts";

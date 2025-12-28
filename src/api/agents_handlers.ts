@@ -1,4 +1,4 @@
-import { AnswerOptions, ChatOptions } from "application/agents_service.ts";
+import { AnswerOptions, ChatOptions } from "application/ai/agents_service.ts";
 import { type AntboxTenant } from "./antbox_tenant.ts";
 import { defaultMiddlewareChain } from "./default_middleware_chain.ts";
 import { getAuthenticationContext } from "./get_authentication_context.ts";

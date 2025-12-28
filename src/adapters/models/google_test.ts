@@ -7,7 +7,7 @@ import buildGoogleModel, {
 	GoogleModelNotFoundError,
 } from "./google.ts";
 import { ChatHistory } from "domain/ai/chat_message.ts";
-import { AuthenticationContext } from "application/authentication_context.ts";
+import { AuthenticationContext } from "application/security/authentication_context.ts";
 import { right } from "shared/either.ts";
 
 // Mock FeatureService for testing

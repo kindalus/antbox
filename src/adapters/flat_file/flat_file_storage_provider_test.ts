@@ -1,7 +1,7 @@
 import { describe, it } from "bdd";
 import { expect } from "expect";
 import buildFlatFileStorageProvider from "./flat_file_storage_provider.ts";
-import { type StorageProvider } from "application/storage_provider.ts";
+import { type StorageProvider } from "application/nodes/storage_provider.ts";
 
 async function createStorage(baseDir: string): Promise<StorageProvider> {
 	const maybeStorage = await buildFlatFileStorageProvider(baseDir);

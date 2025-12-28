@@ -1,4 +1,4 @@
-import type { StorageProvider, WriteFileOpts } from "application/storage_provider.ts";
+import type { StorageProvider, WriteFileOpts } from "application/nodes/storage_provider.ts";
 import { S3Client } from "s3";
 import type { DuplicatedNodeError } from "domain/nodes/duplicated_node_error.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";

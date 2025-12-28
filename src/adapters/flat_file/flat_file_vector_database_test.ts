@@ -2,7 +2,7 @@ import { describe, it } from "bdd";
 import { expect } from "expect";
 
 import buildFlatFileVectorDatabase from "./flat_file_vector_database.ts";
-import type { VectorDatabase, VectorEntry } from "application/vector_database.ts";
+import type { VectorDatabase, VectorEntry } from "application/ai/vector_database.ts";
 
 async function createDb(baseDir: string): Promise<VectorDatabase> {
 	const maybeDb = await buildFlatFileVectorDatabase(baseDir);

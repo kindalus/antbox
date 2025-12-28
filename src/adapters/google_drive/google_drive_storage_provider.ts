@@ -1,5 +1,5 @@
 import { auth, drive, drive_v3 } from "@googleapis/drive";
-import type { StorageProvider, WriteFileOpts } from "application/storage_provider.ts";
+import type { StorageProvider, WriteFileOpts } from "application/nodes/storage_provider.ts";
 import type { DuplicatedNodeError } from "domain/nodes/duplicated_node_error.ts";
 import { NodeCreatedEvent } from "domain/nodes/node_created_event.ts";
 import { NodeDeletedEvent } from "domain/nodes/node_deleted_event.ts";

@@ -1,4 +1,4 @@
-import { type AuthenticationContext } from "application/authentication_context.ts";
+import { type AuthenticationContext } from "application/security/authentication_context.ts";
 import { Users } from "domain/users_groups/users.ts";
 
 export function getAuthenticationContext(req: Request): AuthenticationContext {

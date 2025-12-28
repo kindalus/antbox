@@ -5,28 +5,28 @@ import { InMemoryConfigurationRepository } from "adapters/inmem/inmem_configurat
 
 import type { AntboxTenant } from "api/antbox_tenant.ts";
 import type { ServerConfiguration, TenantConfiguration } from "api/http_server_configuration.ts";
-import { NodeService } from "application/node_service.ts";
-import type { StorageProvider } from "application/storage_provider.ts";
+import { NodeService } from "application/nodes/node_service.ts";
+import type { StorageProvider } from "application/nodes/storage_provider.ts";
 import type { NodeRepository } from "domain/nodes/node_repository.ts";
 import type { EventStoreRepository } from "domain/audit/event_store_repository.ts";
 import { JWK, ROOT_PASSWD, SYMMETRIC_KEY } from "./server_defaults.ts";
 import { providerFrom } from "adapters/module_configuration_parser.ts";
 import { modelFrom } from "adapters/model_configuration_parser.ts";
-import { FeaturesService } from "application/features_service.ts";
-import { ArticleService } from "application/article_service.ts";
-import { AuditLoggingService } from "application/audit_logging_service.ts";
-import { GroupsService } from "application/groups_service.ts";
-import { UsersService } from "application/users_service.ts";
-import { ApiKeysService } from "application/api_keys_service.ts";
-import { AspectsService } from "application/aspects_service.ts";
-import { WorkflowsService } from "application/workflows_service.ts";
-import { WorkflowInstancesService } from "application/workflow_instances_service.ts";
-import { AgentsService } from "application/agents_service.ts";
-import type { VectorDatabase } from "application/vector_database.ts";
-import type { AIModel } from "application/ai_model.ts";
-import { EmbeddingService } from "application/embedding_service.ts";
+import { FeaturesService } from "application/features/features_service.ts";
+import { ArticleService } from "application/nodes/article_service.ts";
+import { AuditLoggingService } from "application/audit/audit_logging_service.ts";
+import { GroupsService } from "application/security/groups_service.ts";
+import { UsersService } from "application/security/users_service.ts";
+import { ApiKeysService } from "application/security/api_keys_service.ts";
+import { AspectsService } from "application/aspects/aspects_service.ts";
+import { WorkflowsService } from "application/workflows/workflows_service.ts";
+import { WorkflowInstancesService } from "application/workflows/workflow_instances_service.ts";
+import { AgentsService } from "application/ai/agents_service.ts";
+import type { VectorDatabase } from "application/ai/vector_database.ts";
+import type { AIModel } from "application/ai/ai_model.ts";
+import { EmbeddingService } from "application/ai/embedding_service.ts";
 
-import { RAGService } from "application/rag_service.ts";
+import { RAGService } from "application/ai/rag_service.ts";
 
 import { resolve } from "path";
 import { registerCacheInvalidationHandlers } from "integration/webdav/webdav_cache_invalidation_handler.ts";

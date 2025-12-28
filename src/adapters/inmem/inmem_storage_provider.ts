@@ -1,5 +1,5 @@
 import { NodeFileNotFoundError } from "domain/nodes/node_file_not_found_error.ts";
-import { type StorageProvider } from "application/storage_provider.ts";
+import { type StorageProvider } from "application/nodes/storage_provider.ts";
 import { AntboxError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
 

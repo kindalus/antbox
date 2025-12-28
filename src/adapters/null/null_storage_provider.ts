@@ -3,7 +3,7 @@ import { AntboxError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
 import { type Event } from "shared/event.ts";
 import { type EventHandler } from "shared/event_handler.ts";
-import { StorageProvider, WriteFileOpts } from "application/storage_provider.ts";
+import { StorageProvider, WriteFileOpts } from "application/nodes/storage_provider.ts";
 
 export class NullStorageProvider implements StorageProvider {
 	delete(_uuid: string): Promise<Either<AntboxError, void>> {

@@ -1,4 +1,4 @@
-import { type StorageProvider } from "application/storage_provider.ts";
+import { type StorageProvider } from "application/nodes/storage_provider.ts";
 import { NodeFileNotFoundError } from "domain/nodes/node_file_not_found_error.ts";
 
 import { join } from "path";

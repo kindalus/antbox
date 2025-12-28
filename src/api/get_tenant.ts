@@ -1,4 +1,4 @@
-import type { AuthenticationContext } from "application/authentication_context.ts";
+import type { AuthenticationContext } from "application/security/authentication_context.ts";
 import { type AntboxTenant } from "./antbox_tenant.ts";
 import { getQuery } from "./get_query.ts";
 

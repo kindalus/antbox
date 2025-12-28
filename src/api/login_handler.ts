@@ -6,8 +6,8 @@ import { getAuthenticationContext } from "./get_authentication_context.ts";
 import { getTenant } from "./get_tenant.ts";
 import { type HttpHandler, sendOK, sendUnauthorized } from "./handler.ts";
 
-import { ROOT_USER } from "application/builtin_users/index.ts";
-import { ADMINS_GROUP } from "application/builtin_groups/index.ts";
+import { ROOT_USER } from "application/security/builtin_users/index.ts";
+import { ADMINS_GROUP } from "application/security/builtin_groups/index.ts";
 import { Users } from "domain/users_groups/users.ts";
 
 export function rootHandler(tenants: AntboxTenant[]): HttpHandler {

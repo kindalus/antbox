@@ -1,7 +1,7 @@
 import { describe, it } from "bdd";
 import { expect } from "expect";
 import { InMemoryVectorDatabase } from "./inmem_vector_database.ts";
-import type { VectorEntry } from "application/vector_database.ts";
+import type { VectorEntry } from "application/ai/vector_database.ts";
 
 describe("InMemoryVectorDatabase", () => {
 	describe("upsert", () => {

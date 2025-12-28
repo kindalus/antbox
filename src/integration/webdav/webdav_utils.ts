@@ -1,5 +1,5 @@
-import { NodeService } from "application/node_service.ts";
-import { AuthenticationContext } from "application/authentication_context.ts";
+import { NodeService } from "application/nodes/node_service.ts";
+import { AuthenticationContext } from "application/security/authentication_context.ts";
 import { Either, left, right } from "shared/either.ts";
 import { AntboxError } from "shared/antbox_error.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";

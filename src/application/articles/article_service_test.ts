@@ -5,7 +5,7 @@ import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider.t
 import { describe, it } from "bdd";
 import { expect } from "expect";
 import { NodeService } from "application/nodes/node_service.ts";
-import { ArticleService } from "application/nodes/article_service.ts";
+import { ArticleService } from "application/articles/article_service.ts";
 import type { AuthenticationContext } from "application/security/authentication_context.ts";
 import { FolderNode } from "domain/nodes/folder_node.ts";
 import { BadRequestError } from "shared/antbox_error.ts";

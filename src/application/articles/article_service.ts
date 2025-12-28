@@ -6,7 +6,7 @@ import {
 	toRawArticleDTO,
 } from "./article_dto.ts";
 import type { AuthenticationContext } from "../security/authentication_context.ts";
-import type { NodeService } from "./node_service.ts";
+import type { NodeService } from "../nodes/node_service.ts";
 import { ArticleNode } from "domain/articles/article_node.ts";
 import { type ArticlePropertiesMap } from "domain/articles/article_properties.ts";
 import type { NodeLike } from "domain/node_like.ts";

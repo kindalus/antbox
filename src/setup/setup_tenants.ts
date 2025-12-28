@@ -13,7 +13,7 @@ import { JWK, ROOT_PASSWD, SYMMETRIC_KEY } from "./server_defaults.ts";
 import { providerFrom } from "adapters/module_configuration_parser.ts";
 import { modelFrom } from "adapters/model_configuration_parser.ts";
 import { FeaturesService } from "application/features/features_service.ts";
-import { ArticleService } from "application/nodes/article_service.ts";
+import { ArticleService } from "application/articles/article_service.ts";
 import { AuditLoggingService } from "application/audit/audit_logging_service.ts";
 import { GroupsService } from "application/security/groups_service.ts";
 import { UsersService } from "application/security/users_service.ts";

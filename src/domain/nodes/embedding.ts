@@ -1,4 +1,10 @@
 /**
+ * Represents a vector embedding - an array of numbers representing
+ * the semantic meaning of text in high-dimensional space
+ */
+export type Embedding = number[];
+
+/**
  * List of MIME types supported for embedding generation
  * Files with these types will have their text content extracted and embedded
  */

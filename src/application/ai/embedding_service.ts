@@ -2,21 +2,20 @@ import { NodeCreatedEvent } from "domain/nodes/node_created_event.ts";
 import { NodeUpdatedEvent } from "domain/nodes/node_updated_event.ts";
 import { NodeDeletedEvent } from "domain/nodes/node_deleted_event.ts";
 import type { FileNode } from "domain/nodes/file_node.ts";
-import type { VectorDatabase } from "./vector_database.ts";
-import type { VectorEntry } from "./vector_database.ts";
 import type { AIModel } from "./ai_model.ts";
-import { isEmbeddingsSupportedMimetype } from "./embeddings_supported_mimetypes.ts";
+import { isEmbeddingsSupportedMimetype } from "domain/nodes/embedding.ts";
 import { AntboxError } from "shared/antbox_error.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import type { NodeService } from "application/nodes/node_service.ts";
 import { createElevatedContext } from "application/security/elevated_context.ts";
 import type { EventBus } from "shared/event_bus.ts";
+import type { NodeRepository } from "domain/nodes/node_repository.ts";
 
 export interface EmbeddingServiceContext {
 	embeddingModel: AIModel;
 	ocrModel: AIModel;
 	nodeService: NodeService;
-	vectorDatabase: VectorDatabase;
+	repository: NodeRepository;
 	bus: EventBus;
 }
 
@@ -31,6 +30,11 @@ export class EmbeddingGenerationError extends AntboxError {
 
 export class EmbeddingService {
 	constructor(private readonly context: EmbeddingServiceContext) {
+		// Only subscribe to events if repository supports embeddings
+		if (!this.context.repository.supportsEmbeddings()) {
+			return;
+		}
+
 		// Subscribe to events similar to FeatureService
 		this.context.bus.subscribe(NodeCreatedEvent.EVENT_ID, {
 			handle: (evt: NodeCreatedEvent) => this.handleNodeCreated(evt),
@@ -65,7 +69,7 @@ export class EmbeddingService {
 
 		// Generate and store embedding
 		try {
-			await this.#generateAndStoreEmbedding(node, event.tenant);
+			await this.#generateAndStoreEmbedding(node);
 		} catch (error) {
 			// Log error but don't throw - embedding generation should not break node creation
 			console.error(`Failed to generate embedding for node ${node.uuid}:`, error);
@@ -108,7 +112,7 @@ export class EmbeddingService {
 
 		// Generate and store embedding (upsert will update existing)
 		try {
-			await this.#generateAndStoreEmbedding(node, event.tenant);
+			await this.#generateAndStoreEmbedding(node);
 		} catch (error) {
 			// Log error but don't throw - embedding generation should not break node update
 			console.error(`Failed to update embedding for node ${node.uuid}:`, error);
@@ -127,11 +131,11 @@ export class EmbeddingService {
 			return;
 		}
 
-		// Delete embedding from vector database
+		// Delete embedding from repository
 		await this.#deleteEmbedding(node.uuid);
 	}
 
-	async #generateAndStoreEmbedding(node: FileNode, tenant: string): Promise<void> {
+	async #generateAndStoreEmbedding(node: FileNode): Promise<void> {
 		// Read file content using NodeService export method
 		const fileOrErr = await this.context.nodeService.export(
 			createElevatedContext(),
@@ -160,21 +164,8 @@ export class EmbeddingService {
 
 		const embedding = embeddingsOrErr.value[0];
 
-		// Create vector entry
-		const vectorEntry: VectorEntry = {
-			id: node.uuid,
-			vector: embedding,
-			metadata: {
-				nodeUuid: node.uuid,
-				tenant: tenant,
-				mimetype: node.mimetype!,
-				title: node.title,
-				model: this.context.embeddingModel.modelName,
-			},
-		};
-
-		// Store in vector database
-		const storeOrErr = await this.context.vectorDatabase.upsert(vectorEntry);
+		// Store embedding in repository
+		const storeOrErr = await this.context.repository.upsertEmbedding(node.uuid, embedding);
 		if (storeOrErr.isLeft()) {
 			throw new EmbeddingGenerationError(node.uuid, storeOrErr.value);
 		}
@@ -182,7 +173,7 @@ export class EmbeddingService {
 
 	async #deleteEmbedding(nodeUuid: string): Promise<void> {
 		try {
-			const deleteOrErr = await this.context.vectorDatabase.deleteByNodeUuid(nodeUuid);
+			const deleteOrErr = await this.context.repository.deleteEmbedding(nodeUuid);
 			if (deleteOrErr.isLeft()) {
 				// Log error but don't throw - deletion failures shouldn't break operations
 				console.error(`Failed to delete embedding for node ${nodeUuid}:`, deleteOrErr.value);

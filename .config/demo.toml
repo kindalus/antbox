@@ -7,4 +7,6 @@ rootPasswd = "demo"
 key = "./.config/antbox.key"
 jwk = "./.config/antbox.jwk"
 storage = ["flat_file/flat_file_storage_provider.ts", "./data/storage"]
-repository = ["flat_file/flat_file_node_repository.ts", "./data/repository"]
+repository = ["sqlite/sqlite_node_repository.ts", "./data/repository"]
+configurationRepository = ["sqlite/sqlite_configuration_repository.ts", "./data/config"]
+eventStoreRepository = ["sqlite/sqlite_event_store_repository.ts", "./data/events"]

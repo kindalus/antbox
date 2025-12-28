@@ -139,8 +139,8 @@ export class FindService {
 		pageSize: number,
 		pageToken: number,
 	): Promise<Either<AntboxError, NodeFilterResult>> {
-		// Check if AI features are available
-		if (!this.context.vectorDatabase || !this.context.embeddingModel) {
+		// Check if repository supports embeddings and embedding model is available
+		if (!this.context.repository.supportsEmbeddings() || !this.context.embeddingModel) {
 			console.warn(
 				"Semantic search requested but AI features not available, falling back to fulltext search",
 			);
@@ -158,23 +158,23 @@ export class FindService {
 
 			const queryEmbedding = embeddingsOrErr.value[0];
 
-			// Search vector database
-			const searchOrErr = await this.context.vectorDatabase.search(
+			// Search using repository's vector search
+			const searchOrErr = await this.context.repository.vectorSearch(
 				queryEmbedding,
 				100, // topK - return top 100 results
 			);
 
 			if (searchOrErr.isLeft()) {
-				console.error("Vector database search failed:", searchOrErr.value);
+				console.error("Vector search failed:", searchOrErr.value);
 				// Fallback to fulltext search
 				return this.find(ctx, [["fulltext", "match", query]], pageSize, pageToken);
 			}
 
 			const results = searchOrErr.value;
-			const uuids = results.map((r) => r.nodeUuid);
+			const uuids = results.nodes.map((r) => r.node.uuid);
 			const scores: Record<string, number> = {};
-			for (const result of results) {
-				scores[result.nodeUuid] = result.score;
+			for (const result of results.nodes) {
+				scores[result.node.uuid] = result.score;
 			}
 
 			// If no results, return empty
@@ -183,8 +183,6 @@ export class FindService {
 					nodes: [],
 					pageSize,
 					pageToken,
-					totalCount: 0,
-					scores,
 				});
 			}
 
@@ -208,8 +206,8 @@ export class FindService {
 				pageToken,
 			);
 
-			// Attach semantic search scores
-			r.scores = scores;
+			// Sort results by score (semantic relevance)
+			r.nodes.sort((a, b) => (scores[b.uuid] ?? 0) - (scores[a.uuid] ?? 0));
 
 			return right(r);
 		} catch (error) {

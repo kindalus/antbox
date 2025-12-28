@@ -3,11 +3,9 @@ import { AntboxError } from "shared/antbox_error.ts";
 import { ChatHistory, ChatMessage } from "domain/ai/chat_message.ts";
 import type { FeatureData } from "domain/configuration/feature_data.ts";
 
-/**
- * Represents a vector embedding - an array of numbers representing
- * the semantic meaning of text in high-dimensional space
- */
-export type Embedding = number[];
+// Re-export Embedding from domain for backwards compatibility
+export type { Embedding } from "domain/nodes/embedding.ts";
+import type { Embedding } from "domain/nodes/embedding.ts";
 
 /**
  * Interface for AI model providers

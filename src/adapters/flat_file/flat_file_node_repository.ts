@@ -1,10 +1,15 @@
 import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository.ts";
 import { NodeFactory } from "domain/node_factory.ts";
 import type { NodeLike } from "domain/node_like.ts";
+import type { Embedding } from "domain/nodes/embedding.ts";
 import type { NodeFilters } from "domain/nodes/node_filter.ts";
 import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
-import type { NodeFilterResult, NodeRepository } from "domain/nodes/node_repository.ts";
+import type {
+	NodeFilterResult,
+	NodeRepository,
+	VectorSearchResult,
+} from "domain/nodes/node_repository.ts";
 
 import { join } from "path";
 
@@ -130,5 +135,24 @@ class FlatFileNodeRepository implements NodeRepository {
 		pageToken = 1,
 	): Promise<NodeFilterResult> {
 		return this.#base.filter(filters, pageSize, pageToken);
+	}
+
+	supportsEmbeddings(): boolean {
+		return this.#base.supportsEmbeddings();
+	}
+
+	upsertEmbedding(uuid: string, embedding: Embedding): Promise<Either<AntboxError, void>> {
+		return this.#base.upsertEmbedding(uuid, embedding);
+	}
+
+	vectorSearch(
+		queryVector: Embedding,
+		topK: number,
+	): Promise<Either<AntboxError, VectorSearchResult>> {
+		return this.#base.vectorSearch(queryVector, topK);
+	}
+
+	deleteEmbedding(uuid: string): Promise<Either<AntboxError, void>> {
+		return this.#base.deleteEmbedding(uuid);
 	}
 }

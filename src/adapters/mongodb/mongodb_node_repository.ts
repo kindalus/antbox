@@ -2,15 +2,21 @@ import { type Document, type Filter, MongoClient, ObjectId } from "mongodb";
 
 import { type NodeLike } from "domain/node_like.ts";
 import { NodeFactory } from "domain/node_factory.ts";
+import type { Embedding } from "domain/nodes/embedding.ts";
 import type { FilterOperator, NodeFilters } from "domain/nodes/node_filter.ts";
 import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
-import type { NodeFilterResult, NodeRepository } from "domain/nodes/node_repository.ts";
+import { DuplicatedNodeError } from "domain/nodes/duplicated_node_error.ts";
+import type {
+	NodeFilterResult,
+	NodeRepository,
+	VectorSearchResult,
+} from "domain/nodes/node_repository.ts";
 import { AntboxError, UnknownError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
 import { isNodeFilters2D, type NodeFilter } from "domain/nodes/node_filter.ts";
 
-type NodeDbModel = NodeMetadata & { _id: ObjectId };
+type NodeDbModel = NodeMetadata & { _id: ObjectId; embedding?: Embedding };
 
 export default function buildMongodbNodeRepository(
 	url: string,
@@ -42,15 +48,18 @@ export class MongodbNodeRepository implements NodeRepository {
 		);
 	}
 
-	add(node: NodeLike): Promise<Either<AntboxError, void>> {
+	add(node: NodeLike): Promise<Either<DuplicatedNodeError, void>> {
 		const doc = this.#fromNodeLike(node);
 
 		return this.#collection
 			.insertOne(doc)
-			.then(() => right(undefined))
-			.catch((err) => new MongodbError(err.message)) as Promise<
-				Either<AntboxError, void>
-			>;
+			.then(() => right<DuplicatedNodeError, void>(undefined))
+			.catch((err) => {
+				if (err.code === 11000) {
+					return left<DuplicatedNodeError, void>(new DuplicatedNodeError(node.uuid));
+				}
+				return left<DuplicatedNodeError, void>(new DuplicatedNodeError(node.uuid));
+			});
 	}
 
 	async getById(uuid: string): Promise<Either<NodeNotFoundError, NodeLike>> {
@@ -99,9 +108,10 @@ export class MongodbNodeRepository implements NodeRepository {
 
 		const docs = await findCursor.toArray();
 
-		const nodes = docs.map((d) =>
-			NodeFactory.from(d as unknown as NodeMetadata).value as NodeLike
-		);
+		const nodes = docs
+			.map((d) => NodeFactory.from(d as unknown as NodeMetadata))
+			.filter((result) => result.isRight())
+			.map((result) => result.right);
 
 		return {
 			nodes,
@@ -138,6 +148,91 @@ export class MongodbNodeRepository implements NodeRepository {
 		}
 
 		return right(undefined);
+	}
+
+	supportsEmbeddings(): boolean {
+		return true;
+	}
+
+	async upsertEmbedding(uuid: string, embedding: Embedding): Promise<Either<AntboxError, void>> {
+		try {
+			await this.#collection.updateOne(
+				{ _id: toObjectId(uuid) },
+				{ $set: { embedding } },
+			);
+			return right(undefined);
+		} catch (err) {
+			// deno-lint-ignore no-explicit-any
+			return left(new MongodbError((err as any).message));
+		}
+	}
+
+	async vectorSearch(
+		queryVector: Embedding,
+		topK: number,
+	): Promise<Either<AntboxError, VectorSearchResult>> {
+		try {
+			const docs = await this.#collection
+				.find({ embedding: { $exists: true } })
+				.toArray();
+
+			const results: Array<{ node: NodeLike; score: number }> = [];
+
+			for (const doc of docs) {
+				const dbDoc = doc as unknown as NodeDbModel;
+				if (dbDoc.embedding) {
+					const score = this.#cosineSimilarity(queryVector, dbDoc.embedding);
+					const node = this.#toNodeLike(dbDoc);
+					results.push({ node, score });
+				}
+			}
+
+			results.sort((a, b) => b.score - a.score);
+			const topResults = results.slice(0, topK);
+
+			return right({ nodes: topResults });
+		} catch (err) {
+			// deno-lint-ignore no-explicit-any
+			return left(new MongodbError((err as any).message));
+		}
+	}
+
+	async deleteEmbedding(uuid: string): Promise<Either<AntboxError, void>> {
+		try {
+			await this.#collection.updateOne(
+				{ _id: toObjectId(uuid) },
+				{ $unset: { embedding: "" } },
+			);
+			return right(undefined);
+		} catch (err) {
+			// deno-lint-ignore no-explicit-any
+			return left(new MongodbError((err as any).message));
+		}
+	}
+
+	#cosineSimilarity(vectorA: Embedding, vectorB: Embedding): number {
+		if (vectorA.length !== vectorB.length) {
+			return 0;
+		}
+
+		let dotProduct = 0;
+		let magnitudeA = 0;
+		let magnitudeB = 0;
+
+		for (let i = 0; i < vectorA.length; i++) {
+			dotProduct += vectorA[i] * vectorB[i];
+			magnitudeA += vectorA[i] * vectorA[i];
+			magnitudeB += vectorB[i] * vectorB[i];
+		}
+
+		magnitudeA = Math.sqrt(magnitudeA);
+		magnitudeB = Math.sqrt(magnitudeB);
+
+		if (magnitudeA === 0 || magnitudeB === 0) {
+			return 0;
+		}
+
+		return dotProduct / (magnitudeA * magnitudeB);
 	}
 
 	async clear(): Promise<void> {

@@ -7,4 +7,3 @@ export {
 	SqliteConfigurationError,
 	SqliteConfigurationRepository,
 } from "./sqlite_configuration_repository.ts";
-export { SqliteVectorDatabase, SqliteVectorError } from "./sqlite_vector_database.ts";

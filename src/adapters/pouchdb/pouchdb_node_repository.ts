@@ -2,6 +2,7 @@ import PouchDB from "pouchdb";
 import PouchDbFind from "pouchdb-find";
 
 import { NodeFactory } from "domain/node_factory.ts";
+import type { Embedding } from "domain/nodes/embedding.ts";
 import {
 	type FilterOperator,
 	isNodeFilters2D as areOrNodeFilter,
@@ -9,8 +10,12 @@ import {
 	type NodeFilters,
 } from "domain/nodes/node_filter.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
-import type { NodeFilterResult, NodeRepository } from "domain/nodes/node_repository.ts";
-import { type AntboxError, UnknownError } from "shared/antbox_error.ts";
+import type {
+	NodeFilterResult,
+	NodeRepository,
+	VectorSearchResult,
+} from "domain/nodes/node_repository.ts";
+import { type AntboxError, BadRequestError, UnknownError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
 import type { NodeLike } from "domain/node_like.ts";
 import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
@@ -98,6 +103,8 @@ interface NodeDbModel {
 
 	runOnCreates?: boolean;
 	runOnUpdates?: boolean;
+
+	embedding?: Embedding;
 }
 
 class PouchdbNodeRepository implements NodeRepository {
@@ -135,6 +142,7 @@ class PouchdbNodeRepository implements NodeRepository {
 			.put({
 				_rev: doc.value._rev,
 				...data,
+				embedding: doc.value.embedding,
 			})
 			.then(() => right<NodeNotFoundError, void>(undefined))
 			.catch((err: unknown) => {
@@ -153,7 +161,7 @@ class PouchdbNodeRepository implements NodeRepository {
 	}
 
 	#toNodeLike(doc: PouchDB.Core.PutDocument<NodeDbModel>): NodeLike {
-		const { _id, _rev, xfilters: xfilters, ...rest } = doc;
+		const { _id, _rev, xfilters, embedding: _embedding, ...rest } = doc;
 		const metadata = {
 			uuid: _id,
 			filters: xfilters,
@@ -282,6 +290,100 @@ class PouchdbNodeRepository implements NodeRepository {
 			pageSize: limit,
 			pageToken: skip / limit + 1,
 		};
+	}
+
+	supportsEmbeddings(): boolean {
+		return true;
+	}
+
+	async upsertEmbedding(uuid: string, embedding: Embedding): Promise<Either<AntboxError, void>> {
+		const doc = await this.#readFromDb(uuid);
+
+		if (doc.isLeft()) {
+			return left(new BadRequestError(`Node ${uuid} not found`));
+		}
+
+		try {
+			await this.db.put({
+				...doc.value,
+				embedding,
+			});
+			return right(undefined);
+		} catch (err: unknown) {
+			console.error(err);
+			return left(new UnknownError((err as Error).message));
+		}
+	}
+
+	async vectorSearch(
+		queryVector: Embedding,
+		topK: number,
+	): Promise<Either<AntboxError, VectorSearchResult>> {
+		try {
+			const result = await this.db.find({
+				selector: { embedding: { $exists: true } },
+			});
+
+			const results: Array<{ node: NodeLike; score: number }> = [];
+
+			for (const doc of result.docs) {
+				if (doc.embedding) {
+					const score = this.#cosineSimilarity(queryVector, doc.embedding);
+					const node = this.#toNodeLike(doc);
+					results.push({ node, score });
+				}
+			}
+
+			results.sort((a, b) => b.score - a.score);
+			const topResults = results.slice(0, topK);
+
+			return right({ nodes: topResults });
+		} catch (err: unknown) {
+			console.error(err);
+			return left(new UnknownError((err as Error).message));
+		}
+	}
+
+	async deleteEmbedding(uuid: string): Promise<Either<AntboxError, void>> {
+		const doc = await this.#readFromDb(uuid);
+
+		if (doc.isLeft()) {
+			return right(undefined);
+		}
+
+		try {
+			const { embedding: _embedding, ...rest } = doc.value;
+			await this.db.put(rest as PouchDB.Core.ExistingDocument<NodeDbModel>);
+			return right(undefined);
+		} catch (err: unknown) {
+			console.error(err);
+			return left(new UnknownError((err as Error).message));
+		}
+	}
+
+	#cosineSimilarity(vectorA: Embedding, vectorB: Embedding): number {
+		if (vectorA.length !== vectorB.length) {
+			return 0;
+		}
+
+		let dotProduct = 0;
+		let magnitudeA = 0;
+		let magnitudeB = 0;
+
+		for (let i = 0; i < vectorA.length; i++) {
+			dotProduct += vectorA[i] * vectorB[i];
+			magnitudeA += vectorA[i] * vectorA[i];
+			magnitudeB += vectorB[i] * vectorB[i];
+		}
+
+		magnitudeA = Math.sqrt(magnitudeA);
+		magnitudeB = Math.sqrt(magnitudeB);
+
+		if (magnitudeA === 0 || magnitudeB === 0) {
+			return 0;
+		}
+
+		return dotProduct / (magnitudeA * magnitudeB);
 	}
 }
 

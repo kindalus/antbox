@@ -7,6 +7,12 @@ import type {
 import { AntboxError, BadRequestError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
 
+export default function buildSqliteConfigurationRepository(
+	baseFolder?: string,
+): Promise<Either<AntboxError, ConfigurationRepository>> {
+	return Promise.resolve(right(new SqliteConfigurationRepository(baseFolder)));
+}
+
 export class SqliteConfigurationError extends AntboxError {
 	static ERROR_CODE = "SqliteConfigurationError";
 	constructor(message: string) {

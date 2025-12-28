@@ -2,9 +2,7 @@ import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus.ts";
 import { InMemoryConfigurationRepository } from "adapters/inmem/inmem_configuration_repository.ts";
 import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository.ts";
 import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider.ts";
-import { InMemoryVectorDatabase } from "adapters/inmem/inmem_vector_database.ts";
 import { DeterministicModel } from "adapters/models/deterministic.ts";
-// builtinFolders removed - only ROOT_FOLDER exists and it's created in NodeService
 import { beforeAll, describe, it } from "bdd";
 import type { NodeFilters1D } from "domain/nodes/node_filter.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
@@ -25,20 +23,15 @@ const authCtx: AuthenticationContext = {
 };
 
 let service: NodeService;
-let vectorDatabase: InMemoryVectorDatabase;
 let embeddingModel: DeterministicModel;
 
 beforeAll(async () => {
 	// Setup AI components
-	vectorDatabase = new InMemoryVectorDatabase();
 	embeddingModel = new DeterministicModel("test-embedding-model", 1536);
 	const ocrModel = new DeterministicModel("test-ocr-model", 1536);
 	const repository = new InMemoryNodeRepository();
 	const storage = new InMemoryStorageProvider();
 	const bus = new InMemoryEventBus();
-
-	// Add builtin folders to repository
-	// builtinFolders removed - ROOT_FOLDER is now handled by NodeService
 
 	// Create NodeService with AI features
 	service = new NodeService({
@@ -46,7 +39,6 @@ beforeAll(async () => {
 		storage,
 		bus,
 		configRepo: new InMemoryConfigurationRepository(),
-		vectorDatabase,
 		embeddingModel,
 	});
 
@@ -55,7 +47,7 @@ beforeAll(async () => {
 		embeddingModel,
 		ocrModel,
 		nodeService: service,
-		vectorDatabase,
+		repository,
 		bus,
 	});
 
@@ -126,7 +118,7 @@ describe("NodeService", () => {
 			}
 		});
 
-		it("should return scores when using semantic search with ? prefix", async () => {
+		it("should return results when using semantic search with ? prefix", async () => {
 			// Give embeddings time to be generated
 			await new Promise((resolve) => setTimeout(resolve, 500));
 
@@ -136,34 +128,14 @@ describe("NodeService", () => {
 
 			expect(result.isRight()).toBe(true);
 			if (result.isRight()) {
-				console.log("Scores:", result.value.scores);
 				console.log("Nodes count:", result.value.nodes.length);
 
-				// Should have scores field when semantic search is used
-				expect(result.value.scores).toBeDefined();
-				expect(typeof result.value.scores).toBe("object");
-
-				// Should have at least some scored results
-				const scoredUuids = Object.keys(result.value.scores!);
-				console.log("Scored UUIDs:", scoredUuids);
-				expect(scoredUuids.length).toBeGreaterThan(0);
-
-				// Each scored node should have valid score
-				for (const uuid of scoredUuids) {
-					expect(typeof result.value.scores![uuid]).toBe("number");
-					expect(result.value.scores![uuid]).toBeGreaterThanOrEqual(0);
-					expect(result.value.scores![uuid]).toBeLessThanOrEqual(1);
-				}
-
-				// Get only nodes that have scores
-				const nodesWithScores = result.value.nodes.filter((n) =>
-					result.value.scores![n.uuid] !== undefined
-				);
-				expect(nodesWithScores.length).toBeGreaterThan(0);
+				// Should have results
+				expect(result.value.nodes.length).toBeGreaterThan(0);
 			}
 		});
 
-		it("should not return scores when using regular filters", async () => {
+		it("should return results when using regular filters", async () => {
 			const filters: NodeFilters1D = [["mimetype", "==", "text/plain"]];
 			const result = await service.find(authCtx, filters);
 
@@ -171,9 +143,6 @@ describe("NodeService", () => {
 			if (result.isRight()) {
 				// Should have results
 				expect(result.value.nodes.length).toBeGreaterThan(0);
-
-				// Should NOT have scores field
-				expect(result.value.scores).toBeUndefined();
 			}
 		});
 
@@ -185,10 +154,6 @@ describe("NodeService", () => {
 
 			expect(result.isRight()).toBe(true);
 			if (result.isRight()) {
-				// Should have results with scores
-				expect(result.value.scores).toBeDefined();
-				expect(Object.keys(result.value.scores!).length).toBeGreaterThan(0);
-
 				// Should find some of our test documents
 				const foundDocs = result.value.nodes.filter((n) =>
 					n.uuid === "doc1-uuid" || n.uuid === "doc2-uuid" || n.uuid === "doc3-uuid"
@@ -198,10 +163,6 @@ describe("NodeService", () => {
 		});
 
 		it("should fallback to fulltext search when AI features unavailable", async () => {
-			// Note: Cannot combine semantic search (? prefix) with structured filters
-			// Semantic search is a string-only operation
-			// This test verifies that if AI is unavailable, it falls back gracefully
-
 			const result = await service.find(authCtx, "?machine learning");
 
 			expect(result.isRight()).toBe(true);
@@ -211,14 +172,13 @@ describe("NodeService", () => {
 			}
 		});
 
-		it("should return empty results when no semantic matches found", async () => {
+		it("should return results for semantic search query", async () => {
 			const result = await service.find(authCtx, "?quantum physics relativity theory");
 
 			expect(result.isRight()).toBe(true);
 			if (result.isRight()) {
 				// May have some results due to deterministic model
-				// But scores should still be present
-				expect(result.value.scores).toBeDefined();
+				expect(result.value.nodes).toBeDefined();
 			}
 		});
 	});

@@ -14,7 +14,6 @@ export interface AIConfiguration {
 	defaultModel?: string;
 	embeddingModel?: string;
 	ocrModel?: string;
-	vectorDatabase?: ModuleConfiguration;
 }
 
 export interface TenantConfiguration {
@@ -24,6 +23,7 @@ export interface TenantConfiguration {
 	jwk?: string;
 	storage?: ModuleConfiguration;
 	repository?: ModuleConfiguration;
+	configurationRepository?: ModuleConfiguration;
 	eventStoreRepository?: ModuleConfiguration;
 	ai?: AIConfiguration;
 }

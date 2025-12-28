@@ -2,6 +2,7 @@ import { type BindValue, Database } from "jsr:@db/sqlite";
 
 import { NodeFactory } from "domain/node_factory.ts";
 import type { NodeLike } from "domain/node_like.ts";
+import type { Embedding } from "domain/nodes/embedding.ts";
 import {
 	type FilterOperator,
 	isNodeFilters2D,
@@ -11,9 +12,19 @@ import {
 import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import { DuplicatedNodeError } from "domain/nodes/duplicated_node_error.ts";
-import type { NodeFilterResult, NodeRepository } from "domain/nodes/node_repository.ts";
+import type {
+	NodeFilterResult,
+	NodeRepository,
+	VectorSearchResult,
+} from "domain/nodes/node_repository.ts";
 import { AntboxError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
+
+export default function buildSqliteNodeRepository(
+	baseFolder?: string,
+): Promise<Either<AntboxError, NodeRepository>> {
+	return Promise.resolve(right(new SqliteNodeRepository(baseFolder)));
+}
 
 export class SqliteError extends AntboxError {
 	static ERROR_CODE = "SqliteError";
@@ -46,13 +57,123 @@ export class SqliteNodeRepository implements NodeRepository {
 				title TEXT GENERATED ALWAYS AS (json_extract(body, '$.title')) STORED,
 				parent TEXT GENERATED ALWAYS AS (json_extract(body, '$.parent')) STORED,
 				mimetype TEXT GENERATED ALWAYS AS (json_extract(body, '$.mimetype')) STORED,
-				body JSON NOT NULL
+				body JSON NOT NULL,
+				embedding JSON
 			);
 		`);
 
 		this.#db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_nodes_fid ON nodes(fid);");
 		this.#db.exec("CREATE INDEX IF NOT EXISTS idx_nodes_parent ON nodes(parent);");
 		this.#db.exec("CREATE INDEX IF NOT EXISTS idx_nodes_mimetype ON nodes(mimetype);");
+
+		this.#db.function("cosine_similarity", this.#cosineSimilarityFn);
+	}
+
+	#cosineSimilarityFn = (vectorAJson: string | null, vectorBJson: string | null): number => {
+		if (!vectorAJson || !vectorBJson) {
+			return 0;
+		}
+
+		try {
+			const vectorA: number[] = JSON.parse(vectorAJson);
+			const vectorB: number[] = JSON.parse(vectorBJson);
+
+			if (vectorA.length !== vectorB.length) {
+				return 0;
+			}
+
+			let dotProduct = 0;
+			let magnitudeA = 0;
+			let magnitudeB = 0;
+
+			for (let i = 0; i < vectorA.length; i++) {
+				dotProduct += vectorA[i] * vectorB[i];
+				magnitudeA += vectorA[i] * vectorA[i];
+				magnitudeB += vectorB[i] * vectorB[i];
+			}
+
+			magnitudeA = Math.sqrt(magnitudeA);
+			magnitudeB = Math.sqrt(magnitudeB);
+
+			if (magnitudeA === 0 || magnitudeB === 0) {
+				return 0;
+			}
+
+			return dotProduct / (magnitudeA * magnitudeB);
+		} catch {
+			return 0;
+		}
+	};
+
+	supportsEmbeddings(): boolean {
+		return true;
+	}
+
+	upsertEmbedding(uuid: string, embedding: Embedding): Promise<Either<AntboxError, void>> {
+		try {
+			const embeddingJson = JSON.stringify(embedding);
+			this.#db.exec(
+				"UPDATE nodes SET embedding = ? WHERE uuid = ?",
+				[embeddingJson, uuid],
+			);
+			return Promise.resolve(right(undefined));
+		} catch (err) {
+			const error = err as Error;
+			return Promise.resolve(left(new SqliteError(error.message)));
+		}
+	}
+
+	async vectorSearch(
+		queryVector: Embedding,
+		topK: number,
+	): Promise<Either<AntboxError, VectorSearchResult>> {
+		try {
+			const queryVectorJson = JSON.stringify(queryVector);
+
+			const rows = this.#db
+				.prepare(
+					`SELECT
+						body,
+						cosine_similarity(embedding, ?) as similarity
+					 FROM nodes
+					 WHERE embedding IS NOT NULL
+					 ORDER BY similarity DESC
+					 LIMIT ?`,
+				)
+				.all(queryVectorJson, topK) as {
+					body: string;
+					similarity: number;
+				}[];
+
+			const nodes: VectorSearchResult["nodes"] = [];
+
+			for (const row of rows) {
+				const metadata = JSON.parse(row.body) as NodeMetadata;
+				const nodeResult = NodeFactory.from(metadata);
+
+				if (nodeResult.isRight()) {
+					nodes.push({
+						node: nodeResult.right,
+						score: row.similarity,
+					});
+				}
+			}
+
+			return right({ nodes });
+		} catch (err) {
+			const error = err as Error;
+			return left(new SqliteError(error.message));
+		}
+	}
+
+	deleteEmbedding(uuid: string): Promise<Either<AntboxError, void>> {
+		try {
+			this.#db.exec("UPDATE nodes SET embedding = NULL WHERE uuid = ?", [uuid]);
+			return Promise.resolve(right(undefined));
+		} catch (err) {
+			const error = err as Error;
+			return Promise.resolve(left(new SqliteError(error.message)));
+		}
 	}
 
 	add(node: NodeLike): Promise<Either<DuplicatedNodeError, void>> {
@@ -90,7 +211,7 @@ export class SqliteNodeRepository implements NodeRepository {
 			}
 
 			return Promise.resolve(right(nodeResult.right));
-		} catch (err) {
+		} catch (_err) {
 			return Promise.resolve(left(new NodeNotFoundError(uuid)));
 		}
 	}
@@ -113,7 +234,7 @@ export class SqliteNodeRepository implements NodeRepository {
 			}
 
 			return Promise.resolve(right(nodeResult.right));
-		} catch (err) {
+		} catch (_err) {
 			return Promise.resolve(left(new NodeNotFoundError(fid)));
 		}
 	}
@@ -132,7 +253,7 @@ export class SqliteNodeRepository implements NodeRepository {
 				[body, node.uuid],
 			);
 			return right(undefined);
-		} catch (err) {
+		} catch (_err) {
 			return left(new NodeNotFoundError(node.uuid));
 		}
 	}
@@ -147,7 +268,7 @@ export class SqliteNodeRepository implements NodeRepository {
 		try {
 			this.#db.exec("DELETE FROM nodes WHERE uuid = ?", [uuid]);
 			return right(undefined);
-		} catch (err) {
+		} catch (_err) {
 			return left(new NodeNotFoundError(uuid));
 		}
 	}

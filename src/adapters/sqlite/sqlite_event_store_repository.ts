@@ -5,6 +5,12 @@ import type { EventStoreRepository } from "domain/audit/event_store_repository.t
 import { AntboxError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
 
+export default function buildSqliteEventStoreRepository(
+	baseFolder?: string,
+): Promise<Either<AntboxError, EventStoreRepository>> {
+	return Promise.resolve(right(new SqliteEventStoreRepository(baseFolder)));
+}
+
 export class SqliteEventStoreError extends AntboxError {
 	static ERROR_CODE = "SqliteEventStoreError";
 	constructor(message: string) {

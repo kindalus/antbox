@@ -9,6 +9,7 @@ import { NodeService } from "application/nodes/node_service.ts";
 import type { StorageProvider } from "application/nodes/storage_provider.ts";
 import type { NodeRepository } from "domain/nodes/node_repository.ts";
 import type { EventStoreRepository } from "domain/audit/event_store_repository.ts";
+import type { ConfigurationRepository } from "domain/configuration/configuration_repository.ts";
 import { JWK, ROOT_PASSWD, SYMMETRIC_KEY } from "./server_defaults.ts";
 import { providerFrom } from "adapters/module_configuration_parser.ts";
 import { modelFrom } from "adapters/model_configuration_parser.ts";
@@ -25,7 +26,6 @@ import { WorkflowInstancesService } from "application/workflows/workflow_instanc
 import { WorkflowInstancesEngine } from "application/workflows/workflow_instances_engine.ts";
 import { AgentsService } from "application/ai/agents_service.ts";
 import { AgentsEngine } from "application/ai/agents_engine.ts";
-import type { VectorDatabase } from "application/ai/vector_database.ts";
 import type { AIModel } from "application/ai/ai_model.ts";
 import { EmbeddingService } from "application/ai/embedding_service.ts";
 
@@ -50,6 +50,9 @@ async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
 	const eventStoreRepository = await providerFrom<EventStoreRepository>(
 		cfg?.eventStoreRepository,
 	);
+	const configurationRepository = await providerFrom<ConfigurationRepository>(
+		cfg?.configurationRepository,
+	);
 
 	if (!eventStoreRepository) {
 		throw new Error(
@@ -59,15 +62,16 @@ async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
 
 	const eventBus = new InMemoryEventBus();
 
-	// Create ConfigurationRepository
-	const configurationRepository = new InMemoryConfigurationRepository();
+	// Use configured or default ConfigurationRepository
+	const configRepo = configurationRepository ?? new InMemoryConfigurationRepository();
 
 	// Validate and load AI components FIRST if AI is enabled
-	let vectorDatabase: VectorDatabase | undefined;
 	let embeddingModel: AIModel | undefined;
 	let ocrModel: AIModel | undefined;
 	let defaultModel: AIModel | undefined;
 	let models: AIModel[] | undefined;
+
+	const nodeRepository = repository ?? new InMemoryNodeRepository();
 
 	if (cfg.ai && cfg.ai?.enabled) {
 		// Validate all required AI configuration
@@ -91,21 +95,25 @@ async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
 			Deno.exit(1);
 		}
 
-		if (!cfg.ai.vectorDatabase) {
-			console.error(`Tenant ${cfg.name}: AI is enabled but vectorDatabase is not configured`);
-			Deno.exit(1);
+		// Check if repository supports embeddings
+		if (!nodeRepository.supportsEmbeddings()) {
+			console.warn(
+				`Tenant ${cfg.name}: AI is enabled but the configured repository does not support embeddings`,
+			);
 		}
 
 		// Load all models
-		const models: AIModel[] = await Promise.all(cfg.ai.models.map(modelFrom));
+		const loadedModels = await Promise.all(cfg.ai.models.map(modelFrom));
 
 		console.info(`[${cfg.name}] Available models:`);
-		console.info(JSON.stringify(models.map((m) => m?.modelName ?? "N/A"), null, 2));
+		console.info(JSON.stringify(loadedModels.map((m) => m?.modelName ?? "N/A"), null, 2));
 
-		if (models.some((m) => !m)) {
+		if (loadedModels.some((m) => !m)) {
 			console.error(`Tenant ${cfg.name}: AI is enabled but some models failed to load`);
 			Deno.exit(1);
 		}
+
+		models = loadedModels.filter((m): m is AIModel => m !== undefined);
 
 		// Load all AI components
 		defaultModel = models.find((m) => m.modelName === cfg.ai!.defaultModel);
@@ -126,23 +134,16 @@ async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
 			Deno.exit(1);
 		}
 
-		vectorDatabase = await providerFrom<VectorDatabase>(cfg.ai.vectorDatabase);
-		if (!vectorDatabase) {
-			console.error(`Tenant ${cfg.name}: Failed to load vector database`);
-			Deno.exit(1);
-		}
-
 		// Validate default model capabilities
 		validateModelCapabilities(cfg.name, defaultModel);
 	}
 
 	// Create NodeService
 	const nodeService = new NodeService({
-		repository: repository ?? new InMemoryNodeRepository(),
+		repository: nodeRepository,
 		storage: storage ?? new InMemoryStorageProvider(),
 		bus: eventBus,
-		configRepo: configurationRepository,
-		vectorDatabase,
+		configRepo,
 		embeddingModel,
 	});
 
@@ -150,15 +151,15 @@ async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
 	registerCacheInvalidationHandlers(eventBus);
 
 	// Create configuration services
-	const groupsService = new GroupsService(configurationRepository);
-	const usersService = new UsersService(configurationRepository);
-	const apiKeysService = new ApiKeysService(configurationRepository);
-	const aspectsService = new AspectsService(configurationRepository);
-	const workflowsService = new WorkflowsService(configurationRepository);
+	const groupsService = new GroupsService(configRepo);
+	const usersService = new UsersService(configRepo);
+	const apiKeysService = new ApiKeysService(configRepo);
+	const aspectsService = new AspectsService(configRepo);
+	const workflowsService = new WorkflowsService(configRepo);
 
 	// Create FeaturesService (CRUD only)
 	const featuresService = new FeaturesService({
-		configRepo: configurationRepository,
+		configRepo,
 	});
 
 	// Create FeaturesEngine (execution logic)
@@ -171,13 +172,13 @@ async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
 
 	// Create WorkflowInstancesService (CRUD only)
 	const workflowInstancesService = new WorkflowInstancesService({
-		configRepo: configurationRepository,
+		configRepo,
 		workflowsService,
 	});
 
 	// Create WorkflowInstancesEngine (execution logic)
 	const workflowInstancesEngine = new WorkflowInstancesEngine({
-		configRepo: configurationRepository,
+		configRepo,
 		nodeService,
 		workflowsService,
 		workflowInstancesService,
@@ -197,7 +198,7 @@ async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
 
 	// Create AgentsService (CRUD only)
 	const agentsService = new AgentsService({
-		configRepo: configurationRepository,
+		configRepo,
 		models: models ?? [],
 	});
 
@@ -211,13 +212,13 @@ async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
 		defaultModel,
 	});
 
-	if (cfg.ai?.enabled && vectorDatabase && embeddingModel && ocrModel && defaultModel) {
-		// Create EmbeddingService
+	if (cfg.ai?.enabled && embeddingModel && ocrModel && defaultModel) {
+		// Create EmbeddingService - uses NodeRepository for vector storage
 		embeddingService = new EmbeddingService({
 			embeddingModel,
 			ocrModel,
 			nodeService,
-			vectorDatabase,
+			repository: nodeRepository,
 			bus: eventBus,
 		});
 
@@ -232,7 +233,7 @@ async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
 		symmetricKey,
 
 		// Configuration Repository
-		configurationRepository,
+		configurationRepository: configRepo,
 
 		// Services
 		agentsService,
@@ -248,7 +249,6 @@ async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
 		nodeService,
 		ragService,
 		usersService,
-		vectorDatabase,
 		workflowsService,
 		workflowInstancesService,
 

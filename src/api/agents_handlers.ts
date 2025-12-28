@@ -123,44 +123,6 @@ export function listAIModelsHandler(tenants: AntboxTenant[]): HttpHandler {
 	);
 }
 
-export function exportAgentHandler(tenants: AntboxTenant[]): HttpHandler {
-	return defaultMiddlewareChain(
-		tenants,
-		async (req: Request): Promise<Response> => {
-			const tenant = getTenant(req, tenants);
-			const unavailableResponse = checkServiceAvailability(tenant.agentsService, "AI agents");
-			if (unavailableResponse) {
-				return Promise.resolve(unavailableResponse);
-			}
-
-			const params = getParams(req);
-			if (!params.uuid) {
-				return sendBadRequest({ error: "{ uuid } not given" });
-			}
-			const agentOrErr = await tenant.agentsService!.getAgent(
-				getAuthenticationContext(req),
-				params.uuid,
-			);
-
-			if (agentOrErr.isLeft()) {
-				return processError(agentOrErr.value);
-			}
-
-			const agent = agentOrErr.value;
-			const filename = `${agent.title.replace(/[^a-z0-9]/gi, "_").toLowerCase()}.json`;
-			const json = JSON.stringify(agent, null, 2);
-			const blob = new Blob([json], { type: "application/json" });
-
-			const response = new Response(blob);
-			response.headers.set("Content-Type", "application/json");
-			response.headers.set("Content-Disposition", `attachment; filename="${filename}"`);
-			response.headers.set("Content-Length", blob.size.toString());
-
-			return response;
-		},
-	);
-}
-
 // ============================================================================
 // EXECUTION HANDLERS
 // ============================================================================

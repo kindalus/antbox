@@ -16,6 +16,8 @@ tags:
     description: Operations related to actions
   - name: agents
     description: Operations related to AI agents
+  - name: ai-models
+    description: Operations related to AI models
   - name: api-keys
     description: Operations related to API keys
   - name: articles
@@ -255,6 +257,23 @@ paths:
             application/json:
               schema:
                 type: object
+        default:
+          $ref: "#/components/responses/Error"
+  /ai-models:
+    get:
+      tags:
+        - ai-models
+      summary: List available AI models
+      operationId: listAIModels
+      responses:
+        "200":
+          description: A list of available AI models
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AIModel"
         default:
           $ref: "#/components/responses/Error"
   /api-keys:
@@ -627,19 +646,6 @@ paths:
                   $ref: "#/components/schemas/DocInfo"
         default:
           $ref: "#/components/responses/Error"
-  "/docs/openapi.yaml":
-    get:
-      tags:
-        - docs
-      summary: Get OpenAPI specification
-      operationId: getOpenApiSpec
-      responses:
-        "200":
-          description: OpenAPI specification file
-          content:
-            application/yaml:
-              schema:
-                type: string
   "/docs/{uuid}":
     get:
       tags:
@@ -678,10 +684,26 @@ paths:
         default:
           $ref: "#/components/responses/Error"
   "/extensions/{uuid}/-/exec":
+    get:
+      tags:
+        - extensions
+      summary: Run an extension (GET)
+      operationId: runExtensionGet
+      parameters:
+        - $ref: "#/components/parameters/UUID"
+      responses:
+        "200":
+          description: Extension run result
+          content:
+            application/json:
+              schema:
+                type: object
+        default:
+          $ref: "#/components/responses/Error"
     post:
       tags:
         - extensions
-      summary: Run an extension
+      summary: Run an extension (POST)
       operationId: runExtension
       parameters:
         - $ref: "#/components/parameters/UUID"
@@ -845,33 +867,6 @@ paths:
       responses:
         "200":
           description: Group details
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/NodeMetadata"
-        default:
-          $ref: "#/components/responses/Error"
-    patch:
-      tags:
-        - groups
-      summary: Update a group
-      operationId: updateGroup
-      parameters:
-        - $ref: "#/components/parameters/UUID"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                title:
-                  type: string
-                description:
-                  type: string
-      responses:
-        "200":
-          description: Group updated
           content:
             application/json:
               schema:
@@ -1381,7 +1376,7 @@ paths:
                 $ref: "#/components/schemas/NodeMetadata"
         default:
           $ref: "#/components/responses/Error"
-    put:
+    patch:
       tags:
         - users
       summary: Update a user by email
@@ -1409,22 +1404,6 @@ paths:
         default:
           $ref: "#/components/responses/Error"
   "/users/{uuid}":
-    get:
-      tags:
-        - users
-      summary: Get a user
-      operationId: getUser
-      parameters:
-        - $ref: "#/components/parameters/UUID"
-      responses:
-        "200":
-          description: User details
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/NodeMetadata"
-        default:
-          $ref: "#/components/responses/Error"
     delete:
       tags:
         - users
@@ -1772,6 +1751,34 @@ paths:
           $ref: "#/components/responses/Error"
 components:
   schemas:
+    AIModel:
+      type: object
+      required:
+        - modelName
+        - embeddings
+        - llm
+        - tools
+        - files
+        - reasoning
+      properties:
+        modelName:
+          type: string
+          description: Name identifier for the AI model
+        embeddings:
+          type: boolean
+          description: Whether the model supports embeddings
+        llm:
+          type: boolean
+          description: Whether the model supports LLM capabilities
+        tools:
+          type: boolean
+          description: Whether the model supports tool use
+        files:
+          type: boolean
+          description: Whether the model supports file processing
+        reasoning:
+          type: boolean
+          description: Whether the model supports reasoning capabilities
     Agent:
       type: object
       required:

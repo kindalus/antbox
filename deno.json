@@ -38,8 +38,8 @@
     "test:verbose": "deno test --allow-all  --parallel=false --unstable-raw-imports",
     "test:watch": "deno test --allow-all  --watch --unstable-raw-imports",
     "test:coverage": "deno test --allow-all  --coverage --unstable-raw-imports",
-		"test:services": "deno test --allow-all  --unstable-raw-imports src/application/ai/agents_service_test.ts src/application/security/api_keys_service_test.ts src/application/aspects/aspects_service_test.ts src/application/features/features_service_test.ts src/application/security/groups_service_test.ts src/application/security/users_service_test.ts src/application/workflows/workflows_service_test.ts src/application/articles/article_service_test.ts",
-		"test:services:pretty": "COLUMNS=300 deno test --allow-all  --unstable-raw-imports src/application/ai/agents_service_test.ts src/application/security/api_keys_service_test.ts src/application/aspects/aspects_service_test.ts src/application/features/features_service_test.ts src/application/security/groups_service_test.ts src/application/security/users_service_test.ts src/application/workflows/workflows_service_test.ts src/application/articles/article_service_test.ts",
+    "test:services": "deno test --allow-all  --unstable-raw-imports src/application/ai/agents_service_test.ts src/application/security/api_keys_service_test.ts src/application/aspects/aspects_service_test.ts src/application/features/features_service_test.ts src/application/security/groups_service_test.ts src/application/security/users_service_test.ts src/application/workflows/workflows_service_test.ts src/application/articles/article_service_test.ts",
+    "test:services:pretty": "COLUMNS=300 deno test --allow-all  --unstable-raw-imports src/application/ai/agents_service_test.ts src/application/security/api_keys_service_test.ts src/application/aspects/aspects_service_test.ts src/application/features/features_service_test.ts src/application/security/groups_service_test.ts src/application/security/users_service_test.ts src/application/workflows/workflows_service_test.ts src/application/articles/article_service_test.ts",
     "test-node-repository": "deno run -A ./src/adapters/run_node_repository_tests.ts",
     "test-storage-provider": "deno run -A ./src/adapters/run_storage_provider_tests.ts"
   },
@@ -50,5 +50,11 @@
     "indentWidth": 3,
     "semiColons": true,
     "singleQuote": false
+  },
+  "lint": {
+    "rules": {
+      "tags": ["recommended"],
+      "exclude": ["require-await"]
+    }
   }
 }

@@ -7,11 +7,14 @@ import { ADMINS_GROUP_UUID } from "domain/configuration/builtin_groups.ts";
 import { RAG_AGENT_UUID } from "domain/configuration/builtin_agents.ts";
 
 // Mock dependencies for testing (AI features not needed for CRUD tests)
-const mockNodeService = null as any;
-const mockFeatureService = null as any;
-const mockAspectsService = null as any;
-const mockDefaultModel = null as any;
 const mockModels: any[] = [];
+
+function createAgentsService(repo: InMemoryConfigurationRepository) {
+	return new AgentsService({
+		configRepo: repo,
+		models: mockModels,
+	});
+}
 
 describe("AgentsService", () => {
 	const adminCtx: AuthenticationContext = {
@@ -35,14 +38,7 @@ describe("AgentsService", () => {
 	describe("createAgent", () => {
 		it("should create agent successfully as admin", async () => {
 			const repo = new InMemoryConfigurationRepository();
-			const service = new AgentsService(
-				repo,
-				mockNodeService,
-				mockFeatureService,
-				mockAspectsService,
-				mockDefaultModel,
-				mockModels,
-			);
+			const service = createAgentsService(repo);
 
 			const result = await service.createAgent(adminCtx, {
 				title: "Customer Support Agent",
@@ -75,14 +71,7 @@ describe("AgentsService", () => {
 
 		it("should reject creation as non-admin", async () => {
 			const repo = new InMemoryConfigurationRepository();
-			const service = new AgentsService(
-				repo,
-				mockNodeService,
-				mockFeatureService,
-				mockAspectsService,
-				mockDefaultModel,
-				mockModels,
-			);
+			const service = createAgentsService(repo);
 
 			const result = await service.createAgent(userCtx, {
 				title: "Test Agent",
@@ -100,7 +89,7 @@ describe("AgentsService", () => {
 
 		it("should validate temperature range", async () => {
 			const repo = new InMemoryConfigurationRepository();
-			const service = new AgentsService(repo, mockNodeService, mockFeatureService, mockAspectsService, mockDefaultModel, mockModels);
+			const service = createAgentsService(repo);
 
 			const result = await service.createAgent(adminCtx, {
 				title: "Invalid Agent",
@@ -118,7 +107,7 @@ describe("AgentsService", () => {
 
 		it("should validate required fields", async () => {
 			const repo = new InMemoryConfigurationRepository();
-			const service = new AgentsService(repo, mockNodeService, mockFeatureService, mockAspectsService, mockDefaultModel, mockModels);
+			const service = createAgentsService(repo);
 
 			const result = await service.createAgent(adminCtx, {
 				title: "",
@@ -138,7 +127,7 @@ describe("AgentsService", () => {
 	describe("getAgent", () => {
 		it("should get agent successfully", async () => {
 			const repo = new InMemoryConfigurationRepository();
-			const service = new AgentsService(repo, mockNodeService, mockFeatureService, mockAspectsService, mockDefaultModel, mockModels);
+			const service = createAgentsService(repo);
 
 			const createResult = await service.createAgent(adminCtx, {
 				title: "Test Agent",
@@ -164,7 +153,7 @@ describe("AgentsService", () => {
 
 		it("should get builtin agent", async () => {
 			const repo = new InMemoryConfigurationRepository();
-			const service = new AgentsService(repo, mockNodeService, mockFeatureService, mockAspectsService, mockDefaultModel, mockModels);
+			const service = createAgentsService(repo);
 
 			const result = await service.getAgent(adminCtx, RAG_AGENT_UUID);
 
@@ -177,7 +166,7 @@ describe("AgentsService", () => {
 
 		it("should allow non-admin to get agent", async () => {
 			const repo = new InMemoryConfigurationRepository();
-			const service = new AgentsService(repo, mockNodeService, mockFeatureService, mockAspectsService, mockDefaultModel, mockModels);
+			const service = createAgentsService(repo);
 
 			const createResult = await service.createAgent(adminCtx, {
 				title: "Public Agent",
@@ -202,7 +191,7 @@ describe("AgentsService", () => {
 	describe("listAgents", () => {
 		it("should list all agents including builtins", async () => {
 			const repo = new InMemoryConfigurationRepository();
-			const service = new AgentsService(repo, mockNodeService, mockFeatureService, mockAspectsService, mockDefaultModel, mockModels);
+			const service = createAgentsService(repo);
 
 			// Create two custom agents
 			await service.createAgent(adminCtx, {
@@ -238,7 +227,7 @@ describe("AgentsService", () => {
 
 		it("should allow non-admin to list agents", async () => {
 			const repo = new InMemoryConfigurationRepository();
-			const service = new AgentsService(repo, mockNodeService, mockFeatureService, mockAspectsService, mockDefaultModel, mockModels);
+			const service = createAgentsService(repo);
 
 			await service.createAgent(adminCtx, {
 				title: "Test Agent",
@@ -263,7 +252,7 @@ describe("AgentsService", () => {
 	describe("updateAgent", () => {
 		it("should update agent successfully as admin", async () => {
 			const repo = new InMemoryConfigurationRepository();
-			const service = new AgentsService(repo, mockNodeService, mockFeatureService, mockAspectsService, mockDefaultModel, mockModels);
+			const service = createAgentsService(repo);
 
 			const createResult = await service.createAgent(adminCtx, {
 				title: "Original Title",
@@ -296,7 +285,7 @@ describe("AgentsService", () => {
 
 		it("should reject update as non-admin", async () => {
 			const repo = new InMemoryConfigurationRepository();
-			const service = new AgentsService(repo, mockNodeService, mockFeatureService, mockAspectsService, mockDefaultModel, mockModels);
+			const service = createAgentsService(repo);
 
 			const createResult = await service.createAgent(adminCtx, {
 				title: "Test Agent",
@@ -321,7 +310,7 @@ describe("AgentsService", () => {
 
 		it("should reject update of builtin agent", async () => {
 			const repo = new InMemoryConfigurationRepository();
-			const service = new AgentsService(repo, mockNodeService, mockFeatureService, mockAspectsService, mockDefaultModel, mockModels);
+			const service = createAgentsService(repo);
 
 			const result = await service.updateAgent(adminCtx, RAG_AGENT_UUID, {
 				title: "Modified RAG Agent",
@@ -332,7 +321,7 @@ describe("AgentsService", () => {
 
 		it("should validate updated values", async () => {
 			const repo = new InMemoryConfigurationRepository();
-			const service = new AgentsService(repo, mockNodeService, mockFeatureService, mockAspectsService, mockDefaultModel, mockModels);
+			const service = createAgentsService(repo);
 
 			const createResult = await service.createAgent(adminCtx, {
 				title: "Test Agent",
@@ -359,7 +348,7 @@ describe("AgentsService", () => {
 	describe("deleteAgent", () => {
 		it("should delete agent successfully as admin", async () => {
 			const repo = new InMemoryConfigurationRepository();
-			const service = new AgentsService(repo, mockNodeService, mockFeatureService, mockAspectsService, mockDefaultModel, mockModels);
+			const service = createAgentsService(repo);
 
 			const createResult = await service.createAgent(adminCtx, {
 				title: "To Delete",
@@ -386,7 +375,7 @@ describe("AgentsService", () => {
 
 		it("should reject delete as non-admin", async () => {
 			const repo = new InMemoryConfigurationRepository();
-			const service = new AgentsService(repo, mockNodeService, mockFeatureService, mockAspectsService, mockDefaultModel, mockModels);
+			const service = createAgentsService(repo);
 
 			const createResult = await service.createAgent(adminCtx, {
 				title: "Protected Agent",
@@ -409,7 +398,7 @@ describe("AgentsService", () => {
 
 		it("should reject delete of builtin agent", async () => {
 			const repo = new InMemoryConfigurationRepository();
-			const service = new AgentsService(repo, mockNodeService, mockFeatureService, mockAspectsService, mockDefaultModel, mockModels);
+			const service = createAgentsService(repo);
 
 			const result = await service.deleteAgent(adminCtx, RAG_AGENT_UUID);
 

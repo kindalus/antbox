@@ -13,6 +13,7 @@ import { JWK, ROOT_PASSWD, SYMMETRIC_KEY } from "./server_defaults.ts";
 import { providerFrom } from "adapters/module_configuration_parser.ts";
 import { modelFrom } from "adapters/model_configuration_parser.ts";
 import { FeaturesService } from "application/features/features_service.ts";
+import { FeaturesEngine } from "application/features/features_engine.ts";
 import { ArticleService } from "application/articles/article_service.ts";
 import { AuditLoggingService } from "application/audit/audit_logging_service.ts";
 import { GroupsService } from "application/security/groups_service.ts";
@@ -21,7 +22,9 @@ import { ApiKeysService } from "application/security/api_keys_service.ts";
 import { AspectsService } from "application/aspects/aspects_service.ts";
 import { WorkflowsService } from "application/workflows/workflows_service.ts";
 import { WorkflowInstancesService } from "application/workflows/workflow_instances_service.ts";
+import { WorkflowInstancesEngine } from "application/workflows/workflow_instances_engine.ts";
 import { AgentsService } from "application/ai/agents_service.ts";
+import { AgentsEngine } from "application/ai/agents_engine.ts";
 import type { VectorDatabase } from "application/ai/vector_database.ts";
 import type { AIModel } from "application/ai/ai_model.ts";
 import { EmbeddingService } from "application/ai/embedding_service.ts";
@@ -94,17 +97,15 @@ async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
 		}
 
 		// Load all models
-		const configModels = await Promise.all(cfg.ai.models.map(modelFrom));
+		const models: AIModel[] = await Promise.all(cfg.ai.models.map(modelFrom));
 
 		console.info(`[${cfg.name}] Available models:`);
-		console.info(JSON.stringify(configModels.map((m) => m?.modelName ?? "N/A"), null, 2));
+		console.info(JSON.stringify(models.map((m) => m?.modelName ?? "N/A"), null, 2));
 
-		if (configModels.some((m) => !m)) {
+		if (models.some((m) => !m)) {
 			console.error(`Tenant ${cfg.name}: AI is enabled but some models failed to load`);
 			Deno.exit(1);
 		}
-
-		models = configModels as AIModel[];
 
 		// Load all AI components
 		defaultModel = models.find((m) => m.modelName === cfg.ai!.defaultModel);
@@ -155,21 +156,33 @@ async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
 	const aspectsService = new AspectsService(configurationRepository);
 	const workflowsService = new WorkflowsService(configurationRepository);
 
-	// Create FeaturesService with execution dependencies
+	// Create FeaturesService (CRUD only)
 	const featuresService = new FeaturesService({
 		configRepo: configurationRepository,
+	});
+
+	// Create FeaturesEngine (execution logic)
+	const featuresEngine = new FeaturesEngine({
+		featuresService,
 		nodeService,
 		ocrModel,
 		eventBus,
 	});
 
-	// Create WorkflowInstancesService with all dependencies (after workflowsService and featuresService are created)
-	const workflowInstancesService = new WorkflowInstancesService(
-		configurationRepository,
+	// Create WorkflowInstancesService (CRUD only)
+	const workflowInstancesService = new WorkflowInstancesService({
+		configRepo: configurationRepository,
+		workflowsService,
+	});
+
+	// Create WorkflowInstancesEngine (execution logic)
+	const workflowInstancesEngine = new WorkflowInstancesEngine({
+		configRepo: configurationRepository,
 		nodeService,
 		workflowsService,
-		featuresService,
-	);
+		workflowInstancesService,
+		featuresEngine,
+	});
 
 	const articleService = new ArticleService(nodeService);
 
@@ -178,22 +191,27 @@ async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
 		eventBus,
 	);
 
-	// Create AgentsService with AI dependencies
-	let agentsService: AgentsService;
+	// Create AgentsService (CRUD only) and AgentsEngine (execution)
 	let embeddingService: EmbeddingService | undefined;
 	let ragService: RAGService | undefined;
 
-	if (cfg.ai?.enabled && vectorDatabase && embeddingModel && ocrModel && defaultModel) {
-		// Create AgentsService with AI execution capabilities
-		agentsService = new AgentsService(
-			configurationRepository,
-			nodeService,
-			featuresService,
-			aspectsService,
-			defaultModel,
-			models ?? [],
-		);
+	// Create AgentsService (CRUD only)
+	const agentsService = new AgentsService({
+		configRepo: configurationRepository,
+		models: models ?? [],
+	});
 
+	// Create AgentsEngine (execution logic)
+	const agentsEngine = new AgentsEngine({
+		agentsService,
+		nodeService,
+		featuresService,
+		aspectsService,
+		models: models ?? [],
+		defaultModel,
+	});
+
+	if (cfg.ai?.enabled && vectorDatabase && embeddingModel && ocrModel && defaultModel) {
 		// Create EmbeddingService
 		embeddingService = new EmbeddingService({
 			embeddingModel,
@@ -203,18 +221,8 @@ async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
 			bus: eventBus,
 		});
 
-		// Create RAGService - uses new AgentsService
-		ragService = new RAGService(nodeService, agentsService);
-	} else {
-		// Create AgentsService without AI capabilities (CRUD only)
-		agentsService = new AgentsService(
-			configurationRepository,
-			nodeService,
-			featuresService,
-			aspectsService,
-			undefined as any, // No default model
-			[],
-		);
+		// Create RAGService - uses AgentsEngine for execution
+		ragService = new RAGService(nodeService, agentsEngine);
 	}
 
 	return {
@@ -243,6 +251,11 @@ async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
 		vectorDatabase,
 		workflowsService,
 		workflowInstancesService,
+
+		// Engines (execution logic)
+		featuresEngine,
+		agentsEngine,
+		workflowInstancesEngine,
 	};
 }
 

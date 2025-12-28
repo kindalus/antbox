@@ -310,27 +310,6 @@ describe("NodeService.createFile", () => {
 		expect(nodeOrErr.right.mimetype).toBe(dummyFile.type);
 	});
 
-	it("should use node mimetype if given action or ext mimetype", async () => {
-		const service = nodeService();
-
-		// Create parent folder first
-		await service.create(authCtx, {
-			uuid: "--parent--",
-			title: "Parent Folder",
-			mimetype: Nodes.FOLDER_MIMETYPE,
-			parent: Nodes.ROOT_FOLDER_UUID,
-		});
-
-		const nodeOrErr = await service.createFile(authCtx, dummyFile, {
-			parent: "--parent--",
-			exposeExtension: true,
-			mimetype: "application/javascript",
-		});
-
-		expect(nodeOrErr.isRight(), errToMsg(nodeOrErr.value)).toBeTruthy();
-		expect(nodeOrErr.right.mimetype).toBe("application/javascript");
-	});
-
 	it("should not create embeddings for zero-size files", async () => {
 		const service = nodeService();
 		await service.create(authCtx, {

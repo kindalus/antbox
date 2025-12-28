@@ -39,9 +39,9 @@ export function runActionHandler(tenants: AntboxTenant[]): HttpHandler {
 		tenants,
 		async (req: Request): Promise<Response> => {
 			const tenant = getTenant(req, tenants);
-			const service = tenant.featuresService;
+			const engine = tenant.featuresEngine;
 
-			const unavailableResponse = checkServiceAvailability(service, "Feature service");
+			const unavailableResponse = checkServiceAvailability(engine, "Features engine");
 			if (unavailableResponse) {
 				return Promise.resolve(unavailableResponse);
 			}
@@ -57,7 +57,7 @@ export function runActionHandler(tenants: AntboxTenant[]): HttpHandler {
 					return sendBadRequest({ error: "{ uuids } array not given" });
 				}
 
-				return await service
+				return await engine
 					.runAction(
 						getAuthenticationContext(req),
 						params.uuid,

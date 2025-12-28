@@ -11,8 +11,11 @@ import type { ApiKeysService } from "application/security/api_keys_service.ts";
 import type { AspectsService } from "application/aspects/aspects_service.ts";
 import type { WorkflowsService } from "application/workflows/workflows_service.ts";
 import type { WorkflowInstancesService } from "application/workflows/workflow_instances_service.ts";
+import type { WorkflowInstancesEngine } from "application/workflows/workflow_instances_engine.ts";
 import type { AgentsService } from "application/ai/agents_service.ts";
+import type { AgentsEngine } from "application/ai/agents_engine.ts";
 import type { FeaturesService } from "application/features/features_service.ts";
+import type { FeaturesEngine } from "application/features/features_engine.ts";
 import type { ConfigurationRepository } from "domain/configuration/configuration_repository.ts";
 
 export interface AntboxTenant {
@@ -41,4 +44,9 @@ export interface AntboxTenant {
 	ragService?: RAGService;
 	defaultModel?: AIModel;
 	models?: AIModel[];
+
+	// Engines (execution logic)
+	featuresEngine: FeaturesEngine;
+	agentsEngine: AgentsEngine;
+	workflowInstancesEngine: WorkflowInstancesEngine;
 }

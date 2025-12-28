@@ -16,7 +16,7 @@ export function startWorkflowHandler(tenants: AntboxTenant[]): HttpHandler {
 		tenants,
 		async (req: Request): Promise<Response> => {
 			const tenant = getTenant(req, tenants);
-			const service = tenant.workflowInstancesService;
+			const engine = tenant.workflowInstancesEngine;
 
 			const params = getParams(req);
 			if (!params.uuid) {
@@ -29,7 +29,7 @@ export function startWorkflowHandler(tenants: AntboxTenant[]): HttpHandler {
 					return sendBadRequest({ error: "{ workflowDefinitionUuid } not given" });
 				}
 
-				return await service
+				return await engine
 					.startWorkflow(
 						getAuthenticationContext(req),
 						params.uuid,
@@ -50,7 +50,7 @@ export function transitionWorkflowHandler(tenants: AntboxTenant[]): HttpHandler 
 		tenants,
 		async (req: Request): Promise<Response> => {
 			const tenant = getTenant(req, tenants);
-			const service = tenant.workflowInstancesService;
+			const engine = tenant.workflowInstancesEngine;
 
 			const params = getParams(req);
 			if (!params.uuid) {
@@ -63,7 +63,7 @@ export function transitionWorkflowHandler(tenants: AntboxTenant[]): HttpHandler 
 					return sendBadRequest({ error: "{ signal } not given" });
 				}
 
-				return await service
+				return await engine
 					.transition(
 						getAuthenticationContext(req),
 						params.uuid,
@@ -104,14 +104,14 @@ export function cancelWorkflowHandler(tenants: AntboxTenant[]): HttpHandler {
 		tenants,
 		(req: Request): Promise<Response> => {
 			const tenant = getTenant(req, tenants);
-			const service = tenant.workflowInstancesService;
+			const engine = tenant.workflowInstancesEngine;
 
 			const params = getParams(req);
 			if (!params.uuid) {
 				return Promise.resolve(sendBadRequest({ error: "{ uuid } not given" }));
 			}
 
-			return service
+			return engine
 				.cancelWorkflow(getAuthenticationContext(req), params.uuid)
 				.then(processServiceResult)
 				.catch(processError);
@@ -124,12 +124,12 @@ export function findActiveWorkflowsHandler(tenants: AntboxTenant[]): HttpHandler
 		tenants,
 		(req: Request): Promise<Response> => {
 			const tenant = getTenant(req, tenants);
-			const service = tenant.workflowInstancesService;
+			const engine = tenant.workflowInstancesEngine;
 
 			const url = new URL(req.url);
 			const workflowDefinitionUuid = url.searchParams.get("workflowDefinitionUuid") || undefined;
 
-			return service
+			return engine
 				.findActiveInstances(getAuthenticationContext(req), workflowDefinitionUuid)
 				.then(processServiceResult)
 				.catch(processError);
@@ -246,7 +246,7 @@ export function updateWorkflowNodeHandler(tenants: AntboxTenant[]): HttpHandler 
 		tenants,
 		async (req: Request): Promise<Response> => {
 			const tenant = getTenant(req, tenants);
-			const service = tenant.workflowInstancesService;
+			const engine = tenant.workflowInstancesEngine;
 
 			const params = getParams(req);
 			if (!params.uuid) {
@@ -256,7 +256,7 @@ export function updateWorkflowNodeHandler(tenants: AntboxTenant[]): HttpHandler 
 			try {
 				const metadata = await req.json();
 
-				return await service
+				return await engine
 					.updateNode(getAuthenticationContext(req), params.uuid, metadata)
 					.then(processServiceResult)
 					.catch(processError);
@@ -272,7 +272,7 @@ export function updateWorkflowNodeFileHandler(tenants: AntboxTenant[]): HttpHand
 		tenants,
 		async (req: Request): Promise<Response> => {
 			const tenant = getTenant(req, tenants);
-			const service = tenant.workflowInstancesService;
+			const engine = tenant.workflowInstancesEngine;
 
 			const params = getParams(req);
 			if (!params.uuid) {
@@ -287,7 +287,7 @@ export function updateWorkflowNodeFileHandler(tenants: AntboxTenant[]): HttpHand
 					return sendBadRequest({ error: "{ file } not given in form data" });
 				}
 
-				return await service
+				return await engine
 					.updateNodeFile(getAuthenticationContext(req), params.uuid, file)
 					.then(processServiceResult)
 					.catch(processError);

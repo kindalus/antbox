@@ -2,7 +2,6 @@ import { describe, it } from "bdd";
 import { expect } from "expect";
 import type { AuthenticationContext } from "application/security/authentication_context.ts";
 import { InMemoryConfigurationRepository } from "adapters/inmem/inmem_configuration_repository.ts";
-import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus.ts";
 import { FeaturesService } from "application/features/features_service.ts";
 import { ADMINS_GROUP_UUID } from "domain/configuration/builtin_groups.ts";
 import { MOVE_UP_FEATURE_UUID } from "domain/configuration/builtin_features.ts";
@@ -11,8 +10,6 @@ describe("FeaturesService", () => {
 	const createService = () =>
 		new FeaturesService({
 			configRepo: new InMemoryConfigurationRepository(),
-			nodeService: null as any,
-			eventBus: new InMemoryEventBus(),
 		});
 
 	const adminCtx: AuthenticationContext = {

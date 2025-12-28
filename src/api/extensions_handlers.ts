@@ -39,9 +39,9 @@ export function runExtensionHandler(tenants: AntboxTenant[]): HttpHandler {
 		tenants,
 		async (req: Request): Promise<Response> => {
 			const tenant = getTenant(req, tenants);
-			const service = tenant.featuresService;
+			const engine = tenant.featuresEngine;
 
-			const unavailableResponse = checkServiceAvailability(service, "Feature service");
+			const unavailableResponse = checkServiceAvailability(engine, "Features engine");
 			if (unavailableResponse) {
 				return Promise.resolve(unavailableResponse);
 			}
@@ -51,7 +51,7 @@ export function runExtensionHandler(tenants: AntboxTenant[]): HttpHandler {
 				return sendBadRequest({ error: "{ uuid } not given" });
 			}
 
-			return service
+			return engine
 				.runExtension(getAuthenticationContext(req), params.uuid, req);
 		},
 	);

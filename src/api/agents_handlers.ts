@@ -1,4 +1,4 @@
-import { AnswerOptions, ChatOptions } from "application/ai/agents_service.ts";
+import { AnswerOptions, ChatOptions } from "application/ai/agents_engine.ts";
 import { type AntboxTenant } from "./antbox_tenant.ts";
 import { defaultMiddlewareChain } from "./default_middleware_chain.ts";
 import { getAuthenticationContext } from "./get_authentication_context.ts";
@@ -132,7 +132,7 @@ export function chatHandler(tenants: AntboxTenant[]): HttpHandler {
 		tenants,
 		async (req: Request): Promise<Response> => {
 			const tenant = getTenant(req, tenants);
-			const unavailableResponse = checkServiceAvailability(tenant.agentsService, "AI agents");
+			const unavailableResponse = checkServiceAvailability(tenant.agentsEngine, "Agents engine");
 			if (unavailableResponse) {
 				return Promise.resolve(unavailableResponse);
 			}
@@ -151,7 +151,7 @@ export function chatHandler(tenants: AntboxTenant[]): HttpHandler {
 			// Extract text and options
 			const { text, options = {} }: { text: string; options: ChatOptions } = chatInput;
 
-			return tenant.agentsService!
+			return tenant.agentsEngine
 				.chat(getAuthenticationContext(req), params.uuid, text, options)
 				.then(processServiceResult)
 				.catch(processError);
@@ -164,7 +164,7 @@ export function answerHandler(tenants: AntboxTenant[]): HttpHandler {
 		tenants,
 		async (req: Request): Promise<Response> => {
 			const tenant = getTenant(req, tenants);
-			const unavailableResponse = checkServiceAvailability(tenant.agentsService, "AI agents");
+			const unavailableResponse = checkServiceAvailability(tenant.agentsEngine, "Agents engine");
 			if (unavailableResponse) {
 				return Promise.resolve(unavailableResponse);
 			}
@@ -183,7 +183,7 @@ export function answerHandler(tenants: AntboxTenant[]): HttpHandler {
 			// Extract text and options
 			const { text, options = {} }: { text: string; options: AnswerOptions } = chatInput;
 
-			return tenant.agentsService!
+			return tenant.agentsEngine
 				.answer(getAuthenticationContext(req), params.uuid, text, options)
 				.then(processServiceResult)
 				.catch(processError);

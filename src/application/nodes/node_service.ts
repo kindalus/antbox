@@ -226,15 +226,11 @@ export class NodeService {
 			? "application/javascript"
 			: metadata.mimetype;
 
-		const shouldPreferRequestedType = Boolean(
-			requestedType && (metadata.exposeAction || metadata.exposeExtension || metadata.exposeAITool),
-		);
-
 		const fileMetadata = {
 			...metadata,
 			title: metadata.title ?? file.name,
 			fid: metadata.fid ?? FidGenerator.generate(metadata.title ?? file.name),
-			mimetype: shouldPreferRequestedType ? requestedType : (fileType || requestedType),
+			mimetype: fileType || requestedType,
 			size: file.size,
 		};
 

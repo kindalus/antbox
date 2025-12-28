@@ -1,7 +1,7 @@
 import { beforeEach, describe, it } from "jsr:@std/testing/bdd";
 import { expect } from "jsr:@std/expect";
 import { RAGService } from "./rag_service.ts";
-import type { AgentsService } from "./agents_service.ts";
+import type { AgentsEngine } from "./agents_engine.ts";
 import { AuthenticationContext, Principal } from "../security/authentication_context.ts";
 import { Either, left, right } from "shared/either.ts";
 import { AntboxError } from "shared/antbox_error.ts";
@@ -11,7 +11,7 @@ import { ChatHistory } from "domain/ai/chat_message.ts";
 // MOCK IMPLEMENTATIONS
 // ============================================================================
 
-class MockAgentService implements Partial<AgentsService> {
+class MockAgentsEngine implements Partial<AgentsEngine> {
 	public lastChatInput: any = null;
 
 	async chat(
@@ -49,16 +49,16 @@ const createMockAuthContext = (): AuthenticationContext => ({
 
 describe("RAGService", () => {
 	let ragService: RAGService;
-	let mockAgentService: MockAgentService;
+	let mockAgentsEngine: MockAgentsEngine;
 	let authContext: AuthenticationContext;
 
 	beforeEach(() => {
-		mockAgentService = new MockAgentService() as any;
+		mockAgentsEngine = new MockAgentsEngine() as any;
 		authContext = createMockAuthContext();
 
 		ragService = new RAGService(
 			{} as any, // NodeService not used directly anymore
-			mockAgentService as any,
+			mockAgentsEngine as any,
 		);
 	});
 
@@ -77,21 +77,21 @@ describe("RAGService", () => {
 				expect(history[1].parts[0].text).toBe("Mock RAG response with search instructions");
 
 				// Verify agent was called with proper instructions
-				expect(mockAgentService.lastChatInput).toBeTruthy();
-				expect(mockAgentService.lastChatInput.agentUuid).toBe("--rag-agent--");
-				expect(mockAgentService.lastChatInput.text).toBe(
+				expect(mockAgentsEngine.lastChatInput).toBeTruthy();
+				expect(mockAgentsEngine.lastChatInput.agentUuid).toBe("--rag-agent--");
+				expect(mockAgentsEngine.lastChatInput.text).toBe(
 					"Tell me about artificial intelligence",
 				);
-				expect(mockAgentService.lastChatInput.options.instructions).toContain(
+				expect(mockAgentsEngine.lastChatInput.options.instructions).toContain(
 					"**INSTRUCTIONS**",
 				);
-				expect(mockAgentService.lastChatInput.options.instructions).toContain(
+				expect(mockAgentsEngine.lastChatInput.options.instructions).toContain(
 					"RAG (Retrieval-Augmented Generation) mode",
 				);
-				expect(mockAgentService.lastChatInput.options.instructions).toContain(
+				expect(mockAgentsEngine.lastChatInput.options.instructions).toContain(
 					"search across the entire platform content",
 				);
-				expect(mockAgentService.lastChatInput.options.instructions).toContain(
+				expect(mockAgentsEngine.lastChatInput.options.instructions).toContain(
 					'prefixing your query with "?"',
 				);
 			}
@@ -105,13 +105,13 @@ describe("RAGService", () => {
 			expect(result.isRight()).toBe(true);
 			if (result.isRight()) {
 				// Should include scoped search instructions
-				expect(mockAgentService.lastChatInput.options.instructions).toContain(
+				expect(mockAgentsEngine.lastChatInput.options.instructions).toContain(
 					'limited to folder "folder-a"',
 				);
-				expect(mockAgentService.lastChatInput.options.instructions).toContain(
+				expect(mockAgentsEngine.lastChatInput.options.instructions).toContain(
 					'["parent", "==", "folder-a"]',
 				);
-				expect(mockAgentService.lastChatInput.options.instructions).toContain(
+				expect(mockAgentsEngine.lastChatInput.options.instructions).toContain(
 					"SEARCH TOOLS AVAILABLE",
 				);
 			}
@@ -124,7 +124,7 @@ describe("RAGService", () => {
 
 			expect(result.isRight()).toBe(true);
 			if (result.isRight()) {
-				const instructions = mockAgentService.lastChatInput.options.instructions;
+				const instructions = mockAgentsEngine.lastChatInput.options.instructions;
 				expect(instructions).toContain("semantic/conceptual queries");
 				expect(instructions).toContain('"?user query"');
 				expect(instructions).toContain("find(filters)");
@@ -138,7 +138,7 @@ describe("RAGService", () => {
 
 			expect(result.isRight()).toBe(true);
 			if (result.isRight()) {
-				const instructions = mockAgentService.lastChatInput.options.instructions;
+				const instructions = mockAgentsEngine.lastChatInput.options.instructions;
 				expect(instructions).toContain("specific metadata searches");
 				expect(instructions).toContain('["title", "contains", "keyword"]');
 				expect(instructions).toContain('["mimetype", "==", "application/pdf"]');
@@ -151,7 +151,7 @@ describe("RAGService", () => {
 
 			expect(result.isRight()).toBe(true);
 			if (result.isRight()) {
-				const instructions = mockAgentService.lastChatInput.options.instructions;
+				const instructions = mockAgentsEngine.lastChatInput.options.instructions;
 				expect(instructions).toContain("RESPONSE GUIDELINES");
 				expect(instructions).toContain("Always search for information before responding");
 				expect(instructions).toContain("Include relevant document UUIDs");
@@ -161,7 +161,7 @@ describe("RAGService", () => {
 	});
 
 	describe("parameter pass-through", () => {
-		it("should pass through history and options to agent service", async () => {
+		it("should pass through history and options to agents engine", async () => {
 			const history: ChatHistory = [
 				{ role: "user", parts: [{ text: "Previous question" }] },
 				{ role: "model", parts: [{ text: "Previous answer" }] },
@@ -174,10 +174,10 @@ describe("RAGService", () => {
 			});
 
 			expect(result.isRight()).toBe(true);
-			expect(mockAgentService.lastChatInput.options.history).toEqual(history);
-			expect(mockAgentService.lastChatInput.options.temperature).toBe(0.5);
-			expect(mockAgentService.lastChatInput.options.maxTokens).toBe(4096);
-			expect(mockAgentService.lastChatInput.options.instructions).toBeDefined();
+			expect(mockAgentsEngine.lastChatInput.options.history).toEqual(history);
+			expect(mockAgentsEngine.lastChatInput.options.temperature).toBe(0.5);
+			expect(mockAgentsEngine.lastChatInput.options.maxTokens).toBe(4096);
+			expect(mockAgentsEngine.lastChatInput.options.instructions).toBeDefined();
 		});
 
 		it("should pass original user message unchanged", async () => {
@@ -186,7 +186,7 @@ describe("RAGService", () => {
 			const result = await ragService.chat(authContext, originalMessage, {});
 
 			expect(result.isRight()).toBe(true);
-			expect(mockAgentService.lastChatInput.text).toBe(originalMessage);
+			expect(mockAgentsEngine.lastChatInput.text).toBe(originalMessage);
 		});
 	});
 
@@ -238,7 +238,7 @@ describe("RAGService", () => {
 
 			expect(result.isRight()).toBe(true);
 			if (result.isRight()) {
-				const instructions = mockAgentService.lastChatInput.options.instructions;
+				const instructions = mockAgentsEngine.lastChatInput.options.instructions;
 				expect(instructions).toContain(
 					"SEARCH SCOPE: You have access to search across the entire platform content",
 				);
@@ -253,7 +253,7 @@ describe("RAGService", () => {
 
 			expect(result.isRight()).toBe(true);
 			if (result.isRight()) {
-				const instructions = mockAgentService.lastChatInput.options.instructions;
+				const instructions = mockAgentsEngine.lastChatInput.options.instructions;
 				expect(instructions).toContain(
 					'SEARCH SCOPE: Your search is limited to folder "test-folder-uuid"',
 				);
@@ -266,7 +266,7 @@ describe("RAGService", () => {
 
 			expect(result.isRight()).toBe(true);
 			if (result.isRight()) {
-				const instructions = mockAgentService.lastChatInput.options.instructions;
+				const instructions = mockAgentsEngine.lastChatInput.options.instructions;
 				expect(instructions).toContain("SEARCH STRATEGY:");
 				expect(instructions).toContain("SEARCH TOOLS AVAILABLE:");
 				expect(instructions).toContain("RESPONSE GUIDELINES:");

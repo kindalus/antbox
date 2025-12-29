@@ -288,6 +288,14 @@ class GoogleDriveStorageProvider implements StorageProvider {
 
 		return right({ id, mimeType, name, parents, trashed } as DriveMetada);
 	}
+
+	provideCDN(): boolean {
+		return false;
+	}
+
+	getCDNUrl(_uuid: string): string | undefined {
+		return undefined;
+	}
 }
 
 interface DriveMetada {

@@ -93,6 +93,14 @@ class FlatFileStorageProvider implements StorageProvider {
 		_bus: (eventId: string, handler: EventHandler<Event>) => void,
 	): void {}
 
+	provideCDN(): boolean {
+		return false;
+	}
+
+	getCDNUrl(_uuid: string): string | undefined {
+		return undefined;
+	}
+
 	#buildFileFolderPath(uuid: string) {
 		const [l1, l2] = uuid;
 		return join(this.#path, l1.toUpperCase(), l2.toUpperCase());

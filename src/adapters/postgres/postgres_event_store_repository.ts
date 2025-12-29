@@ -54,6 +54,8 @@ export class PostgresEventStoreRepository implements EventStoreRepository {
 			CREATE TABLE IF NOT EXISTS ${tableName} (
 				stream_id TEXT NOT NULL,
 				sequence INTEGER NOT NULL,
+				event_type TEXT NOT NULL,
+				user_email TEXT NOT NULL,
 				payload JSONB NOT NULL,
 				created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 				PRIMARY KEY (stream_id, sequence)
@@ -88,9 +90,16 @@ export class PostgresEventStoreRepository implements EventStoreRepository {
 			const sequence = seqResult[0]?.next_seq ?? 0;
 
 			await this.#sql.unsafe(
-				`INSERT INTO ${tableName} (stream_id, sequence, payload, created_at)
-				 VALUES ($1, $2, $3, $4)`,
-				[streamId, sequence, JSON.stringify(event), event.occurredOn],
+				`INSERT INTO ${tableName} (stream_id, sequence, event_type, user_email, payload, created_at)
+				 VALUES ($1, $2, $3, $4, $5, $6)`,
+				[
+					streamId,
+					sequence,
+					event.eventType,
+					event.userEmail,
+					JSON.stringify(event),
+					event.occurredOn,
+				],
 			);
 
 			return right(undefined);
@@ -109,9 +118,16 @@ export class PostgresEventStoreRepository implements EventStoreRepository {
 			const tableName = this.#getTableName(mimetype);
 
 			const rows = await this.#sql.unsafe<
-				{ stream_id: string; sequence: number; payload: Record<string, unknown> }[]
+				{
+					stream_id: string;
+					sequence: number;
+					event_type: string;
+					user_email: string;
+					payload: Record<string, unknown>;
+					created_at: string;
+				}[]
 			>(
-				`SELECT stream_id, sequence, payload
+				`SELECT stream_id, sequence, event_type, user_email, payload, created_at
 				 FROM ${tableName}
 				 WHERE stream_id = $1
 				 ORDER BY sequence`,
@@ -124,6 +140,8 @@ export class PostgresEventStoreRepository implements EventStoreRepository {
 					...eventData,
 					streamId: row.stream_id,
 					sequence: row.sequence,
+					eventType: row.event_type,
+					userEmail: row.user_email,
 				};
 			});
 
@@ -142,9 +160,16 @@ export class PostgresEventStoreRepository implements EventStoreRepository {
 			const tableName = this.#getTableName(mimetype);
 
 			const rows = await this.#sql.unsafe<
-				{ stream_id: string; sequence: number; payload: Record<string, unknown> }[]
+				{
+					stream_id: string;
+					sequence: number;
+					event_type: string;
+					user_email: string;
+					payload: Record<string, unknown>;
+					created_at: string;
+				}[]
 			>(
-				`SELECT stream_id, sequence, payload
+				`SELECT stream_id, sequence, event_type, user_email, payload, created_at
 				 FROM ${tableName}
 				 ORDER BY stream_id, sequence`,
 			);
@@ -157,6 +182,8 @@ export class PostgresEventStoreRepository implements EventStoreRepository {
 					...eventData,
 					streamId: row.stream_id,
 					sequence: row.sequence,
+					eventType: row.event_type,
+					userEmail: row.user_email,
 				};
 
 				if (!result.has(row.stream_id)) {

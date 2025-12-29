@@ -25,6 +25,14 @@ export class NullStorageProvider implements StorageProvider {
 	startListeners(
 		_bus: (eventId: string, handler: EventHandler<Event>) => void,
 	): void {}
+
+	provideCDN(): boolean {
+		return false;
+	}
+
+	getCDNUrl(_uuid: string): string | undefined {
+		return undefined;
+	}
 }
 
 export default function buildNullStorageProvider(): Promise<

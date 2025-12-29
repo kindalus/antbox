@@ -21,4 +21,6 @@ export interface StorageProvider {
 	startListeners(
 		bus: (eventId: string, handler: EventHandler<Event>) => void,
 	): void;
+	provideCDN(): boolean;
+	getCDNUrl(uuid: string): string | undefined;
 }

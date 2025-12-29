@@ -74,6 +74,8 @@ export interface NodeMetadata {
 
 	/** File size in bytes */
 	size?: number;
+	/** CDN URL for the file, provided by storage providers that support CDN */
+	cdnUrl?: string;
 
 	// ============================================================================
 	// FolderMixin FIELDS

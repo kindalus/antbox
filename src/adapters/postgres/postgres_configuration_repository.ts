@@ -37,8 +37,12 @@ export class PostgresConfigurationRepository implements ConfigurationRepository 
 		}
 	}
 
+	#toSnakeCase(str: string): string {
+		return str.replace(/([a-z])([A-Z])/g, "$1_$2").toLowerCase();
+	}
+
 	#getTableName(collection: keyof CollectionMap): string {
-		return `config_${collection}`;
+		return `config_${this.#toSnakeCase(collection)}`;
 	}
 
 	async #ensureTable(collection: keyof CollectionMap): Promise<void> {

@@ -250,6 +250,14 @@ export class NodeService {
 			return left(voidOrErr.value);
 		}
 
+		if (this.context.storage.provideCDN()) {
+			const cdnUrl = this.context.storage.getCDNUrl(nodeOrErr.value.uuid);
+			if (cdnUrl) {
+				nodeOrErr.value.update({ cdnUrl });
+				await this.context.repository.update(nodeOrErr.value);
+			}
+		}
+
 		// Publish NodeCreatedEvent
 		const evt = new NodeCreatedEvent(ctx.principal.email, ctx.tenant, nodeOrErr.value);
 		this.context.bus.publish(evt);
@@ -820,7 +828,16 @@ export class NodeService {
 			mimetype: nodeOrErr.value.mimetype,
 		});
 
-		return this.update(ctx, uuid, { size: file.size });
+		const updateMetadata: Partial<NodeMetadata> = { size: file.size };
+
+		if (this.context.storage.provideCDN()) {
+			const cdnUrl = this.context.storage.getCDNUrl(uuid);
+			if (cdnUrl) {
+				updateMetadata.cdnUrl = cdnUrl;
+			}
+		}
+
+		return this.update(ctx, uuid, updateMetadata);
 	}
 
 	async lock(

@@ -47,11 +47,9 @@ export class AuditLoggingService {
 		const node = event.payload;
 
 		this.repository.append(node.uuid, node.mimetype, {
-			eventId: crypto.randomUUID(),
 			eventType: NodeCreatedEvent.EVENT_ID,
 			occurredOn: event.occurredOn.toISOString(),
 			userEmail: event.userEmail,
-			tenant: event.tenant,
 			payload: event.payload,
 		}).catch((err) => {
 			console.error("Error appending NodeCreatedEvent to audit log:", err);
@@ -62,11 +60,9 @@ export class AuditLoggingService {
 		const changes = event.payload;
 
 		this.repository.append(changes.uuid, this.#getMimetypeFromChanges(changes), {
-			eventId: crypto.randomUUID(),
 			eventType: NodeUpdatedEvent.EVENT_ID,
 			occurredOn: event.occurredOn.toISOString(),
 			userEmail: event.userEmail,
-			tenant: event.tenant,
 			payload: event.payload,
 		}).catch((err) => {
 			console.error("Error appending NodeUpdatedEvent to audit log:", err);
@@ -77,11 +73,9 @@ export class AuditLoggingService {
 		const node = event.payload;
 
 		this.repository.append(node.uuid, node.mimetype, {
-			eventId: crypto.randomUUID(),
 			eventType: NodeDeletedEvent.EVENT_ID,
 			occurredOn: event.occurredOn.toISOString(),
 			userEmail: event.userEmail,
-			tenant: event.tenant,
 			payload: event.payload,
 		}).catch((err) => {
 			console.error("Error appending NodeDeletedEvent to audit log:", err);
@@ -115,11 +109,9 @@ export class AuditLoggingService {
 
 		const events = streamOrErr.value.map((event) => ({
 			streamId: event.streamId,
-			eventId: event.eventId,
 			eventType: event.eventType,
 			occurredOn: event.occurredOn,
 			userEmail: event.userEmail,
-			tenant: event.tenant,
 			payload: event.payload,
 			sequence: event.sequence,
 		}));

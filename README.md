@@ -10,8 +10,9 @@ Antbox is an open-source ECM/DAM platform built with Deno and TypeScript. It pro
 - **AI Agents** - Built-in RAG, chat, and tool calling with Google Gemini
 - **Workflows** - State machines with entry/exit actions and transitions
 - **Multi-Tenant** - Native tenant isolation with per-tenant configuration
-- **Pluggable Storage** - S3, Google Drive, or flat-file adapters
-- **Pluggable Database** - MongoDB, PouchDB, or flat-file repositories
+- **Pluggable Storage** - S3, Google Drive, in-memory, or flat-file adapters
+- **Pluggable Database** - PostgreSQL, MongoDB, SQLite, PouchDB, or flat-file repositories
+- **Event Sourcing** - Built-in event store for audit and replay
 - **Custom Features** - Execute JavaScript/TypeScript modules as actions
 - **Multi-Language** - Article system with locale-based content
 - **Security** - JWT, API keys, RBAC with groups and permissions
@@ -30,7 +31,7 @@ Antbox is an open-source ECM/DAM platform built with Deno and TypeScript. It pro
 git clone https://github.com/kindalus/antbox.git
 cd antbox
 
-# Start demo server (flat-file storage, no external dependencies)
+# Start demo server (SQLite + flat-file storage, no external dependencies)
 ./start_server.sh --demo
 ```
 
@@ -86,19 +87,19 @@ Use `start_server.sh` to launch Antbox:
 
 | Option | Description |
 |--------|-------------|
-| `--demo` | Run with demo configuration (flat-file, no setup required) |
-| `--sandbox` | Run with sandbox configuration |
-| `-f, --config FILE` | Use custom configuration file |
+| `--demo` | Run with demo configuration (SQLite repos + flat-file storage) |
+| `--sandbox` | Run with sandbox configuration (SQLite repos + in-memory storage) |
+| `-f, --config FILE` | Use custom configuration file (default: `.config/antbox.toml`) |
 | `--keys` | Generate and print crypto keys, then exit |
 | `-h, --help` | Show help message |
 
 ### Examples
 
 ```bash
-# Development/demo mode
+# Development/demo mode (persists data to ./data/)
 ./start_server.sh --demo
 
-# Sandbox environment
+# Sandbox environment (in-memory, data lost on restart)
 ./start_server.sh --sandbox
 
 # Production with custom config
@@ -112,22 +113,52 @@ Use `start_server.sh` to launch Antbox:
 
 Antbox uses TOML configuration files. Default location: `.config/antbox.toml`
 
-### Basic Configuration
+### Tenant Configuration
+
+Each tenant requires four repository configurations:
+
+| Repository | Purpose |
+|------------|---------|
+| `storage` | File/blob storage (S3, Google Drive, flat-file, in-memory) |
+| `repository` | Node metadata storage (PostgreSQL, MongoDB, SQLite, etc.) |
+| `configurationRepository` | System configuration storage |
+| `eventStoreRepository` | Event sourcing / audit trail |
+
+### Demo Configuration (SQLite + Flat-File)
 
 ```toml
 engine = "oak"
 port = 7180
 
 [[tenants]]
-name = "mytenant"
-rootPasswd = "secure_password_here"
+name = "demo"
+rootPasswd = "demo"
 key = "./.config/antbox.key"
 jwk = "./.config/antbox.jwk"
 storage = ["flat_file/flat_file_storage_provider.ts", "./data/storage"]
-repository = ["flat_file/flat_file_node_repository.ts", "./data/repository"]
+repository = ["sqlite/sqlite_node_repository.ts", "./data/repository"]
+configurationRepository = ["sqlite/sqlite_configuration_repository.ts", "./data/config"]
+eventStoreRepository = ["sqlite/sqlite_event_store_repository.ts", "./data/events"]
 ```
 
-### Production Configuration (MongoDB + S3)
+### Sandbox Configuration (In-Memory)
+
+```toml
+engine = "oak"
+port = 7180
+
+[[tenants]]
+name = "sandbox"
+rootPasswd = "demo"
+key = "./.config/antbox.key"
+jwk = "./.config/antbox.jwk"
+storage = ["inmem/inmem_storage_provider.ts"]
+repository = ["sqlite/sqlite_node_repository.ts"]
+configurationRepository = ["sqlite/sqlite_configuration_repository.ts"]
+eventStoreRepository = ["sqlite/sqlite_event_store_repository.ts"]
+```
+
+### Production Configuration (PostgreSQL + S3)
 
 ```toml
 engine = "oak"
@@ -139,7 +170,9 @@ rootPasswd = "secure_password"
 key = "./.config/antbox.key"
 jwk = "./.config/antbox.jwk"
 storage = ["s3/s3_storage_provider.ts", "/path/to/s3_config.json"]
-repository = ["mongodb/mongodb_node_repository.ts", "mongodb://localhost:27017/antbox"]
+repository = ["postgres/postgres_node_repository.ts", "postgresql://user:pass@host:5432/antbox"]
+configurationRepository = ["postgres/postgres_configuration_repository.ts", "postgresql://user:pass@host:5432/antbox"]
+eventStoreRepository = ["postgres/postgres_event_store_repository.ts", "postgresql://user:pass@host:5432/antbox"]
 ```
 
 ### Storage Adapters
@@ -147,16 +180,40 @@ repository = ["mongodb/mongodb_node_repository.ts", "mongodb://localhost:27017/a
 | Adapter | Use Case | Configuration |
 |---------|----------|---------------|
 | `flat_file` | Development, demos | `["flat_file/flat_file_storage_provider.ts", "./data/storage"]` |
+| `inmem` | Testing, sandbox | `["inmem/inmem_storage_provider.ts"]` |
 | `s3` | Production (AWS/MinIO) | `["s3/s3_storage_provider.ts", "/path/to/config.json"]` |
 | `google_drive` | Google Workspace | `["google_drive/google_drive_storage_provider.ts", "/path/to/creds.json"]` |
+| `null` | Testing (no-op) | `["null/null_storage_provider.ts"]` |
 
 ### Repository Adapters
 
 | Adapter | Use Case | Configuration |
 |---------|----------|---------------|
-| `flat_file` | Development | `["flat_file/flat_file_node_repository.ts", "./data/repository"]` |
-| `mongodb` | Production | `["mongodb/mongodb_node_repository.ts", "mongodb://host:port/db"]` |
+| `sqlite` | Development, single-node | `["sqlite/sqlite_node_repository.ts", "./data/db"]` |
+| `postgres` | Production | `["postgres/postgres_node_repository.ts", "postgresql://..."]` |
+| `mongodb` | Production | `["mongodb/mongodb_node_repository.ts", "mongodb://..."]` |
 | `pouchdb` | Embedded/Edge | `["pouchdb/pouchdb_node_repository.ts", "./data/pouchdb"]` |
+| `flat_file` | Simple setups | `["flat_file/flat_file_node_repository.ts", "./data/repo"]` |
+| `inmem` | Testing | `["inmem/inmem_node_repository.ts"]` |
+
+### Configuration Repository Adapters
+
+| Adapter | Configuration |
+|---------|---------------|
+| `sqlite` | `["sqlite/sqlite_configuration_repository.ts", "./data/config"]` |
+| `postgres` | `["postgres/postgres_configuration_repository.ts", "postgresql://..."]` |
+| `mongodb` | `["mongodb/mongodb_configuration_repository.ts", "mongodb://..."]` |
+| `inmem` | `["inmem/inmem_configuration_repository.ts"]` |
+
+### Event Store Repository Adapters
+
+| Adapter | Configuration |
+|---------|---------------|
+| `sqlite` | `["sqlite/sqlite_event_store_repository.ts", "./data/events"]` |
+| `postgres` | `["postgres/postgres_event_store_repository.ts", "postgresql://..."]` |
+| `mongodb` | `["mongodb/mongodb_event_store_repository.ts", "mongodb://..."]` |
+| `flat_file` | `["flat_file/flat_file_event_store_repository.ts", "./data/events"]` |
+| `inmem` | `["inmem/inmem_event_store_repository.ts"]` |
 
 ## API Overview
 
@@ -243,6 +300,14 @@ src/
 │   └── security/  # Auth, users, groups
 ├── domain/        # Domain models and entities
 ├── adapters/      # Storage and database implementations
+│   ├── flat_file/ # File-based storage and repos
+│   ├── inmem/     # In-memory adapters
+│   ├── sqlite/    # SQLite repositories
+│   ├── postgres/  # PostgreSQL repositories
+│   ├── mongodb/   # MongoDB repositories
+│   ├── pouchdb/   # PouchDB repositories
+│   ├── s3/        # S3 storage provider
+│   └── google_drive/ # Google Drive storage
 ├── shared/        # Utility classes
 └── integration/   # WebDAV support
 ```
@@ -280,7 +345,10 @@ deno lint
 ┌─────────────────────────────────────┐
 │     Adapter Layer (Pluggable)       │
 │   - Storage: S3, GDrive, FlatFile   │
-│   - Repository: MongoDB, PouchDB    │
+│   - Repository: Postgres, MongoDB,  │
+│     SQLite, PouchDB, FlatFile       │
+│   - EventStore: Postgres, MongoDB,  │
+│     SQLite, FlatFile                │
 └─────────────────────────────────────┘
 ```
 

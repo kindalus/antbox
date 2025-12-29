@@ -44,4 +44,12 @@ export class InMemoryStorageProvider implements StorageProvider {
 	startListeners(): void {
 		// Do nothing
 	}
+
+	provideCDN(): boolean {
+		return false;
+	}
+
+	getCDNUrl(_uuid: string): string | undefined {
+		return undefined;
+	}
 }

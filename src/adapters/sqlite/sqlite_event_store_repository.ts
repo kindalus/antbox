@@ -55,17 +55,19 @@ export class SqliteEventStoreRepository implements EventStoreRepository {
 
 		this.#db.exec(`
 			CREATE TABLE IF NOT EXISTS ${tableName} (
-				streamId TEXT NOT NULL,
+				stream_id TEXT NOT NULL,
 				sequence INTEGER NOT NULL,
+				event_type TEXT GENERATED ALWAYS AS (json_extract(payload, '$.eventType')) STORED,
+				user_email TEXT GENERATED ALWAYS AS (json_extract(payload, '$.userEmail')) STORED,
 				payload JSON NOT NULL,
-				timestamp TEXT NOT NULL,
-				PRIMARY KEY (streamId, sequence)
+				timestamp TEXT GENERATED ALWAYS AS (json_extract(payload, '$.occurredOn')) STORED,
+				PRIMARY KEY (stream_id, sequence)
 			);
 		`);
 
 		this.#db.exec(`
 			CREATE INDEX IF NOT EXISTS idx_${tableName}_stream
-			ON ${tableName}(streamId, sequence);
+			ON ${tableName}(stream_id, sequence);
 		`);
 
 		this.#existingTables.add(tableName);
@@ -82,17 +84,16 @@ export class SqliteEventStoreRepository implements EventStoreRepository {
 
 			const sequenceRow = this.#db
 				.prepare(
-					`SELECT COALESCE(MAX(sequence), -1) + 1 as nextSeq FROM ${tableName} WHERE streamId = ?`,
+					`SELECT COALESCE(MAX(sequence), -1) + 1 as nextSeq FROM ${tableName} WHERE stream_id = ?`,
 				)
 				.get(streamId) as { nextSeq: number };
 
 			const sequence = sequenceRow.nextSeq;
 			const payload = JSON.stringify(event);
-			const timestamp = event.occurredOn;
 
 			this.#db.exec(
-				`INSERT INTO ${tableName} (streamId, sequence, payload, timestamp) VALUES (?, ?, ?, ?)`,
-				[streamId, sequence, payload, timestamp],
+				`INSERT INTO ${tableName} (stream_id, sequence, payload) VALUES (?, ?, ?)`,
+				[streamId, sequence, payload],
 			);
 
 			return Promise.resolve(right(undefined));
@@ -112,15 +113,19 @@ export class SqliteEventStoreRepository implements EventStoreRepository {
 
 			const rows = this.#db
 				.prepare(
-					`SELECT streamId, sequence, payload FROM ${tableName} WHERE streamId = ? ORDER BY sequence`,
+					`SELECT stream_id, sequence, payload FROM ${tableName} WHERE stream_id = ? ORDER BY sequence`,
 				)
-				.all(streamId) as { streamId: string; sequence: number; payload: string }[];
+				.all(streamId) as {
+					stream_id: string;
+					sequence: number;
+					payload: string;
+				}[];
 
 			const events: AuditEvent[] = rows.map((row) => {
 				const eventData = JSON.parse(row.payload) as Omit<AuditEvent, "streamId" | "sequence">;
 				return {
 					...eventData,
-					streamId: row.streamId,
+					streamId: row.stream_id,
 					sequence: row.sequence,
 				};
 			});
@@ -141,9 +146,13 @@ export class SqliteEventStoreRepository implements EventStoreRepository {
 
 			const rows = this.#db
 				.prepare(
-					`SELECT streamId, sequence, payload FROM ${tableName} ORDER BY streamId, sequence`,
+					`SELECT stream_id, sequence, payload FROM ${tableName} ORDER BY stream_id, sequence`,
 				)
-				.all() as { streamId: string; sequence: number; payload: string }[];
+				.all() as {
+					stream_id: string;
+					sequence: number;
+					payload: string;
+				}[];
 
 			const result = new Map<string, AuditEvent[]>();
 
@@ -151,14 +160,14 @@ export class SqliteEventStoreRepository implements EventStoreRepository {
 				const eventData = JSON.parse(row.payload) as Omit<AuditEvent, "streamId" | "sequence">;
 				const event: AuditEvent = {
 					...eventData,
-					streamId: row.streamId,
+					streamId: row.stream_id,
 					sequence: row.sequence,
 				};
 
-				if (!result.has(row.streamId)) {
-					result.set(row.streamId, []);
+				if (!result.has(row.stream_id)) {
+					result.set(row.stream_id, []);
 				}
-				result.get(row.streamId)!.push(event);
+				result.get(row.stream_id)!.push(event);
 			}
 
 			return Promise.resolve(right(result));

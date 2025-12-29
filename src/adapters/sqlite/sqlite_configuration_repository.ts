@@ -40,8 +40,12 @@ export class SqliteConfigurationRepository implements ConfigurationRepository {
 		this.#db.exec("PRAGMA journal_mode = WAL;");
 	}
 
+	#toSnakeCase(str: string): string {
+		return str.replace(/([a-z])([A-Z])/g, "$1_$2").toLowerCase();
+	}
+
 	#getTableName(collection: keyof CollectionMap): string {
-		return `config_${collection}`;
+		return `config_${this.#toSnakeCase(collection)}`;
 	}
 
 	#ensureTable(collection: keyof CollectionMap): void {
@@ -51,24 +55,19 @@ export class SqliteConfigurationRepository implements ConfigurationRepository {
 			return;
 		}
 
+		// Users collection uses email as key, others use uuid
+		const keyExpression = collection === "users"
+			? "json_extract(body, '$.email')"
+			: "json_extract(body, '$.uuid')";
+
 		this.#db.exec(`
 			CREATE TABLE IF NOT EXISTS ${tableName} (
-				uuid TEXT PRIMARY KEY,
+				uuid TEXT GENERATED ALWAYS AS (${keyExpression}) STORED PRIMARY KEY,
 				body JSON NOT NULL
 			);
 		`);
 
 		this.#existingTables.add(tableName);
-	}
-
-	#getKey<K extends keyof CollectionMap>(
-		collection: K,
-		data: CollectionMap[K],
-	): string {
-		if (collection === "users") {
-			return (data as { email: string }).email;
-		}
-		return (data as { uuid: string }).uuid;
 	}
 
 	save<K extends keyof CollectionMap>(
@@ -78,13 +77,12 @@ export class SqliteConfigurationRepository implements ConfigurationRepository {
 		try {
 			this.#ensureTable(collection);
 			const tableName = this.#getTableName(collection);
-			const key = this.#getKey(collection, data);
 			const body = JSON.stringify(data);
 
 			this.#db.exec(
-				`INSERT INTO ${tableName} (uuid, body) VALUES (?, ?)
+				`INSERT INTO ${tableName} (body) VALUES (?)
 				 ON CONFLICT(uuid) DO UPDATE SET body = excluded.body`,
-				[key, body],
+				[body],
 			);
 
 			return Promise.resolve(right(data));

@@ -1,3 +1,4 @@
+import { Logger } from "shared/logger.ts";
 import {
 	type LocalizedArticleDTO,
 	type RawArticleDTO,
@@ -217,7 +218,7 @@ export class ArticleService {
 		);
 
 		if (nodesOrErrs.isLeft()) {
-			console.error(nodesOrErrs.value);
+			Logger.error(nodesOrErrs.value);
 			return [];
 		}
 

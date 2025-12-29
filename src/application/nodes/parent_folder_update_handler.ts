@@ -1,3 +1,4 @@
+import { Logger } from "shared/logger.ts";
 import type { EventHandler } from "shared/event_handler.ts";
 import type { NodeCreatedEvent } from "domain/nodes/node_created_event.ts";
 import type { NodeDeletedEvent } from "domain/nodes/node_deleted_event.ts";
@@ -16,7 +17,7 @@ export class ParentFolderUpdateHandler
 
 	handle(event: NodeCreatedEvent | NodeDeletedEvent | NodeUpdatedEvent): void {
 		const errorHandler = <T>(error: T) =>
-			console.error(
+			Logger.error(
 				`ParentFolderUpdateHandler: Unexpected error handling ${event.eventId}:`,
 				error,
 			);
@@ -56,7 +57,7 @@ export class ParentFolderUpdateHandler
 			const updatedNode = await this.context.repository.getById(uuid);
 
 			if (updatedNode.isLeft()) {
-				console.debug(`ParentFolderUpdateHandler: Updated node not found: ${uuid}`);
+				Logger.debug(`ParentFolderUpdateHandler: Updated node not found: ${uuid}`);
 				return;
 			}
 
@@ -79,7 +80,7 @@ export class ParentFolderUpdateHandler
 		if (parentOrErr.isLeft()) {
 			// Parent not found - this could happen if parent was deleted
 			// or if it's a built-in folder. Log but don't throw.
-			console.warn(`ParentFolderUpdateHandler: Parent folder not found: ${parentUuid}`);
+			Logger.warn(`ParentFolderUpdateHandler: Parent folder not found: ${parentUuid}`);
 			return;
 		}
 
@@ -91,7 +92,7 @@ export class ParentFolderUpdateHandler
 		});
 
 		if (updateResult.isLeft()) {
-			console.error(
+			Logger.error(
 				`ParentFolderUpdateHandler: Failed to update parent folder metadata: ${updateResult.value.message}`,
 			);
 			return;
@@ -100,7 +101,7 @@ export class ParentFolderUpdateHandler
 		// Save the updated parent to repository
 		const saveResult = await this.context.repository.update(parent);
 		if (saveResult.isLeft()) {
-			console.error(
+			Logger.error(
 				`ParentFolderUpdateHandler: Failed to save updated parent folder: ${saveResult.value.message}`,
 			);
 			return;

@@ -16,6 +16,7 @@ import { join } from "path";
 import { AntboxError, UnknownError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
 import { copyFile, fileExistsSync } from "shared/os_helpers.ts";
+import { Logger } from "shared/logger.ts";
 
 export default function buildFlatFileStorageProvider(
 	baseDir: string,
@@ -84,7 +85,7 @@ class FlatFileNodeRepository implements NodeRepository {
 				return result;
 			})
 			.catch((err) => {
-				console.error(err);
+				Logger.error(err);
 				return left(new NodeNotFoundError(uuid));
 			});
 	}
@@ -100,7 +101,7 @@ class FlatFileNodeRepository implements NodeRepository {
 				return result;
 			})
 			.catch((err) => {
-				console.error(err);
+				Logger.error(err);
 				return left(new NodeNotFoundError(node.uuid));
 			});
 	}
@@ -116,7 +117,7 @@ class FlatFileNodeRepository implements NodeRepository {
 				return result;
 			})
 			.catch((err) => {
-				console.error(err);
+				Logger.error(err);
 				return left(new UnknownError(err));
 			});
 	}

@@ -2,6 +2,7 @@ import type { ModelConfiguration } from "api/http_server_configuration.ts";
 import type { AntboxError } from "shared/antbox_error.ts";
 import type { Either } from "shared/either.ts";
 import type { AIModel } from "application/ai/ai_model.ts";
+import { Logger } from "shared/logger.ts";
 
 export async function modelFrom(
 	cfg?: ModelConfiguration,
@@ -22,14 +23,14 @@ export async function modelFrom(
 
 	const mod = await loadModel(path);
 	if (!mod) {
-		console.error("could not load model");
+		Logger.error("could not load model");
 		Deno.exit(-1);
 	}
 
 	const modelOrErr = await (model ? mod(model, ...params) : mod());
 	if (modelOrErr.isLeft()) {
-		console.error("could not load model");
-		console.error(modelOrErr.value);
+		Logger.error("could not load model");
+		Logger.error(modelOrErr.value);
 		Deno.exit(-1);
 	}
 
@@ -45,14 +46,14 @@ async function loadModel(
 		const m = await import(path);
 
 		if (!m.default) {
-			console.error(`module [${path}] has no default export`);
+			Logger.error(`module [${path}] has no default export`);
 			Deno.exit(-1);
 		}
 
 		return m.default;
 	} catch (e) {
-		console.error("could not load model");
-		console.error(e);
+		Logger.error("could not load model");
+		Logger.error(e);
 		Deno.exit(-1);
 	}
 }

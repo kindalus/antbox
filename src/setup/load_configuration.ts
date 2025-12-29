@@ -1,3 +1,4 @@
+import { Logger } from "shared/logger.ts";
 import { ServerConfiguration } from "api/http_server_configuration.ts";
 import { fileExistsSync } from "shared/os_helpers.ts";
 import { PORT } from "./server_defaults.ts";
@@ -7,7 +8,7 @@ export async function loadConfiguration(
 	configPath: string,
 ): Promise<ServerConfiguration> {
 	if (!(fileExistsSync(configPath))) {
-		console.error(`Configuration file not found: ${configPath}`);
+		Logger.error(`Configuration file not found: ${configPath}`);
 		Deno.exit(1);
 	}
 

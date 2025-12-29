@@ -1,4 +1,5 @@
 // deno-lint-ignore-file no-case-declarations
+import { Logger } from "shared/logger.ts";
 import { loadTemplate, TEMPLATES } from "api/templates/index.ts";
 import type { Feature } from "domain/features/feature.ts";
 import { RunContext } from "domain/features/feature_run_context.ts";
@@ -149,7 +150,7 @@ export class FeaturesEngine {
 		// Helper to filter out error results and log warnings
 		const filterAndLog = (nodeOrErr: Either<AntboxError, NodeMetadata>) => {
 			if (nodeOrErr.isLeft()) {
-				console.warn("Error retrieving the node", nodeOrErr.value.message);
+				Logger.warn("Error retrieving the node", nodeOrErr.value.message);
 			}
 			return nodeOrErr.isRight();
 		};
@@ -478,7 +479,7 @@ export class FeaturesEngine {
 
 		featuresOrErrs.filter((v) => v.isLeft())
 			.forEach((v) => {
-				console.warn(v.value.message);
+				Logger.warn(v.value.message);
 			});
 
 		return featuresOrErrs.filter((v) => v.isRight()).map((v) => v.value);
@@ -634,7 +635,7 @@ export class FeaturesEngine {
 			try {
 				await feature.run(runContext, { uuids: [evt.payload.uuid] });
 			} catch (error) {
-				console.error(`Error running feature ${feature.uuid}:`, error);
+				Logger.error(`Error running feature ${feature.uuid}:`, error);
 			}
 		}
 	}
@@ -686,7 +687,7 @@ export class FeaturesEngine {
 			try {
 				await feature.run(runContext, { uuids: [evt.payload.uuid] });
 			} catch (error) {
-				console.error(`Error running feature ${feature.uuid}:`, error);
+				Logger.error(`Error running feature ${feature.uuid}:`, error);
 			}
 		}
 	}
@@ -738,7 +739,7 @@ export class FeaturesEngine {
 			try {
 				await feature.run(runContext, { uuids: [evt.payload.uuid] });
 			} catch (error) {
-				console.error(`Error running feature ${feature.uuid}:`, error);
+				Logger.error(`Error running feature ${feature.uuid}:`, error);
 			}
 		}
 	}
@@ -797,7 +798,7 @@ export class FeaturesEngine {
 			try {
 				await this.#run(actionContext, featureUuid, params);
 			} catch (error) {
-				console.error(
+				Logger.error(
 					`Error running onDelete action ${featureUuid} for node ${evt.payload.uuid}:`,
 					error,
 				);
@@ -861,7 +862,7 @@ export class FeaturesEngine {
 			try {
 				await this.#run(actionContext, featureUuid, params);
 			} catch (error) {
-				console.error(
+				Logger.error(
 					`Error running onCreate action ${featureUuid} for node ${evt.payload.uuid}:`,
 					error,
 				);
@@ -926,7 +927,7 @@ export class FeaturesEngine {
 			try {
 				await this.#run(actionContext, featureUuid, params);
 			} catch (error) {
-				console.error(
+				Logger.error(
 					`Error running onUpdate action ${featureUuid} for node ${evt.payload.uuid}:`,
 					error,
 				);

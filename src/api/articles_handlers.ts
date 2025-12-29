@@ -1,3 +1,4 @@
+import { Logger } from "shared/logger.ts";
 import type { AntboxTenant } from "api/antbox_tenant.ts";
 import { defaultMiddlewareChain } from "api/default_middleware_chain.ts";
 import { getAuthenticationContext } from "api/get_authentication_context.ts";
@@ -117,7 +118,7 @@ export function createOrReplaceHandler(tenants: AntboxTenant[]): HttpHandler {
 					return new Response("Missing metadata", { status: 400 });
 				}
 			} catch (_error) {
-				console.error(_error);
+				Logger.error(_error);
 				return new Response("Invalid metadata", { status: 400 });
 			}
 

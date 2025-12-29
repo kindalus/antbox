@@ -1,3 +1,4 @@
+import { Logger } from "shared/logger.ts";
 import type { AuthenticationContext } from "../security/authentication_context.ts";
 import type { NodeServiceContext } from "./node_service_context.ts";
 import type {
@@ -101,7 +102,7 @@ export class FindService {
 				return this.find(ctx, filtersOrErr.value, pageSize, pageToken);
 			}
 
-			console.debug("defaulting to fulltext search");
+			Logger.debug("defaulting to fulltext search");
 			return this.find(ctx, [["fulltext", "match", filters]], pageSize, pageToken);
 		}
 
@@ -141,7 +142,7 @@ export class FindService {
 	): Promise<Either<AntboxError, NodeFilterResult>> {
 		// Check if repository supports embeddings and embedding model is available
 		if (!this.context.repository.supportsEmbeddings() || !this.context.embeddingModel) {
-			console.warn(
+			Logger.warn(
 				"Semantic search requested but AI features not available, falling back to fulltext search",
 			);
 			return this.find(ctx, [["fulltext", "match", query]], pageSize, pageToken);
@@ -151,7 +152,7 @@ export class FindService {
 			// Generate embedding for query using embedding model
 			const embeddingsOrErr = await this.context.embeddingModel.embed([query]);
 			if (embeddingsOrErr.isLeft()) {
-				console.error("Failed to generate embedding for query:", embeddingsOrErr.value);
+				Logger.error("Failed to generate embedding for query:", embeddingsOrErr.value);
 				// Fallback to fulltext search
 				return this.find(ctx, [["fulltext", "match", query]], pageSize, pageToken);
 			}
@@ -165,7 +166,7 @@ export class FindService {
 			);
 
 			if (searchOrErr.isLeft()) {
-				console.error("Vector search failed:", searchOrErr.value);
+				Logger.error("Vector search failed:", searchOrErr.value);
 				// Fallback to fulltext search
 				return this.find(ctx, [["fulltext", "match", query]], pageSize, pageToken);
 			}
@@ -211,7 +212,7 @@ export class FindService {
 
 			return right(r);
 		} catch (error) {
-			console.error("Semantic search failed:", error);
+			Logger.error("Semantic search failed:", error);
 			// Fallback to fulltext search
 			return this.find(ctx, [["fulltext", "match", query]], pageSize, pageToken);
 		}

@@ -1,6 +1,7 @@
 import { type BindValue, Database } from "jsr:@db/sqlite";
 
 import { NodeFactory } from "domain/node_factory.ts";
+import { Logger } from "shared/logger.ts";
 import type { NodeLike } from "domain/node_like.ts";
 import type { Embedding } from "domain/nodes/embedding.ts";
 import {
@@ -302,7 +303,7 @@ export class SqliteNodeRepository implements NodeRepository {
 				pageToken,
 			});
 		} catch (err) {
-			console.error("Filter error:", err);
+			Logger.error("Filter error:", err);
 			return Promise.resolve({
 				nodes: [],
 				pageSize,

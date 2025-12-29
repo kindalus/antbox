@@ -2,6 +2,7 @@ import PouchDB from "pouchdb";
 import PouchDbFind from "pouchdb-find";
 
 import { NodeFactory } from "domain/node_factory.ts";
+import { Logger } from "shared/logger.ts";
 import type { Embedding } from "domain/nodes/embedding.ts";
 import {
 	type FilterOperator,
@@ -53,7 +54,7 @@ export default async function buildPouchdbNodeRepository(
 	await db
 		.createIndex({ index: { fields: ["title", "fid", "parent", "aspects"] } })
 		.catch((err: unknown) => {
-			console.error(err);
+			Logger.error(err);
 			throw err;
 		});
 
@@ -146,7 +147,7 @@ class PouchdbNodeRepository implements NodeRepository {
 			})
 			.then(() => right<NodeNotFoundError, void>(undefined))
 			.catch((err: unknown) => {
-				console.error(err);
+				Logger.error(err);
 				return left(new NodeNotFoundError(node.uuid));
 			});
 	}
@@ -185,7 +186,7 @@ class PouchdbNodeRepository implements NodeRepository {
 			.put(doc)
 			.then(() => right<DuplicatedNodeError, void>(undefined))
 			.catch((err: unknown) => {
-				console.error(err);
+				Logger.error(err);
 				return left(new DuplicatedNodeError(node.uuid));
 			});
 	}
@@ -268,7 +269,7 @@ class PouchdbNodeRepository implements NodeRepository {
 				pageToken,
 			};
 		} catch (err) {
-			console.log(err);
+			Logger.info(err);
 		}
 
 		return {
@@ -310,7 +311,7 @@ class PouchdbNodeRepository implements NodeRepository {
 			});
 			return right(undefined);
 		} catch (err: unknown) {
-			console.error(err);
+			Logger.error(err);
 			return left(new UnknownError((err as Error).message));
 		}
 	}
@@ -339,7 +340,7 @@ class PouchdbNodeRepository implements NodeRepository {
 
 			return right({ nodes: topResults });
 		} catch (err: unknown) {
-			console.error(err);
+			Logger.error(err);
 			return left(new UnknownError((err as Error).message));
 		}
 	}
@@ -356,7 +357,7 @@ class PouchdbNodeRepository implements NodeRepository {
 			await this.db.put(rest as PouchDB.Core.ExistingDocument<NodeDbModel>);
 			return right(undefined);
 		} catch (err: unknown) {
-			console.error(err);
+			Logger.error(err);
 			return left(new UnknownError((err as Error).message));
 		}
 	}

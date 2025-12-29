@@ -1,3 +1,4 @@
+import { Logger } from "shared/logger.ts";
 import { NodeMetadata } from "domain/nodes/node_metadata.ts";
 
 /**
@@ -407,7 +408,7 @@ export function startPathCacheCleanup(intervalMs = 60000): number {
 	return setInterval(() => {
 		const evicted = webdavPathCache.evictExpired();
 		if (evicted > 0) {
-			console.log(`[WebDAV Cache] Evicted ${evicted} expired entries`);
+			Logger.info(`[WebDAV Cache] Evicted ${evicted} expired entries`);
 		}
 	}, intervalMs);
 }

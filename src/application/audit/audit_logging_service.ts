@@ -1,3 +1,4 @@
+import { Logger } from "shared/logger.ts";
 import type { AuditEventDTO } from "domain/audit/audit_event.ts";
 import type { EventStoreRepository } from "domain/audit/event_store_repository.ts";
 import { NodeCreatedEvent } from "domain/nodes/node_created_event.ts";
@@ -52,7 +53,7 @@ export class AuditLoggingService {
 			userEmail: event.userEmail,
 			payload: event.payload,
 		}).catch((err) => {
-			console.error("Error appending NodeCreatedEvent to audit log:", err);
+			Logger.error("Error appending NodeCreatedEvent to audit log:", err);
 		});
 	}
 
@@ -65,7 +66,7 @@ export class AuditLoggingService {
 			userEmail: event.userEmail,
 			payload: event.payload,
 		}).catch((err) => {
-			console.error("Error appending NodeUpdatedEvent to audit log:", err);
+			Logger.error("Error appending NodeUpdatedEvent to audit log:", err);
 		});
 	}
 
@@ -78,7 +79,7 @@ export class AuditLoggingService {
 			userEmail: event.userEmail,
 			payload: event.payload,
 		}).catch((err) => {
-			console.error("Error appending NodeDeletedEvent to audit log:", err);
+			Logger.error("Error appending NodeDeletedEvent to audit log:", err);
 		});
 	}
 

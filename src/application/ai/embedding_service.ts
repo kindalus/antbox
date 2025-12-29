@@ -1,3 +1,4 @@
+import { Logger } from "shared/logger.ts";
 import { NodeCreatedEvent } from "domain/nodes/node_created_event.ts";
 import { NodeUpdatedEvent } from "domain/nodes/node_updated_event.ts";
 import { NodeDeletedEvent } from "domain/nodes/node_deleted_event.ts";
@@ -72,7 +73,7 @@ export class EmbeddingService {
 			await this.#generateAndStoreEmbedding(node);
 		} catch (error) {
 			// Log error but don't throw - embedding generation should not break node creation
-			console.error(`Failed to generate embedding for node ${node.uuid}:`, error);
+			Logger.error(`Failed to generate embedding for node ${node.uuid}:`, error);
 		}
 	}
 
@@ -84,7 +85,7 @@ export class EmbeddingService {
 		);
 
 		if (nodeOrErr.isLeft()) {
-			console.error(`Failed to get node ${event.payload.uuid} for embedding update`);
+			Logger.error(`Failed to get node ${event.payload.uuid} for embedding update`);
 			return;
 		}
 
@@ -115,7 +116,7 @@ export class EmbeddingService {
 			await this.#generateAndStoreEmbedding(node);
 		} catch (error) {
 			// Log error but don't throw - embedding generation should not break node update
-			console.error(`Failed to update embedding for node ${node.uuid}:`, error);
+			Logger.error(`Failed to update embedding for node ${node.uuid}:`, error);
 		}
 	}
 
@@ -176,11 +177,11 @@ export class EmbeddingService {
 			const deleteOrErr = await this.context.repository.deleteEmbedding(nodeUuid);
 			if (deleteOrErr.isLeft()) {
 				// Log error but don't throw - deletion failures shouldn't break operations
-				console.error(`Failed to delete embedding for node ${nodeUuid}:`, deleteOrErr.value);
+				Logger.error(`Failed to delete embedding for node ${nodeUuid}:`, deleteOrErr.value);
 			}
 		} catch (error) {
 			// Log error but don't throw - deletion failures shouldn't break operations
-			console.error(`Failed to delete embedding for node ${nodeUuid}:`, error);
+			Logger.error(`Failed to delete embedding for node ${nodeUuid}:`, error);
 		}
 	}
 }

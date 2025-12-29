@@ -1,3 +1,4 @@
+import { Logger } from "shared/logger.ts";
 import { type HttpHandler } from "./handler.ts";
 
 export type HttpMiddleware = (next: HttpHandler) => HttpHandler;
@@ -67,11 +68,11 @@ export const corsMiddleware: HttpMiddleware = (next: HttpHandler) => async (req:
 export const logMiddleware: HttpMiddleware = (next: HttpHandler) => async (req: Request) => {
 	try {
 		const res = await next(req);
-		console.debug(`${req.method} ${req.url} ${res.status}`);
+		Logger.debug(`${req.method} ${req.url} ${res.status}`);
 
 		return res;
 	} catch (error) {
-		console.error(error);
+		Logger.error(error);
 		throw error;
 	}
 };

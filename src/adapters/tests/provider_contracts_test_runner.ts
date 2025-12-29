@@ -1,6 +1,8 @@
+import { Logger } from "shared/logger.ts";
+
 if (Deno.args.length < 2) {
-	console.error("This script must be run with command line arguments.");
-	console.error(
+	Logger.error("This script must be run with command line arguments.");
+	Logger.error(
 		"usage: deno run -A provider_contracts_test_runner.ts <storage|repository> <provider_url>*",
 	);
 	Deno.exit(1);

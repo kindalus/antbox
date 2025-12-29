@@ -1,4 +1,5 @@
 import { auth, drive, drive_v3 } from "@googleapis/drive";
+import { Logger } from "shared/logger.ts";
 import type { StorageProvider, WriteFileOpts } from "application/nodes/storage_provider.ts";
 import type { DuplicatedNodeError } from "domain/nodes/duplicated_node_error.ts";
 import { NodeCreatedEvent } from "domain/nodes/node_created_event.ts";
@@ -77,7 +78,7 @@ class GoogleDriveStorageProvider implements StorageProvider {
 			.delete({ fileId })
 			.then(() => right(undefined))
 			.catch((e: Error) => {
-				console.error(e.message);
+				Logger.error(e.message);
 				return left(new NodeFileNotFoundError(uuid));
 			}) as Promise<Either<NodeNotFoundError, void>>;
 	}
@@ -128,7 +129,7 @@ class GoogleDriveStorageProvider implements StorageProvider {
 		const parentMetadataOrError = await this.#getDriveMedata(parent);
 
 		if (parentMetadataOrError.isLeft()) {
-			console.error(parentMetadataOrError.value.message);
+			Logger.error(parentMetadataOrError.value.message);
 			return;
 		}
 
@@ -138,7 +139,7 @@ class GoogleDriveStorageProvider implements StorageProvider {
 				removeParents: this.#rootFolderId,
 				addParents: parentMetadataOrError.value.id,
 			})
-			.catch((e: unknown) => console.error((e as Error).message));
+			.catch((e: unknown) => Logger.error((e as Error).message));
 	}
 
 	async #handleNodeUpdated(evt: NodeUpdatedEvent) {
@@ -148,7 +149,7 @@ class GoogleDriveStorageProvider implements StorageProvider {
 
 		const fileOrErr = await this.#getDriveMedata(evt.payload.uuid);
 		if (fileOrErr.isLeft()) {
-			console.error(fileOrErr.value.message);
+			Logger.error(fileOrErr.value.message);
 			return;
 		}
 
@@ -157,7 +158,7 @@ class GoogleDriveStorageProvider implements StorageProvider {
 		if (evt.payload.newValues.parent) {
 			const newParentOrErr = await this.#getDriveMedata(evt.payload.newValues.parent);
 			if (newParentOrErr.isLeft()) {
-				console.error(newParentOrErr.value.message);
+				Logger.error(newParentOrErr.value.message);
 				return;
 			}
 
@@ -171,7 +172,7 @@ class GoogleDriveStorageProvider implements StorageProvider {
 
 		this.#drive.files
 			.update({ fileId: fileOrErr.value.id, requestBody })
-			.catch((e: unknown) => console.error((e as Error).message));
+			.catch((e: unknown) => Logger.error((e as Error).message));
 	}
 
 	async #handleNodeDeleted(evt: NodeDeletedEvent) {
@@ -181,13 +182,13 @@ class GoogleDriveStorageProvider implements StorageProvider {
 
 		const idOrErr = await this.#getDriveMedata(evt.payload.uuid);
 		if (idOrErr.isLeft()) {
-			console.error(idOrErr.value);
+			Logger.error(idOrErr.value);
 			return;
 		}
 
 		this.#drive.files
 			.delete({ fileId: idOrErr.value.id })
-			.catch((e: unknown) => console.error((e as Error).message));
+			.catch((e: unknown) => Logger.error((e as Error).message));
 	}
 
 	async #handleNodeCreated(evt: NodeCreatedEvent) {
@@ -202,7 +203,7 @@ class GoogleDriveStorageProvider implements StorageProvider {
 		if (evt.payload.parent !== Nodes.ROOT_FOLDER_UUID) {
 			const parentOrErr = await this.#getDriveMedata(evt.payload.parent);
 			if (parentOrErr.isLeft()) {
-				console.error(parentOrErr.value.message);
+				Logger.error(parentOrErr.value.message);
 				return;
 			}
 			parentId = parentOrErr.value.id;
@@ -225,7 +226,7 @@ class GoogleDriveStorageProvider implements StorageProvider {
 
 		return this.#drive.files
 			.create({ requestBody })
-			.catch((e: unknown) => console.error((e as Error).message));
+			.catch((e: unknown) => Logger.error((e as Error).message));
 	}
 
 	async read(uuid: string): Promise<Either<NodeNotFoundError, File>> {
@@ -248,7 +249,7 @@ class GoogleDriveStorageProvider implements StorageProvider {
 				return right(new File([(res as any).data], name, { type: mimeType }));
 			})
 			.catch((e: unknown) => {
-				console.error((e as Error).message);
+				Logger.error((e as Error).message);
 				return left(new NodeFileNotFoundError(uuid));
 			}) as Promise<Either<NodeNotFoundError, File>>;
 	}

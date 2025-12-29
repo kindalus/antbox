@@ -5,6 +5,7 @@ import { join } from "path";
 import { AntboxError, UnknownError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
 import { copyFile, fileExistsSync } from "shared/os_helpers.ts";
+import { Logger } from "shared/logger.ts";
 
 export default function buildFlatFileEventStoreRepository(
 	baseDir: string,
@@ -60,7 +61,7 @@ class FlatFileEventStoreRepository implements EventStoreRepository {
 								mimetypeStreams.set(streamId, events);
 								this.#base.streamsByMimetype.set(mimetype, mimetypeStreams);
 							} catch (err) {
-								console.error(
+								Logger.error(
 									`Error loading stream ${streamId} for mimetype ${mimetype}:`,
 									err,
 								);
@@ -70,7 +71,7 @@ class FlatFileEventStoreRepository implements EventStoreRepository {
 				}
 			}
 		} catch (err) {
-			console.error("Error loading event streams:", err);
+			Logger.error("Error loading event streams:", err);
 		}
 	}
 
@@ -122,7 +123,7 @@ class FlatFileEventStoreRepository implements EventStoreRepository {
 
 			return result;
 		} catch (err) {
-			console.error(`Error appending event to stream ${streamId}:`, err);
+			Logger.error(`Error appending event to stream ${streamId}:`, err);
 			return left(new UnknownError(err as string));
 		}
 	}

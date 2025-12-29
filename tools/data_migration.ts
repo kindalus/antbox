@@ -1,3 +1,4 @@
+import { Logger } from "shared/logger.ts";
 import { providerFrom } from "adapters/module_configuration_parser.ts";
 import type { StorageProvider } from "application/nodes/storage_provider.ts";
 import type {
@@ -30,11 +31,11 @@ function assert<T>(
 
 async function main() {
 	if (Deno.args.length === 0) {
-		console.error(
+		Logger.error(
 			"Usage: deno run --allow-read --allow-write --allow-ffi tools/data_migration.ts <path/to/config.json>",
 		);
 
-		console.log(`
+		Logger.info(`
         Config file should look like this:
         {
             "src": {
@@ -57,8 +58,8 @@ async function main() {
 		with: { type: "json" },
 	});
 
-	console.log("Migrating data using configuration:");
-	console.log(JSON.stringify(cfg, null, 2));
+	Logger.info("Migrating data using configuration:");
+	Logger.info(JSON.stringify(cfg, null, 2));
 
 	const srcRepo = await providerFrom<NodeRepository>(cfg.src.repository);
 	const dstRepo = await providerFrom<NodeRepository>(cfg.dst.repository);
@@ -72,7 +73,7 @@ async function main() {
 	assert(dstStorage, "Invalid destination storage configuration");
 
 	// Migrate nodes (content)
-	console.log("\n=== Migrating nodes ===");
+	Logger.info("\n=== Migrating nodes ===");
 	await migrateChildren(srcRepo, dstRepo, srcStorage, dstStorage);
 
 	// Migrate configuration data if configuration repositories are provided
@@ -83,11 +84,11 @@ async function main() {
 		assert(srcConfig, "Invalid source configuration repository");
 		assert(dstConfig, "Invalid destination configuration repository");
 
-		console.log("\n=== Migrating configuration ===");
+		Logger.info("\n=== Migrating configuration ===");
 		await migrateConfiguration(srcConfig, dstConfig);
 	}
 
-	console.log("\n=== Migration complete ===");
+	Logger.info("\n=== Migration complete ===");
 }
 
 async function migrateConfiguration(
@@ -106,26 +107,26 @@ async function migrateConfiguration(
 	];
 
 	for (const collection of collections) {
-		console.log(`Migrating ${collection}...`);
+		Logger.info(`Migrating ${collection}...`);
 
 		const itemsOrErr = await srcConfig.list(collection);
 		if (itemsOrErr.isLeft()) {
-			console.error(`Failed to list ${collection}: ${itemsOrErr.value.message}`);
+			Logger.error(`Failed to list ${collection}: ${itemsOrErr.value.message}`);
 			continue;
 		}
 
 		const items = itemsOrErr.value;
-		console.log(`Found ${items.length} items in ${collection}`);
+		Logger.info(`Found ${items.length} items in ${collection}`);
 
 		for (const item of items) {
 			const saveOrErr = await dstConfig.save(collection, item);
 			if (saveOrErr.isLeft()) {
-				console.error(`Failed to save ${collection} item: ${saveOrErr.value.message}`);
+				Logger.error(`Failed to save ${collection} item: ${saveOrErr.value.message}`);
 				Deno.exit(1);
 			}
 		}
 
-		console.log(`Migrated ${items.length} ${collection}`);
+		Logger.info(`Migrated ${items.length} ${collection}`);
 	}
 }
 
@@ -142,20 +143,20 @@ async function migrateChildren(
 		1,
 	);
 
-	console.log(`Migrating children of ${uuid}`);
-	console.log(`Number of children: ${children?.nodes.length}`);
+	Logger.info(`Migrating children of ${uuid}`);
+	Logger.info(`Number of children: ${children?.nodes.length}`);
 
 	for (const node of children?.nodes ?? []) {
 		const voidOrErr = await dstRepo.add(node);
 		if (voidOrErr.isLeft()) {
-			console.log(
+			Logger.info(
 				`Failed to migrate node uuid: ${node.uuid} / metadata: ${node.title}`,
 			);
-			console.error(voidOrErr.value.message);
+			Logger.error(voidOrErr.value.message);
 			Deno.exit(1);
 		}
 
-		console.log(`Migrated node metadata: ${node.title}`);
+		Logger.info(`Migrated node metadata: ${node.title}`);
 
 		if (Nodes.isFolder(node)) {
 			await migrateChildren(
@@ -184,8 +185,8 @@ async function migrateNode(
 
 	const fileOrErr = await srcStorage.read(node.uuid);
 	if (fileOrErr.isLeft()) {
-		console.error(fileOrErr.value.message);
-		console.log(
+		Logger.error(fileOrErr.value.message);
+		Logger.info(
 			`Failed to read file node uuid: ${node.uuid} / metadata: ${node.title}`,
 		);
 		Deno.exit(1);
@@ -198,14 +199,14 @@ async function migrateNode(
 	});
 
 	if (voidOrErr.isLeft()) {
-		console.error(voidOrErr.value.message);
-		console.log(
+		Logger.error(voidOrErr.value.message);
+		Logger.info(
 			`Failed to write file node uuid: ${node.uuid} / metadata: ${node.title}`,
 		);
 		Deno.exit(1);
 	}
 
-	console.log(`Migrated file node ${node.title}`);
+	Logger.info(`Migrated file node ${node.title}`);
 }
 
 if (import.meta.main) {

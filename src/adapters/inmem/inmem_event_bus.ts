@@ -1,6 +1,7 @@
 import type { EventBus } from "shared/event_bus.ts";
 import type { Event } from "shared/event.ts";
 import type { EventHandler } from "shared/event_handler.ts";
+import { Logger } from "shared/logger.ts";
 
 export class InMemoryEventBus implements EventBus {
 	#handlers: Record<string, EventHandler<Event>[]> = {};
@@ -17,8 +18,8 @@ export class InMemoryEventBus implements EventBus {
 					try {
 						handler.handle(event);
 					} catch (err) {
-						console.error("Error in event handling:");
-						console.error(err);
+						Logger.error("Error in event handling:");
+						Logger.error(err);
 					}
 				});
 			}

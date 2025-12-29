@@ -1,6 +1,7 @@
 import type { ModuleConfiguration } from "api/http_server_configuration.ts";
 import type { AntboxError } from "shared/antbox_error.ts";
 import type { Either } from "shared/either.ts";
+import { Logger } from "shared/logger.ts";
 
 export async function providerFrom<T>(
 	cfg?: ModuleConfiguration,
@@ -12,14 +13,14 @@ export async function providerFrom<T>(
 	const [modulePath, ...params] = cfg;
 	const mod = await loadModule<T>(modulePath);
 	if (!mod) {
-		console.error("could not load module");
+		Logger.error("could not load module");
 		Deno.exit(-1);
 	}
 
 	const providerOrErr = await mod(...params);
 	if (providerOrErr.isLeft()) {
-		console.error("could not load provider");
-		console.error(providerOrErr.value);
+		Logger.error("could not load provider");
+		Logger.error(providerOrErr.value);
 		Deno.exit(-1);
 	}
 
@@ -35,14 +36,14 @@ async function loadModule<T>(
 		const m = await import(path);
 
 		if (!m.default) {
-			console.error(`module [${path}] has no default export`);
+			Logger.error(`module [${path}] has no default export`);
 			Deno.exit(-1);
 		}
 
 		return m.default;
 	} catch (e) {
-		console.error("could not load module");
-		console.error(e);
+		Logger.error("could not load module");
+		Logger.error(e);
 		Deno.exit(-1);
 	}
 }

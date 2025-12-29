@@ -1,6 +1,7 @@
 import postgres from "npm:postgres";
 
 import { NodeFactory } from "domain/node_factory.ts";
+import { Logger } from "shared/logger.ts";
 import type { NodeLike } from "domain/node_like.ts";
 import type { Embedding } from "domain/nodes/embedding.ts";
 import {
@@ -311,7 +312,7 @@ export class PostgresNodeRepository implements NodeRepository {
 				pageToken,
 			};
 		} catch (err) {
-			console.error("Filter error:", err);
+			Logger.error("Filter error:", err);
 			return {
 				nodes: [],
 				pageSize,

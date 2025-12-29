@@ -1,3 +1,4 @@
+import { Logger } from "shared/logger.ts";
 import { type AntboxTenant } from "api/antbox_tenant.ts";
 import { webdavMiddlewareChain } from "./webdav_middleware.ts";
 import { getAuthenticationContext } from "api/get_authentication_context.ts";
@@ -44,7 +45,7 @@ export function optionsHandler(tenants: AntboxTenant[]): HttpHandler {
 			headers["Access-Control-Allow-Origin"] = origin;
 		}
 
-		console.log(headers);
+		Logger.info(headers);
 
 		return Promise.resolve(
 			new Response(null, {

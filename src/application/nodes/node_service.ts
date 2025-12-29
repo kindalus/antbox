@@ -1,3 +1,4 @@
+import { Logger } from "shared/logger.ts";
 import { Aspects } from "domain/aspects/aspects.ts";
 import type { AspectData, AspectProperty } from "domain/configuration/aspect_data.ts";
 import { NodeFactory } from "domain/node_factory.ts";
@@ -1228,7 +1229,7 @@ export class NodeService {
 		values: string | string[] | undefined,
 	): Promise<Specification<NodeLike>> {
 		if (property.type !== "uuid" && property.arrayType !== "uuid") {
-			console.warn(
+			Logger.warn(
 				`Property ${property.name} is not of type 'uuid' or 'array of uuid'. Skipping UUID validation.`,
 			);
 			return specificationFn(() => right(true));

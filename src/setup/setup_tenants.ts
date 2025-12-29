@@ -1,3 +1,4 @@
+import { Logger } from "shared/logger.ts";
 import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus.ts";
 
 import type { AntboxTenant } from "api/antbox_tenant.ts";
@@ -87,28 +88,28 @@ async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
 	if (cfg.ai && cfg.ai?.enabled) {
 		// Validate all required AI configuration
 		if (!cfg.ai.models?.length) {
-			console.error(`Tenant ${cfg.name}: AI is enabled but no models were configured`);
+			Logger.error(`Tenant ${cfg.name}: AI is enabled but no models were configured`);
 			Deno.exit(1);
 		}
 
 		if (!cfg.ai.defaultModel) {
-			console.error(`Tenant ${cfg.name}: AI is enabled but defaultModel is not configured`);
+			Logger.error(`Tenant ${cfg.name}: AI is enabled but defaultModel is not configured`);
 			Deno.exit(1);
 		}
 
 		if (!cfg.ai.embeddingModel) {
-			console.error(`Tenant ${cfg.name}: AI is enabled but embeddingModel is not configured`);
+			Logger.error(`Tenant ${cfg.name}: AI is enabled but embeddingModel is not configured`);
 			Deno.exit(1);
 		}
 
 		if (!cfg.ai.ocrModel) {
-			console.error(`Tenant ${cfg.name}: AI is enabled but ocrModel is not configured`);
+			Logger.error(`Tenant ${cfg.name}: AI is enabled but ocrModel is not configured`);
 			Deno.exit(1);
 		}
 
 		// Check if repository supports embeddings
 		if (!nodeRepository.supportsEmbeddings()) {
-			console.warn(
+			Logger.warn(
 				`Tenant ${cfg.name}: AI is enabled but the configured repository does not support embeddings`,
 			);
 		}
@@ -116,11 +117,11 @@ async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
 		// Load all models
 		const loadedModels = await Promise.all(cfg.ai.models.map(modelFrom));
 
-		console.info(`[${cfg.name}] Available models:`);
-		console.info(JSON.stringify(loadedModels.map((m) => m?.modelName ?? "N/A"), null, 2));
+		Logger.info(`[${cfg.name}] Available models:`);
+		Logger.info(JSON.stringify(loadedModels.map((m) => m?.modelName ?? "N/A"), null, 2));
 
 		if (loadedModels.some((m) => !m)) {
-			console.error(`Tenant ${cfg.name}: AI is enabled but some models failed to load`);
+			Logger.error(`Tenant ${cfg.name}: AI is enabled but some models failed to load`);
 			Deno.exit(1);
 		}
 
@@ -129,19 +130,19 @@ async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
 		// Load all AI components
 		defaultModel = models.find((m) => m.modelName === cfg.ai!.defaultModel);
 		if (!defaultModel) {
-			console.error(`Tenant ${cfg.name}: Failed to load default model`);
+			Logger.error(`Tenant ${cfg.name}: Failed to load default model`);
 			Deno.exit(1);
 		}
 
 		embeddingModel = models.find((m) => m.modelName === cfg.ai!.embeddingModel);
 		if (!embeddingModel) {
-			console.error(`Tenant ${cfg.name}: Failed to load embedding model`);
+			Logger.error(`Tenant ${cfg.name}: Failed to load embedding model`);
 			Deno.exit(1);
 		}
 
 		ocrModel = models.find((m) => m.modelName === cfg.ai!.ocrModel);
 		if (!ocrModel) {
-			console.error(`Tenant ${cfg.name}: Failed to load OCR model`);
+			Logger.error(`Tenant ${cfg.name}: Failed to load OCR model`);
 			Deno.exit(1);
 		}
 
@@ -292,7 +293,7 @@ async function loadJwk(jwkPath?: string): Promise<Record<string, string>> {
 
 		return JSON.parse(content);
 	} catch (error) {
-		console.error(
+		Logger.error(
 			`JWK loading failed: ${error instanceof Error ? error.message : "Unknown error"}`,
 		);
 		Deno.exit(-1);
@@ -314,7 +315,7 @@ async function loadSymmetricKey(keyPath?: string): Promise<string> {
 		const content = await Deno.readTextFile(keyPath);
 		return content.trim();
 	} catch (error) {
-		console.error(
+		Logger.error(
 			`Symmetric key loading failed: ${
 				error instanceof Error ? error.message : "Unknown error"
 			}`,
@@ -332,14 +333,14 @@ function validateModelCapabilities(
 ) {
 	// REQUIRED capabilities
 	if (!model.tools) {
-		console.error(
+		Logger.error(
 			`Tenant ${tenantName}: Default model ${model.modelName} does not support tools (required for AI agents)`,
 		);
 		Deno.exit(1);
 	}
 
 	if (!model.llm) {
-		console.error(
+		Logger.error(
 			`Tenant ${tenantName}: Default model ${model.modelName} is not a valid LLM (required for AI agents)`,
 		);
 		Deno.exit(1);
@@ -347,7 +348,7 @@ function validateModelCapabilities(
 
 	// OPTIONAL capabilities (warn only)
 	if (!model.reasoning) {
-		console.warn(
+		Logger.warn(
 			`Tenant ${tenantName}: Default model ${model.modelName} does not support reasoning - agents with reasoning flag will ignore it`,
 		);
 	}

@@ -1,5 +1,6 @@
 import { Either, left, right } from "shared/either.ts";
 import { AntboxError } from "shared/antbox_error.ts";
+import { Logger } from "shared/logger.ts";
 import type { AIModel, Embedding } from "application/ai/ai_model.ts";
 import { ChatHistory, ChatMessage, ToolCall, ToolResponse } from "domain/ai/chat_message.ts";
 import type {
@@ -36,7 +37,7 @@ export default function buildGoogleModel(
 	const key = apiKey ?? Deno.env.get("GOOGLE_API_KEY");
 
 	if (!key) {
-		console.error(
+		Logger.error(
 			"FATAL: Google API key not provided and GOOGLE_API_KEY environment variable not set",
 		);
 		Deno.exit(1);

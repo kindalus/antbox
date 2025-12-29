@@ -1,3 +1,4 @@
+import { Logger } from "shared/logger.ts";
 import type { AntboxError } from "shared/antbox_error.ts";
 import { AntboxError as AntboxErrorClass } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
@@ -517,16 +518,16 @@ export class AgentsEngine {
 				// Restore original exit function
 				Deno.exit = originalExit;
 				if (exitCalled) {
-					console.error(
+					Logger.error(
 						`Failed to load model ${modelName}: Model loading attempted to exit process`,
 					);
 				}
 			}
 		} catch (error) {
-			console.error(`Failed to load model ${modelName}:`, error);
+			Logger.error(`Failed to load model ${modelName}:`, error);
 			// Fall back to default model instance when model loading fails
 			// This provides better resilience and enables testing
-			console.warn(`Falling back to default model instance for ${modelName}`);
+			Logger.warn(`Falling back to default model instance for ${modelName}`);
 			return this.#defaultModel;
 		}
 	}

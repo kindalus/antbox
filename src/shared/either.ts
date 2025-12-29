@@ -1,10 +1,12 @@
+import { Logger } from "shared/logger.ts";
+
 export type Either<L, R> = Left<L, R> | Right<L, R>;
 
 export class Left<L, R> {
 	readonly value: L;
 
 	get right(): R {
-		console.error(this.value);
+		Logger.error(this.value);
 		throw new Error("Cannot get right value of a left either");
 	}
 

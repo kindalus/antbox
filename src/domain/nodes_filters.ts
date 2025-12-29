@@ -1,4 +1,5 @@
 import { Either, left, right } from "shared/either.ts";
+import { Logger } from "shared/logger.ts";
 import type { NodeLike } from "./node_like.ts";
 import {
 	type Specification,
@@ -30,7 +31,7 @@ export class NodesFilters {
 			const filters = parseFilterString(value);
 			return right(filters);
 		} catch (err) {
-			console.error(err);
+			Logger.error(err);
 			return left(new BadRequestError("Failed to parse filter string"));
 		}
 	}
@@ -80,7 +81,7 @@ export class NodesFilters {
 		const satisfiesFn = filterFns[operator];
 
 		if (!satisfiesFn) {
-			console.error(`Invalid filter operator: ${operator}`);
+			Logger.error(`Invalid filter operator: ${operator}`);
 			return () => false;
 		}
 

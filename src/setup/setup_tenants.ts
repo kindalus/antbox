@@ -1,7 +1,4 @@
 import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus.ts";
-import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository.ts";
-import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider.ts";
-import { InMemoryConfigurationRepository } from "adapters/inmem/inmem_configuration_repository.ts";
 
 import type { AntboxTenant } from "api/antbox_tenant.ts";
 import type { ServerConfiguration, TenantConfiguration } from "api/http_server_configuration.ts";
@@ -45,14 +42,27 @@ async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
 	const symmetricKey = await loadSymmetricKey(cfg?.key);
 
 	const rawJwk = await loadJwk(cfg?.jwk);
-	const repository = await providerFrom<NodeRepository>(cfg?.repository);
+	const nodeRepository = await providerFrom<NodeRepository>(cfg?.repository);
 	const storage = await providerFrom<StorageProvider>(cfg?.storage);
 	const eventStoreRepository = await providerFrom<EventStoreRepository>(
 		cfg?.eventStoreRepository,
 	);
-	const configurationRepository = await providerFrom<ConfigurationRepository>(
+	const configRepo = await providerFrom<ConfigurationRepository>(
 		cfg?.configurationRepository,
 	);
+
+	// Validate all required repositories are configured
+	if (!nodeRepository) {
+		throw new Error(
+			`Tenant ${cfg.name}: repository is required but not configured`,
+		);
+	}
+
+	if (!storage) {
+		throw new Error(
+			`Tenant ${cfg.name}: storage is required but not configured`,
+		);
+	}
 
 	if (!eventStoreRepository) {
 		throw new Error(
@@ -60,18 +70,19 @@ async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
 		);
 	}
 
-	const eventBus = new InMemoryEventBus();
+	if (!configRepo) {
+		throw new Error(
+			`Tenant ${cfg.name}: configurationRepository is required but not configured`,
+		);
+	}
 
-	// Use configured or default ConfigurationRepository
-	const configRepo = configurationRepository ?? new InMemoryConfigurationRepository();
+	const eventBus = new InMemoryEventBus();
 
 	// Validate and load AI components FIRST if AI is enabled
 	let embeddingModel: AIModel | undefined;
 	let ocrModel: AIModel | undefined;
 	let defaultModel: AIModel | undefined;
 	let models: AIModel[] | undefined;
-
-	const nodeRepository = repository ?? new InMemoryNodeRepository();
 
 	if (cfg.ai && cfg.ai?.enabled) {
 		// Validate all required AI configuration
@@ -141,7 +152,7 @@ async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
 	// Create NodeService
 	const nodeService = new NodeService({
 		repository: nodeRepository,
-		storage: storage ?? new InMemoryStorageProvider(),
+		storage,
 		bus: eventBus,
 		configRepo,
 		embeddingModel,

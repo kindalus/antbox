@@ -7,6 +7,20 @@ import type {
 import { AntboxError, BadRequestError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
 
+/**
+ * Builds a SQLite-backed ConfigurationRepository.
+ *
+ * @remarks
+ * External setup:
+ * - For persistent storage, pass `baseFolder` and ensure it is writable.
+ * - Deno requires `--allow-read` and `--allow-write` for file access.
+ *
+ * @example
+ * const repoOrErr = await buildSqliteConfigurationRepository("/var/lib/antbox");
+ * if (repoOrErr.isRight()) {
+ *   const repo = repoOrErr.value;
+ * }
+ */
 export default function buildSqliteConfigurationRepository(
 	baseFolder?: string,
 ): Promise<Either<AntboxError, ConfigurationRepository>> {
@@ -55,19 +69,20 @@ export class SqliteConfigurationRepository implements ConfigurationRepository {
 			return;
 		}
 
-		// Users collection uses email as key, others use uuid
-		const keyExpression = collection === "users"
-			? "json_extract(body, '$.email')"
-			: "json_extract(body, '$.uuid')";
-
 		this.#db.exec(`
 			CREATE TABLE IF NOT EXISTS ${tableName} (
-				uuid TEXT GENERATED ALWAYS AS (${keyExpression}) STORED PRIMARY KEY,
+				uuid TEXT PRIMARY KEY,
 				body JSON NOT NULL
 			);
 		`);
 
 		this.#existingTables.add(tableName);
+	}
+
+	#extractKey<K extends keyof CollectionMap>(collection: K, data: CollectionMap[K]): string {
+		// Users collection uses email as key, others use uuid
+		const record = data as Record<string, unknown>;
+		return collection === "users" ? record.email as string : record.uuid as string;
 	}
 
 	save<K extends keyof CollectionMap>(
@@ -77,12 +92,13 @@ export class SqliteConfigurationRepository implements ConfigurationRepository {
 		try {
 			this.#ensureTable(collection);
 			const tableName = this.#getTableName(collection);
+			const uuid = this.#extractKey(collection, data);
 			const body = JSON.stringify(data);
 
 			this.#db.exec(
-				`INSERT INTO ${tableName} (body) VALUES (?)
+				`INSERT INTO ${tableName} (uuid, body) VALUES (?, ?)
 				 ON CONFLICT(uuid) DO UPDATE SET body = excluded.body`,
-				[body],
+				[uuid, body],
 			);
 
 			return Promise.resolve(right(data));

@@ -121,19 +121,7 @@ export class EmbeddingService {
 	}
 
 	async handleNodeDeleted(event: NodeDeletedEvent): Promise<void> {
-		const node = event.payload;
-
-		// Only attempt to delete embedding if it was a FileNode with supported mimetype
-		if (!Nodes.isFile(node)) {
-			return;
-		}
-
-		if (!node.mimetype || !isEmbeddingsSupportedMimetype(node.mimetype)) {
-			return;
-		}
-
-		// Delete embedding from repository
-		await this.#deleteEmbedding(node.uuid);
+		await this.#deleteEmbedding(event.payload.uuid);
 	}
 
 	async #generateAndStoreEmbedding(node: FileNode): Promise<void> {

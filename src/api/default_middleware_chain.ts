@@ -3,6 +3,16 @@ import { authenticationMiddleware } from "./authentication_middleware.ts";
 import { type HttpHandler } from "./handler.ts";
 import { chain, corsMiddleware, logMiddleware } from "./middleware.ts";
 
+/**
+ * Builds the default middleware chain for HTTP API handlers.
+ *
+ * @remarks
+ * External setup:
+ * - Provide configured tenants (e.g., from `setupTenants`).
+ *
+ * @example
+ * const handler = defaultMiddlewareChain(tenants, apiHandler);
+ */
 export function defaultMiddlewareChain(
 	tenants: AntboxTenant[],
 	h: HttpHandler,

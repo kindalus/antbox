@@ -3,6 +3,18 @@ import { type StorageProvider } from "application/nodes/storage_provider.ts";
 import { AntboxError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
 
+/**
+ * Builds an in-memory StorageProvider.
+ *
+ * @remarks
+ * External setup: none. Stored files are ephemeral.
+ *
+ * @example
+ * const storageOrErr = await buildInmemStorageProvider();
+ * if (storageOrErr.isRight()) {
+ *   const storage = storageOrErr.value;
+ * }
+ */
 export default function buildInmemStorageProvider(): Promise<
 	Either<AntboxError, StorageProvider>
 > {

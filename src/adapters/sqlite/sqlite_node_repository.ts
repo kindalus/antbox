@@ -21,6 +21,20 @@ import type {
 import { AntboxError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
 
+/**
+ * Builds a SQLite-backed NodeRepository.
+ *
+ * @remarks
+ * External setup:
+ * - For persistent storage, pass `baseFolder` and ensure it is writable.
+ * - Deno requires `--allow-read` and `--allow-write` for file access.
+ *
+ * @example
+ * const repoOrErr = await buildSqliteNodeRepository("/var/lib/antbox");
+ * if (repoOrErr.isRight()) {
+ *   const repo = repoOrErr.value;
+ * }
+ */
 export default function buildSqliteNodeRepository(
 	baseFolder?: string,
 ): Promise<Either<AntboxError, NodeRepository>> {
@@ -159,6 +173,8 @@ export class SqliteNodeRepository implements NodeRepository {
 					});
 				}
 			}
+
+			Logger.debug("Vector Search", JSON.stringify(nodes, null, 2));
 
 			return right({ nodes });
 		} catch (err) {

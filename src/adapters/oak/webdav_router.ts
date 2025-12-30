@@ -14,6 +14,18 @@ import {
 	unlockHandler,
 } from "integration/webdav/webdav_handlers.ts";
 
+/**
+ * Builds the WebDAV router for the Oak HTTP adapter.
+ *
+ * @remarks
+ * External setup:
+ * - Pass the configured tenant list (e.g., from `setupTenants`).
+ * - Run Deno with `--allow-net` when serving HTTP.
+ *
+ * @example
+ * const router = webdavRouter(tenants);
+ * app.use(router.routes(), router.allowedMethods());
+ */
 export default function (tenants: AntboxTenant[]): Router {
 	const handlers = {
 		OPTIONS: adapt(optionsHandler(tenants)),

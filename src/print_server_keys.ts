@@ -2,6 +2,17 @@ import { Logger } from "shared/logger.ts";
 import { ROOT_PASSWD, SYMMETRIC_KEY } from "setup/server_defaults.ts";
 import { fileExistsSync, readFileSync } from "shared/os_helpers.ts";
 
+/**
+ * Prints server cryptographic keys to stdout.
+ *
+ * @remarks
+ * External setup:
+ * - Ensure the JWK file exists (default: `.config/antbox.jwk`) or pass `jwkPath`.
+ * - Deno requires `--allow-read` to read the JWK file.
+ *
+ * @example
+ * printServerKeys({ jwkPath: "./.config/antbox.jwk" });
+ */
 export function printServerKeys(opts?: {
 	passwd?: string;
 	symmetricKey?: string;

@@ -32,6 +32,18 @@ import { RAGService } from "application/ai/rag_service.ts";
 import { resolve } from "path";
 import { registerCacheInvalidationHandlers } from "integration/webdav/webdav_cache_invalidation_handler.ts";
 
+/**
+ * Builds tenant services and engines from the server configuration.
+ *
+ * @remarks
+ * External setup:
+ * - Configure repository/storage/event store adapters in `ServerConfiguration`.
+ * - Ensure JWK and symmetric key paths or URLs are reachable.
+ * - Grant Deno permissions for file, env, and network access required by adapters.
+ *
+ * @example
+ * const tenants = await setupTenants(config);
+ */
 export function setupTenants(
 	cfg: ServerConfiguration,
 ): Promise<AntboxTenant[]> {

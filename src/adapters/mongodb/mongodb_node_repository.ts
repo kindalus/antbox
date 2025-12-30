@@ -18,6 +18,20 @@ import { isNodeFilters2D, type NodeFilter } from "domain/nodes/node_filter.ts";
 
 type NodeDbModel = NodeMetadata & { _id: ObjectId; embedding?: Embedding };
 
+/**
+ * Builds a MongoDB-backed NodeRepository.
+ *
+ * @remarks
+ * External setup:
+ * - Start a MongoDB server and create a database/user with read/write access.
+ * - Ensure the process can reach MongoDB (`--allow-net` in Deno).
+ *
+ * @example
+ * const repoOrErr = await buildMongodbNodeRepository("mongodb://localhost:27017", "antbox");
+ * if (repoOrErr.isRight()) {
+ *   const repo = repoOrErr.value;
+ * }
+ */
 export default function buildMongodbNodeRepository(
 	url: string,
 	dbname: string,

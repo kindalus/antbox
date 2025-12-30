@@ -7,6 +7,20 @@ import { type Either, left, right } from "shared/either.ts";
 import { copyFile, fileExistsSync } from "shared/os_helpers.ts";
 import { Logger } from "shared/logger.ts";
 
+/**
+ * Builds a file-backed EventStoreRepository that persists streams as JSON.
+ *
+ * @remarks
+ * External setup:
+ * - Ensure `baseDir` is writable and persisted.
+ * - Deno requires `--allow-read` and `--allow-write` for file access.
+ *
+ * @example
+ * const storeOrErr = await buildFlatFileEventStoreRepository("/var/lib/antbox");
+ * if (storeOrErr.isRight()) {
+ *   const store = storeOrErr.value;
+ * }
+ */
 export default function buildFlatFileEventStoreRepository(
 	baseDir: string,
 ): Promise<Either<AntboxError, EventStoreRepository>> {

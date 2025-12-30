@@ -25,10 +25,23 @@ import {
 // ============================================================================
 
 /**
- * Factory function to build a Google AI Model
- * @param modelName The name of the Google model (e.g., "gemini-2.0-flash-exp")
- * @param apiKey Optional API key (if not provided, uses GOOGLE_API_KEY env var)
- * @throws Exits process if no API key is available (panic behavior)
+ * Builds a Google AIModel instance.
+ *
+ * @remarks
+ * External setup:
+ * - Enable the Generative Language API and create an API key.
+ * - Set `GOOGLE_API_KEY` (or pass `apiKey`).
+ * - Ensure the process can reach Google APIs (`--allow-net` in Deno).
+ *
+ * @param modelName The name of the Google model (e.g., "gemini-2.0-flash-exp").
+ * @param apiKey Optional API key (defaults to `GOOGLE_API_KEY`).
+ * @throws Exits process if no API key is available (panic behavior).
+ *
+ * @example
+ * const modelOrErr = buildGoogleModel("gemini-1.5-flash");
+ * if (modelOrErr.isRight()) {
+ *   const model = modelOrErr.value;
+ * }
  */
 export default function buildGoogleModel(
 	modelName: string,

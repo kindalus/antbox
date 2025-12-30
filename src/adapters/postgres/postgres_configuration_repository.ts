@@ -14,6 +14,19 @@ export class PostgresConfigurationError extends AntboxError {
 	}
 }
 
+/**
+ * Postgres-backed ConfigurationRepository.
+ *
+ * @remarks
+ * External setup:
+ * - Provision a Postgres database and ensure the `uuid-ossp` extension is available.
+ * - Grant the configured user permission to create extensions and tables.
+ * - Set `DATABASE_URL` or pass a connection string.
+ *
+ * @example
+ * const repo = new PostgresConfigurationRepository("postgres://user:pass@host/db");
+ * await repo.initialize();
+ */
 export class PostgresConfigurationRepository implements ConfigurationRepository {
 	readonly #sql: postgres.Sql;
 	readonly #existingTables: Set<string>;

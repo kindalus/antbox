@@ -3,6 +3,15 @@ import type { Event } from "shared/event.ts";
 import type { EventHandler } from "shared/event_handler.ts";
 import { Logger } from "shared/logger.ts";
 
+/**
+ * In-memory EventBus for development and tests.
+ *
+ * @remarks
+ * External setup: none.
+ *
+ * @example
+ * const bus = new InMemoryEventBus();
+ */
 export class InMemoryEventBus implements EventBus {
 	#handlers: Record<string, EventHandler<Event>[]> = {};
 

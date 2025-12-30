@@ -8,6 +8,20 @@ import { type Event } from "shared/event.ts";
 import { type EventHandler } from "shared/event_handler.ts";
 import { fileExistsSync } from "shared/os_helpers.ts";
 
+/**
+ * Builds a file-backed StorageProvider that stores files under `baseDir`.
+ *
+ * @remarks
+ * External setup:
+ * - Ensure `baseDir` is writable and persisted.
+ * - Deno requires `--allow-read` and `--allow-write` for file access.
+ *
+ * @example
+ * const storageOrErr = await buildFlatFileStorageProvider("/var/lib/antbox");
+ * if (storageOrErr.isRight()) {
+ *   const storage = storageOrErr.value;
+ * }
+ */
 export default function buildFlatFileStorageProvider(
 	baseDir: string,
 ): Promise<Either<AntboxError, StorageProvider>> {

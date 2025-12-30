@@ -20,6 +20,18 @@ import type { AntboxTenant } from "api/antbox_tenant.ts";
 import { Application, Router } from "@oak/oak";
 import type { HttpServerOpts, startHttpServer } from "api/http_server.ts";
 
+/**
+ * Creates the Oak HTTP server for a set of tenants.
+ *
+ * @remarks
+ * External setup:
+ * - Build tenants (e.g., via `setupTenants`) before calling this function.
+ * - Run Deno with `--allow-net` to bind the HTTP port.
+ *
+ * @example
+ * const startServer = setupOakServer(tenants);
+ * await startServer({ port: 7180 });
+ */
 export default function setupOakServer(
 	tenants: AntboxTenant[],
 ): startHttpServer {

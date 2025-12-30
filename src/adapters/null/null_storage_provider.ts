@@ -35,6 +35,18 @@ export class NullStorageProvider implements StorageProvider {
 	}
 }
 
+/**
+ * Builds a no-op StorageProvider that never persists files.
+ *
+ * @remarks
+ * External setup: none. Use for tests or when file storage is intentionally disabled.
+ *
+ * @example
+ * const storageOrErr = await buildNullStorageProvider();
+ * if (storageOrErr.isRight()) {
+ *   const storage = storageOrErr.value;
+ * }
+ */
 export default function buildNullStorageProvider(): Promise<
 	Either<AntboxError, StorageProvider>
 > {

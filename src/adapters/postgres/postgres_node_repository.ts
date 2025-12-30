@@ -28,6 +28,19 @@ export class PostgresError extends AntboxError {
 	}
 }
 
+/**
+ * Postgres-backed NodeRepository with pgvector support.
+ *
+ * @remarks
+ * External setup:
+ * - Provision a Postgres database and install the `vector` extension (pgvector).
+ * - Grant the configured user permission to create extensions and tables.
+ * - Set `DATABASE_URL` or pass a connection string.
+ *
+ * @example
+ * const repo = new PostgresNodeRepository("postgres://user:pass@host/db");
+ * await repo.initialize();
+ */
 export class PostgresNodeRepository implements NodeRepository {
 	readonly #sql: postgres.Sql;
 

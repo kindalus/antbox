@@ -19,6 +19,23 @@ export class MongodbConfigurationError extends AntboxError {
 	}
 }
 
+/**
+ * Builds a MongoDB-backed ConfigurationRepository.
+ *
+ * @remarks
+ * External setup:
+ * - Start a MongoDB server and create a database/user with read/write access.
+ * - Ensure the process can reach MongoDB (`--allow-net` in Deno).
+ *
+ * @example
+ * const repoOrErr = await buildMongodbConfigurationRepository(
+ *   "mongodb://localhost:27017",
+ *   "antbox",
+ * );
+ * if (repoOrErr.isRight()) {
+ *   const repo = repoOrErr.value;
+ * }
+ */
 export default function buildMongodbConfigurationRepository(
 	url: string,
 	dbname: string,

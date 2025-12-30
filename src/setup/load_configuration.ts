@@ -4,6 +4,17 @@ import { fileExistsSync } from "shared/os_helpers.ts";
 import { PORT } from "./server_defaults.ts";
 import { parse } from "toml";
 
+/**
+ * Loads the server configuration from a TOML file.
+ *
+ * @remarks
+ * External setup:
+ * - Provide a valid TOML config file path.
+ * - Ensure Deno has `--allow-read` for the config file.
+ *
+ * @example
+ * const config = await loadConfiguration("./.config/antbox.toml");
+ */
 export async function loadConfiguration(
 	configPath: string,
 ): Promise<ServerConfiguration> {

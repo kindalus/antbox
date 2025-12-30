@@ -10,6 +10,18 @@ import {
 } from "api/articles_handlers.ts";
 import { adapt } from "./adapt.ts";
 
+/**
+ * Builds the articles router for the Oak HTTP adapter.
+ *
+ * @remarks
+ * External setup:
+ * - Pass the configured tenant list (e.g., from `setupTenants`).
+ * - Run Deno with `--allow-net` when serving HTTP.
+ *
+ * @example
+ * const router = articlesRouter(tenants);
+ * app.use(router.routes(), router.allowedMethods());
+ */
 export default function (tenants: AntboxTenant[]) {
 	const articlesRouter = new Router({ prefix: "/articles" });
 

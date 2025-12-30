@@ -28,6 +28,18 @@ import { Permissions } from "domain/nodes/node.ts";
 type Provider = "CouchDb" | "PouchDb";
 PouchDB.plugin(PouchDbFind);
 
+/**
+ * Builds a PouchDB-backed NodeRepository (local LevelDB or remote CouchDB).
+ *
+ * @remarks
+ * External setup:
+ * - For CouchDB, pass an HTTP URL and ensure the server/database exists.
+ * - For local storage, ensure `dbpath` is writable and Deno has `--allow-read`/`--allow-write`.
+ *
+ * @example
+ * const repoOrErr = await buildPouchdbNodeRepository("/var/lib/antbox");
+ * // or: await buildPouchdbNodeRepository("http://user:pass@localhost:5984/nodes");
+ */
 export default async function buildPouchdbNodeRepository(
 	dbpath: string,
 ): Promise<Either<AntboxError, NodeRepository>> {

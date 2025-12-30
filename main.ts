@@ -14,6 +14,17 @@ interface CommandOpts {
 	sandbox?: boolean;
 }
 
+/**
+ * Loads tenants and starts the configured server engine.
+ *
+ * @remarks
+ * External setup:
+ * - Ensure the `engine` in the config maps to an adapter under `src/adapters/<engine>/server.ts`.
+ * - Grant Deno permissions required by the configured adapters (net, env, read/write).
+ *
+ * @example
+ * await startServer(config);
+ */
 async function startServer(config: ServerConfiguration) {
 	const tenants = await setupTenants({
 		tenants: config.tenants,

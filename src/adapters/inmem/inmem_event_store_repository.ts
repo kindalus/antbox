@@ -3,6 +3,18 @@ import type { EventStoreRepository } from "domain/audit/event_store_repository.t
 import type { AntboxError } from "shared/antbox_error.ts";
 import { type Either, right } from "shared/either.ts";
 
+/**
+ * Builds an in-memory EventStoreRepository.
+ *
+ * @remarks
+ * External setup: none. Streams are lost when the process exits.
+ *
+ * @example
+ * const storeOrErr = await buildInmemEventStoreRepository();
+ * if (storeOrErr.isRight()) {
+ *   const store = storeOrErr.value;
+ * }
+ */
 export default function buildInmemEventStoreRepository(): Promise<
 	Either<AntboxError, EventStoreRepository>
 > {

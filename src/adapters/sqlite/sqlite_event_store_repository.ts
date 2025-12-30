@@ -5,6 +5,20 @@ import type { EventStoreRepository } from "domain/audit/event_store_repository.t
 import { AntboxError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
 
+/**
+ * Builds a SQLite-backed EventStoreRepository.
+ *
+ * @remarks
+ * External setup:
+ * - For persistent storage, pass `baseFolder` and ensure it is writable.
+ * - Deno requires `--allow-read` and `--allow-write` for file access.
+ *
+ * @example
+ * const storeOrErr = await buildSqliteEventStoreRepository("/var/lib/antbox");
+ * if (storeOrErr.isRight()) {
+ *   const store = storeOrErr.value;
+ * }
+ */
 export default function buildSqliteEventStoreRepository(
 	baseFolder?: string,
 ): Promise<Either<AntboxError, EventStoreRepository>> {

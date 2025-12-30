@@ -70,6 +70,18 @@ export class NullNodeRepository implements NodeRepository {
 	#nullNode = FileNode.create({ title: "Null", mimetype: "null/null" }).right;
 }
 
+/**
+ * Builds a no-op NodeRepository that returns a synthetic node and ignores writes.
+ *
+ * @remarks
+ * External setup: none. Use for tests or when persistence is intentionally disabled.
+ *
+ * @example
+ * const repoOrErr = await buildNullNodeRepository();
+ * if (repoOrErr.isRight()) {
+ *   const repo = repoOrErr.value;
+ * }
+ */
 export default function buildNullNodeRepository(): Promise<
 	Either<AntboxError, NodeRepository>
 > {

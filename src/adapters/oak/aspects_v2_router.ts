@@ -9,6 +9,18 @@ import {
 } from "api/aspects_handlers.ts";
 import { adapt } from "./adapt.ts";
 
+/**
+ * Builds the aspects router for the Oak HTTP adapter.
+ *
+ * @remarks
+ * External setup:
+ * - Pass the configured tenant list (e.g., from `setupTenants`).
+ * - Run Deno with `--allow-net` when serving HTTP.
+ *
+ * @example
+ * const router = aspectsRouter(tenants);
+ * app.use(router.routes(), router.allowedMethods());
+ */
 export default function (tenants: AntboxTenant[]) {
 	const aspectsRouter = new Router({ prefix: "/aspects" });
 

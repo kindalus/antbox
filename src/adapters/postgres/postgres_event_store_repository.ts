@@ -12,6 +12,19 @@ export class PostgresEventStoreError extends AntboxError {
 	}
 }
 
+/**
+ * Postgres-backed EventStoreRepository.
+ *
+ * @remarks
+ * External setup:
+ * - Provision a Postgres database and ensure the `uuid-ossp` extension is available.
+ * - Grant the configured user permission to create extensions and tables.
+ * - Set `DATABASE_URL` or pass a connection string.
+ *
+ * @example
+ * const store = new PostgresEventStoreRepository("postgres://user:pass@host/db");
+ * await store.initialize();
+ */
 export class PostgresEventStoreRepository implements EventStoreRepository {
 	readonly #sql: postgres.Sql;
 	readonly #existingTables: Set<string>;

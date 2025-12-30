@@ -1,6 +1,15 @@
 import type { Context } from "@oak/oak";
 import { type HttpHandler } from "api/handler.ts";
 
+/**
+ * Adapts a domain HttpHandler to an Oak request handler.
+ *
+ * @remarks
+ * External setup: none. Mount the resulting handler on a Router.
+ *
+ * @example
+ * router.get("/", adapt(listHandler(tenants)));
+ */
 export function adapt(handler: HttpHandler): (ctx: Context) => Promise<void> {
 	return async (ctx: Context) => {
 		const body = await ctx.request.body.init();

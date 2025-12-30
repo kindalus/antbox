@@ -3,6 +3,22 @@ import type { AntboxError } from "shared/antbox_error.ts";
 import type { Either } from "shared/either.ts";
 import { Logger } from "shared/logger.ts";
 
+/**
+ * Loads and instantiates an adapter module from a ModuleConfiguration tuple.
+ *
+ * @remarks
+ * External setup:
+ * - Ensure the module path is resolvable (relative to `adapters/`, absolute, or URL).
+ * - Grant Deno permissions for file or network access as required by the module.
+ *
+ * @param cfg Tuple of `[modulePath, ...params]` used to load and call the adapter factory.
+ *
+ * @example
+ * const repo = await providerFrom<NodeRepository>([
+ *   "postgres/postgres_node_repository.ts",
+ *   "postgres://user:pass@host/db",
+ * ]);
+ */
 export async function providerFrom<T>(
 	cfg?: ModuleConfiguration,
 ): Promise<T | undefined> {

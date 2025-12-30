@@ -19,6 +19,20 @@ export class MongodbEventStoreError extends AntboxError {
 	}
 }
 
+/**
+ * Builds a MongoDB-backed EventStoreRepository.
+ *
+ * @remarks
+ * External setup:
+ * - Start a MongoDB server and create a database/user with read/write access.
+ * - Ensure the process can reach MongoDB (`--allow-net` in Deno).
+ *
+ * @example
+ * const storeOrErr = await buildMongodbEventStoreRepository("mongodb://localhost:27017", "antbox");
+ * if (storeOrErr.isRight()) {
+ *   const store = storeOrErr.value;
+ * }
+ */
 export default function buildMongodbEventStoreRepository(
 	url: string,
 	dbname: string,

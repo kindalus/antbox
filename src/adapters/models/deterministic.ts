@@ -16,9 +16,19 @@ export class TextExtractionError extends AntboxError {
 }
 
 /**
- * Factory function to build a DeterministicModel
- * @param modelName The name of the model
- * @param dimensions Optional dimension size (default: 1536)
+ * Builds a deterministic AIModel for tests and offline usage.
+ *
+ * @remarks
+ * External setup: none.
+ *
+ * @param modelName The name of the model.
+ * @param dimensions Optional dimension size (default: 1536).
+ *
+ * @example
+ * const modelOrErr = await buildDeterministicModel("deterministic");
+ * if (modelOrErr.isRight()) {
+ *   const model = modelOrErr.value;
+ * }
  */
 export default function buildDeterministicModel(
 	modelName: string,

@@ -13,6 +13,18 @@ import { type AntboxError, BadRequestError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
 import { NodesFilters } from "domain/nodes_filters.ts";
 
+/**
+ * Builds an in-memory NodeRepository.
+ *
+ * @remarks
+ * External setup: none. Data resets when the process exits.
+ *
+ * @example
+ * const repoOrErr = await buildInmemNodeRepository();
+ * if (repoOrErr.isRight()) {
+ *   const repo = repoOrErr.value;
+ * }
+ */
 export default function buildInmemNodeRepository(): Promise<
 	Either<AntboxError, NodeRepository>
 > {

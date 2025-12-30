@@ -15,6 +15,24 @@ import { type Event } from "shared/event.ts";
 import { type EventHandler } from "shared/event_handler.ts";
 import { makeTempFileSync, writeFile } from "shared/os_helpers.ts";
 
+/**
+ * Builds a Google Drive-backed StorageProvider using a service account key.
+ *
+ * @remarks
+ * External setup:
+ * - Enable the Google Drive API in your Google Cloud project.
+ * - Create a service account, download the JSON key, and grant it access to the root folder.
+ * - Provide the Drive folder ID and ensure Deno has `--allow-read`/`--allow-net`.
+ *
+ * @example
+ * const storageOrErr = await buildGoogleDriveStorageProvider(
+ *   "/path/to/service-account.json",
+ *   "drive-folder-id",
+ * );
+ * if (storageOrErr.isRight()) {
+ *   const storage = storageOrErr.value;
+ * }
+ */
 export default async function buildGoogleDriveStorageProvider(
 	keyPath: string,
 	rootFolderId: string,

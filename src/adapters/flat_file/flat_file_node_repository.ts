@@ -18,6 +18,20 @@ import { type Either, left, right } from "shared/either.ts";
 import { copyFile, fileExistsSync } from "shared/os_helpers.ts";
 import { Logger } from "shared/logger.ts";
 
+/**
+ * Builds a file-backed NodeRepository that stores metadata in `nodes_repo.json`.
+ *
+ * @remarks
+ * External setup:
+ * - Ensure `baseDir` is writable and persisted.
+ * - Deno requires `--allow-read` and `--allow-write` for file access.
+ *
+ * @example
+ * const repoOrErr = await buildFlatFileStorageProvider("/var/lib/antbox");
+ * if (repoOrErr.isRight()) {
+ *   const repo = repoOrErr.value;
+ * }
+ */
 export default function buildFlatFileStorageProvider(
 	baseDir: string,
 ): Promise<Either<AntboxError, NodeRepository>> {

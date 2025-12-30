@@ -4,6 +4,17 @@ import { type HttpHandler, sendInternalServerError } from "api/handler.ts";
 import { chain, HttpMiddleware, logMiddleware } from "api/middleware.ts";
 import { UnknownError } from "shared/antbox_error.ts";
 
+/**
+ * Builds the WebDAV middleware chain for HTTP handlers.
+ *
+ * @remarks
+ * External setup:
+ * - Provide configured tenants (e.g., from `setupTenants`).
+ * - WebDAV clients must send Basic auth with `jwt` or `key` user prefixes.
+ *
+ * @example
+ * const handler = webdavMiddlewareChain(tenants, webdavHandler);
+ */
 export function webdavMiddlewareChain(tenants: AntboxTenant[], h: HttpHandler): HttpHandler {
 	return chain(
 		h,

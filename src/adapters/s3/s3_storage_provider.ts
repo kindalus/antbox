@@ -8,6 +8,21 @@ import { type Either, left, right } from "shared/either.ts";
 import type { Event } from "shared/event.ts";
 import type { EventHandler } from "shared/event_handler.ts";
 
+/**
+ * Builds an S3-backed StorageProvider from a JSON config file.
+ *
+ * @remarks
+ * External setup:
+ * - Create an S3-compatible bucket and access keys with read/write permissions.
+ * - Provide a JSON config file with region, endpoint, bucket, and credentials.
+ * - Ensure Deno has `--allow-read` for the config file and `--allow-net` for S3 access.
+ *
+ * @example
+ * const storageOrErr = await buildS3StorageProvider("./s3.config.json");
+ * if (storageOrErr.isRight()) {
+ *   const storage = storageOrErr.value;
+ * }
+ */
 export default function buildS3StorageProvider(
 	configPath: string,
 ): Promise<Either<AntboxError, S3StorageProvider>> {

@@ -7,8 +7,13 @@ import type {
 } from "domain/configuration/configuration_repository.ts";
 
 /**
- * In-memory implementation of ConfigurationRepository
- * Used for testing and as reference implementation
+ * In-memory ConfigurationRepository for tests or ephemeral usage.
+ *
+ * @remarks
+ * External setup: none.
+ *
+ * @example
+ * const repo = new InMemoryConfigurationRepository();
  */
 export class InMemoryConfigurationRepository implements ConfigurationRepository {
 	private collections: {

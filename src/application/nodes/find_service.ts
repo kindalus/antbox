@@ -87,7 +87,7 @@ export class FindService {
 		filters: NodeFilters | string,
 		pageSize = 20,
 		pageToken = 1,
-	): Promise<Either<AntboxError, NodeFilterResult>> {
+	): Promise<Either<AntboxError, NodeFilterResult & { scores?: Record<string, number> }>> {
 		// Stage 1: Handle string-based filters
 		if (typeof filters === "string") {
 			// Check if this is a semantic search query (starts with ?)
@@ -139,7 +139,7 @@ export class FindService {
 		query: string,
 		pageSize: number,
 		pageToken: number,
-	): Promise<Either<AntboxError, NodeFilterResult>> {
+	): Promise<Either<AntboxError, NodeFilterResult & { scores?: Record<string, number> }>> {
 		// Check if repository supports embeddings and embedding model is available
 		if (!this.context.repository.supportsEmbeddings() || !this.context.embeddingModel) {
 			Logger.warn(
@@ -188,13 +188,15 @@ export class FindService {
 			}
 
 			// Use the UUIDs from semantic search as a filter
-			const filters: NodeFilters2D = [[["uuid", "in", uuids] as NodeFilter]];
+			const filters: NodeFilters2D = [[["uuid", "in", uuids]]];
 
 			// Apply permission filters and execute query
 			const stage1 = filters.reduce(
 				this.authorizationService.toFiltersWithPermissionsResolved(ctx, "Read"),
 				[],
 			);
+
+			Logger.debug(`Processing filters: ${JSON.stringify(stage1, null, 2)}`);
 
 			const batch = stage1.map((f) => this.#toFiltersWithAtResolved(f));
 			const stage2 = await Promise.allSettled(batch);
@@ -210,7 +212,9 @@ export class FindService {
 			// Sort results by score (semantic relevance)
 			r.nodes.sort((a, b) => (scores[b.uuid] ?? 0) - (scores[a.uuid] ?? 0));
 
-			return right(r);
+			Logger.debug(`Results: ${JSON.stringify(r, null, 2)}`);
+
+			return right({ ...r, scores });
 		} catch (error) {
 			Logger.error("Semantic search failed:", error);
 			// Fallback to fulltext search

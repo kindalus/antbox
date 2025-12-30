@@ -7,6 +7,7 @@ import { Either, left, right } from "shared/either.ts";
 import { ForbiddenError, UnauthorizedError } from "shared/antbox_error.ts";
 import type { NodeFilter, NodeFilters2D } from "domain/nodes/node_filter.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
+import { Logger } from "shared/logger.ts";
 
 /**
  * Service responsible for handling all authorization and permission-related operations.
@@ -79,7 +80,9 @@ export class AuthorizationService {
 		ctx: AuthenticationContext,
 		permission: Permission,
 	): (acc: NodeFilters2D, cur: NodeFilters2D[0]) => NodeFilters2D {
-		if (ctx.principal.groups.includes(Groups.ADMINS_GROUP_UUID)) {
+		if (
+			ctx.principal.groups.includes(Groups.ADMINS_GROUP_UUID)
+		) {
 			return (acc: NodeFilters2D, cur: NodeFilters2D[0]) => {
 				acc.push(cur);
 				return acc;

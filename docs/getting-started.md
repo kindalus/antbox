@@ -43,6 +43,7 @@ storage = ["inmem/inmem_storage_provider.ts"]
 ```
 
 Notes:
+
 - `eventStoreRepository` is required for every tenant.
 - If `key` and `jwk` are not provided, the server will try to read defaults and exit on failure.
 - For production, use persistent `repository` and `storage` adapters.

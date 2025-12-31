@@ -26,6 +26,7 @@ import { AgentsService } from "application/ai/agents_service.ts";
 import { AgentsEngine } from "application/ai/agents_engine.ts";
 import type { AIModel } from "application/ai/ai_model.ts";
 import { EmbeddingService } from "application/ai/embedding_service.ts";
+import { NotificationsService } from "application/notifications/notifications_service.ts";
 
 import { RAGService } from "application/ai/rag_service.ts";
 
@@ -211,6 +212,8 @@ async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
 
 	const articleService = new ArticleService(nodeService);
 
+	const notificationsService = new NotificationsService(configRepo);
+
 	const auditLoggingService = new AuditLoggingService(
 		eventStoreRepository,
 		eventBus,
@@ -271,6 +274,7 @@ async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
 		groupsService,
 		models,
 		nodeService,
+		notificationsService,
 		ragService,
 		usersService,
 		workflowsService,

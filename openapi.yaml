@@ -38,6 +38,8 @@ tags:
     description: Authentication operations
   - name: nodes
     description: Operations related to nodes (files, folders, etc.)
+  - name: notifications
+    description: Operations related to user and group notifications
   - name: templates
     description: Operations related to templates
   - name: users
@@ -1281,6 +1283,135 @@ paths:
       responses:
         "204":
           description: Content updated
+        default:
+          $ref: "#/components/responses/Error"
+  /notifications:
+    get:
+      tags:
+        - notifications
+      summary: List notifications for current user
+      operationId: listNotifications
+      description: Returns all notifications accessible by the current user, including those targeting the user directly or any groups they belong to.
+      responses:
+        "200":
+          description: A list of notifications
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Notification"
+        default:
+          $ref: "#/components/responses/Error"
+  "/notifications/-/critical":
+    post:
+      tags:
+        - notifications
+      summary: Send a critical notification
+      operationId: sendCriticalNotification
+      description: Creates a CRITICAL priority notification. Must target at least one of targetUser or targetGroup.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateNotificationRequest"
+      responses:
+        "201":
+          description: Notification created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Notification"
+        default:
+          $ref: "#/components/responses/Error"
+  "/notifications/-/info":
+    post:
+      tags:
+        - notifications
+      summary: Send an info notification
+      operationId: sendInfoNotification
+      description: Creates an INFO priority notification. Must target at least one of targetUser or targetGroup.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateNotificationRequest"
+      responses:
+        "201":
+          description: Notification created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Notification"
+        default:
+          $ref: "#/components/responses/Error"
+  "/notifications/-/insight":
+    post:
+      tags:
+        - notifications
+      summary: Send an insight notification
+      operationId: sendInsightNotification
+      description: Creates an INSIGHT priority notification. Must target at least one of targetUser or targetGroup.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateNotificationRequest"
+      responses:
+        "201":
+          description: Notification created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Notification"
+        default:
+          $ref: "#/components/responses/Error"
+  "/notifications/-/delete":
+    post:
+      tags:
+        - notifications
+      summary: Delete notifications
+      operationId: deleteNotifications
+      description: Deletes notifications by UUIDs. User can only delete notifications targeting them directly or groups they belong to.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - uuids
+              properties:
+                uuids:
+                  type: array
+                  description: Array of notification UUIDs to delete
+                  items:
+                    type: string
+                    format: uuid
+      responses:
+        "200":
+          description: Notifications deleted successfully
+        "403":
+          description: Forbidden - user not authorized to delete one or more notifications
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AntboxError"
+        default:
+          $ref: "#/components/responses/Error"
+  "/notifications/-/clear":
+    post:
+      tags:
+        - notifications
+      summary: Clear all notifications for current user
+      operationId: clearAllNotifications
+      description: Removes all notifications that target the current user directly. Group-targeted notifications are not affected and must be deleted individually using the delete endpoint.
+      responses:
+        "200":
+          description: All user notifications cleared successfully
         default:
           $ref: "#/components/responses/Error"
   /templates:
@@ -2866,6 +2997,64 @@ components:
           type: string
           format: email
           description: Email of the user who deleted the node
+    Notification:
+      type: object
+      required:
+        - uuid
+        - priority
+        - title
+        - body
+        - timestamp
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          description: Unique identifier for the notification
+        targetUser:
+          type: string
+          format: email
+          description: Target user email (optional if targetGroup is provided)
+        targetGroup:
+          type: string
+          format: uuid
+          description: Target group UUID (optional if targetUser is provided)
+        priority:
+          type: string
+          enum:
+            - CRITICAL
+            - INFO
+            - INSIGHT
+          description: Priority level of the notification
+        title:
+          type: string
+          description: Notification title
+        body:
+          type: string
+          description: Notification body/message
+        timestamp:
+          type: string
+          format: date-time
+          description: When the notification was created
+    CreateNotificationRequest:
+      type: object
+      required:
+        - title
+        - body
+      properties:
+        targetUser:
+          type: string
+          format: email
+          description: Target user email (at least one of targetUser or targetGroup must be provided)
+        targetGroup:
+          type: string
+          format: uuid
+          description: Target group UUID (at least one of targetUser or targetGroup must be provided)
+        title:
+          type: string
+          description: Notification title
+        body:
+          type: string
+          description: Notification body/message
   securitySchemes:
     bearerAuth:
       type: http

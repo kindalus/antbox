@@ -12,16 +12,19 @@ import { modelFrom } from "adapters/model_configuration_parser.ts";
 import chatPrefix from "./prompts/chat_prefix.txt" with { type: "text" };
 import answerPrefix from "./prompts/answer_prefix.txt" with { type: "text" };
 import agentSystemPrompt from "./prompts/agent_system_prompt.txt" with { type: "text" };
+import skillsSystemPrompt from "./prompts/skills_system_prompt.txt" with { type: "text" };
 import {
 	createGetSdkDocumentationTool,
 	GET_SDK_DOCUMENTATION_TOOL,
 } from "./internal_ai_tools/get_sdk_documentation.ts";
 import { createRunCodeTool, RUN_CODE_TOOL } from "./internal_ai_tools/run_code.ts";
+import { createLoadSkillTool, LOAD_SKILL_TOOL } from "./internal_ai_tools/load_skill.ts";
 import { NodeServiceProxy } from "../nodes/node_service_proxy.ts";
 import { AspectServiceProxy } from "../aspects/aspect_service_proxy.ts";
 import type { NodeService } from "../nodes/node_service.ts";
 import type { AspectsService } from "../aspects/aspects_service.ts";
 import type { AgentsService } from "./agents_service.ts";
+import type { AgentSkillMetadata } from "domain/configuration/skill_data.ts";
 
 const chatSystemPrompt = chatPrefix + "\n" + agentSystemPrompt;
 const answerSystemPrompt = answerPrefix + "\n" + agentSystemPrompt;
@@ -158,6 +161,9 @@ export class AgentsEngine {
 		const { agent, aiModel } = prepareResult.value;
 
 		try {
+			// Load skills metadata if agent has access to skills
+			const skillsMetadata = await this.#loadAgentSkillsMetadata(authContext, agent);
+
 			// Build system prompt only if no history provided (new conversation)
 			let systemPrompt: string | undefined;
 			if (!options?.history || options.history.length === 0) {
@@ -165,6 +171,7 @@ export class AgentsEngine {
 					chatSystemPrompt,
 					agent.systemInstructions,
 					options?.instructions,
+					skillsMetadata,
 				);
 			}
 
@@ -173,7 +180,8 @@ export class AgentsEngine {
 			let currentHistory = [...originalHistory];
 
 			// Prepare tools that the agent can call
-			const tools = await this.#prepareTools(authContext, agent);
+			const hasSkills = skillsMetadata.length > 0;
+			const tools = await this.#prepareTools(authContext, agent, hasSkills);
 
 			// Tool calling loop: continue until we get a text response
 			while (true) {
@@ -263,15 +271,20 @@ export class AgentsEngine {
 		const { agent, aiModel } = prepareResult.value;
 
 		try {
+			// Load skills metadata if agent has access to skills
+			const skillsMetadata = await this.#loadAgentSkillsMetadata(authContext, agent);
+
 			// Build system prompt
 			const systemPrompt = this.#buildSystemPrompt(
 				answerSystemPrompt,
 				agent.systemInstructions,
 				options?.instructions,
+				skillsMetadata,
 			);
 
 			// Prepare tools
-			const tools = await this.#prepareTools(authContext, agent);
+			const hasSkills = skillsMetadata.length > 0;
+			const tools = await this.#prepareTools(authContext, agent, hasSkills);
 
 			// Build initial history for tool execution loop
 			let currentHistory: ChatHistory = [
@@ -390,24 +403,68 @@ export class AgentsEngine {
 		basePrompt: string,
 		systemInstructions: string,
 		additionalInstructions?: string,
+		skillsMetadata?: AgentSkillMetadata[],
 	): string {
 		let systemPrompt = basePrompt + "\n\n" + systemInstructions;
+
+		// Add skills section if agent has access to skills
+		if (skillsMetadata && skillsMetadata.length > 0) {
+			systemPrompt += "\n\n" + skillsSystemPrompt;
+			systemPrompt += this.#formatSkillsMetadata(skillsMetadata);
+		}
+
 		if (additionalInstructions) {
 			systemPrompt += "\n\n**INSTRUCTIONS**\n\n" + additionalInstructions;
 		}
 		return systemPrompt;
 	}
 
+	#formatSkillsMetadata(skills: AgentSkillMetadata[]): string {
+		return skills.map((skill) => `- **${skill.uuid}**: ${skill.description}`).join("\n");
+	}
+
+	async #loadAgentSkillsMetadata(
+		authContext: AuthenticationContext,
+		agent: AgentData,
+	): Promise<AgentSkillMetadata[]> {
+		if (!agent.useSkills) {
+			return [];
+		}
+
+		const allSkillsOrErr = await this.#agentsService.listSkillMetadata(authContext);
+		if (allSkillsOrErr.isLeft()) {
+			Logger.warn(`Failed to load skills metadata: ${allSkillsOrErr.value.message}`);
+			return [];
+		}
+
+		const allSkills = allSkillsOrErr.value;
+
+		// If skillsAllowed is empty or undefined, agent has access to all skills
+		if (!agent.skillsAllowed || agent.skillsAllowed.length === 0) {
+			return allSkills;
+		}
+
+		// Filter skills to only those the agent is allowed to use
+		return allSkills.filter((skill) => agent.skillsAllowed!.includes(skill.uuid));
+	}
+
 	async #prepareTools(
 		_authContext: AuthenticationContext,
 		agent: AgentData,
+		hasSkills: boolean = false,
 	): Promise<Partial<FeatureData>[] | undefined> {
 		if (!agent.useTools) {
 			return undefined;
 		}
 
-		// Return only the internal AI tools
-		return [GET_SDK_DOCUMENTATION_TOOL, RUN_CODE_TOOL];
+		const tools: Partial<FeatureData>[] = [GET_SDK_DOCUMENTATION_TOOL, RUN_CODE_TOOL];
+
+		// Add loadSkill tool if agent has access to skills
+		if (hasSkills) {
+			tools.push(LOAD_SKILL_TOOL);
+		}
+
+		return tools;
 	}
 
 	#extractToolCalls(message: ChatMessage): Array<{ name: string; args: Record<string, unknown> }> {
@@ -432,6 +489,7 @@ export class AgentsEngine {
 		// Create tool instances
 		const getSdkDocumentation = createGetSdkDocumentationTool(customFeatures);
 		const runCode = createRunCodeTool(nodeServiceProxy, aspectServiceProxy, {});
+		const loadSkill = createLoadSkillTool(this.#agentsService, authContext);
 
 		for (const toolCall of toolCalls) {
 			// Find the tool in available tools
@@ -465,6 +523,13 @@ export class AgentsEngine {
 						throw new Error("Code parameter is required");
 					}
 					resultText = await runCode(code);
+				} else if (toolCall.name === "loadSkill") {
+					const skillName = toolCall.args.skillName as string;
+					if (!skillName) {
+						throw new Error("skillName parameter is required");
+					}
+					const resources = toolCall.args.resources as string[] | undefined;
+					resultText = await loadSkill(skillName, ...(resources || []));
 				} else {
 					throw new Error(`Unknown tool: ${toolCall.name}`);
 				}

@@ -11,6 +11,17 @@ import { BUILTIN_AGENTS } from "domain/configuration/builtin_agents.ts";
 import { UuidGenerator } from "shared/uuid_generator.ts";
 import type { AIModel } from "./ai_model.ts";
 import { AIModelDTO, aiModelToDto } from "./ai_model_dto.ts";
+import type { AgentSkillData, AgentSkillMetadata } from "domain/configuration/skill_data.ts";
+import { extractSkillMetadata } from "domain/configuration/skill_data.ts";
+import { AgentSkillDataSchema } from "domain/configuration/skill_schema.ts";
+import {
+	extractLevel2Content,
+	extractLevel3Resource,
+	listLevel3Resources,
+	parseSkillMarkdown,
+	toAgentSkillData,
+	toSkillMarkdown,
+} from "./skill_parser.ts";
 
 /**
  * Context for AgentsService dependencies
@@ -172,6 +183,172 @@ export class AgentsService {
 		}
 
 		return right(this.#models.map(aiModelToDto));
+	}
+
+	// ========================================================================
+	// SKILL OPERATIONS
+	// ========================================================================
+
+	/**
+	 * Creates or replaces a skill from markdown content.
+	 * If a skill with the same name (uuid) exists, it will be replaced.
+	 * The uuid is derived from the skill name in the frontmatter.
+	 */
+	async createOrReplaceSkill(
+		ctx: AuthenticationContext,
+		markdown: string,
+	): Promise<Either<AntboxError, AgentSkillData>> {
+		if (!this.#isAdmin(ctx)) {
+			return left(new ForbiddenError("Only admins can create skills"));
+		}
+
+		// Parse the markdown
+		const parsedOrErr = parseSkillMarkdown(markdown);
+		if (parsedOrErr.isLeft()) {
+			return parsedOrErr;
+		}
+
+		const parsed = parsedOrErr.value;
+		const now = new Date().toISOString();
+
+		// Check if skill with same name (uuid) exists to preserve createdTime
+		const existingOrErr = await this.getSkill(ctx, parsed.frontmatter.name);
+		const existingCreatedTime = existingOrErr.isRight()
+			? existingOrErr.value.createdTime
+			: undefined;
+
+		const skillData = toAgentSkillData(parsed, now, existingCreatedTime);
+
+		// Validate with Zod schema
+		const validation = AgentSkillDataSchema.safeParse(skillData);
+		if (!validation.success) {
+			const errors = validation.error.issues.map((e) =>
+				new BadRequestError(`${e.path.join(".")}: ${e.message}`)
+			);
+			return left(ValidationError.from(...errors));
+		}
+
+		return this.#configRepo.save("skills", skillData);
+	}
+
+	/**
+	 * Gets a skill by UUID (which is the same as the skill name in kebab-case).
+	 */
+	async getSkill(
+		_ctx: AuthenticationContext,
+		uuid: string,
+	): Promise<Either<AntboxError, AgentSkillData>> {
+		return this.#configRepo.get("skills", uuid);
+	}
+
+	/**
+	 * Lists all skills.
+	 */
+	async listSkills(
+		_ctx: AuthenticationContext,
+	): Promise<Either<AntboxError, AgentSkillData[]>> {
+		const skillsOrErr = await this.#configRepo.list("skills");
+		if (skillsOrErr.isLeft()) {
+			return skillsOrErr;
+		}
+
+		// Sort by uuid (which is the name)
+		skillsOrErr.value.sort((a, b) => a.uuid.localeCompare(b.uuid));
+		return skillsOrErr;
+	}
+
+	/**
+	 * Lists skill metadata (Level 1) for all skills.
+	 * This is used at agent startup to populate the system prompt.
+	 * Access control is handled at the agent level, not the skill level.
+	 */
+	async listSkillMetadata(
+		_ctx: AuthenticationContext,
+	): Promise<Either<AntboxError, AgentSkillMetadata[]>> {
+		const skillsOrErr = await this.#configRepo.list("skills");
+		if (skillsOrErr.isLeft()) {
+			return skillsOrErr;
+		}
+
+		// Extract metadata only
+		const metadata = skillsOrErr.value.map(extractSkillMetadata);
+		metadata.sort((a, b) => a.uuid.localeCompare(b.uuid));
+
+		return right(metadata);
+	}
+
+	/**
+	 * Loads a skill's content (Level 2 + optional Level 3 resources).
+	 * This implements the loadSkill(skillName, ...resources) function from the spec.
+	 */
+	async loadSkill(
+		ctx: AuthenticationContext,
+		skillName: string,
+		...resources: string[]
+	): Promise<Either<AntboxError, string>> {
+		const skillOrErr = await this.getSkill(ctx, skillName);
+		if (skillOrErr.isLeft()) {
+			return skillOrErr;
+		}
+
+		const skill = skillOrErr.value;
+
+		// Start with Level 2 content
+		let result = extractLevel2Content(skill.content);
+
+		// Add requested Level 3 resources
+		for (const resourceSlug of resources) {
+			const resourceContent = extractLevel3Resource(skill.content, resourceSlug);
+			if (resourceContent) {
+				result += "\n\n" + resourceContent;
+			}
+		}
+
+		return right(result);
+	}
+
+	/**
+	 * Lists available Level 3 resources for a skill.
+	 */
+	async listSkillResources(
+		ctx: AuthenticationContext,
+		skillName: string,
+	): Promise<Either<AntboxError, string[]>> {
+		const skillOrErr = await this.getSkill(ctx, skillName);
+		if (skillOrErr.isLeft()) {
+			return skillOrErr;
+		}
+
+		return right(listLevel3Resources(skillOrErr.value.content));
+	}
+
+	/**
+	 * Exports a skill as markdown.
+	 */
+	async exportSkill(
+		ctx: AuthenticationContext,
+		uuid: string,
+	): Promise<Either<AntboxError, string>> {
+		const skillOrErr = await this.getSkill(ctx, uuid);
+		if (skillOrErr.isLeft()) {
+			return skillOrErr;
+		}
+
+		return right(toSkillMarkdown(skillOrErr.value));
+	}
+
+	/**
+	 * Deletes a skill by UUID.
+	 */
+	async deleteSkill(
+		ctx: AuthenticationContext,
+		uuid: string,
+	): Promise<Either<AntboxError, void>> {
+		if (!this.#isAdmin(ctx)) {
+			return left(new ForbiddenError("Only admins can delete skills"));
+		}
+
+		return this.#configRepo.delete("skills", uuid);
 	}
 
 	// ========================================================================

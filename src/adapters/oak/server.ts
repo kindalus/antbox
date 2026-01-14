@@ -4,6 +4,7 @@ import nodesRouter from "adapters/oak/nodes_v2_router.ts";
 import aspectsRouter from "adapters/oak/aspects_v2_router.ts";
 import featuresRouter from "adapters/oak/features_v2_router.ts";
 import agentsRouter from "adapters/oak/agents_v2_router.ts";
+import skillsRouter from "adapters/oak/skills_v2_router.ts";
 import apiKeysRouter from "adapters/oak/api_keys_v2_router.ts";
 import usersRouter from "adapters/oak/users_v2_router.ts";
 import groupsRouter from "adapters/oak/groups_v2_router.ts";
@@ -44,6 +45,7 @@ export default function setupOakServer(
 	const aspects = aspectsRouter(tenants);
 	const features = featuresRouter(tenants);
 	const agents = agentsRouter(tenants);
+	const skills = skillsRouter(tenants);
 	const apiKeys = apiKeysRouter(tenants);
 	const users = usersRouter(tenants);
 	const groups = groupsRouter(tenants);
@@ -64,6 +66,7 @@ export default function setupOakServer(
 	v2.use(aspects.routes(), aspects.allowedMethods());
 	v2.use(features.routes(), features.allowedMethods());
 	v2.use(agents.routes(), agents.allowedMethods());
+	v2.use(skills.routes(), skills.allowedMethods());
 	v2.use(apiKeys.routes(), apiKeys.allowedMethods());
 	v2.use(users.routes(), users.allowedMethods());
 	v2.use(groups.routes(), groups.allowedMethods());

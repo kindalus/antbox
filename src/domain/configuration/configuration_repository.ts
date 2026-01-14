@@ -9,6 +9,7 @@ import type { WorkflowInstanceData } from "./workflow_instance_data.ts";
 import type { AgentData } from "./agent_data.ts";
 import type { FeatureData } from "./feature_data.ts";
 import type { NotificationData } from "./notification_data.ts";
+import type { AgentSkillData } from "./skill_data.ts";
 
 /**
  * Collection mapping for type-safe repository operations
@@ -24,6 +25,7 @@ export interface CollectionMap {
 	"agents": AgentData;
 	"features": FeatureData;
 	"notifications": NotificationData;
+	"skills": AgentSkillData;
 }
 
 /**

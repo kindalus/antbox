@@ -220,3 +220,203 @@ export function ragChatHandler(tenants: AntboxTenant[]): HttpHandler {
 		},
 	);
 }
+
+// ============================================================================
+// SKILL HANDLERS
+// ============================================================================
+
+export function createOrReplaceSkillHandler(tenants: AntboxTenant[]): HttpHandler {
+	return defaultMiddlewareChain(
+		tenants,
+		async (req: Request): Promise<Response> => {
+			const tenant = getTenant(req, tenants);
+			const unavailableResponse = checkServiceAvailability(tenant.agentsService, "AI agents");
+			if (unavailableResponse) {
+				return Promise.resolve(unavailableResponse);
+			}
+
+			// Read markdown content from request body
+			const markdown = await req.text();
+			if (!markdown || markdown.trim().length === 0) {
+				return sendBadRequest({ error: "Skill markdown content is required" });
+			}
+
+			return tenant.agentsService!
+				.createOrReplaceSkill(getAuthenticationContext(req), markdown)
+				.then(processServiceCreateResult)
+				.catch(processError);
+		},
+	);
+}
+
+export function getSkillHandler(tenants: AntboxTenant[]): HttpHandler {
+	return defaultMiddlewareChain(
+		tenants,
+		async (req: Request): Promise<Response> => {
+			const tenant = getTenant(req, tenants);
+			const unavailableResponse = checkServiceAvailability(tenant.agentsService, "AI agents");
+			if (unavailableResponse) {
+				return Promise.resolve(unavailableResponse);
+			}
+
+			const params = getParams(req);
+			if (!params.uuid) {
+				return sendBadRequest({ error: "{ uuid } not given" });
+			}
+
+			return tenant.agentsService!
+				.getSkill(getAuthenticationContext(req), params.uuid)
+				.then(processServiceResult)
+				.catch(processError);
+		},
+	);
+}
+
+export function listSkillsHandler(tenants: AntboxTenant[]): HttpHandler {
+	return defaultMiddlewareChain(
+		tenants,
+		async (req: Request): Promise<Response> => {
+			const tenant = getTenant(req, tenants);
+			const unavailableResponse = checkServiceAvailability(tenant.agentsService, "AI agents");
+			if (unavailableResponse) {
+				return Promise.resolve(unavailableResponse);
+			}
+
+			return tenant.agentsService!
+				.listSkills(getAuthenticationContext(req))
+				.then(processServiceResult)
+				.catch(processError);
+		},
+	);
+}
+
+export function listSkillMetadataHandler(tenants: AntboxTenant[]): HttpHandler {
+	return defaultMiddlewareChain(
+		tenants,
+		async (req: Request): Promise<Response> => {
+			const tenant = getTenant(req, tenants);
+			const unavailableResponse = checkServiceAvailability(tenant.agentsService, "AI agents");
+			if (unavailableResponse) {
+				return Promise.resolve(unavailableResponse);
+			}
+
+			return tenant.agentsService!
+				.listSkillMetadata(getAuthenticationContext(req))
+				.then(processServiceResult)
+				.catch(processError);
+		},
+	);
+}
+
+export function loadSkillHandler(tenants: AntboxTenant[]): HttpHandler {
+	return defaultMiddlewareChain(
+		tenants,
+		async (req: Request): Promise<Response> => {
+			const tenant = getTenant(req, tenants);
+			const unavailableResponse = checkServiceAvailability(tenant.agentsService, "AI agents");
+			if (unavailableResponse) {
+				return Promise.resolve(unavailableResponse);
+			}
+
+			const params = getParams(req);
+			if (!params.uuid) {
+				return sendBadRequest({ error: "{ uuid } not given" });
+			}
+
+			// Get optional resources from query params
+			const url = new URL(req.url);
+			const resources = url.searchParams.getAll("resource");
+
+			return tenant.agentsService!
+				.loadSkill(getAuthenticationContext(req), params.uuid, ...resources)
+				.then((result) => {
+					if (result.isLeft()) {
+						return processError(result.value);
+					}
+					return new Response(result.value, {
+						headers: { "Content-Type": "text/markdown; charset=utf-8" },
+					});
+				})
+				.catch(processError);
+		},
+	);
+}
+
+export function listSkillResourcesHandler(tenants: AntboxTenant[]): HttpHandler {
+	return defaultMiddlewareChain(
+		tenants,
+		async (req: Request): Promise<Response> => {
+			const tenant = getTenant(req, tenants);
+			const unavailableResponse = checkServiceAvailability(tenant.agentsService, "AI agents");
+			if (unavailableResponse) {
+				return Promise.resolve(unavailableResponse);
+			}
+
+			const params = getParams(req);
+			if (!params.uuid) {
+				return sendBadRequest({ error: "{ uuid } not given" });
+			}
+
+			return tenant.agentsService!
+				.listSkillResources(getAuthenticationContext(req), params.uuid)
+				.then(processServiceResult)
+				.catch(processError);
+		},
+	);
+}
+
+export function exportSkillHandler(tenants: AntboxTenant[]): HttpHandler {
+	return defaultMiddlewareChain(
+		tenants,
+		async (req: Request): Promise<Response> => {
+			const tenant = getTenant(req, tenants);
+			const unavailableResponse = checkServiceAvailability(tenant.agentsService, "AI agents");
+			if (unavailableResponse) {
+				return Promise.resolve(unavailableResponse);
+			}
+
+			const params = getParams(req);
+			if (!params.uuid) {
+				return sendBadRequest({ error: "{ uuid } not given" });
+			}
+
+			return tenant.agentsService!
+				.exportSkill(getAuthenticationContext(req), params.uuid)
+				.then((result) => {
+					if (result.isLeft()) {
+						return processError(result.value);
+					}
+					return new Response(result.value, {
+						headers: {
+							"Content-Type": "text/markdown; charset=utf-8",
+							"Content-Disposition": `attachment; filename="${params.uuid}.md"`,
+						},
+					});
+				})
+				.catch(processError);
+		},
+	);
+}
+
+export function deleteSkillHandler(tenants: AntboxTenant[]): HttpHandler {
+	return defaultMiddlewareChain(
+		tenants,
+		async (req: Request): Promise<Response> => {
+			const tenant = getTenant(req, tenants);
+			const unavailableResponse = checkServiceAvailability(tenant.agentsService, "AI agents");
+			if (unavailableResponse) {
+				return Promise.resolve(unavailableResponse);
+			}
+
+			const params = getParams(req);
+			if (!params.uuid) {
+				return sendBadRequest({ error: "{ uuid } not given" });
+			}
+
+			return tenant.agentsService!
+				.deleteSkill(getAuthenticationContext(req), params.uuid)
+				.then(processServiceResult)
+				.catch(processError);
+		},
+	);
+}

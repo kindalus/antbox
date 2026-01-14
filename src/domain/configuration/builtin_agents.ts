@@ -30,7 +30,8 @@ export const RAG_AGENT: AgentData = {
 	reasoning: false,
 	useTools: true,
 	systemInstructions: RAG_AGENT_SYSTEM_PROMPT,
-	structuredAnswer: undefined,
+	useSkills: false,
+	skillsAllowed: undefined,
 	createdTime: BASE_TIME,
 	modifiedTime: BASE_TIME,
 };

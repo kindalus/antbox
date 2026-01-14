@@ -40,6 +40,8 @@ tags:
     description: Operations related to nodes (files, folders, etc.)
   - name: notifications
     description: Operations related to user and group notifications
+  - name: skills
+    description: Operations related to AI agent skills
   - name: templates
     description: Operations related to templates
   - name: users
@@ -1414,6 +1416,154 @@ paths:
           description: All user notifications cleared successfully
         default:
           $ref: "#/components/responses/Error"
+  /skills:
+    get:
+      tags:
+        - skills
+      summary: List all skills
+      operationId: listSkills
+      responses:
+        "200":
+          description: A list of agent skills
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AgentSkill"
+        default:
+          $ref: "#/components/responses/Error"
+    post:
+      tags:
+        - skills
+      summary: Create or replace a skill
+      operationId: createOrReplaceSkill
+      requestBody:
+        required: true
+        content:
+          text/markdown:
+            schema:
+              type: string
+              description: Markdown content with YAML frontmatter containing skill definition
+      responses:
+        "201":
+          description: Skill created or replaced successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentSkill"
+        default:
+          $ref: "#/components/responses/Error"
+  "/skills/{uuid}":
+    get:
+      tags:
+        - skills
+      summary: Get a skill by UUID
+      operationId: getSkill
+      parameters:
+        - $ref: "#/components/parameters/UUID"
+      responses:
+        "200":
+          description: Skill details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentSkill"
+        default:
+          $ref: "#/components/responses/Error"
+    delete:
+      tags:
+        - skills
+      summary: Delete a skill
+      operationId: deleteSkill
+      parameters:
+        - $ref: "#/components/parameters/UUID"
+      responses:
+        "200":
+          description: Skill deleted successfully
+        default:
+          $ref: "#/components/responses/Error"
+  "/skills/{uuid}/-/export":
+    get:
+      tags:
+        - skills
+      summary: Export a skill as markdown
+      operationId: exportSkill
+      parameters:
+        - $ref: "#/components/parameters/UUID"
+      responses:
+        "200":
+          description: Skill exported as markdown
+          content:
+            text/markdown:
+              schema:
+                type: string
+        default:
+          $ref: "#/components/responses/Error"
+  /skills/-/metadata:
+    get:
+      tags:
+        - skills
+      summary: List skill metadata (Level 1)
+      operationId: listSkillMetadata
+      description: Returns minimal metadata for all skills. Used at agent startup for system prompt. Access control is handled at the agent level.
+      responses:
+        "200":
+          description: List of skill metadata
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AgentSkillMetadata"
+        default:
+          $ref: "#/components/responses/Error"
+  "/skills/{uuid}/-/load":
+    get:
+      tags:
+        - skills
+      summary: Load skill content (Level 2 + optional Level 3)
+      operationId: loadSkill
+      description: Loads skill instructions. Returns Level 2 content by default. Add resource query params for Level 3 sections. The uuid is the skill name in kebab-case.
+      parameters:
+        - $ref: "#/components/parameters/UUID"
+        - name: resource
+          in: query
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+          description: Optional Level 3 resource slugs to include (e.g., form-filling, reference)
+      responses:
+        "200":
+          description: Skill content in markdown format
+          content:
+            text/markdown:
+              schema:
+                type: string
+        default:
+          $ref: "#/components/responses/Error"
+  "/skills/{uuid}/-/resources":
+    get:
+      tags:
+        - skills
+      summary: List available Level 3 resources
+      operationId: listSkillResources
+      description: Returns slugs of all Level 3 sections available for the skill. The uuid is the skill name in kebab-case.
+      parameters:
+        - $ref: "#/components/parameters/UUID"
+      responses:
+        "200":
+          description: List of resource slugs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+        default:
+          $ref: "#/components/responses/Error"
   /templates:
     get:
       tags:
@@ -1924,6 +2074,7 @@ components:
         - maxTokens
         - reasoning
         - useTools
+        - useSkills
         - systemInstructions
       properties:
         uuid:
@@ -1952,10 +2103,60 @@ components:
           type: boolean
         useTools:
           type: boolean
+        useSkills:
+          type: boolean
+          description: Whether the agent can use skills. If true and skillsAllowed is empty, the agent has access to all skills.
+        skillsAllowed:
+          type: array
+          description: Optional list of skill UUIDs (names in kebab-case) that this agent can use. If empty and useSkills is true, all skills are available.
+          items:
+            type: string
         systemInstructions:
           type: string
-        structuredAnswer:
+    AgentSkill:
+      type: object
+      description: Agent Skill - a modular capability that extends AI Agent functionality. The uuid is the skill name in kebab-case.
+      required:
+        - uuid
+        - title
+        - description
+        - content
+        - createdTime
+        - modifiedTime
+      properties:
+        uuid:
           type: string
+          description: Unique identifier for the skill (same as the skill name in kebab-case, e.g., pdf-processing)
+        title:
+          type: string
+          description: Human-readable title for the skill (derived from uuid in Title Case)
+        description:
+          type: string
+          description: Brief description for skill discovery (<100 tokens)
+        content:
+          type: string
+          description: Full markdown content of the skill (Level 2 + Level 3)
+        createdTime:
+          type: string
+          format: date-time
+          description: When the skill was created
+        modifiedTime:
+          type: string
+          format: date-time
+          description: When the skill was last modified
+    AgentSkillMetadata:
+      type: object
+      description: Minimal skill metadata for discovery (Level 1)
+      required:
+        - uuid
+        - description
+      properties:
+        uuid:
+          type: string
+          description: Unique identifier for the skill (same as the skill name in kebab-case)
+        description:
+          type: string
+          description: Brief description for skill discovery
     ApiKey:
       type: object
       required:

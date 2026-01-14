@@ -13,7 +13,8 @@ export const AgentDataSchema = z.object({
 	reasoning: z.boolean(),
 	useTools: z.boolean(),
 	systemInstructions: z.string().min(1, "System instructions are required"),
-	structuredAnswer: z.string().optional(),
+	useSkills: z.boolean(),
+	skillsAllowed: z.array(z.string()).optional(),
 	createdTime: z.string(),
 	modifiedTime: z.string(),
 });

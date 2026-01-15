@@ -9,14 +9,15 @@ import type { AIModel } from "./ai_model.ts";
 import type { FeaturesService } from "../features/features_service.ts";
 import type { FeatureData } from "domain/configuration/feature_data.ts";
 import { modelFrom } from "adapters/model_configuration_parser.ts";
-import chatPrefix from "./prompts/chat_prefix.txt" with { type: "text" };
-import answerPrefix from "./prompts/answer_prefix.txt" with { type: "text" };
-import agentSystemPrompt from "./prompts/agent_system_prompt.txt" with { type: "text" };
-import skillsSystemPrompt from "./prompts/skills_system_prompt.txt" with { type: "text" };
+import chatPrefix from "./prompts/chat_prefix.md" with { type: "text" };
+import answerPrefix from "./prompts/answer_prefix.md" with { type: "text" };
+import agentSystemPrompt from "./prompts/agent_system_prompt.md" with { type: "text" };
+import skillsSystemPrompt from "./prompts/skills_system_prompt.md" with { type: "text" };
+import sdkSystemPrompt from "./prompts/sdk_system_prompt.md" with { type: "text" };
 import {
-	createGetSdkDocumentationTool,
-	GET_SDK_DOCUMENTATION_TOOL,
-} from "./internal_ai_tools/get_sdk_documentation.ts";
+	createLoadSdkDocumentationTool,
+	LOAD_SDK_DOCUMENTATION_TOOL,
+} from "./internal_ai_tools/load_sdk_documentation.ts";
 import { createRunCodeTool, RUN_CODE_TOOL } from "./internal_ai_tools/run_code.ts";
 import { createLoadSkillTool, LOAD_SKILL_TOOL } from "./internal_ai_tools/load_skill.ts";
 import { NodeServiceProxy } from "../nodes/node_service_proxy.ts";
@@ -52,6 +53,15 @@ export interface AnswerOptions {
 	readonly temperature?: number; // Override agent's default
 	readonly maxTokens?: number; // Override agent's default
 	readonly instructions?: string; // Additional system instructions
+}
+
+/**
+ * SDK metadata for system prompt (Level 1 - discovery)
+ */
+interface SdkMetadata {
+	readonly nodesMethods: string[];
+	readonly aspectsMethods: string[];
+	readonly customMethods: string[];
 }
 
 /**
@@ -164,6 +174,9 @@ export class AgentsEngine {
 			// Load skills metadata if agent has access to skills
 			const skillsMetadata = await this.#loadAgentSkillsMetadata(authContext, agent);
 
+			// Load SDK metadata if agent has tools enabled
+			const sdkMetadata = await this.#loadSdkMetadata(authContext, agent);
+
 			// Build system prompt only if no history provided (new conversation)
 			let systemPrompt: string | undefined;
 			if (!options?.history || options.history.length === 0) {
@@ -172,6 +185,7 @@ export class AgentsEngine {
 					agent.systemInstructions,
 					options?.instructions,
 					skillsMetadata,
+					sdkMetadata,
 				);
 			}
 
@@ -196,7 +210,6 @@ export class AgentsEngine {
 						temperature: options?.temperature ?? agent.temperature,
 						maxTokens: options?.maxTokens ?? agent.maxTokens,
 						reasoning: agent.reasoning,
-						structuredOutput: agent.structuredAnswer,
 					},
 				);
 
@@ -274,12 +287,16 @@ export class AgentsEngine {
 			// Load skills metadata if agent has access to skills
 			const skillsMetadata = await this.#loadAgentSkillsMetadata(authContext, agent);
 
+			// Load SDK metadata if agent has tools enabled
+			const sdkMetadata = await this.#loadSdkMetadata(authContext, agent);
+
 			// Build system prompt
 			const systemPrompt = this.#buildSystemPrompt(
 				answerSystemPrompt,
 				agent.systemInstructions,
 				options?.instructions,
 				skillsMetadata,
+				sdkMetadata,
 			);
 
 			// Prepare tools
@@ -304,7 +321,6 @@ export class AgentsEngine {
 							temperature: options?.temperature ?? agent.temperature,
 							maxTokens: options?.maxTokens ?? agent.maxTokens,
 							reasoning: agent.reasoning,
-							structuredOutput: agent.structuredAnswer,
 						},
 					)
 					: await aiModel.chat?.(
@@ -316,7 +332,6 @@ export class AgentsEngine {
 							temperature: options?.temperature ?? agent.temperature,
 							maxTokens: options?.maxTokens ?? agent.maxTokens,
 							reasoning: agent.reasoning,
-							structuredOutput: agent.structuredAnswer,
 						},
 					);
 
@@ -404,6 +419,7 @@ export class AgentsEngine {
 		systemInstructions: string,
 		additionalInstructions?: string,
 		skillsMetadata?: AgentSkillMetadata[],
+		sdkMetadata?: SdkMetadata,
 	): string {
 		let systemPrompt = basePrompt + "\n\n" + systemInstructions;
 
@@ -411,6 +427,12 @@ export class AgentsEngine {
 		if (skillsMetadata && skillsMetadata.length > 0) {
 			systemPrompt += "\n\n" + skillsSystemPrompt;
 			systemPrompt += this.#formatSkillsMetadata(skillsMetadata);
+		}
+
+		// Add SDK section if agent has tools enabled (after skills, so skills can enhance SDK usage)
+		if (sdkMetadata) {
+			systemPrompt += "\n\n" + sdkSystemPrompt;
+			systemPrompt += this.#formatSdkMetadata(sdkMetadata);
 		}
 
 		if (additionalInstructions) {
@@ -421,6 +443,27 @@ export class AgentsEngine {
 
 	#formatSkillsMetadata(skills: AgentSkillMetadata[]): string {
 		return skills.map((skill) => `- **${skill.uuid}**: ${skill.description}`).join("\n");
+	}
+
+	#formatSdkMetadata(sdk: SdkMetadata): string {
+		const lines: string[] = [];
+
+		lines.push(
+			`- **nodes** (${sdk.nodesMethods.length} methods): ${sdk.nodesMethods.join(", ")}`,
+		);
+		lines.push(
+			`- **aspects** (${sdk.aspectsMethods.length} methods): ${sdk.aspectsMethods.join(", ")}`,
+		);
+
+		if (sdk.customMethods.length > 0) {
+			lines.push(
+				`- **custom** (${sdk.customMethods.length} methods): ${sdk.customMethods.join(", ")}`,
+			);
+		} else {
+			lines.push(`- **custom** (0 methods): No custom features available`);
+		}
+
+		return lines.join("\n");
 	}
 
 	async #loadAgentSkillsMetadata(
@@ -448,6 +491,49 @@ export class AgentsEngine {
 		return allSkills.filter((skill) => agent.skillsAllowed!.includes(skill.uuid));
 	}
 
+	async #loadSdkMetadata(
+		authContext: AuthenticationContext,
+		agent: AgentData,
+	): Promise<SdkMetadata | undefined> {
+		if (!agent.useTools) {
+			return undefined;
+		}
+
+		// Static list of nodes SDK methods
+		const nodesMethods = [
+			"copy",
+			"create",
+			"createFile",
+			"delete",
+			"duplicate",
+			"export",
+			"evaluate",
+			"find",
+			"get",
+			"list",
+			"breadcrumbs",
+			"update",
+			"updateFile",
+			"lock",
+			"unlock",
+		];
+
+		// Static list of aspects SDK methods
+		const aspectsMethods = ["get", "listAspects"];
+
+		// Dynamic list of custom methods from features
+		const customFeaturesResult = await this.#featuresService.listAITools(authContext);
+		const customMethods = customFeaturesResult.isRight()
+			? customFeaturesResult.value.map((f) => f.title)
+			: [];
+
+		return {
+			nodesMethods,
+			aspectsMethods,
+			customMethods,
+		};
+	}
+
 	async #prepareTools(
 		_authContext: AuthenticationContext,
 		agent: AgentData,
@@ -457,7 +543,7 @@ export class AgentsEngine {
 			return undefined;
 		}
 
-		const tools: Partial<FeatureData>[] = [GET_SDK_DOCUMENTATION_TOOL, RUN_CODE_TOOL];
+		const tools: Partial<FeatureData>[] = [LOAD_SDK_DOCUMENTATION_TOOL, RUN_CODE_TOOL];
 
 		// Add loadSkill tool if agent has access to skills
 		if (hasSkills) {
@@ -487,7 +573,7 @@ export class AgentsEngine {
 		const customFeatures = customFeaturesResult.isRight() ? customFeaturesResult.value : [];
 
 		// Create tool instances
-		const getSdkDocumentation = createGetSdkDocumentationTool(customFeatures);
+		const loadSdkDocumentation = createLoadSdkDocumentationTool(customFeatures);
 		const runCode = createRunCodeTool(nodeServiceProxy, aspectServiceProxy, {});
 		const loadSkill = createLoadSkillTool(this.#agentsService, authContext);
 
@@ -514,9 +600,12 @@ export class AgentsEngine {
 				let resultText: string;
 
 				// Execute internal tools directly
-				if (toolCall.name === "getSdkDocumentation") {
-					const sdkName = toolCall.args.sdkName as string | undefined;
-					resultText = getSdkDocumentation(sdkName);
+				if (toolCall.name === "loadSdkDocumentation") {
+					const sdkName = toolCall.args.sdkName as string;
+					if (!sdkName) {
+						throw new Error("sdkName parameter is required");
+					}
+					resultText = loadSdkDocumentation(sdkName);
 				} else if (toolCall.name === "runCode") {
 					const code = toolCall.args.code as string;
 					if (!code) {

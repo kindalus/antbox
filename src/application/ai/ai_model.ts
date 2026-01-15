@@ -73,7 +73,6 @@ export interface AIModel {
 			temperature?: number;
 			maxTokens?: number;
 			reasoning?: boolean;
-			structuredOutput?: string;
 		},
 	): Promise<
 		Either<AntboxError, ChatMessage>
@@ -95,7 +94,6 @@ export interface AIModel {
 			temperature?: number;
 			maxTokens?: number;
 			reasoning?: boolean;
-			structuredOutput?: string;
 		},
 	): Promise<Either<AntboxError, ChatMessage>>;
 }

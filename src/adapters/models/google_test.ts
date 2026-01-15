@@ -343,46 +343,6 @@ describe("GoogleModel", { ignore: Deno.env.get("TEST_GOOGLE_MODEL") === undefine
 				expect(chatResult.value.parts[0].text).toBe("I can see the file content.");
 			}
 		});
-
-		it("should handle structured output", async () => {
-			const testModel = new GoogleModel("gemini-2.0-flash", "test-key");
-			const validationResult = testModel.validateModel();
-			if (validationResult.isLeft()) {
-				throw new Error(`Failed to validate model: ${validationResult.value.message}`);
-			}
-
-			const mockResponse = {
-				text: '{"name": "John", "age": 30}',
-				functionCalls: undefined,
-			};
-
-			const mockClient = {
-				models: {
-					generateContent: () => Promise.resolve(mockResponse),
-				},
-			};
-
-			(testModel as any).client = mockClient;
-
-			const schema = JSON.stringify({
-				type: "object",
-				properties: {
-					name: { type: "string" },
-					age: { type: "number" },
-				},
-			});
-
-			const chatResult = await testModel.chat("Give me user info", {
-				systemPrompt: "You are helpful",
-				structuredOutput: schema,
-			});
-
-			expect(chatResult.isRight()).toBeTruthy();
-			if (chatResult.isRight()) {
-				expect(chatResult.value.role).toBe("model");
-				expect(chatResult.value.parts[0].text).toBe('{"name": "John", "age": 30}');
-			}
-		});
 	});
 
 	describe("answer", () => {
@@ -426,37 +386,6 @@ describe("GoogleModel", { ignore: Deno.env.get("TEST_GOOGLE_MODEL") === undefine
 			if (answerResult.isRight()) {
 				expect(answerResult.value.role).toBe("model");
 				expect(answerResult.value.parts[0].text).toBe("The answer is 4.");
-			}
-		});
-
-		it("should handle structured output in answer", async () => {
-			const model = new GoogleModel("gemini-2.0-flash", "test-key");
-			const validationResult = model.validateModel();
-			if (validationResult.isLeft()) {
-				throw new Error(`Failed to validate model: ${validationResult.value.message}`);
-			}
-
-			const schema = JSON.stringify({
-				type: "object",
-				properties: {
-					result: { type: "number" },
-					explanation: { type: "string" },
-				},
-			});
-
-			const answerResult = await model.answer("What is 2+2?", {
-				systemPrompt: "You are a math tutor",
-				structuredOutput: schema,
-			});
-
-			restore();
-
-			expect(answerResult.isRight()).toBeTruthy();
-			if (answerResult.isRight()) {
-				expect(answerResult.value.role).toBe("model");
-				expect(answerResult.value.parts[0].text).toBe(
-					'{"result": 4, "explanation": "2 plus 2 equals 4"}',
-				);
 			}
 		});
 	});

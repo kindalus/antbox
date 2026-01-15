@@ -1,7 +1,7 @@
 import { AgentData } from "domain/configuration/agent_data.ts";
 import { Users } from "domain/users_groups/users.ts";
-import ragPrefix from "../prompts/rag_prefix.txt" with { type: "text" };
-import agentSystemPrompt from "../prompts/agent_system_prompt.txt" with { type: "text" };
+import ragPrefix from "../prompts/rag_prefix.md" with { type: "text" };
+import agentSystemPrompt from "../prompts/agent_system_prompt.md" with { type: "text" };
 
 const ragAgentSystemPrompt = ragPrefix + "\n" + agentSystemPrompt;
 
@@ -26,9 +26,6 @@ const ragAgent: AgentData = {
 
 	// Optimized System Instructions for Knowledge Discovery
 	systemInstructions: ragAgentSystemPrompt,
-
-	// No structured output for flexible response format
-	structuredAnswer: undefined,
 
 	// Timestamps (will be set properly when persisted)
 	createdTime: new Date().toISOString(),

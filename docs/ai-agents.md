@@ -10,19 +10,19 @@ interface AgentData {
   uuid: string; // generated on create
   title: string;
   description?: string;
-  model: string;            // model name or "default"
-  temperature: number;      // 0.0 - 2.0
+  model: string; // model name or "default"
+  temperature: number; // 0.0 - 2.0
   maxTokens: number;
   reasoning: boolean;
   useTools: boolean;
   systemInstructions: string;
-  structuredAnswer?: string; // optional structured output hint
   createdTime: string;
   modifiedTime: string;
 }
 ```
 
 Notes:
+
 - Use `model: "default"` to target the tenant's default model.
 - `useTools: true` enables internal tools (`getSdkDocumentation`, `runCode`).
 
@@ -35,6 +35,7 @@ Notes:
 - **List models**: `GET /v2/ai-models`
 
 Notes:
+
 - Create/Delete and model listing require admin privileges.
 
 ### Create Example

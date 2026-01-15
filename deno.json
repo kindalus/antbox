@@ -16,6 +16,7 @@
     "path": "jsr:@std/path@1.1.2",
     "mock": "jsr:@std/testing@1.0.16/mock",
     "toml": "jsr:@std/toml@1.0.11",
+    "@std/yaml": "jsr:@std/yaml@1.0.8",
 
     "@googleapis/drive": "npm:@googleapis/drive@18.0.0",
     "@google/genai": "npm:@google/genai@1.25.0",

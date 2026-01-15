@@ -243,20 +243,6 @@ export class OpenAIModel implements AIModel {
 				requestBody.tools = options.tools.map(OpenAIModel.#toOpenAITool);
 			}
 
-			if (options?.structuredOutput) {
-				try {
-					requestBody.response_format = {
-						type: "json_schema",
-						json_schema: {
-							name: "response",
-							schema: JSON.parse(options.structuredOutput),
-						},
-					};
-				} catch {
-					// Ignore malformed schema
-				}
-			}
-
 			const response = await fetch(`${this.#baseUrl}/chat/completions`, {
 				method: "POST",
 				headers: {
@@ -289,7 +275,6 @@ export class OpenAIModel implements AIModel {
 			temperature?: number;
 			maxTokens?: number;
 			reasoning?: boolean;
-			structuredOutput?: string;
 		},
 	): Promise<Either<AntboxError, ChatMessage>> {
 		return this.chat(input, options);

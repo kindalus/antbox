@@ -48,8 +48,8 @@ describe("AgentsService", () => {
 				maxTokens: 4096,
 				reasoning: true,
 				useTools: true,
+				useSkills: false,
 				systemInstructions: "You are a helpful customer support agent.",
-				structuredAnswer: undefined,
 			});
 
 			expect(result.isRight()).toBe(true);
@@ -81,6 +81,7 @@ describe("AgentsService", () => {
 				maxTokens: 4096,
 				reasoning: false,
 				useTools: true,
+				useSkills: false,
 				systemInstructions: "Test instructions",
 			});
 
@@ -99,6 +100,7 @@ describe("AgentsService", () => {
 				maxTokens: 4096,
 				reasoning: false,
 				useTools: true,
+				useSkills: false,
 				systemInstructions: "Test instructions",
 			});
 
@@ -117,6 +119,7 @@ describe("AgentsService", () => {
 				maxTokens: 4096,
 				reasoning: false,
 				useTools: true,
+				useSkills: false,
 				systemInstructions: "Test instructions",
 			});
 
@@ -137,6 +140,7 @@ describe("AgentsService", () => {
 				maxTokens: 4096,
 				reasoning: false,
 				useTools: true,
+				useSkills: false,
 				systemInstructions: "Test instructions",
 			});
 
@@ -176,6 +180,7 @@ describe("AgentsService", () => {
 				maxTokens: 4096,
 				reasoning: false,
 				useTools: true,
+				useSkills: false,
 				systemInstructions: "Public instructions",
 			});
 
@@ -202,6 +207,7 @@ describe("AgentsService", () => {
 				maxTokens: 4096,
 				reasoning: false,
 				useTools: true,
+				useSkills: false,
 				systemInstructions: "Instructions A",
 			});
 
@@ -213,6 +219,7 @@ describe("AgentsService", () => {
 				maxTokens: 4096,
 				reasoning: false,
 				useTools: true,
+				useSkills: false,
 				systemInstructions: "Instructions B",
 			});
 
@@ -237,6 +244,7 @@ describe("AgentsService", () => {
 				maxTokens: 4096,
 				reasoning: false,
 				useTools: true,
+				useSkills: false,
 				systemInstructions: "Test instructions",
 			});
 
@@ -262,6 +270,7 @@ describe("AgentsService", () => {
 				maxTokens: 4096,
 				reasoning: false,
 				useTools: true,
+				useSkills: false,
 				systemInstructions: "Original instructions",
 			});
 
@@ -295,6 +304,7 @@ describe("AgentsService", () => {
 				maxTokens: 4096,
 				reasoning: false,
 				useTools: true,
+				useSkills: false,
 				systemInstructions: "Test instructions",
 			});
 
@@ -331,6 +341,7 @@ describe("AgentsService", () => {
 				maxTokens: 4096,
 				reasoning: false,
 				useTools: true,
+				useSkills: false,
 				systemInstructions: "Test instructions",
 			});
 
@@ -358,6 +369,7 @@ describe("AgentsService", () => {
 				maxTokens: 4096,
 				reasoning: false,
 				useTools: true,
+				useSkills: false,
 				systemInstructions: "Test instructions",
 			});
 
@@ -385,6 +397,7 @@ describe("AgentsService", () => {
 				maxTokens: 4096,
 				reasoning: false,
 				useTools: true,
+				useSkills: false,
 				systemInstructions: "Test instructions",
 			});
 

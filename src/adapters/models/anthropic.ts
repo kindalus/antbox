@@ -147,7 +147,6 @@ export class AnthropicModel implements AIModel {
 			temperature?: number;
 			maxTokens?: number;
 			reasoning?: boolean;
-			structuredOutput?: string;
 		},
 	): Promise<Either<AntboxError, ChatMessage>> {
 		if (!this.llm) {
@@ -218,7 +217,6 @@ export class AnthropicModel implements AIModel {
 			temperature?: number;
 			maxTokens?: number;
 			reasoning?: boolean;
-			structuredOutput?: string;
 		},
 	): Promise<Either<AntboxError, ChatMessage>> {
 		return this.chat(input, options);

@@ -70,7 +70,7 @@ export function parseSkillMarkdown(markdown: string): Either<AntboxError, Parsed
 	// Extract title from the H1 heading (or generate from name)
 	const titleOrErr = extractTitle(content, validation.data.name);
 	if (titleOrErr.isLeft()) {
-		return titleOrErr;
+		return left(titleOrErr.value);
 	}
 
 	return right({

@@ -161,7 +161,6 @@ export class GoogleModel implements AIModel {
 			temperature?: number;
 			maxTokens?: number;
 			reasoning?: boolean;
-			structuredOutput?: string;
 		},
 	): Promise<Either<AntboxError, ChatMessage>> {
 		if (!this.llm) {
@@ -209,7 +208,6 @@ export class GoogleModel implements AIModel {
 		temperature?: number;
 		maxTokens?: number;
 		reasoning?: boolean;
-		structuredOutput?: string;
 	}): GenerateContentConfig {
 		const generationConfig: Partial<GenerateContentConfig> = {
 			systemInstruction: this.#buildSystemInstruction(options.systemPrompt ?? ""),
@@ -223,14 +221,6 @@ export class GoogleModel implements AIModel {
 			generationConfig.maxOutputTokens = options.maxTokens;
 		}
 
-		if (options.structuredOutput) {
-			try {
-				generationConfig.responseMimeType = "application/json";
-				generationConfig.responseSchema = JSON.parse(options.structuredOutput);
-			} catch {
-				// Ignore malformed schema
-			}
-		}
 		if (options.tools && options.tools.length) {
 			generationConfig.tools = [{
 				functionDeclarations: options.tools.map(GoogleModel.#toFunctionDeclaration),

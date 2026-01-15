@@ -14,6 +14,7 @@ import { AIModelDTO, aiModelToDto } from "./ai_model_dto.ts";
 import type { AgentSkillData, AgentSkillMetadata } from "domain/configuration/skill_data.ts";
 import { extractSkillMetadata } from "domain/configuration/skill_data.ts";
 import { AgentSkillDataSchema } from "domain/configuration/skill_schema.ts";
+import { BUILTIN_SKILLS } from "domain/configuration/builtin_skills/index.ts";
 import {
 	extractLevel2Content,
 	extractLevel3Resource,
@@ -205,10 +206,16 @@ export class AgentsService {
 		// Parse the markdown
 		const parsedOrErr = parseSkillMarkdown(markdown);
 		if (parsedOrErr.isLeft()) {
-			return parsedOrErr;
+			return left(parsedOrErr.value);
 		}
 
 		const parsed = parsedOrErr.value;
+
+		// Cannot replace builtin skills
+		if (BUILTIN_SKILLS.some((s) => s.uuid === parsed.frontmatter.name)) {
+			return left(new BadRequestError("Cannot replace builtin skills"));
+		}
+
 		const now = new Date().toISOString();
 
 		// Check if skill with same name (uuid) exists to preserve createdTime
@@ -238,40 +245,52 @@ export class AgentsService {
 		_ctx: AuthenticationContext,
 		uuid: string,
 	): Promise<Either<AntboxError, AgentSkillData>> {
+		// Check builtin skills first
+		const builtinSkill = BUILTIN_SKILLS.find((s) => s.uuid === uuid);
+		if (builtinSkill) {
+			return right(builtinSkill);
+		}
+
 		return this.#configRepo.get("skills", uuid);
 	}
 
 	/**
-	 * Lists all skills.
+	 * Lists all skills (builtin + custom).
 	 */
 	async listSkills(
 		_ctx: AuthenticationContext,
 	): Promise<Either<AntboxError, AgentSkillData[]>> {
-		const skillsOrErr = await this.#configRepo.list("skills");
-		if (skillsOrErr.isLeft()) {
-			return skillsOrErr;
+		const customSkillsOrErr = await this.#configRepo.list("skills");
+		if (customSkillsOrErr.isLeft()) {
+			return customSkillsOrErr;
 		}
 
+		// Combine builtin skills with custom skills
+		const allSkills = [...BUILTIN_SKILLS, ...customSkillsOrErr.value];
+
 		// Sort by uuid (which is the name)
-		skillsOrErr.value.sort((a, b) => a.uuid.localeCompare(b.uuid));
-		return skillsOrErr;
+		allSkills.sort((a, b) => a.uuid.localeCompare(b.uuid));
+		return right(allSkills);
 	}
 
 	/**
-	 * Lists skill metadata (Level 1) for all skills.
+	 * Lists skill metadata (Level 1) for all skills (builtin + custom).
 	 * This is used at agent startup to populate the system prompt.
 	 * Access control is handled at the agent level, not the skill level.
 	 */
 	async listSkillMetadata(
 		_ctx: AuthenticationContext,
 	): Promise<Either<AntboxError, AgentSkillMetadata[]>> {
-		const skillsOrErr = await this.#configRepo.list("skills");
-		if (skillsOrErr.isLeft()) {
-			return skillsOrErr;
+		const customSkillsOrErr = await this.#configRepo.list("skills");
+		if (customSkillsOrErr.isLeft()) {
+			return customSkillsOrErr;
 		}
 
+		// Combine builtin skills with custom skills
+		const allSkills = [...BUILTIN_SKILLS, ...customSkillsOrErr.value];
+
 		// Extract metadata only
-		const metadata = skillsOrErr.value.map(extractSkillMetadata);
+		const metadata = allSkills.map(extractSkillMetadata);
 		metadata.sort((a, b) => a.uuid.localeCompare(b.uuid));
 
 		return right(metadata);
@@ -288,7 +307,7 @@ export class AgentsService {
 	): Promise<Either<AntboxError, string>> {
 		const skillOrErr = await this.getSkill(ctx, skillName);
 		if (skillOrErr.isLeft()) {
-			return skillOrErr;
+			return left(skillOrErr.value);
 		}
 
 		const skill = skillOrErr.value;
@@ -316,7 +335,7 @@ export class AgentsService {
 	): Promise<Either<AntboxError, string[]>> {
 		const skillOrErr = await this.getSkill(ctx, skillName);
 		if (skillOrErr.isLeft()) {
-			return skillOrErr;
+			return left(skillOrErr.value);
 		}
 
 		return right(listLevel3Resources(skillOrErr.value.content));
@@ -331,7 +350,7 @@ export class AgentsService {
 	): Promise<Either<AntboxError, string>> {
 		const skillOrErr = await this.getSkill(ctx, uuid);
 		if (skillOrErr.isLeft()) {
-			return skillOrErr;
+			return left(skillOrErr.value);
 		}
 
 		return right(toSkillMarkdown(skillOrErr.value));
@@ -346,6 +365,11 @@ export class AgentsService {
 	): Promise<Either<AntboxError, void>> {
 		if (!this.#isAdmin(ctx)) {
 			return left(new ForbiddenError("Only admins can delete skills"));
+		}
+
+		// Cannot delete builtin skills
+		if (BUILTIN_SKILLS.some((s) => s.uuid === uuid)) {
+			return left(new BadRequestError("Cannot delete builtin skills"));
 		}
 
 		return this.#configRepo.delete("skills", uuid);

@@ -467,14 +467,16 @@ export class NodeService {
 	 * @param filters - NodeFilters (structured) or string (for parsing/content search)
 	 * @param pageSize - Number of results per page (default: 20)
 	 * @param pageToken - Page number for pagination (default: 1)
-	 * @returns Either an error or the filtered node results with pagination info
+	 * @returns Either an error or the filtered node results with pagination info.
+	 *          When semantic search is used (filters starting with "?"), the result
+	 *          includes a `scores` map of UUID to relevance score (0-1).
 	 */
 	async find(
 		ctx: AuthenticationContext,
 		filters: NodeFilters | string,
 		pageSize = 20,
 		pageToken = 1,
-	): Promise<Either<AntboxError, NodeFilterResult>> {
+	): Promise<Either<AntboxError, NodeFilterResult & { scores?: Record<string, number> }>> {
 		return this.findService.find(ctx, filters, pageSize, pageToken);
 	}
 

@@ -1,35 +1,93 @@
 import { beforeEach, describe, it } from "jsr:@std/testing/bdd";
 import { expect } from "jsr:@std/expect";
-import { RAGService } from "./rag_service.ts";
-import type { AgentsEngine } from "./agents_engine.ts";
-import { AuthenticationContext, Principal } from "../security/authentication_context.ts";
+import { RAG_MIN_SIMILARITY_SCORE, RAG_TOP_N_DOCUMENTS, RAGService } from "./rag_service.ts";
+import { AuthenticationContext } from "../security/authentication_context.ts";
 import { Either, left, right } from "shared/either.ts";
 import { AntboxError } from "shared/antbox_error.ts";
-import { ChatHistory } from "domain/ai/chat_message.ts";
+import { ChatMessage } from "domain/ai/chat_message.ts";
+import { NodeMetadata } from "domain/nodes/node_metadata.ts";
+import { NodeFilterResult } from "domain/nodes/node_repository.ts";
+import type { NodeService } from "../nodes/node_service.ts";
+import type { AIModel } from "./ai_model.ts";
 
 // ============================================================================
 // MOCK IMPLEMENTATIONS
 // ============================================================================
 
-class MockAgentsEngine implements Partial<AgentsEngine> {
+class MockNodeService implements Partial<NodeService> {
+	public lastFindInput: any = null;
+	public lastExportInput: any = null;
+	public findResults: NodeMetadata[] = [];
+	public findScores: Record<string, number> = {};
+	public exportResults: Map<string, File> = new Map();
+
+	async find(
+		ctx: AuthenticationContext,
+		filters: any,
+		pageSize?: number,
+		pageToken?: number,
+	): Promise<Either<AntboxError, NodeFilterResult & { scores?: Record<string, number> }>> {
+		this.lastFindInput = { ctx, filters, pageSize, pageToken };
+		return right({
+			nodes: this.findResults as any,
+			pageSize: pageSize ?? 20,
+			pageToken: pageToken ?? 1,
+			scores: this.findScores,
+		});
+	}
+
+	async export(
+		ctx: AuthenticationContext,
+		uuid: string,
+	): Promise<Either<AntboxError, File>> {
+		this.lastExportInput = { ctx, uuid };
+		const file = this.exportResults.get(uuid);
+		if (file) {
+			return right(file);
+		}
+		return left(new AntboxError("NodeNotFound", `Node ${uuid} not found`));
+	}
+}
+
+class MockAIModel implements Partial<AIModel> {
 	public lastChatInput: any = null;
+	public lastOcrInput: any = null;
+	public ocrResults: Map<string, string> = new Map();
+
+	modelName = "mock-model";
+	llm = true;
+	tools = true;
+	embeddings = false;
+	files = true;
+	reasoning = false;
 
 	async chat(
-		authContext: AuthenticationContext,
-		agentUuid: string,
-		text: string,
-		options?: any,
-	): Promise<Either<AntboxError, ChatHistory>> {
-		this.lastChatInput = { authContext, agentUuid, text, options };
+		input: string | ChatMessage,
+		options?: {
+			systemPrompt?: string;
+			history?: any[];
+			temperature?: number;
+			maxTokens?: number;
+		},
+	): Promise<Either<AntboxError, ChatMessage>> {
+		this.lastChatInput = { input, ...options };
+		return right({
+			role: "model",
+			parts: [{ text: "Mock RAG response based on provided documents" }],
+		});
+	}
 
-		if (agentUuid === "--rag-agent--") {
-			return right([
-				{ role: "user", parts: [{ text }] },
-				{ role: "model", parts: [{ text: "Mock RAG response with search instructions" }] },
-			] as ChatHistory);
+	async embed(texts: string[]): Promise<Either<AntboxError, number[][]>> {
+		return right(texts.map(() => [0.1, 0.2, 0.3]));
+	}
+
+	async ocr(file: File): Promise<Either<AntboxError, string>> {
+		this.lastOcrInput = file;
+		const content = this.ocrResults.get(file.name);
+		if (content) {
+			return right(content);
 		}
-
-		return left(new AntboxError("AgentNotFound", "Agent not found"));
+		return right(`Content of ${file.name}`);
 	}
 }
 
@@ -43,234 +101,328 @@ const createMockAuthContext = (): AuthenticationContext => ({
 	mode: "Direct",
 });
 
+const createMockNode = (uuid: string, title: string): NodeMetadata => ({
+	uuid,
+	fid: uuid,
+	title,
+	description: `Description for ${title}`,
+	mimetype: "application/pdf",
+	parent: "root",
+	owner: "test@example.com",
+	createdTime: new Date().toISOString(),
+	modifiedTime: new Date().toISOString(),
+});
+
 // ============================================================================
 // TESTS
 // ============================================================================
 
 describe("RAGService", () => {
 	let ragService: RAGService;
-	let mockAgentsEngine: MockAgentsEngine;
+	let mockNodeService: MockNodeService;
+	let mockAIModel: MockAIModel;
+	let mockOcrModel: MockAIModel;
 	let authContext: AuthenticationContext;
 
 	beforeEach(() => {
-		mockAgentsEngine = new MockAgentsEngine() as any;
+		mockNodeService = new MockNodeService();
+		mockAIModel = new MockAIModel();
+		mockOcrModel = new MockAIModel();
 		authContext = createMockAuthContext();
 
 		ragService = new RAGService(
-			{} as any, // NodeService not used directly anymore
-			mockAgentsEngine as any,
+			mockNodeService as any,
+			mockAIModel as any,
+			mockOcrModel as any,
 		);
 	});
 
-	describe("instructions delegation", () => {
-		it("should pass domain-wide search instructions to agent", async () => {
+	describe("constants", () => {
+		it("should export RAG_TOP_N_DOCUMENTS constant", () => {
+			expect(RAG_TOP_N_DOCUMENTS).toBeDefined();
+			expect(typeof RAG_TOP_N_DOCUMENTS).toBe("number");
+			expect(RAG_TOP_N_DOCUMENTS).toBeGreaterThan(0);
+		});
+
+		it("should export RAG_MIN_SIMILARITY_SCORE constant", () => {
+			expect(RAG_MIN_SIMILARITY_SCORE).toBeDefined();
+			expect(typeof RAG_MIN_SIMILARITY_SCORE).toBe("number");
+			expect(RAG_MIN_SIMILARITY_SCORE).toBeGreaterThanOrEqual(0);
+			expect(RAG_MIN_SIMILARITY_SCORE).toBeLessThanOrEqual(1);
+		});
+	});
+
+	describe("system-driven retrieval workflow", () => {
+		it("should automatically perform semantic search with user query", async () => {
+			mockNodeService.findResults = [createMockNode("doc-1", "Document 1")];
+			mockNodeService.findScores = { "doc-1": 0.9 };
+			mockNodeService.exportResults.set("doc-1", new File(["content"], "doc-1.pdf"));
+
 			const result = await ragService.chat(
 				authContext,
-				"Tell me about artificial intelligence",
+				"What is machine learning?",
 				{},
 			);
 
 			expect(result.isRight()).toBe(true);
-			if (result.isRight()) {
-				const history = result.value;
-				expect(history).toHaveLength(2);
-				expect(history[1].parts[0].text).toBe("Mock RAG response with search instructions");
 
-				// Verify agent was called with proper instructions
-				expect(mockAgentsEngine.lastChatInput).toBeTruthy();
-				expect(mockAgentsEngine.lastChatInput.agentUuid).toBe("--rag-agent--");
-				expect(mockAgentsEngine.lastChatInput.text).toBe(
-					"Tell me about artificial intelligence",
-				);
-				expect(mockAgentsEngine.lastChatInput.options.instructions).toContain(
-					"**INSTRUCTIONS**",
-				);
-				expect(mockAgentsEngine.lastChatInput.options.instructions).toContain(
-					"RAG (Retrieval-Augmented Generation) mode",
-				);
-				expect(mockAgentsEngine.lastChatInput.options.instructions).toContain(
-					"search across the entire platform content",
-				);
-				expect(mockAgentsEngine.lastChatInput.options.instructions).toContain(
-					'prefixing your query with "?"',
-				);
-			}
+			// Verify semantic search was performed automatically
+			expect(mockNodeService.lastFindInput).toBeTruthy();
+			expect(mockNodeService.lastFindInput.filters).toBe("?What is machine learning?");
 		});
 
-		it("should pass scoped search instructions when parent provided", async () => {
-			const result = await ragService.chat(authContext, "Find documents", {
-				parent: "folder-a",
-			});
+		it("should retrieve full content of top documents", async () => {
+			const doc1 = createMockNode("doc-1", "Document 1");
+			const doc2 = createMockNode("doc-2", "Document 2");
+			mockNodeService.findResults = [doc1, doc2];
+			mockNodeService.findScores = { "doc-1": 0.95, "doc-2": 0.85 };
+			mockNodeService.exportResults.set("doc-1", new File(["Content 1"], "doc-1.pdf"));
+			mockNodeService.exportResults.set("doc-2", new File(["Content 2"], "doc-2.pdf"));
 
-			expect(result.isRight()).toBe(true);
-			if (result.isRight()) {
-				// Should include scoped search instructions
-				expect(mockAgentsEngine.lastChatInput.options.instructions).toContain(
-					'limited to folder "folder-a"',
-				);
-				expect(mockAgentsEngine.lastChatInput.options.instructions).toContain(
-					'["parent", "==", "folder-a"]',
-				);
-				expect(mockAgentsEngine.lastChatInput.options.instructions).toContain(
-					"SEARCH TOOLS AVAILABLE",
-				);
-			}
-		});
-	});
+			await ragService.chat(authContext, "Search query", {});
 
-	describe("search strategy instructions", () => {
-		it("should include semantic search instructions", async () => {
-			const result = await ragService.chat(authContext, "search query", {});
-
-			expect(result.isRight()).toBe(true);
-			if (result.isRight()) {
-				const instructions = mockAgentsEngine.lastChatInput.options.instructions;
-				expect(instructions).toContain("semantic/conceptual queries");
-				expect(instructions).toContain('"?user query"');
-				expect(instructions).toContain("find(filters)");
-				expect(instructions).toContain("get(uuid)");
-				expect(instructions).toContain("export(uuid)");
-			}
+			// Verify export was called for each document
+			expect(mockNodeService.lastExportInput).toBeTruthy();
 		});
 
-		it("should include fallback strategy instructions", async () => {
-			const result = await ragService.chat(authContext, "search query", {});
+		it("should build grounded system prompt with documents", async () => {
+			mockNodeService.findResults = [createMockNode("doc-1", "Document 1")];
+			mockNodeService.findScores = { "doc-1": 0.9 };
+			mockNodeService.exportResults.set("doc-1", new File(["content"], "doc-1.pdf"));
+			mockOcrModel.ocrResults.set("doc-1.pdf", "Extracted content from document");
 
-			expect(result.isRight()).toBe(true);
-			if (result.isRight()) {
-				const instructions = mockAgentsEngine.lastChatInput.options.instructions;
-				expect(instructions).toContain("specific metadata searches");
-				expect(instructions).toContain('["title", "contains", "keyword"]');
-				expect(instructions).toContain('["mimetype", "==", "application/pdf"]');
-				expect(instructions).toContain("broader keyword searches");
-			}
+			await ragService.chat(authContext, "Search query", {});
+
+			// Verify system prompt includes grounding instructions
+			expect(mockAIModel.lastChatInput).toBeTruthy();
+			const systemPrompt = mockAIModel.lastChatInput.systemPrompt;
+			expect(systemPrompt).toContain("ONLY use information from the documents provided");
+			expect(systemPrompt).toContain("Do NOT use your general knowledge");
+			expect(systemPrompt).toContain("RETRIEVED DOCUMENTS");
 		});
 
-		it("should include response guidelines", async () => {
-			const result = await ragService.chat(authContext, "search query", {});
+		it("should include document content in system prompt", async () => {
+			mockNodeService.findResults = [createMockNode("doc-1", "Test Document")];
+			mockNodeService.findScores = { "doc-1": 0.9 };
+			mockNodeService.exportResults.set("doc-1", new File(["content"], "doc-1.pdf"));
+			mockOcrModel.ocrResults.set("doc-1.pdf", "This is the extracted document content");
 
-			expect(result.isRight()).toBe(true);
-			if (result.isRight()) {
-				const instructions = mockAgentsEngine.lastChatInput.options.instructions;
-				expect(instructions).toContain("RESPONSE GUIDELINES");
-				expect(instructions).toContain("Always search for information before responding");
-				expect(instructions).toContain("Include relevant document UUIDs");
-				expect(instructions).toContain("what sources it came from");
-			}
+			await ragService.chat(authContext, "Search query", {});
+
+			expect(mockAIModel.lastChatInput).toBeTruthy();
+			const systemPrompt = mockAIModel.lastChatInput.systemPrompt;
+			expect(systemPrompt).toContain("Test Document");
+			expect(systemPrompt).toContain("This is the extracted document content");
 		});
 	});
 
-	describe("parameter pass-through", () => {
-		it("should pass through history and options to agents engine", async () => {
-			const history: ChatHistory = [
+	describe("score filtering", () => {
+		it("should filter out documents below minimum score", async () => {
+			const highScoreDoc = createMockNode("high-score", "High Score Doc");
+			const lowScoreDoc = createMockNode("low-score", "Low Score Doc");
+			mockNodeService.findResults = [highScoreDoc, lowScoreDoc];
+			mockNodeService.findScores = {
+				"high-score": 0.9,
+				"low-score": 0.2, // Below RAG_MIN_SIMILARITY_SCORE
+			};
+			mockNodeService.exportResults.set("high-score", new File(["content"], "high.pdf"));
+			mockNodeService.exportResults.set("low-score", new File(["content"], "low.pdf"));
+
+			await ragService.chat(authContext, "Search query", {});
+
+			const systemPrompt = mockAIModel.lastChatInput.systemPrompt;
+			expect(systemPrompt).toContain("High Score Doc");
+			expect(systemPrompt).not.toContain("Low Score Doc");
+		});
+	});
+
+	describe("no results handling", () => {
+		it("should handle case when no documents are found", async () => {
+			mockNodeService.findResults = [];
+			mockNodeService.findScores = {};
+
+			const result = await ragService.chat(authContext, "Search query", {});
+
+			expect(result.isRight()).toBe(true);
+
+			const systemPrompt = mockAIModel.lastChatInput.systemPrompt;
+			expect(systemPrompt).toContain("NO DOCUMENTS FOUND");
+			expect(systemPrompt).toContain("No documents were found that match your query");
+		});
+	});
+
+	describe("grounding instructions", () => {
+		it("should include citation requirements", async () => {
+			mockNodeService.findResults = [createMockNode("doc-1", "Document 1")];
+			mockNodeService.findScores = { "doc-1": 0.9 };
+			mockNodeService.exportResults.set("doc-1", new File(["content"], "doc-1.pdf"));
+
+			await ragService.chat(authContext, "Search query", {});
+
+			const systemPrompt = mockAIModel.lastChatInput.systemPrompt;
+			expect(systemPrompt).toContain("Always cite your sources");
+			expect(systemPrompt).toContain("Reference documents by their title and UUID");
+		});
+
+		it("should include instruction to acknowledge when info not found", async () => {
+			mockNodeService.findResults = [createMockNode("doc-1", "Document 1")];
+			mockNodeService.findScores = { "doc-1": 0.9 };
+			mockNodeService.exportResults.set("doc-1", new File(["content"], "doc-1.pdf"));
+
+			await ragService.chat(authContext, "Search query", {});
+
+			const systemPrompt = mockAIModel.lastChatInput.systemPrompt;
+			expect(systemPrompt).toContain(
+				"I couldn't find information about that in the available documents",
+			);
+		});
+	});
+
+	describe("document metadata in prompt", () => {
+		it("should include document metadata in prompt", async () => {
+			const doc = createMockNode("doc-1", "Test Document");
+			doc.description = "A test document description";
+			doc.owner = "owner@example.com";
+			mockNodeService.findResults = [doc];
+			mockNodeService.findScores = { "doc-1": 0.85 };
+			mockNodeService.exportResults.set("doc-1", new File(["content"], "doc-1.pdf"));
+
+			await ragService.chat(authContext, "Search query", {});
+
+			const systemPrompt = mockAIModel.lastChatInput.systemPrompt;
+			expect(systemPrompt).toContain("UUID: doc-1");
+			expect(systemPrompt).toContain("Title: Test Document");
+			expect(systemPrompt).toContain("Type: application/pdf");
+			expect(systemPrompt).toContain("Relevance Score: 85.0%");
+		});
+	});
+
+	describe("conversation history", () => {
+		it("should include user message in chat history", async () => {
+			mockNodeService.findResults = [];
+			mockNodeService.findScores = {};
+
+			const result = await ragService.chat(authContext, "What is AI?", {});
+
+			expect(result.isRight()).toBe(true);
+			expect(mockAIModel.lastChatInput).toBeTruthy();
+
+			const history = mockAIModel.lastChatInput.history;
+			expect(history).toHaveLength(1);
+			expect(history[0].role).toBe("user");
+			expect(history[0].parts[0].text).toBe("What is AI?");
+		});
+
+		it("should preserve previous conversation history", async () => {
+			mockNodeService.findResults = [];
+			mockNodeService.findScores = {};
+
+			const previousHistory = [
 				{ role: "user", parts: [{ text: "Previous question" }] },
 				{ role: "model", parts: [{ text: "Previous answer" }] },
 			];
 
-			const result = await ragService.chat(authContext, "Follow-up question", {
-				history,
-				temperature: 0.5,
-				maxTokens: 4096,
+			await ragService.chat(authContext, "Follow-up question", {
+				history: previousHistory as any,
 			});
 
-			expect(result.isRight()).toBe(true);
-			expect(mockAgentsEngine.lastChatInput.options.history).toEqual(history);
-			expect(mockAgentsEngine.lastChatInput.options.temperature).toBe(0.5);
-			expect(mockAgentsEngine.lastChatInput.options.maxTokens).toBe(4096);
-			expect(mockAgentsEngine.lastChatInput.options.instructions).toBeDefined();
+			expect(mockAIModel.lastChatInput).toBeTruthy();
+			const history = mockAIModel.lastChatInput.history;
+			expect(history).toHaveLength(3);
+			expect(history[0].parts[0].text).toBe("Previous question");
+			expect(history[1].parts[0].text).toBe("Previous answer");
+			expect(history[2].parts[0].text).toBe("Follow-up question");
+		});
+	});
+
+	describe("model parameters", () => {
+		it("should use default temperature and maxTokens", async () => {
+			mockNodeService.findResults = [];
+			mockNodeService.findScores = {};
+
+			await ragService.chat(authContext, "Query", {});
+
+			expect(mockAIModel.lastChatInput).toBeTruthy();
+			expect(mockAIModel.lastChatInput.temperature).toBe(0.3); // RAG_DEFAULT_TEMPERATURE
+			expect(mockAIModel.lastChatInput.maxTokens).toBe(4096); // RAG_DEFAULT_MAX_TOKENS
 		});
 
-		it("should pass original user message unchanged", async () => {
-			const originalMessage = "What are the latest reports on machine learning?";
+		it("should allow overriding temperature and maxTokens", async () => {
+			mockNodeService.findResults = [];
+			mockNodeService.findScores = {};
 
-			const result = await ragService.chat(authContext, originalMessage, {});
+			await ragService.chat(authContext, "Query", {
+				temperature: 0.7,
+				maxTokens: 8192,
+			});
 
-			expect(result.isRight()).toBe(true);
-			expect(mockAgentsEngine.lastChatInput.text).toBe(originalMessage);
+			expect(mockAIModel.lastChatInput).toBeTruthy();
+			expect(mockAIModel.lastChatInput.temperature).toBe(0.7);
+			expect(mockAIModel.lastChatInput.maxTokens).toBe(8192);
 		});
 	});
 
 	describe("error handling", () => {
-		it("should handle agent service failures", async () => {
-			const failingAgentService = {
-				async chat(): Promise<Either<AntboxError, ChatHistory>> {
-					return left(new AntboxError("AgentError", "Agent execution failed"));
+		it("should handle search failures", async () => {
+			const failingNodeService = {
+				async find(): Promise<Either<AntboxError, any>> {
+					return left(new AntboxError("SearchError", "Search failed"));
 				},
 			};
 
-			const ragServiceWithFailingAgent = new RAGService(
-				{} as any,
-				failingAgentService as any,
+			const ragServiceWithFailingSearch = new RAGService(
+				failingNodeService as any,
+				mockAIModel as any,
+				mockOcrModel as any,
 			);
 
-			const result = await ragServiceWithFailingAgent.chat(authContext, "test query", {});
+			const result = await ragServiceWithFailingSearch.chat(authContext, "Query", {});
 
 			expect(result.isLeft()).toBe(true);
 			if (result.isLeft()) {
-				expect(result.value.message).toContain("Agent execution failed");
+				expect(result.value.message).toContain("Search failed");
 			}
 		});
 
-		it("should handle missing RAG agent", async () => {
-			const agentServiceWithoutRAG = {
-				async chat(): Promise<Either<AntboxError, ChatHistory>> {
-					return left(new AntboxError("AgentNotFound", "RAG agent not found"));
+		it("should handle LLM chat failures", async () => {
+			mockNodeService.findResults = [];
+			mockNodeService.findScores = {};
+
+			const failingAIModel = {
+				async chat(): Promise<Either<AntboxError, ChatMessage>> {
+					return left(new AntboxError("LLMError", "LLM chat failed"));
 				},
 			};
 
-			const ragServiceWithoutRAG = new RAGService(
-				{} as any,
-				agentServiceWithoutRAG as any,
+			const ragServiceWithFailingLLM = new RAGService(
+				mockNodeService as any,
+				failingAIModel as any,
+				mockOcrModel as any,
 			);
 
-			const result = await ragServiceWithoutRAG.chat(authContext, "test query", {});
+			const result = await ragServiceWithFailingLLM.chat(authContext, "Query", {});
 
 			expect(result.isLeft()).toBe(true);
 			if (result.isLeft()) {
-				expect(result.value.message).toContain("RAG agent not found");
-			}
-		});
-	});
-
-	describe("instructions content", () => {
-		it("should include proper search scope information for domain-wide searches", async () => {
-			const result = await ragService.chat(authContext, "Find documents", {});
-
-			expect(result.isRight()).toBe(true);
-			if (result.isRight()) {
-				const instructions = mockAgentsEngine.lastChatInput.options.instructions;
-				expect(instructions).toContain(
-					"SEARCH SCOPE: You have access to search across the entire platform content",
-				);
-				expect(instructions).not.toContain('["parent", "==",');
+				expect(result.value.message).toContain("LLM chat failed");
 			}
 		});
 
-		it("should include proper search scope information for folder-scoped searches", async () => {
-			const result = await ragService.chat(authContext, "Find documents", {
-				parent: "test-folder-uuid",
-			});
+		it("should gracefully handle export failures for individual documents", async () => {
+			const doc1 = createMockNode("doc-1", "Document 1");
+			const doc2 = createMockNode("doc-2", "Document 2");
+			mockNodeService.findResults = [doc1, doc2];
+			mockNodeService.findScores = { "doc-1": 0.9, "doc-2": 0.85 };
+			// Only doc-2 has export result, doc-1 will fail
+			mockNodeService.exportResults.set("doc-2", new File(["content"], "doc-2.pdf"));
 
+			const result = await ragService.chat(authContext, "Query", {});
+
+			// Should still succeed with doc-2
 			expect(result.isRight()).toBe(true);
-			if (result.isRight()) {
-				const instructions = mockAgentsEngine.lastChatInput.options.instructions;
-				expect(instructions).toContain(
-					'SEARCH SCOPE: Your search is limited to folder "test-folder-uuid"',
-				);
-				expect(instructions).toContain('["parent", "==", "test-folder-uuid"]');
-			}
-		});
 
-		it("should provide complete search strategy guidance", async () => {
-			const result = await ragService.chat(authContext, "Find documents", {});
-
-			expect(result.isRight()).toBe(true);
-			if (result.isRight()) {
-				const instructions = mockAgentsEngine.lastChatInput.options.instructions;
-				expect(instructions).toContain("SEARCH STRATEGY:");
-				expect(instructions).toContain("SEARCH TOOLS AVAILABLE:");
-				expect(instructions).toContain("RESPONSE GUIDELINES:");
-			}
+			const systemPrompt = mockAIModel.lastChatInput.systemPrompt;
+			expect(systemPrompt).toContain("Document 2");
 		});
 	});
 });

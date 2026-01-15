@@ -185,7 +185,7 @@ describe("EmbeddingService", () => {
 			}
 		});
 
-		it("should not generate embedding for FolderNode", async () => {
+		it("should generate embedding for FolderNode using metadata only", async () => {
 			const nodeService = new MockNodeService() as unknown as NodeService;
 			const embeddingModel = new DeterministicModel("text-embedding-3-small", 1536);
 			const ocrModel = new DeterministicModel("deterministic-ocr", 1536);
@@ -205,6 +205,7 @@ describe("EmbeddingService", () => {
 			const folderNodeOrErr = FolderNode.create({
 				uuid: "folder-uuid",
 				title: "test-folder",
+				description: "A test folder for documents",
 				owner: "user@example.com",
 				group: "test-group",
 				parent: "root",
@@ -218,14 +219,15 @@ describe("EmbeddingService", () => {
 			const event = new NodeCreatedEvent("user@example.com", "test-tenant", folderNode);
 			await embeddingService.handleNodeCreated(event);
 
-			// Verify no embedding was stored
+			// Verify embedding was stored for folder
 			const searchResult = await repository.vectorSearch(
 				new Array(1536).fill(0),
 				10,
 			);
 			expect(searchResult.isRight()).toBe(true);
 			if (searchResult.isRight()) {
-				expect(searchResult.value.nodes.length).toBe(0);
+				expect(searchResult.value.nodes.length).toBe(1);
+				expect(searchResult.value.nodes[0].node.uuid).toBe("folder-uuid");
 			}
 		});
 

@@ -249,8 +249,8 @@ async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
 			bus: eventBus,
 		});
 
-		// Create RAGService - uses AgentsEngine for execution
-		ragService = new RAGService(nodeService, agentsEngine);
+		// Create RAGService - uses system-driven retrieval workflow
+		ragService = new RAGService(nodeService, defaultModel, ocrModel);
 	}
 
 	return {

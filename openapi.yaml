@@ -55,15 +55,16 @@ paths:
         - actions
       summary: List available actions
       operationId: listActions
+      description: Returns all features that have exposeAction set to true.
       responses:
         "200":
-          description: A list of action nodes
+          description: A list of action features
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/NodeMetadata"
+                  $ref: "#/components/schemas/Feature"
         default:
           $ref: "#/components/responses/Error"
   "/actions/{uuid}/-/run":
@@ -145,35 +146,7 @@ paths:
                 $ref: "#/components/schemas/Agent"
         default:
           $ref: "#/components/responses/Error"
-  "/agents/rag/-/chat":
-    post:
-      tags:
-        - agents
-      summary: Chat with the RAG service
-      operationId: ragChat
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - text
-              properties:
-                text:
-                  type: string
-                options:
-                  type: object
-                  additionalProperties: true
-      responses:
-        "200":
-          description: RAG chat response
-          content:
-            application/json:
-              schema:
-                type: object
-        default:
-          $ref: "#/components/responses/Error"
+
   "/agents/{uuid}":
     get:
       tags:
@@ -676,15 +649,16 @@ paths:
         - extensions
       summary: List all extensions
       operationId: listExtensions
+      description: Returns all features that have exposeExtension set to true.
       responses:
         "200":
-          description: A list of extensions
+          description: A list of extension features
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/NodeMetadata"
+                  $ref: "#/components/schemas/Feature"
         default:
           $ref: "#/components/responses/Error"
   "/extensions/{uuid}/-/exec":
@@ -740,7 +714,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/FeatureNode"
+                  $ref: "#/components/schemas/Feature"
         default:
           $ref: "#/components/responses/Error"
   "/features/-/upload":
@@ -766,7 +740,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/FeatureNode"
+                $ref: "#/components/schemas/Feature"
         default:
           $ref: "#/components/responses/Error"
   "/features/{uuid}":
@@ -783,7 +757,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/FeatureNode"
+                $ref: "#/components/schemas/Feature"
         default:
           $ref: "#/components/responses/Error"
     delete:
@@ -830,7 +804,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/NodeMetadata"
+                  $ref: "#/components/schemas/Group"
         default:
           $ref: "#/components/responses/Error"
     post:
@@ -857,7 +831,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/NodeMetadata"
+                $ref: "#/components/schemas/Group"
         default:
           $ref: "#/components/responses/Error"
   "/groups/{uuid}":
@@ -874,7 +848,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/NodeMetadata"
+                $ref: "#/components/schemas/Group"
         default:
           $ref: "#/components/responses/Error"
     delete:
@@ -1612,7 +1586,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/NodeMetadata"
+                  $ref: "#/components/schemas/User"
         default:
           $ref: "#/components/responses/Error"
     post:
@@ -1625,14 +1599,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/NodeMetadata"
+              $ref: "#/components/schemas/CreateUserRequest"
       responses:
         "201":
           description: User created
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/NodeMetadata"
+                $ref: "#/components/schemas/User"
         default:
           $ref: "#/components/responses/Error"
   "/users/{email}":
@@ -1654,7 +1628,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/NodeMetadata"
+                $ref: "#/components/schemas/User"
         default:
           $ref: "#/components/responses/Error"
     patch:
@@ -1674,14 +1648,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/NodeMetadata"
+              $ref: "#/components/schemas/UpdateUserRequest"
       responses:
         "200":
           description: User updated
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/NodeMetadata"
+                $ref: "#/components/schemas/User"
         default:
           $ref: "#/components/responses/Error"
   "/users/{uuid}":
@@ -2062,13 +2036,10 @@ components:
           description: Whether the model supports reasoning capabilities
     Agent:
       type: object
+      description: AI Agent configuration data. Agents are configuration records (not nodes) that define AI assistant behavior.
       required:
         - uuid
         - title
-        - description
-        - owner
-        - createdTime
-        - modifiedTime
         - model
         - temperature
         - maxTokens
@@ -2076,33 +2047,35 @@ components:
         - useTools
         - useSkills
         - systemInstructions
+        - createdTime
+        - modifiedTime
       properties:
         uuid:
           type: string
-          format: uuid
+          description: Unique identifier for the agent
         title:
           type: string
+          description: Display name of the agent
         description:
           type: string
-        owner:
-          type: string
-          format: uuid
-        createdTime:
-          type: string
-          format: date-time
-        modifiedTime:
-          type: string
-          format: date-time
+          description: Optional description of the agent's purpose
         model:
           type: string
+          description: LLM model identifier (e.g., "default", "gpt-4", "gemini-pro")
         temperature:
           type: number
+          minimum: 0
+          maximum: 2
+          description: Model temperature (0.0 - 2.0)
         maxTokens:
           type: integer
+          description: Maximum output tokens
         reasoning:
           type: boolean
+          description: Whether to enable chain-of-thought reasoning
         useTools:
           type: boolean
+          description: Whether the agent can use SDK tools (nodes, aspects) and custom features
         useSkills:
           type: boolean
           description: Whether the agent can use skills. If true and skillsAllowed is empty, the agent has access to all skills.
@@ -2113,6 +2086,15 @@ components:
             type: string
         systemInstructions:
           type: string
+          description: Core prompt/persona instructions for the agent
+        createdTime:
+          type: string
+          format: date-time
+          description: When the agent was created
+        modifiedTime:
+          type: string
+          format: date-time
+          description: When the agent was last modified
     AgentSkill:
       type: object
       description: Agent Skill - a modular capability that extends AI Agent functionality. The uuid is the skill name in kebab-case.
@@ -2159,24 +2141,37 @@ components:
           description: Brief description for skill discovery
     ApiKey:
       type: object
+      description: API Key configuration data for programmatic access.
       required:
         - uuid
+        - title
+        - secret
         - group
-        - owner
+        - active
+        - createdTime
       properties:
         uuid:
           type: string
-          format: uuid
-        group:
+          description: Unique identifier for the API key
+        title:
           type: string
-          format: uuid
-        owner:
-          type: string
-          format: email
-        description:
-          type: string
+          description: Display name for the API key
         secret:
           type: string
+          description: The API key secret (only returned on creation)
+        group:
+          type: string
+          description: Group UUID that this API key belongs to (determines permissions)
+        description:
+          type: string
+          description: Optional description of the API key's purpose
+        active:
+          type: boolean
+          description: Whether the API key is active and can be used for authentication
+        createdTime:
+          type: string
+          format: date-time
+          description: When the API key was created
     AntboxError:
       type: object
       required:
@@ -2187,31 +2182,9 @@ components:
           type: string
         message:
           type: string
-    ApiKeyNode:
-      type: object
-      allOf:
-        - $ref: "#/components/schemas/BaseNode"
-      properties:
-        group:
-          type: string
-          format: uuid
-        secret:
-          type: string
-    AspectNode:
-      type: object
-      allOf:
-        - $ref: "#/components/schemas/BaseNode"
-      properties:
-        filters:
-          type: array
-          items:
-            type: object
-        properties:
-          type: array
-          items:
-            $ref: "#/components/schemas/AspectProperty"
     AspectProperty:
       type: object
+      description: Definition of a single property within an aspect schema.
       required:
         - name
         - title
@@ -2219,36 +2192,48 @@ components:
       properties:
         name:
           type: string
+          description: Property identifier (must match /^[a-zA-Z_][_a-zA-Z0-9_]{2,}$/)
         title:
           type: string
+          description: Display label for the property
         type:
           type: string
           enum:
             ["uuid", "string", "number", "boolean", "object", "array", "file"]
+          description: Data type of the property
         arrayType:
           type: string
-          enum: ["string", "number", "uuid", "object"]
-        stringMimetype:
+          enum: ["string", "number", "uuid"]
+          description: Element type when type is "array"
+        contentType:
           type: string
+          description: MIME type hint for string content (e.g., "text/markdown", "text/html")
         readonly:
           type: boolean
+          description: Whether the property is read-only
+        searchable:
+          type: boolean
+          description: Whether the property should be indexed for search
+        required:
+          type: boolean
+          description: Whether the property is required
+        defaultValue:
+          description: Default value for the property
+          oneOf:
+            - type: string
+            - type: number
+            - type: boolean
         validationRegex:
           type: string
+          description: Regex pattern for string validation
         validationList:
           type: array
+          description: List of allowed values (enum)
           items:
             type: string
         validationFilters:
-          type: array
-          items:
-            type: object
-        required:
-          type: boolean
-        searchable:
-          type: boolean
-        default:
-          type: object
-          nullable: true
+          $ref: "#/components/schemas/NodeFilters"
+          description: For uuid type - filters to restrict valid reference targets
     AnswerOptions:
       type: object
       properties:
@@ -2257,40 +2242,40 @@ components:
           additionalProperties: true
     Aspect:
       type: object
+      description: Aspect configuration data. Aspects define metadata schemas that can be attached to nodes.
       required:
         - uuid
         - title
+        - filters
+        - properties
+        - createdTime
+        - modifiedTime
       properties:
         uuid:
           type: string
-          format: uuid
+          description: Unique identifier for the aspect (kebab-case)
         title:
           type: string
+          description: Display name for the aspect
         description:
           type: string
+          description: Optional description of the aspect's purpose
         filters:
-          type: array
-          items:
-            type: array
-            items:
-              type: object
+          $ref: "#/components/schemas/NodeFilters"
+          description: Optional filters to restrict which nodes can have this aspect
         properties:
-          type: object
-          additionalProperties:
-            type: object
-            properties:
-              type:
-                type: string
-              title:
-                type: string
-              description:
-                type: string
-              required:
-                type: boolean
-              readonly:
-                type: boolean
-              default:
-                type: object
+          type: array
+          description: Schema definition for the aspect's properties
+          items:
+            $ref: "#/components/schemas/AspectProperty"
+        createdTime:
+          type: string
+          format: date-time
+          description: When the aspect was created
+        modifiedTime:
+          type: string
+          format: date-time
+          description: When the aspect was last modified
     ChatOptions:
       type: object
       properties:
@@ -2313,58 +2298,103 @@ components:
           type: string
         mimetype:
           type: string
-    FeatureNode:
+    Feature:
       type: object
-      allOf:
-        - $ref: "#/components/schemas/BaseNode"
+      description: Feature configuration data. Features are executable JavaScript/TypeScript modules that extend platform capabilities.
+      required:
+        - uuid
+        - title
+        - description
+        - exposeAction
+        - exposeExtension
+        - exposeAITool
+        - runOnCreates
+        - runOnUpdates
+        - runOnDeletes
+        - runManually
+        - filters
+        - groupsAllowed
+        - parameters
+        - returnType
+        - module
+        - createdTime
+        - modifiedTime
       properties:
-        size:
-          type: integer
-        name:
+        uuid:
           type: string
+          description: Unique identifier for the feature (camelCase)
+        title:
+          type: string
+          description: Display name for the feature
+        description:
+          type: string
+          description: Description of the feature's purpose
         exposeAction:
           type: boolean
-        runOnCreates:
-          type: boolean
-        runOnUpdates:
-          type: boolean
-        runManually:
-          type: boolean
-        filters:
-          type: array
-          items:
-            type: array
-            items:
-              type: object
+          description: Whether the feature can be called as an action on nodes
         exposeExtension:
           type: boolean
+          description: Whether the feature exposes a custom HTTP endpoint
         exposeAITool:
           type: boolean
+          description: Whether the feature is available to AI agents as a tool
+        runOnCreates:
+          type: boolean
+          description: Auto-trigger when nodes matching filters are created
+        runOnUpdates:
+          type: boolean
+          description: Auto-trigger when nodes matching filters are updated
+        runOnDeletes:
+          type: boolean
+          description: Auto-trigger when nodes matching filters are deleted
+        runManually:
+          type: boolean
+          description: Whether the feature can be triggered manually
+        filters:
+          type: array
+          description: Filters to scope which nodes this feature applies to
+          items:
+            $ref: "#/components/schemas/NodeFilter"
         runAs:
           type: string
+          description: User email or "system" to run as
         groupsAllowed:
           type: array
+          description: Groups allowed to execute this feature
           items:
             type: string
-            format: uuid
         parameters:
           type: array
+          description: Input parameters for the feature
           items:
             $ref: "#/components/schemas/FeatureParameter"
         returnType:
           type: string
           enum:
-            - string
-            - number
-            - boolean
-            - array
-            - object
-            - file
-            - void
+            ["string", "number", "boolean", "array", "object", "file", "void"]
+          description: Return type of the feature
         returnDescription:
           type: string
+          description: Description of what the feature returns
         returnContentType:
           type: string
+          description: MIME type hint for the return value (e.g., "text/html")
+        tags:
+          type: array
+          description: Optional classification tags
+          items:
+            type: string
+        module:
+          type: string
+          description: The JavaScript/TypeScript code as a string
+        createdTime:
+          type: string
+          format: date-time
+          description: When the feature was created
+        modifiedTime:
+          type: string
+          format: date-time
+          description: When the feature was last modified
     FeatureActionResult:
       description: Result payload returned when running a feature action. The concrete shape depends on the feature's declared returnType.
       nullable: true
@@ -2594,10 +2624,27 @@ components:
           type: array
           items:
             type: string
-    GroupNode:
+    Group:
       type: object
-      allOf:
-        - $ref: "#/components/schemas/BaseNode"
+      description: Group configuration data. Groups are immutable (created/deleted only, not updated).
+      required:
+        - uuid
+        - title
+        - createdTime
+      properties:
+        uuid:
+          type: string
+          description: Unique identifier for the group
+        title:
+          type: string
+          description: Display name for the group
+        description:
+          type: string
+          description: Optional description of the group's purpose
+        createdTime:
+          type: string
+          format: date-time
+          description: When the group was created
     MetaNode:
       type: object
       allOf:
@@ -2629,33 +2676,114 @@ components:
           type: array
           items:
             type: object
-    UserNode:
+    User:
       type: object
-      allOf:
-        - $ref: "#/components/schemas/BaseNode"
+      description: User configuration data.
+      required:
+        - email
+        - title
+        - group
+        - groups
+        - hasWhatsapp
+        - active
+        - createdTime
+        - modifiedTime
       properties:
         email:
           type: string
           format: email
+          description: User's email address (used as unique identifier)
+        title:
+          type: string
+          description: User's full name
         group:
           type: string
-          format: uuid
+          description: Primary group UUID
         groups:
           type: array
+          description: All group memberships
           items:
             type: string
-            format: uuid
+        phone:
+          type: string
+          description: Optional phone number
+        hasWhatsapp:
+          type: boolean
+          description: Whether the phone number has WhatsApp
+        active:
+          type: boolean
+          description: Whether the user can login
+        createdTime:
+          type: string
+          format: date-time
+          description: When the user was created
+        modifiedTime:
+          type: string
+          format: date-time
+          description: When the user was last modified
+    CreateUserRequest:
+      type: object
+      description: Request body for creating a new user.
+      required:
+        - email
+        - title
+        - group
+      properties:
+        email:
+          type: string
+          format: email
+          description: User's email address (used as unique identifier)
+        title:
+          type: string
+          description: User's full name
+        group:
+          type: string
+          description: Primary group UUID
+        groups:
+          type: array
+          description: Additional group memberships
+          items:
+            type: string
+        phone:
+          type: string
+          description: Optional phone number
+        hasWhatsapp:
+          type: boolean
+          description: Whether the phone number has WhatsApp
+        active:
+          type: boolean
+          description: Whether the user can login (defaults to true)
+    UpdateUserRequest:
+      type: object
+      description: Request body for updating an existing user.
+      properties:
+        title:
+          type: string
+          description: User's full name
+        group:
+          type: string
+          description: Primary group UUID
+        groups:
+          type: array
+          description: All group memberships
+          items:
+            type: string
+        phone:
+          type: string
+          description: Optional phone number
+        hasWhatsapp:
+          type: boolean
+          description: Whether the phone number has WhatsApp
+        active:
+          type: boolean
+          description: Whether the user can login
     NodeLike:
+      description: Union of all node types (content layer only, not configuration records)
       oneOf:
-        - $ref: "#/components/schemas/ApiKeyNode"
-        - $ref: "#/components/schemas/AspectNode"
-        - $ref: "#/components/schemas/FeatureNode"
         - $ref: "#/components/schemas/FileNode"
         - $ref: "#/components/schemas/FolderNode"
-        - $ref: "#/components/schemas/GroupNode"
         - $ref: "#/components/schemas/MetaNode"
         - $ref: "#/components/schemas/SmartFolderNode"
-        - $ref: "#/components/schemas/UserNode"
     NodeMetadata:
       type: object
       properties:
@@ -2773,20 +2901,6 @@ components:
           type: boolean
         exposeAITool:
           type: boolean
-        model:
-          type: string
-        temperature:
-          type: number
-        maxTokens:
-          type: integer
-        reasoning:
-          type: boolean
-        useTools:
-          type: boolean
-        systemInstructions:
-          type: string
-        structuredAnswer:
-          type: string
     TemplateInfo:
       type: object
       required:

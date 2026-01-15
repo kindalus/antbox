@@ -10,7 +10,7 @@ import { type ArticlePropertiesMap } from "../articles/article_properties.ts";
  * and extended fields for specific node types.
  *
  * Node Types:
- * - FileNode: Regular files with content (uses WithAspectMixin, FileMixin)
+ * - FileNode: Regular files with content (uses WithAspectMixin)
  * - FolderNode: Containers for other nodes (uses WithAspectMixin, FolderMixin)
  * - SmartFolderNode: Virtual folders with dynamic content based on filters
  * - MetaNode: Metadata-only nodes without file content (uses WithAspectMixin)
@@ -68,7 +68,7 @@ export interface NodeMetadata {
 	related?: string[];
 
 	// ============================================================================
-	// FileMixin FIELDS
+	// FileNode FIELDS
 	// Present in: FileNode
 	// ============================================================================
 

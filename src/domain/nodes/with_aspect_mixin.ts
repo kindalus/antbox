@@ -3,6 +3,34 @@ import { ValidationError } from "shared/validation_error.ts";
 import { Constructor } from "domain/nodes/mixins.ts";
 import { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { NodeProperties } from "domain/nodes/node_properties.ts";
+import { stringify as yamlStringify } from "@std/yaml";
+
+/**
+ * Recursively removes undefined values from an object.
+ * Required because @std/yaml cannot stringify undefined values.
+ */
+function removeUndefined(obj: unknown): unknown {
+	if (obj === undefined) {
+		return undefined;
+	}
+
+	if (obj === null || typeof obj !== "object") {
+		return obj;
+	}
+
+	if (Array.isArray(obj)) {
+		return obj.map(removeUndefined).filter((v) => v !== undefined);
+	}
+
+	const result: Record<string, unknown> = {};
+	for (const [key, value] of Object.entries(obj)) {
+		const cleaned = removeUndefined(value);
+		if (cleaned !== undefined) {
+			result[key] = cleaned;
+		}
+	}
+	return result;
+}
 
 export function WithAspectMixin<TBase extends Constructor>(Base: TBase) {
 	return class extends Base {
@@ -74,6 +102,14 @@ export function WithAspectMixin<TBase extends Constructor>(Base: TBase) {
 			}
 
 			return super.update(metadata as NodeMetadata);
+		}
+
+		/**
+		 * Returns the node metadata serialized as YAML.
+		 * Useful for embedding generation and other text-based operations.
+		 */
+		getYamlMetadata(): string {
+			return yamlStringify(removeUndefined(this.metadata));
 		}
 	};
 }

@@ -2,221 +2,194 @@
 
 ## 1. System Identity & Overview
 
-**Antbox** is an API-first, modular **Enterprise Content Management (ECM)** platform built on the
-**Deno** runtime. It is designed to be highly extensible through a "Everything is a Node"
-philosophy.
+**Antbox** is an API-first, modular **Enterprise Content Management (ECM)** platform built on the **Deno** runtime. It manages content through Nodes while keeping system configuration separate for clean separation of concerns.
 
-**Primary Goal for LLMs:** When acting within or for Antbox, your goal is to generate valid
-JSON/TypeScript artifacts (Nodes, Aspects, Features, Agents) that strictly adhere to the system's
-domain model. You are an architect and developer for this platform.
+**Primary Goal for LLMs:** When acting within or for Antbox, your goal is to help users manage content (Nodes), understand business data (Aspects), and leverage AI capabilities (Agents, Skills). You can execute code, query data, and interact with the platform through well-defined SDKs.
 
 ### Core Architecture
 
-- **Nodes**: The atomic unit of the system. Files, Folders, Users, Configuration, Scripts, and AI
-  Agents are all Nodes.
-- **Aspects**: A composition mechanism. Aspects allow you to attach custom, structured metadata
-  schemas to any Node dynamically.
-- **Features**: The logic layer. Features are executable JavaScript/TypeScript code stored as Nodes,
-  allowing the system to be programmed from within itself.
-- **AI Agents**: Autonomous actors stored as Nodes that can use Features (Tools) to interact with
-  the system.
+Antbox separates **content** from **configuration**:
+
+| Layer             | Storage                 | Examples                                                    |
+| ----------------- | ----------------------- | ----------------------------------------------------------- |
+| **Content**       | NodeRepository          | Files, Folders, Smart Folders, Meta Nodes, Articles         |
+| **Configuration** | ConfigurationRepository | Agents, Features, Aspects, Workflows, Users, Groups, Skills |
+
+**Key Concepts:**
+
+- **Nodes**: The atomic unit for content. Files, folders, and business entities are all nodes.
+- **Aspects**: Metadata schemas that transform generic nodes into structured business entities.
+- **Features**: Executable JavaScript/TypeScript code that extends platform capabilities.
+- **Agents**: AI configurations that can interact with the system using SDKs and Skills.
+- **Skills**: Modular, markdown-based instructions that extend agent capabilities.
 
 ---
 
-## 2. Artifact Reference & Schemas
+## 2. Nodes (Content Layer)
 
-### 2.0 Reference UUIDs
+Nodes are the fundamental content unit in Antbox.
 
-Antbox uses a few stable "UUID-like" string constants for system folders. When you see these
-identifiers referenced in this document, use the literal values below.
-
-| Reference               | Value           |
-| ----------------------- | --------------- |
-| `ROOT_FOLDER_UUID`      | `--root--`      |
-| `SYSTEM_FOLDER_UUID`    | `--system--`    |
-| `USERS_FOLDER_UUID`     | `--users--`     |
-| `GROUPS_FOLDER_UUID`    | `--groups--`    |
-| `ASPECTS_FOLDER_UUID`   | `--aspects--`   |
-| `API_KEYS_FOLDER_UUID`  | `--api-keys--`  |
-| `FEATURES_FOLDER_UUID`  | `--features--`  |
-| `AGENTS_FOLDER_UUID`    | `--agents--`    |
-| `WORKFLOWS_FOLDER_UUID` | `--workflows--` |
-
-### 2.1 Base Node (The Atom)
-
-All artifacts inherit from this structure.
+### 2.1 Node Structure
 
 ```typescript
-interface Node {
-  uuid: string; // Unique ID (UUID v4). Auto-generated if missing.
-  title: string; // Name of the node. Min 3 chars.
-  description?: string; // Optional description.
-  mimetype: string; // Discriminator for node type.
-  parent: string; // UUID of parent folder. Root is 'ROOT_FOLDER_UUID'.
-  owner: string; // Email of the owner (usually auto-filled).
-  tags?: string[]; // Classification tags.
-  createdTime?: string; // ISO Date. Read-only.
-  modifiedTime?: string; // ISO Date. Read-only.
+interface NodeMetadata {
+  uuid: string; // Unique identifier (UUID v4)
+  fid: string; // Friendly ID (human-readable slug)
+  title: string; // Display name (min 3 chars)
+  description?: string; // Optional description
+  mimetype: string; // Content type discriminator
+  parent: string; // Parent folder UUID
+  owner: string; // Owner email
+  tags?: string[]; // Classification tags
+  aspects?: string[]; // Applied aspect UUIDs
+  properties?: Record<string, unknown>; // Aspect property values
+  createdTime: string; // ISO 8601 timestamp (read-only)
+  modifiedTime: string; // ISO 8601 timestamp (read-only)
+  size?: number; // File size in bytes
+  locked?: boolean; // Lock status
+  lockedBy?: string; // Who locked it
 }
 ```
 
-Note: Nodes do not have a generic `name` property. Use `title` for the display name and `uuid` as
-the identifier.
+### 2.2 Node Types
 
-### 2.2 Container: `FolderNode`
+| Mimetype                             | Type         | Description                              |
+| ------------------------------------ | ------------ | ---------------------------------------- |
+| `application/vnd.antbox.folder`      | Folder       | Container for other nodes                |
+| `application/vnd.antbox.smartfolder` | Smart Folder | Dynamic folder based on filters          |
+| `application/vnd.antbox.metanode`    | Meta Node    | Business entity (metadata only, no file) |
+| `application/vnd.antbox.article`     | Article      | Rich text content                        |
+| `application/pdf`, `image/*`, etc.   | File         | Binary content with metadata             |
 
-A folder that can contain other nodes, define access control, and enforce automation. **Mimetype:**
-`application/vnd.antbox.folder`
+### 2.3 System Folder UUIDs
+
+| Reference            | Value        | Purpose                     |
+| -------------------- | ------------ | --------------------------- |
+| `ROOT_FOLDER_UUID`   | `--root--`   | Root of the content tree    |
+| `SYSTEM_FOLDER_UUID` | `--system--` | System configuration folder |
+
+### 2.4 Folder Features
+
+Folders can define:
 
 ```typescript
-interface FolderNode extends Node {
-  // Access Control
+interface FolderNode extends NodeMetadata {
   permissions?: {
-    group: ("Read" | "Write" | "Export")[]; // Permissions for the owner group
-    authenticated: ("Read" | "Write" | "Export")[]; // Permissions for any logged-in user
-    anonymous: ("Read" | "Write" | "Export")[]; // Public permissions
-    advanced?: Record<string, Permission[]>; // Specific user/group permissions
+    group: Permission[]; // Owner group permissions
+    authenticated: Permission[]; // Logged-in user permissions
+    anonymous: Permission[]; // Public permissions
+    advanced?: Record<string, Permission[]>; // Specific user/group
   };
 
-  // Automation Hooks (UUIDs of Workflows/Features)
+  // Automation triggers (Feature UUIDs)
   onCreate?: string[];
   onUpdate?: string[];
   onDelete?: string[];
 
-  // Smart Folder Logic (accepts specific mimetypes, auto-tags, etc.)
+  // Smart folder filtering
   filters?: NodeFilter[];
 }
+
+type Permission = "Read" | "Write" | "Export";
 ```
 
-### 2.3 Metadata Schema: `AspectNode`
+---
 
-Defines a custom data shape. Nodes can be "decorated" with this aspect to hold specific data.
-**Mimetype:** `application/vnd.antbox.aspect` **Location:** Must be inside `ASPECTS_FOLDER_UUID`.
-**Naming Convention:** Use **kebab-case** for `uuid` (e.g., `invoice-data`, `project-tracker`). The
-`properties[].name` member will also typically be kebab-case.
+## 3. Aspects (Metadata Schemas)
 
-**Best Practice: Aspect Composability** Aspects are designed to be small, orthogonal, and reusable
-building blocks. They are _composable_, meaning multiple aspects can be applied to a single node. To
-maintain this composability and avoid creating "monolithic" aspects, it is recommended to keep the
-number of `properties` in an `AspectNode` **no greater than 5**. If more properties are needed,
-consider splitting them into multiple, more focused aspects.
+Aspects define custom metadata schemas that can be attached to any node, transforming generic content into structured business entities.
+
+### 3.1 Aspect Structure
 
 ```typescript
-interface AspectNode extends Node {
-  // Node.uuid is the identifier for the aspect type (e.g., "invoice", "legal-review")
-  properties: AspectProperty[];
+interface AspectData {
+  uuid: string; // kebab-case identifier
+  title: string; // Display name
+  description?: string;
+  filters: NodeFilters; // Optional: which nodes can have this aspect
+  properties: AspectProperty[]; // Schema definition
+  createdTime: string;
+  modifiedTime: string;
 }
 
 interface AspectProperty {
-  name: string; // (e.g., "invoice-date", "amount")
-  title: string; // Human readable label
-  type: "string" | "number" | "boolean" | "uuid" | "date" | "object" | "array";
-  arrayType?: "string" | "number" | "uuid" | "object"; // Required if type is 'array'
-  contentType?: string; // Only when type is "string" (e.g., "text/markdown", "text/html", "application/json")
-
+  name: string; // Property identifier
+  title: string; // Display label
+  type: "string" | "number" | "boolean" | "uuid" | "object" | "array" | "file";
+  arrayType?: "string" | "number" | "uuid";
+  contentType?: string; // For strings: "text/markdown", "text/html", etc.
+  readonly?: boolean;
+  searchable?: boolean;
   required?: boolean;
-  default?: any;
-
-  // Validation
-  validationRegex?: string; // For string types
-  validationList?: string[]; // Enum values for string types, it is recommended to used CamelCase ou SNAKE_CASE in capitals
+  defaultValue?: string | number | boolean;
+  validationRegex?: string; // Regex pattern for strings
+  validationList?: string[]; // Enum values
+  validationFilters?: NodeFilters; // For uuid type: valid reference targets
 }
 ```
 
-**How aspect values are stored on a Node**
+### 3.2 How Aspects Attach to Nodes
 
-- `node.aspects` contains the list of applied Aspect UUIDs (e.g., `["invoice-data"]`).
-- `node.properties` is a flat key/value map. Each aspect field is stored using the key format
-  `${aspectUuid}:${propertyName}` (colon separator).
-- Em termos práticos: os valores do aspecto ficam em `node.properties` usando a chave
-  `${aspectUuid}:${propertyName}`.
+When an aspect is applied to a node:
 
-```typescript
-// Example: a node decorated with the "invoice-data" aspect
-const nodeUpdate = {
-  aspects: ["invoice-data"],
-  properties: {
-    "invoice-data:amount": 1000,
-    "invoice-data:currency": "USD",
-  },
-};
+1. The aspect UUID is added to `node.aspects[]`
+2. Property values are stored in `node.properties{}` using the format: `${aspectUuid}:${propertyName}`
+
+**Example:**
+
+```json
+{
+  "uuid": "doc-123",
+  "title": "Invoice #2024-001",
+  "mimetype": "application/pdf",
+  "aspects": ["invoice"],
+  "properties": {
+    "invoice:amount": 1500.0,
+    "invoice:currency": "EUR",
+    "invoice:status": "Pending",
+    "invoice:customerId": "customer-456"
+  }
+}
 ```
 
-### 2.4 Logic Unit: `FeatureNode`
+### 3.3 Best Practices
 
-Executable code. **Mimetype:** `application/vnd.antbox.feature` **Location:** Must be inside
-`FEATURES_FOLDER_UUID`. **Naming Convention:** Use **camelCase** for `uuid` (e.g., `processInvoice`,
-`summarizeDocument`).
+- Use **kebab-case** for aspect UUIDs: `invoice-data`, `legal-review`
+- Keep aspects **small and composable** (≤5 properties recommended)
+- Multiple aspects can be applied to a single node
+- Use `uuid` type for cross-node references
 
-A Feature can be one or more of the following:
+---
 
-1. **Action (`exposeAction`)**: Callable API operation. Can be triggered automatically by events
-   (`runOnCreates`, etc.) or manually.
-2. **AI Tool (`exposeAITool`)**: Exposed to `AgentNode`s as a tool.
-3. **Extension (`exposeExtension`)**: Callable by external clients/UI.
+## 4. Features (Executable Code)
+
+Features are JavaScript/TypeScript modules that extend platform capabilities.
+
+### 4.1 Feature Structure
 
 ```typescript
-// The Node metadata structure for creating a FeatureNode
-interface FeatureNodePayload extends Node {
-  // The `title` is the feature's display name.
-
-  // Configuration
-  exposeAction: boolean;
-  exposeExtension: boolean;
-  exposeAITool: boolean;
-
-  // Triggers (Only valid if exposeAction is true)
-  runOnCreates: boolean;
-  runOnUpdates: boolean;
-  runOnDeletes: boolean;
-  runManually: boolean;
-  filters: NodeFilter[]; // Scope for triggers or availability
-
-  // Security
-  groupsAllowed: string[]; // Access control
-  runAs?: string; // "system" or user email. Defaults to caller.
-
-  // Interface Definition
-  parameters: FeatureParameter[];
-  returnType:
-    | "string"
-    | "number"
-    | "boolean"
-    | "array"
-    | "object"
-    | "file"
-    | "void";
-  returnContentType?: string; // Hint for client (e.g., "text/html", "application/json")
-}
-
-interface FeatureParameter {
-  name: string;
-  type: "string" | "number" | "boolean" | "object" | "array" | "file";
-  arrayType?: "string" | "number" | "file" | "object";
-  required: boolean;
-  description?: string;
-  defaultValue?: any;
-}
-
-// Full Feature Interface (Internal Representation of the executed code)
-export interface Feature {
-  uuid: string;
-  title: string; // The feature's display name
+interface FeatureData {
+  uuid: string; // camelCase identifier
+  title: string; // Display name
   description: string;
 
-  exposeAction: boolean;
-  exposeExtension: boolean;
-  exposeAITool: boolean;
+  // Exposure modes
+  exposeAction: boolean; // Callable as action on nodes
+  exposeExtension: boolean; // Custom HTTP endpoint
+  exposeAITool: boolean; // Available to AI agents
 
+  // Automatic triggers (requires exposeAction: true)
   runOnCreates: boolean;
   runOnUpdates: boolean;
   runOnDeletes: boolean;
   runManually: boolean;
-  filters: NodeFilter[];
 
-  groupsAllowed: string[];
-  runAs?: string;
+  // Scope and security
+  filters: NodeFilter[]; // Which nodes this applies to
+  groupsAllowed: string[]; // Access control
+  runAs?: string; // "system" or user email
 
+  // Interface
   parameters: FeatureParameter[];
   returnType:
     | "string"
@@ -226,282 +199,398 @@ export interface Feature {
     | "object"
     | "file"
     | "void";
-  returnDescription?: string;
-  returnContentType?: string;
-  tags?: string[];
+  returnContentType?: string; // e.g., "text/html", "application/json"
 
-  run(ctx: RunContext, args: FeatureRunArgs): Promise<unknown>;
-}
-```
-
-#### Feature runtime types (`.d.ts`)
-
-```typescript
-// antbox-feature-runtime.d.ts
-
-export type UUID = string;
-
-export interface Principal {
-  email: string;
-  groups: string[];
-}
-
-export interface AuthenticationContext {
-  tenant: string;
-  principal: Principal;
-  mode: "Direct" | "Action" | "AI";
-}
-
-export interface RunContext {
-  authenticationContext: AuthenticationContext;
-  nodeService: NodeServiceProxy;
-}
-
-export interface AntboxError {
-  name: string;
-  message: string;
-}
-
-export type Either<L, R> = Left<L, R> | Right<L, R>;
-
-export interface Left<L, R> {
-  value: L;
-  isLeft(): this is Left<L, R>;
-  isRight(): this is Right<L, R>;
-}
-
-export interface Right<L, R> {
-  value: R;
-  isLeft(): this is Left<L, R>;
-  isRight(): this is Right<L, R>;
-}
-
-export type NodeFilter = [field: string, op: string, value: unknown];
-export type NodeFilters = NodeFilter[] | NodeFilter[][];
-
-export interface NodeFilterResult {
-  pageToken: number;
-  pageSize: number;
-  nodes: NodeMetadata[];
-  scores?: Record<string, number>;
-}
-
-export interface NodeMetadata {
-  uuid: UUID;
-  fid: string;
-  title: string;
-  description?: string;
-  mimetype: string;
-  parent: UUID;
-  owner: string;
+  module: string; // The actual code
   createdTime: string;
   modifiedTime: string;
-  size?: number;
-  aspects?: UUID[];
-  tags?: string[];
-  related?: UUID[];
-  properties?: Record<string, unknown>;
-  locked?: boolean;
-  lockedBy?: string;
-  unlockAuthorizedGroups?: UUID[];
-}
-
-/**
- * NodeServiceProxy is what Features receive at runtime.
- *
- * It forwards every call to the real NodeService using the bound AuthenticationContext, so
- * user-authored code cannot supply arbitrary credentials.
- */
-export interface NodeServiceProxy {
-  get(uuid: UUID): Promise<Either<AntboxError, NodeMetadata>>;
-  list(parent?: UUID): Promise<Either<AntboxError, NodeMetadata[]>>;
-  find(
-    filters: NodeFilters | string,
-    pageSize?: number,
-    pageToken?: number,
-  ): Promise<Either<AntboxError, NodeFilterResult>>;
-  breadcrumbs(
-    uuid: UUID,
-  ): Promise<Either<AntboxError, Array<{ uuid: UUID; title: string }>>>;
-
-  create(
-    metadata: Partial<NodeMetadata>,
-  ): Promise<Either<AntboxError, NodeMetadata>>;
-  createFile(
-    file: File,
-    metadata: Partial<NodeMetadata>,
-  ): Promise<Either<AntboxError, NodeMetadata>>;
-
-  update(
-    uuid: UUID,
-    metadata: Partial<NodeMetadata>,
-  ): Promise<Either<AntboxError, void>>;
-  updateFile(uuid: UUID, file: File): Promise<Either<AntboxError, void>>;
-  delete(uuid: UUID): Promise<Either<AntboxError, void>>;
-  export(uuid: UUID): Promise<Either<AntboxError, File>>;
-  copy(uuid: UUID, parent: UUID): Promise<Either<AntboxError, NodeMetadata>>;
-  duplicate(uuid: UUID): Promise<Either<AntboxError, NodeMetadata>>;
-  lock(
-    uuid: UUID,
-    unlockAuthorizedGroups?: UUID[],
-  ): Promise<Either<AntboxError, void>>;
-  unlock(uuid: UUID): Promise<Either<AntboxError, void>>;
-}
-
-/**
- * Arguments passed to `run(ctx, args)`:
- * - Actions (manual/automatic): `{ uuids: string[], ... }` (uuids is the filtered target set)
- * - Extensions: parameters extracted from the HTTP request (GET query, POST JSON, or form-data)
- * - AI tools: parameters provided by the tool call
- */
-export interface FeatureRunArgs extends Record<string, unknown> {
-  /**
-   * Present when executed as an Action (manual or automatic).
-   * Contains the UUIDs of the nodes the action should apply to.
-   */
-  uuids?: UUID[];
-}
-
-export interface ActionRunArgs extends FeatureRunArgs {
-  uuids: UUID[];
 }
 ```
 
-### 2.5 Intelligent Actor: `AgentNode`
-
-An AI configuration that acts as a specialized assistant. **Mimetype:**
-`application/vnd.antbox.agent` **Location:** Must be inside `AGENTS_FOLDER_UUID`.
-
-```typescript
-interface AgentNode extends Node {
-  model: string; // LLM Model ID (e.g., "gpt-4", "gemini-pro")
-  temperature: number; // 0.0 to 2.0
-  maxTokens: number; // Output limit
-
-  reasoning: boolean; // Enable chain-of-thought/reasoning steps
-  useTools: boolean; // Allow access to Features with exposeAITool: true
-
-  systemInstructions: string; // The core prompt/persona of the agent
-  structuredAnswer?: string; // Optional JSON schema for enforcing output format
-}
-```
-
----
-
-## 3. Query Language: `NodeFilters`
-
-Used to define scopes for Features, Smart Folders, and Searches.
-
-**Format**: `[Field, Operator, Value]`
-
-- **Simple (AND)**: `[[Filter1], [Filter2]]`
-- **Complex (OR of ANDs)**: `[[FilterA, FilterB], [FilterC]]` -> `(A && B) || C`
-
-**Operators**:
-
-- `==`, `!=`: Equality
-- `<`, `>`, `<=`, `>=`: Comparison
-- `contains`: String substring or Array membership
-- `in`, `not-in`: Value in list
-- `match`: Regex match
-- `~=`: Like (case-insensitive)
-
-**Examples**:
-
-- _File is a PDF_: `['mimetype', '==', 'application/pdf']`
-- _Has 'Invoice' Aspect_: `['aspects', 'contains', 'invoice-data']`
-- _Amount > 1000_: `['invoice-data:amount', '>', 1000]`
-
----
-
-## 4. Examples & Implementation
-
-### 4.1 Creating a "Legal Review" Aspect
-
-**Scenario**: We need to track the status of legal contracts.
-
-```typescript
-// AspectNode Payload
-const legalAspect = {
-  uuid: "legal-review", // kebab-case
-  title: "Legal Review Data",
-  mimetype: "application/vnd.antbox.aspect",
-  parent: "ASPECTS_FOLDER_UUID",
-  properties: [
-    {
-      name: "status",
-      title: "Review Status",
-      type: "string",
-      validationList: ["Draft", "Under Review", "Approved", "Rejected"],
-      default: "Draft",
-      required: true,
-    },
-    {
-      name: "reviewer",
-      title: "Assigned Attorney",
-      type: "string", // Email
-      validationRegex: "^[\\w-\\.]+@([\\w-]+\\.)+[\\w-]{2,4}$",
-    },
-    {
-      name: "review-date",
-      title: "Review Date",
-      type: "date",
-    },
-  ],
-};
-```
-
-### 4.2 Creating an "Analyze Contract" Feature (Action & AI Tool)
-
-**Scenario**: A script that reads a PDF and extracts key clauses.
-
-**File Content (`analyzeContract.js`)**:
+### 4.2 Feature Module Format
 
 ```javascript
 export default {
-  uuid: "analyzeContract", // camelCase
-  title: "Analyze Contract Clauses", // This will be the feature's name
-  description:
-    "Extracts liability and termination clauses from legal documents.",
+  uuid: "processInvoice",
+  title: "Process Invoice",
+  description: "Extracts data from invoice PDFs",
 
-  // Exposed as Action (for UI buttons) and AI Tool (for Agents)
   exposeAction: true,
   exposeAITool: true,
   exposeExtension: false,
 
-  // Available only for PDFs
-  filters: [["mimetype", "==", "application/pdf"]],
-
-  // Manual trigger only
   runManually: true,
   runOnCreates: false,
   runOnUpdates: false,
+  runOnDeletes: false,
+
+  filters: [["mimetype", "==", "application/pdf"]],
+  groupsAllowed: ["--admins--"],
 
   parameters: [
-    {
-      name: "uuids",
-      type: "array",
-      arrayType: "string",
-      required: true,
-      description: "List of contract Node UUIDs",
-    },
+    { name: "uuids", type: "array", arrayType: "string", required: true },
   ],
-
   returnType: "object",
 
-  run: async (ctx, args) => {
+  async run(ctx, args) {
+    // ctx.authenticationContext - who is running this
+    // ctx.nodeService - NodeServiceProxy for content operations
+    // args.uuids - target nodes (for actions)
+
+    const results = {};
+    for (const uuid of args.uuids) {
+      const nodeOrErr = await ctx.nodeService.get(uuid);
+      if (nodeOrErr.isLeft()) continue;
+
+      results[uuid] = { processed: true };
+    }
+    return results;
+  },
+};
+```
+
+### 4.3 Execution Contexts
+
+| Mode          | Trigger                    | Args                             |
+| ------------- | -------------------------- | -------------------------------- |
+| **Action**    | Manual button or automatic | `{ uuids: string[], ...params }` |
+| **Extension** | HTTP request               | Parameters from query/body       |
+| **AI Tool**   | Agent tool call            | Parameters from LLM              |
+
+---
+
+## 5. AI Agents
+
+Agents are AI configurations that can interact with the platform using SDKs, Skills, and Features.
+
+### 5.1 Agent Structure
+
+```typescript
+interface AgentData {
+  uuid: string;
+  title: string;
+  description?: string;
+  model: string; // "default" or specific model name
+  temperature: number; // 0.0 - 2.0
+  maxTokens: number;
+  reasoning: boolean; // Enable chain-of-thought
+  useTools: boolean; // Enable SDK access
+  useSkills: boolean; // Enable skill loading
+  skillsAllowed?: string[]; // Optional: restrict to specific skills
+  systemInstructions: string; // Core prompt/persona
+  createdTime: string;
+  modifiedTime: string;
+}
+```
+
+### 5.2 Agent Capabilities
+
+When `useTools: true`, agents have access to:
+
+**Nodes SDK** (15 methods):
+
+- `get(uuid)` - Get node metadata
+- `list(parent?)` - List children of a folder
+- `find(filters, pageSize?, pageToken?)` - Search nodes
+- `create(metadata)` - Create meta node
+- `createFile(file, metadata)` - Create file node
+- `update(uuid, metadata)` - Update node
+- `updateFile(uuid, file)` - Replace file content
+- `delete(uuid)` - Delete node
+- `export(uuid)` - Download file
+- `copy(uuid, parent)` - Copy to folder
+- `duplicate(uuid)` - Duplicate in place
+- `lock(uuid)` / `unlock(uuid)` - Lock management
+- `breadcrumbs(uuid)` - Get path to root
+- `evaluate(uuid)` - Run evaluator
+
+**Aspects SDK** (2 methods):
+
+- `get(uuid)` - Get aspect definition
+- `listAspects()` - List all aspects
+
+**Custom Features**:
+Any feature with `exposeAITool: true` becomes available as a tool.
+
+### 5.3 Agent Execution Modes
+
+| Mode       | Method                                      | Use Case                |
+| ---------- | ------------------------------------------- | ----------------------- |
+| **Chat**   | `chat(agentUuid, message, history, files?)` | Multi-turn conversation |
+| **Answer** | `answer(agentUuid, question, files?)`       | One-shot Q&A            |
+
+Both modes support tool calling - the agent can invoke tools multiple times before responding.
+
+---
+
+## 6. Skills System
+
+Skills are modular, markdown-based instructions that extend agent capabilities with domain-specific expertise.
+
+### 6.1 Skill Structure
+
+```typescript
+interface AgentSkillData {
+  uuid: string; // kebab-case skill name
+  title: string; // Title Case
+  description: string; // Brief description for discovery
+  content: string; // Full markdown content
+  createdTime: string;
+  modifiedTime: string;
+}
+```
+
+### 6.2 Progressive Loading Strategy
+
+Skills use a three-level loading approach to minimize context usage:
+
+| Level       | Content                              | When Loaded          | Token Limit   |
+| ----------- | ------------------------------------ | -------------------- | ------------- |
+| **Level 1** | YAML frontmatter (name, description) | Agent startup        | <100 tokens   |
+| **Level 2** | H1 heading + first H2 section        | When skill triggered | <5,000 tokens |
+| **Level 3** | Remaining H2 sections                | On-demand            | Unlimited     |
+
+### 6.3 Skill Markdown Format
+
+````markdown
+---
+name: pdf-processing
+description: Extract text, fill forms, merge PDF documents. Use when working with PDFs.
+---
+
+# PDF Processing
+
+## Quick Start
+
+Core instructions loaded when skill is triggered...
+
+```python
+import pdfplumber
+with pdfplumber.open("doc.pdf") as pdf:
+    text = pdf.pages[0].extract_text()
+```
+````
+
+For form filling, see [Form Filling](#form-filling).
+
+## Form Filling
+
+Extended resource loaded on-demand...
+
+## Reference
+
+Additional resources...
+
+````
+
+### 6.4 Loading Skills Programmatically
+
+Agents load skills using the `loadSkill` tool:
+
+```typescript
+loadSkill(skillName: string, ...resources: string[]): Promise<string>
+````
+
+**Examples:**
+
+- `loadSkill("pdf-processing")` → Level 2 only
+- `loadSkill("pdf-processing", "form-filling")` → Level 2 + Form Filling section
+- `loadSkill("pdf-processing", "form-filling", "reference")` → Level 2 + multiple sections
+
+### 6.5 Skill Access Control
+
+- `useSkills: false` → No skills available
+- `useSkills: true, skillsAllowed: undefined` → All skills available
+- `useSkills: true, skillsAllowed: ["querying", "pdf-processing"]` → Only listed skills
+
+---
+
+## 7. Query Language: NodeFilters
+
+Used for searching nodes, defining smart folder criteria, and scoping features.
+
+### 7.1 Filter Format
+
+A filter is a tuple: `[field, operator, value]`
+
+**Simple (AND logic):**
+
+```javascript
+[
+  ["mimetype", "==", "application/pdf"],
+  ["size", ">", 1000000],
+];
+// Matches: PDFs larger than 1MB
+```
+
+**Complex (OR of ANDs):**
+
+```javascript
+[
+  [
+    ["mimetype", "==", "application/pdf"],
+    ["size", ">", 5000000],
+  ],
+  [
+    ["mimetype", "contains", "image/"],
+    ["tags", "contains", "important"],
+  ],
+];
+// Matches: (Large PDFs) OR (Important images)
+```
+
+### 7.2 Operators
+
+| Operator             | Description                   | Example                                   |
+| -------------------- | ----------------------------- | ----------------------------------------- |
+| `==`                 | Exact equality                | `["title", "==", "Invoice #001"]`         |
+| `!=`                 | Not equal                     | `["status", "!=", "deleted"]`             |
+| `<`, `>`, `<=`, `>=` | Comparison                    | `["size", ">", 1000000]`                  |
+| `contains`           | Array membership or substring | `["tags", "contains", "urgent"]`          |
+| `contains-all`       | Array contains ALL values     | `["tags", "contains-all", ["a", "b"]]`    |
+| `contains-any`       | Array contains ANY value      | `["tags", "contains-any", ["a", "b"]]`    |
+| `not-contains`       | Array does NOT contain        | `["tags", "not-contains", "archived"]`    |
+| `in`                 | Value in list                 | `["status", "in", ["open", "pending"]]`   |
+| `not-in`             | Value NOT in list             | `["status", "not-in", ["deleted"]]`       |
+| `match`              | Full-text search              | `["fulltext", "match", "contract terms"]` |
+
+### 7.3 Semantic Search
+
+For AI-powered semantic search, pass a string starting with `?`:
+
+```javascript
+await nodes.find("?documents about project deadlines");
+```
+
+Note: Semantic search cannot be combined with other filters.
+
+### 7.4 Querying Aspect Properties
+
+Aspect properties are queried using the format `${aspectUuid}:${propertyName}`:
+
+```javascript
+// Find all invoices with amount > 10000
+[
+  ["aspects", "contains", "invoice"],
+  ["invoice:amount", ">", 10000],
+][
+  // Find pending invoices for a specific customer
+  (["aspects", "contains", "invoice"],
+  ["invoice:status", "==", "Pending"],
+  ["invoice:customerId", "==", "customer-456"])
+];
+```
+
+---
+
+## 8. Error Handling: Either Pattern
+
+All Antbox operations return `Either<Error, Value>`:
+
+```typescript
+const result = await nodes.get(uuid);
+
+if (result.isLeft()) {
+  // Error case
+  console.error(result.value.message);
+  return;
+}
+
+// Success case
+const node = result.value;
+```
+
+This pattern ensures explicit error handling throughout the codebase.
+
+---
+
+## 9. Examples
+
+### 9.1 Creating a Customer Aspect
+
+```typescript
+const customerAspect = {
+  uuid: "customer",
+  title: "Customer Data",
+  description: "Core customer information",
+  filters: [],
+  properties: [
+    {
+      name: "company-name",
+      title: "Company Name",
+      type: "string",
+      required: true,
+    },
+    {
+      name: "contact-email",
+      title: "Contact Email",
+      type: "string",
+      validationRegex: "^[\\w-\\.]+@([\\w-]+\\.)+[\\w-]{2,4}$",
+    },
+    {
+      name: "tier",
+      title: "Customer Tier",
+      type: "string",
+      validationList: ["Bronze", "Silver", "Gold", "Platinum"],
+      defaultValue: "Bronze",
+    },
+    {
+      name: "annual-revenue",
+      title: "Annual Revenue",
+      type: "number",
+    },
+  ],
+};
+```
+
+### 9.2 Creating a Document Analyzer Feature
+
+```javascript
+export default {
+  uuid: "analyzeDocument",
+  title: "Analyze Document",
+  description: "Extracts key information from documents using AI",
+
+  exposeAction: true,
+  exposeAITool: true,
+  exposeExtension: false,
+
+  runManually: true,
+  runOnCreates: false,
+  runOnUpdates: false,
+  runOnDeletes: false,
+
+  filters: [["mimetype", "in", ["application/pdf", "text/plain"]]],
+  groupsAllowed: [],
+
+  parameters: [
+    { name: "uuids", type: "array", arrayType: "string", required: true },
+    {
+      name: "extractFields",
+      type: "array",
+      arrayType: "string",
+      required: false,
+    },
+  ],
+  returnType: "object",
+
+  async run(ctx, args) {
     const results = {};
 
     for (const uuid of args.uuids) {
       const nodeOrErr = await ctx.nodeService.get(uuid);
-      if (nodeOrErr.isLeft()) continue;
-      const node = nodeOrErr.value;
+      if (nodeOrErr.isLeft()) {
+        results[uuid] = { error: nodeOrErr.value.message };
+        continue;
+      }
 
-      // Pseudo-code: In a real scenario, this might call an LLM service or OCR
-      // ctx provides services like: ctx.llm, ctx.storage, etc.
+      const node = nodeOrErr.value;
+      // Process document...
       results[uuid] = {
-        liabilityClause: "Found on page 3...",
-        terminationClause: "Found on page 9...",
+        title: node.title,
+        extracted: {
+          /* ... */
+        },
       };
     }
 
@@ -510,169 +599,129 @@ export default {
 };
 ```
 
-### 4.3 Creating a "Legal Assistant" Agent
-
-**Scenario**: An AI agent that uses the tool above to help users.
+### 9.3 Creating an Agent Configuration
 
 ```typescript
-// AgentNode Payload
-const legalAgent = {
-  title: "Legal Assistant",
-  mimetype: "application/vnd.antbox.agent",
-  parent: "AGENTS_FOLDER_UUID",
-
-  model: "gpt-4-turbo",
-  temperature: 0.2, // Low temperature for precision
-  maxTokens: 4000,
-
-  reasoning: true, // Enable step-by-step thinking
-  useTools: true, // Allow it to call "analyzeContract"
-
+const supportAgent = {
+  uuid: "customer-support",
+  title: "Customer Support Agent",
+  description: "Helps users find and manage customer information",
+  model: "default",
+  temperature: 0.3,
+  maxTokens: 4096,
+  reasoning: true,
+  useTools: true,
+  useSkills: true,
+  skillsAllowed: ["querying"],
   systemInstructions: `
-    You are a senior legal assistant. 
-    Your goal is to help users understand contract risks.
-    
-    Guidelines:
-    1. Always use the 'Analyze Contract Clauses' tool when a user uploads a PDF.
-    2. Summarize the 'liabilityClause' in plain English.
-    3. Flag any termination notice periods shorter than 30 days.
-    
-    Do not provide legal advice, only information.
+You are a customer support assistant for Antbox.
+
+Your capabilities:
+1. Search for customer records using the querying skill
+2. View and explain customer data
+3. Help users understand aspect properties
+
+Guidelines:
+- Always load the querying skill first when searching
+- Use filters to narrow down results
+- Explain data in clear, business-friendly terms
+- Never modify data without explicit user confirmation
   `,
 };
 ```
 
-### 4.4 Creating a "Node Report" Extension (HTML Output)
-
-**Scenario**: Render a custom HTML table of node properties for the UI.
-
-**File Content (`nodeReport.js`)**:
+### 9.4 Querying Business Entities
 
 ```javascript
-export default {
-  uuid: "nodeReport",
-  title: "Node Report", // This will be the feature's name
-  description: "Generates an HTML table of node properties",
+// Find all Gold-tier customers
+const goldCustomers = await nodes.find([
+  ["aspects", "contains", "customer"],
+  ["customer:tier", "==", "Gold"],
+]);
 
-  exposeAction: false,
-  exposeAITool: false,
-  exposeExtension: true, // Exposed as extension
+// Find high-value pending invoices
+const urgentInvoices = await nodes.find([
+  ["aspects", "contains", "invoice"],
+  ["invoice:status", "==", "Pending"],
+  ["invoice:amount", ">", 50000],
+]);
 
-  filters: [], // Available for all nodes
+// Find documents created this month
+const thisMonth = new Date();
+const startOfMonth = new Date(
+  thisMonth.getFullYear(),
+  thisMonth.getMonth(),
+  1,
+).toISOString();
 
-  parameters: [
-    {
-      name: "uuid",
-      type: "string",
-      required: true,
-      description: "The UUID of the node",
-    },
-  ],
-
-  returnType: "string",
-  returnContentType: "text/html", // Hint for client rendering
-
-  run: async (ctx, args) => {
-    const nodeResult = await ctx.nodeService.get(args.uuid);
-    if (nodeResult.isLeft()) return "<h1>Node not found</h1>";
-    const node = nodeResult.value;
-
-    return `
-      <div class="report">
-        <h2>${node.title}</h2>
-        <table>
-          <tr><td>UUID</td><td>${node.uuid}</td></tr>
-          <tr><td>Type</td><td>${node.mimetype}</td></tr>
-          <tr><td>Size</td><td>${node.size || "N/A"}</td></tr>
-        </table>
-      </div>
-    `;
-  },
-};
+const recentDocs = await nodes.find([
+  ["createdTime", ">=", startOfMonth],
+  ["mimetype", "!=", "application/vnd.antbox.folder"],
+]);
 ```
 
-### 4.5 Folder for Images with Auto-Tagging
+---
 
-**Scenario**: A folder that only accepts image files and automatically applies a "with: images" tag
-using a 'tag' action.
+## 10. Architecture Patterns
 
-```typescript
-// FolderNode Payload
-const imageFolder = {
-  title: "My Image Folder",
-  mimetype: "application/vnd.antbox.folder",
-  parent: "ROOT_FOLDER_UUID", // Or any parent folder UUID
+### 10.1 Service/Engine Separation
 
-  filters: [
-    ["mimetype", "contains", "image/"], // Only accept image mimetypes
-  ],
+- **Services** handle CRUD operations and state management
+- **Engines** handle dynamic execution and orchestration
 
-  onCreate: [
-    // Assuming a 'tag' feature exists (uuid: 'tagNode')
-    // This action would take the created node's UUID and add a tag.
-    "tagNode",
-  ],
+Example: `AgentsService` manages agent configurations, `AgentsEngine` executes agent conversations.
 
-  // Custom metadata for the 'tag' action on create
-  // This demonstrates how onCreate actions can receive additional context
-  onCreateConfig: {
-    tagNode: {
-      tag: "with: images",
-    },
-  },
-};
-```
+### 10.2 Access Control
 
-### 4.6 Automatic PDF Console Logging Action
+| Resource | Create/Delete               | Update                      | Read                        |
+| -------- | --------------------------- | --------------------------- | --------------------------- |
+| Agents   | Admin only                  | Admin only                  | All users                   |
+| Features | Admin only                  | Admin only                  | Filtered by groupsAllowed   |
+| Aspects  | Admin only                  | Admin only                  | All users                   |
+| Skills   | Admin only                  | Admin only                  | Controlled by agent config  |
+| Nodes    | Based on folder permissions | Based on folder permissions | Based on folder permissions |
 
-**Scenario**: A feature that logs a message to the console whenever a PDF document is created in the
-platform.
+### 10.3 Multi-Tenancy
 
-**File Content (`logPdfCreation.js`)**:
+Each tenant has completely isolated:
 
-```javascript
-export default {
-  uuid: "logPdfCreation", // camelCase
-  title: "Log PDF Creation", // This will be the feature's name
-  description: "Logs to console when a PDF is created",
+- Configuration repository
+- Node repository
+- Storage provider
+- Event store
+- Crypto keys
 
-  exposeAction: true, // Needs to be an action to use 'runOnCreates'
-  exposeAITool: false,
-  exposeExtension: false,
+---
 
-  runManually: false, // Not meant for manual execution
-  runOnCreates: true, // Trigger on node creation
-  runOnUpdates: false,
-  runOnDeletes: false,
+## 11. Quick Reference
 
-  filters: [
-    ["mimetype", "==", "application/pdf"], // Only trigger for PDFs
-  ],
+### Common Mimetypes
 
-  parameters: [
-    {
-      name: "uuids",
-      type: "array",
-      arrayType: "string",
-      required: true,
-      description: "UUIDs of created PDFs",
-    },
-  ],
+| Mimetype                             | Description                     |
+| ------------------------------------ | ------------------------------- |
+| `application/vnd.antbox.folder`      | Folder                          |
+| `application/vnd.antbox.smartfolder` | Smart folder                    |
+| `application/vnd.antbox.metanode`    | Business entity (metadata only) |
+| `application/vnd.antbox.article`     | Rich text article               |
+| `application/pdf`                    | PDF document                    |
+| `image/png`, `image/jpeg`            | Images                          |
+| `text/plain`, `text/markdown`        | Text files                      |
 
-  returnType: "void",
+### Builtin Groups
 
-  run: async (ctx, args) => {
-    for (const uuid of args.uuids) {
-      const nodeResult = await ctx.nodeService.get(uuid);
-      if (nodeResult.isLeft()) {
-        console.error(`Failed to get node ${uuid} for logging.`);
-        continue;
-      }
-      const node = nodeResult.value;
-      console.log(
-        `[AUTOMATED ACTION] New PDF created: "${node.title}" (UUID: ${uuid})`,
-      );
-    }
-  },
-};
-```
+| UUID            | Purpose                |
+| --------------- | ---------------------- |
+| `--admins--`    | System administrators  |
+| `--users--`     | Regular users          |
+| `--anonymous--` | Unauthenticated access |
+
+### SDK Methods Summary
+
+**Nodes SDK:**
+`get`, `list`, `find`, `breadcrumbs`, `create`, `createFile`, `update`, `updateFile`, `delete`, `export`, `copy`, `duplicate`, `evaluate`, `lock`, `unlock`
+
+**Aspects SDK:**
+`get`, `listAspects`
+
+**Internal Tools:**
+`loadSdkDocumentation`, `runCode`, `loadSkill`

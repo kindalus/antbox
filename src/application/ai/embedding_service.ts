@@ -3,6 +3,7 @@ import { NodeCreatedEvent } from "domain/nodes/node_created_event.ts";
 import { NodeUpdatedEvent } from "domain/nodes/node_updated_event.ts";
 import { NodeDeletedEvent } from "domain/nodes/node_deleted_event.ts";
 import type { FileNode } from "domain/nodes/file_node.ts";
+import type { FolderNode } from "domain/nodes/folder_node.ts";
 import type { AIModel } from "./ai_model.ts";
 import { isEmbeddingsSupportedMimetype } from "domain/nodes/embedding.ts";
 import { AntboxError } from "shared/antbox_error.ts";
@@ -53,6 +54,16 @@ export class EmbeddingService {
 	async handleNodeCreated(event: NodeCreatedEvent): Promise<void> {
 		const node = event.payload;
 
+		// Handle folders (not smart folders)
+		if (Nodes.isFolder(node)) {
+			try {
+				await this.#generateAndStoreEmbeddingForFolder(node as FolderNode);
+			} catch (error) {
+				Logger.error(`Failed to generate embedding for folder ${node.uuid}:`, error);
+			}
+			return;
+		}
+
 		// Check if node is a FileNode using Nodes utility
 		if (!Nodes.isFile(node)) {
 			return;
@@ -70,7 +81,7 @@ export class EmbeddingService {
 
 		// Generate and store embedding
 		try {
-			await this.#generateAndStoreEmbedding(node);
+			await this.#generateAndStoreEmbeddingForFile(node as FileNode);
 		} catch (error) {
 			// Log error but don't throw - embedding generation should not break node creation
 			Logger.error(`Failed to generate embedding for node ${node.uuid}:`, error);
@@ -90,6 +101,16 @@ export class EmbeddingService {
 		}
 
 		const node = nodeOrErr.value;
+
+		// Handle folders (not smart folders)
+		if (Nodes.isFolder(node)) {
+			try {
+				await this.#generateAndStoreEmbeddingForFolder(node as FolderNode);
+			} catch (error) {
+				Logger.error(`Failed to update embedding for folder ${node.uuid}:`, error);
+			}
+			return;
+		}
 
 		// Check if node is a FileNode using Nodes utility
 		if (!Nodes.isFile(node)) {
@@ -113,7 +134,7 @@ export class EmbeddingService {
 
 		// Generate and store embedding (upsert will update existing)
 		try {
-			await this.#generateAndStoreEmbedding(node);
+			await this.#generateAndStoreEmbeddingForFile(node as FileNode);
 		} catch (error) {
 			// Log error but don't throw - embedding generation should not break node update
 			Logger.error(`Failed to update embedding for node ${node.uuid}:`, error);
@@ -124,7 +145,11 @@ export class EmbeddingService {
 		await this.#deleteEmbedding(event.payload.uuid);
 	}
 
-	async #generateAndStoreEmbedding(node: FileNode): Promise<void> {
+	/**
+	 * Generate and store embedding for a file node.
+	 * Uses OCR to extract content and combines with metadata.
+	 */
+	async #generateAndStoreEmbeddingForFile(node: FileNode): Promise<void> {
 		// Read file content using NodeService export method
 		const fileOrErr = await this.context.nodeService.export(
 			createElevatedContext(),
@@ -143,20 +168,54 @@ export class EmbeddingService {
 			throw new EmbeddingGenerationError(node.uuid, textOrErr.value);
 		}
 
-		const text = textOrErr.value;
+		const fileContent = textOrErr.value;
 
+		// Build combined text with metadata and content
+		const combinedText = `---
+**Metadata**:
+
+${node.getYamlMetadata()}
+---
+**Content**:
+
+${fileContent}`;
+
+		// Generate and store embedding
+		await this.#generateAndStoreEmbedding(node.uuid, combinedText);
+	}
+
+	/**
+	 * Generate and store embedding for a folder node.
+	 * Uses metadata only (no file content).
+	 */
+	async #generateAndStoreEmbeddingForFolder(node: FolderNode): Promise<void> {
+		// Build text with metadata only
+		const metadataText = `---
+**Metadata**:
+
+${node.getYamlMetadata()}
+---`;
+
+		// Generate and store embedding
+		await this.#generateAndStoreEmbedding(node.uuid, metadataText);
+	}
+
+	/**
+	 * Generate embedding from text and store in repository
+	 */
+	async #generateAndStoreEmbedding(nodeUuid: string, text: string): Promise<void> {
 		// Generate embedding using embedding model
 		const embeddingsOrErr = await this.context.embeddingModel.embed([text]);
 		if (embeddingsOrErr.isLeft()) {
-			throw new EmbeddingGenerationError(node.uuid, embeddingsOrErr.value);
+			throw new EmbeddingGenerationError(nodeUuid, embeddingsOrErr.value);
 		}
 
 		const embedding = embeddingsOrErr.value[0];
 
 		// Store embedding in repository
-		const storeOrErr = await this.context.repository.upsertEmbedding(node.uuid, embedding);
+		const storeOrErr = await this.context.repository.upsertEmbedding(nodeUuid, embedding);
 		if (storeOrErr.isLeft()) {
-			throw new EmbeddingGenerationError(node.uuid, storeOrErr.value);
+			throw new EmbeddingGenerationError(nodeUuid, storeOrErr.value);
 		}
 	}
 

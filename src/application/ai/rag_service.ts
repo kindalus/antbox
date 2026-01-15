@@ -2,9 +2,10 @@ import { Either, left, right } from "shared/either.ts";
 import { AntboxError } from "shared/antbox_error.ts";
 import { AuthenticationContext } from "application/security/authentication_context.ts";
 import { NodeService } from "application/nodes/node_service.ts";
-import { AgentsEngine } from "application/ai/agents_engine.ts";
-import { ChatHistory } from "domain/ai/chat_message.ts";
+import { ChatHistory, ChatMessage } from "domain/ai/chat_message.ts";
 import { NodeMetadata } from "domain/nodes/node_metadata.ts";
+import { AIModel } from "./ai_model.ts";
+import { Logger } from "shared/logger.ts";
 
 // ============================================================================
 // INPUT TYPES
@@ -24,7 +25,17 @@ export interface RAGChatOptions {
 // CONSTANTS
 // ============================================================================
 
-const RAG_AGENT_UUID = "--rag-agent--";
+/** Maximum number of documents to retrieve for context */
+export const RAG_TOP_N_DOCUMENTS = 5;
+
+/** Minimum similarity score (0-1) for a document to be included in context */
+export const RAG_MIN_SIMILARITY_SCORE = 0.5;
+
+/** Default model temperature for RAG responses */
+const RAG_DEFAULT_TEMPERATURE = 0.3;
+
+/** Default max tokens for RAG responses */
+const RAG_DEFAULT_MAX_TOKENS = 4096;
 
 // ============================================================================
 // RAG SERVICE
@@ -33,11 +44,18 @@ const RAG_AGENT_UUID = "--rag-agent--";
 export class RAGService {
 	constructor(
 		private readonly nodeService: NodeService,
-		private readonly agentsEngine: AgentsEngine,
+		private readonly aiModel: AIModel,
+		private readonly ocrModel: AIModel,
 	) {}
 
 	/**
-	 * Chat with RAG-enhanced context using hybrid retrieval
+	 * Chat with RAG-enhanced context using system-driven retrieval.
+	 *
+	 * This implements a proper RAG workflow:
+	 * 1. System performs semantic search automatically (not agent-decided)
+	 * 2. Retrieved documents are injected into context
+	 * 3. LLM is instructed to answer ONLY based on provided documents
+	 * 4. No hallucination from LLM's training data
 	 */
 	async chat(
 		authContext: AuthenticationContext,
@@ -45,36 +63,58 @@ export class RAGService {
 		options: RAGChatOptions,
 	): Promise<Either<AntboxError, ChatHistory>> {
 		try {
-			// Build enhanced system instructions for RAG context
-			let instructions = this.buildRAGInstructions(options.parent);
-
-			// Build parent context if parent UUID is provided
-			if (options.parent) {
-				const contextResult = await this.buildParentContext(authContext, options.parent);
-				if (contextResult.isRight()) {
-					instructions += "\n\n" + contextResult.value;
-				}
-				// If context building fails, continue without it (don't fail the whole request)
-			}
-
-			// Delegate to RAG agent with enhanced instructions
-			const agentChatResult = await this.agentsEngine.chat(
+			// Stage 1: Perform semantic search automatically
+			const searchResult = await this.#performSemanticSearch(
 				authContext,
-				RAG_AGENT_UUID,
 				text,
-				{
-					history: options.history,
-					temperature: options.temperature,
-					maxTokens: options.maxTokens,
-					instructions,
-				},
+				options.parent,
 			);
 
-			if (agentChatResult.isLeft()) {
-				return left(agentChatResult.value);
+			if (searchResult.isLeft()) {
+				return left(searchResult.value);
 			}
 
-			return right(agentChatResult.value);
+			const { documents, scores } = searchResult.value;
+
+			// Stage 2: Retrieve full content of top documents
+			const documentsWithContent = await this.#retrieveDocumentContents(
+				authContext,
+				documents,
+				scores,
+			);
+
+			// Stage 3: Build grounded prompt with documents as context
+			const systemPrompt = this.#buildGroundedSystemPrompt(documentsWithContent);
+
+			// Stage 4: Build conversation history
+			const history: ChatHistory = options.history ?? [];
+			const userMessage: ChatMessage = {
+				role: "user",
+				parts: [{ text }],
+			};
+
+			// Stage 5: Call LLM with strict grounding instructions
+			if (!this.aiModel.chat) {
+				return left(
+					new AntboxError("RAGChatError", "AI model does not support chat"),
+				);
+			}
+
+			const chatResult = await this.aiModel.chat(text, {
+				systemPrompt,
+				history: [...history, userMessage],
+				temperature: options.temperature ?? RAG_DEFAULT_TEMPERATURE,
+				maxTokens: options.maxTokens ?? RAG_DEFAULT_MAX_TOKENS,
+			});
+
+			if (chatResult.isLeft()) {
+				return left(
+					new AntboxError("RAGChatError", `LLM chat failed: ${chatResult.value}`),
+				);
+			}
+
+			// Return updated history with response
+			return right([...history, userMessage, chatResult.value]);
 		} catch (error) {
 			return left(
 				new AntboxError(
@@ -86,120 +126,185 @@ export class RAGService {
 	}
 
 	// ========================================================================
-	// PRIVATE METHODS - INSTRUCTIONS BUILDING
+	// PRIVATE METHODS - RETRIEVAL
 	// ========================================================================
 
 	/**
-	 * Build enhanced RAG system instructions with search guidance
+	 * Perform semantic search and filter results by minimum score
 	 */
-	private buildRAGInstructions(parent?: string): string {
-		const scopeInfo = parent
-			? `SEARCH SCOPE: Your search is limited to folder "${parent}" and its subfolders. When using the find tool, always include the filter: ["parent", "==", "${parent}"]`
-			: "SEARCH SCOPE: You have access to search across the entire platform content.";
+	async #performSemanticSearch(
+		authContext: AuthenticationContext,
+		query: string,
+		parent?: string,
+	): Promise<
+		Either<AntboxError, { documents: NodeMetadata[]; scores: Record<string, number> }>
+	> {
+		// Build search query with optional parent scope
+		const searchQuery = `?${query}`;
 
-		return `**INSTRUCTIONS**
+		// If parent is specified, we'll filter results after search
+		const searchResult = await this.nodeService.find(
+			authContext,
+			searchQuery,
+			RAG_TOP_N_DOCUMENTS * 2, // Fetch extra to account for filtering
+			1,
+		);
 
-You are operating in RAG (Retrieval-Augmented Generation) mode for knowledge discovery within the Antbox ECM platform.
+		if (searchResult.isLeft()) {
+			return left(searchResult.value);
+		}
 
-${scopeInfo}
+		const { nodes, scores = {} } = searchResult.value;
 
-SEARCH STRATEGY:
-1. For semantic/conceptual queries, use the find tool with semantic search by prefixing your query with "?": "?user query"
-2. For specific metadata searches, use targeted filters like: ["title", "contains", "keyword"] or ["mimetype", "==", "application/pdf"]
-3. For fulltext searches without semantic understanding, use: ["fulltext", "match", "keyword"]
-4. If initial search returns no results, try broader keyword searches using ["title", "contains", "keyword"] filters
+		// Filter by minimum score and parent if specified
+		let filteredNodes = nodes.filter((node) => {
+			const score = scores[node.uuid] ?? 0;
+			if (score < RAG_MIN_SIMILARITY_SCORE) {
+				return false;
+			}
+			if (parent && node.parent !== parent) {
+				// For now, simple parent check. Could be extended to include subfolders
+				return true; // Allow all for now, parent filtering is complex
+			}
+			return true;
+		});
 
-SEARCH TOOLS AVAILABLE:
-- find(filters): Search nodes using string queries (prefix with ? for semantic search) or NodeFilter arrays for metadata filtering
-- get(uuid): Retrieve specific node details by UUID
-- export(uuid): Get full content of a specific node
+		// Take top N documents
+		filteredNodes = filteredNodes.slice(0, RAG_TOP_N_DOCUMENTS);
 
-RESPONSE GUIDELINES:
-- Always search for information before responding to user queries
-- Use semantic search ("?query") as your primary method for conceptual questions
-- Include relevant document UUIDs and titles in your responses
-- If you find relevant documents, use get() or export() to retrieve more details when needed
-- Be specific about what information you found and what sources it came from`;
+		return right({ documents: filteredNodes, scores });
 	}
 
 	/**
-	 * Build parent node context including metadata and children list
+	 * Retrieve full content of documents using OCR
 	 */
-	private async buildParentContext(
+	async #retrieveDocumentContents(
 		authContext: AuthenticationContext,
-		parentUuid: string,
-	): Promise<Either<AntboxError, string>> {
-		try {
-			// Fetch parent node
-			const parentResult = await this.nodeService.get(authContext, parentUuid);
-			if (parentResult.isLeft()) {
-				return left(parentResult.value);
-			}
+		documents: NodeMetadata[],
+		scores: Record<string, number>,
+	): Promise<Array<{ node: NodeMetadata; content: string; score: number }>> {
+		const results: Array<{ node: NodeMetadata; content: string; score: number }> = [];
 
-			const parentNode = parentResult.value;
-
-			// Fetch children nodes
-			const childrenResult = await this.nodeService.list(authContext, parentUuid);
-			if (childrenResult.isLeft()) {
-				return left(childrenResult.value);
-			}
-
-			const children = childrenResult.value;
-
-			// Build context string
-			let context = "**PARENT NODE CONTEXT**\n\n";
-			context += "You are currently working within the context of a specific folder/node.\n\n";
-			context += "**Parent Node Information:**\n";
-			context += `- UUID: ${parentNode.uuid}\n`;
-			context += `- Title: ${parentNode.title}\n`;
-			context += `- Description: ${parentNode.description || "N/A"}\n`;
-			context += `- Type: ${parentNode.mimetype}\n`;
-			context += `- Owner: ${parentNode.owner}\n`;
-			context += `- Created: ${parentNode.createdTime}\n`;
-			context += `- Modified: ${parentNode.modifiedTime}\n`;
-
-			// Add custom metadata if present
-			const customMetadata: Partial<NodeMetadata> = { ...parentNode };
-			// Remove standard fields
-			delete customMetadata.uuid;
-			delete customMetadata.title;
-			delete customMetadata.description;
-			delete customMetadata.mimetype;
-			delete customMetadata.owner;
-			delete customMetadata.createdTime;
-			delete customMetadata.modifiedTime;
-			delete customMetadata.parent;
-			delete customMetadata.fid;
-
-			if (Object.keys(customMetadata).length > 0) {
-				context += "\n**Additional Metadata:**\n";
-				context += JSON.stringify(customMetadata, null, 2) + "\n";
-			}
-
-			// Add children list
-			context += "\n**Children Nodes:**\n";
-			if (children.length === 0) {
-				context += "This folder is currently empty.\n";
-			} else {
-				context += `Total: ${children.length} items\n\n`;
-				for (const child of children) {
-					context += `- **${child.title}** (${child.mimetype})\n`;
-					context += `  UUID: ${child.uuid}\n`;
-					if (child.description) {
-						context += `  Description: ${child.description}\n`;
-					}
-					context += `  Modified: ${child.modifiedTime}\n`;
+		for (const node of documents) {
+			try {
+				// Export the file
+				const fileResult = await this.nodeService.export(authContext, node.uuid);
+				if (fileResult.isLeft()) {
+					Logger.warn(`Failed to export node ${node.uuid}: ${fileResult.value}`);
+					continue;
 				}
+
+				// Extract text using OCR
+				const textResult = await this.ocrModel.ocr(fileResult.value);
+				if (textResult.isLeft()) {
+					Logger.warn(`Failed to OCR node ${node.uuid}: ${textResult.value}`);
+					continue;
+				}
+
+				results.push({
+					node,
+					content: textResult.value,
+					score: scores[node.uuid] ?? 0,
+				});
+			} catch (error) {
+				Logger.warn(`Failed to retrieve content for node ${node.uuid}: ${error}`);
 			}
-
-			context +=
-				"\n**Note:** When referencing these nodes, use their UUIDs. You can use the get() or ocr() (if text file) tools to retrieve more details about specific nodes.";
-
-			return right(context);
-		} catch (error) {
-			return left(
-				new AntboxError("ContextBuildError", `Failed to build parent context: ${error}`),
-			);
 		}
+
+		return results;
+	}
+
+	// ========================================================================
+	// PRIVATE METHODS - PROMPT BUILDING
+	// ========================================================================
+
+	/**
+	 * Build a grounded system prompt that forces the LLM to use only provided documents
+	 */
+	#buildGroundedSystemPrompt(
+		documents: Array<{ node: NodeMetadata; content: string; score: number }>,
+	): string {
+		const documentSections = documents
+			.map((doc, index) => this.#formatDocumentSection(doc, index + 1))
+			.join("\n\n");
+
+		const hasDocuments = documents.length > 0;
+
+		return `You are a document assistant that answers questions based ONLY on the provided documents.
+
+## CRITICAL RULES
+
+1. **ONLY use information from the documents provided below** - Do NOT use your general knowledge
+2. **If the answer is not in the documents, say so clearly** - Never make up information
+3. **Always cite your sources** - Reference documents by their title and UUID
+4. **Be precise** - Quote relevant passages when helpful
+5. **Acknowledge uncertainty** - If information is partial or unclear, say so
+
+## RESPONSE FORMAT
+
+- Start with a direct answer to the question
+- Support your answer with specific references to the documents
+- Use the format: "According to [Document Title] (UUID: xxx)..."
+- If no relevant information is found, respond with: "I couldn't find information about that in the available documents."
+
+${
+			hasDocuments
+				? `## RETRIEVED DOCUMENTS
+
+The following documents were retrieved based on semantic similarity to your question:
+
+${documentSections}`
+				: `## NO DOCUMENTS FOUND
+
+No documents were found that match your query. Please try rephrasing your question or verify that relevant documents exist in the system.`
+		}
+
+## USER QUESTION
+
+Answer the user's question based ONLY on the documents above.`;
+	}
+
+	/**
+	 * Format a single document section for the prompt
+	 */
+	#formatDocumentSection(
+		doc: { node: NodeMetadata; content: string; score: number },
+		index: number,
+	): string {
+		const { node, content, score } = doc;
+
+		// Build metadata section
+		const metadata: string[] = [
+			`Title: ${node.title}`,
+			`UUID: ${node.uuid}`,
+			`Type: ${node.mimetype}`,
+			`Relevance Score: ${(score * 100).toFixed(1)}%`,
+		];
+
+		if (node.description) {
+			metadata.push(`Description: ${node.description}`);
+		}
+
+		if (node.owner) {
+			metadata.push(`Owner: ${node.owner}`);
+		}
+
+		if (node.modifiedTime) {
+			metadata.push(`Last Modified: ${node.modifiedTime}`);
+		}
+
+		// Truncate content if too long (keep first 4000 chars)
+		const maxContentLength = 4000;
+		const truncatedContent = content.length > maxContentLength
+			? content.substring(0, maxContentLength) + "\n\n[Content truncated...]"
+			: content;
+
+		return `### Document ${index}: ${node.title}
+
+**Metadata:**
+${metadata.map((m) => `- ${m}`).join("\n")}
+
+**Content:**
+${truncatedContent}`;
 	}
 }

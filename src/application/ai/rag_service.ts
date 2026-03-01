@@ -1,310 +1,236 @@
-import { Either, left, right } from "shared/either.ts";
+import { type Either, left, right } from "shared/either.ts";
 import { AntboxError } from "shared/antbox_error.ts";
-import { AuthenticationContext } from "application/security/authentication_context.ts";
-import { NodeService } from "application/nodes/node_service.ts";
-import { ChatHistory, ChatMessage } from "domain/ai/chat_message.ts";
-import { NodeMetadata } from "domain/nodes/node_metadata.ts";
-import { AIModel } from "./ai_model.ts";
 import { Logger } from "shared/logger.ts";
+import type { EventBus } from "shared/event_bus.ts";
+import type { NodeRepository } from "domain/nodes/node_repository.ts";
+import type { NodeService } from "application/nodes/node_service.ts";
+import type { EmbeddingsProvider } from "domain/ai/embeddings_provider.ts";
+import type { OCRProvider } from "domain/ai/ocr_provider.ts";
+import type { RagDocument } from "domain/ai/rag_document.ts";
+import { NodeCreatedEvent } from "domain/nodes/node_created_event.ts";
+import { NodeUpdatedEvent } from "domain/nodes/node_updated_event.ts";
+import { NodeDeletedEvent } from "domain/nodes/node_deleted_event.ts";
+import { isEmbeddingsSupportedMimetype } from "domain/nodes/embedding.ts";
+import { Nodes } from "domain/nodes/nodes.ts";
+import type { FileNode } from "domain/nodes/file_node.ts";
+import type { FolderNode } from "domain/nodes/folder_node.ts";
+import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
+import { stringify as yamlStringify } from "@std/yaml";
+import { createElevatedContext } from "application/security/elevated_context.ts";
 
-// ============================================================================
-// INPUT TYPES
-// ============================================================================
+/** Default number of top results to retrieve */
+export const RAG_TOP_K = 5;
+
+/** Default minimum cosine similarity threshold */
+export const RAG_THRESHOLD = 0.5;
 
 /**
- * Input object for RAG chat execution
+ * RAGService - Handles both embedding indexing and semantic query.
+ *
+ * Indexing: Subscribes to node events → OCR + metadata → embed → store vector.
+ * Query: Embed query → vectorSearch → fetch content → return RagDocument[].
  */
-export interface RAGChatOptions {
-	readonly parent?: string; // Folder UUID for scoped context
-	readonly history?: ChatHistory;
-	readonly temperature?: number;
-	readonly maxTokens?: number;
-}
-
-// ============================================================================
-// CONSTANTS
-// ============================================================================
-
-/** Maximum number of documents to retrieve for context */
-export const RAG_TOP_N_DOCUMENTS = 5;
-
-/** Minimum similarity score (0-1) for a document to be included in context */
-export const RAG_MIN_SIMILARITY_SCORE = 0.5;
-
-/** Default model temperature for RAG responses */
-const RAG_DEFAULT_TEMPERATURE = 0.3;
-
-/** Default max tokens for RAG responses */
-const RAG_DEFAULT_MAX_TOKENS = 4096;
-
-// ============================================================================
-// RAG SERVICE
-// ============================================================================
-
 export class RAGService {
+	readonly #repository: NodeRepository;
+	readonly #nodeService: NodeService;
+	readonly #embeddingsProvider: EmbeddingsProvider;
+	readonly #ocrProvider: OCRProvider;
+
 	constructor(
-		private readonly nodeService: NodeService,
-		private readonly aiModel: AIModel,
-		private readonly ocrModel: AIModel,
-	) {}
+		eventBus: EventBus,
+		repository: NodeRepository,
+		nodeService: NodeService,
+		embeddingsProvider: EmbeddingsProvider,
+		ocrProvider: OCRProvider,
+	) {
+		this.#repository = repository;
+		this.#nodeService = nodeService;
+		this.#embeddingsProvider = embeddingsProvider;
+		this.#ocrProvider = ocrProvider;
 
-	/**
-	 * Chat with RAG-enhanced context using system-driven retrieval.
-	 *
-	 * This implements a proper RAG workflow:
-	 * 1. System performs semantic search automatically (not agent-decided)
-	 * 2. Retrieved documents are injected into context
-	 * 3. LLM is instructed to answer ONLY based on provided documents
-	 * 4. No hallucination from LLM's training data
-	 */
-	async chat(
-		authContext: AuthenticationContext,
-		text: string,
-		options: RAGChatOptions,
-	): Promise<Either<AntboxError, ChatHistory>> {
-		try {
-			// Stage 1: Perform semantic search automatically
-			const searchResult = await this.#performSemanticSearch(
-				authContext,
-				text,
-				options.parent,
-			);
-
-			if (searchResult.isLeft()) {
-				return left(searchResult.value);
-			}
-
-			const { documents, scores } = searchResult.value;
-
-			// Stage 2: Retrieve full content of top documents
-			const documentsWithContent = await this.#retrieveDocumentContents(
-				authContext,
-				documents,
-				scores,
-			);
-
-			// Stage 3: Build grounded prompt with documents as context
-			const systemPrompt = this.#buildGroundedSystemPrompt(documentsWithContent);
-
-			// Stage 4: Build conversation history
-			const history: ChatHistory = options.history ?? [];
-			const userMessage: ChatMessage = {
-				role: "user",
-				parts: [{ text }],
-			};
-
-			// Stage 5: Call LLM with strict grounding instructions
-			if (!this.aiModel.chat) {
-				return left(
-					new AntboxError("RAGChatError", "AI model does not support chat"),
-				);
-			}
-
-			const chatResult = await this.aiModel.chat(text, {
-				systemPrompt,
-				history: [...history, userMessage],
-				temperature: options.temperature ?? RAG_DEFAULT_TEMPERATURE,
-				maxTokens: options.maxTokens ?? RAG_DEFAULT_MAX_TOKENS,
-			});
-
-			if (chatResult.isLeft()) {
-				return left(
-					new AntboxError("RAGChatError", `LLM chat failed: ${chatResult.value}`),
-				);
-			}
-
-			// Return updated history with response
-			return right([...history, userMessage, chatResult.value]);
-		} catch (error) {
-			return left(
-				new AntboxError(
-					"RAGChatError",
-					`Failed to execute RAG chat: ${error}`,
-				),
-			);
-		}
-	}
-
-	// ========================================================================
-	// PRIVATE METHODS - RETRIEVAL
-	// ========================================================================
-
-	/**
-	 * Perform semantic search and filter results by minimum score
-	 */
-	async #performSemanticSearch(
-		authContext: AuthenticationContext,
-		query: string,
-		parent?: string,
-	): Promise<
-		Either<AntboxError, { documents: NodeMetadata[]; scores: Record<string, number> }>
-	> {
-		// Build search query with optional parent scope
-		const searchQuery = `?${query}`;
-
-		// If parent is specified, we'll filter results after search
-		const searchResult = await this.nodeService.find(
-			authContext,
-			searchQuery,
-			RAG_TOP_N_DOCUMENTS * 2, // Fetch extra to account for filtering
-			1,
-		);
-
-		if (searchResult.isLeft()) {
-			return left(searchResult.value);
+		if (!repository.supportsEmbeddings()) {
+			return;
 		}
 
-		const { nodes, scores = {} } = searchResult.value;
-
-		// Filter by minimum score and parent if specified
-		let filteredNodes = nodes.filter((node) => {
-			const score = scores[node.uuid] ?? 0;
-			if (score < RAG_MIN_SIMILARITY_SCORE) {
-				return false;
-			}
-			if (parent && node.parent !== parent) {
-				// For now, simple parent check. Could be extended to include subfolders
-				return true; // Allow all for now, parent filtering is complex
-			}
-			return true;
+		eventBus.subscribe(NodeCreatedEvent.EVENT_ID, {
+			handle: (evt: NodeCreatedEvent) => this.#handleNodeCreated(evt),
 		});
 
-		// Take top N documents
-		filteredNodes = filteredNodes.slice(0, RAG_TOP_N_DOCUMENTS);
+		eventBus.subscribe(NodeUpdatedEvent.EVENT_ID, {
+			handle: (evt: NodeUpdatedEvent) => this.#handleNodeUpdated(evt),
+		});
 
-		return right({ documents: filteredNodes, scores });
+		eventBus.subscribe(NodeDeletedEvent.EVENT_ID, {
+			handle: (evt: NodeDeletedEvent) => this.#handleNodeDeleted(evt),
+		});
 	}
 
 	/**
-	 * Retrieve full content of documents using OCR
+	 * Query the RAG index for documents semantically similar to the given text.
+	 * @param text The query text
+	 * @param topK Maximum number of results to return
+	 * @param threshold Minimum similarity score [0, 1]
+	 * @returns Array of matching documents ordered by score descending
 	 */
-	async #retrieveDocumentContents(
-		authContext: AuthenticationContext,
-		documents: NodeMetadata[],
-		scores: Record<string, number>,
-	): Promise<Array<{ node: NodeMetadata; content: string; score: number }>> {
-		const results: Array<{ node: NodeMetadata; content: string; score: number }> = [];
+	async query(
+		text: string,
+		topK = RAG_TOP_K,
+		threshold = RAG_THRESHOLD,
+	): Promise<Either<AntboxError, RagDocument[]>> {
+		const embeddingOrErr = await this.#embeddingsProvider.embed([text]);
+		if (embeddingOrErr.isLeft()) {
+			return left(embeddingOrErr.value);
+		}
 
-		for (const node of documents) {
+		const queryVector = embeddingOrErr.value[0];
+
+		const searchOrErr = await this.#repository.vectorSearch(queryVector, topK);
+		if (searchOrErr.isLeft()) {
+			return left(searchOrErr.value);
+		}
+
+		const candidates = searchOrErr.value.nodes.filter((r) => r.score >= threshold);
+
+		const docs: RagDocument[] = [];
+
+		for (const { node, score } of candidates) {
 			try {
-				// Export the file
-				const fileResult = await this.nodeService.export(authContext, node.uuid);
-				if (fileResult.isLeft()) {
-					Logger.warn(`Failed to export node ${node.uuid}: ${fileResult.value}`);
-					continue;
+				let content = "";
+
+				if (Nodes.isFile(node) && node.mimetype && isEmbeddingsSupportedMimetype(node.mimetype)) {
+					const fileOrErr = await this.#nodeService.export(
+						createElevatedContext(),
+						node.uuid,
+					);
+
+					if (fileOrErr.isRight()) {
+						const ocrOrErr = await this.#ocrProvider.ocr(fileOrErr.value);
+						if (ocrOrErr.isRight()) {
+							content = ocrOrErr.value;
+						}
+					}
 				}
 
-				// Extract text using OCR
-				const textResult = await this.ocrModel.ocr(fileResult.value);
-				if (textResult.isLeft()) {
-					Logger.warn(`Failed to OCR node ${node.uuid}: ${textResult.value}`);
-					continue;
-				}
-
-				results.push({
-					node,
-					content: textResult.value,
-					score: scores[node.uuid] ?? 0,
+				docs.push({
+					uuid: node.uuid,
+					title: node.title,
+					content,
+					score,
 				});
 			} catch (error) {
 				Logger.warn(`Failed to retrieve content for node ${node.uuid}: ${error}`);
 			}
 		}
 
-		return results;
+		return right(docs);
 	}
 
 	// ========================================================================
-	// PRIVATE METHODS - PROMPT BUILDING
+	// PRIVATE — INDEXING
 	// ========================================================================
 
-	/**
-	 * Build a grounded system prompt that forces the LLM to use only provided documents
-	 */
-	#buildGroundedSystemPrompt(
-		documents: Array<{ node: NodeMetadata; content: string; score: number }>,
-	): string {
-		const documentSections = documents
-			.map((doc, index) => this.#formatDocumentSection(doc, index + 1))
-			.join("\n\n");
+	async #handleNodeCreated(event: NodeCreatedEvent): Promise<void> {
+		const node = event.payload;
 
-		const hasDocuments = documents.length > 0;
-
-		return `You are a document assistant that answers questions based ONLY on the provided documents.
-
-## CRITICAL RULES
-
-1. **ONLY use information from the documents provided below** - Do NOT use your general knowledge
-2. **If the answer is not in the documents, say so clearly** - Never make up information
-3. **Always cite your sources** - Reference documents by their title and UUID
-4. **Be precise** - Quote relevant passages when helpful
-5. **Acknowledge uncertainty** - If information is partial or unclear, say so
-
-## RESPONSE FORMAT
-
-- Start with a direct answer to the question
-- Support your answer with specific references to the documents
-- Use the format: "According to [Document Title] (UUID: xxx)..."
-- If no relevant information is found, respond with: "I couldn't find information about that in the available documents."
-
-${
-			hasDocuments
-				? `## RETRIEVED DOCUMENTS
-
-The following documents were retrieved based on semantic similarity to your question:
-
-${documentSections}`
-				: `## NO DOCUMENTS FOUND
-
-No documents were found that match your query. Please try rephrasing your question or verify that relevant documents exist in the system.`
+		if (Nodes.isFolder(node)) {
+			await this.#indexFolder(node as FolderNode);
+			return;
 		}
 
-## USER QUESTION
+		if (!Nodes.isFile(node)) return;
+		if (node.size === 0) return;
+		if (!node.mimetype || !isEmbeddingsSupportedMimetype(node.mimetype)) return;
 
-Answer the user's question based ONLY on the documents above.`;
+		await this.#indexFile(node as FileNode);
 	}
 
-	/**
-	 * Format a single document section for the prompt
-	 */
-	#formatDocumentSection(
-		doc: { node: NodeMetadata; content: string; score: number },
-		index: number,
-	): string {
-		const { node, content, score } = doc;
+	async #handleNodeUpdated(event: NodeUpdatedEvent): Promise<void> {
+		const nodeOrErr = await this.#nodeService.get(
+			createElevatedContext(event.tenant),
+			event.payload.uuid,
+		);
 
-		// Build metadata section
-		const metadata: string[] = [
-			`Title: ${node.title}`,
-			`UUID: ${node.uuid}`,
-			`Type: ${node.mimetype}`,
-			`Relevance Score: ${(score * 100).toFixed(1)}%`,
-		];
-
-		if (node.description) {
-			metadata.push(`Description: ${node.description}`);
+		if (nodeOrErr.isLeft()) {
+			Logger.error(`RAGService: failed to get node ${event.payload.uuid} for re-indexing`);
+			return;
 		}
 
-		if (node.owner) {
-			metadata.push(`Owner: ${node.owner}`);
+		const node = nodeOrErr.value;
+
+		if (Nodes.isFolder(node)) {
+			await this.#indexFolder(node as FolderNode);
+			return;
 		}
 
-		if (node.modifiedTime) {
-			metadata.push(`Last Modified: ${node.modifiedTime}`);
+		if (!Nodes.isFile(node)) {
+			await this.#deleteEmbedding(event.payload.uuid);
+			return;
 		}
 
-		// Truncate content if too long (keep first 4000 chars)
-		const maxContentLength = 4000;
-		const truncatedContent = content.length > maxContentLength
-			? content.substring(0, maxContentLength) + "\n\n[Content truncated...]"
-			: content;
+		if (node.size === 0 || !node.mimetype || !isEmbeddingsSupportedMimetype(node.mimetype)) {
+			await this.#deleteEmbedding(node.uuid);
+			return;
+		}
 
-		return `### Document ${index}: ${node.title}
-
-**Metadata:**
-${metadata.map((m) => `- ${m}`).join("\n")}
-
-**Content:**
-${truncatedContent}`;
+		await this.#indexFile(node as FileNode);
 	}
+
+	async #handleNodeDeleted(event: NodeDeletedEvent): Promise<void> {
+		await this.#deleteEmbedding(event.payload.uuid);
+	}
+
+	async #indexFile(node: FileNode): Promise<void> {
+		const fileOrErr = await this.#nodeService.export(createElevatedContext(), node.uuid);
+		if (fileOrErr.isLeft()) {
+			Logger.error(`RAGService: failed to export file ${node.uuid}`);
+			return;
+		}
+
+		const textOrErr = await this.#ocrProvider.ocr(fileOrErr.value);
+		if (textOrErr.isLeft()) {
+			Logger.warn(`RAGService: OCR failed for ${node.uuid}: ${textOrErr.value.message}`);
+			return;
+		}
+
+		const combinedText = `---\n**Metadata**:\n\n${toYamlMetadata(node)}\n---\n**Content**:\n\n${textOrErr.value}`;
+
+		await this.#generateAndStore(node.uuid, combinedText);
+	}
+
+	async #indexFolder(node: FolderNode): Promise<void> {
+		const metadataText = `---\n**Metadata**:\n\n${toYamlMetadata(node)}\n---`;
+		await this.#generateAndStore(node.uuid, metadataText);
+	}
+
+	async #generateAndStore(uuid: string, text: string): Promise<void> {
+		const embeddingsOrErr = await this.#embeddingsProvider.embed([text]);
+		if (embeddingsOrErr.isLeft()) {
+			Logger.error(`RAGService: embedding failed for ${uuid}: ${embeddingsOrErr.value.message}`);
+			return;
+		}
+
+		const storeOrErr = await this.#repository.upsertEmbedding(uuid, embeddingsOrErr.value[0]);
+		if (storeOrErr.isLeft()) {
+			Logger.error(`RAGService: store embedding failed for ${uuid}: ${storeOrErr.value.message}`);
+		}
+	}
+
+	async #deleteEmbedding(uuid: string): Promise<void> {
+		const deleteOrErr = await this.#repository.deleteEmbedding(uuid);
+		if (deleteOrErr.isLeft()) {
+			Logger.error(
+				`RAGService: delete embedding failed for ${uuid}: ${deleteOrErr.value.message}`,
+			);
+		}
+	}
+}
+
+function toYamlMetadata(node: NodeMetadata): string {
+	const filtered: Record<string, unknown> = {};
+	for (const [k, v] of Object.entries(node)) {
+		if (v !== undefined && v !== null) {
+			filtered[k] = v;
+		}
+	}
+	return yamlStringify(filtered);
 }

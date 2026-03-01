@@ -6,14 +6,16 @@ export interface ServerConfiguration {
 
 export type ModuleConfiguration = [modulePath: string, ...params: string[]];
 
-export type ModelConfiguration = [modelPath: string, ...params: string[]];
-
 export interface AIConfiguration {
 	enabled: boolean;
-	models: ModelConfiguration[];
-	defaultModel?: string;
-	embeddingModel?: string;
-	ocrModel?: string;
+	/** ADK model string, e.g. "google/gemini-2.5-flash" */
+	defaultModel: string;
+	/** Module configuration for EmbeddingsProvider adapter */
+	embeddingProvider?: ModuleConfiguration;
+	/** Module configuration for OCRProvider adapter */
+	ocrProvider?: ModuleConfiguration;
+	/** Path to extra skills directory (in addition to builtin skills) */
+	skillsPath?: string;
 }
 
 export interface TenantConfiguration {

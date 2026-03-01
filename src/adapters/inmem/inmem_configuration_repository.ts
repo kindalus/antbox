@@ -26,7 +26,6 @@ export class InMemoryConfigurationRepository implements ConfigurationRepository 
 		agents: Map<string, CollectionMap["agents"]>;
 		features: Map<string, CollectionMap["features"]>;
 		notifications: Map<string, CollectionMap["notifications"]>;
-		skills: Map<string, CollectionMap["skills"]>;
 	};
 
 	constructor() {
@@ -40,7 +39,6 @@ export class InMemoryConfigurationRepository implements ConfigurationRepository 
 			agents: new Map(),
 			features: new Map(),
 			notifications: new Map(),
-			skills: new Map(),
 		};
 	}
 

@@ -1,7 +1,5 @@
 import type { NodeService } from "application/nodes/node_service.ts";
-import type { EmbeddingService } from "application/ai/embedding_service.ts";
 import type { RAGService } from "application/ai/rag_service.ts";
-import type { AIModel } from "application/ai/ai_model.ts";
 import type { AuditLoggingService } from "application/audit/audit_logging_service.ts";
 import type { ArticleService } from "application/articles/article_service.ts";
 import type { GroupsService } from "application/security/groups_service.ts";
@@ -40,10 +38,7 @@ export interface AntboxTenant {
 	workflowInstancesService: WorkflowInstancesService;
 	agentsService: AgentsService;
 	notificationsService: NotificationsService;
-	embeddingService?: EmbeddingService;
 	ragService?: RAGService;
-	defaultModel?: AIModel;
-	models?: AIModel[];
 
 	// Engines (execution logic)
 	featuresEngine: FeaturesEngine;

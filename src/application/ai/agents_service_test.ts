@@ -4,15 +4,15 @@ import type { AuthenticationContext } from "application/security/authentication_
 import { InMemoryConfigurationRepository } from "adapters/inmem/inmem_configuration_repository.ts";
 import { AgentsService } from "application/ai/agents_service.ts";
 import { ADMINS_GROUP_UUID } from "domain/configuration/builtin_groups.ts";
-import { RAG_AGENT_UUID } from "domain/configuration/builtin_agents.ts";
-
-// Mock dependencies for testing (AI features not needed for CRUD tests)
-const mockModels: any[] = [];
+import {
+	RAG_AGENT_UUID,
+	RAG_SUMMARIZER_AGENT_UUID,
+	SEMANTIC_SEARCHER_AGENT_UUID,
+} from "domain/configuration/builtin_agents.ts";
 
 function createAgentsService(repo: InMemoryConfigurationRepository) {
 	return new AgentsService({
 		configRepo: repo,
-		models: mockModels,
 	});
 }
 
@@ -35,38 +35,88 @@ describe("AgentsService", () => {
 		mode: "Action",
 	};
 
-	describe("createAgent", () => {
-		it("should create agent successfully as admin", async () => {
+	describe("createAgent — LLM agents", () => {
+		it("should create LLM agent successfully as admin", async () => {
 			const repo = new InMemoryConfigurationRepository();
 			const service = createAgentsService(repo);
 
 			const result = await service.createAgent(adminCtx, {
-				title: "Customer Support Agent",
+				name: "Customer Support Agent",
 				description: "Handles customer inquiries",
-				model: "gpt-4",
-				temperature: 0.8,
-				maxTokens: 4096,
-				reasoning: true,
-				useTools: true,
-				useSkills: false,
-				systemInstructions: "You are a helpful customer support agent.",
+				type: "llm",
+				systemPrompt: "You are a helpful customer support agent.",
 			});
 
 			expect(result.isRight()).toBe(true);
 			if (result.isRight()) {
 				const agent = result.value;
 				expect(agent.uuid).toBeDefined();
-				expect(agent.title).toBe("Customer Support Agent");
+				expect(agent.name).toBe("Customer Support Agent");
 				expect(agent.description).toBe("Handles customer inquiries");
-				expect(agent.model).toBe("gpt-4");
-				expect(agent.temperature).toBe(0.8);
-				expect(agent.maxTokens).toBe(4096);
-				expect(agent.reasoning).toBe(true);
-				expect(agent.useTools).toBe(true);
-				expect(agent.systemInstructions).toBe("You are a helpful customer support agent.");
+				expect(agent.type).toBe("llm");
+				expect(agent.systemPrompt).toBe("You are a helpful customer support agent.");
 				expect(agent.createdTime).toBeDefined();
 				expect(agent.modifiedTime).toBeDefined();
 			}
+		});
+
+		it("should default type to 'llm' when not specified", async () => {
+			const repo = new InMemoryConfigurationRepository();
+			const service = createAgentsService(repo);
+
+			const result = await service.createAgent(adminCtx, {
+				name: "Implicit LLM Agent",
+				systemPrompt: "You are a helpful assistant.",
+			});
+
+			expect(result.isRight()).toBe(true);
+			if (result.isRight()) {
+				expect(result.value.type).toBe("llm");
+			}
+		});
+
+		it("should create LLM agent with tools whitelist", async () => {
+			const repo = new InMemoryConfigurationRepository();
+			const service = createAgentsService(repo);
+
+			const result = await service.createAgent(adminCtx, {
+				name: "Code Agent",
+				systemPrompt: "You run code to answer questions.",
+				tools: ["runCode"],
+			});
+
+			expect(result.isRight()).toBe(true);
+			if (result.isRight()) {
+				expect(result.value.tools).toEqual(["runCode"]);
+			}
+		});
+
+		it("should create LLM agent with empty tools (no tools)", async () => {
+			const repo = new InMemoryConfigurationRepository();
+			const service = createAgentsService(repo);
+
+			const result = await service.createAgent(adminCtx, {
+				name: "No Tools Agent",
+				systemPrompt: "You answer from memory only.",
+				tools: [],
+			});
+
+			expect(result.isRight()).toBe(true);
+			if (result.isRight()) {
+				expect(result.value.tools).toEqual([]);
+			}
+		});
+
+		it("should fail LLM agent creation without systemPrompt", async () => {
+			const repo = new InMemoryConfigurationRepository();
+			const service = createAgentsService(repo);
+
+			const result = await service.createAgent(adminCtx, {
+				name: "Bad Agent",
+				type: "llm",
+			} as never);
+
+			expect(result.isLeft()).toBe(true);
 		});
 
 		it("should reject creation as non-admin", async () => {
@@ -74,53 +124,95 @@ describe("AgentsService", () => {
 			const service = createAgentsService(repo);
 
 			const result = await service.createAgent(userCtx, {
-				title: "Test Agent",
-				description: "Test",
-				model: "gpt-4",
-				temperature: 0.7,
-				maxTokens: 4096,
-				reasoning: false,
-				useTools: true,
-				useSkills: false,
-				systemInstructions: "Test instructions",
+				name: "Test Agent",
+				systemPrompt: "Test instructions",
 			});
 
 			expect(result.isLeft()).toBe(true);
 		});
 
-		it("should validate temperature range", async () => {
+		it("should validate required name field", async () => {
 			const repo = new InMemoryConfigurationRepository();
 			const service = createAgentsService(repo);
 
 			const result = await service.createAgent(adminCtx, {
-				title: "Invalid Agent",
-				description: "Invalid temperature",
-				model: "gpt-4",
-				temperature: 3.0, // Invalid: > 2
-				maxTokens: 4096,
-				reasoning: false,
-				useTools: true,
-				useSkills: false,
-				systemInstructions: "Test instructions",
+				name: "",
+				systemPrompt: "Test instructions",
+			});
+
+			expect(result.isLeft()).toBe(true);
+		});
+	});
+
+	describe("createAgent — workflow agents", () => {
+		it("should create sequential agent successfully", async () => {
+			const repo = new InMemoryConfigurationRepository();
+			const service = createAgentsService(repo);
+
+			const result = await service.createAgent(adminCtx, {
+				name: "My Pipeline",
+				description: "A sequential pipeline",
+				type: "sequential",
+				agents: ["--semantic-searcher-agent--", "--rag-summarizer-agent--"],
+			});
+
+			expect(result.isRight()).toBe(true);
+			if (result.isRight()) {
+				expect(result.value.type).toBe("sequential");
+				expect(result.value.agents).toEqual([
+					"--semantic-searcher-agent--",
+					"--rag-summarizer-agent--",
+				]);
+			}
+		});
+
+		it("should create parallel agent successfully", async () => {
+			const repo = new InMemoryConfigurationRepository();
+			const service = createAgentsService(repo);
+
+			const result = await service.createAgent(adminCtx, {
+				name: "Parallel Runner",
+				type: "parallel",
+				agents: ["--semantic-searcher-agent--", "--rag-summarizer-agent--"],
+			});
+
+			expect(result.isRight()).toBe(true);
+		});
+
+		it("should fail sequential agent creation without agents field", async () => {
+			const repo = new InMemoryConfigurationRepository();
+			const service = createAgentsService(repo);
+
+			const result = await service.createAgent(adminCtx, {
+				name: "Bad Pipeline",
+				type: "sequential",
+			} as never);
+
+			expect(result.isLeft()).toBe(true);
+		});
+
+		it("should fail sequential agent creation with empty agents array", async () => {
+			const repo = new InMemoryConfigurationRepository();
+			const service = createAgentsService(repo);
+
+			const result = await service.createAgent(adminCtx, {
+				name: "Bad Pipeline",
+				type: "sequential",
+				agents: [],
 			});
 
 			expect(result.isLeft()).toBe(true);
 		});
 
-		it("should validate required fields", async () => {
+		it("should fail workflow agent with systemPrompt set", async () => {
 			const repo = new InMemoryConfigurationRepository();
 			const service = createAgentsService(repo);
 
 			const result = await service.createAgent(adminCtx, {
-				title: "",
-				description: "Missing title",
-				model: "gpt-4",
-				temperature: 0.7,
-				maxTokens: 4096,
-				reasoning: false,
-				useTools: true,
-				useSkills: false,
-				systemInstructions: "Test instructions",
+				name: "Bad Workflow",
+				type: "sequential",
+				agents: ["--semantic-searcher-agent--"],
+				systemPrompt: "This should not be here",
 			});
 
 			expect(result.isLeft()).toBe(true);
@@ -133,15 +225,9 @@ describe("AgentsService", () => {
 			const service = createAgentsService(repo);
 
 			const createResult = await service.createAgent(adminCtx, {
-				title: "Test Agent",
+				name: "Test Agent",
 				description: "Test description",
-				model: "gpt-4",
-				temperature: 0.7,
-				maxTokens: 4096,
-				reasoning: false,
-				useTools: true,
-				useSkills: false,
-				systemInstructions: "Test instructions",
+				systemPrompt: "Test instructions",
 			});
 
 			expect(createResult.isRight()).toBe(true);
@@ -155,7 +241,7 @@ describe("AgentsService", () => {
 			}
 		});
 
-		it("should get builtin agent", async () => {
+		it("should get builtin RAG agent", async () => {
 			const repo = new InMemoryConfigurationRepository();
 			const service = createAgentsService(repo);
 
@@ -164,7 +250,36 @@ describe("AgentsService", () => {
 			expect(result.isRight()).toBe(true);
 			if (result.isRight()) {
 				expect(result.value.uuid).toBe(RAG_AGENT_UUID);
-				expect(result.value.title).toBe("RAG Agent");
+				expect(result.value.name).toBe("RAG Agent");
+				expect(result.value.type).toBe("sequential");
+			}
+		});
+
+		it("should get builtin semantic searcher agent", async () => {
+			const repo = new InMemoryConfigurationRepository();
+			const service = createAgentsService(repo);
+
+			const result = await service.getAgent(adminCtx, SEMANTIC_SEARCHER_AGENT_UUID);
+
+			expect(result.isRight()).toBe(true);
+			if (result.isRight()) {
+				expect(result.value.uuid).toBe(SEMANTIC_SEARCHER_AGENT_UUID);
+				expect(result.value.name).toBe("Semantic Searcher");
+				expect(result.value.type).toBe("llm");
+			}
+		});
+
+		it("should get builtin RAG summarizer agent", async () => {
+			const repo = new InMemoryConfigurationRepository();
+			const service = createAgentsService(repo);
+
+			const result = await service.getAgent(adminCtx, RAG_SUMMARIZER_AGENT_UUID);
+
+			expect(result.isRight()).toBe(true);
+			if (result.isRight()) {
+				expect(result.value.uuid).toBe(RAG_SUMMARIZER_AGENT_UUID);
+				expect(result.value.name).toBe("RAG Summarizer");
+				expect(result.value.type).toBe("llm");
 			}
 		});
 
@@ -173,15 +288,9 @@ describe("AgentsService", () => {
 			const service = createAgentsService(repo);
 
 			const createResult = await service.createAgent(adminCtx, {
-				title: "Public Agent",
+				name: "Public Agent",
 				description: "Accessible to all",
-				model: "gpt-4",
-				temperature: 0.7,
-				maxTokens: 4096,
-				reasoning: false,
-				useTools: true,
-				useSkills: false,
-				systemInstructions: "Public instructions",
+				systemPrompt: "Public instructions",
 			});
 
 			expect(createResult.isRight()).toBe(true);
@@ -194,41 +303,43 @@ describe("AgentsService", () => {
 	});
 
 	describe("listAgents", () => {
-		it("should list all agents including builtins", async () => {
+		it("should include all 3 builtin agents plus custom agents", async () => {
 			const repo = new InMemoryConfigurationRepository();
 			const service = createAgentsService(repo);
 
 			// Create two custom agents
 			await service.createAgent(adminCtx, {
-				title: "Agent A",
-				description: "First agent",
-				model: "gpt-4",
-				temperature: 0.7,
-				maxTokens: 4096,
-				reasoning: false,
-				useTools: true,
-				useSkills: false,
-				systemInstructions: "Instructions A",
+				name: "Agent A",
+				systemPrompt: "Instructions A",
 			});
 
 			await service.createAgent(adminCtx, {
-				title: "Agent B",
-				description: "Second agent",
-				model: "gpt-4",
-				temperature: 0.7,
-				maxTokens: 4096,
-				reasoning: false,
-				useTools: true,
-				useSkills: false,
-				systemInstructions: "Instructions B",
+				name: "Agent B",
+				systemPrompt: "Instructions B",
 			});
 
 			const result = await service.listAgents(adminCtx);
 
 			expect(result.isRight()).toBe(true);
 			if (result.isRight()) {
-				// Should include 2 custom agents + 1 builtin (RAG Agent)
+				// Should include 2 custom agents + 3 builtins (RAG Agent, Semantic Searcher, RAG Summarizer)
+				expect(result.value.length).toBe(5);
+			}
+		});
+
+		it("should include the 3 builtin agents when no custom agents", async () => {
+			const repo = new InMemoryConfigurationRepository();
+			const service = createAgentsService(repo);
+
+			const result = await service.listAgents(adminCtx);
+
+			expect(result.isRight()).toBe(true);
+			if (result.isRight()) {
 				expect(result.value.length).toBe(3);
+				const uuids = result.value.map((a) => a.uuid);
+				expect(uuids).toContain(RAG_AGENT_UUID);
+				expect(uuids).toContain(SEMANTIC_SEARCHER_AGENT_UUID);
+				expect(uuids).toContain(RAG_SUMMARIZER_AGENT_UUID);
 			}
 		});
 
@@ -237,15 +348,8 @@ describe("AgentsService", () => {
 			const service = createAgentsService(repo);
 
 			await service.createAgent(adminCtx, {
-				title: "Test Agent",
-				description: "Test",
-				model: "gpt-4",
-				temperature: 0.7,
-				maxTokens: 4096,
-				reasoning: false,
-				useTools: true,
-				useSkills: false,
-				systemInstructions: "Test instructions",
+				name: "Test Agent",
+				systemPrompt: "Test instructions",
 			});
 
 			const result = await service.listAgents(userCtx);
@@ -258,34 +362,28 @@ describe("AgentsService", () => {
 	});
 
 	describe("updateAgent", () => {
-		it("should update agent successfully as admin", async () => {
+		it("should update agent name and systemPrompt successfully as admin", async () => {
 			const repo = new InMemoryConfigurationRepository();
 			const service = createAgentsService(repo);
 
 			const createResult = await service.createAgent(adminCtx, {
-				title: "Original Title",
+				name: "Original Name",
 				description: "Original description",
-				model: "gpt-4",
-				temperature: 0.7,
-				maxTokens: 4096,
-				reasoning: false,
-				useTools: true,
-				useSkills: false,
-				systemInstructions: "Original instructions",
+				systemPrompt: "Original instructions",
 			});
 
 			expect(createResult.isRight()).toBe(true);
 			if (!createResult.isRight()) return;
 
 			const result = await service.updateAgent(adminCtx, createResult.value.uuid, {
-				title: "Updated Title",
-				temperature: 0.9,
+				name: "Updated Name",
+				systemPrompt: "Updated instructions",
 			});
 
 			expect(result.isRight()).toBe(true);
 			if (result.isRight()) {
-				expect(result.value.title).toBe("Updated Title");
-				expect(result.value.temperature).toBe(0.9);
+				expect(result.value.name).toBe("Updated Name");
+				expect(result.value.systemPrompt).toBe("Updated instructions");
 				expect(result.value.description).toBe("Original description");
 				expect(result.value.createdTime).toBe(createResult.value.createdTime);
 				expect(result.value.modifiedTime).toBeDefined();
@@ -297,22 +395,15 @@ describe("AgentsService", () => {
 			const service = createAgentsService(repo);
 
 			const createResult = await service.createAgent(adminCtx, {
-				title: "Test Agent",
-				description: "Test",
-				model: "gpt-4",
-				temperature: 0.7,
-				maxTokens: 4096,
-				reasoning: false,
-				useTools: true,
-				useSkills: false,
-				systemInstructions: "Test instructions",
+				name: "Test Agent",
+				systemPrompt: "Test instructions",
 			});
 
 			expect(createResult.isRight()).toBe(true);
 			if (!createResult.isRight()) return;
 
 			const result = await service.updateAgent(userCtx, createResult.value.uuid, {
-				title: "Hacked Title",
+				name: "Hacked Name",
 			});
 
 			expect(result.isLeft()).toBe(true);
@@ -323,33 +414,7 @@ describe("AgentsService", () => {
 			const service = createAgentsService(repo);
 
 			const result = await service.updateAgent(adminCtx, RAG_AGENT_UUID, {
-				title: "Modified RAG Agent",
-			});
-
-			expect(result.isLeft()).toBe(true);
-		});
-
-		it("should validate updated values", async () => {
-			const repo = new InMemoryConfigurationRepository();
-			const service = createAgentsService(repo);
-
-			const createResult = await service.createAgent(adminCtx, {
-				title: "Test Agent",
-				description: "Test",
-				model: "gpt-4",
-				temperature: 0.7,
-				maxTokens: 4096,
-				reasoning: false,
-				useTools: true,
-				useSkills: false,
-				systemInstructions: "Test instructions",
-			});
-
-			expect(createResult.isRight()).toBe(true);
-			if (!createResult.isRight()) return;
-
-			const result = await service.updateAgent(adminCtx, createResult.value.uuid, {
-				temperature: 5.0, // Invalid: > 2
+				name: "Modified RAG Agent",
 			});
 
 			expect(result.isLeft()).toBe(true);
@@ -362,15 +427,8 @@ describe("AgentsService", () => {
 			const service = createAgentsService(repo);
 
 			const createResult = await service.createAgent(adminCtx, {
-				title: "To Delete",
-				description: "Will be deleted",
-				model: "gpt-4",
-				temperature: 0.7,
-				maxTokens: 4096,
-				reasoning: false,
-				useTools: true,
-				useSkills: false,
-				systemInstructions: "Test instructions",
+				name: "To Delete",
+				systemPrompt: "Test instructions",
 			});
 
 			expect(createResult.isRight()).toBe(true);
@@ -390,15 +448,8 @@ describe("AgentsService", () => {
 			const service = createAgentsService(repo);
 
 			const createResult = await service.createAgent(adminCtx, {
-				title: "Protected Agent",
-				description: "Cannot be deleted by users",
-				model: "gpt-4",
-				temperature: 0.7,
-				maxTokens: 4096,
-				reasoning: false,
-				useTools: true,
-				useSkills: false,
-				systemInstructions: "Test instructions",
+				name: "Protected Agent",
+				systemPrompt: "Test instructions",
 			});
 
 			expect(createResult.isRight()).toBe(true);
@@ -409,11 +460,20 @@ describe("AgentsService", () => {
 			expect(result.isLeft()).toBe(true);
 		});
 
-		it("should reject delete of builtin agent", async () => {
+		it("should reject delete of builtin RAG agent", async () => {
 			const repo = new InMemoryConfigurationRepository();
 			const service = createAgentsService(repo);
 
 			const result = await service.deleteAgent(adminCtx, RAG_AGENT_UUID);
+
+			expect(result.isLeft()).toBe(true);
+		});
+
+		it("should reject delete of builtin semantic searcher agent", async () => {
+			const repo = new InMemoryConfigurationRepository();
+			const service = createAgentsService(repo);
+
+			const result = await service.deleteAgent(adminCtx, SEMANTIC_SEARCHER_AGENT_UUID);
 
 			expect(result.isLeft()).toBe(true);
 		});

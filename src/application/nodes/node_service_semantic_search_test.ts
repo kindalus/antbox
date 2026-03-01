@@ -2,7 +2,8 @@ import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus.ts";
 import { InMemoryConfigurationRepository } from "adapters/inmem/inmem_configuration_repository.ts";
 import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository.ts";
 import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider.ts";
-import { DeterministicModel } from "adapters/models/deterministic.ts";
+import { DeterministicEmbeddingsProvider } from "adapters/embeddings/deterministic_embeddings_provider.ts";
+import { NullOCRProvider } from "adapters/ocr/null_ocr_provider.ts";
 import { beforeAll, describe, it } from "bdd";
 import type { NodeFilters1D } from "domain/nodes/node_filter.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
@@ -10,7 +11,7 @@ import { Groups } from "domain/users_groups/groups.ts";
 import { Users } from "domain/users_groups/users.ts";
 import { expect } from "expect";
 import type { AuthenticationContext } from "../security/authentication_context.ts";
-import { EmbeddingService } from "../ai/embedding_service.ts";
+import { RAGService } from "../ai/rag_service.ts";
 import { NodeService } from "./node_service.ts";
 
 const authCtx: AuthenticationContext = {
@@ -23,12 +24,11 @@ const authCtx: AuthenticationContext = {
 };
 
 let service: NodeService;
-let embeddingModel: DeterministicModel;
 
 beforeAll(async () => {
 	// Setup AI components
-	embeddingModel = new DeterministicModel("test-embedding-model", 1536);
-	const ocrModel = new DeterministicModel("test-ocr-model", 1536);
+	const embeddingsProvider = new DeterministicEmbeddingsProvider(1536);
+	const ocrProvider = new NullOCRProvider();
 	const repository = new InMemoryNodeRepository();
 	const storage = new InMemoryStorageProvider();
 	const bus = new InMemoryEventBus();
@@ -39,17 +39,11 @@ beforeAll(async () => {
 		storage,
 		bus,
 		configRepo: new InMemoryConfigurationRepository(),
-		embeddingModel,
+		embeddingsProvider,
 	});
 
-	// Create EmbeddingService to auto-generate embeddings
-	new EmbeddingService({
-		embeddingModel,
-		ocrModel,
-		nodeService: service,
-		repository,
-		bus,
-	});
+	// Create RAGService to auto-generate embeddings on node events
+	new RAGService(bus, repository, service, embeddingsProvider, ocrProvider);
 
 	// Create a parent folder for test documents
 	await service.create(authCtx, {
@@ -124,12 +118,8 @@ describe("NodeService", () => {
 
 			const result = await service.find(authCtx, "?machine learning");
 
-			console.log("Semantic search result:", JSON.stringify(result, null, 2));
-
 			expect(result.isRight()).toBe(true);
 			if (result.isRight()) {
-				console.log("Nodes count:", result.value.nodes.length);
-
 				// Should have results
 				expect(result.value.nodes.length).toBeGreaterThan(0);
 			}

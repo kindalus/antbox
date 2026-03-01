@@ -1,35 +1,27 @@
-import { AgentData } from "domain/configuration/agent_data.ts";
-import { Users } from "domain/users_groups/users.ts";
-import ragPrefix from "../prompts/rag_prefix.md" with { type: "text" };
-import agentSystemPrompt from "../prompts/agent_system_prompt.md" with { type: "text" };
-
-const ragAgentSystemPrompt = ragPrefix + "\n" + agentSystemPrompt;
+import type { AgentData } from "domain/configuration/agent_data.ts";
+import {
+	SEMANTIC_SEARCHER_AGENT_UUID,
+} from "./semantic_searcher_agent.ts";
+import { RAG_SUMMARIZER_AGENT_UUID } from "./rag_summarizer_agent.ts";
 
 /**
  * Built-in RAG (Retrieval-Augmented Generation) Agent
  *
- * Specialized agent for knowledge discovery and document retrieval within the Antbox ECM platform.
- * Optimized for semantic search, content analysis, and intelligent information synthesis.
+ * A two-stage sequential pipeline:
+ * 1. Semantic Searcher — finds relevant nodes using runCode
+ * 2. RAG Summarizer — synthesizes an answer from search results
  */
+export const RAG_AGENT_UUID = "--rag-agent--";
+
 const ragAgent: AgentData = {
-	uuid: "--rag-agent--",
-	title: "RAG Agent",
+	uuid: RAG_AGENT_UUID,
+	name: "RAG Agent",
 	description:
 		"Retrieval-Augmented Generation agent for knowledge discovery and document analysis within Antbox ECM",
-
-	// Agent Configuration
-	model: "default", // Uses tenant's defaultModel
-	temperature: 0.7, // Balanced creativity and consistency
-	maxTokens: 8192, // Sufficient for detailed responses with context
-	reasoning: false, // Disabled for efficiency in retrieval tasks
-	useTools: true, // Essential for search and retrieval operations
-
-	// Optimized System Instructions for Knowledge Discovery
-	systemInstructions: ragAgentSystemPrompt,
-
-	// Timestamps (will be set properly when persisted)
-	createdTime: new Date().toISOString(),
-	modifiedTime: new Date().toISOString(),
+	type: "sequential",
+	agents: [SEMANTIC_SEARCHER_AGENT_UUID, RAG_SUMMARIZER_AGENT_UUID],
+	createdTime: "2024-01-01T00:00:00.000Z",
+	modifiedTime: "2024-01-01T00:00:00.000Z",
 };
 
 export { ragAgent };

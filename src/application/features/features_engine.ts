@@ -19,7 +19,7 @@ import { type Either, left, right } from "shared/either.ts";
 import { EventBus } from "shared/event_bus.ts";
 import { ValidationError } from "shared/validation_error.ts";
 import { DOCS, loadDoc } from "../../../docs/index.ts";
-import type { AIModel } from "../ai/ai_model.ts";
+import type { OCRProvider } from "domain/ai/ocr_provider.ts";
 import type { AuthenticationContext } from "../security/authentication_context.ts";
 import { NodeService } from "../nodes/node_service.ts";
 import { NodeServiceProxy } from "../nodes/node_service_proxy.ts";
@@ -34,7 +34,7 @@ interface RunnableRecord {
 export interface FeaturesEngineContext {
 	featuresService: FeaturesService;
 	nodeService: NodeService;
-	ocrModel?: AIModel;
+	ocrProvider?: OCRProvider;
 	eventBus: EventBus;
 }
 
@@ -53,12 +53,12 @@ export class FeaturesEngine {
 
 	readonly #featuresService: FeaturesService;
 	readonly #nodeService: NodeService;
-	readonly #ocrModel?: AIModel;
+	readonly #ocrProvider?: OCRProvider;
 
 	constructor(ctx: FeaturesEngineContext) {
 		this.#featuresService = ctx.featuresService;
 		this.#nodeService = ctx.nodeService;
-		this.#ocrModel = ctx.ocrModel;
+		this.#ocrProvider = ctx.ocrProvider;
 
 		// Register event handlers for domain-wide triggers
 		// AUTOMATIC TRIGGERS
@@ -290,11 +290,11 @@ export class FeaturesEngine {
 					break;
 
 				case "OcrModel:ocr":
-					if (!this.#ocrModel) {
-						return left(new UnknownError("OCR model not initialized"));
+					if (!this.#ocrProvider) {
+						return left(new UnknownError("OCR provider not initialized"));
 					}
 					fileOrErr = await this.#nodeService.export(ctx, args.uuid as string);
-					result = this.#ocrModel.ocr(fileOrErr.right);
+					result = this.#ocrProvider.ocr(fileOrErr.right);
 					break;
 				case "Templates:list":
 					result = right(TEMPLATES);

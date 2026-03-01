@@ -141,7 +141,7 @@ export class FindService {
 		pageToken: number,
 	): Promise<Either<AntboxError, NodeFilterResult & { scores?: Record<string, number> }>> {
 		// Check if repository supports embeddings and embedding model is available
-		if (!this.context.repository.supportsEmbeddings() || !this.context.embeddingModel) {
+		if (!this.context.repository.supportsEmbeddings() || !this.context.embeddingsProvider) {
 			Logger.warn(
 				"Semantic search requested but AI features not available, falling back to fulltext search",
 			);
@@ -150,7 +150,7 @@ export class FindService {
 
 		try {
 			// Generate embedding for query using embedding model
-			const embeddingsOrErr = await this.context.embeddingModel.embed([query]);
+			const embeddingsOrErr = await this.context.embeddingsProvider.embed([query]);
 			if (embeddingsOrErr.isLeft()) {
 				Logger.error("Failed to generate embedding for query:", embeddingsOrErr.value);
 				// Fallback to fulltext search

@@ -4,28 +4,22 @@
  *
  * Agents are mutable and can be updated after creation
  */
+
+export type AgentType = "llm" | "sequential" | "parallel" | "loop";
+
 export interface AgentData {
 	readonly uuid: string;
-	readonly title: string;
+	readonly name: string;
 	readonly description?: string;
-	readonly model: string;
-	readonly temperature: number;
-	readonly maxTokens: number;
-	readonly reasoning: boolean;
-	readonly useTools: boolean;
-	readonly systemInstructions: string;
+	readonly type?: AgentType; // default: "llm"
 
-	/**
-	 * Whether the agent can use skills.
-	 * If true and skillsAllowed is empty/undefined, the agent has access to all skills.
-	 */
-	readonly useSkills: boolean;
+	// LLM-only fields
+	readonly model?: string; // ADK model string; falls back to defaultModel if absent
+	readonly tools?: string[]; // named tools to inject (absent = all; [] = none)
+	readonly systemPrompt?: string; // the system instruction
 
-	/**
-	 * Optional list of skill UUIDs (names in kebab-case) that this agent can use.
-	 * If empty or undefined and useSkills is true, the agent has access to all skills.
-	 */
-	readonly skillsAllowed?: string[];
+	// Workflow-only fields
+	readonly agents?: string[]; // sub-agent UUIDs in execution order
 
 	readonly createdTime: string;
 	readonly modifiedTime: string;

@@ -16,4 +16,11 @@ export interface EmbeddingsProvider {
 	 * @returns Either an error or array of embedding vectors
 	 */
 	embed(texts: string[]): Promise<Either<AntboxError, Embedding[]>>;
+
+	/**
+	 * Relevance threshold used by semantic search for this provider.
+	 *
+	 * Values are expected in [0, 1].
+	 */
+	relevanceThreshold(): number;
 }

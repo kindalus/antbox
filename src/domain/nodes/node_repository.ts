@@ -16,6 +16,7 @@ export interface VectorSearchResult {
 	nodes: Array<{
 		node: NodeLike;
 		score: number;
+		content: string;
 	}>;
 }
 
@@ -40,8 +41,13 @@ export interface NodeRepository {
 	 * Store or update a vector embedding for a node
 	 * @param uuid The node UUID
 	 * @param embedding The vector embedding to store
+	 * @param contentMd Markdown content (with YAML frontmatter) used for embedding
 	 */
-	upsertEmbedding(uuid: string, embedding: Embedding): Promise<Either<AntboxError, void>>;
+	upsertEmbedding(
+		uuid: string,
+		embedding: Embedding,
+		contentMd: string,
+	): Promise<Either<AntboxError, void>>;
 
 	/**
 	 * Search for similar nodes using vector similarity

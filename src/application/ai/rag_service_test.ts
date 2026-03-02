@@ -1,6 +1,6 @@
 import { describe, it } from "bdd";
 import { expect } from "expect";
-import { RAGService, RAG_THRESHOLD, RAG_TOP_K } from "./rag_service.ts";
+import { RAG_TOP_K, RAGService } from "./rag_service.ts";
 import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository.ts";
 import { DeterministicEmbeddingsProvider } from "adapters/embeddings/deterministic_embeddings_provider.ts";
 import { TextOCRProvider } from "adapters/ocr/text_ocr_provider.ts";
@@ -10,7 +10,7 @@ import { FolderNode } from "domain/nodes/folder_node.ts";
 import { NodeCreatedEvent } from "domain/nodes/node_created_event.ts";
 import { NodeUpdatedEvent } from "domain/nodes/node_updated_event.ts";
 import { NodeDeletedEvent } from "domain/nodes/node_deleted_event.ts";
-import { right, left } from "shared/either.ts";
+import { left, right } from "shared/either.ts";
 import type { AntboxError } from "shared/antbox_error.ts";
 import type { EventBus } from "shared/event_bus.ts";
 import type { EventHandler } from "shared/event_handler.ts";
@@ -84,6 +84,15 @@ class MockNodeService {
 	}
 }
 
+class CountingOCRProvider {
+	public calls = 0;
+
+	ocr(_file: File): Promise<import("shared/either.ts").Either<AntboxError, string>> {
+		this.calls += 1;
+		return Promise.resolve(right("counted"));
+	}
+}
+
 // ============================================================================
 // HELPERS
 // ============================================================================
@@ -144,11 +153,6 @@ describe("RAGService", () => {
 		it("exports RAG_TOP_K > 0", () => {
 			expect(RAG_TOP_K).toBeGreaterThan(0);
 		});
-
-		it("exports RAG_THRESHOLD in [0, 1]", () => {
-			expect(RAG_THRESHOLD).toBeGreaterThanOrEqual(0);
-			expect(RAG_THRESHOLD).toBeLessThanOrEqual(1);
-		});
 	});
 
 	describe("indexing — NodeCreated", () => {
@@ -167,11 +171,17 @@ describe("RAGService", () => {
 			const search = await repository.vectorSearch(new Array(128).fill(0), 10);
 			expect(search.isRight()).toBe(true);
 			if (search.isRight()) {
-				expect(search.value.nodes.some((n) => n.node.uuid === "file-1")).toBe(true);
+				const hit = search.value.nodes.find((n) => n.node.uuid === "file-1");
+				expect(hit).toBeDefined();
+				if (hit) {
+					expect(hit.content).toContain("---");
+					expect(hit.content).toContain("uuid: file-1");
+					expect(hit.content).toContain("Hello indexing world");
+				}
 			}
 		});
 
-		it("skips FileNode with zero size", async () => {
+		it("stores embedding for FileNode with zero size using metadata only", async () => {
 			const mockNodeService = new MockNodeService();
 			const bus = new CapturingEventBus();
 			const repository = new InMemoryNodeRepository();
@@ -185,11 +195,17 @@ describe("RAGService", () => {
 			const search = await repository.vectorSearch(new Array(128).fill(0), 10);
 			expect(search.isRight()).toBe(true);
 			if (search.isRight()) {
-				expect(search.value.nodes).toHaveLength(0);
+				const hit = search.value.nodes.find((n) => n.node.uuid === "empty-file");
+				expect(hit).toBeDefined();
+				if (hit) {
+					expect(hit.content).toContain("---");
+					expect(hit.content).toContain("uuid: empty-file");
+					expect(hit.content).not.toContain("**Content**");
+				}
 			}
 		});
 
-		it("skips FileNode with unsupported mimetype", async () => {
+		it("stores embedding for unsupported file mimetype with metadata fallback", async () => {
 			const mockNodeService = new MockNodeService();
 			const bus = new CapturingEventBus();
 			const repository = new InMemoryNodeRepository();
@@ -203,7 +219,12 @@ describe("RAGService", () => {
 			const search = await repository.vectorSearch(new Array(128).fill(0), 10);
 			expect(search.isRight()).toBe(true);
 			if (search.isRight()) {
-				expect(search.value.nodes).toHaveLength(0);
+				const hit = search.value.nodes.find((n) => n.node.uuid === "image-file");
+				expect(hit).toBeDefined();
+				if (hit) {
+					expect(hit.content).toContain("---");
+					expect(hit.content).toContain("mimetype: image/jpeg");
+				}
 			}
 		});
 
@@ -221,7 +242,54 @@ describe("RAGService", () => {
 			const search = await repository.vectorSearch(new Array(128).fill(0), 10);
 			expect(search.isRight()).toBe(true);
 			if (search.isRight()) {
-				expect(search.value.nodes.some((n) => n.node.uuid === "folder-1")).toBe(true);
+				const hit = search.value.nodes.find((n) => n.node.uuid === "folder-1");
+				expect(hit).toBeDefined();
+				if (hit) {
+					expect(hit.content).toContain("---");
+					expect(hit.content).toContain("uuid: folder-1");
+					expect(hit.content).not.toContain("**Content**");
+				}
+			}
+		});
+
+		it("includes aspects and properties in stored markdown frontmatter", async () => {
+			const mockNodeService = new MockNodeService();
+			const bus = new CapturingEventBus();
+			const repository = new InMemoryNodeRepository();
+			buildService(mockNodeService, bus, repository);
+
+			const node = FileNode.create({
+				uuid: "aspect-file",
+				title: "aspect-file.txt",
+				mimetype: "text/plain",
+				size: 10,
+				owner: "user@test.com",
+				group: "group",
+				parent: "root",
+				aspects: ["finance", "invoice"],
+				properties: {
+					"finance:amount": 99.5,
+					"invoice:number": "INV-2026-001",
+				},
+			});
+
+			expect(node.isRight()).toBe(true);
+			await repository.add(node.right);
+			mockNodeService.setFile("aspect-file", "Aspect content", "text/plain");
+
+			await bus.fire(NodeCreatedEvent.EVENT_ID, new NodeCreatedEvent("u", "t", node.right));
+
+			const search = await repository.vectorSearch(new Array(128).fill(0), 10);
+			expect(search.isRight()).toBe(true);
+			if (search.isRight()) {
+				const hit = search.value.nodes.find((n) => n.node.uuid === "aspect-file");
+				expect(hit).toBeDefined();
+				if (hit) {
+					expect(hit.content).toContain("aspects:");
+					expect(hit.content).toContain("finance");
+					expect(hit.content).toContain("invoice:number");
+					expect(hit.content).toContain("Aspect content");
+				}
 			}
 		});
 	});
@@ -320,7 +388,38 @@ describe("RAGService", () => {
 				expect(doc.title).toBeDefined();
 				expect(doc.score).toBeGreaterThanOrEqual(0);
 				expect(typeof doc.content).toBe("string");
+				expect(doc.content).toContain("---");
+				expect(doc.content).toContain("uuid: query-folder");
 			}
+		});
+
+		it("does not call OCR in semantic query path", async () => {
+			const mockNodeService = new MockNodeService();
+			const bus = new CapturingEventBus();
+			const repository = new InMemoryNodeRepository();
+			const embeddingsProvider = new DeterministicEmbeddingsProvider(128);
+			const ocrProvider = new CountingOCRProvider();
+			const service = new RAGService(
+				bus,
+				repository,
+				mockNodeService as unknown as NodeService,
+				embeddingsProvider,
+				ocrProvider,
+			);
+
+			const folder = makeFolderNode("query-no-ocr");
+			await repository.add(folder);
+
+			const contentMd = "---\nuuid: query-no-ocr\ntitle: query-no-ocr\n---";
+			const embeddingOrErr = await embeddingsProvider.embed([contentMd]);
+			expect(embeddingOrErr.isRight()).toBe(true);
+			if (embeddingOrErr.isRight()) {
+				await repository.upsertEmbedding("query-no-ocr", embeddingOrErr.value[0], contentMd);
+			}
+
+			const result = await service.query("query-no-ocr", 5, 0.0);
+			expect(result.isRight()).toBe(true);
+			expect(ocrProvider.calls).toBe(0);
 		});
 
 		it("returns empty array when nothing passes threshold=1.0", async () => {

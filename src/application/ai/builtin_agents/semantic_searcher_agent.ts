@@ -2,7 +2,8 @@ import type { AgentData } from "domain/configuration/agent_data.ts";
 
 export const SEMANTIC_SEARCHER_AGENT_UUID = "--semantic-searcher-agent--";
 
-const SEMANTIC_SEARCHER_SYSTEM_PROMPT = `You are a semantic search specialist for the Antbox ECM platform. Your sole job is to find relevant nodes based on the user's query and return a JSON list of results.
+const SEMANTIC_SEARCHER_SYSTEM_PROMPT =
+	`You are a semantic search specialist for the Antbox ECM platform. Your sole job is to find relevant nodes based on the user's query and return a JSON list of results.
 
 ## Your Task
 
@@ -24,11 +25,11 @@ export default async function({ nodes, aspects }) {
 \`\`\`typescript
 interface NodeServiceProxy {
   // Find nodes by filter criteria (AND logic for 1D array, OR logic for 2D array)
-  find(filters: NodeFilters, pageSize?: number): Promise<Either<Error, { nodes: NodeMetadata[], nextPageToken?: number }>>;
+  find(filters: NodeFilters, pageSize?: number, pageToken?: number): Promise<Either<Error, { nodes: NodeMetadata[], nextPageToken?: number }>>;
 
   // Semantic/embedding-based search — pass a string starting with "?"
   // find("?query about contract terms")
-  find(semanticQuery: string): Promise<Either<Error, { nodes: NodeMetadata[], nextPageToken?: number }>>;
+  find(semanticQuery: string, pageSize?: number, pageToken?: number): Promise<Either<Error, { nodes: NodeMetadata[], nextPageToken?: number }>>;
 
   // Get a single node by UUID
   get(uuid: string): Promise<Either<Error, NodeMetadata>>;

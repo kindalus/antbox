@@ -1,7 +1,7 @@
 import { right } from "shared/either.ts";
 import type { Either } from "shared/either.ts";
 import type { AntboxError } from "shared/antbox_error.ts";
-import type { EmbeddingsProvider, Embedding } from "domain/ai/embeddings_provider.ts";
+import type { Embedding, EmbeddingsProvider } from "domain/ai/embeddings_provider.ts";
 
 /**
  * DeterministicEmbeddingsProvider - Hash-based deterministic vectors for testing.
@@ -11,14 +11,20 @@ import type { EmbeddingsProvider, Embedding } from "domain/ai/embeddings_provide
  */
 export class DeterministicEmbeddingsProvider implements EmbeddingsProvider {
 	readonly #dimensions: number;
+	readonly #threshold: number;
 
-	constructor(dimensions = 1536) {
+	constructor(dimensions = 1536, threshold = 0.5) {
 		this.#dimensions = dimensions;
+		this.#threshold = Math.max(0, Math.min(1, threshold));
 	}
 
 	embed(texts: string[]): Promise<Either<AntboxError, Embedding[]>> {
 		const embeddings = texts.map((text) => this.#createDeterministicEmbedding(text));
 		return Promise.resolve(right(embeddings));
+	}
+
+	relevanceThreshold(): number {
+		return this.#threshold;
 	}
 
 	#createDeterministicEmbedding(text: string): Embedding {
@@ -56,7 +62,9 @@ export class DeterministicEmbeddingsProvider implements EmbeddingsProvider {
  */
 export default function buildDeterministicEmbeddingsProvider(
 	dimensions?: string,
+	threshold?: string,
 ): Promise<Either<AntboxError, DeterministicEmbeddingsProvider>> {
 	const dims = dimensions ? parseInt(dimensions, 10) : 1536;
-	return Promise.resolve(right(new DeterministicEmbeddingsProvider(dims)));
+	const parsedThreshold = threshold ? parseFloat(threshold) : 0.5;
+	return Promise.resolve(right(new DeterministicEmbeddingsProvider(dims, parsedThreshold)));
 }

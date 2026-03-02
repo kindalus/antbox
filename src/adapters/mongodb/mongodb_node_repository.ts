@@ -16,7 +16,11 @@ import { AntboxError, UnknownError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
 import { isNodeFilters2D, type NodeFilter } from "domain/nodes/node_filter.ts";
 
-type NodeDbModel = NodeMetadata & { _id: ObjectId; embedding?: Embedding };
+type NodeDbModel = NodeMetadata & {
+	_id: ObjectId;
+	embedding?: Embedding;
+	embeddingContentMd?: string;
+};
 
 /**
  * Builds a MongoDB-backed NodeRepository.
@@ -168,11 +172,15 @@ export class MongodbNodeRepository implements NodeRepository {
 		return true;
 	}
 
-	async upsertEmbedding(uuid: string, embedding: Embedding): Promise<Either<AntboxError, void>> {
+	async upsertEmbedding(
+		uuid: string,
+		embedding: Embedding,
+		contentMd: string,
+	): Promise<Either<AntboxError, void>> {
 		try {
 			await this.#collection.updateOne(
 				{ _id: toObjectId(uuid) },
-				{ $set: { embedding } },
+				{ $set: { embedding, embeddingContentMd: contentMd } },
 			);
 			return right(undefined);
 		} catch (err) {
@@ -190,14 +198,18 @@ export class MongodbNodeRepository implements NodeRepository {
 				.find({ embedding: { $exists: true } })
 				.toArray();
 
-			const results: Array<{ node: NodeLike; score: number }> = [];
+			const results: VectorSearchResult["nodes"] = [];
 
 			for (const doc of docs) {
 				const dbDoc = doc as unknown as NodeDbModel;
 				if (dbDoc.embedding) {
 					const score = this.#cosineSimilarity(queryVector, dbDoc.embedding);
 					const node = this.#toNodeLike(dbDoc);
-					results.push({ node, score });
+					results.push({
+						node,
+						score,
+						content: dbDoc.embeddingContentMd ?? "",
+					});
 				}
 			}
 
@@ -215,7 +227,7 @@ export class MongodbNodeRepository implements NodeRepository {
 		try {
 			await this.#collection.updateOne(
 				{ _id: toObjectId(uuid) },
-				{ $unset: { embedding: "" } },
+				{ $unset: { embedding: "", embeddingContentMd: "" } },
 			);
 			return right(undefined);
 		} catch (err) {

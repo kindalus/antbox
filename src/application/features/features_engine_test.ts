@@ -1,107 +1,339 @@
 import { describe, it } from "bdd";
 import { expect } from "expect";
+import { InMemoryConfigurationRepository } from "adapters/inmem/inmem_configuration_repository.ts";
+import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus.ts";
+import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository.ts";
+import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider.ts";
+import { NullOCRProvider } from "adapters/ocr/null_ocr_provider.ts";
+import type { FeatureData } from "domain/configuration/feature_data.ts";
+import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
+import { Nodes } from "domain/nodes/nodes.ts";
+import { Groups } from "domain/users_groups/groups.ts";
+import { Users } from "domain/users_groups/users.ts";
+import { BadRequestError } from "shared/antbox_error.ts";
+import type { AuthenticationContext } from "application/security/authentication_context.ts";
+import { NodeService } from "application/nodes/node_service.ts";
+import { FeaturesEngine } from "./features_engine.ts";
+import { FeaturesService } from "./features_service.ts";
 
-/**
- * FeaturesEngine Tests
- *
- * These tests cover the execution logic for features including:
- * - runAction: Execute actions on nodes
- * - runAITool: Execute AI tools
- * - runExtension: Execute HTTP extensions
- * - Automatic triggers (onCreate, onUpdate, onDelete)
- * - Folder hooks
- *
- * Note: Full integration tests require mocking NodeService, FeaturesService,
- * and EventBus. These are placeholder tests for future implementation.
- */
+interface Harness {
+	nodeService: NodeService;
+	featuresService: FeaturesService;
+	engine: FeaturesEngine;
+}
+
+const adminCtx: AuthenticationContext = {
+	tenant: "test",
+	mode: "Direct",
+	principal: {
+		email: Users.ROOT_USER_EMAIL,
+		groups: [Groups.ADMINS_GROUP_UUID],
+	},
+};
+
+function createHarness(useOCR = false): Harness {
+	const configRepo = new InMemoryConfigurationRepository();
+	const eventBus = new InMemoryEventBus();
+	const nodeService = new NodeService({
+		repository: new InMemoryNodeRepository(),
+		storage: new InMemoryStorageProvider(),
+		bus: eventBus,
+		configRepo,
+	});
+	const featuresService = new FeaturesService({ configRepo });
+	const engine = new FeaturesEngine({
+		featuresService,
+		nodeService,
+		ocrProvider: useOCR ? new NullOCRProvider() : undefined,
+		eventBus,
+	});
+
+	return { nodeService, featuresService, engine };
+}
+
+function createFeatureModule(
+	opts: {
+		exposeAction?: boolean;
+		runOnCreates?: boolean;
+		runManually?: boolean;
+		exposeExtension?: boolean;
+		exposeAITool?: boolean;
+		filters?: unknown[];
+		returnType?: string;
+		runBody?: string;
+	} = {},
+): string {
+	const {
+		exposeAction = true,
+		runOnCreates = false,
+		runManually = true,
+		exposeExtension = false,
+		exposeAITool = false,
+		filters = [],
+		returnType = "object",
+		runBody = "return args;",
+	} = opts;
+
+	return `export default {
+	uuid: "module-feature",
+	title: "Module Feature",
+	description: "Feature module for tests",
+	exposeAction: ${exposeAction},
+	runOnCreates: ${runOnCreates},
+	runOnUpdates: false,
+	runOnDeletes: false,
+	runManually: ${runManually},
+	filters: ${JSON.stringify(filters)},
+	exposeExtension: ${exposeExtension},
+	exposeAITool: ${exposeAITool},
+	runAs: undefined,
+	groupsAllowed: [],
+	parameters: [],
+	returnType: ${JSON.stringify(returnType)},
+	async run(ctx, args) {
+		${runBody}
+	},
+};`;
+}
+
+function createFeatureInput(
+	overrides: Partial<Omit<FeatureData, "uuid" | "createdTime" | "modifiedTime">>,
+) {
+	return {
+		title: "Test Feature",
+		description: "Feature used in tests",
+		exposeAction: true,
+		runOnCreates: false,
+		runOnUpdates: false,
+		runOnDeletes: false,
+		runManually: true,
+		filters: [],
+		exposeExtension: false,
+		exposeAITool: false,
+		runAs: undefined,
+		groupsAllowed: [],
+		parameters: [],
+		returnType: "object" as const,
+		returnDescription: "Returns test data",
+		returnContentType: "application/json",
+		tags: ["test"],
+		module: createFeatureModule(),
+		...overrides,
+	};
+}
+
+async function createFeature(
+	harness: Harness,
+	overrides: Partial<Omit<FeatureData, "uuid" | "createdTime" | "modifiedTime">>,
+): Promise<string> {
+	const featureOrErr = await harness.featuresService.createFeature(
+		adminCtx,
+		createFeatureInput(overrides),
+	);
+
+	expect(featureOrErr.isRight()).toBe(true);
+	if (featureOrErr.isLeft()) {
+		throw featureOrErr.value;
+	}
+
+	return featureOrErr.value.uuid;
+}
+
+async function waitFor(condition: () => Promise<boolean>, timeoutMs = 1000): Promise<boolean> {
+	const startedAt = Date.now();
+
+	while (Date.now() - startedAt < timeoutMs) {
+		if (await condition()) {
+			return true;
+		}
+
+		await new Promise((resolve) => setTimeout(resolve, 20));
+	}
+
+	return false;
+}
+
 describe("FeaturesEngine", () => {
-	describe("runAction", () => {
-		it.skip("should execute action on nodes", async () => {
-			// TODO: Implement test with mocked dependencies
-			expect(true).toBe(true);
+	it("runAction executes feature and filters uuids by feature filters", async () => {
+		const harness = createHarness();
+
+		await harness.nodeService.create(adminCtx, {
+			uuid: "features-folder",
+			title: "Features Folder",
+			mimetype: Nodes.FOLDER_MIMETYPE,
+			parent: Nodes.ROOT_FOLDER_UUID,
 		});
 
-		it.skip("should filter nodes based on feature filters", async () => {
-			// TODO: Implement test
-			expect(true).toBe(true);
+		await harness.nodeService.createFile(
+			adminCtx,
+			new File(["allowed content"], "allowed.txt", { type: "text/plain" }),
+			{
+				uuid: "allowed-file",
+				title: "allowed.txt",
+				mimetype: "text/plain",
+				parent: "features-folder",
+			},
+		);
+
+		await harness.nodeService.createFile(
+			adminCtx,
+			new File(["blocked content"], "blocked.jpg", { type: "image/jpeg" }),
+			{
+				uuid: "blocked-file",
+				title: "blocked.jpg",
+				mimetype: "image/jpeg",
+				parent: "features-folder",
+			},
+		);
+
+		const featureUuid = await createFeature(harness, {
+			filters: [["mimetype", "==", "text/plain"]],
+			module: createFeatureModule({
+				filters: [["mimetype", "==", "text/plain"]],
+				runBody: "return { uuids: args.uuids };",
+			}),
 		});
 
-		it.skip("should reject if feature is not exposed as action", async () => {
-			// TODO: Implement test
-			expect(true).toBe(true);
-		});
+		const result = await harness.engine.runAction<{ uuids: string[] }>(
+			adminCtx,
+			featureUuid,
+			["allowed-file", "blocked-file"],
+		);
 
-		it.skip("should reject manual execution if runManually is false", async () => {
-			// TODO: Implement test
-			expect(true).toBe(true);
-		});
+		expect(result.isRight()).toBe(true);
+		if (result.isRight()) {
+			expect(result.value.uuids).toEqual(["allowed-file"]);
+		}
 	});
 
-	describe("runAITool", () => {
-		it.skip("should execute AI tool with parameters", async () => {
-			// TODO: Implement test
-			expect(true).toBe(true);
+	it("runAction rejects features not exposed as action", async () => {
+		const harness = createHarness();
+		const featureUuid = await createFeature(harness, {
+			exposeAction: false,
+			exposeAITool: true,
+			module: createFeatureModule({
+				exposeAction: false,
+				exposeAITool: true,
+			}),
 		});
 
-		it.skip("should route NodeService methods correctly", async () => {
-			// TODO: Implement test
-			expect(true).toBe(true);
-		});
+		const result = await harness.engine.runAction(adminCtx, featureUuid, []);
 
-		it.skip("should reject if feature is not exposed as AI tool", async () => {
-			// TODO: Implement test
-			expect(true).toBe(true);
-		});
+		expect(result.isLeft()).toBe(true);
+		if (result.isLeft()) {
+			expect(result.value).toBeInstanceOf(BadRequestError);
+			expect(result.value.message).toContain("not exposed as action");
+		}
 	});
 
-	describe("runExtension", () => {
-		it.skip("should execute extension and return response", async () => {
-			// TODO: Implement test
-			expect(true).toBe(true);
+	it("runAITool routes built-in NodeService methods", async () => {
+		const harness = createHarness();
+
+		await harness.nodeService.create(adminCtx, {
+			uuid: "tool-folder",
+			title: "Tool Folder",
+			mimetype: Nodes.FOLDER_MIMETYPE,
+			parent: Nodes.ROOT_FOLDER_UUID,
 		});
 
-		it.skip("should handle different return types", async () => {
-			// TODO: Implement test
-			expect(true).toBe(true);
+		const result = await harness.engine.runAITool<NodeMetadata[]>(adminCtx, "NodeService:list", {
+			parent: Nodes.ROOT_FOLDER_UUID,
 		});
 
-		it.skip("should reject if feature is not exposed as extension", async () => {
-			// TODO: Implement test
-			expect(true).toBe(true);
-		});
+		expect(result.isRight()).toBe(true);
+		if (result.isRight()) {
+			expect(result.value.some((node) => node.uuid === "tool-folder")).toBe(true);
+		}
 	});
 
-	describe("automatic triggers", () => {
-		it.skip("should run onCreate actions when node is created", async () => {
-			// TODO: Implement test
-			expect(true).toBe(true);
+	it("runAITool returns export error for OcrModel when node is missing", async () => {
+		const harness = createHarness(true);
+
+		const result = await harness.engine.runAITool<string>(adminCtx, "OcrModel:ocr", {
+			uuid: "missing-node",
 		});
 
-		it.skip("should run onUpdate actions when node is updated", async () => {
-			// TODO: Implement test
-			expect(true).toBe(true);
-		});
-
-		it.skip("should run onDelete actions when node is deleted", async () => {
-			// TODO: Implement test
-			expect(true).toBe(true);
-		});
+		expect(result.isLeft()).toBe(true);
+		if (result.isLeft()) {
+			expect(result.value.message).toContain("missing-node");
+		}
 	});
 
-	describe("folder hooks", () => {
-		it.skip("should run folder onCreate hooks", async () => {
-			// TODO: Implement test
-			expect(true).toBe(true);
+	it("runExtension executes extension features and returns JSON payload", async () => {
+		const harness = createHarness();
+
+		const featureUuid = await createFeature(harness, {
+			exposeAction: false,
+			exposeExtension: true,
+			returnType: "object",
+			module: createFeatureModule({
+				exposeAction: false,
+				exposeExtension: true,
+				returnType: "object",
+				runBody: "return { ok: true, value: args.value ?? null };",
+			}),
 		});
 
-		it.skip("should run folder onUpdate hooks", async () => {
-			// TODO: Implement test
-			expect(true).toBe(true);
+		const request = new Request("http://localhost/v2/extensions/test", {
+			method: "POST",
+			headers: new Headers({
+				"content-type": "application/json",
+			}),
+			body: JSON.stringify({ value: "hello" }),
 		});
 
-		it.skip("should run folder onDelete hooks", async () => {
-			// TODO: Implement test
-			expect(true).toBe(true);
+		const response = await harness.engine.runExtension(adminCtx, featureUuid, request);
+
+		expect(response.status).toBe(200);
+		expect(response.headers.get("Content-Type")).toContain("application/json");
+
+		const payload = await response.json() as { ok: boolean; value: string };
+		expect(payload).toEqual({ ok: true, value: "hello" });
+	});
+
+	it("runs automatic onCreate actions when a node is created", async () => {
+		const harness = createHarness();
+
+		await harness.nodeService.create(adminCtx, {
+			uuid: "auto-folder",
+			title: "Auto Folder",
+			mimetype: Nodes.FOLDER_MIMETYPE,
+			parent: Nodes.ROOT_FOLDER_UUID,
 		});
+
+		await createFeature(harness, {
+			runOnCreates: true,
+			runManually: false,
+			module: createFeatureModule({
+				runOnCreates: true,
+				runManually: false,
+				runBody: `
+					if (Array.isArray(args.uuids) && args.uuids.length > 0) {
+						await ctx.nodeService.update(args.uuids[0], {
+							description: "triggered-by-onCreate",
+						});
+					}
+					return { done: true };
+				`,
+			}),
+		});
+
+		await harness.nodeService.createFile(
+			adminCtx,
+			new File(["auto body"], "auto.txt", { type: "text/plain" }),
+			{
+				uuid: "auto-file",
+				title: "auto.txt",
+				mimetype: "text/plain",
+				parent: "auto-folder",
+			},
+		);
+
+		const updated = await waitFor(async () => {
+			const nodeOrErr = await harness.nodeService.get(adminCtx, "auto-file");
+			return nodeOrErr.isRight() && nodeOrErr.value.description === "triggered-by-onCreate";
+		}, 1200);
+
+		expect(updated).toBe(true);
 	});
 });

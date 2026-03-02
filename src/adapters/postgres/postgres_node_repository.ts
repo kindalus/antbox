@@ -67,8 +67,14 @@ export class PostgresNodeRepository implements NodeRepository {
 					parent TEXT,
 					mimetype TEXT,
 					body JSONB NOT NULL,
-					embedding vector(1536)
+					embedding vector(1536),
+					embedding_content_md TEXT
 				)
+			`;
+
+			await this.#sql`
+				ALTER TABLE nodes
+				ADD COLUMN IF NOT EXISTS embedding_content_md TEXT
 			`;
 
 			// Create indexes
@@ -111,12 +117,15 @@ export class PostgresNodeRepository implements NodeRepository {
 	async upsertEmbedding(
 		uuid: string,
 		embedding: Embedding,
+		contentMd: string,
 	): Promise<Either<AntboxError, void>> {
 		try {
 			const vectorStr = `[${embedding.join(",")}]`;
 			await this.#sql`
 				UPDATE nodes
-				SET embedding = ${vectorStr}::vector
+				SET
+					embedding = ${vectorStr}::vector,
+					embedding_content_md = ${contentMd}
 				WHERE uuid = ${uuid}
 			`;
 			return right(undefined);
@@ -133,9 +142,14 @@ export class PostgresNodeRepository implements NodeRepository {
 		try {
 			const vectorStr = `[${queryVector.join(",")}]`;
 
-			const rows = await this.#sql<{ body: NodeMetadata; score: number }[]>`
+			const rows = await this.#sql<{
+				body: NodeMetadata;
+				score: number;
+				embedding_content_md: string | null;
+			}[]>`
 				SELECT
 					body,
+					embedding_content_md,
 					1 - (embedding <=> ${vectorStr}::vector) as score
 				FROM nodes
 				WHERE embedding IS NOT NULL
@@ -151,6 +165,7 @@ export class PostgresNodeRepository implements NodeRepository {
 					nodes.push({
 						node: nodeResult.right,
 						score: row.score,
+						content: row.embedding_content_md ?? "",
 					});
 				}
 			}
@@ -166,7 +181,9 @@ export class PostgresNodeRepository implements NodeRepository {
 		try {
 			await this.#sql`
 				UPDATE nodes
-				SET embedding = NULL
+				SET
+					embedding = NULL,
+					embedding_content_md = NULL
 				WHERE uuid = ${uuid}
 			`;
 			return right(undefined);

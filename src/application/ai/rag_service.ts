@@ -10,10 +10,7 @@ import type { RagDocument } from "domain/ai/rag_document.ts";
 import { NodeCreatedEvent } from "domain/nodes/node_created_event.ts";
 import { NodeUpdatedEvent } from "domain/nodes/node_updated_event.ts";
 import { NodeDeletedEvent } from "domain/nodes/node_deleted_event.ts";
-import { isEmbeddingsSupportedMimetype } from "domain/nodes/embedding.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
-import type { FileNode } from "domain/nodes/file_node.ts";
-import type { FolderNode } from "domain/nodes/folder_node.ts";
 import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { stringify as yamlStringify } from "@std/yaml";
 import { createElevatedContext } from "application/security/elevated_context.ts";
@@ -21,14 +18,11 @@ import { createElevatedContext } from "application/security/elevated_context.ts"
 /** Default number of top results to retrieve */
 export const RAG_TOP_K = 5;
 
-/** Default minimum cosine similarity threshold */
-export const RAG_THRESHOLD = 0.5;
-
 /**
  * RAGService - Handles both embedding indexing and semantic query.
  *
- * Indexing: Subscribes to node events → OCR + metadata → embed → store vector.
- * Query: Embed query → vectorSearch → fetch content → return RagDocument[].
+ * Indexing: Subscribes to node events → build markdown payload → embed → store vector + content.
+ * Query: Embed query → vectorSearch → return RagDocument[] using stored markdown content.
  */
 export class RAGService {
 	readonly #repository: NodeRepository;
@@ -75,8 +69,10 @@ export class RAGService {
 	async query(
 		text: string,
 		topK = RAG_TOP_K,
-		threshold = RAG_THRESHOLD,
+		threshold?: number,
 	): Promise<Either<AntboxError, RagDocument[]>> {
+		const actualThreshold = threshold ?? this.#embeddingsProvider.relevanceThreshold();
+
 		const embeddingOrErr = await this.#embeddingsProvider.embed([text]);
 		if (embeddingOrErr.isLeft()) {
 			return left(embeddingOrErr.value);
@@ -89,38 +85,14 @@ export class RAGService {
 			return left(searchOrErr.value);
 		}
 
-		const candidates = searchOrErr.value.nodes.filter((r) => r.score >= threshold);
+		const candidates = searchOrErr.value.nodes.filter((r) => r.score >= actualThreshold);
 
-		const docs: RagDocument[] = [];
-
-		for (const { node, score } of candidates) {
-			try {
-				let content = "";
-
-				if (Nodes.isFile(node) && node.mimetype && isEmbeddingsSupportedMimetype(node.mimetype)) {
-					const fileOrErr = await this.#nodeService.export(
-						createElevatedContext(),
-						node.uuid,
-					);
-
-					if (fileOrErr.isRight()) {
-						const ocrOrErr = await this.#ocrProvider.ocr(fileOrErr.value);
-						if (ocrOrErr.isRight()) {
-							content = ocrOrErr.value;
-						}
-					}
-				}
-
-				docs.push({
-					uuid: node.uuid,
-					title: node.title,
-					content,
-					score,
-				});
-			} catch (error) {
-				Logger.warn(`Failed to retrieve content for node ${node.uuid}: ${error}`);
-			}
-		}
+		const docs: RagDocument[] = candidates.map(({ node, score, content }) => ({
+			uuid: node.uuid,
+			title: node.title,
+			content,
+			score,
+		}));
 
 		return right(docs);
 	}
@@ -132,16 +104,12 @@ export class RAGService {
 	async #handleNodeCreated(event: NodeCreatedEvent): Promise<void> {
 		const node = event.payload;
 
-		if (Nodes.isFolder(node)) {
-			await this.#indexFolder(node as FolderNode);
+		if (Nodes.isFile(node)) {
+			await this.#indexFile(node, event.tenant);
 			return;
 		}
 
-		if (!Nodes.isFile(node)) return;
-		if (node.size === 0) return;
-		if (!node.mimetype || !isEmbeddingsSupportedMimetype(node.mimetype)) return;
-
-		await this.#indexFile(node as FileNode);
+		await this.#indexNodeMetadata(node);
 	}
 
 	async #handleNodeUpdated(event: NodeUpdatedEvent): Promise<void> {
@@ -157,49 +125,42 @@ export class RAGService {
 
 		const node = nodeOrErr.value;
 
-		if (Nodes.isFolder(node)) {
-			await this.#indexFolder(node as FolderNode);
+		if (Nodes.isFile(node)) {
+			await this.#indexFile(node, event.tenant);
 			return;
 		}
 
-		if (!Nodes.isFile(node)) {
-			await this.#deleteEmbedding(event.payload.uuid);
-			return;
-		}
-
-		if (node.size === 0 || !node.mimetype || !isEmbeddingsSupportedMimetype(node.mimetype)) {
-			await this.#deleteEmbedding(node.uuid);
-			return;
-		}
-
-		await this.#indexFile(node as FileNode);
+		await this.#indexNodeMetadata(node);
 	}
 
 	async #handleNodeDeleted(event: NodeDeletedEvent): Promise<void> {
 		await this.#deleteEmbedding(event.payload.uuid);
 	}
 
-	async #indexFile(node: FileNode): Promise<void> {
-		const fileOrErr = await this.#nodeService.export(createElevatedContext(), node.uuid);
-		if (fileOrErr.isLeft()) {
-			Logger.error(`RAGService: failed to export file ${node.uuid}`);
-			return;
+	async #indexFile(node: NodeMetadata, tenant: string): Promise<void> {
+		let bodyContent = "";
+
+		if ((node.size ?? 0) > 0) {
+			const fileOrErr = await this.#nodeService.export(createElevatedContext(tenant), node.uuid);
+			if (fileOrErr.isLeft()) {
+				Logger.warn(`RAGService: failed to export file ${node.uuid}, indexing metadata only`);
+			} else {
+				const textOrErr = await this.#ocrProvider.ocr(fileOrErr.value);
+				if (textOrErr.isLeft()) {
+					Logger.warn(`RAGService: OCR failed for ${node.uuid}: ${textOrErr.value.message}`);
+				} else {
+					bodyContent = textOrErr.value;
+				}
+			}
 		}
 
-		const textOrErr = await this.#ocrProvider.ocr(fileOrErr.value);
-		if (textOrErr.isLeft()) {
-			Logger.warn(`RAGService: OCR failed for ${node.uuid}: ${textOrErr.value.message}`);
-			return;
-		}
-
-		const combinedText = `---\n**Metadata**:\n\n${toYamlMetadata(node)}\n---\n**Content**:\n\n${textOrErr.value}`;
-
-		await this.#generateAndStore(node.uuid, combinedText);
+		const markdown = toEmbeddingMarkdown(node, bodyContent);
+		await this.#generateAndStore(node.uuid, markdown);
 	}
 
-	async #indexFolder(node: FolderNode): Promise<void> {
-		const metadataText = `---\n**Metadata**:\n\n${toYamlMetadata(node)}\n---`;
-		await this.#generateAndStore(node.uuid, metadataText);
+	async #indexNodeMetadata(metadata: NodeMetadata): Promise<void> {
+		const markdown = toEmbeddingMarkdown(metadata);
+		await this.#generateAndStore(metadata.uuid, markdown);
 	}
 
 	async #generateAndStore(uuid: string, text: string): Promise<void> {
@@ -209,9 +170,15 @@ export class RAGService {
 			return;
 		}
 
-		const storeOrErr = await this.#repository.upsertEmbedding(uuid, embeddingsOrErr.value[0]);
+		const storeOrErr = await this.#repository.upsertEmbedding(
+			uuid,
+			embeddingsOrErr.value[0],
+			text,
+		);
 		if (storeOrErr.isLeft()) {
-			Logger.error(`RAGService: store embedding failed for ${uuid}: ${storeOrErr.value.message}`);
+			Logger.error(
+				`RAGService: store embedding failed for ${uuid}: ${storeOrErr.value.message}`,
+			);
 		}
 	}
 
@@ -232,5 +199,16 @@ function toYamlMetadata(node: NodeMetadata): string {
 			filtered[k] = v;
 		}
 	}
-	return yamlStringify(filtered);
+	return yamlStringify(filtered).trimEnd();
+}
+
+function toEmbeddingMarkdown(metadata: NodeMetadata, content = ""): string {
+	const frontmatter = toYamlMetadata(metadata);
+	const body = content.trim();
+
+	if (!body) {
+		return `---\n${frontmatter}\n---`;
+	}
+
+	return `---\n${frontmatter}\n---\n\n${body}`;
 }

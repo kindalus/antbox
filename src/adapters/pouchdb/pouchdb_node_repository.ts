@@ -118,6 +118,7 @@ interface NodeDbModel {
 	runOnUpdates?: boolean;
 
 	embedding?: Embedding;
+	embeddingContentMd?: string;
 }
 
 class PouchdbNodeRepository implements NodeRepository {
@@ -156,6 +157,7 @@ class PouchdbNodeRepository implements NodeRepository {
 				_rev: doc.value._rev,
 				...data,
 				embedding: doc.value.embedding,
+				embeddingContentMd: doc.value.embeddingContentMd,
 			})
 			.then(() => right<NodeNotFoundError, void>(undefined))
 			.catch((err: unknown) => {
@@ -174,7 +176,14 @@ class PouchdbNodeRepository implements NodeRepository {
 	}
 
 	#toNodeLike(doc: PouchDB.Core.PutDocument<NodeDbModel>): NodeLike {
-		const { _id, _rev, xfilters, embedding: _embedding, ...rest } = doc;
+		const {
+			_id,
+			_rev,
+			xfilters,
+			embedding: _embedding,
+			embeddingContentMd: _embeddingContentMd,
+			...rest
+		} = doc;
 		const metadata = {
 			uuid: _id,
 			filters: xfilters,
@@ -309,7 +318,11 @@ class PouchdbNodeRepository implements NodeRepository {
 		return true;
 	}
 
-	async upsertEmbedding(uuid: string, embedding: Embedding): Promise<Either<AntboxError, void>> {
+	async upsertEmbedding(
+		uuid: string,
+		embedding: Embedding,
+		contentMd: string,
+	): Promise<Either<AntboxError, void>> {
 		const doc = await this.#readFromDb(uuid);
 
 		if (doc.isLeft()) {
@@ -320,6 +333,7 @@ class PouchdbNodeRepository implements NodeRepository {
 			await this.db.put({
 				...doc.value,
 				embedding,
+				embeddingContentMd: contentMd,
 			});
 			return right(undefined);
 		} catch (err: unknown) {
@@ -337,13 +351,17 @@ class PouchdbNodeRepository implements NodeRepository {
 				selector: { embedding: { $exists: true } },
 			});
 
-			const results: Array<{ node: NodeLike; score: number }> = [];
+			const results: VectorSearchResult["nodes"] = [];
 
 			for (const doc of result.docs) {
 				if (doc.embedding) {
 					const score = this.#cosineSimilarity(queryVector, doc.embedding);
 					const node = this.#toNodeLike(doc);
-					results.push({ node, score });
+					results.push({
+						node,
+						score,
+						content: doc.embeddingContentMd ?? "",
+					});
 				}
 			}
 
@@ -365,7 +383,11 @@ class PouchdbNodeRepository implements NodeRepository {
 		}
 
 		try {
-			const { embedding: _embedding, ...rest } = doc.value;
+			const {
+				embedding: _embedding,
+				embeddingContentMd: _embeddingContentMd,
+				...rest
+			} = doc.value;
 			await this.db.put(rest as PouchDB.Core.ExistingDocument<NodeDbModel>);
 			return right(undefined);
 		} catch (err: unknown) {

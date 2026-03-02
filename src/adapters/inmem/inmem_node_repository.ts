@@ -34,6 +34,7 @@ export default function buildInmemNodeRepository(): Promise<
 interface NodeWithEmbedding {
 	node: NodeLike;
 	embedding?: Embedding;
+	contentMd?: string;
 }
 
 export class InMemoryNodeRepository implements NodeRepository {
@@ -86,7 +87,11 @@ export class InMemoryNodeRepository implements NodeRepository {
 
 	update(node: NodeLike): Promise<Either<NodeNotFoundError, void>> {
 		const existing = this.#data[node.uuid];
-		this.#data[node.uuid] = { node, embedding: existing?.embedding };
+		this.#data[node.uuid] = {
+			node,
+			embedding: existing?.embedding,
+			contentMd: existing?.contentMd,
+		};
 		return Promise.resolve(right(undefined));
 	}
 
@@ -132,13 +137,18 @@ export class InMemoryNodeRepository implements NodeRepository {
 		return true;
 	}
 
-	upsertEmbedding(uuid: string, embedding: Embedding): Promise<Either<AntboxError, void>> {
+	upsertEmbedding(
+		uuid: string,
+		embedding: Embedding,
+		contentMd: string,
+	): Promise<Either<AntboxError, void>> {
 		const entry = this.#data[uuid];
 		if (!entry) {
 			return Promise.resolve(left(new BadRequestError(`Node ${uuid} not found`)));
 		}
 
 		entry.embedding = embedding;
+		entry.contentMd = contentMd;
 		return Promise.resolve(right(undefined));
 	}
 
@@ -146,12 +156,16 @@ export class InMemoryNodeRepository implements NodeRepository {
 		queryVector: Embedding,
 		topK: number,
 	): Promise<Either<AntboxError, VectorSearchResult>> {
-		const results: Array<{ node: NodeLike; score: number }> = [];
+		const results: VectorSearchResult["nodes"] = [];
 
 		for (const entry of Object.values(this.#data)) {
 			if (entry.embedding) {
 				const score = this.#cosineSimilarity(queryVector, entry.embedding);
-				results.push({ node: entry.node, score });
+				results.push({
+					node: entry.node,
+					score,
+					content: entry.contentMd ?? "",
+				});
 			}
 		}
 
@@ -165,6 +179,7 @@ export class InMemoryNodeRepository implements NodeRepository {
 		const entry = this.#data[uuid];
 		if (entry) {
 			entry.embedding = undefined;
+			entry.contentMd = undefined;
 		}
 		return Promise.resolve(right(undefined));
 	}

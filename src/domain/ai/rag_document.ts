@@ -6,7 +6,7 @@ export interface RagDocument {
 	uuid: string;
 	/** Title of the source node */
 	title: string;
-	/** Text content (OCR output + metadata) */
+	/** Stored markdown content (YAML frontmatter + optional extracted body) */
 	content: string;
 	/** Similarity score [0, 1] */
 	score: number;

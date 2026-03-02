@@ -67,4 +67,14 @@ describe("DeterministicEmbeddingsProvider", () => {
 			expect(result.value[0]).toHaveLength(1536);
 		}
 	});
+
+	it("uses default relevance threshold of 0.5", () => {
+		const defaultProvider = new DeterministicEmbeddingsProvider();
+		expect(defaultProvider.relevanceThreshold()).toBe(0.5);
+	});
+
+	it("allows custom relevance threshold", () => {
+		const customProvider = new DeterministicEmbeddingsProvider(128, 0.72);
+		expect(customProvider.relevanceThreshold()).toBe(0.72);
+	});
 });

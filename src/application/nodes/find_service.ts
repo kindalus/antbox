@@ -2,7 +2,6 @@ import { Logger } from "shared/logger.ts";
 import type { AuthenticationContext } from "../security/authentication_context.ts";
 import type { NodeServiceContext } from "./node_service_context.ts";
 import type {
-	NodeFilter,
 	NodeFilters,
 	NodeFilters1D,
 	NodeFilters2D,
@@ -17,6 +16,16 @@ import type { AuthorizationService } from "../security/authorization_service.ts"
 import { FolderNode } from "domain/nodes/folder_node.ts";
 import { Users } from "domain/users_groups/users.ts";
 import { Groups } from "domain/users_groups/groups.ts";
+
+const DEFAULT_SEMANTIC_THRESHOLD = 0.5;
+
+function normalizeThreshold(value: number | undefined): number {
+	if (typeof value !== "number" || !Number.isFinite(value)) {
+		return DEFAULT_SEMANTIC_THRESHOLD;
+	}
+
+	return Math.max(0, Math.min(1, value));
+}
 
 /**
  * Service responsible for finding nodes in the repository.
@@ -80,6 +89,7 @@ export class FindService {
 	 *
 	 * // Semantic search (starts with ?)
 	 * const result = await findService.find(ctx, "?what is the meaning of life", 50, 1);
+	 *
 	 * ```
 	 */
 	async find(
@@ -148,6 +158,8 @@ export class FindService {
 			return this.find(ctx, [["fulltext", "match", query]], pageSize, pageToken);
 		}
 
+		const threshold = normalizeThreshold(this.context.embeddingsProvider.relevanceThreshold());
+
 		try {
 			// Generate embedding for query using embedding model
 			const embeddingsOrErr = await this.context.embeddingsProvider.embed([query]);
@@ -160,10 +172,8 @@ export class FindService {
 			const queryEmbedding = embeddingsOrErr.value[0];
 
 			// Search using repository's vector search
-			const searchOrErr = await this.context.repository.vectorSearch(
-				queryEmbedding,
-				100, // topK - return top 100 results
-			);
+			const topK = Math.max(100, pageSize * pageToken);
+			const searchOrErr = await this.context.repository.vectorSearch(queryEmbedding, topK);
 
 			if (searchOrErr.isLeft()) {
 				Logger.error("Vector search failed:", searchOrErr.value);
@@ -171,10 +181,10 @@ export class FindService {
 				return this.find(ctx, [["fulltext", "match", query]], pageSize, pageToken);
 			}
 
-			const results = searchOrErr.value;
-			const uuids = results.nodes.map((r) => r.node.uuid);
+			const results = searchOrErr.value.nodes.filter((result) => result.score >= threshold);
+			const uuids = results.map((r) => r.node.uuid);
 			const scores: Record<string, number> = {};
-			for (const result of results.nodes) {
+			for (const result of results) {
 				scores[result.node.uuid] = result.score;
 			}
 
@@ -203,18 +213,23 @@ export class FindService {
 			const stage3 = stage2.filter((r) => r.status === "fulfilled").map((r) => r.value);
 			const processedFilters = stage3.filter((f) => f.length);
 
-			const r = await this.context.repository.filter(
-				processedFilters,
-				pageSize,
-				pageToken,
-			);
+			const r = await this.context.repository.filter(processedFilters, Number.MAX_SAFE_INTEGER, 1);
 
 			// Sort results by score (semantic relevance)
 			r.nodes.sort((a, b) => (scores[b.uuid] ?? 0) - (scores[a.uuid] ?? 0));
 
+			const firstIndex = (pageToken - 1) * pageSize;
+			const lastIndex = firstIndex + pageSize;
+			const nodes = r.nodes.slice(firstIndex, lastIndex);
+
 			Logger.debug(`Results: ${JSON.stringify(r, null, 2)}`);
 
-			return right({ ...r, scores });
+			return right({
+				nodes,
+				pageSize,
+				pageToken,
+				scores,
+			});
 		} catch (error) {
 			Logger.error("Semantic search failed:", error);
 			// Fallback to fulltext search

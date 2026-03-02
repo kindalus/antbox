@@ -2,7 +2,7 @@ import { left, right } from "shared/either.ts";
 import type { Either } from "shared/either.ts";
 import { AntboxError } from "shared/antbox_error.ts";
 import { Logger } from "shared/logger.ts";
-import type { EmbeddingsProvider, Embedding } from "domain/ai/embeddings_provider.ts";
+import type { Embedding, EmbeddingsProvider } from "domain/ai/embeddings_provider.ts";
 import { GoogleGenAI } from "@google/genai";
 
 /**
@@ -19,14 +19,16 @@ import { GoogleGenAI } from "@google/genai";
 export class GeminiEmbeddingsProvider implements EmbeddingsProvider {
 	readonly #client: GoogleGenAI;
 	readonly #modelName: string;
+	readonly #threshold: number;
 
-	constructor(modelName = "text-embedding-004", apiKey?: string) {
+	constructor(modelName = "text-embedding-004", apiKey?: string, threshold = 0.5) {
 		const key = apiKey ?? Deno.env.get("GOOGLE_API_KEY");
 		if (!key) {
 			Logger.error("GOOGLE_API_KEY is not set");
 			Deno.exit(1);
 		}
 		this.#modelName = modelName;
+		this.#threshold = Math.max(0, Math.min(1, threshold));
 		this.#client = new GoogleGenAI({ apiKey: key });
 	}
 
@@ -59,6 +61,10 @@ export class GeminiEmbeddingsProvider implements EmbeddingsProvider {
 			);
 		}
 	}
+
+	relevanceThreshold(): number {
+		return this.#threshold;
+	}
 }
 
 /**
@@ -67,8 +73,12 @@ export class GeminiEmbeddingsProvider implements EmbeddingsProvider {
 export default function buildGeminiEmbeddingsProvider(
 	modelName?: string,
 	apiKey?: string,
+	threshold?: string,
 ): Promise<Either<AntboxError, GeminiEmbeddingsProvider>> {
+	const parsedThreshold = threshold ? parseFloat(threshold) : 0.5;
 	return Promise.resolve(
-		right(new GeminiEmbeddingsProvider(modelName ?? "text-embedding-004", apiKey)),
+		right(
+			new GeminiEmbeddingsProvider(modelName ?? "text-embedding-004", apiKey, parsedThreshold),
+		),
 	);
 }

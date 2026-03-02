@@ -1,4 +1,3 @@
-// deno-lint-ignore-file no-case-declarations
 import { Logger } from "shared/logger.ts";
 import { loadTemplate, TEMPLATES } from "api/templates/index.ts";
 import type { Feature } from "domain/features/feature.ts";
@@ -294,28 +293,33 @@ export class FeaturesEngine {
 						return left(new UnknownError("OCR provider not initialized"));
 					}
 					fileOrErr = await this.#nodeService.export(ctx, args.uuid as string);
-					result = this.#ocrProvider.ocr(fileOrErr.right);
+					if (fileOrErr.isLeft()) {
+						return left(fileOrErr.value);
+					}
+					result = this.#ocrProvider.ocr(fileOrErr.value);
 					break;
 				case "Templates:list":
 					result = right(TEMPLATES);
 					break;
-				case "Templates:get":
+				case "Templates:get": {
 					const template = await loadTemplate(args.uuid as string);
 					if (!template) {
 						return left(new NodeNotFoundError(`Template '${args.uuid}' not found`));
 					}
 					result = right(template.content);
 					break;
+				}
 				case "Docs:list":
 					result = right(DOCS);
 					break;
-				case "Docs:get":
+				case "Docs:get": {
 					const doc = await loadDoc(args.uuid as string);
 					if (!doc) {
 						return left(new NodeNotFoundError(`Documentation '${args.uuid}' not found`));
 					}
 					result = right(doc.content);
 					break;
+				}
 			}
 		} catch (err: unknown) {
 			return left(new BadRequestError("Unknown error: ".concat((err as Error).message)));

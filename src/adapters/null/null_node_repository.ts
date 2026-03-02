@@ -52,7 +52,11 @@ export class NullNodeRepository implements NodeRepository {
 		return false;
 	}
 
-	upsertEmbedding(_uuid: string, _embedding: Embedding): Promise<Either<AntboxError, void>> {
+	upsertEmbedding(
+		_uuid: string,
+		_embedding: Embedding,
+		_contentMd: string,
+	): Promise<Either<AntboxError, void>> {
 		return Promise.resolve(right(undefined));
 	}
 

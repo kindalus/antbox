@@ -23,11 +23,21 @@ const authCtx: AuthenticationContext = {
 	},
 };
 
+const regularUserCtx: AuthenticationContext = {
+	mode: "Direct",
+	tenant: "test-tenant",
+	principal: {
+		email: "user@tenant.test",
+		groups: ["users"],
+	},
+};
+
 let service: NodeService;
+let embeddingsProvider: DeterministicEmbeddingsProvider;
 
 beforeAll(async () => {
 	// Setup AI components
-	const embeddingsProvider = new DeterministicEmbeddingsProvider(1536);
+	embeddingsProvider = new DeterministicEmbeddingsProvider(1536);
 	const ocrProvider = new NullOCRProvider();
 	const repository = new InMemoryNodeRepository();
 	const storage = new InMemoryStorageProvider();
@@ -169,6 +179,115 @@ describe("NodeService", () => {
 			if (result.isRight()) {
 				// May have some results due to deterministic model
 				expect(result.value.nodes).toBeDefined();
+			}
+		});
+
+		it("should apply provider relevance threshold", async () => {
+			const result = await service.find(authCtx, "?machine learning");
+
+			expect(result.isRight()).toBe(true);
+
+			if (result.isRight()) {
+				const threshold = embeddingsProvider.relevanceThreshold();
+				for (const node of result.value.nodes) {
+					const score = result.value.scores?.[node.uuid];
+					expect(score).toBeDefined();
+					if (score !== undefined) {
+						expect(score).toBeGreaterThanOrEqual(threshold);
+					}
+				}
+			}
+		});
+
+		it("should paginate semantic results after relevance sorting", async () => {
+			await service.createFile(
+				authCtx,
+				new File(["misc unrelated content"], "AAA Unrelated Document.txt", {
+					type: "text/plain",
+				}),
+				{
+					uuid: "semantic-page-unrelated",
+					title: "AAA Unrelated Document.txt",
+					mimetype: "text/plain",
+					parent: "test-folder-uuid",
+				},
+			);
+
+			await service.createFile(
+				authCtx,
+				new File(["machine learning machine learning machine learning"], "ZZZ ML Match.txt", {
+					type: "text/plain",
+				}),
+				{
+					uuid: "semantic-page-match",
+					title: "ZZZ ML Match.txt",
+					mimetype: "text/plain",
+					parent: "test-folder-uuid",
+				},
+			);
+
+			await new Promise((resolve) => setTimeout(resolve, 500));
+
+			const fullResult = await service.find(authCtx, "?machine learning", 100, 1);
+			expect(fullResult.isRight()).toBe(true);
+
+			const firstPage = await service.find(authCtx, "?machine learning", 1, 1);
+			expect(firstPage.isRight()).toBe(true);
+
+			if (fullResult.isRight() && firstPage.isRight()) {
+				expect(fullResult.value.nodes.length).toBeGreaterThan(0);
+				expect(firstPage.value.nodes.length).toBe(1);
+				expect(firstPage.value.nodes[0].uuid).toBe(fullResult.value.nodes[0].uuid);
+			}
+		});
+
+		it("should enforce read permissions on semantic results", async () => {
+			await service.create(authCtx, {
+				uuid: "private-semantic-folder",
+				title: "Private Semantic Folder",
+				mimetype: Nodes.FOLDER_MIMETYPE,
+				parent: Nodes.ROOT_FOLDER_UUID,
+				group: Groups.ADMINS_GROUP_UUID,
+				permissions: {
+					group: ["Read", "Write", "Export"],
+					authenticated: [],
+					anonymous: [],
+					advanced: {},
+				},
+			});
+
+			await service.createFile(
+				authCtx,
+				new File(["private memo"], "Top Secret Semantic Memo.txt", {
+					type: "text/plain",
+				}),
+				{
+					uuid: "private-semantic-file",
+					title: "Top Secret Semantic Memo.txt",
+					mimetype: "text/plain",
+					parent: "private-semantic-folder",
+				},
+			);
+
+			await new Promise((resolve) => setTimeout(resolve, 500));
+
+			const adminResult = await service.find(authCtx, "?top secret semantic memo");
+			expect(adminResult.isRight()).toBe(true);
+			if (adminResult.isRight()) {
+				expect(adminResult.value.nodes.some((n) => n.uuid === "private-semantic-file")).toBe(
+					true,
+				);
+			}
+
+			const regularUserResult = await service.find(
+				regularUserCtx,
+				"?top secret semantic memo",
+			);
+			expect(regularUserResult.isRight()).toBe(true);
+			if (regularUserResult.isRight()) {
+				expect(
+					regularUserResult.value.nodes.some((n) => n.uuid === "private-semantic-file"),
+				).toBe(false);
 			}
 		});
 	});

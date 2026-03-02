@@ -73,15 +73,28 @@ export class SqliteNodeRepository implements NodeRepository {
 				parent TEXT GENERATED ALWAYS AS (json_extract(body, '$.parent')) STORED,
 				mimetype TEXT GENERATED ALWAYS AS (json_extract(body, '$.mimetype')) STORED,
 				body JSON NOT NULL,
-				embedding JSON
+				embedding JSON,
+				embedding_content_md TEXT
 			);
 		`);
+
+		this.#ensureEmbeddingContentColumn();
 
 		this.#db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_nodes_fid ON nodes(fid);");
 		this.#db.exec("CREATE INDEX IF NOT EXISTS idx_nodes_parent ON nodes(parent);");
 		this.#db.exec("CREATE INDEX IF NOT EXISTS idx_nodes_mimetype ON nodes(mimetype);");
 
 		this.#db.function("cosine_similarity", this.#cosineSimilarityFn);
+	}
+
+	#ensureEmbeddingContentColumn(): void {
+		const columns = this.#db.prepare("PRAGMA table_info(nodes)").all() as Array<{
+			name: string;
+		}>;
+
+		if (!columns.some((column) => column.name === "embedding_content_md")) {
+			this.#db.exec("ALTER TABLE nodes ADD COLUMN embedding_content_md TEXT");
+		}
 	}
 
 	#cosineSimilarityFn = (vectorAJson: string | null, vectorBJson: string | null): number => {
@@ -124,12 +137,16 @@ export class SqliteNodeRepository implements NodeRepository {
 		return true;
 	}
 
-	upsertEmbedding(uuid: string, embedding: Embedding): Promise<Either<AntboxError, void>> {
+	upsertEmbedding(
+		uuid: string,
+		embedding: Embedding,
+		contentMd: string,
+	): Promise<Either<AntboxError, void>> {
 		try {
 			const embeddingJson = JSON.stringify(embedding);
 			this.#db.exec(
-				"UPDATE nodes SET embedding = ? WHERE uuid = ?",
-				[embeddingJson, uuid],
+				"UPDATE nodes SET embedding = ?, embedding_content_md = ? WHERE uuid = ?",
+				[embeddingJson, contentMd, uuid],
 			);
 			return Promise.resolve(right(undefined));
 		} catch (err) {
@@ -149,6 +166,7 @@ export class SqliteNodeRepository implements NodeRepository {
 				.prepare(
 					`SELECT
 						body,
+						embedding_content_md,
 						cosine_similarity(embedding, ?) as similarity
 					 FROM nodes
 					 WHERE embedding IS NOT NULL
@@ -157,6 +175,7 @@ export class SqliteNodeRepository implements NodeRepository {
 				)
 				.all(queryVectorJson, topK) as {
 					body: string;
+					embedding_content_md: string | null;
 					similarity: number;
 				}[];
 
@@ -170,6 +189,7 @@ export class SqliteNodeRepository implements NodeRepository {
 					nodes.push({
 						node: nodeResult.right,
 						score: row.similarity,
+						content: row.embedding_content_md ?? "",
 					});
 				}
 			}
@@ -185,7 +205,10 @@ export class SqliteNodeRepository implements NodeRepository {
 
 	deleteEmbedding(uuid: string): Promise<Either<AntboxError, void>> {
 		try {
-			this.#db.exec("UPDATE nodes SET embedding = NULL WHERE uuid = ?", [uuid]);
+			this.#db.exec(
+				"UPDATE nodes SET embedding = NULL, embedding_content_md = NULL WHERE uuid = ?",
+				[uuid],
+			);
 			return Promise.resolve(right(undefined));
 		} catch (err) {
 			const error = err as Error;

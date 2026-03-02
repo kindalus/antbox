@@ -156,8 +156,12 @@ class FlatFileNodeRepository implements NodeRepository {
 		return this.#base.supportsEmbeddings();
 	}
 
-	upsertEmbedding(uuid: string, embedding: Embedding): Promise<Either<AntboxError, void>> {
-		return this.#base.upsertEmbedding(uuid, embedding);
+	upsertEmbedding(
+		uuid: string,
+		embedding: Embedding,
+		contentMd: string,
+	): Promise<Either<AntboxError, void>> {
+		return this.#base.upsertEmbedding(uuid, embedding, contentMd);
 	}
 
 	vectorSearch(

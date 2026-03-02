@@ -7,6 +7,7 @@ servers:
   - url: /v2
     description: API server
 security:
+  - {}
   - bearerAuth: []
   - cookieAuth: []
   - apiKeyHeader: []
@@ -16,8 +17,6 @@ tags:
     description: Operations related to actions
   - name: agents
     description: Operations related to AI agents
-  - name: ai-models
-    description: Operations related to AI models
   - name: api-keys
     description: Operations related to API keys
   - name: articles
@@ -40,8 +39,6 @@ tags:
     description: Operations related to nodes (files, folders, etc.)
   - name: notifications
     description: Operations related to user and group notifications
-  - name: skills
-    description: Operations related to AI agent skills
   - name: templates
     description: Operations related to templates
   - name: users
@@ -92,15 +89,11 @@ paths:
                   additionalProperties: true
       responses:
         "200":
-          description: Action executed successfully. The response shape depends on the feature's returnType (string, number, boolean, array, object, file, or void).
+          description: Action executed successfully. The response shape depends on the feature's returnType.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/FeatureActionResult"
-            application/octet-stream:
-              schema:
-                type: string
-                format: binary
         default:
           $ref: "#/components/responses/Error"
   /agents:
@@ -124,22 +117,17 @@ paths:
     post:
       tags:
         - agents
-      summary: Create or replace an agent
-      operationId: createOrReplaceAgent
+      summary: Create an agent
+      operationId: createAgent
       requestBody:
         required: true
         content:
-          multipart/form-data:
+          application/json:
             schema:
-              type: object
-              properties:
-                file:
-                  type: string
-                  format: binary
-                  description: A JSON file containing the agent's metadata.
+              $ref: "#/components/schemas/CreateAgentRequest"
       responses:
-        "200":
-          description: Agent created or replaced successfully
+        "201":
+          description: Agent created successfully
           content:
             application/json:
               schema:
@@ -172,7 +160,7 @@ paths:
       parameters:
         - $ref: "#/components/parameters/UUID"
       responses:
-        "204":
+        "200":
           description: Agent deleted successfully
         default:
           $ref: "#/components/responses/Error"
@@ -203,7 +191,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
+                $ref: "#/components/schemas/ChatMessage"
         default:
           $ref: "#/components/responses/Error"
   "/agents/{uuid}/-/chat":
@@ -233,24 +221,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-        default:
-          $ref: "#/components/responses/Error"
-  /ai-models:
-    get:
-      tags:
-        - ai-models
-      summary: List available AI models
-      operationId: listAIModels
-      responses:
-        "200":
-          description: A list of available AI models
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/AIModel"
+                $ref: "#/components/schemas/ChatHistory"
         default:
           $ref: "#/components/responses/Error"
   /api-keys:
@@ -286,9 +257,10 @@ paths:
               properties:
                 group:
                   type: string
-                  format: uuid
                 description:
                   type: string
+                active:
+                  type: boolean
       responses:
         "201":
           description: API key created
@@ -323,7 +295,7 @@ paths:
       parameters:
         - $ref: "#/components/parameters/UUID"
       responses:
-        "204":
+        "200":
           description: API key deleted
         default:
           $ref: "#/components/responses/Error"
@@ -348,22 +320,17 @@ paths:
     post:
       tags:
         - aspects
-      summary: Create or replace an aspect
-      operationId: createOrReplaceAspect
+      summary: Create an aspect
+      operationId: createAspect
       requestBody:
         required: true
         content:
-          multipart/form-data:
+          application/json:
             schema:
-              type: object
-              properties:
-                file:
-                  type: string
-                  format: binary
-                  description: A JSON file containing the aspect's metadata.
+              $ref: "#/components/schemas/CreateAspectRequest"
       responses:
         "200":
-          description: Aspect created or replaced successfully
+          description: Aspect created successfully
           content:
             application/json:
               schema:
@@ -395,7 +362,7 @@ paths:
       parameters:
         - $ref: "#/components/parameters/UUID"
       responses:
-        "204":
+        "200":
           description: Aspect deleted
         default:
           $ref: "#/components/responses/Error"
@@ -413,8 +380,7 @@ paths:
           content:
             application/json:
               schema:
-                type: string
-                format: binary
+                $ref: "#/components/schemas/Aspect"
         default:
           $ref: "#/components/responses/Error"
   /articles:
@@ -638,9 +604,6 @@ paths:
             text/markdown:
               schema:
                 type: string
-            text/html:
-              schema:
-                type: string
         default:
           $ref: "#/components/responses/Error"
   /extensions:
@@ -671,11 +634,18 @@ paths:
         - $ref: "#/components/parameters/UUID"
       responses:
         "200":
-          description: Extension run result
+          description: Extension run result (shape depends on feature returnType)
           content:
             application/json:
               schema:
                 type: object
+            text/plain:
+              schema:
+                type: string
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
         default:
           $ref: "#/components/responses/Error"
     post:
@@ -691,13 +661,28 @@ paths:
             schema:
               type: object
               additionalProperties: true
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              additionalProperties: true
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: true
       responses:
         "200":
-          description: Extension run result
+          description: Extension run result (shape depends on feature returnType)
           content:
             application/json:
               schema:
                 type: object
+            text/plain:
+              schema:
+                type: string
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
         default:
           $ref: "#/components/responses/Error"
   /features:
@@ -721,22 +706,17 @@ paths:
     post:
       tags:
         - features
-      summary: Create or replace a feature
-      operationId: createOrReplaceFeature
+      summary: Create a feature
+      operationId: createFeature
       requestBody:
         required: true
         content:
-          multipart/form-data:
+          application/json:
             schema:
-              type: object
-              properties:
-                file:
-                  type: string
-                  format: binary
-                  description: A JSON file containing the feature's metadata.
+              $ref: "#/components/schemas/CreateFeatureRequest"
       responses:
-        "200":
-          description: Feature created or replaced successfully
+        "201":
+          description: Feature created successfully
           content:
             application/json:
               schema:
@@ -768,7 +748,7 @@ paths:
       parameters:
         - $ref: "#/components/parameters/UUID"
       responses:
-        "204":
+        "200":
           description: Feature deleted
         default:
           $ref: "#/components/responses/Error"
@@ -784,10 +764,9 @@ paths:
         "200":
           description: Feature exported successfully
           content:
-            application/json:
+            application/javascript:
               schema:
                 type: string
-                format: binary
         default:
           $ref: "#/components/responses/Error"
   /groups:
@@ -859,7 +838,7 @@ paths:
       parameters:
         - $ref: "#/components/parameters/UUID"
       responses:
-        "204":
+        "200":
           description: Group deleted
         default:
           $ref: "#/components/responses/Error"
@@ -1011,13 +990,14 @@ paths:
         content:
           application/json:
             schema:
-              oneOf:
-                - type: string
-                - $ref: "#/components/schemas/NodeFilters"
-              pageSize:
-                type: integer
-              pageToken:
-                type: string
+              type: object
+              properties:
+                filters:
+                  $ref: "#/components/schemas/NodeFilters"
+                pageSize:
+                  type: integer
+                pageToken:
+                  type: integer
       responses:
         "200":
           description: A list of nodes
@@ -1046,7 +1026,8 @@ paths:
                 - file
               properties:
                 metadata:
-                  $ref: "#/components/schemas/NodeMetadata"
+                  type: string
+                  description: JSON string with node metadata
                 file:
                   type: string
                   format: binary
@@ -1106,7 +1087,7 @@ paths:
       parameters:
         - $ref: "#/components/parameters/UUID"
       responses:
-        "204":
+        "200":
           description: Node deleted
         default:
           $ref: "#/components/responses/Error"
@@ -1257,7 +1238,7 @@ paths:
                   type: string
                   format: binary
       responses:
-        "204":
+        "200":
           description: Content updated
         default:
           $ref: "#/components/responses/Error"
@@ -1390,154 +1371,6 @@ paths:
           description: All user notifications cleared successfully
         default:
           $ref: "#/components/responses/Error"
-  /skills:
-    get:
-      tags:
-        - skills
-      summary: List all skills
-      operationId: listSkills
-      responses:
-        "200":
-          description: A list of agent skills
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/AgentSkill"
-        default:
-          $ref: "#/components/responses/Error"
-    post:
-      tags:
-        - skills
-      summary: Create or replace a skill
-      operationId: createOrReplaceSkill
-      requestBody:
-        required: true
-        content:
-          text/markdown:
-            schema:
-              type: string
-              description: Markdown content with YAML frontmatter containing skill definition
-      responses:
-        "201":
-          description: Skill created or replaced successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AgentSkill"
-        default:
-          $ref: "#/components/responses/Error"
-  "/skills/{uuid}":
-    get:
-      tags:
-        - skills
-      summary: Get a skill by UUID
-      operationId: getSkill
-      parameters:
-        - $ref: "#/components/parameters/UUID"
-      responses:
-        "200":
-          description: Skill details
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AgentSkill"
-        default:
-          $ref: "#/components/responses/Error"
-    delete:
-      tags:
-        - skills
-      summary: Delete a skill
-      operationId: deleteSkill
-      parameters:
-        - $ref: "#/components/parameters/UUID"
-      responses:
-        "200":
-          description: Skill deleted successfully
-        default:
-          $ref: "#/components/responses/Error"
-  "/skills/{uuid}/-/export":
-    get:
-      tags:
-        - skills
-      summary: Export a skill as markdown
-      operationId: exportSkill
-      parameters:
-        - $ref: "#/components/parameters/UUID"
-      responses:
-        "200":
-          description: Skill exported as markdown
-          content:
-            text/markdown:
-              schema:
-                type: string
-        default:
-          $ref: "#/components/responses/Error"
-  /skills/-/metadata:
-    get:
-      tags:
-        - skills
-      summary: List skill metadata (Level 1)
-      operationId: listSkillMetadata
-      description: Returns minimal metadata for all skills. Used at agent startup for system prompt. Access control is handled at the agent level.
-      responses:
-        "200":
-          description: List of skill metadata
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/AgentSkillMetadata"
-        default:
-          $ref: "#/components/responses/Error"
-  "/skills/{uuid}/-/load":
-    get:
-      tags:
-        - skills
-      summary: Load skill content (Level 2 + optional Level 3)
-      operationId: loadSkill
-      description: Loads skill instructions. Returns Level 2 content by default. Add resource query params for Level 3 sections. The uuid is the skill name in kebab-case.
-      parameters:
-        - $ref: "#/components/parameters/UUID"
-        - name: resource
-          in: query
-          required: false
-          schema:
-            type: array
-            items:
-              type: string
-          description: Optional Level 3 resource slugs to include (e.g., form-filling, reference)
-      responses:
-        "200":
-          description: Skill content in markdown format
-          content:
-            text/markdown:
-              schema:
-                type: string
-        default:
-          $ref: "#/components/responses/Error"
-  "/skills/{uuid}/-/resources":
-    get:
-      tags:
-        - skills
-      summary: List available Level 3 resources
-      operationId: listSkillResources
-      description: Returns slugs of all Level 3 sections available for the skill. The uuid is the skill name in kebab-case.
-      parameters:
-        - $ref: "#/components/parameters/UUID"
-      responses:
-        "200":
-          description: List of resource slugs
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  type: string
-        default:
-          $ref: "#/components/responses/Error"
   /templates:
     get:
       tags:
@@ -1567,7 +1400,13 @@ paths:
         "200":
           description: Template content
           content:
-            text/plain:
+            text/typescript:
+              schema:
+                type: string
+            text/javascript:
+              schema:
+                type: string
+            application/json:
               schema:
                 type: string
         default:
@@ -1665,9 +1504,14 @@ paths:
       summary: Delete a user
       operationId: deleteUser
       parameters:
-        - $ref: "#/components/parameters/UUID"
+        - name: uuid
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Route parameter name is uuid in the Oak router.
       responses:
-        "204":
+        "200":
           description: User deleted
         default:
           $ref: "#/components/responses/Error"
@@ -1977,7 +1821,7 @@ paths:
       parameters:
         - $ref: "#/components/parameters/UUID"
       responses:
-        "204":
+        "200":
           description: Workflow definition deleted successfully
         "400":
           description: Cannot delete - active instances exist
@@ -2006,87 +1850,45 @@ paths:
           $ref: "#/components/responses/Error"
 components:
   schemas:
-    AIModel:
-      type: object
-      required:
-        - modelName
-        - embeddings
-        - llm
-        - tools
-        - files
-        - reasoning
-      properties:
-        modelName:
-          type: string
-          description: Name identifier for the AI model
-        embeddings:
-          type: boolean
-          description: Whether the model supports embeddings
-        llm:
-          type: boolean
-          description: Whether the model supports LLM capabilities
-        tools:
-          type: boolean
-          description: Whether the model supports tool use
-        files:
-          type: boolean
-          description: Whether the model supports file processing
-        reasoning:
-          type: boolean
-          description: Whether the model supports reasoning capabilities
     Agent:
       type: object
-      description: AI Agent configuration data. Agents are configuration records (not nodes) that define AI assistant behavior.
+      description: AI Agent configuration data.
       required:
         - uuid
-        - title
-        - model
-        - temperature
-        - maxTokens
-        - reasoning
-        - useTools
-        - useSkills
-        - systemInstructions
+        - name
         - createdTime
         - modifiedTime
       properties:
         uuid:
           type: string
           description: Unique identifier for the agent
-        title:
+        name:
           type: string
           description: Display name of the agent
         description:
           type: string
           description: Optional description of the agent's purpose
+        type:
+          type: string
+          enum:
+            ["llm", "sequential", "parallel", "loop"]
+          description: Agent execution type. Defaults to llm.
         model:
           type: string
-          description: LLM model identifier (e.g., "default", "gpt-4", "gemini-pro")
-        temperature:
-          type: number
-          minimum: 0
-          maximum: 2
-          description: Model temperature (0.0 - 2.0)
-        maxTokens:
-          type: integer
-          description: Maximum output tokens
-        reasoning:
-          type: boolean
-          description: Whether to enable chain-of-thought reasoning
-        useTools:
-          type: boolean
-          description: Whether the agent can use SDK tools (nodes, aspects) and custom features
-        useSkills:
-          type: boolean
-          description: Whether the agent can use skills. If true and skillsAllowed is empty, the agent has access to all skills.
-        skillsAllowed:
+          description: Optional model identifier (ADK format). Falls back to tenant default model.
+        tools:
           type: array
-          description: Optional list of skill UUIDs (names in kebab-case) that this agent can use. If empty and useSkills is true, all skills are available.
+          description: Optional list of tool names. Omitted means all tools; empty means no tools.
           items:
             type: string
-        systemInstructions:
+        systemPrompt:
           type: string
-          description: Core prompt/persona instructions for the agent
+          description: System prompt for llm agents.
+        agents:
+          type: array
+          description: Ordered list of sub-agent UUIDs for workflow agents.
+          items:
+            type: string
         createdTime:
           type: string
           format: date-time
@@ -2095,50 +1897,42 @@ components:
           type: string
           format: date-time
           description: When the agent was last modified
-    AgentSkill:
+    CreateAgentRequest:
       type: object
-      description: Agent Skill - a modular capability that extends AI Agent functionality. The uuid is the skill name in kebab-case.
+      description: Request body for creating an agent.
       required:
-        - uuid
-        - title
-        - description
-        - content
-        - createdTime
-        - modifiedTime
+        - name
+      anyOf:
+        - required:
+            - systemPrompt
+        - required:
+            - agents
       properties:
-        uuid:
+        name:
           type: string
-          description: Unique identifier for the skill (same as the skill name in kebab-case, e.g., pdf-processing)
-        title:
-          type: string
-          description: Human-readable title for the skill (derived from uuid in Title Case)
+          description: Display name of the agent
         description:
           type: string
-          description: Brief description for skill discovery (<100 tokens)
-        content:
+          description: Optional description of the agent
+        type:
           type: string
-          description: Full markdown content of the skill (Level 2 + Level 3)
-        createdTime:
+          enum:
+            ["llm", "sequential", "parallel", "loop"]
+        model:
           type: string
-          format: date-time
-          description: When the skill was created
-        modifiedTime:
+          description: Optional model identifier for llm agents
+        tools:
+          type: array
+          items:
+            type: string
+        systemPrompt:
           type: string
-          format: date-time
-          description: When the skill was last modified
-    AgentSkillMetadata:
-      type: object
-      description: Minimal skill metadata for discovery (Level 1)
-      required:
-        - uuid
-        - description
-      properties:
-        uuid:
-          type: string
-          description: Unique identifier for the skill (same as the skill name in kebab-case)
-        description:
-          type: string
-          description: Brief description for skill discovery
+          description: Required for llm agents
+        agents:
+          type: array
+          description: Required (non-empty) for sequential/parallel/loop agents
+          items:
+            type: string
     ApiKey:
       type: object
       description: API Key configuration data for programmatic access.
@@ -2161,7 +1955,7 @@ components:
           description: The API key secret (only returned on creation)
         group:
           type: string
-          description: Group UUID that this API key belongs to (determines permissions)
+          description: Group identifier that this API key belongs to (determines permissions)
         description:
           type: string
           description: Optional description of the API key's purpose
@@ -2237,9 +2031,18 @@ components:
     AnswerOptions:
       type: object
       properties:
-        context:
-          type: object
-          additionalProperties: true
+        files:
+          type: array
+          description: Optional files to include as multimodal context.
+          items:
+            type: string
+            format: binary
+        temperature:
+          type: number
+        maxTokens:
+          type: integer
+        instructions:
+          type: string
     Aspect:
       type: object
       description: Aspect configuration data. Aspects define metadata schemas that can be attached to nodes.
@@ -2276,27 +2079,109 @@ components:
           type: string
           format: date-time
           description: When the aspect was last modified
+    CreateAspectRequest:
+      type: object
+      description: Request body for creating an aspect.
+      required:
+        - title
+      properties:
+        title:
+          type: string
+          description: Display name for the aspect
+        description:
+          type: string
+          description: Optional description of the aspect's purpose
+        filters:
+          $ref: "#/components/schemas/NodeFilters"
+        properties:
+          type: array
+          items:
+            $ref: "#/components/schemas/AspectProperty"
     ChatOptions:
       type: object
       properties:
-        context:
+        history:
+          type: array
+          description: Previous conversation messages.
+          items:
+            type: object
+            properties:
+              role:
+                type: string
+              text:
+                type: string
+              timestamp:
+                type: string
+                format: date-time
+        files:
+          type: array
+          description: Optional files to include as multimodal context.
+          items:
+            type: string
+            format: binary
+        temperature:
+          type: number
+        maxTokens:
+          type: integer
+        instructions:
+          type: string
+    ToolCall:
+      type: object
+      required:
+        - name
+        - args
+      properties:
+        name:
+          type: string
+        args:
           type: object
           additionalProperties: true
-        parent:
+    ToolResponse:
+      type: object
+      required:
+        - name
+        - text
+      properties:
+        name:
           type: string
-          format: uuid
+        text:
+          type: string
+    ChatMessagePart:
+      type: object
+      properties:
+        text:
+          type: string
+        toolCall:
+          $ref: "#/components/schemas/ToolCall"
+        toolResponse:
+          $ref: "#/components/schemas/ToolResponse"
+    ChatMessage:
+      type: object
+      required:
+        - role
+        - parts
+      properties:
+        role:
+          type: string
+          enum:
+            ["user", "model", "tool"]
+        parts:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChatMessagePart"
+    ChatHistory:
+      type: array
+      items:
+        $ref: "#/components/schemas/ChatMessage"
     DocInfo:
       type: object
       required:
-        - id
-        - title
-        - mimetype
+        - uuid
+        - description
       properties:
-        id:
+        uuid:
           type: string
-        title:
-          type: string
-        mimetype:
+        description:
           type: string
     Feature:
       type: object
@@ -2395,6 +2280,71 @@ components:
           type: string
           format: date-time
           description: When the feature was last modified
+    CreateFeatureRequest:
+      type: object
+      description: Request body for creating a feature.
+      required:
+        - title
+        - description
+        - exposeAction
+        - runOnCreates
+        - runOnUpdates
+        - runOnDeletes
+        - runManually
+        - filters
+        - exposeExtension
+        - exposeAITool
+        - groupsAllowed
+        - parameters
+        - returnType
+        - module
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        exposeAction:
+          type: boolean
+        runOnCreates:
+          type: boolean
+        runOnUpdates:
+          type: boolean
+        runOnDeletes:
+          type: boolean
+        runManually:
+          type: boolean
+        filters:
+          type: array
+          items:
+            $ref: "#/components/schemas/NodeFilter"
+        exposeExtension:
+          type: boolean
+        exposeAITool:
+          type: boolean
+        runAs:
+          type: string
+        groupsAllowed:
+          type: array
+          items:
+            type: string
+        parameters:
+          type: array
+          items:
+            $ref: "#/components/schemas/FeatureParameter"
+        returnType:
+          type: string
+          enum:
+            ["string", "number", "boolean", "array", "object", "file", "void"]
+        returnDescription:
+          type: string
+        returnContentType:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        module:
+          type: string
     FeatureActionResult:
       description: Result payload returned when running a feature action. The concrete shape depends on the feature's declared returnType.
       nullable: true
@@ -2904,15 +2854,12 @@ components:
     TemplateInfo:
       type: object
       required:
-        - id
-        - title
-        - mimetype
+        - uuid
+        - description
       properties:
-        id:
+        uuid:
           type: string
-        title:
-          type: string
-        mimetype:
+        description:
           type: string
     WorkflowDefinition:
       type: object
@@ -3398,7 +3345,6 @@ components:
       required: true
       schema:
         type: string
-        format: uuid
   responses:
     Error:
       description: Error

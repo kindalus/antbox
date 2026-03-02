@@ -179,7 +179,7 @@ export function duplicateHandler(tenants: AntboxTenant[]): HttpHandler {
 			const service = getTenant(req, tenants).nodeService;
 			const params = getParams(req);
 			if (!params.uuid) {
-				new Response("{ uuid } not given", { status: 400 });
+				return new Response("{ uuid } not given", { status: 400 });
 			}
 
 			return await service

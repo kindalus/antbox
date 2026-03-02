@@ -20,29 +20,42 @@ export function authenticationMiddleware(
 		const usersServices = new Map<string, UsersService>();
 		const apiKeysServices = new Map<string, ApiKeysService>();
 
-		tenants.forEach(async (tenant) => {
-			const jwkOrErr = await importJwkKey(tenant.rawJwk as unknown as JWK);
+		const initPromise = Promise.all(
+			tenants.map(async (tenant) => {
+				const jwkOrErr = await importJwkKey(tenant.rawJwk as unknown as JWK);
 
-			if (jwkOrErr.isLeft()) {
-				throw jwkOrErr.value;
-			}
+				if (jwkOrErr.isLeft()) {
+					throw jwkOrErr.value;
+				}
 
-			const jwk = jwkOrErr.value;
-			const secret = importKey(tenant.symmetricKey);
+				const jwk = jwkOrErr.value;
+				const secret = importKey(tenant.symmetricKey);
 
-			jwks.set(tenant.name, jwk);
-			secrets.set(tenant.name, secret);
-			usersServices.set(tenant.name, tenant.usersService);
-			apiKeysServices.set(tenant.name, tenant.apiKeysService);
-		});
+				jwks.set(tenant.name, jwk);
+				secrets.set(tenant.name, secret);
+				usersServices.set(tenant.name, tenant.usersService);
+				apiKeysServices.set(tenant.name, tenant.apiKeysService);
+			}),
+		);
 
 		return async (req: Request) => {
+			await initPromise;
+
 			const tenantName = getTenant(req, tenants).name;
+
+			const apiKeysService = apiKeysServices.get(tenantName);
+			const usersService = usersServices.get(tenantName);
+			const secret = secrets.get(tenantName);
+			const jwk = jwks.get(tenantName);
+
+			if (!apiKeysService || !usersService || !secret || !jwk) {
+				storeAnonymous(req);
+				return next(req);
+			}
 
 			const apiKey = getApiKey(req);
 			if (apiKey) {
-				const apiKeysService = apiKeysServices.get(tenantName);
-				await authenticateApiKey(apiKeysService!, req, apiKey);
+				await authenticateApiKey(apiKeysService, req, apiKey);
 				return next(req);
 			}
 
@@ -59,13 +72,10 @@ export function authenticationMiddleware(
 			}
 
 			if (payload.iss === "urn:antbox") {
-				const secret = secrets.get(tenantName)!;
 				await authenticateRoot(secret, req, token);
 				return next(req);
 			}
 
-			const usersService = usersServices.get(tenantName)!;
-			const jwk = jwks.get(tenantName)!;
 			await authenticateToken(jwk, usersService, req, token);
 			return next(req);
 		};

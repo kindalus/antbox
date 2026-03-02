@@ -10,3 +10,7 @@ storage = ["inmem/inmem_storage_provider.ts"]
 repository = ["sqlite/sqlite_node_repository.ts"]
 configurationRepository = ["sqlite/sqlite_configuration_repository.ts"]
 eventStoreRepository = ["sqlite/sqlite_event_store_repository.ts"]
+
+[tenants.ai]
+enabled = false
+defaultModel = "google/gemini-2.5-flash"

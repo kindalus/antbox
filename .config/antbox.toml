@@ -8,3 +8,9 @@ key = "./.config/antbox.key"
 jwk = "./.config/antbox.jwk"
 storage = ["s3/s3_storage_provider.ts", "/path/to/s3_config.json"]
 repository = ["mongodb/mongodb_node_repository.ts", "mongodb://localhost:27017/antbox"]
+configurationRepository = ["mongodb/mongodb_configuration_repository.ts", "mongodb://localhost:27017/antbox"]
+eventStoreRepository = ["mongodb/mongodb_event_store_repository.ts", "mongodb://localhost:27017/antbox"]
+
+[tenants.ai]
+enabled = false
+defaultModel = "google/gemini-2.5-flash"

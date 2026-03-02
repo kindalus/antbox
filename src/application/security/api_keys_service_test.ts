@@ -190,6 +190,28 @@ describe("ApiKeysService", () => {
 			}
 		});
 
+		it("should reject inactive API key secret", async () => {
+			const repo = new InMemoryConfigurationRepository();
+			const service = new ApiKeysService(repo);
+
+			const createResult = await service.createApiKey(adminCtx, {
+				title: "Inactive API Key",
+				group: "developers",
+				active: false,
+			});
+
+			expect(createResult.isRight()).toBe(true);
+			if (createResult.isRight()) {
+				const result = await service.getApiKeyBySecret(createResult.value.secret);
+
+				expect(result.isLeft()).toBe(true);
+				if (result.isLeft()) {
+					expect(result.value.errorCode).toBe("BadRequestError");
+					expect(result.value.message).toBe("API key is inactive");
+				}
+			}
+		});
+
 		it("should return error for non-existent secret", async () => {
 			const repo = new InMemoryConfigurationRepository();
 			const service = new ApiKeysService(repo);

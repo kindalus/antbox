@@ -77,6 +77,10 @@ export class ApiKeysService {
 		// Check builtin API keys first (currently none)
 		const builtinApiKey = BUILTIN_API_KEYS.find((k) => k.secret === secret);
 		if (builtinApiKey) {
+			if (!builtinApiKey.active) {
+				return left(new BadRequestError("API key is inactive"));
+			}
+
 			return right(builtinApiKey);
 		}
 
@@ -89,6 +93,10 @@ export class ApiKeysService {
 		const apiKey = apiKeysOrErr.value.find((k) => k.secret === secret);
 		if (!apiKey) {
 			return left(new BadRequestError(`API key with secret not found`));
+		}
+
+		if (!apiKey.active) {
+			return left(new BadRequestError("API key is inactive"));
 		}
 
 		return right(apiKey);

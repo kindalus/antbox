@@ -75,7 +75,7 @@ Root login expects the SHA-256 hash of the root password (`rootPasswd` in config
 Linux:
 
 ```bash
-curl -X POST http://localhost:7180/login/root \
+curl -X POST http://localhost:7180/v2/login/root \
   -H "Content-Type: text/plain" \
   -d "$(echo -n 'demo' | sha256sum | cut -d' ' -f1)"
 ```
@@ -83,7 +83,7 @@ curl -X POST http://localhost:7180/login/root \
 macOS:
 
 ```bash
-curl -X POST http://localhost:7180/login/root \
+curl -X POST http://localhost:7180/v2/login/root \
   -H "Content-Type: text/plain" \
   -d "$(echo -n 'demo' | shasum -a 256 | cut -d' ' -f1)"
 ```
@@ -125,4 +125,6 @@ curl "http://localhost:7180/v2/nodes?parent=--root--" \
 - Nodes and aspects: `docs/nodes-and-aspects.md`
 - Features: `docs/features.md`
 - AI agents: `docs/ai-agents.md`
+- Workflows: `docs/workflows.md`
+- Security administration: `docs/security-administration.md`
 - Storage providers: `docs/storage-providers.md`

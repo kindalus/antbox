@@ -1,83 +1,108 @@
 # AI Agents
 
-Agents are tenant-scoped configuration records that describe how the AI should behave. They are
-executed by the AgentsEngine using the AI models configured for the tenant.
+Agents are tenant-scoped configuration records executed by `AgentsEngine`.
 
-## Agent Configuration
+Antbox supports two classes of agents:
+
+- `llm`: a single LLM agent with prompt and tool access.
+- workflow agents: orchestration over sub-agents (`sequential`, `parallel`, `loop`).
+
+## AgentData
 
 ```ts
+type AgentType = "llm" | "sequential" | "parallel" | "loop";
+
 interface AgentData {
-  uuid: string; // generated on create
-  title: string;
+  uuid: string;
+  name: string;
   description?: string;
-  model: string; // model name or "default"
-  temperature: number; // 0.0 - 2.0
-  maxTokens: number;
-  reasoning: boolean;
-  useTools: boolean;
-  systemInstructions: string;
+  type?: AgentType; // default: "llm"
+
+  // llm-only
+  model?: string;        // "default" or explicit provider model id
+  tools?: string[];      // undefined = all tools, [] = no tools
+  systemPrompt?: string; // required for llm agents
+
+  // workflow-only
+  agents?: string[];     // required non-empty for workflow agents
+
   createdTime: string;
   modifiedTime: string;
 }
 ```
 
-Notes:
+Validation rules:
 
-- Use `model: "default"` to target the tenant's default model.
-- `useTools: true` enables internal tools (`getSdkDocumentation`, `runCode`).
+- `llm` agents require `systemPrompt`.
+- workflow agents require non-empty `agents`.
+- workflow agents must not define `systemPrompt`, `model`, or `tools`.
+
+## Built-in agents
+
+Every tenant exposes three read-only built-ins:
+
+- `--rag-agent--`
+- `--semantic-searcher-agent--`
+- `--rag-summarizer-agent--`
+
+Built-in agents can be listed and fetched, but cannot be updated or deleted.
 
 ## Endpoints
 
-- **Create**: `POST /v2/agents/-/upload`
-- **List**: `GET /v2/agents`
-- **Get**: `GET /v2/agents/{uuid}`
-- **Delete**: `DELETE /v2/agents/{uuid}`
-- **List models**: `GET /v2/ai-models`
+- `POST /v2/agents/-/upload` - create an agent
+- `GET /v2/agents` - list custom + built-in agents
+- `GET /v2/agents/{uuid}` - get one agent
+- `DELETE /v2/agents/{uuid}` - delete a custom agent
+- `POST /v2/agents/{uuid}/-/chat` - multi-turn chat
+- `POST /v2/agents/{uuid}/-/answer` - single-turn answer
 
-Notes:
+## Create examples
 
-- Create/Delete and model listing require admin privileges.
-
-### Create Example
+### LLM agent
 
 ```json
 {
-  "title": "Support Agent",
-  "description": "Handles common support questions",
+  "name": "Support Agent",
+  "description": "General support assistant",
+  "type": "llm",
   "model": "default",
-  "temperature": 0.3,
-  "maxTokens": 2048,
-  "reasoning": false,
-  "useTools": true,
-  "systemInstructions": "You are a helpful support assistant."
+  "tools": ["runCode"],
+  "systemPrompt": "You are a helpful support assistant."
 }
 ```
 
-## Chat and Answer
+### Sequential workflow agent
 
-### Chat
+```json
+{
+  "name": "RAG Pipeline",
+  "description": "Search then summarize",
+  "type": "sequential",
+  "agents": ["--semantic-searcher-agent--", "--rag-summarizer-agent--"]
+}
+```
+
+## Chat and answer payloads
 
 `POST /v2/agents/{uuid}/-/chat`
 
 ```json
 {
-  "text": "Hello!",
+  "text": "Find documents about invoice approval.",
   "options": {
     "history": [],
-    "temperature": 0.5,
+    "temperature": 0.3,
     "maxTokens": 1024,
-    "instructions": "Keep responses short"
+    "instructions": "Reply with concise bullet points"
   }
 }
 ```
-
-### Answer (single-turn)
 
 `POST /v2/agents/{uuid}/-/answer`
 
 ```json
 {
-  "text": "Summarize the document",
+  "text": "Summarize this topic",
   "options": {
     "temperature": 0.2,
     "maxTokens": 512
@@ -85,23 +110,11 @@ Notes:
 }
 ```
 
-Responses return a chat history (`ChatMessage[]`). Each message has `role` (`user`, `model`, `tool`)
-and `parts` (text/tool call/response).
+## Tools
 
-## RAG Chat
+Current built-in function tool:
 
-`POST /v2/agents/rag/-/chat`
+- `runCode`
 
-```json
-{
-  "text": "What is in this folder?",
-  "options": {
-    "parent": "<folder-uuid>",
-    "history": [],
-    "temperature": 0.4,
-    "maxTokens": 1024
-  }
-}
-```
-
-RAG is only available when AI is enabled for the tenant (models + vector database configured).
+Skill tools are also available when configured for the tenant and included in the agent's `tools`
+allow-list (or when `tools` is omitted).

@@ -5,36 +5,80 @@ export interface DocInfo {
 
 export const DOCS: DocInfo[] = [
 	{
-		uuid: "ai-agents",
-		description: "Guide to AI agents in Antbox",
-	},
-	{
-		uuid: "authentication",
-		description: "Authentication methods and usage",
+		uuid: "getting-started",
+		description: "Getting started guide",
 	},
 	{
 		uuid: "architecture",
 		description: "System architecture overview",
 	},
 	{
-		uuid: "features",
-		description: "Available features documentation",
-	},
-	{
-		uuid: "getting-started",
-		description: "Getting started guide",
-	},
-	{
-		uuid: "llms",
-		description: "Platform context for LLMs",
+		uuid: "authentication",
+		description: "Authentication methods and usage",
 	},
 	{
 		uuid: "nodes-and-aspects",
 		description: "Nodes and aspects explained",
 	},
 	{
+		uuid: "features",
+		description: "Available features documentation",
+	},
+	{
+		uuid: "ai-agents",
+		description: "Guide to AI agents in Antbox",
+	},
+	{
+		uuid: "agent-sdk",
+		description: "Agent runCode SDK reference",
+	},
+	{
+		uuid: "agent-skills",
+		description: "How agent skills work",
+	},
+	{
+		uuid: "workflows",
+		description: "Workflow definitions and instances API",
+	},
+	{
+		uuid: "articles",
+		description: "Articles API and localized content model",
+	},
+	{
+		uuid: "templates",
+		description: "Built-in code template catalog",
+	},
+	{
+		uuid: "notifications",
+		description: "Notifications API usage",
+	},
+	{
+		uuid: "audit",
+		description: "Audit log and deleted-nodes queries",
+	},
+	{
+		uuid: "security-administration",
+		description: "Users, groups, and API keys administration",
+	},
+	{
+		uuid: "llms",
+		description: "Platform context for LLMs",
+	},
+	{
+		uuid: "adapters",
+		description: "Adapters configuration reference",
+	},
+	{
 		uuid: "storage-providers",
 		description: "Storage providers documentation",
+	},
+	{
+		uuid: "webdav",
+		description: "WebDAV integration endpoints and methods",
+	},
+	{
+		uuid: "documentation-api",
+		description: "Documentation discovery and retrieval endpoint",
 	},
 ];
 

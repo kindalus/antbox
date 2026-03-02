@@ -16,7 +16,7 @@ priority order and falls back to anonymous access when none are provided.
 Root login expects the SHA-256 hash of the root password (`rootPasswd` in tenant config).
 
 ```bash
-curl -X POST http://localhost:7180/login/root \
+curl -X POST http://localhost:7180/v2/login/root \
   -H "Content-Type: text/plain" \
   -d "$(echo -n 'demo' | sha256sum | cut -d' ' -f1)"
 ```
@@ -24,7 +24,7 @@ curl -X POST http://localhost:7180/login/root \
 macOS:
 
 ```bash
-curl -X POST http://localhost:7180/login/root \
+curl -X POST http://localhost:7180/v2/login/root \
   -H "Content-Type: text/plain" \
   -d "$(echo -n 'demo' | shasum -a 256 | cut -d' ' -f1)"
 ```
@@ -76,9 +76,9 @@ If omitted, Antbox uses the first tenant in the configuration.
 
 ## Endpoints
 
-- **POST** `/login/root` - root login (returns JWT + cookie)
-- **POST** `/login/logout` - clear auth cookie
-- **GET** `/login/me` - current user profile (requires auth)
+- **POST** `/v2/login/root` - root login (returns JWT + cookie)
+- **POST** `/v2/login/logout` - clear auth cookie
+- **GET** `/v2/login/me` - current user profile (requires auth)
 
 ## Token Expiration
 

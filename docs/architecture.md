@@ -35,8 +35,8 @@ storage provider, keys, and optional AI components.
 - **ConfigurationRepository**: Aspects, features, agents, workflows, users, groups, and API keys.
 - **EventStoreRepository**: Audit event streams (required per tenant).
 
-Note: the configuration repository is currently in-memory only, so configuration data does not
-persist across restarts unless a persistent adapter is added.
+Configuration repositories can be backed by in-memory or persistent adapters depending on tenant
+configuration.
 
 ## Ports and Adapters
 

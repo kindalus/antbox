@@ -25,7 +25,7 @@ import { AgentsService } from "application/ai/agents_service.ts";
 import { AgentsEngine } from "application/ai/agents_engine.ts";
 import { NotificationsService } from "application/notifications/notifications_service.ts";
 import { RAGService } from "application/ai/rag_service.ts";
-import { loadSkillAgents } from "application/ai/skills_loader.ts";
+import { loadSkills } from "application/ai/skills_loader.ts";
 import type { EmbeddingsProvider } from "domain/ai/embeddings_provider.ts";
 import type { OCRProvider } from "domain/ai/ocr_provider.ts";
 import { NullOCRProvider } from "adapters/ocr/null_ocr_provider.ts";
@@ -198,13 +198,9 @@ async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
 		configRepo,
 	});
 
-	// Load skill agents (pre-loaded at startup)
-	const skillAgents = cfg.ai?.enabled
-		? await loadSkillAgents(
-			cfg.ai.defaultModel,
-			BUILTIN_SKILLS_DIR,
-			cfg.ai.skillsPath,
-		)
+	// Load skill metadata (tool-based loading at runtime)
+	const skills = cfg.ai?.enabled
+		? await loadSkills(BUILTIN_SKILLS_DIR, cfg.ai.skillsPath)
 		: [];
 
 	// Create AgentsEngine (execution logic)
@@ -213,7 +209,7 @@ async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
 		nodeService,
 		aspectsService,
 		defaultModel: cfg.ai?.defaultModel ?? "google/gemini-2.5-flash",
-		skillAgents,
+		skills,
 	});
 
 	return {

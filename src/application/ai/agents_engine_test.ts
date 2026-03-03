@@ -86,7 +86,7 @@ function makeContext(overrides: Partial<AgentsEngineContext> = {}): AgentsEngine
 		nodeService: {} as unknown as import("application/nodes/node_service.ts").NodeService,
 		aspectsService: {} as unknown as import("application/aspects/aspects_service.ts").AspectsService,
 		defaultModel: "google/gemini-2.5-flash",
-		skillAgents: [],
+		skills: [],
 		...overrides,
 	};
 }
@@ -102,8 +102,8 @@ describe("AgentsEngine", () => {
 			expect(engine).toBeDefined();
 		});
 
-		it("accepts skill agents", () => {
-			const engine = new AgentsEngine(makeContext({ skillAgents: [] }));
+		it("accepts loaded skills metadata", () => {
+			const engine = new AgentsEngine(makeContext({ skills: [] }));
 			expect(engine).toBeDefined();
 		});
 	});
@@ -163,29 +163,27 @@ describe("AgentsEngine", () => {
 	});
 
 	describe("tools filtering", () => {
-		it("engine can be constructed with skill agents for filtering", async () => {
-			const { AgentTool, LlmAgent } = await import("@google/adk");
-
-			const skill1Agent = new LlmAgent({
-				name: "skill-a",
-				description: "Skill A",
-				instruction: "I am skill A",
-				model: "google/gemini-2.5-flash",
-			});
-
-			const skill2Agent = new LlmAgent({
-				name: "skill-b",
-				description: "Skill B",
-				instruction: "I am skill B",
-				model: "google/gemini-2.5-flash",
-			});
-
-			const skillAgents = [
-				new AgentTool({ agent: skill1Agent }),
-				new AgentTool({ agent: skill2Agent }),
+		it("engine can be constructed with discovered skills for filtering", () => {
+			const skills = [
+				{
+					frontmatter: {
+						name: "skill-a",
+						description: "Skill A",
+					},
+					skillDir: "/tmp/skill-a",
+					skillFile: "/tmp/skill-a/SKILL.md",
+				},
+				{
+					frontmatter: {
+						name: "skill-b",
+						description: "Skill B",
+					},
+					skillDir: "/tmp/skill-b",
+					skillFile: "/tmp/skill-b/SKILL.md",
+				},
 			];
 
-			const engine = new AgentsEngine(makeContext({ skillAgents }));
+			const engine = new AgentsEngine(makeContext({ skills }));
 			expect(engine).toBeDefined();
 		});
 

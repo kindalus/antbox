@@ -1,5 +1,4 @@
 import {
-	AgentTool,
 	FunctionTool,
 	InMemoryRunner,
 	LoopAgent,
@@ -22,6 +21,7 @@ import type { AspectsService } from "../aspects/aspects_service.ts";
 import { NodeServiceProxy } from "../nodes/node_service_proxy.ts";
 import { AspectServiceProxy } from "../aspects/aspect_service_proxy.ts";
 import { createRunCodeTool } from "./builtin_tools/run_code.ts";
+import { loadSkillInstruction, type LoadedSkill } from "./skills_loader.ts";
 
 const APP_NAME = "antbox";
 
@@ -49,7 +49,7 @@ export interface AgentsEngineContext {
 	readonly nodeService: NodeService;
 	readonly aspectsService: AspectsService;
 	readonly defaultModel: string;
-	readonly skillAgents: AgentTool[];
+	readonly skills: LoadedSkill[];
 }
 
 // ============================================================================
@@ -69,14 +69,14 @@ export class AgentsEngine {
 	readonly #nodeService: NodeService;
 	readonly #aspectsService: AspectsService;
 	readonly #defaultModel: string;
-	readonly #skillAgents: AgentTool[];
+	readonly #skills: LoadedSkill[];
 
 	constructor(ctx: AgentsEngineContext) {
 		this.#agentsService = ctx.agentsService;
 		this.#nodeService = ctx.nodeService;
 		this.#aspectsService = ctx.aspectsService;
 		this.#defaultModel = ctx.defaultModel;
-		this.#skillAgents = ctx.skillAgents;
+		this.#skills = ctx.skills;
 	}
 
 	/**
@@ -260,28 +260,17 @@ export class AgentsEngine {
 	async #buildTools(
 		authContext: AuthenticationContext,
 		agentData: AgentData,
-	): Promise<(FunctionTool | AgentTool)[]> {
-		const allFunctionTools = await this.#buildFunctionTools(authContext);
-		const allSkillTools = this.#skillAgents;
-
-		const allTools: (FunctionTool | AgentTool)[] = [
-			...allFunctionTools,
-			...allSkillTools,
-		];
+	): Promise<FunctionTool[]> {
+		const allTools = await this.#buildFunctionTools(authContext);
 
 		// If tools is absent, pass all tools
 		if (agentData.tools === undefined) {
 			return allTools;
 		}
 
-		// If tools is an empty array, no tools
-		if (agentData.tools.length === 0) {
-			return [];
-		}
-
-		// Filter to only named tools
+		// Filter to only named tools, but keep skillLoader always available
 		const allowedNames = new Set(agentData.tools);
-		return allTools.filter((t) => allowedNames.has(t.name));
+		return allTools.filter((t) => t.name === "skillLoader" || allowedNames.has(t.name));
 	}
 
 	async #buildFunctionTools(
@@ -290,6 +279,7 @@ export class AgentsEngine {
 		const nodeProxy = new NodeServiceProxy(this.#nodeService, authContext);
 		const aspectProxy = new AspectServiceProxy(this.#aspectsService, authContext);
 		const runCodeFn = createRunCodeTool(nodeProxy, aspectProxy, {});
+		const availableSkillsText = this.#formatAvailableSkills();
 
 		const runCodeTool = new FunctionTool({
 			name: "runCode",
@@ -303,12 +293,74 @@ export class AgentsEngine {
 			}),
 		});
 
-		return [runCodeTool];
+		const skillLoaderTool = new FunctionTool({
+			name: "skillLoader",
+			description:
+				`Load an Agent Skill to gain more knowledge before completing the task. If you need domain-specific guidance, use this loader. Available skills are:\n${availableSkillsText}`,
+			execute: async ({ name }) => {
+				const skillName = String(name).trim();
+				const skill = this.#skills.find((s) => s.frontmatter.name === skillName);
+
+				if (!skill) {
+					return `Skill '${skillName}' not found. Available skills are:\n${availableSkillsText}`;
+				}
+
+				const instruction = await loadSkillInstruction(skill.skillFile);
+				if (!instruction) {
+					return `Failed to load skill '${skillName}'.`;
+				}
+
+				return [
+					`Skill '${skillName}' loaded. Add this knowledge to your context for the current task:`,
+					`# ${skill.frontmatter.name}`,
+					skill.frontmatter.description,
+					skill.frontmatter.compatibility
+						? `Compatibility: ${skill.frontmatter.compatibility}`
+						: "",
+					skill.frontmatter.license ? `License: ${skill.frontmatter.license}` : "",
+					skill.frontmatter.metadata && Object.keys(skill.frontmatter.metadata).length > 0
+						? `Metadata: ${JSON.stringify(skill.frontmatter.metadata)}`
+						: "",
+					"",
+					instruction,
+				].filter((line) => line.length > 0).join("\n");
+			},
+			parameters: z.object({
+				name: z.string().describe("Skill name to load"),
+			}),
+		});
+
+		return [runCodeTool, skillLoaderTool];
 	}
 
 	// ========================================================================
 	// PRIVATE: HELPERS
 	// ========================================================================
+
+	#formatAvailableSkills(): string {
+		if (this.#skills.length === 0) {
+			return "- (no skills available)";
+		}
+
+		return this.#skills.map((skill) => {
+			const frontmatter = skill.frontmatter;
+			const optional: string[] = [];
+			if (frontmatter.compatibility) {
+				optional.push(`compatibility: ${frontmatter.compatibility}`);
+			}
+			if (frontmatter.license) {
+				optional.push(`license: ${frontmatter.license}`);
+			}
+			if (frontmatter.metadata && Object.keys(frontmatter.metadata).length > 0) {
+				optional.push(`metadata: ${JSON.stringify(frontmatter.metadata)}`);
+			}
+			if (frontmatter.allowedTools && frontmatter.allowedTools.length > 0) {
+				optional.push(`allowed-tools: ${frontmatter.allowedTools.join(" ")}`);
+			}
+			const suffix = optional.length > 0 ? ` (${optional.join(", ")})` : "";
+			return `- ${frontmatter.name}: ${frontmatter.description}${suffix}`;
+		}).join("\n");
+	}
 
 	async #runAndCollect(
 		runner: InMemoryRunner,

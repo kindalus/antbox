@@ -1,64 +1,22 @@
-import { describe, it, beforeEach, afterEach } from "bdd";
+import { afterEach, beforeEach, describe, it } from "bdd";
 import { expect } from "expect";
-import { loadSkillAgents } from "./skills_loader.ts";
-
-// ============================================================================
-// HELPERS
-// ============================================================================
+import { loadSkillInstruction, loadSkills } from "./skills_loader.ts";
 
 async function createTempDir(): Promise<string> {
 	return await Deno.makeTempDir();
 }
 
-/**
- * Creates a skill directory `<root>/<skillName>/SKILL.md` with the given content.
- */
 async function writeSkill(root: string, skillName: string, content: string): Promise<void> {
 	const dir = `${root}/${skillName}`;
 	await Deno.mkdir(dir, { recursive: true });
 	await Deno.writeTextFile(`${dir}/SKILL.md`, content);
 }
 
-// ============================================================================
-// FIXTURES
-// ============================================================================
+function makeSkill(frontmatter: string, body = "# Skill\n\nInstructions\n"): string {
+	return `---\n${frontmatter}\n---\n\n${body}`;
+}
 
-const VALID_SKILL = `---
-name: test-skill
-description: A test skill for unit testing
----
-
-# Test Skill
-
-This is the full instruction content for the test skill.
-It can span multiple paragraphs.
-
-## Details
-
-More detailed information about how to use this skill.
-`;
-
-const SKILL_NO_FRONTMATTER = `# No Frontmatter Skill
-
-This skill file has no YAML frontmatter and should be skipped.
-`;
-
-const SKILL_MISSING_DESCRIPTION = `---
-name: incomplete-skill
----
-
-# Incomplete Skill
-
-Missing the description field.
-`;
-
-const MODEL = "google/gemini-2.5-flash";
-
-// ============================================================================
-// TESTS
-// ============================================================================
-
-describe("loadSkillAgents", () => {
+describe("loadSkills", () => {
 	let tempDir: string;
 
 	beforeEach(async () => {
@@ -69,264 +27,187 @@ describe("loadSkillAgents", () => {
 		await Deno.remove(tempDir, { recursive: true });
 	});
 
-	it("loads skill directories containing SKILL.md and returns one AgentTool per skill", async () => {
-		await writeSkill(tempDir, "test-skill", VALID_SKILL);
+	it("loads valid skills when directory name matches frontmatter name", async () => {
+		await writeSkill(
+			tempDir,
+			"test-skill",
+			makeSkill("name: test-skill\ndescription: A test skill"),
+		);
 
-		const tools = await loadSkillAgents(MODEL, tempDir);
+		const skills = await loadSkills(tempDir);
 
-		expect(tools).toHaveLength(1);
-		expect(tools[0].name).toBe("test-skill");
+		expect(skills).toHaveLength(1);
+		expect(skills[0].frontmatter.name).toBe("test-skill");
+		expect(skills[0].frontmatter.description).toBe("A test skill");
 	});
 
-	it("reads name from SKILL.md frontmatter, not from directory name", async () => {
-		// directory is "my-dir" but frontmatter name is "test-skill"
-		await writeSkill(tempDir, "my-dir", VALID_SKILL);
+	it("skips skill when frontmatter name differs from directory name", async () => {
+		await writeSkill(
+			tempDir,
+			"directory-name",
+			makeSkill("name: different-name\ndescription: Name mismatch"),
+		);
 
-		const tools = await loadSkillAgents(MODEL, tempDir);
+		const skills = await loadSkills(tempDir);
 
-		expect(tools[0].name).toBe("test-skill");
-	});
-
-	it("skips directories without a SKILL.md file", async () => {
-		// bare directory with no SKILL.md
-		await Deno.mkdir(`${tempDir}/empty-dir`);
-		await writeSkill(tempDir, "valid-skill", VALID_SKILL);
-
-		const tools = await loadSkillAgents(MODEL, tempDir);
-
-		expect(tools).toHaveLength(1);
-		expect(tools[0].name).toBe("test-skill");
+		expect(skills).toHaveLength(0);
 	});
 
 	it("skips SKILL.md without valid frontmatter", async () => {
-		await writeSkill(tempDir, "no-front", SKILL_NO_FRONTMATTER);
-		await writeSkill(tempDir, "valid", VALID_SKILL);
+		await writeSkill(tempDir, "no-frontmatter", "# Missing frontmatter\n\nBody\n");
 
-		const tools = await loadSkillAgents(MODEL, tempDir);
+		const skills = await loadSkills(tempDir);
 
-		expect(tools).toHaveLength(1);
-		expect(tools[0].name).toBe("test-skill");
+		expect(skills).toHaveLength(0);
 	});
 
-	it("skips SKILL.md with incomplete frontmatter (missing description)", async () => {
-		await writeSkill(tempDir, "incomplete", SKILL_MISSING_DESCRIPTION);
+	it("skips frontmatter with missing required fields", async () => {
+		await writeSkill(tempDir, "missing-description", makeSkill("name: missing-description"));
 
-		const tools = await loadSkillAgents(MODEL, tempDir);
+		const skills = await loadSkills(tempDir);
 
-		expect(tools).toHaveLength(0);
+		expect(skills).toHaveLength(0);
 	});
 
-	it("ignores flat .md files — only directories are loaded", async () => {
-		await Deno.writeTextFile(`${tempDir}/flat-file.md`, VALID_SKILL);
-		await writeSkill(tempDir, "real-skill", VALID_SKILL);
+	it("enforces skill name constraints from the specification", async () => {
+		await writeSkill(
+			tempDir,
+			"Bad-Name",
+			makeSkill("name: Bad-Name\ndescription: Uppercase should fail"),
+		);
+		await writeSkill(
+			tempDir,
+			"bad--name",
+			makeSkill("name: bad--name\ndescription: Double hyphen should fail"),
+		);
 
-		const tools = await loadSkillAgents(MODEL, tempDir);
+		const skills = await loadSkills(tempDir);
 
-		expect(tools).toHaveLength(1);
+		expect(skills).toHaveLength(0);
 	});
 
-	it("loads multiple skill directories", async () => {
-		const skill2 = `---
-name: second-skill
-description: The second test skill
----
-
-# Second Skill
-`;
-		await writeSkill(tempDir, "first", VALID_SKILL);
-		await writeSkill(tempDir, "second", skill2);
-
-		const tools = await loadSkillAgents(MODEL, tempDir);
-
-		expect(tools).toHaveLength(2);
-		const names = tools.map((t) => t.name).sort();
-		expect(names).toContain("test-skill");
-		expect(names).toContain("second-skill");
-	});
-
-	it("returns empty array when builtin dir does not exist", async () => {
-		const nonExistent = `${tempDir}/does-not-exist`;
-
-		const tools = await loadSkillAgents(MODEL, nonExistent);
-
-		expect(tools).toHaveLength(0);
-	});
-
-	it("loads skills from extra path when provided", async () => {
+	it("loads skills from builtin and extra paths with dedupe by name", async () => {
 		const extraDir = await createTempDir();
-		const extraSkill = `---
-name: extra-skill
-description: An extra skill from additional path
----
 
-# Extra Skill
-`;
-		await writeSkill(tempDir, "builtin", VALID_SKILL);
-		await writeSkill(extraDir, "extra", extraSkill);
+		await writeSkill(
+			tempDir,
+			"shared-skill",
+			makeSkill("name: shared-skill\ndescription: Builtin version"),
+		);
+		await writeSkill(
+			extraDir,
+			"shared-skill",
+			makeSkill("name: shared-skill\ndescription: Extra version"),
+		);
+		await writeSkill(
+			extraDir,
+			"extra-skill",
+			makeSkill("name: extra-skill\ndescription: Extra only"),
+		);
 
-		const tools = await loadSkillAgents(MODEL, tempDir, extraDir);
+		const skills = await loadSkills(tempDir, extraDir);
 
-		expect(tools).toHaveLength(2);
-		const names = tools.map((t) => t.name).sort();
-		expect(names).toContain("test-skill");
-		expect(names).toContain("extra-skill");
+		expect(skills).toHaveLength(2);
+		const names = skills.map((s) => s.frontmatter.name).sort();
+		expect(names).toEqual(["extra-skill", "shared-skill"]);
+
+		const shared = skills.find((s) => s.frontmatter.name === "shared-skill");
+		expect(shared?.frontmatter.description).toBe("Extra version");
 
 		await Deno.remove(extraDir, { recursive: true });
 	});
 
-	it("returns only builtin skills when extra path does not exist", async () => {
-		await writeSkill(tempDir, "builtin", VALID_SKILL);
-		const nonExistentExtra = `${tempDir}/nonexistent-extra`;
+	it("parses allowed-tools as space-delimited list", async () => {
+		await writeSkill(
+			tempDir,
+			"code-skill",
+			makeSkill(
+				"name: code-skill\ndescription: Uses tools\nallowed-tools: Bash(git:*) Read",
+			),
+		);
 
-		const tools = await loadSkillAgents(MODEL, tempDir, nonExistentExtra);
+		const skills = await loadSkills(tempDir);
 
-		expect(tools).toHaveLength(1);
+		expect(skills).toHaveLength(1);
+		expect(skills[0].frontmatter.allowedTools).toEqual(["Bash(git:*)", "Read"]);
 	});
 
-	it("parses explicit type: llm", async () => {
-		const skill = `---
-name: explicit-llm-skill
-description: Explicitly typed LLM skill
-type: llm
----
+	it("skips skills with non-spec frontmatter fields", async () => {
+		await writeSkill(
+			tempDir,
+			"custom-field-skill",
+			makeSkill(
+				"name: custom-field-skill\ndescription: Invalid custom fields\nuser-invocable: false",
+			),
+		);
 
-# LLM Skill
-`;
-		await writeSkill(tempDir, "llm-skill", skill);
+		const skills = await loadSkills(tempDir);
 
-		const tools = await loadSkillAgents(MODEL, tempDir);
-
-		expect(tools).toHaveLength(1);
-		expect(tools[0].name).toBe("explicit-llm-skill");
+		expect(skills).toHaveLength(0);
 	});
 
-	it("parses custom model override", async () => {
-		const skill = `---
-name: custom-model-skill
-description: Skill with a custom model
-type: llm
-model: anthropic/claude-opus-4
----
+	it("accepts optional spec fields license, compatibility, and metadata", async () => {
+		await writeSkill(
+			tempDir,
+			"rich-skill",
+			makeSkill(
+				"name: rich-skill\ndescription: Includes optional fields\nlicense: Apache-2.0\ncompatibility: Requires git and internet\nmetadata:\n  author: antbox\n  version: \"1.0\"",
+			),
+		);
 
-# Custom Model Skill
-`;
-		await writeSkill(tempDir, "model-skill", skill);
+		const skills = await loadSkills(tempDir);
 
-		const tools = await loadSkillAgents(MODEL, tempDir);
-
-		expect(tools).toHaveLength(1);
-		expect(tools[0].name).toBe("custom-model-skill");
+		expect(skills).toHaveLength(1);
+		expect(skills[0].frontmatter.license).toBe("Apache-2.0");
+		expect(skills[0].frontmatter.compatibility).toBe("Requires git and internet");
+		expect(skills[0].frontmatter.metadata).toEqual({ author: "antbox", version: "1.0" });
 	});
 
-	it("parses allowed-tools as comma-separated string", async () => {
-		const skill = `---
-name: code-skill
-description: A skill that uses runCode
-allowed-tools: runCode
----
+	it("skips invalid metadata values (must be string map)", async () => {
+		await writeSkill(
+			tempDir,
+			"invalid-metadata",
+			makeSkill(
+				"name: invalid-metadata\ndescription: Invalid metadata\nmetadata:\n  author: antbox\n  version: 1",
+			),
+		);
 
-# Code Skill
-`;
-		await writeSkill(tempDir, "code-skill", skill);
+		const skills = await loadSkills(tempDir);
 
-		// Skills with allowed-tools pointing to non-existent skill tools
-		// just load without those tools (function tools injected by engine)
-		const tools = await loadSkillAgents(MODEL, tempDir);
+		expect(skills).toHaveLength(0);
+	});
+});
 
-		expect(tools).toHaveLength(1);
-		expect(tools[0].name).toBe("code-skill");
+describe("loadSkillInstruction", () => {
+	let tempDir: string;
+
+	beforeEach(async () => {
+		tempDir = await createTempDir();
 	});
 
-	it("parses allowed-tools as YAML list", async () => {
-		const skill = `---
-name: multi-tool-skill
-description: A skill with multiple allowed tools
-allowed-tools:
-  - runCode
-  - some-other-skill
----
-
-# Multi-Tool Skill
-`;
-		await writeSkill(tempDir, "multi-skill", skill);
-
-		const tools = await loadSkillAgents(MODEL, tempDir);
-
-		expect(tools).toHaveLength(1);
-		expect(tools[0].name).toBe("multi-tool-skill");
+	afterEach(async () => {
+		await Deno.remove(tempDir, { recursive: true });
 	});
 
-	it("loads sequential workflow skill that references sub-skills by name", async () => {
-		const subSkillA = `---
-name: sub-skill-a
-description: First sub-skill
----
+	it("returns instruction body without frontmatter", async () => {
+		await writeSkill(
+			tempDir,
+			"instruction-skill",
+			makeSkill("name: instruction-skill\ndescription: Has body", "# Header\n\nBody content\n"),
+		);
 
-# Sub Skill A
-`;
-		const subSkillB = `---
-name: sub-skill-b
-description: Second sub-skill
----
+		const instruction = await loadSkillInstruction(`${tempDir}/instruction-skill/SKILL.md`);
 
-# Sub Skill B
-`;
-		const pipeline = `---
-name: my-pipeline
-description: A sequential pipeline
-type: sequential
-agents:
-  - sub-skill-a
-  - sub-skill-b
----
-`;
-		await writeSkill(tempDir, "sub-a", subSkillA);
-		await writeSkill(tempDir, "sub-b", subSkillB);
-		await writeSkill(tempDir, "pipeline", pipeline);
-
-		const tools = await loadSkillAgents(MODEL, tempDir);
-
-		// 2 LLM sub-skills + 1 sequential pipeline
-		expect(tools).toHaveLength(3);
-		const names = tools.map((t) => t.name);
-		expect(names).toContain("sub-skill-a");
-		expect(names).toContain("sub-skill-b");
-		expect(names).toContain("my-pipeline");
+		expect(instruction).toContain("# Header");
+		expect(instruction).toContain("Body content");
+		expect(instruction?.includes("name: instruction-skill")).toBe(false);
 	});
 
-	it("skips workflow skill with all-unknown sub-skill references", async () => {
-		const pipeline = `---
-name: broken-pipeline
-description: A pipeline with unknown sub-skills
-type: sequential
-agents:
-  - nonexistent-skill
----
-`;
-		await writeSkill(tempDir, "broken", pipeline);
+	it("returns undefined when file is invalid", async () => {
+		await writeSkill(tempDir, "invalid", "# no frontmatter");
 
-		const tools = await loadSkillAgents(MODEL, tempDir);
+		const instruction = await loadSkillInstruction(`${tempDir}/invalid/SKILL.md`);
 
-		expect(tools).toHaveLength(0);
-	});
-
-	it("parses user-invocable: false without breaking loading", async () => {
-		const skill = `---
-name: background-skill
-description: A background knowledge skill
-user-invocable: false
----
-
-# Background Skill
-
-This skill is not user-invocable.
-`;
-		await writeSkill(tempDir, "bg-skill", skill);
-
-		const tools = await loadSkillAgents(MODEL, tempDir);
-
-		// Still loads — user-invocable is metadata, doesn't affect ADK agent creation
-		expect(tools).toHaveLength(1);
-		expect(tools[0].name).toBe("background-skill");
+		expect(instruction).toBeUndefined();
 	});
 });

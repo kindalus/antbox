@@ -1,3 +1,8 @@
+---
+name: authentication
+description: Authentication methods and usage
+---
+
 # Authentication
 
 Antbox supports multiple authentication methods. The server evaluates credentials in a fixed

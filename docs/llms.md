@@ -1,3 +1,8 @@
+---
+name: llms
+description: Platform context for LLMs
+---
+
 # Antbox LLM Playbook
 
 This file is the practical runtime guide for LLM agents that need to operate Antbox safely and

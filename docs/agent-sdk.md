@@ -1,3 +1,8 @@
+---
+name: agent-sdk
+description: Agent runCode SDK reference
+---
+
 # Agent SDK
 
 Antbox agents use the `runCode` tool to execute server-side JavaScript/TypeScript.

@@ -1,3 +1,8 @@
+---
+name: security-administration
+description: Users, groups, and API keys administration
+---
+
 # Security Administration
 
 This guide covers user, group, and API key administration endpoints.

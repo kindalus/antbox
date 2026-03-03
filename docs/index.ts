@@ -21,6 +21,10 @@ export const DOCS: DocInfo[] = [
 		description: "Nodes and aspects explained",
 	},
 	{
+		uuid: "node-querying",
+		description: "Query and search nodes with semantic, metadata, and aspect filters",
+	},
+	{
 		uuid: "features",
 		description: "Available features documentation",
 	},
@@ -84,6 +88,15 @@ export const DOCS: DocInfo[] = [
 
 const DOCS_DIR = "./";
 
+function stripFrontmatter(markdown: string): string {
+	const match = markdown.match(/^---\r?\n[\s\S]*?\r?\n---\r?\n?([\s\S]*)$/);
+	if (!match) {
+		return markdown;
+	}
+
+	return match[1].trimStart();
+}
+
 /**
  * Load documentation file content by UUID
  */
@@ -94,9 +107,10 @@ export async function loadDoc(
 		const content = await import(`${DOCS_DIR}${uuid}.md`, {
 			with: { type: "text" },
 		});
+		const markdown = content.default ? content.default : content;
 
 		return {
-			content: content.default ? content.default : content,
+			content: stripFrontmatter(markdown),
 			mimetype: "text/markdown",
 		};
 	} catch (_error) {

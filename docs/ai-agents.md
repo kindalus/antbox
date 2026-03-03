@@ -1,3 +1,8 @@
+---
+name: ai-agents
+description: Guide to AI agents in Antbox
+---
+
 # AI Agents
 
 Agents are tenant-scoped configuration records executed by `AgentsEngine`.

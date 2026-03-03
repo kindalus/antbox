@@ -1,3 +1,8 @@
+---
+name: notifications
+description: Notifications API usage
+---
+
 # Notifications
 
 Notifications are stored in configuration and can target:

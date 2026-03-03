@@ -1,3 +1,8 @@
+---
+name: templates
+description: Built-in code template catalog
+---
+
 # Templates
 
 Templates are static assets served by the API, commonly used to bootstrap custom features and

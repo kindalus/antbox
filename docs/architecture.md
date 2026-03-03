@@ -1,3 +1,8 @@
+---
+name: architecture
+description: System architecture overview
+---
+
 # Architecture
 
 Antbox is built with a Hexagonal (Ports and Adapters) architecture. Core business rules live in the

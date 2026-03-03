@@ -1,3 +1,8 @@
+---
+name: articles
+description: Articles API and localized content model
+---
+
 # Articles
 
 Articles are nodes with mimetype `application/vnd.antbox.article` and localized content metadata.

@@ -1,3 +1,8 @@
+---
+name: nodes-and-aspects
+description: Nodes and aspects explained
+---
+
 # Nodes and Aspects
 
 ## Nodes

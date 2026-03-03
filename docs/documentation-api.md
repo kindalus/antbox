@@ -1,3 +1,8 @@
+---
+name: documentation-api
+description: Documentation discovery and retrieval endpoint
+---
+
 # Documentation API
 
 Antbox serves built-in documentation through dedicated endpoints.

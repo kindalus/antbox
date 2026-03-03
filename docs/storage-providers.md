@@ -1,3 +1,8 @@
+---
+name: storage-providers
+description: Storage providers documentation
+---
+
 # Storage Providers
 
 Storage providers store the binary content of file nodes. Metadata is stored separately in a

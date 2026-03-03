@@ -1,3 +1,8 @@
+---
+name: getting-started
+description: Getting started guide
+---
+
 # Getting Started
 
 This guide walks you through running Antbox locally.

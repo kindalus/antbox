@@ -1,10 +1,13 @@
 import { parse as parseYaml } from "@std/yaml";
 import { Logger } from "shared/logger.ts";
+import { DOCS } from "../../../docs/index.ts";
+import { fromFileUrl } from "jsr:@std/path@1.1.2";
 
 const SKILL_NAME_REGEX = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const MAX_SKILL_NAME_LENGTH = 64;
 const MAX_SKILL_DESCRIPTION_LENGTH = 1024;
 const MAX_SKILL_COMPATIBILITY_LENGTH = 500;
+const DOCUMENTATION_DIR = fromFileUrl(new URL("../../../docs", import.meta.url));
 const SKILL_FRONTMATTER_KEYS = new Set([
 	"name",
 	"description",
@@ -27,6 +30,10 @@ export interface LoadedSkill {
 	frontmatter: SkillFrontmatter;
 	skillDir: string;
 	skillFile: string;
+}
+
+export interface LoadSkillsOptions {
+	includeDocumentationSkills?: boolean;
 }
 
 interface ParsedSkill {
@@ -187,6 +194,50 @@ async function readSkillsFromDirectory(dirPath: string): Promise<LoadedSkill[]> 
 }
 
 /**
+ * Discover documentation files (docs/*.md listed in docs/index.ts) as skills.
+ *
+ * This keeps skills aligned with the public documentation registry and allows
+ * docs to be loaded through the skillLoader tool.
+ */
+export async function loadSkillsFromDocumentation(): Promise<LoadedSkill[]> {
+	const results: LoadedSkill[] = [];
+
+	for (const doc of DOCS) {
+		const skillFile = `${DOCUMENTATION_DIR}/${doc.uuid}.md`;
+
+		try {
+			const markdown = await Deno.readTextFile(skillFile);
+			const parsedSkill = parseSkillMarkdown(markdown);
+
+			if (!parsedSkill) {
+				Logger.warn(`skills_loader: skipping doc ${skillFile} - invalid skill frontmatter`);
+				continue;
+			}
+
+			if (
+				parsedSkill.frontmatter.name !== doc.uuid ||
+				parsedSkill.frontmatter.description !== doc.description
+			) {
+				Logger.warn(
+					`skills_loader: skipping doc ${skillFile} - frontmatter does not match docs/index.ts`,
+				);
+				continue;
+			}
+
+			results.push({
+				skillDir: DOCUMENTATION_DIR,
+				skillFile,
+				frontmatter: parsedSkill.frontmatter,
+			});
+		} catch (error) {
+			Logger.warn(`skills_loader: failed reading documentation skill ${skillFile}: ${error}`);
+		}
+	}
+
+	return results;
+}
+
+/**
  * Discover skills from builtin and optional extra directories.
  *
  * The result includes only metadata + file locations (no runtime skill execution wrappers).
@@ -194,12 +245,15 @@ async function readSkillsFromDirectory(dirPath: string): Promise<LoadedSkill[]> 
 export async function loadSkills(
 	builtinSkillsDir: string,
 	extraSkillsPath?: string,
+	options?: LoadSkillsOptions,
 ): Promise<LoadedSkill[]> {
+	const includeDocumentationSkills = options?.includeDocumentationSkills ?? true;
+	const documentationSkills = includeDocumentationSkills ? await loadSkillsFromDocumentation() : [];
 	const builtinSkills = await readSkillsFromDirectory(builtinSkillsDir);
 	const extraSkills = extraSkillsPath ? await readSkillsFromDirectory(extraSkillsPath) : [];
 
 	const byName = new Map<string, LoadedSkill>();
-	for (const skill of [...builtinSkills, ...extraSkills]) {
+	for (const skill of [...documentationSkills, ...builtinSkills, ...extraSkills]) {
 		const existing = byName.get(skill.frontmatter.name);
 		if (existing) {
 			Logger.warn(
@@ -214,7 +268,7 @@ export async function loadSkills(
 	);
 
 	Logger.info(
-		`skills_loader: loaded ${builtinSkills.length} builtin + ${extraSkills.length} extra skills (${skills.length} total unique)`,
+		`skills_loader: loaded ${documentationSkills.length} docs + ${builtinSkills.length} builtin + ${extraSkills.length} extra skills (${skills.length} total unique)`,
 	);
 
 	return skills;

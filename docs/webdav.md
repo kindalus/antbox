@@ -1,3 +1,8 @@
+---
+name: webdav
+description: WebDAV integration endpoints and methods
+---
+
 # WebDAV
 
 Antbox exposes a WebDAV adapter under `/webdav`.

@@ -1,3 +1,8 @@
+---
+name: audit
+description: Audit log and deleted-nodes queries
+---
+
 # Audit
 
 Antbox writes node lifecycle events into an event store (`NodeCreated`, `NodeUpdated`,

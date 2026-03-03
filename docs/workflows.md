@@ -1,3 +1,8 @@
+---
+name: workflows
+description: Workflow definitions and instances API
+---
+
 # Workflows
 
 Antbox workflows define state machines for nodes and track runtime instances.

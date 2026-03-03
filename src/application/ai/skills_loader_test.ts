@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, it } from "bdd";
 import { expect } from "expect";
-import { loadSkillInstruction, loadSkills } from "./skills_loader.ts";
+import { loadSkillInstruction, loadSkills, loadSkillsFromDocumentation } from "./skills_loader.ts";
+import { DOCS } from "../../../docs/index.ts";
 
 async function createTempDir(): Promise<string> {
 	return await Deno.makeTempDir();
@@ -34,7 +35,7 @@ describe("loadSkills", () => {
 			makeSkill("name: test-skill\ndescription: A test skill"),
 		);
 
-		const skills = await loadSkills(tempDir);
+		const skills = await loadSkills(tempDir, undefined, { includeDocumentationSkills: false });
 
 		expect(skills).toHaveLength(1);
 		expect(skills[0].frontmatter.name).toBe("test-skill");
@@ -48,7 +49,7 @@ describe("loadSkills", () => {
 			makeSkill("name: different-name\ndescription: Name mismatch"),
 		);
 
-		const skills = await loadSkills(tempDir);
+		const skills = await loadSkills(tempDir, undefined, { includeDocumentationSkills: false });
 
 		expect(skills).toHaveLength(0);
 	});
@@ -56,7 +57,7 @@ describe("loadSkills", () => {
 	it("skips SKILL.md without valid frontmatter", async () => {
 		await writeSkill(tempDir, "no-frontmatter", "# Missing frontmatter\n\nBody\n");
 
-		const skills = await loadSkills(tempDir);
+		const skills = await loadSkills(tempDir, undefined, { includeDocumentationSkills: false });
 
 		expect(skills).toHaveLength(0);
 	});
@@ -64,7 +65,7 @@ describe("loadSkills", () => {
 	it("skips frontmatter with missing required fields", async () => {
 		await writeSkill(tempDir, "missing-description", makeSkill("name: missing-description"));
 
-		const skills = await loadSkills(tempDir);
+		const skills = await loadSkills(tempDir, undefined, { includeDocumentationSkills: false });
 
 		expect(skills).toHaveLength(0);
 	});
@@ -81,7 +82,7 @@ describe("loadSkills", () => {
 			makeSkill("name: bad--name\ndescription: Double hyphen should fail"),
 		);
 
-		const skills = await loadSkills(tempDir);
+		const skills = await loadSkills(tempDir, undefined, { includeDocumentationSkills: false });
 
 		expect(skills).toHaveLength(0);
 	});
@@ -105,7 +106,7 @@ describe("loadSkills", () => {
 			makeSkill("name: extra-skill\ndescription: Extra only"),
 		);
 
-		const skills = await loadSkills(tempDir, extraDir);
+		const skills = await loadSkills(tempDir, extraDir, { includeDocumentationSkills: false });
 
 		expect(skills).toHaveLength(2);
 		const names = skills.map((s) => s.frontmatter.name).sort();
@@ -126,7 +127,7 @@ describe("loadSkills", () => {
 			),
 		);
 
-		const skills = await loadSkills(tempDir);
+		const skills = await loadSkills(tempDir, undefined, { includeDocumentationSkills: false });
 
 		expect(skills).toHaveLength(1);
 		expect(skills[0].frontmatter.allowedTools).toEqual(["Bash(git:*)", "Read"]);
@@ -141,7 +142,7 @@ describe("loadSkills", () => {
 			),
 		);
 
-		const skills = await loadSkills(tempDir);
+		const skills = await loadSkills(tempDir, undefined, { includeDocumentationSkills: false });
 
 		expect(skills).toHaveLength(0);
 	});
@@ -155,7 +156,7 @@ describe("loadSkills", () => {
 			),
 		);
 
-		const skills = await loadSkills(tempDir);
+		const skills = await loadSkills(tempDir, undefined, { includeDocumentationSkills: false });
 
 		expect(skills).toHaveLength(1);
 		expect(skills[0].frontmatter.license).toBe("Apache-2.0");
@@ -172,9 +173,22 @@ describe("loadSkills", () => {
 			),
 		);
 
-		const skills = await loadSkills(tempDir);
+		const skills = await loadSkills(tempDir, undefined, { includeDocumentationSkills: false });
 
 		expect(skills).toHaveLength(0);
+	});
+});
+
+describe("loadSkillsFromDocumentation", () => {
+	it("loads docs declared in docs/index.ts as skills", async () => {
+		const skills = await loadSkillsFromDocumentation();
+
+		expect(skills).toHaveLength(DOCS.length);
+		for (const doc of DOCS) {
+			const loaded = skills.find((s) => s.frontmatter.name === doc.uuid);
+			expect(loaded).toBeDefined();
+			expect(loaded?.frontmatter.description).toBe(doc.description);
+		}
 	});
 });
 

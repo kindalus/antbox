@@ -1,3 +1,8 @@
+---
+name: features
+description: Available features documentation
+---
+
 # Features
 
 Features are executable server-side modules. Each feature is stored as a configuration record with

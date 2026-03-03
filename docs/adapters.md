@@ -1,3 +1,8 @@
+---
+name: adapters
+description: Adapters configuration reference
+---
+
 # Adapters
 
 Antbox uses a ports-and-adapters architecture. Each tenant is assembled from adapter modules loaded

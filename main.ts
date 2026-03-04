@@ -14,6 +14,19 @@ interface CommandOpts {
 	sandbox?: boolean;
 }
 
+interface ListenEvent {
+	hostname?: string;
+	port?: number;
+}
+
+function toUrlHost(hostname: string): string {
+	if (hostname.includes(":")) {
+		return `[${hostname}]`;
+	}
+
+	return hostname;
+}
+
 /**
  * Loads tenants and starts the configured server engine.
  *
@@ -48,10 +61,17 @@ async function startServer(config: ServerConfiguration) {
 	const port = config.port || PORT;
 
 	startServerFn({ port }).then((evt: unknown) => {
+		const listenEvent = evt as ListenEvent;
+		const effectiveHostname = toUrlHost(listenEvent.hostname ?? "localhost");
+		const effectivePort = listenEvent.port ?? port;
+		const baseUrl = `http://${effectiveHostname}:${effectivePort}`;
+
 		console.log(
-			`Antbox Server (${config.engine}) started successfully on port ::`,
-			(evt as Record<string, string>).port,
+			`Antbox Server (${config.engine}) started successfully on ${baseUrl}`,
 		);
+		console.log(`- ${baseUrl}/v2 for REST API`);
+		console.log(`- ${baseUrl}/mcp for MCP`);
+		console.log(`- ${baseUrl}/webdav for WebDAV`);
 	});
 }
 

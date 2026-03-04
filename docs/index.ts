@@ -81,6 +81,10 @@ export const DOCS: DocInfo[] = [
 		description: "WebDAV integration endpoints and methods",
 	},
 	{
+		uuid: "mcp",
+		description: "Model Context Protocol endpoint and tool/resource catalog",
+	},
+	{
 		uuid: "documentation-api",
 		description: "Documentation discovery and retrieval endpoint",
 	},

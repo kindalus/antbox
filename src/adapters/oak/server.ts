@@ -11,6 +11,7 @@ import actionsRouter from "adapters/oak/actions_v2_router.ts";
 import extensionsRouter from "adapters/oak/extensions_v2_router.ts";
 import templatesRouter from "adapters/oak/templates_v2_router.ts";
 import docsRouter from "adapters/oak/docs_v2_router.ts";
+import mcpRouter from "adapters/oak/mcp_v2_router.ts";
 import workflowsRouter from "adapters/oak/workflows_v2_router.ts";
 import articlesRouter from "adapters/oak/articles_v2_router.ts";
 import auditRouter from "adapters/oak/audit_v2_router.ts";
@@ -50,6 +51,7 @@ export default function setupOakServer(
 	const extensions = extensionsRouter(tenants);
 	const templates = templatesRouter(tenants);
 	const docs = docsRouter(tenants);
+	const mcp = mcpRouter(tenants);
 	const login = loginRouter(tenants);
 	const workflows = workflowsRouter(tenants);
 	const articles = articlesRouter(tenants);
@@ -76,6 +78,7 @@ export default function setupOakServer(
 	v2.use(notifications.routes(), notifications.allowedMethods());
 
 	app.use(v2.routes(), v2.allowedMethods());
+	app.use(mcp.routes(), mcp.allowedMethods());
 	app.use(webdav.routes(), webdav.allowedMethods());
 
 	return (options: HttpServerOpts = { port: 7180 }) => {

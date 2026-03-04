@@ -11,6 +11,7 @@ single API-first runtime.
 - **Document Management** - Files, folders, smart folders, metadata, and permissions
 - **Search** - Structured filters, full-text search, and semantic search
 - **AI Agents + Skills** - ADK-based agents, built-in RAG agents, and custom skills
+- **MCP Server** - JSON-RPC endpoint with tenant-aware tools/resources for LLM clients
 - **Custom Features** - Run JavaScript/TypeScript modules as actions/extensions/AI tools
 - **Workflows** - Workflow definitions + runtime instances with transitions
 - **Multi-Tenant** - Tenant-level isolation for repositories, storage, and keys
@@ -72,6 +73,13 @@ curl -sS -X POST "$BASE_URL/v2/nodes/-/find" \
   -H "Authorization: Bearer $JWT" \
   -H "Content-Type: application/json" \
   -d '{"filters":"?contract approval policy","pageSize":10,"pageToken":1}'
+
+# MCP handshake
+curl -sS -X POST "$BASE_URL/mcp" \
+  -H "X-Tenant: $TENANT" \
+  -H "Authorization: Bearer $JWT" \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05"}}'
 ```
 
 ## Running the Server
@@ -82,13 +90,13 @@ Use `start_server.sh`:
 ./start_server.sh [OPTIONS]
 ```
 
-| Option | Description |
-|--------|-------------|
-| `--demo` | Demo config (`.config/demo.toml`) |
-| `--sandbox` | Sandbox config (`.config/sandbox.toml`) |
+| Option              | Description                                        |
+| ------------------- | -------------------------------------------------- |
+| `--demo`            | Demo config (`.config/demo.toml`)                  |
+| `--sandbox`         | Sandbox config (`.config/sandbox.toml`)            |
 | `-f, --config FILE` | Custom config file (default `.config/antbox.toml`) |
-| `--keys` | Generate and print crypto keys, then exit |
-| `-h, --help` | Show help |
+| `--keys`            | Generate and print crypto keys, then exit          |
+| `-h, --help`        | Show help                                          |
 
 Examples:
 
@@ -143,12 +151,14 @@ Full contract: `openapi.yaml`
 
 ### Authentication methods
 
-| Method | Format |
-|--------|--------|
-| Bearer token | `Authorization: Bearer <jwt>` |
-| Cookie | `token=<jwt>` |
+| Method         | Format                           |
+| -------------- | -------------------------------- |
+| Bearer token   | `Authorization: Bearer <jwt>`    |
+| Cookie         | `token=<jwt>`                    |
 | API key header | `Authorization: ApiKey <secret>` |
-| API key query | `?api_key=<secret>` |
+| API key query  | `?api_key=<secret>`              |
+
+MCP endpoint (`/mcp`) only accepts bearer tokens.
 
 Optional tenant selection:
 
@@ -185,6 +195,7 @@ Optional tenant selection:
   - `/v2/users`, `/v2/groups`, `/v2/api-keys`
 - **Other APIs**
   - `/v2/articles`, `/v2/notifications`, `/v2/audit`, `/v2/templates`, `/v2/docs`
+  - `/mcp`
   - `/webdav/*`
 
 ## Development

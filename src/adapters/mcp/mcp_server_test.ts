@@ -148,10 +148,9 @@ describe("mcp_server", () => {
 		const names = tools.map((t) => t.name).sort();
 
 		expect(names).toEqual([
-			"nodes.exportText",
 			"nodes.find",
 			"nodes.get",
-			"nodes.updateMetadata",
+			"nodes.list",
 		]);
 	});
 
@@ -169,6 +168,36 @@ describe("mcp_server", () => {
 						filters: [["parent", "==", "public-folder"]],
 						pageSize: 10,
 						pageToken: 1,
+					},
+				},
+			},
+			fixture.memberContext,
+		);
+
+		expect(response?.error).toBeUndefined();
+
+		const toolResult = response?.result as {
+			isError?: boolean;
+			structuredContent?: { nodes: Array<{ uuid: string }> };
+		};
+
+		expect(toolResult.isError).toBeUndefined();
+		expect(toolResult.structuredContent?.nodes).toHaveLength(1);
+		expect(toolResult.structuredContent?.nodes[0].uuid).toBe("public-file");
+	});
+
+	it("executes nodes.list tool", async () => {
+		const fixture = await createFixture();
+
+		const response = await processMcpRequest(
+			{
+				jsonrpc: "2.0",
+				id: 31,
+				method: "tools/call",
+				params: {
+					name: "nodes.list",
+					arguments: {
+						parent: "public-folder",
 					},
 				},
 			},

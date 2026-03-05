@@ -38,8 +38,7 @@ Current scope note:
 
 - `nodes.get` - read node metadata by UUID/FID
 - `nodes.find` - search nodes by filters or query text
-- `nodes.updateMetadata` - update node metadata fields
-- `nodes.exportText` - export text content from textual files with byte limits
+- `nodes.list` - list nodes under a parent folder
 
 All tool calls use existing Antbox authorization checks.
 

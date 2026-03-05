@@ -54,7 +54,7 @@ MCP support is now implemented for the first iteration:
 - Optional tenant selection through `X-Tenant` header
 - JSON-RPC methods: `initialize`, `ping`, `tools/list`, `tools/call`, `resources/list`,
   `resources/templates/list`, `resources/read`
-- Initial tools: `nodes.get`, `nodes.find`, `nodes.updateMetadata`, `nodes.exportText`
+- Initial tools: `nodes.get`, `nodes.find`, `nodes.list`
 - Resources: `antbox://docs/<uuid>` + node template `antbox://nodes/{uuid}`
 - Permission checks and tenant routing are enforced through existing services/context
 - Structured MCP request logging added (`tenant`, `principal`, `method`, `status`, `elapsedMs`)

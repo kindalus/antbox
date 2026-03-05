@@ -36,16 +36,6 @@ const FILTER_OPERATORS = [
 	"contains-none",
 ] as const;
 
-const textLikeMimetypes = new Set([
-	"application/json",
-	"application/xml",
-	"application/javascript",
-	"application/typescript",
-	"application/yaml",
-	"application/x-yaml",
-	"text/markdown",
-]);
-
 const jsonRpcIdSchema = z.union([z.string(), z.number()]);
 
 const jsonRpcRequestSchema = z.object({
@@ -90,14 +80,8 @@ const toolFindNodesArgsSchema = z.object({
 	pageToken: z.number().int().min(1).optional(),
 });
 
-const toolUpdateNodeMetadataArgsSchema = z.object({
-	uuid: z.string().min(1),
-	metadata: z.record(z.string(), z.unknown()),
-});
-
-const toolExportNodeTextArgsSchema = z.object({
-	uuid: z.string().min(1),
-	maxBytes: z.number().int().min(256).max(2_000_000).optional(),
+const toolListNodesArgsSchema = z.object({
+	parent: z.string().min(1).optional(),
 });
 
 type JsonRpcRequestId = string | number;
@@ -291,10 +275,6 @@ function toolErrorResult(error: unknown): McpToolCallResult {
 	};
 }
 
-function isTextLikeMimetype(mimetype: string): boolean {
-	return mimetype.startsWith("text/") || textLikeMimetypes.has(mimetype);
-}
-
 async function readNodeResource(
 	uuid: string,
 	context: McpRequestContext,
@@ -473,95 +453,34 @@ const mcpTools: McpToolDefinition[] = [
 		},
 	},
 	{
-		name: "nodes.updateMetadata",
-		description: "Update node metadata fields. Existing permissions are enforced.",
+		name: "nodes.list",
+		description: "List nodes under a parent folder (defaults to root).",
 		inputSchema: {
 			type: "object",
 			properties: {
-				uuid: { type: "string" },
-				metadata: {
-					type: "object",
-					description: "Partial node metadata fields to update",
+				parent: {
+					type: "string",
+					description: "Parent folder UUID/FID. Defaults to root.",
 				},
 			},
-			required: ["uuid", "metadata"],
 			additionalProperties: false,
 		},
 		execute: async (rawArgs, context) => {
-			const parsed = toolUpdateNodeMetadataArgsSchema.safeParse(rawArgs);
+			const parsed = toolListNodesArgsSchema.safeParse(rawArgs);
 			if (!parsed.success) {
 				return toolErrorResult({
 					errorCode: "InvalidToolArguments",
-					message: `Invalid nodes.updateMetadata arguments: ${parsed.error.message}`,
+					message: `Invalid nodes.list arguments: ${parsed.error.message}`,
 				});
 			}
 
-			const updateOrErr = await context.nodeService.update(
-				context.authContext,
-				parsed.data.uuid,
-				parsed.data.metadata,
-			);
-			if (updateOrErr.isLeft()) {
-				return toolErrorResult(updateOrErr.value);
+			const listOrErr = await context.nodeService.list(context.authContext, parsed.data.parent);
+			if (listOrErr.isLeft()) {
+				return toolErrorResult(listOrErr.value);
 			}
 
 			return toolSuccessResult({
-				uuid: parsed.data.uuid,
-				updated: true,
-			});
-		},
-	},
-	{
-		name: "nodes.exportText",
-		description: "Export textual content from a node with byte limits.",
-		inputSchema: {
-			type: "object",
-			properties: {
-				uuid: { type: "string" },
-				maxBytes: {
-					type: "integer",
-					minimum: 256,
-					maximum: 2000000,
-					description: "Maximum bytes to read from file (defaults to 200000)",
-				},
-			},
-			required: ["uuid"],
-			additionalProperties: false,
-		},
-		execute: async (rawArgs, context) => {
-			const parsed = toolExportNodeTextArgsSchema.safeParse(rawArgs);
-			if (!parsed.success) {
-				return toolErrorResult({
-					errorCode: "InvalidToolArguments",
-					message: `Invalid nodes.exportText arguments: ${parsed.error.message}`,
-				});
-			}
-
-			const fileOrErr = await context.nodeService.export(context.authContext, parsed.data.uuid);
-			if (fileOrErr.isLeft()) {
-				return toolErrorResult(fileOrErr.value);
-			}
-
-			const exportedFile = fileOrErr.value;
-			const maxBytes = parsed.data.maxBytes ?? 200_000;
-			const mimetype = exportedFile.type || "application/octet-stream";
-
-			if (!isTextLikeMimetype(mimetype)) {
-				return toolErrorResult({
-					errorCode: "UnsupportedMimetype",
-					message: `Cannot export binary mimetype '${mimetype}' as text`,
-				});
-			}
-
-			const chunk = exportedFile.slice(0, maxBytes);
-			const text = await chunk.text();
-
-			return toolSuccessResult({
-				uuid: parsed.data.uuid,
-				mimetype,
-				bytesRead: chunk.size,
-				truncated: exportedFile.size > maxBytes,
-				text,
+				nodes: listOrErr.value,
 			});
 		},
 	},

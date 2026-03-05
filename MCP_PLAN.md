@@ -1,6 +1,6 @@
 # MCP Plan
 
-Last updated: 2026-03-04
+Last updated: 2026-03-05
 
 ## Progress Snapshot (Done So Far)
 
@@ -49,7 +49,9 @@ docs as discoverable skills.
 MCP support is now implemented for the first iteration:
 
 - Oak endpoint: `POST /mcp`
-- Bearer-only auth path (API key/cookie rejected for MCP)
+- Bearer auth path (`Authorization: Bearer <access_token>`) for MCP
+- Current bearer validation mode uses API key secrets (OAuth discovery/challenge deferred)
+- Optional tenant selection through `X-Tenant` header
 - JSON-RPC methods: `initialize`, `ping`, `tools/list`, `tools/call`, `resources/list`,
   `resources/templates/list`, `resources/read`
 - Initial tools: `nodes.get`, `nodes.find`, `nodes.updateMetadata`, `nodes.exportText`
@@ -70,8 +72,8 @@ Open follow-ups:
 ### 1) Scope and Protocol Shape
 
 - Add an MCP endpoint in Oak while preserving existing REST APIs.
-- Support bearer-token authentication only for MCP.
-- Keep tenant isolation via existing tenant resolution strategy (`X-Tenant`).
+- Support bearer authentication for MCP.
+- Keep tenant isolation with optional `X-Tenant` header.
 - Expose a focused initial tool/resource set mapped to existing services.
 
 ### 2) Adapter Layer: MCP Server Integration
@@ -83,9 +85,10 @@ Open follow-ups:
 
 ### 3) Authentication and Tenant Resolution
 
-- Reuse current auth primitives where possible; enforce bearer-only in MCP middleware.
-- Reject API key/cookie auth for MCP requests.
-- Resolve tenant via existing tenant mechanisms, with explicit `X-Tenant` support.
+- Enforce `Authorization: Bearer <access_token>`.
+- Validate current bearer token as API key secret (partial auth model).
+- Reject query/cookie auth for MCP requests.
+- Resolve tenant by optional `X-Tenant` header (default tenant fallback).
 - Ensure audit/event context includes principal + tenant for MCP actions.
 
 ### 4) Tool Mapping (First Iteration)
@@ -150,10 +153,8 @@ Open follow-ups:
 
 - `src/adapters/mcp/mcp_server.ts`
 - `src/adapters/mcp/mcp_server_test.ts`
-- `src/api/mcp_authentication_middleware.ts`
-- `src/api/mcp_middleware_chain.ts`
-- `src/api/mcp_handler.ts`
-- `src/api/mcp_authentication_middleware_test.ts`
+- `src/adapters/mcp/mcp_http_handler.ts`
+- `src/adapters/mcp/mcp_http_handler_test.ts`
 - `src/adapters/oak/mcp_v2_router.ts`
 - `src/adapters/oak/server.ts`
 - `docs/mcp.md`

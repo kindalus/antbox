@@ -75,11 +75,13 @@ curl -sS -X POST "$BASE_URL/v2/nodes/-/find" \
   -d '{"filters":"?contract approval policy","pageSize":10,"pageToken":1}'
 
 # MCP handshake
+MCP_TOKEN="<api-key-secret>"
+
 curl -sS -X POST "$BASE_URL/mcp" \
   -H "X-Tenant: $TENANT" \
-  -H "Authorization: Bearer $JWT" \
+  -H "Authorization: Bearer $MCP_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05"}}'
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25"}}'
 ```
 
 ## Running the Server
@@ -158,7 +160,9 @@ Full contract: `openapi.yaml`
 | API key header | `Authorization: ApiKey <secret>` |
 | API key query  | `?api_key=<secret>`              |
 
-MCP endpoint (`/mcp`) only accepts bearer tokens.
+MCP endpoint (`/mcp`) requires `Authorization: Bearer <token>` on every request. Current
+implementation treats this bearer token as an API key secret. OAuth discovery/challenge flow for MCP
+is not implemented yet.
 
 Optional tenant selection:
 

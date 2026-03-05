@@ -13,9 +13,15 @@ Antbox exposes a Model Context Protocol (MCP) endpoint over HTTP using JSON-RPC 
 
 ## Authentication and tenant routing
 
-- MCP is bearer-only: `Authorization: Bearer <jwt>`
-- API keys and cookie auth are not accepted on this endpoint
-- Tenant selection uses `X-Tenant: <tenant-name>`
+- MCP requires bearer auth in header: `Authorization: Bearer <token>`
+- This header must be sent on every MCP HTTP request
+- The bearer token is currently an Antbox API key secret
+- Cookie auth and query auth are not accepted on this endpoint
+- Tenant selection uses optional `X-Tenant: <tenant-name>`
+
+Current scope note:
+
+- OAuth token discovery/challenge flow is not implemented yet
 
 ## Supported MCP methods
 
@@ -52,25 +58,25 @@ Resource template:
 ```bash
 BASE_URL="http://localhost:7180"
 TENANT="demo"
-JWT="<root-or-user-jwt>"
+MCP_TOKEN="<api-key-secret>"
 
 # 1) initialize
 curl -sS -X POST "$BASE_URL/mcp" \
-  -H "Authorization: Bearer $JWT" \
+  -H "Authorization: Bearer $MCP_TOKEN" \
   -H "X-Tenant: $TENANT" \
   -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05"}}'
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25"}}'
 
 # 2) list tools
 curl -sS -X POST "$BASE_URL/mcp" \
-  -H "Authorization: Bearer $JWT" \
+  -H "Authorization: Bearer $MCP_TOKEN" \
   -H "X-Tenant: $TENANT" \
   -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","id":2,"method":"tools/list"}'
 
 # 3) call nodes.find
 curl -sS -X POST "$BASE_URL/mcp" \
-  -H "Authorization: Bearer $JWT" \
+  -H "Authorization: Bearer $MCP_TOKEN" \
   -H "X-Tenant: $TENANT" \
   -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"nodes.find","arguments":{"filters":[["parent","==","root"]],"pageSize":10,"pageToken":1}}}'

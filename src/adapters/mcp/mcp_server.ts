@@ -46,7 +46,7 @@ const textLikeMimetypes = new Set([
 	"text/markdown",
 ]);
 
-const jsonRpcIdSchema = z.union([z.string(), z.number(), z.null()]);
+const jsonRpcIdSchema = z.union([z.string(), z.number()]);
 
 const jsonRpcRequestSchema = z.object({
 	jsonrpc: z.literal(JSON_RPC_VERSION),
@@ -100,11 +100,12 @@ const toolExportNodeTextArgsSchema = z.object({
 	maxBytes: z.number().int().min(256).max(2_000_000).optional(),
 });
 
-type JsonRpcId = string | number | null;
+type JsonRpcRequestId = string | number;
+type JsonRpcResponseId = JsonRpcRequestId | null;
 
 export interface JsonRpcRequest {
 	jsonrpc: "2.0";
-	id?: JsonRpcId;
+	id?: JsonRpcRequestId;
 	method: string;
 	params?: unknown;
 }
@@ -117,7 +118,7 @@ interface JsonRpcError {
 
 export interface JsonRpcResponse {
 	jsonrpc: "2.0";
-	id: JsonRpcId;
+	id: JsonRpcResponseId;
 	result?: unknown;
 	error?: JsonRpcError;
 }
@@ -160,10 +161,10 @@ export interface McpRequestContext {
 	nodeService: NodeService;
 }
 
-export const MCP_PROTOCOL_VERSION = "2024-11-05";
+export const MCP_PROTOCOL_VERSION = "2025-11-25";
 
 export function createJsonRpcErrorResponse(
-	id: JsonRpcId,
+	id: JsonRpcResponseId,
 	code: number,
 	message: string,
 	data?: unknown,
@@ -179,7 +180,7 @@ export function createJsonRpcErrorResponse(
 	};
 }
 
-function createJsonRpcResultResponse(id: JsonRpcId, result: unknown): JsonRpcResponse {
+function createJsonRpcResultResponse(id: JsonRpcResponseId, result: unknown): JsonRpcResponse {
 	return {
 		jsonrpc: JSON_RPC_VERSION,
 		id,
@@ -627,7 +628,7 @@ export async function processMcpRequest(
 						version: "0.1.0",
 					},
 					instructions:
-						"Use Bearer JWT authentication and pass X-Tenant to target the correct tenant.",
+						"Use Authorization: Bearer <access_token> on every request. X-Tenant is optional.",
 				});
 			}
 

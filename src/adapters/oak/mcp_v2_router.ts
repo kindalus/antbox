@@ -1,6 +1,6 @@
 import { Router } from "@oak/oak";
+import { mcpHttpHandler } from "adapters/mcp/mcp_http_handler.ts";
 import type { AntboxTenant } from "api/antbox_tenant.ts";
-import { mcpHandler } from "api/mcp_handler.ts";
 import { adapt } from "./adapt.ts";
 
 /**
@@ -9,7 +9,7 @@ import { adapt } from "./adapt.ts";
 export default function (tenants: AntboxTenant[]): Router {
 	const router = new Router({ prefix: "/mcp" });
 
-	router.post("/", adapt(mcpHandler(tenants)));
+	router.post("/", adapt(mcpHttpHandler(tenants)));
 
 	return router;
 }

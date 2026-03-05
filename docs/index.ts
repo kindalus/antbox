@@ -13,6 +13,10 @@ export const DOCS: DocInfo[] = [
 		description: "System architecture overview",
 	},
 	{
+		uuid: "overview",
+		description: "Executive overview of the Antbox platform",
+	},
+	{
 		uuid: "authentication",
 		description: "Authentication methods and usage",
 	},

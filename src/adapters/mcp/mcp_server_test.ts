@@ -143,7 +143,16 @@ describe("mcp_server", () => {
 		expect(response?.error).toBeUndefined();
 
 		const tools = (response?.result as {
-			tools: Array<{ name: string }>;
+			tools: Array<{
+				name: string;
+				inputSchema: {
+					properties?: {
+						filters?: {
+							anyOf?: Array<Record<string, unknown>>;
+						};
+					};
+				};
+			}>;
 		}).tools;
 		const names = tools.map((t) => t.name).sort();
 
@@ -152,6 +161,15 @@ describe("mcp_server", () => {
 			"nodes.get",
 			"nodes.list",
 		]);
+
+		const nodesFindTool = tools.find((tool) => tool.name === "nodes.find");
+		expect(nodesFindTool).toBeDefined();
+
+		const filtersAnyOf = nodesFindTool?.inputSchema.properties?.filters?.anyOf;
+		expect(filtersAnyOf?.length).toBe(2);
+
+		const arraySchema = filtersAnyOf?.[1] as { items?: unknown } | undefined;
+		expect(arraySchema?.items !== undefined).toBe(true);
 	});
 
 	it("executes nodes.find tool", async () => {
@@ -216,7 +234,35 @@ describe("mcp_server", () => {
 		expect(toolResult.structuredContent?.nodes[0].uuid).toBe("public-file");
 	});
 
-	it("reads documentation resource without frontmatter", async () => {
+	it("lists curated documentation resources only", async () => {
+		const fixture = await createFixture();
+
+		const response = await processMcpRequest(
+			{
+				jsonrpc: "2.0",
+				id: 40,
+				method: "resources/list",
+			},
+			fixture.memberContext,
+		);
+
+		expect(response?.error).toBeUndefined();
+
+		const resources = (response?.result as {
+			resources: Array<{ name: string }>;
+		}).resources;
+		const names = resources.map((resource) => resource.name).sort();
+
+		expect(names).toEqual([
+			"llms",
+			"node-querying",
+			"nodes-and-aspects",
+			"overview",
+			"webdav",
+		]);
+	});
+
+	it("reads allowlisted documentation resource without frontmatter", async () => {
 		const fixture = await createFixture();
 
 		const response = await processMcpRequest(
@@ -224,7 +270,7 @@ describe("mcp_server", () => {
 				jsonrpc: "2.0",
 				id: 4,
 				method: "resources/read",
-				params: { uri: "antbox://docs/getting-started" },
+				params: { uri: "antbox://docs/llms" },
 			},
 			fixture.memberContext,
 		);
@@ -236,8 +282,24 @@ describe("mcp_server", () => {
 		}).contents;
 
 		expect(contents).toHaveLength(1);
-		expect(contents[0].text.includes("name: getting-started")).toBe(false);
+		expect(contents[0].text.startsWith("---")).toBe(false);
 		expect(contents[0].text.length > 0).toBeTruthy();
+	});
+
+	it("rejects non-allowlisted documentation resource", async () => {
+		const fixture = await createFixture();
+
+		const response = await processMcpRequest(
+			{
+				jsonrpc: "2.0",
+				id: 41,
+				method: "resources/read",
+				params: { uri: "antbox://docs/getting-started" },
+			},
+			fixture.memberContext,
+		);
+
+		expect(response?.error?.code).toBe(-32004);
 	});
 
 	it("returns forbidden when outsider reads restricted node resource", async () => {

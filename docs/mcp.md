@@ -46,7 +46,11 @@ All tool calls use existing Antbox authorization checks.
 
 Listed resources:
 
-- `antbox://docs/<uuid>` - markdown docs from `docs/index.ts`
+- `antbox://docs/llms`
+- `antbox://docs/webdav`
+- `antbox://docs/node-querying`
+- `antbox://docs/nodes-and-aspects`
+- `antbox://docs/overview`
 
 Resource template:
 

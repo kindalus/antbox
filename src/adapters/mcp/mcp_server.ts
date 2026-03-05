@@ -36,6 +36,14 @@ const FILTER_OPERATORS = [
 	"contains-none",
 ] as const;
 
+const MCP_DOC_RESOURCE_UUIDS = new Set<string>([
+	"llms",
+	"webdav",
+	"node-querying",
+	"nodes-and-aspects",
+	"overview",
+]);
+
 const jsonRpcIdSchema = z.union([z.string(), z.number()]);
 
 const jsonRpcRequestSchema = z.object({
@@ -294,6 +302,17 @@ async function readNodeResource(
 async function readDocResource(
 	docUuid: string,
 ): Promise<JsonRpcError | { uri: string; mimeType: string; text: string }> {
+	if (!MCP_DOC_RESOURCE_UUIDS.has(docUuid)) {
+		return {
+			code: JSON_RPC_ERROR.NOT_FOUND,
+			message: `Resource not found: antbox://docs/${docUuid}`,
+			data: {
+				errorCode: "ResourceNotFound",
+				message: `Documentation '${docUuid}' is not exposed by MCP`,
+			},
+		};
+	}
+
 	const listedDoc = DOCS.find((doc) => doc.uuid === docUuid);
 	if (!listedDoc) {
 		return {
@@ -360,7 +379,9 @@ const mcpResourceTemplates: McpResourceTemplate[] = [
 	},
 ];
 
-const mcpResources: McpResource[] = DOCS.map((doc) => ({
+const mcpResources: McpResource[] = DOCS.filter((doc) => MCP_DOC_RESOURCE_UUIDS.has(doc.uuid)).map((
+	doc,
+) => ({
 	uri: `antbox://docs/${encodeURIComponent(doc.uuid)}`,
 	name: doc.uuid,
 	description: doc.description,
@@ -409,7 +430,10 @@ const mcpTools: McpToolDefinition[] = [
 					description: "Node filters or text query (supports semantic prefix '?')",
 					anyOf: [
 						{ type: "string" },
-						{ type: "array" },
+						{
+							type: "array",
+							items: {},
+						},
 					],
 				},
 				pageSize: {

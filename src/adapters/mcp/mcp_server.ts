@@ -687,7 +687,7 @@ export async function processMcpRequest(
 		);
 	} finally {
 		const elapsedMs = Date.now() - start;
-		Logger.info("mcp.request", {
+		Logger.debug("mcp.request", {
 			tenant: context.tenant,
 			principal: context.authContext.principal.email,
 			method: request.method,

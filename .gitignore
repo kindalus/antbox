@@ -26,4 +26,5 @@ bun.lockb
 data/
 greatness_awaits
 .claude
+.opencode
 *.log

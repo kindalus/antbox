@@ -7,17 +7,7 @@ import type { ConfigurationRepository } from "domain/configuration/configuration
 import type { UserData } from "domain/configuration/user_data.ts";
 import { UserDataSchema } from "domain/configuration/user_schema.ts";
 import { ADMINS_GROUP_UUID } from "domain/configuration/builtin_groups.ts";
-import {
-	ANONYMOUS_USER,
-	ANONYMOUS_USER_EMAIL,
-	BUILTIN_USERS,
-	LOCK_SYSTEM_USER,
-	LOCK_SYSTEM_USER_EMAIL,
-	ROOT_USER,
-	ROOT_USER_EMAIL,
-	WORKFLOW_INSTANCE_USER,
-	WORKFLOW_INSTANCE_USER_EMAIL,
-} from "domain/configuration/builtin_users.ts";
+import { BUILTIN_USERS, ROOT_USER_EMAIL } from "domain/configuration/builtin_users.ts";
 
 /**
  * UsersService - Manages users in the configuration repository

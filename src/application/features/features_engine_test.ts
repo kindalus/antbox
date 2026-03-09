@@ -328,6 +328,175 @@ describe("FeaturesEngine", () => {
 		expect(updated).toBe(true);
 	});
 
+	it("runs automatic onCreate actions through the action pipeline", async () => {
+		const harness = createHarness();
+
+		await harness.nodeService.create(adminCtx, {
+			uuid: "auto-pipeline-folder",
+			title: "Auto Pipeline Folder",
+			mimetype: Nodes.FOLDER_MIMETYPE,
+			parent: Nodes.ROOT_FOLDER_UUID,
+		});
+
+		await createFeature(harness, {
+			runOnCreates: true,
+			runManually: false,
+			runAs: "--reviewers--",
+			run: createFeatureRun({
+				runOnCreates: true,
+				runManually: false,
+				runBody: `
+					if (!ctx.authenticationContext.principal.groups.includes("--reviewers--")) {
+						throw new Error("missing runAs group");
+					}
+
+					if (Array.isArray(args.uuids) && args.uuids.length > 0) {
+						await ctx.nodeService.update(args.uuids[0], {
+							description: "triggered-via-runAction",
+						});
+					}
+
+					return { done: true };
+				`,
+			}),
+		});
+
+		await harness.nodeService.createFile(
+			adminCtx,
+			new File(["auto pipeline body"], "auto-pipeline.txt", { type: "text/plain" }),
+			{
+				uuid: "auto-pipeline-file",
+				title: "auto-pipeline.txt",
+				mimetype: "text/plain",
+				parent: "auto-pipeline-folder",
+			},
+		);
+
+		const updated = await waitFor(async () => {
+			const nodeOrErr = await harness.nodeService.get(adminCtx, "auto-pipeline-file");
+			return nodeOrErr.isRight() && nodeOrErr.value.description === "triggered-via-runAction";
+		}, 1200);
+
+		expect(updated).toBe(true);
+	});
+
+	it("runs automatic onUpdate actions through the action pipeline", async () => {
+		const harness = createHarness();
+
+		await harness.nodeService.create(adminCtx, {
+			uuid: "auto-update-folder",
+			title: "Auto Update Folder",
+			mimetype: Nodes.FOLDER_MIMETYPE,
+			parent: Nodes.ROOT_FOLDER_UUID,
+		});
+
+		await harness.nodeService.create(adminCtx, {
+			uuid: "auto-update-target",
+			title: "Auto Update Target",
+			mimetype: Nodes.FOLDER_MIMETYPE,
+			parent: Nodes.ROOT_FOLDER_UUID,
+		});
+
+		await harness.nodeService.createFile(
+			adminCtx,
+			new File(["update body"], "update.txt", { type: "text/plain" }),
+			{
+				uuid: "auto-update-file",
+				title: "update.txt",
+				mimetype: "text/plain",
+				parent: "auto-update-folder",
+			},
+		);
+
+		await createFeature(harness, {
+			filters: [["uuid", "==", "auto-update-file"]],
+			runOnUpdates: true,
+			runManually: false,
+			runAs: "--reviewers--",
+			run: createFeatureRun({
+				runBody: `
+					if (!ctx.authenticationContext.principal.groups.includes("--reviewers--")) {
+						throw new Error("missing runAs group");
+					}
+
+					await ctx.nodeService.update("auto-update-target", {
+						description: Array.isArray(args.uuids) ? args.uuids.join(",") : "missing-uuids",
+					});
+
+					return { done: true };
+				`,
+			}),
+		});
+
+		await harness.nodeService.update(adminCtx, "auto-update-file", {
+			description: "updated-source-node",
+		});
+
+		const updated = await waitFor(async () => {
+			const nodeOrErr = await harness.nodeService.get(adminCtx, "auto-update-target");
+			return nodeOrErr.isRight() && nodeOrErr.value.description === "auto-update-file";
+		}, 1200);
+
+		expect(updated).toBe(true);
+	});
+
+	it("runs automatic onDelete actions through the action pipeline", async () => {
+		const harness = createHarness();
+
+		await harness.nodeService.create(adminCtx, {
+			uuid: "auto-delete-folder",
+			title: "Auto Delete Folder",
+			mimetype: Nodes.FOLDER_MIMETYPE,
+			parent: Nodes.ROOT_FOLDER_UUID,
+		});
+
+		await harness.nodeService.create(adminCtx, {
+			uuid: "auto-delete-target",
+			title: "Auto Delete Target",
+			mimetype: Nodes.FOLDER_MIMETYPE,
+			parent: Nodes.ROOT_FOLDER_UUID,
+		});
+
+		await harness.nodeService.createFile(
+			adminCtx,
+			new File(["delete body"], "delete.txt", { type: "text/plain" }),
+			{
+				uuid: "auto-delete-file",
+				title: "delete.txt",
+				mimetype: "text/plain",
+				parent: "auto-delete-folder",
+			},
+		);
+
+		await createFeature(harness, {
+			runOnDeletes: true,
+			runManually: false,
+			runAs: "--reviewers--",
+			run: createFeatureRun({
+				runBody: `
+					if (!ctx.authenticationContext.principal.groups.includes("--reviewers--")) {
+						throw new Error("missing runAs group");
+					}
+
+					await ctx.nodeService.update("auto-delete-target", {
+						description: Array.isArray(args.uuids) ? args.uuids.join(",") : "missing-uuids",
+					});
+
+					return { done: true };
+				`,
+			}),
+		});
+
+		await harness.nodeService.delete(adminCtx, "auto-delete-file");
+
+		const updated = await waitFor(async () => {
+			const nodeOrErr = await harness.nodeService.get(adminCtx, "auto-delete-target");
+			return nodeOrErr.isRight() && nodeOrErr.value.description === "auto-delete-file";
+		}, 1200);
+
+		expect(updated).toBe(true);
+	});
+
 	it("does not run non-action features from folder onCreate hooks", async () => {
 		const harness = createHarness();
 

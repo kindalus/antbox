@@ -507,6 +507,53 @@ export class FeaturesEngine {
 		}
 	}
 
+	async #runAutomaticAction(
+		ctx: AuthenticationContext,
+		feature: Feature,
+		node: NodeMetadata,
+		triggerName: "onCreate" | "onUpdate" | "onDelete",
+	): Promise<void> {
+		const filterOrErr = NodesFilters.satisfiedBy(
+			feature.filters || [],
+			node as unknown as NodeLike,
+		);
+		if (filterOrErr.isLeft() || !filterOrErr.value) {
+			return;
+		}
+
+		if (!feature.exposeAction) {
+			Logger.warn(`Skipping non-action automatic feature ${feature.uuid}`);
+			return;
+		}
+
+		try {
+			FeaturesEngine.#incRunnable([feature.uuid, "action"]);
+			const result = await this.#run(ctx, feature.uuid, { uuids: [node.uuid] });
+			if (result.isLeft()) {
+				Logger.warn(
+					`Skipping automatic ${triggerName} feature ${feature.uuid} for node ${node.uuid}: ${result.value.message}`,
+				);
+			}
+		} finally {
+			FeaturesEngine.#decRunnable([feature.uuid, "action"]);
+		}
+	}
+
+	async #getNodeMetadataForUpdateTrigger(
+		ctx: AuthenticationContext,
+		uuid: string,
+	): Promise<NodeMetadata | undefined> {
+		const nodeOrErr = await this.#nodeService.get(ctx, uuid);
+		if (nodeOrErr.isLeft()) {
+			Logger.warn(
+				`Skipping automatic onUpdate features for node ${uuid}: ${nodeOrErr.value.message}`,
+			);
+			return undefined;
+		}
+
+		return nodeOrErr.value;
+	}
+
 	async #getFeatureAsRunnableFeature(
 		ctx: AuthenticationContext,
 		uuid: string,
@@ -623,34 +670,7 @@ export class FeaturesEngine {
 		};
 
 		for (const feature of actions) {
-			if (!feature.exposeAction) {
-				Logger.warn(`Skipping non-action automatic feature ${feature.uuid}`);
-				continue;
-			}
-
-			const filterOrErr = NodesFilters.satisfiedBy(
-				feature.filters || [],
-				evt.payload as unknown as NodeLike,
-			);
-
-			if (filterOrErr.isLeft()) {
-				continue;
-			}
-
-			if (!filterOrErr.value) {
-				continue;
-			}
-
-			const runContext: RunContext = {
-				authenticationContext: actionContext,
-				nodeService: new NodeServiceProxy(this.#nodeService, actionContext),
-			};
-
-			try {
-				await feature.run(runContext, { uuids: [evt.payload.uuid] });
-			} catch (error) {
-				Logger.error(`Error running feature ${feature.uuid}:`, error);
-			}
+			await this.#runAutomaticAction(actionContext, feature, evt.payload, "onCreate");
 		}
 	}
 
@@ -679,35 +699,13 @@ export class FeaturesEngine {
 			tenant: evt.tenant,
 		};
 
+		const node = await this.#getNodeMetadataForUpdateTrigger(elevatedContext, evt.payload.uuid);
+		if (!node) {
+			return;
+		}
+
 		for (const feature of actions) {
-			if (!feature.exposeAction) {
-				Logger.warn(`Skipping non-action automatic feature ${feature.uuid}`);
-				continue;
-			}
-
-			const filterOrErr = NodesFilters.satisfiedBy(
-				feature.filters || [],
-				evt.payload as unknown as NodeLike,
-			);
-
-			if (filterOrErr.isLeft()) {
-				continue;
-			}
-
-			if (!filterOrErr.value) {
-				continue;
-			}
-
-			const runContext: RunContext = {
-				authenticationContext: actionContext,
-				nodeService: new NodeServiceProxy(this.#nodeService, actionContext),
-			};
-
-			try {
-				await feature.run(runContext, { uuids: [evt.payload.uuid] });
-			} catch (error) {
-				Logger.error(`Error running feature ${feature.uuid}:`, error);
-			}
+			await this.#runAutomaticAction(actionContext, feature, node, "onUpdate");
 		}
 	}
 
@@ -737,34 +735,7 @@ export class FeaturesEngine {
 		};
 
 		for (const feature of actions) {
-			if (!feature.exposeAction) {
-				Logger.warn(`Skipping non-action automatic feature ${feature.uuid}`);
-				continue;
-			}
-
-			const filterOrErr = NodesFilters.satisfiedBy(
-				feature.filters || [],
-				evt.payload as unknown as NodeLike,
-			);
-
-			if (filterOrErr.isLeft()) {
-				continue;
-			}
-
-			if (!filterOrErr.value) {
-				continue;
-			}
-
-			const runContext: RunContext = {
-				authenticationContext: actionContext,
-				nodeService: new NodeServiceProxy(this.#nodeService, actionContext),
-			};
-
-			try {
-				await feature.run(runContext, { uuids: [evt.payload.uuid] });
-			} catch (error) {
-				Logger.error(`Error running feature ${feature.uuid}:`, error);
-			}
+			await this.#runAutomaticAction(actionContext, feature, evt.payload, "onDelete");
 		}
 	}
 

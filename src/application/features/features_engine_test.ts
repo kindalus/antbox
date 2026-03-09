@@ -282,6 +282,58 @@ describe("FeaturesEngine", () => {
 		expect(payload).toEqual({ ok: true, value: "hello" });
 	});
 
+	it("exposes ctx.logger to features", async () => {
+		const harness = createHarness();
+		const originalInfo = console.info;
+		const logged: unknown[][] = [];
+		console.info = (...args: unknown[]) => {
+			logged.push(args);
+		};
+
+		try {
+			await harness.nodeService.create(adminCtx, {
+				uuid: "logger-folder",
+				title: "Logger Folder",
+				mimetype: Nodes.FOLDER_MIMETYPE,
+				parent: Nodes.ROOT_FOLDER_UUID,
+			});
+
+			await harness.nodeService.createFile(
+				adminCtx,
+				new File(["logger body"], "logger.txt", { type: "text/plain" }),
+				{
+					uuid: "logger-file",
+					title: "logger.txt",
+					mimetype: "text/plain",
+					parent: "logger-folder",
+				},
+			);
+
+			const featureUuid = await createFeature(harness, {
+				run: createFeatureRun({
+					runBody: `
+						ctx.logger.info("feature log", args.uuids);
+						return { ok: true };
+					`,
+				}),
+			});
+
+			const result = await harness.engine.runAction<{ ok: boolean }>(
+				adminCtx,
+				featureUuid,
+				["logger-file"],
+			);
+
+			expect(result.isRight()).toBe(true);
+			expect(logged).toHaveLength(1);
+			expect(logged[0][0]).toBe("[INFO]");
+			expect(logged[0][1]).toBe(`[feature=${featureUuid}] [tenant=test]`);
+			expect(logged[0][2]).toBe("feature log");
+		} finally {
+			console.info = originalInfo;
+		}
+	});
+
 	it("runs automatic onCreate actions when a node is created", async () => {
 		const harness = createHarness();
 

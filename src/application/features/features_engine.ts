@@ -623,6 +623,7 @@ export class FeaturesEngine {
 		const runContext: RunContext = {
 			authenticationContext: authContext,
 			nodeService: new NodeServiceProxy(this.#nodeService, authContext),
+			logger: Logger.instance(`feature=${feature.uuid}`, `tenant=${authContext.tenant}`),
 		};
 
 		// Validate parameters

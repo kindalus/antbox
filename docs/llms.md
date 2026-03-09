@@ -260,6 +260,7 @@ Required in `module.default`:
 
 - `authenticationContext`
 - `nodeService` (`NodeServiceProxy`)
+- `logger` (`Logger.instance(...)` scoped to the feature and tenant)
 
 Best practice for generation:
 
@@ -268,6 +269,7 @@ Best practice for generation:
 - keep helper logic inside `run`; only `run` is persisted from the uploaded module
 - for actions, declare and expect a required `uuids` parameter with `type: "array"` and
   `arrayType: "string"`
+- use `ctx.logger.info/warn/error(...)` for feature logs instead of importing logging helpers
 - check `Either` results (`isLeft()`/`isRight()`) on every SDK call
 - return deterministic JSON/string output when useful for AI-tool usage
 

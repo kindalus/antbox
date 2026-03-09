@@ -84,6 +84,16 @@ export default {
 
 - `ctx.authenticationContext`
 - `ctx.nodeService` (NodeServiceProxy)
+- `ctx.logger` (`Logger` instance scoped to the feature/tenant)
+
+Example:
+
+```ts
+async run(ctx, args) {
+	ctx.logger.info("feature started", args);
+	return { ok: true };
+}
+```
 
 ## Creating a Feature
 

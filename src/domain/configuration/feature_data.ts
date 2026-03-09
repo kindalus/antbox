@@ -16,14 +16,27 @@ export interface FeatureParameter {
 	defaultValue?: string | number | boolean | object | Array<unknown>;
 }
 
+export const ACTION_UUIDS_PARAMETER_ERROR =
+	"Action features must declare required parameter 'uuids' as array<string>";
+
+export function hasRequiredActionUuidsParameter(parameters: FeatureParameter[]): boolean {
+	const uuidsParameter = parameters.find((parameter) => parameter.name === "uuids");
+
+	return Boolean(
+		uuidsParameter &&
+			uuidsParameter.type === "array" &&
+			uuidsParameter.arrayType === "string" &&
+			uuidsParameter.required,
+	);
+}
+
 /**
  * FeatureData - Configuration data for features
  * Represents feature metadata and code in the configuration repository
  *
  * Features are mutable and can be updated after creation
  *
- * The `module` field contains the entire JavaScript/TypeScript module as a string,
- * including the run function implementation.
+ * The `run` field contains the feature implementation as a JavaScript function source string.
  */
 export interface FeatureData {
 	readonly uuid: string;
@@ -44,7 +57,7 @@ export interface FeatureData {
 	readonly returnDescription?: string;
 	readonly returnContentType?: string;
 	readonly tags?: string[];
-	readonly module: string; // The entire JavaScript/TypeScript module as a string
+	readonly run: string; // JavaScript function source for the feature runtime
 	readonly createdTime: string;
 	readonly modifiedTime: string;
 }

@@ -1,6 +1,6 @@
 import { Logger } from "shared/logger.ts";
 import { loadTemplate, TEMPLATES } from "api/templates/index.ts";
-import type { Feature } from "domain/features/feature.ts";
+import { type Feature, featureDataToFeature } from "domain/features/feature.ts";
 import { RunContext } from "domain/features/feature_run_context.ts";
 import { NodeLike } from "domain/node_like.ts";
 import { NodeCreatedEvent } from "domain/nodes/node_created_event.ts";
@@ -476,7 +476,10 @@ export class FeaturesEngine {
 		}
 
 		const runnables = actionsOrErr.value
-			.filter((a) => NodesFilters.satisfiedBy(criteria, a as unknown as NodeLike).isRight())
+			.filter((a) => {
+				const matchesOrErr = NodesFilters.satisfiedBy(criteria, a as unknown as NodeLike);
+				return matchesOrErr.isRight() && matchesOrErr.value;
+			})
 			.map((a) => this.#getFeatureAsRunnableFeature(ctx, a.uuid));
 
 		const featuresOrErrs = await Promise.all(runnables);
@@ -487,6 +490,21 @@ export class FeaturesEngine {
 			});
 
 		return featuresOrErrs.filter((v) => v.isRight()).map((v) => v.value);
+	}
+
+	async #runFolderHookAction(
+		ctx: AuthenticationContext,
+		featureUuid: string,
+		nodeUuid: string,
+		parameters: Record<string, string>,
+		hookName: "onCreate" | "onUpdate" | "onDelete",
+	): Promise<void> {
+		const result = await this.runAction(ctx, featureUuid, [nodeUuid], parameters);
+		if (result.isLeft()) {
+			Logger.warn(
+				`Skipping folder ${hookName} feature ${featureUuid} for node ${nodeUuid}: ${result.value.message}`,
+			);
+		}
 	}
 
 	async #getFeatureAsRunnableFeature(
@@ -501,20 +519,7 @@ export class FeaturesEngine {
 
 		const featureData = featureDataOrErr.value;
 
-		// Create a blob from the module string and import it
-		if (!featureData.module) {
-			return left(new BadRequestError(`Feature ${uuid} has no executable code`));
-		}
-
-		const blob = new Blob([featureData.module], { type: "application/javascript" });
-		const moduleUrl = URL.createObjectURL(blob);
-
-		try {
-			const module = await import(moduleUrl);
-			return right(module.default);
-		} finally {
-			URL.revokeObjectURL(moduleUrl);
-		}
+		return featureDataToFeature(featureData);
 	}
 
 	#respondeWithFile(file: File): Response {
@@ -618,6 +623,11 @@ export class FeaturesEngine {
 		};
 
 		for (const feature of actions) {
+			if (!feature.exposeAction) {
+				Logger.warn(`Skipping non-action automatic feature ${feature.uuid}`);
+				continue;
+			}
+
 			const filterOrErr = NodesFilters.satisfiedBy(
 				feature.filters || [],
 				evt.payload as unknown as NodeLike,
@@ -670,6 +680,11 @@ export class FeaturesEngine {
 		};
 
 		for (const feature of actions) {
+			if (!feature.exposeAction) {
+				Logger.warn(`Skipping non-action automatic feature ${feature.uuid}`);
+				continue;
+			}
+
 			const filterOrErr = NodesFilters.satisfiedBy(
 				feature.filters || [],
 				evt.payload as unknown as NodeLike,
@@ -722,6 +737,11 @@ export class FeaturesEngine {
 		};
 
 		for (const feature of actions) {
+			if (!feature.exposeAction) {
+				Logger.warn(`Skipping non-action automatic feature ${feature.uuid}`);
+				continue;
+			}
+
 			const filterOrErr = NodesFilters.satisfiedBy(
 				feature.filters || [],
 				evt.payload as unknown as NodeLike,
@@ -794,13 +814,14 @@ export class FeaturesEngine {
 		for (const actionString of folder.onDelete) {
 			const { featureUuid, parameters } = this.#parseActionString(actionString);
 
-			const params: Record<string, unknown> = {
-				uuids: [evt.payload.uuid],
-				...parameters,
-			};
-
 			try {
-				await this.#run(actionContext, featureUuid, params);
+				await this.#runFolderHookAction(
+					actionContext,
+					featureUuid,
+					evt.payload.uuid,
+					parameters,
+					"onDelete",
+				);
 			} catch (error) {
 				Logger.error(
 					`Error running onDelete action ${featureUuid} for node ${evt.payload.uuid}:`,
@@ -856,15 +877,15 @@ export class FeaturesEngine {
 		for (const actionString of folder.onCreate) {
 			const { featureUuid, parameters } = this.#parseActionString(actionString);
 
-			// Build parameters with uuids and additional parameters
-			const params: Record<string, unknown> = {
-				uuids: [evt.payload.uuid],
-				...parameters,
-			};
-
 			// Run the action with action context
 			try {
-				await this.#run(actionContext, featureUuid, params);
+				await this.#runFolderHookAction(
+					actionContext,
+					featureUuid,
+					evt.payload.uuid,
+					parameters,
+					"onCreate",
+				);
 			} catch (error) {
 				Logger.error(
 					`Error running onCreate action ${featureUuid} for node ${evt.payload.uuid}:`,
@@ -921,15 +942,15 @@ export class FeaturesEngine {
 		for (const actionString of folder.onUpdate) {
 			const { featureUuid, parameters } = this.#parseActionString(actionString);
 
-			// Build parameters with uuids and additional parameters
-			const params: Record<string, unknown> = {
-				uuids: [evt.payload.uuid],
-				...parameters,
-			};
-
 			// Run the action with action context
 			try {
-				await this.#run(actionContext, featureUuid, params);
+				await this.#runFolderHookAction(
+					actionContext,
+					featureUuid,
+					evt.payload.uuid,
+					parameters,
+					"onUpdate",
+				);
 			} catch (error) {
 				Logger.error(
 					`Error running onUpdate action ${featureUuid} for node ${evt.payload.uuid}:`,

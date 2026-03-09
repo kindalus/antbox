@@ -1,4 +1,4 @@
-import { Database } from "jsr:@db/sqlite";
+import { Database } from "jsr:@db/sqlite@0.13.0";
 
 import type {
 	CollectionMap,

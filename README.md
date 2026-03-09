@@ -186,6 +186,10 @@ Optional tenant selection:
   - `POST /v2/features/-/upload`, `GET /v2/features`
   - `GET /v2/actions`, `POST /v2/actions/{uuid}/-/run`
   - `GET /v2/extensions`, `GET|POST /v2/extensions/{uuid}/-/exec`
+  - uploads for aspects and features use `multipart/form-data` with a file in the `file` field
+  - aspect upload expects a JSON file; feature upload expects a JavaScript module file
+  - a feature must be exposed as action, extension, or AI tool; automatic triggers are only valid
+    for actions
 - **Agents**
   - `POST /v2/agents/-/upload`, `GET /v2/agents`
   - `POST /v2/agents/{uuid}/-/chat`

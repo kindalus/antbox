@@ -51,7 +51,7 @@ function createHarness(useOCR = false): Harness {
 	return { nodeService, featuresService, engine };
 }
 
-function createFeatureModule(
+function createFeatureRun(
 	opts: {
 		exposeAction?: boolean;
 		runOnCreates?: boolean;
@@ -63,43 +63,34 @@ function createFeatureModule(
 		runBody?: string;
 	} = {},
 ): string {
-	const {
-		exposeAction = true,
-		runOnCreates = false,
-		runManually = true,
-		exposeExtension = false,
-		exposeAITool = false,
-		filters = [],
-		returnType = "object",
-		runBody = "return args;",
-	} = opts;
+	const { runBody = "return args;" } = opts;
 
-	return `export default {
-	uuid: "module-feature",
-	title: "Module Feature",
-	description: "Feature module for tests",
-	exposeAction: ${exposeAction},
-	runOnCreates: ${runOnCreates},
-	runOnUpdates: false,
-	runOnDeletes: false,
-	runManually: ${runManually},
-	filters: ${JSON.stringify(filters)},
-	exposeExtension: ${exposeExtension},
-	exposeAITool: ${exposeAITool},
-	runAs: undefined,
-	groupsAllowed: [],
-	parameters: [],
-	returnType: ${JSON.stringify(returnType)},
-	async run(ctx, args) {
+	return `async function(ctx, args) {
 		${runBody}
-	},
-};`;
+	}`;
 }
+
+let featureCounter = 0;
+
+const defaultActionParameters: FeatureData["parameters"] = [
+	{
+		name: "uuids",
+		type: "array",
+		arrayType: "string",
+		required: true,
+		description: "Node UUIDs",
+	},
+];
 
 function createFeatureInput(
 	overrides: Partial<Omit<FeatureData, "uuid" | "createdTime" | "modifiedTime">>,
 ) {
+	featureCounter += 1;
+	const parameters = overrides.parameters ??
+		(overrides.exposeAction === false ? [] : defaultActionParameters);
+
 	return {
+		uuid: `engine_feature_${featureCounter}`,
 		title: "Test Feature",
 		description: "Feature used in tests",
 		exposeAction: true,
@@ -112,12 +103,12 @@ function createFeatureInput(
 		exposeAITool: false,
 		runAs: undefined,
 		groupsAllowed: [],
-		parameters: [],
+		parameters,
 		returnType: "object" as const,
 		returnDescription: "Returns test data",
 		returnContentType: "application/json",
 		tags: ["test"],
-		module: createFeatureModule(),
+		run: createFeatureRun(),
 		...overrides,
 	};
 }
@@ -188,7 +179,7 @@ describe("FeaturesEngine", () => {
 
 		const featureUuid = await createFeature(harness, {
 			filters: [["mimetype", "==", "text/plain"]],
-			module: createFeatureModule({
+			run: createFeatureRun({
 				filters: [["mimetype", "==", "text/plain"]],
 				runBody: "return { uuids: args.uuids };",
 			}),
@@ -211,7 +202,7 @@ describe("FeaturesEngine", () => {
 		const featureUuid = await createFeature(harness, {
 			exposeAction: false,
 			exposeAITool: true,
-			module: createFeatureModule({
+			run: createFeatureRun({
 				exposeAction: false,
 				exposeAITool: true,
 			}),
@@ -266,7 +257,7 @@ describe("FeaturesEngine", () => {
 			exposeAction: false,
 			exposeExtension: true,
 			returnType: "object",
-			module: createFeatureModule({
+			run: createFeatureRun({
 				exposeAction: false,
 				exposeExtension: true,
 				returnType: "object",
@@ -304,7 +295,7 @@ describe("FeaturesEngine", () => {
 		await createFeature(harness, {
 			runOnCreates: true,
 			runManually: false,
-			module: createFeatureModule({
+			run: createFeatureRun({
 				runOnCreates: true,
 				runManually: false,
 				runBody: `
@@ -335,5 +326,51 @@ describe("FeaturesEngine", () => {
 		}, 1200);
 
 		expect(updated).toBe(true);
+	});
+
+	it("does not run non-action features from folder onCreate hooks", async () => {
+		const harness = createHarness();
+
+		const featureUuid = await createFeature(harness, {
+			exposeAction: false,
+			exposeExtension: true,
+			run: createFeatureRun({
+				runBody: `
+					if (Array.isArray(args.uuids) && args.uuids.length > 0) {
+						await ctx.nodeService.update(args.uuids[0], {
+							description: "should-not-run",
+						});
+					}
+					return { done: true };
+				`,
+			}),
+		});
+
+		await harness.nodeService.create(adminCtx, {
+			uuid: "hook-folder",
+			title: "Hook Folder",
+			mimetype: Nodes.FOLDER_MIMETYPE,
+			parent: Nodes.ROOT_FOLDER_UUID,
+			onCreate: [featureUuid],
+		});
+
+		await harness.nodeService.createFile(
+			adminCtx,
+			new File(["hook body"], "hook.txt", { type: "text/plain" }),
+			{
+				uuid: "hook-file",
+				title: "hook.txt",
+				mimetype: "text/plain",
+				parent: "hook-folder",
+			},
+		);
+
+		await new Promise((resolve) => setTimeout(resolve, 150));
+
+		const nodeOrErr = await harness.nodeService.get(adminCtx, "hook-file");
+		expect(nodeOrErr.isRight()).toBe(true);
+		if (nodeOrErr.isRight()) {
+			expect(nodeOrErr.value.description).toBeUndefined();
+		}
 	});
 });

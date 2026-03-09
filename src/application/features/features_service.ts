@@ -3,11 +3,11 @@ import { ADMINS_GROUP_UUID } from "domain/configuration/builtin_groups.ts";
 import type { ConfigurationRepository } from "domain/configuration/configuration_repository.ts";
 import type { FeatureData } from "domain/configuration/feature_data.ts";
 import { FeatureDataSchema } from "domain/configuration/feature_schema.ts";
+import { normalizeFeatureData, normalizeRunSource } from "domain/features/feature.ts";
 import { Users } from "domain/users_groups/users.ts";
 import { Groups } from "domain/users_groups/groups.ts";
 import { AntboxError, BadRequestError, ForbiddenError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
-import { UuidGenerator } from "shared/uuid_generator.ts";
 import { ValidationError } from "shared/validation_error.ts";
 import type { AuthenticationContext } from "../security/authentication_context.ts";
 
@@ -15,11 +15,13 @@ export interface FeaturesServiceContext {
 	configRepo: ConfigurationRepository;
 }
 
+export interface CreateFeatureData extends Omit<FeatureData, "createdTime" | "modifiedTime"> {}
+
 /**
  * FeaturesService - Manages feature configurations (CRUD operations only)
  *
  * Features are mutable configurations that define custom functionality and actions.
- * Features include both metadata and executable code stored as a module string.
+ * Features include both metadata and executable code stored as a run function string.
  *
  * For feature execution (actions, extensions, AI tools), use FeaturesEngine.
  *
@@ -39,7 +41,7 @@ export class FeaturesService {
 
 	async createFeature(
 		ctx: AuthenticationContext,
-		data: Omit<FeatureData, "uuid" | "createdTime" | "modifiedTime">,
+		data: CreateFeatureData,
 	): Promise<Either<AntboxError, FeatureData>> {
 		// Check admin permission
 		if (!this.#isAdmin(ctx)) {
@@ -48,8 +50,8 @@ export class FeaturesService {
 
 		const now = new Date().toISOString();
 		const featureData: FeatureData = {
-			uuid: UuidGenerator.generate(),
 			...data,
+			run: normalizeRunSource(data.run),
 			createdTime: now,
 			modifiedTime: now,
 		};
@@ -76,7 +78,12 @@ export class FeaturesService {
 			return right(builtinFeature);
 		}
 
-		return this.#configRepo.get("features", uuid);
+		const customFeatureOrErr = await this.#configRepo.get("features", uuid);
+		if (customFeatureOrErr.isLeft()) {
+			return customFeatureOrErr;
+		}
+
+		return this.#normalizeAndPersist(customFeatureOrErr.value);
 	}
 
 	async listFeatures(
@@ -88,8 +95,20 @@ export class FeaturesService {
 			return customFeaturesOrErr;
 		}
 
-		// Combine builtin features with custom features
-		const allFeatures = [...BUILTIN_FEATURES, ...customFeaturesOrErr.value];
+		const normalizedFeatures = await Promise.all(
+			customFeaturesOrErr.value.map((feature) => this.#normalizeAndPersist(feature)),
+		);
+
+		const customFeatures: FeatureData[] = [];
+		for (const featureOrErr of normalizedFeatures) {
+			if (featureOrErr.isLeft()) {
+				return left(featureOrErr.value);
+			}
+
+			customFeatures.push(featureOrErr.value);
+		}
+
+		const allFeatures: FeatureData[] = [...BUILTIN_FEATURES, ...customFeatures];
 
 		// Sort by title
 		allFeatures.sort((a, b) => a.title.localeCompare(b.title));
@@ -131,11 +150,17 @@ export class FeaturesService {
 			return existingOrErr;
 		}
 
+		const normalizedOrErr = await this.#normalizeAndPersist(existingOrErr.value);
+		if (normalizedOrErr.isLeft()) {
+			return left(normalizedOrErr.value);
+		}
+
 		const updatedData: FeatureData = {
-			...existingOrErr.value,
+			...normalizedOrErr.value,
 			...updates,
 			uuid, // Ensure UUID doesn't change
-			createdTime: existingOrErr.value.createdTime, // Preserve creation time
+			run: normalizeRunSource(updates.run ?? normalizedOrErr.value.run),
+			createdTime: normalizedOrErr.value.createdTime, // Preserve creation time
 			modifiedTime: new Date().toISOString(),
 		};
 
@@ -256,5 +281,22 @@ export class FeaturesService {
 
 	#isAdmin(ctx: AuthenticationContext): boolean {
 		return ctx.principal.groups.includes(ADMINS_GROUP_UUID);
+	}
+
+	async #normalizeAndPersist(rawFeature: FeatureData): Promise<Either<AntboxError, FeatureData>> {
+		const normalizedOrErr = await normalizeFeatureData(rawFeature);
+		if (normalizedOrErr.isLeft()) {
+			return left(normalizedOrErr.value);
+		}
+
+		const normalized = normalizedOrErr.value;
+		const hasLegacyModule = "module" in (rawFeature as unknown as Record<string, unknown>);
+		const needsNormalization = rawFeature.run !== normalized.run;
+
+		if (!hasLegacyModule && !needsNormalization) {
+			return right(normalized);
+		}
+
+		return this.#configRepo.save("features", normalized);
 	}
 }

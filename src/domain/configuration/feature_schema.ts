@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ACTION_UUIDS_PARAMETER_ERROR, hasRequiredActionUuidsParameter } from "./feature_data.ts";
 
 /**
  * Zod schema for FeatureParameter validation
@@ -45,7 +46,34 @@ export const FeatureDataSchema = z.object({
 	returnDescription: z.string().optional(),
 	returnContentType: z.string().optional(),
 	tags: z.array(z.string()).optional(),
-	module: z.string().min(1, "Feature module is required"),
+	run: z.string().min(1, "Feature run is required"),
 	createdTime: z.string(),
 	modifiedTime: z.string(),
+}).superRefine((feature, ctx) => {
+	if (!feature.exposeAction && !feature.exposeExtension && !feature.exposeAITool) {
+		ctx.addIssue({
+			code: z.ZodIssueCode.custom,
+			message: "Feature must be exposed as action, extension, or AI tool",
+			path: ["exposeAction"],
+		});
+	}
+
+	if (
+		(feature.runOnCreates || feature.runOnUpdates || feature.runOnDeletes) &&
+		!feature.exposeAction
+	) {
+		ctx.addIssue({
+			code: z.ZodIssueCode.custom,
+			message: "Automatic feature execution requires exposeAction to be true",
+			path: ["runOnCreates"],
+		});
+	}
+
+	if (feature.exposeAction && !hasRequiredActionUuidsParameter(feature.parameters)) {
+		ctx.addIssue({
+			code: z.ZodIssueCode.custom,
+			message: ACTION_UUIDS_PARAMETER_ERROR,
+			path: ["parameters"],
+		});
+	}
 });

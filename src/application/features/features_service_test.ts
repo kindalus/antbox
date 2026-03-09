@@ -2,15 +2,21 @@ import { describe, it } from "bdd";
 import { expect } from "expect";
 import type { AuthenticationContext } from "application/security/authentication_context.ts";
 import { InMemoryConfigurationRepository } from "adapters/inmem/inmem_configuration_repository.ts";
-import { FeaturesService } from "application/features/features_service.ts";
+import { type CreateFeatureData, FeaturesService } from "application/features/features_service.ts";
 import { ADMINS_GROUP_UUID } from "domain/configuration/builtin_groups.ts";
 import { MOVE_UP_FEATURE_UUID } from "domain/configuration/builtin_features.ts";
 
 describe("FeaturesService", () => {
-	const createService = () =>
-		new FeaturesService({
-			configRepo: new InMemoryConfigurationRepository(),
-		});
+	const createFixture = () => {
+		const configRepo = new InMemoryConfigurationRepository();
+
+		return {
+			configRepo,
+			service: new FeaturesService({ configRepo }),
+		};
+	};
+
+	const createService = () => createFixture().service;
 
 	const adminCtx: AuthenticationContext = {
 		tenant: "test",
@@ -30,67 +36,110 @@ describe("FeaturesService", () => {
 		mode: "Action",
 	};
 
-	const sampleFeatureModule =
-		`import type { RunContext } from "domain/features/feature_run_context.ts";
-import { Feature } from "domain/features/feature.ts";
-
-const testFeature: Feature = {
-	uuid: "test-feature",
-	title: "Test Feature",
-	description: "A test feature",
-	exposeAction: true,
-	runOnCreates: false,
-	runOnUpdates: false,
-	runOnDeletes: false,
-	runManually: true,
-	filters: [],
-	exposeExtension: false,
-	exposeAITool: false,
-	runAs: undefined,
-	groupsAllowed: [],
-	parameters: [],
-	returnType: "void",
-	returnDescription: "Does nothing",
-
-	async run(ctx: RunContext, args: Record<string, unknown>): Promise<void> {
+	const sampleFeatureRun = `async function(_ctx, _args) {
 		console.log("Test feature executed");
-	},
-};
+	}`;
 
-export default testFeature;
-`;
+	const sampleLegacyFeatureModule = `export default {
+		uuid: "legacy-feature",
+		title: "Legacy Feature",
+		description: "Stored as a full module",
+		exposeAction: true,
+		runOnCreates: false,
+		runOnUpdates: false,
+		runOnDeletes: false,
+		runManually: true,
+		filters: [],
+		exposeExtension: false,
+		exposeAITool: false,
+		groupsAllowed: [],
+		parameters: [],
+		returnType: "void",
+		async run(_ctx, _args) {
+			console.log("legacy feature executed");
+		}
+	};`;
+
+	const defaultActionParameters: CreateFeatureData["parameters"] = [
+		{
+			name: "uuids",
+			type: "array",
+			arrayType: "string",
+			required: true,
+			description: "Node UUIDs",
+		},
+	];
+
+	let featureCounter = 0;
+
+	function createFeatureInput(overrides: Partial<CreateFeatureData> = {}): CreateFeatureData {
+		featureCounter += 1;
+
+		const parameters = overrides.parameters ??
+			(overrides.exposeAction === false ? [] : defaultActionParameters);
+
+		return {
+			uuid: `feature_${featureCounter}_uuid`,
+			title: "Test Feature",
+			description: "Feature used in tests",
+			exposeAction: true,
+			runOnCreates: false,
+			runOnUpdates: false,
+			runOnDeletes: false,
+			runManually: true,
+			filters: [],
+			exposeExtension: false,
+			exposeAITool: false,
+			runAs: undefined,
+			groupsAllowed: [],
+			parameters,
+			returnType: "void",
+			run: sampleFeatureRun,
+			...overrides,
+		};
+	}
 
 	describe("createFeature", () => {
 		it("should create feature successfully as admin", async () => {
 			const service = createService();
 
-			const result = await service.createFeature(adminCtx, {
-				title: "Custom Action",
-				description: "A custom action feature",
-				exposeAction: true,
-				runOnCreates: false,
-				runOnUpdates: false,
-				runOnDeletes: false,
-				runManually: true,
-				filters: [["mimetype", "==", "text/markdown"]],
-				exposeExtension: false,
-				exposeAITool: true,
-				runAs: undefined,
-				groupsAllowed: ["--editors--"],
-				parameters: [
-					{
-						name: "message",
-						type: "string",
-						required: true,
-						description: "The message to display",
-					},
-				],
-				returnType: "string",
-				returnDescription: "Returns the processed message",
-				returnContentType: "text/plain",
-				tags: ["custom", "action"],
-				module: sampleFeatureModule,
-			});
+			const result = await service.createFeature(
+				adminCtx,
+				createFeatureInput({
+					title: "Custom Action",
+					description: "A custom action feature",
+					exposeAction: true,
+					runOnCreates: false,
+					runOnUpdates: false,
+					runOnDeletes: false,
+					runManually: true,
+					filters: [["mimetype", "==", "text/markdown"]],
+					exposeExtension: false,
+					exposeAITool: true,
+					runAs: undefined,
+					groupsAllowed: ["--editors--"],
+					parameters: [
+						{
+							name: "uuids",
+							type: "array",
+							arrayType: "string",
+							required: true,
+							description: "Node UUIDs",
+						},
+						{
+							name: "message",
+							type: "string",
+							required: true,
+							description: "The message to display",
+						},
+					],
+					returnType: "string",
+					returnDescription: "Returns the processed message",
+					returnContentType: "text/plain",
+					tags: ["custom", "action"],
+					run: sampleFeatureRun,
+				}),
+			);
 
 			expect(result.isRight()).toBe(true);
 			if (result.isRight()) {
@@ -101,20 +150,22 @@ export default testFeature;
 				expect(feature.exposeAction).toBe(true);
 				expect(feature.exposeAITool).toBe(true);
 				expect(feature.filters.length).toBe(1);
-				expect(feature.parameters.length).toBe(1);
+				expect(feature.parameters.length).toBe(2);
+				expect(feature.parameters[0].name).toBe("uuids");
 				expect(feature.returnType).toBe("string");
-				expect(feature.module).toBe(sampleFeatureModule);
+				expect(feature.run).toBe(sampleFeatureRun);
 				expect(feature.createdTime).toBeDefined();
 				expect(feature.modifiedTime).toBeDefined();
 			}
 		});
 
-		it("should reject creation as non-admin", async () => {
+		it("should preserve a provided uuid", async () => {
 			const service = createService();
 
-			const result = await service.createFeature(userCtx, {
-				title: "Unauthorized Feature",
-				description: "Should fail",
+			const result = await service.createFeature(adminCtx, {
+				uuid: "raw_upload_feature",
+				title: "Custom Action",
+				description: "A custom action feature",
 				exposeAction: true,
 				runOnCreates: false,
 				runOnUpdates: false,
@@ -125,10 +176,40 @@ export default testFeature;
 				exposeAITool: false,
 				runAs: undefined,
 				groupsAllowed: [],
-				parameters: [],
+				parameters: defaultActionParameters,
 				returnType: "void",
-				module: sampleFeatureModule,
+				run: sampleFeatureRun,
 			});
+
+			expect(result.isRight()).toBe(true);
+			if (result.isRight()) {
+				expect(result.value.uuid).toBe("raw_upload_feature");
+			}
+		});
+
+		it("should reject creation as non-admin", async () => {
+			const service = createService();
+
+			const result = await service.createFeature(
+				userCtx,
+				createFeatureInput({
+					title: "Unauthorized Feature",
+					description: "Should fail",
+					exposeAction: true,
+					runOnCreates: false,
+					runOnUpdates: false,
+					runOnDeletes: false,
+					runManually: true,
+					filters: [],
+					exposeExtension: false,
+					exposeAITool: false,
+					runAs: undefined,
+					groupsAllowed: [],
+					parameters: defaultActionParameters,
+					returnType: "void",
+					run: sampleFeatureRun,
+				}),
+			);
 
 			expect(result.isLeft()).toBe(true);
 		});
@@ -136,49 +217,135 @@ export default testFeature;
 		it("should validate required fields", async () => {
 			const service = createService();
 
-			const result = await service.createFeature(adminCtx, {
-				title: "",
-				description: "Missing title",
-				exposeAction: true,
-				runOnCreates: false,
-				runOnUpdates: false,
-				runOnDeletes: false,
-				runManually: true,
-				filters: [],
-				exposeExtension: false,
-				exposeAITool: false,
-				runAs: undefined,
-				groupsAllowed: [],
-				parameters: [],
-				returnType: "void",
-				module: sampleFeatureModule,
-			});
+			const result = await service.createFeature(
+				adminCtx,
+				createFeatureInput({
+					title: "",
+					description: "Missing title",
+					exposeAction: true,
+					runOnCreates: false,
+					runOnUpdates: false,
+					runOnDeletes: false,
+					runManually: true,
+					filters: [],
+					exposeExtension: false,
+					exposeAITool: false,
+					runAs: undefined,
+					groupsAllowed: [],
+					parameters: defaultActionParameters,
+					returnType: "void",
+					run: sampleFeatureRun,
+				}),
+			);
 
 			expect(result.isLeft()).toBe(true);
 		});
 
-		it("should validate module is not empty", async () => {
+		it("should validate run is not empty", async () => {
 			const service = createService();
 
-			const result = await service.createFeature(adminCtx, {
-				title: "Invalid Feature",
-				description: "Missing module",
-				exposeAction: true,
-				runOnCreates: false,
-				runOnUpdates: false,
-				runOnDeletes: false,
-				runManually: true,
-				filters: [],
-				exposeExtension: false,
-				exposeAITool: false,
-				runAs: undefined,
-				groupsAllowed: [],
-				parameters: [],
-				returnType: "void",
-				module: "",
-			});
+			const result = await service.createFeature(
+				adminCtx,
+				createFeatureInput({
+					title: "Invalid Feature",
+					description: "Missing run",
+					exposeAction: true,
+					runOnCreates: false,
+					runOnUpdates: false,
+					runOnDeletes: false,
+					runManually: true,
+					filters: [],
+					exposeExtension: false,
+					exposeAITool: false,
+					runAs: undefined,
+					groupsAllowed: [],
+					parameters: defaultActionParameters,
+					returnType: "void",
+					run: "",
+				}),
+			);
 
 			expect(result.isLeft()).toBe(true);
+		});
+
+		it("should require at least one exposure mode", async () => {
+			const service = createService();
+
+			const result = await service.createFeature(
+				adminCtx,
+				createFeatureInput({
+					exposeAction: false,
+					exposeExtension: false,
+					exposeAITool: false,
+				}),
+			);
+
+			expect(result.isLeft()).toBe(true);
+			if (result.isLeft()) {
+				expect(result.value.message).toContain("Feature must be exposed");
+			}
+		});
+
+		it("should require automatic features to be actions", async () => {
+			const service = createService();
+
+			const result = await service.createFeature(
+				adminCtx,
+				createFeatureInput({
+					exposeAction: false,
+					exposeExtension: true,
+					runOnCreates: true,
+				}),
+			);
+
+			expect(result.isLeft()).toBe(true);
+			if (result.isLeft()) {
+				expect(result.value.message).toContain(
+					"Automatic feature execution requires exposeAction",
+				);
+			}
+		});
+
+		it("should require actions to declare uuids parameter", async () => {
+			const service = createService();
+
+			const result = await service.createFeature(
+				adminCtx,
+				createFeatureInput({
+					parameters: [],
+				}),
+			);
+
+			expect(result.isLeft()).toBe(true);
+			if (result.isLeft()) {
+				expect(result.value.message).toContain(
+					"Action features must declare required parameter 'uuids'",
+				);
+			}
+		});
+
+		it("should require uuids parameter to be array<string>", async () => {
+			const service = createService();
+
+			const result = await service.createFeature(
+				adminCtx,
+				createFeatureInput({
+					parameters: [
+						{
+							name: "uuids",
+							type: "string",
+							required: true,
+						},
+					],
+				}),
+			);
+
+			expect(result.isLeft()).toBe(true);
+			if (result.isLeft()) {
+				expect(result.value.message).toContain(
+					"Action features must declare required parameter 'uuids'",
+				);
+			}
 		});
 	});
 
@@ -186,23 +353,26 @@ export default testFeature;
 		it("should get feature successfully", async () => {
 			const service = createService();
 
-			const createResult = await service.createFeature(adminCtx, {
-				title: "Test Feature",
-				description: "Test description",
-				exposeAction: true,
-				runOnCreates: false,
-				runOnUpdates: false,
-				runOnDeletes: false,
-				runManually: true,
-				filters: [],
-				exposeExtension: false,
-				exposeAITool: false,
-				runAs: undefined,
-				groupsAllowed: [],
-				parameters: [],
-				returnType: "void",
-				module: sampleFeatureModule,
-			});
+			const createResult = await service.createFeature(
+				adminCtx,
+				createFeatureInput({
+					title: "Test Feature",
+					description: "Test description",
+					exposeAction: true,
+					runOnCreates: false,
+					runOnUpdates: false,
+					runOnDeletes: false,
+					runManually: true,
+					filters: [],
+					exposeExtension: false,
+					exposeAITool: false,
+					runAs: undefined,
+					groupsAllowed: [],
+					parameters: defaultActionParameters,
+					returnType: "void",
+					run: sampleFeatureRun,
+				}),
+			);
 
 			expect(createResult.isRight()).toBe(true);
 			if (!createResult.isRight()) return;
@@ -224,30 +394,33 @@ export default testFeature;
 			if (result.isRight()) {
 				expect(result.value.uuid).toBe(MOVE_UP_FEATURE_UUID);
 				expect(result.value.title).toBe("Move Up");
-				expect(result.value.module).toBeDefined();
+				expect(result.value.run).toBeDefined();
 			}
 		});
 
 		it("should allow non-admin to get feature", async () => {
 			const service = createService();
 
-			const createResult = await service.createFeature(adminCtx, {
-				title: "Public Feature",
-				description: "Accessible to all",
-				exposeAction: true,
-				runOnCreates: false,
-				runOnUpdates: false,
-				runOnDeletes: false,
-				runManually: true,
-				filters: [],
-				exposeExtension: false,
-				exposeAITool: false,
-				runAs: undefined,
-				groupsAllowed: [],
-				parameters: [],
-				returnType: "void",
-				module: sampleFeatureModule,
-			});
+			const createResult = await service.createFeature(
+				adminCtx,
+				createFeatureInput({
+					title: "Public Feature",
+					description: "Accessible to all",
+					exposeAction: true,
+					runOnCreates: false,
+					runOnUpdates: false,
+					runOnDeletes: false,
+					runManually: true,
+					filters: [],
+					exposeExtension: false,
+					exposeAITool: false,
+					runAs: undefined,
+					groupsAllowed: [],
+					parameters: defaultActionParameters,
+					returnType: "void",
+					run: sampleFeatureRun,
+				}),
+			);
 
 			expect(createResult.isRight()).toBe(true);
 			if (!createResult.isRight()) return;
@@ -256,6 +429,49 @@ export default testFeature;
 
 			expect(result.isRight()).toBe(true);
 		});
+
+		it("migrates legacy module-based features on read", async () => {
+			const fixture = createFixture();
+
+			await fixture.configRepo.save(
+				"features",
+				{
+					uuid: "legacy-feature",
+					title: "Legacy Feature",
+					description: "Stored as a full module",
+					exposeAction: true,
+					runOnCreates: false,
+					runOnUpdates: false,
+					runOnDeletes: false,
+					runManually: true,
+					filters: [],
+					exposeExtension: false,
+					exposeAITool: false,
+					runAs: undefined,
+					groupsAllowed: [],
+					parameters: defaultActionParameters,
+					returnType: "void",
+					createdTime: "2024-01-01T00:00:00.000Z",
+					modifiedTime: "2024-01-01T00:00:00.000Z",
+					module: sampleLegacyFeatureModule,
+				} as unknown as import("domain/configuration/feature_data.ts").FeatureData,
+			);
+
+			const result = await fixture.service.getFeature(adminCtx, "legacy-feature");
+
+			expect(result.isRight()).toBe(true);
+			if (!result.isRight()) return;
+
+			expect(result.value.run).toContain("legacy feature executed");
+
+			const persisted = await fixture.configRepo.get("features", "legacy-feature");
+			expect(persisted.isRight()).toBe(true);
+			if (!persisted.isRight()) return;
+
+			const stored = persisted.value as unknown as { run?: string; module?: string };
+			expect(stored.run).toContain("legacy feature executed");
+			expect(stored.module).toBeUndefined();
+		});
 	});
 
 	describe("listFeatures", () => {
@@ -263,41 +479,47 @@ export default testFeature;
 			const service = createService();
 
 			// Create two custom features
-			await service.createFeature(adminCtx, {
-				title: "Feature A",
-				description: "First feature",
-				exposeAction: true,
-				runOnCreates: false,
-				runOnUpdates: false,
-				runOnDeletes: false,
-				runManually: true,
-				filters: [],
-				exposeExtension: false,
-				exposeAITool: false,
-				runAs: undefined,
-				groupsAllowed: [],
-				parameters: [],
-				returnType: "void",
-				module: sampleFeatureModule,
-			});
+			await service.createFeature(
+				adminCtx,
+				createFeatureInput({
+					title: "Feature A",
+					description: "First feature",
+					exposeAction: true,
+					runOnCreates: false,
+					runOnUpdates: false,
+					runOnDeletes: false,
+					runManually: true,
+					filters: [],
+					exposeExtension: false,
+					exposeAITool: false,
+					runAs: undefined,
+					groupsAllowed: [],
+					parameters: defaultActionParameters,
+					returnType: "void",
+					run: sampleFeatureRun,
+				}),
+			);
 
-			await service.createFeature(adminCtx, {
-				title: "Feature B",
-				description: "Second feature",
-				exposeAction: true,
-				runOnCreates: false,
-				runOnUpdates: false,
-				runOnDeletes: false,
-				runManually: true,
-				filters: [],
-				exposeExtension: false,
-				exposeAITool: false,
-				runAs: undefined,
-				groupsAllowed: [],
-				parameters: [],
-				returnType: "void",
-				module: sampleFeatureModule,
-			});
+			await service.createFeature(
+				adminCtx,
+				createFeatureInput({
+					title: "Feature B",
+					description: "Second feature",
+					exposeAction: true,
+					runOnCreates: false,
+					runOnUpdates: false,
+					runOnDeletes: false,
+					runManually: true,
+					filters: [],
+					exposeExtension: false,
+					exposeAITool: false,
+					runAs: undefined,
+					groupsAllowed: [],
+					parameters: defaultActionParameters,
+					returnType: "void",
+					run: sampleFeatureRun,
+				}),
+			);
 
 			const result = await service.listFeatures(adminCtx);
 
@@ -311,23 +533,26 @@ export default testFeature;
 		it("should allow non-admin to list features", async () => {
 			const service = createService();
 
-			await service.createFeature(adminCtx, {
-				title: "Test Feature",
-				description: "Test",
-				exposeAction: true,
-				runOnCreates: false,
-				runOnUpdates: false,
-				runOnDeletes: false,
-				runManually: true,
-				filters: [],
-				exposeExtension: false,
-				exposeAITool: false,
-				runAs: undefined,
-				groupsAllowed: [],
-				parameters: [],
-				returnType: "void",
-				module: sampleFeatureModule,
-			});
+			await service.createFeature(
+				adminCtx,
+				createFeatureInput({
+					title: "Test Feature",
+					description: "Test",
+					exposeAction: true,
+					runOnCreates: false,
+					runOnUpdates: false,
+					runOnDeletes: false,
+					runManually: true,
+					filters: [],
+					exposeExtension: false,
+					exposeAITool: false,
+					runAs: undefined,
+					groupsAllowed: [],
+					parameters: defaultActionParameters,
+					returnType: "void",
+					run: sampleFeatureRun,
+				}),
+			);
 
 			const result = await service.listFeatures(userCtx);
 
@@ -336,34 +561,81 @@ export default testFeature;
 				expect(result.value.length).toBeGreaterThan(0);
 			}
 		});
+
+		it("migrates legacy module-based features when listing", async () => {
+			const fixture = createFixture();
+
+			await fixture.configRepo.save(
+				"features",
+				{
+					uuid: "legacy-list-feature",
+					title: "Legacy List Feature",
+					description: "Stored as a full module",
+					exposeAction: true,
+					runOnCreates: false,
+					runOnUpdates: false,
+					runOnDeletes: false,
+					runManually: true,
+					filters: [],
+					exposeExtension: false,
+					exposeAITool: false,
+					runAs: undefined,
+					groupsAllowed: [],
+					parameters: defaultActionParameters,
+					returnType: "void",
+					createdTime: "2024-01-01T00:00:00.000Z",
+					modifiedTime: "2024-01-01T00:00:00.000Z",
+					module: sampleLegacyFeatureModule.replaceAll("legacy-feature", "legacy-list-feature")
+						.replaceAll("Legacy Feature", "Legacy List Feature"),
+				} as unknown as import("domain/configuration/feature_data.ts").FeatureData,
+			);
+
+			const result = await fixture.service.listFeatures(adminCtx);
+
+			expect(result.isRight()).toBe(true);
+			if (!result.isRight()) return;
+
+			expect(result.value.some((feature) => feature.uuid === "legacy-list-feature")).toBe(true);
+
+			const persisted = await fixture.configRepo.get("features", "legacy-list-feature");
+			expect(persisted.isRight()).toBe(true);
+			if (!persisted.isRight()) return;
+
+			const stored = persisted.value as unknown as { run?: string; module?: string };
+			expect(stored.run).toContain("legacy feature executed");
+			expect(stored.module).toBeUndefined();
+		});
 	});
 
 	describe("updateFeature", () => {
 		it("should update feature successfully as admin", async () => {
 			const service = createService();
 
-			const createResult = await service.createFeature(adminCtx, {
-				title: "Original Title",
-				description: "Original description",
-				exposeAction: true,
-				runOnCreates: false,
-				runOnUpdates: false,
-				runOnDeletes: false,
-				runManually: true,
-				filters: [],
-				exposeExtension: false,
-				exposeAITool: false,
-				runAs: undefined,
-				groupsAllowed: [],
-				parameters: [],
-				returnType: "void",
-				module: sampleFeatureModule,
-			});
+			const createResult = await service.createFeature(
+				adminCtx,
+				createFeatureInput({
+					title: "Original Title",
+					description: "Original description",
+					exposeAction: true,
+					runOnCreates: false,
+					runOnUpdates: false,
+					runOnDeletes: false,
+					runManually: true,
+					filters: [],
+					exposeExtension: false,
+					exposeAITool: false,
+					runAs: undefined,
+					groupsAllowed: [],
+					parameters: defaultActionParameters,
+					returnType: "void",
+					run: sampleFeatureRun,
+				}),
+			);
 
 			expect(createResult.isRight()).toBe(true);
 			if (!createResult.isRight()) return;
 
-			const updatedModule = sampleFeatureModule.replace(
+			const updatedRun = sampleFeatureRun.replace(
 				"Test feature executed",
 				"Updated feature executed",
 			);
@@ -371,14 +643,14 @@ export default testFeature;
 			const result = await service.updateFeature(adminCtx, createResult.value.uuid, {
 				title: "Updated Title",
 				exposeAITool: true,
-				module: updatedModule,
+				run: updatedRun,
 			});
 
 			expect(result.isRight()).toBe(true);
 			if (result.isRight()) {
 				expect(result.value.title).toBe("Updated Title");
 				expect(result.value.exposeAITool).toBe(true);
-				expect(result.value.module).toBe(updatedModule);
+				expect(result.value.run).toBe(updatedRun);
 				expect(result.value.description).toBe("Original description");
 				expect(result.value.createdTime).toBe(createResult.value.createdTime);
 				expect(result.value.modifiedTime).toBeDefined();
@@ -388,23 +660,26 @@ export default testFeature;
 		it("should reject update as non-admin", async () => {
 			const service = createService();
 
-			const createResult = await service.createFeature(adminCtx, {
-				title: "Test Feature",
-				description: "Test",
-				exposeAction: true,
-				runOnCreates: false,
-				runOnUpdates: false,
-				runOnDeletes: false,
-				runManually: true,
-				filters: [],
-				exposeExtension: false,
-				exposeAITool: false,
-				runAs: undefined,
-				groupsAllowed: [],
-				parameters: [],
-				returnType: "void",
-				module: sampleFeatureModule,
-			});
+			const createResult = await service.createFeature(
+				adminCtx,
+				createFeatureInput({
+					title: "Test Feature",
+					description: "Test",
+					exposeAction: true,
+					runOnCreates: false,
+					runOnUpdates: false,
+					runOnDeletes: false,
+					runManually: true,
+					filters: [],
+					exposeExtension: false,
+					exposeAITool: false,
+					runAs: undefined,
+					groupsAllowed: [],
+					parameters: defaultActionParameters,
+					returnType: "void",
+					run: sampleFeatureRun,
+				}),
+			);
 
 			expect(createResult.isRight()).toBe(true);
 			if (!createResult.isRight()) return;
@@ -426,35 +701,92 @@ export default testFeature;
 			expect(result.isLeft()).toBe(true);
 		});
 
-		it("should validate updated module is not empty", async () => {
+		it("should validate updated run is not empty", async () => {
 			const service = createService();
 
-			const createResult = await service.createFeature(adminCtx, {
-				title: "Test Feature",
-				description: "Test",
-				exposeAction: true,
-				runOnCreates: false,
-				runOnUpdates: false,
-				runOnDeletes: false,
-				runManually: true,
-				filters: [],
-				exposeExtension: false,
-				exposeAITool: false,
-				runAs: undefined,
-				groupsAllowed: [],
-				parameters: [],
-				returnType: "void",
-				module: sampleFeatureModule,
-			});
+			const createResult = await service.createFeature(
+				adminCtx,
+				createFeatureInput({
+					title: "Test Feature",
+					description: "Test",
+					exposeAction: true,
+					runOnCreates: false,
+					runOnUpdates: false,
+					runOnDeletes: false,
+					runManually: true,
+					filters: [],
+					exposeExtension: false,
+					exposeAITool: false,
+					runAs: undefined,
+					groupsAllowed: [],
+					parameters: defaultActionParameters,
+					returnType: "void",
+					run: sampleFeatureRun,
+				}),
+			);
 
 			expect(createResult.isRight()).toBe(true);
 			if (!createResult.isRight()) return;
 
 			const result = await service.updateFeature(adminCtx, createResult.value.uuid, {
-				module: "",
+				run: "",
 			});
 
 			expect(result.isLeft()).toBe(true);
+		});
+
+		it("should reject update that removes action uuids parameter", async () => {
+			const service = createService();
+
+			const createResult = await service.createFeature(
+				adminCtx,
+				createFeatureInput({
+					title: "Validated Action",
+					description: "Has required uuids parameter",
+				}),
+			);
+
+			expect(createResult.isRight()).toBe(true);
+			if (!createResult.isRight()) return;
+
+			const result = await service.updateFeature(adminCtx, createResult.value.uuid, {
+				parameters: [],
+			});
+
+			expect(result.isLeft()).toBe(true);
+			if (result.isLeft()) {
+				expect(result.value.message).toContain(
+					"Action features must declare required parameter 'uuids'",
+				);
+			}
+		});
+
+		it("should reject update that turns feature into action without uuids parameter", async () => {
+			const service = createService();
+
+			const createResult = await service.createFeature(
+				adminCtx,
+				createFeatureInput({
+					exposeAction: false,
+					exposeExtension: true,
+					parameters: [],
+				}),
+			);
+
+			expect(createResult.isRight()).toBe(true);
+			if (!createResult.isRight()) return;
+
+			const result = await service.updateFeature(adminCtx, createResult.value.uuid, {
+				exposeAction: true,
+				exposeExtension: false,
+			});
+
+			expect(result.isLeft()).toBe(true);
+			if (result.isLeft()) {
+				expect(result.value.message).toContain(
+					"Action features must declare required parameter 'uuids'",
+				);
+			}
 		});
 	});
 
@@ -462,23 +794,26 @@ export default testFeature;
 		it("should delete feature successfully as admin", async () => {
 			const service = createService();
 
-			const createResult = await service.createFeature(adminCtx, {
-				title: "To Delete",
-				description: "Will be deleted",
-				exposeAction: true,
-				runOnCreates: false,
-				runOnUpdates: false,
-				runOnDeletes: false,
-				runManually: true,
-				filters: [],
-				exposeExtension: false,
-				exposeAITool: false,
-				runAs: undefined,
-				groupsAllowed: [],
-				parameters: [],
-				returnType: "void",
-				module: sampleFeatureModule,
-			});
+			const createResult = await service.createFeature(
+				adminCtx,
+				createFeatureInput({
+					title: "To Delete",
+					description: "Will be deleted",
+					exposeAction: true,
+					runOnCreates: false,
+					runOnUpdates: false,
+					runOnDeletes: false,
+					runManually: true,
+					filters: [],
+					exposeExtension: false,
+					exposeAITool: false,
+					runAs: undefined,
+					groupsAllowed: [],
+					parameters: defaultActionParameters,
+					returnType: "void",
+					run: sampleFeatureRun,
+				}),
+			);
 
 			expect(createResult.isRight()).toBe(true);
 			if (!createResult.isRight()) return;
@@ -495,23 +830,26 @@ export default testFeature;
 		it("should reject delete as non-admin", async () => {
 			const service = createService();
 
-			const createResult = await service.createFeature(adminCtx, {
-				title: "Protected Feature",
-				description: "Cannot be deleted by users",
-				exposeAction: true,
-				runOnCreates: false,
-				runOnUpdates: false,
-				runOnDeletes: false,
-				runManually: true,
-				filters: [],
-				exposeExtension: false,
-				exposeAITool: false,
-				runAs: undefined,
-				groupsAllowed: [],
-				parameters: [],
-				returnType: "void",
-				module: sampleFeatureModule,
-			});
+			const createResult = await service.createFeature(
+				adminCtx,
+				createFeatureInput({
+					title: "Protected Feature",
+					description: "Cannot be deleted by users",
+					exposeAction: true,
+					runOnCreates: false,
+					runOnUpdates: false,
+					runOnDeletes: false,
+					runManually: true,
+					filters: [],
+					exposeExtension: false,
+					exposeAITool: false,
+					runAs: undefined,
+					groupsAllowed: [],
+					parameters: defaultActionParameters,
+					returnType: "void",
+					run: sampleFeatureRun,
+				}),
+			);
 
 			expect(createResult.isRight()).toBe(true);
 			if (!createResult.isRight()) return;

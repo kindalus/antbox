@@ -1,4 +1,4 @@
-import { type BindValue, Database } from "jsr:@db/sqlite";
+import { type BindValue, Database } from "jsr:@db/sqlite@0.13.0";
 
 import { NodeFactory } from "domain/node_factory.ts";
 import { Logger } from "shared/logger.ts";
@@ -421,6 +421,16 @@ export class SqliteNodeRepository implements NodeRepository {
 
 type SqlBuilder = (column: string, value: unknown, params: BindValue[]) => string;
 
+function buildJsonEachEqualsClause(value: unknown, params: BindValue[]): string {
+	if (value !== null && typeof value === "object") {
+		params.push(JSON.stringify(value));
+		return `json_each.value = json(?)`;
+	}
+
+	params.push(value as BindValue);
+	return `json_each.atom = ?`;
+}
+
 const operatorMap: Record<FilterOperator, SqlBuilder> = {
 	"==": (col, val, params) => {
 		params.push(val as BindValue);
@@ -463,34 +473,34 @@ const operatorMap: Record<FilterOperator, SqlBuilder> = {
 		return `${col} LIKE ?`;
 	},
 	contains: (col, val, params) => {
-		params.push(JSON.stringify(val));
-		return `EXISTS (SELECT 1 FROM json_each(${col}) WHERE json_each.value = json(?))`;
+		const comparison = buildJsonEachEqualsClause(val, params);
+		return `EXISTS (SELECT 1 FROM json_each(${col}) WHERE ${comparison})`;
 	},
 	"not-contains": (col, val, params) => {
-		params.push(JSON.stringify(val));
-		return `NOT EXISTS (SELECT 1 FROM json_each(${col}) WHERE json_each.value = json(?))`;
+		const comparison = buildJsonEachEqualsClause(val, params);
+		return `NOT EXISTS (SELECT 1 FROM json_each(${col}) WHERE ${comparison})`;
 	},
 	"contains-all": (col, val, params) => {
 		const values = [...(val as unknown[])];
 		const conditions = values.map((v) => {
-			params.push(JSON.stringify(v));
-			return `EXISTS (SELECT 1 FROM json_each(${col}) WHERE json_each.value = json(?))`;
+			const comparison = buildJsonEachEqualsClause(v, params);
+			return `EXISTS (SELECT 1 FROM json_each(${col}) WHERE ${comparison})`;
 		});
 		return `(${conditions.join(" AND ")})`;
 	},
 	"contains-any": (col, val, params) => {
 		const values = val as unknown[];
 		const conditions = values.map((v) => {
-			params.push(JSON.stringify(v));
-			return `EXISTS (SELECT 1 FROM json_each(${col}) WHERE json_each.value = json(?))`;
+			const comparison = buildJsonEachEqualsClause(v, params);
+			return `EXISTS (SELECT 1 FROM json_each(${col}) WHERE ${comparison})`;
 		});
 		return `(${conditions.join(" OR ")})`;
 	},
 	"contains-none": (col, val, params) => {
 		const values = val as unknown[];
 		const conditions = values.map((v) => {
-			params.push(JSON.stringify(v));
-			return `NOT EXISTS (SELECT 1 FROM json_each(${col}) WHERE json_each.value = json(?))`;
+			const comparison = buildJsonEachEqualsClause(v, params);
+			return `NOT EXISTS (SELECT 1 FROM json_each(${col}) WHERE ${comparison})`;
 		});
 		return `(${conditions.join(" AND ")})`;
 	},

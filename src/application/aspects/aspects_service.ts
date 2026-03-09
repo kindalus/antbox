@@ -8,7 +8,8 @@ import type { AspectData } from "domain/configuration/aspect_data.ts";
 import { AspectDataSchema } from "domain/configuration/aspect_schema.ts";
 import { ADMINS_GROUP_UUID } from "domain/configuration/builtin_groups.ts";
 import { BUILTIN_ASPECTS } from "domain/configuration/builtin_aspects.ts";
-import { UuidGenerator } from "shared/uuid_generator.ts";
+
+export interface CreateAspectData extends Omit<AspectData, "createdTime" | "modifiedTime"> {}
 
 /**
  * AspectsService - Manages aspects in the configuration repository
@@ -21,7 +22,7 @@ export class AspectsService {
 
 	async createAspect(
 		ctx: AuthenticationContext,
-		data: Omit<AspectData, "uuid" | "createdTime" | "modifiedTime">,
+		data: CreateAspectData,
 	): Promise<Either<AntboxError, AspectData>> {
 		// Check admin permission
 		if (!this.#isAdmin(ctx)) {
@@ -30,9 +31,7 @@ export class AspectsService {
 
 		const now = new Date().toISOString();
 		const aspectData: AspectData = {
-			uuid: UuidGenerator.generate(),
-			title: data.title,
-			description: data.description,
+			...data,
 			filters: data.filters || [],
 			properties: data.properties || [],
 			createdTime: now,

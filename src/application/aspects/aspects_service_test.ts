@@ -1,7 +1,7 @@
 import { describe, it } from "bdd";
 import { expect } from "expect";
 import { InMemoryConfigurationRepository } from "adapters/inmem/inmem_configuration_repository.ts";
-import { AspectsService } from "./aspects_service.ts";
+import { AspectsService, type CreateAspectData } from "./aspects_service.ts";
 import type { AuthenticationContext } from "../security/authentication_context.ts";
 import { ADMINS_GROUP_UUID } from "domain/configuration/builtin_groups.ts";
 import type { AspectProperty } from "domain/configuration/aspect_data.ts";
@@ -26,6 +26,20 @@ describe("AspectsService", () => {
 		mode: "Action",
 	};
 
+	let aspectCounter = 0;
+
+	function createAspectInput(overrides: Partial<CreateAspectData> = {}): CreateAspectData {
+		aspectCounter += 1;
+
+		return {
+			uuid: `aspect-${aspectCounter}-uuid`,
+			title: "Test Aspect",
+			filters: [],
+			properties: [],
+			...overrides,
+		};
+	}
+
 	describe("createAspect", () => {
 		it("should create aspect successfully as admin", async () => {
 			const repo = new InMemoryConfigurationRepository();
@@ -48,12 +62,12 @@ describe("AspectsService", () => {
 
 			const filters: NodeFilter[] = [["mimetype", "==", "text/markdown"]];
 
-			const aspectData = {
+			const aspectData = createAspectInput({
 				title: "Article Aspect",
 				description: "Metadata for articles",
 				filters,
 				properties,
-			};
+			});
 
 			const result = await service.createAspect(adminCtx, aspectData);
 
@@ -66,7 +80,7 @@ describe("AspectsService", () => {
 				expect(aspect.properties.length).toBe(2);
 				expect(aspect.properties[0].name).toBe("author_name");
 				expect(aspect.properties[0].required).toBe(true);
-				expect(typeof aspect.uuid).toBe("string");
+				expect(aspect.uuid).toBe(aspectData.uuid);
 				expect(typeof aspect.createdTime).toBe("string");
 				expect(typeof aspect.modifiedTime).toBe("string");
 			}
@@ -76,11 +90,14 @@ describe("AspectsService", () => {
 			const repo = new InMemoryConfigurationRepository();
 			const service = new AspectsService(repo);
 
-			const result = await service.createAspect(adminCtx, {
-				title: "Simple Aspect",
-				filters: [],
-				properties: [],
-			});
+			const result = await service.createAspect(
+				adminCtx,
+				createAspectInput({
+					title: "Simple Aspect",
+					filters: [],
+					properties: [],
+				}),
+			);
 
 			expect(result.isRight()).toBe(true);
 			if (result.isRight()) {
@@ -93,11 +110,14 @@ describe("AspectsService", () => {
 			const repo = new InMemoryConfigurationRepository();
 			const service = new AspectsService(repo);
 
-			const result = await service.createAspect(nonAdminCtx, {
-				title: "Test Aspect",
-				filters: [],
-				properties: [],
-			});
+			const result = await service.createAspect(
+				nonAdminCtx,
+				createAspectInput({
+					title: "Test Aspect",
+					filters: [],
+					properties: [],
+				}),
+			);
 
 			expect(result.isLeft()).toBe(true);
 			if (result.isLeft()) {
@@ -109,11 +129,14 @@ describe("AspectsService", () => {
 			const repo = new InMemoryConfigurationRepository();
 			const service = new AspectsService(repo);
 
-			const result = await service.createAspect(adminCtx, {
-				title: "AB",
-				filters: [],
-				properties: [],
-			});
+			const result = await service.createAspect(
+				adminCtx,
+				createAspectInput({
+					title: "AB",
+					filters: [],
+					properties: [],
+				}),
+			);
 
 			expect(result.isLeft()).toBe(true);
 			if (result.isLeft()) {
@@ -133,11 +156,14 @@ describe("AspectsService", () => {
 				},
 			];
 
-			const result = await service.createAspect(adminCtx, {
-				title: "Invalid Aspect",
-				filters: [],
-				properties,
-			});
+			const result = await service.createAspect(
+				adminCtx,
+				createAspectInput({
+					title: "Invalid Aspect",
+					filters: [],
+					properties,
+				}),
+			);
 
 			expect(result.isLeft()).toBe(true);
 			if (result.isLeft()) {
@@ -151,12 +177,15 @@ describe("AspectsService", () => {
 			const repo = new InMemoryConfigurationRepository();
 			const service = new AspectsService(repo);
 
-			const createResult = await service.createAspect(adminCtx, {
-				title: "Test Aspect",
-				description: "Test description",
-				filters: [],
-				properties: [],
-			});
+			const createResult = await service.createAspect(
+				adminCtx,
+				createAspectInput({
+					title: "Test Aspect",
+					description: "Test description",
+					filters: [],
+					properties: [],
+				}),
+			);
 
 			expect(createResult.isRight()).toBe(true);
 			if (createResult.isRight()) {
@@ -174,11 +203,14 @@ describe("AspectsService", () => {
 			const repo = new InMemoryConfigurationRepository();
 			const service = new AspectsService(repo);
 
-			const createResult = await service.createAspect(adminCtx, {
-				title: "Public Aspect",
-				filters: [],
-				properties: [],
-			});
+			const createResult = await service.createAspect(
+				adminCtx,
+				createAspectInput({
+					title: "Public Aspect",
+					filters: [],
+					properties: [],
+				}),
+			);
 
 			expect(createResult.isRight()).toBe(true);
 			if (createResult.isRight()) {
@@ -206,17 +238,23 @@ describe("AspectsService", () => {
 			const repo = new InMemoryConfigurationRepository();
 			const service = new AspectsService(repo);
 
-			await service.createAspect(adminCtx, {
-				title: "Aspect A",
-				filters: [],
-				properties: [],
-			});
+			await service.createAspect(
+				adminCtx,
+				createAspectInput({
+					title: "Aspect A",
+					filters: [],
+					properties: [],
+				}),
+			);
 
-			await service.createAspect(adminCtx, {
-				title: "Aspect B",
-				filters: [],
-				properties: [],
-			});
+			await service.createAspect(
+				adminCtx,
+				createAspectInput({
+					title: "Aspect B",
+					filters: [],
+					properties: [],
+				}),
+			);
 
 			const result = await service.listAspects(adminCtx);
 
@@ -234,11 +272,14 @@ describe("AspectsService", () => {
 			const repo = new InMemoryConfigurationRepository();
 			const service = new AspectsService(repo);
 
-			await service.createAspect(adminCtx, {
-				title: "Public Aspect",
-				filters: [],
-				properties: [],
-			});
+			await service.createAspect(
+				adminCtx,
+				createAspectInput({
+					title: "Public Aspect",
+					filters: [],
+					properties: [],
+				}),
+			);
 
 			const result = await service.listAspects(nonAdminCtx);
 
@@ -266,12 +307,15 @@ describe("AspectsService", () => {
 			const repo = new InMemoryConfigurationRepository();
 			const service = new AspectsService(repo);
 
-			const createResult = await service.createAspect(adminCtx, {
-				title: "Original Title",
-				description: "Original description",
-				filters: [],
-				properties: [],
-			});
+			const createResult = await service.createAspect(
+				adminCtx,
+				createAspectInput({
+					title: "Original Title",
+					description: "Original description",
+					filters: [],
+					properties: [],
+				}),
+			);
 
 			expect(createResult.isRight()).toBe(true);
 			if (createResult.isRight()) {
@@ -297,11 +341,14 @@ describe("AspectsService", () => {
 			const repo = new InMemoryConfigurationRepository();
 			const service = new AspectsService(repo);
 
-			const createResult = await service.createAspect(adminCtx, {
-				title: "Test Aspect",
-				filters: [],
-				properties: [],
-			});
+			const createResult = await service.createAspect(
+				adminCtx,
+				createAspectInput({
+					title: "Test Aspect",
+					filters: [],
+					properties: [],
+				}),
+			);
 
 			expect(createResult.isRight()).toBe(true);
 			if (createResult.isRight()) {
@@ -333,11 +380,14 @@ describe("AspectsService", () => {
 			const repo = new InMemoryConfigurationRepository();
 			const service = new AspectsService(repo);
 
-			const createResult = await service.createAspect(adminCtx, {
-				title: "Test Aspect",
-				filters: [],
-				properties: [],
-			});
+			const createResult = await service.createAspect(
+				adminCtx,
+				createAspectInput({
+					title: "Test Aspect",
+					filters: [],
+					properties: [],
+				}),
+			);
 
 			expect(createResult.isRight()).toBe(true);
 			if (createResult.isRight()) {
@@ -374,11 +424,14 @@ describe("AspectsService", () => {
 			const repo = new InMemoryConfigurationRepository();
 			const service = new AspectsService(repo);
 
-			const createResult = await service.createAspect(adminCtx, {
-				title: "Temporary Aspect",
-				filters: [],
-				properties: [],
-			});
+			const createResult = await service.createAspect(
+				adminCtx,
+				createAspectInput({
+					title: "Temporary Aspect",
+					filters: [],
+					properties: [],
+				}),
+			);
 
 			expect(createResult.isRight()).toBe(true);
 			if (createResult.isRight()) {
@@ -396,11 +449,14 @@ describe("AspectsService", () => {
 			const repo = new InMemoryConfigurationRepository();
 			const service = new AspectsService(repo);
 
-			const createResult = await service.createAspect(adminCtx, {
-				title: "Test Aspect",
-				filters: [],
-				properties: [],
-			});
+			const createResult = await service.createAspect(
+				adminCtx,
+				createAspectInput({
+					title: "Test Aspect",
+					filters: [],
+					properties: [],
+				}),
+			);
 
 			expect(createResult.isRight()).toBe(true);
 			if (createResult.isRight()) {
@@ -456,11 +512,14 @@ describe("AspectsService", () => {
 
 			const filters: NodeFilter[] = [["mimetype", "==", "application/json"]];
 
-			const result = await service.createAspect(adminCtx, {
-				title: "Complex Aspect",
-				filters,
-				properties,
-			});
+			const result = await service.createAspect(
+				adminCtx,
+				createAspectInput({
+					title: "Complex Aspect",
+					filters,
+					properties,
+				}),
+			);
 
 			expect(result.isRight()).toBe(true);
 			if (result.isRight()) {

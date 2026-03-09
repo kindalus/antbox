@@ -1,4 +1,4 @@
-import { beforeAll, describe, test } from "bdd";
+import { afterAll, beforeAll, describe, test } from "bdd";
 import { expect } from "expect";
 import { providerFrom } from "../module_configuration_parser.ts";
 import { type NodeRepository } from "domain/nodes/node_repository.ts";
@@ -29,6 +29,12 @@ beforeAll(async () => {
 	await populateDb();
 });
 
+afterAll(() => {
+	if ("close" in repo && typeof repo.close === "function") {
+		repo.close();
+	}
+});
+
 describe("filter", () => {
 	test("get all nodes", async () => {
 		const nodes = await repo.filter([]);
@@ -49,6 +55,15 @@ describe("filter", () => {
 			[["title", "==", "Folder 1"]],
 		]);
 		expect(nodes.nodes.length).toBe(2);
+	});
+
+	test("get nodes by aspect contains", async () => {
+		const nodes = await repo.filter([
+			["aspects", "contains", "finance"],
+		]);
+
+		expect(nodes.nodes).toHaveLength(1);
+		expect(nodes.nodes[0].uuid).toBe(uuids[2]);
 	});
 
 	test("get all nodes, second page", async () => {
@@ -178,14 +193,27 @@ async function populateDb() {
 	const nodes = [];
 
 	nodes.push(
-		FolderNode.create({ uuid: uuids[0], title: "Folder 1", owner, group }),
-		FolderNode.create({ uuid: uuids[1], title: "Folder 2", owner, group }),
+		FolderNode.create({
+			uuid: uuids[0],
+			title: "Folder 1",
+			owner,
+			group,
+			aspects: ["workspace"],
+		}),
+		FolderNode.create({
+			uuid: uuids[1],
+			title: "Folder 2",
+			owner,
+			group,
+			aspects: ["archive"],
+		}),
 		FileNode.create({
 			uuid: uuids[2],
 			title: "Essay.pdf",
 			mimetype: "application/pdf",
 			owner,
 			group,
+			aspects: ["finance", "document"],
 		}),
 		FileNode.create({
 			uuid: uuids[3],
@@ -194,6 +222,7 @@ async function populateDb() {
 			mimetype: "image/jpeg",
 			owner,
 			group,
+			aspects: ["media"],
 		}),
 	);
 

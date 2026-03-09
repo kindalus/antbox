@@ -103,9 +103,9 @@ curl -X POST http://localhost:7180/v2/login/root --data "$HASH"
 
 ```json
 {
-  "title": "Contracts",
-  "mimetype": "application/vnd.antbox.folder",
-  "parent": "--root--"
+	"title": "Contracts",
+	"mimetype": "application/vnd.antbox.folder",
+	"parent": "--root--"
 }
 ```
 
@@ -128,31 +128,41 @@ Use this for title/description/tags/aspects/properties/workflow-related metadata
 
 `POST /v2/aspects/-/upload`
 
+Send `multipart/form-data` with a file in the `file` field. The file content is JSON.
+
+UUID resolution rules:
+
+- if the JSON payload contains `uuid`, that value is used
+- otherwise Antbox uses the uploaded file name without the last extension
+- spaces in the file name are replaced with `-`
+
+Minimal aspect file:
+
 ```json
 {
-  "title": "Invoice Metadata",
-  "description": "Structured fields for invoices",
-  "filters": [["mimetype", "==", "application/pdf"]],
-  "properties": [
-    {
-      "name": "status",
-      "title": "Status",
-      "type": "string",
-      "required": true,
-      "validationList": ["Pending", "Approved", "Rejected"],
-      "defaultValue": "Pending"
-    },
-    {
-      "name": "amount",
-      "title": "Amount",
-      "type": "number",
-      "required": false
-    }
-  ]
+	"title": "Invoice Metadata",
+	"description": "Structured fields for invoices",
+	"filters": [["mimetype", "==", "application/pdf"]],
+	"properties": [
+		{
+			"name": "status",
+			"title": "Status",
+			"type": "string",
+			"required": true,
+			"validationList": ["Pending", "Approved", "Rejected"],
+			"defaultValue": "Pending"
+		},
+		{
+			"name": "amount",
+			"title": "Amount",
+			"type": "number",
+			"required": false
+		}
+	]
 }
 ```
 
-The create response contains the generated aspect UUID. Use that UUID in node `aspects` and
+The create response contains the resolved aspect UUID. Use that UUID in node `aspects` and
 `properties` keys.
 
 ### Attribute an aspect to a node
@@ -161,11 +171,11 @@ The create response contains the generated aspect UUID. Use that UUID in node `a
 
 ```json
 {
-  "aspects": ["<aspect_uuid>"],
-  "properties": {
-    "<aspect_uuid>:status": "Pending",
-    "<aspect_uuid>:amount": 1299.50
-  }
+	"aspects": ["<aspect_uuid>"],
+	"properties": {
+		"<aspect_uuid>:status": "Pending",
+		"<aspect_uuid>:amount": 1299.50
+	}
 }
 ```
 
@@ -183,36 +193,57 @@ Critical rules:
 
 `POST /v2/features/-/upload`
 
-Payload must include all required metadata fields plus `module` source code string.
+Send `multipart/form-data` with a file in the `file` field. The file content is a JavaScript module.
+Antbox extracts metadata from `export default` and persists only the metadata plus `run`. Legacy
+records that still contain `module` are normalized on read.
 
-Minimal valid payload:
+UUID resolution rules:
 
-```json
-{
-  "uuid": "tag_pending_invoices",
-  "title": "Tag Pending Invoices",
-  "description": "Adds pending tag to invoice nodes",
-  "exposeAction": true,
-  "runOnCreates": false,
-  "runOnUpdates": false,
-  "runOnDeletes": false,
-  "runManually": true,
-  "filters": [["aspects", "contains", "<aspect_uuid>"]],
-  "exposeExtension": false,
-  "exposeAITool": true,
-  "groupsAllowed": [],
-  "parameters": [
-    {
-      "name": "uuids",
-      "type": "array",
-      "arrayType": "string",
-      "required": true,
-      "description": "Node UUIDs"
-    }
-  ],
-  "returnType": "void",
-  "module": "export default { uuid: 'tag_pending_invoices', title: 'Tag Pending Invoices', description: 'Adds pending tag to invoice nodes', exposeAction: true, runOnCreates: false, runOnUpdates: false, runOnDeletes: false, runManually: true, filters: [['aspects','contains','<aspect_uuid>']], exposeExtension: false, exposeAITool: true, groupsAllowed: [], parameters: [{ name: 'uuids', type: 'array', arrayType: 'string', required: true }], returnType: 'void', async run(ctx, args) { const uuids = args.uuids || []; for (const uuid of uuids) { const n = await ctx.nodeService.get(uuid); if (n.isLeft()) continue; const tags = [...(n.value.tags || []), 'pending']; await ctx.nodeService.update(uuid, { tags }); } } }"
-}
+- if `export default.uuid` exists, that value is used
+- otherwise Antbox uses the uploaded file name without the last extension
+- spaces in the file name are replaced with `_`
+
+Validation rules:
+
+- at least one of `exposeAction`, `exposeExtension`, or `exposeAITool` must be `true`
+- `runOnCreates`, `runOnUpdates`, and `runOnDeletes` are only allowed when `exposeAction` is `true`
+
+Minimal valid module:
+
+```javascript
+export default {
+	uuid: "tag_pending_invoices",
+	title: "Tag Pending Invoices",
+	description: "Adds pending tag to invoice nodes",
+	exposeAction: true,
+	runOnCreates: false,
+	runOnUpdates: false,
+	runOnDeletes: false,
+	runManually: true,
+	filters: [["aspects", "contains", "<aspect_uuid>"]],
+	exposeExtension: false,
+	exposeAITool: true,
+	groupsAllowed: [],
+	parameters: [
+		{
+			name: "uuids",
+			type: "array",
+			arrayType: "string",
+			required: true,
+			description: "Node UUIDs",
+		},
+	],
+	returnType: "void",
+	async run(ctx, args) {
+		const uuids = Array.isArray(args.uuids) ? args.uuids : [];
+		for (const uuid of uuids) {
+			const n = await ctx.nodeService.get(uuid);
+			if (n.isLeft()) continue;
+			const tags = [...(n.value.tags || []), "pending"];
+			await ctx.nodeService.update(uuid, { tags });
+		}
+	},
+};
 ```
 
 ### Runtime contract for `module`
@@ -232,15 +263,18 @@ Required in `module.default`:
 
 Best practice for generation:
 
-- keep top-level payload metadata and `module.default` metadata aligned
-- set explicit feature `uuid` in payload for deterministic references
-- for actions, expect `uuids` parameter
+- put all metadata inside `module.default`
+- set explicit feature `uuid` in the module for deterministic references
+- keep helper logic inside `run`; only `run` is persisted from the uploaded module
+- for actions, declare and expect a required `uuids` parameter with `type: "array"` and
+  `arrayType: "string"`
 - check `Either` results (`isLeft()`/`isRight()`) on every SDK call
 - return deterministic JSON/string output when useful for AI-tool usage
 
 ### Feature mode matrix
 
-- action feature: `exposeAction: true` (optional `runManually`, `runOnCreates/Updates/Deletes`)
+- action feature: `exposeAction: true`, required `parameters` entry for `uuids: array<string>`,
+  optional `runManually` and `runOnCreates/Updates/Deletes`
 - extension feature: `exposeExtension: true` and extension-friendly `returnType`
 - AI tool feature: `exposeAITool: true` and parameter schema designed for tool arguments
 
@@ -250,23 +284,23 @@ Extension-oriented feature:
 
 ```javascript
 export default {
-  uuid: "health_extension",
-  title: "Health Extension",
-  description: "Simple extension response",
-  exposeAction: false,
-  runOnCreates: false,
-  runOnUpdates: false,
-  runOnDeletes: false,
-  runManually: false,
-  filters: [],
-  exposeExtension: true,
-  exposeAITool: false,
-  groupsAllowed: [],
-  parameters: [],
-  returnType: "object",
-  async run() {
-    return { ok: true, ts: new Date().toISOString() };
-  },
+	uuid: "health_extension",
+	title: "Health Extension",
+	description: "Simple extension response",
+	exposeAction: false,
+	runOnCreates: false,
+	runOnUpdates: false,
+	runOnDeletes: false,
+	runManually: false,
+	filters: [],
+	exposeExtension: true,
+	exposeAITool: false,
+	groupsAllowed: [],
+	parameters: [],
+	returnType: "object",
+	async run() {
+		return { ok: true, ts: new Date().toISOString() };
+	},
 };
 ```
 
@@ -274,25 +308,25 @@ AI-tool-oriented feature:
 
 ```javascript
 export default {
-  uuid: "count_children_tool",
-  title: "Count Children Tool",
-  description: "Returns child count for a folder",
-  exposeAction: false,
-  runOnCreates: false,
-  runOnUpdates: false,
-  runOnDeletes: false,
-  runManually: false,
-  filters: [],
-  exposeExtension: false,
-  exposeAITool: true,
-  groupsAllowed: [],
-  parameters: [{ name: "parent", type: "string", required: true }],
-  returnType: "object",
-  async run(ctx, args) {
-    const list = await ctx.nodeService.list(String(args.parent));
-    if (list.isLeft()) return { error: list.value.message };
-    return { count: list.value.length };
-  },
+	uuid: "count_children_tool",
+	title: "Count Children Tool",
+	description: "Returns child count for a folder",
+	exposeAction: false,
+	runOnCreates: false,
+	runOnUpdates: false,
+	runOnDeletes: false,
+	runManually: false,
+	filters: [],
+	exposeExtension: false,
+	exposeAITool: true,
+	groupsAllowed: [],
+	parameters: [{ name: "parent", type: "string", required: true }],
+	returnType: "object",
+	async run(ctx, args) {
+		const list = await ctx.nodeService.list(String(args.parent));
+		if (list.isLeft()) return { error: list.value.message };
+		return { count: list.value.length };
+	},
 };
 ```
 
@@ -316,12 +350,12 @@ Create payload example:
 
 ```json
 {
-  "email": "jane@example.com",
-  "title": "Jane Doe",
-  "group": "--admins--",
-  "groups": ["--admins--"],
-  "hasWhatsapp": false,
-  "active": true
+	"email": "jane@example.com",
+	"title": "Jane Doe",
+	"group": "--admins--",
+	"groups": ["--admins--"],
+	"hasWhatsapp": false,
+	"active": true
 }
 ```
 
@@ -334,8 +368,8 @@ Create payload example:
 
 ```json
 {
-  "title": "Finance",
-  "description": "Finance team"
+	"title": "Finance",
+	"description": "Finance team"
 }
 ```
 
@@ -348,10 +382,10 @@ Create payload example:
 
 ```json
 {
-  "title": "CI key",
-  "group": "--admins--",
-  "description": "Pipeline key",
-  "active": true
+	"title": "CI key",
+	"group": "--admins--",
+	"description": "Pipeline key",
+	"active": true
 }
 ```
 
@@ -368,12 +402,12 @@ LLM agent example:
 
 ```json
 {
-  "name": "Ops Assistant",
-  "description": "Operational helper",
-  "type": "llm",
-  "model": "default",
-  "tools": ["runCode"],
-  "systemPrompt": "You are an operations assistant for Antbox."
+	"name": "Ops Assistant",
+	"description": "Operational helper",
+	"type": "llm",
+	"model": "default",
+	"tools": ["runCode"],
+	"systemPrompt": "You are an operations assistant for Antbox."
 }
 ```
 
@@ -381,9 +415,9 @@ Workflow agent example:
 
 ```json
 {
-  "name": "RAG Pipeline",
-  "type": "sequential",
-  "agents": ["--semantic-searcher-agent--", "--rag-summarizer-agent--"]
+	"name": "RAG Pipeline",
+	"type": "sequential",
+	"agents": ["--semantic-searcher-agent--", "--rag-summarizer-agent--"]
 }
 ```
 
@@ -395,9 +429,9 @@ Workflow agent example:
 
 ```json
 {
-  "filters": [["title", "match", "invoice"], ["mimetype", "==", "application/pdf"]],
-  "pageSize": 20,
-  "pageToken": 1
+	"filters": [["title", "match", "invoice"], ["mimetype", "==", "application/pdf"]],
+	"pageSize": 20,
+	"pageToken": 1
 }
 ```
 
@@ -419,9 +453,9 @@ Use `filters` as a string starting with `?`:
 
 ```json
 {
-  "filters": "?invoice approval policy",
-  "pageSize": 20,
-  "pageToken": 1
+	"filters": "?invoice approval policy",
+	"pageSize": 20,
+	"pageToken": 1
 }
 ```
 
@@ -441,10 +475,10 @@ Built-in function tool currently available in `AgentsEngine`:
 `runCode` expects ESM code:
 
 ```javascript
-export default async function({ nodes, aspects, custom }) {
-  const result = await nodes.find("?contract renewal", 10, 1);
-  if (result.isLeft()) return JSON.stringify({ error: result.value.message });
-  return JSON.stringify(result.value.nodes);
+export default async function ({ nodes, aspects, custom }) {
+	const result = await nodes.find("?contract renewal", 10, 1);
+	if (result.isLeft()) return JSON.stringify({ error: result.value.message });
+	return JSON.stringify(result.value.nodes);
 }
 ```
 
@@ -535,14 +569,14 @@ Use this sequence for safe execution:
 Template:
 
 ```javascript
-export default async function({ nodes }) {
-  const found = await nodes.find([["title", "match", "invoice"]], 50, 1);
-  if (found.isLeft()) {
-    return JSON.stringify({ error: found.value.message });
-  }
+export default async function ({ nodes }) {
+	const found = await nodes.find([["title", "match", "invoice"]], 50, 1);
+	if (found.isLeft()) {
+		return JSON.stringify({ error: found.value.message });
+	}
 
-  const uuids = found.value.nodes.map((n) => n.uuid);
-  return JSON.stringify({ count: uuids.length, uuids });
+	const uuids = found.value.nodes.map((n) => n.uuid);
+	return JSON.stringify({ count: uuids.length, uuids });
 }
 ```
 
@@ -591,29 +625,33 @@ FILE_UUID=$(curl -sS -X POST "$BASE_URL/v2/nodes/-/upload" \
 ### 15.3 Create aspect + attribute it to a node
 
 ```bash
+cat > ./contract_metadata.json <<'EOF'
+{
+  "title": "Contract Metadata",
+  "description": "Fields for contracts",
+  "filters": [["mimetype", "==", "application/pdf"]],
+  "properties": [
+    {
+      "name": "status",
+      "title": "Status",
+      "type": "string",
+      "required": true,
+      "validationList": ["Draft", "Approved", "Archived"],
+      "defaultValue": "Draft"
+    },
+    {
+      "name": "counterparty",
+      "title": "Counterparty",
+      "type": "string",
+      "required": false
+    }
+  ]
+}
+EOF
+
 ASPECT_UUID=$(curl -sS -X POST "$BASE_URL/v2/aspects/-/upload" \
-  "${COMMON[@]}" "${JSON[@]}" \
-  -d '{
-    "title": "Contract Metadata",
-    "description": "Fields for contracts",
-    "filters": [["mimetype", "==", "application/pdf"]],
-    "properties": [
-      {
-        "name": "status",
-        "title": "Status",
-        "type": "string",
-        "required": true,
-        "validationList": ["Draft", "Approved", "Archived"],
-        "defaultValue": "Draft"
-      },
-      {
-        "name": "counterparty",
-        "title": "Counterparty",
-        "type": "string",
-        "required": false
-      }
-    ]
-  }' | jq -r '.uuid')
+  "${COMMON[@]}" \
+  -F "file=@./contract_metadata.json;type=application/json" | jq -r '.uuid')
 
 curl -sS -X PATCH "$BASE_URL/v2/nodes/$FILE_UUID" \
   "${COMMON[@]}" "${JSON[@]}" \
@@ -661,34 +699,11 @@ EOF
 )
 
 FEATURE_MODULE=${FEATURE_MODULE//__ASPECT_UUID__/$ASPECT_UUID}
+printf "%s" "$FEATURE_MODULE" > ./mark_contract_approved.js
 
 FEATURE_UUID=$(curl -sS -X POST "$BASE_URL/v2/features/-/upload" \
-  "${COMMON[@]}" "${JSON[@]}" \
-  -d "$(jq -n --arg module "$FEATURE_MODULE" --arg aspect "$ASPECT_UUID" '{
-    uuid: "mark_contract_approved",
-    title: "Mark Contract Approved",
-    description: "Updates status to Approved",
-    exposeAction: true,
-    runOnCreates: false,
-    runOnUpdates: false,
-    runOnDeletes: false,
-    runManually: true,
-    filters: [["aspects", "contains", $aspect]],
-    exposeExtension: false,
-    exposeAITool: true,
-    groupsAllowed: [],
-    parameters: [
-      {
-        name: "uuids",
-        type: "array",
-        arrayType: "string",
-        required: true,
-        description: "Node UUIDs"
-      }
-    ],
-    returnType: "void",
-    module: $module
-  }')" | jq -r '.uuid')
+	"${COMMON[@]}" \
+	-F "file=@./mark_contract_approved.js;type=application/javascript" | jq -r '.uuid')
 ```
 
 Run the action on one node:
@@ -725,25 +740,11 @@ export default {
 EOF
 )
 
+printf "%s" "$EXT_MODULE" > ./contracts_health_extension.js
+
 EXT_UUID=$(curl -sS -X POST "$BASE_URL/v2/features/-/upload" \
-  "${COMMON[@]}" "${JSON[@]}" \
-  -d "$(jq -n --arg module "$EXT_MODULE" '{
-    uuid: "contracts_health_extension",
-    title: "Contracts Health Extension",
-    description: "Extension endpoint example",
-    exposeAction: false,
-    runOnCreates: false,
-    runOnUpdates: false,
-    runOnDeletes: false,
-    runManually: false,
-    filters: [],
-    exposeExtension: true,
-    exposeAITool: false,
-    groupsAllowed: [],
-    parameters: [],
-    returnType: "object",
-    module: $module
-  }')" | jq -r '.uuid')
+	"${COMMON[@]}" \
+	-F "file=@./contracts_health_extension.js;type=application/javascript" | jq -r '.uuid')
 
 curl -sS -X GET "${COMMON[@]}" "$BASE_URL/v2/extensions/$EXT_UUID/-/exec"
 ```

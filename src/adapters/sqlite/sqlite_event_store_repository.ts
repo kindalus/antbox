@@ -1,4 +1,4 @@
-import { Database } from "jsr:@db/sqlite";
+import { Database } from "jsr:@db/sqlite@0.13.0";
 
 import type { AuditEvent } from "domain/audit/audit_event.ts";
 import type { EventStoreRepository } from "domain/audit/event_store_repository.ts";

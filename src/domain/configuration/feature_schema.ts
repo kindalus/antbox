@@ -6,7 +6,7 @@ import { ACTION_UUIDS_PARAMETER_ERROR, hasRequiredActionUuidsParameter } from ".
  */
 const FeatureParameterSchema = z.object({
 	name: z.string().min(1, "Parameter name is required"),
-	type: z.enum(["string", "number", "boolean", "object", "array", "file"]),
+	type: z.enum(["string", "date", "number", "boolean", "object", "array", "file"]),
 	arrayType: z.enum(["string", "number", "file", "object"]).optional(),
 	contentType: z.string().optional(),
 	required: z.boolean(),

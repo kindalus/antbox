@@ -7,7 +7,7 @@ const AspectPropertySchema = z.object({
 		"Property name must start with letter or underscore and be at least 3 characters",
 	),
 	title: z.string().min(1, "Property title is required"),
-	type: z.enum(["uuid", "string", "number", "boolean", "object", "array", "file"]),
+	type: z.enum(["uuid", "string", "number", "boolean", "object", "array", "date"]),
 	arrayType: z.enum(["string", "number", "uuid"]).optional(),
 	contentType: z.string().optional(),
 	readonly: z.boolean().optional(),

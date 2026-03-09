@@ -3,7 +3,14 @@ import type { NodeFilter } from "domain/nodes/node_filter.ts";
 /**
  * Feature parameter type definition
  */
-export type FeatureParameterType = "string" | "number" | "boolean" | "object" | "array" | "file";
+export type FeatureParameterType =
+	| "string"
+	| "date"
+	| "number"
+	| "boolean"
+	| "object"
+	| "array"
+	| "file";
 export type FeatureParameterArrayType = "string" | "number" | "file" | "object";
 
 export interface FeatureParameter {

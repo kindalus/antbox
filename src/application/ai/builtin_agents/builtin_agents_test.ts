@@ -32,6 +32,7 @@ describe("builtin agents schema validation", () => {
 
 	it("semantic searcher has correct type and tools", () => {
 		expect(SEMANTIC_SEARCHER_AGENT.type).toBe("llm");
+		expect(SEMANTIC_SEARCHER_AGENT.exposedToUsers).toBe(false);
 		expect(SEMANTIC_SEARCHER_AGENT.tools).toEqual(["runCode"]);
 		expect(SEMANTIC_SEARCHER_AGENT.systemPrompt).toBeDefined();
 		expect(SEMANTIC_SEARCHER_AGENT.agents).toBeUndefined();
@@ -39,6 +40,7 @@ describe("builtin agents schema validation", () => {
 
 	it("RAG summarizer has empty tools list", () => {
 		expect(RAG_SUMMARIZER_AGENT.type).toBe("llm");
+		expect(RAG_SUMMARIZER_AGENT.exposedToUsers).toBe(false);
 		expect(RAG_SUMMARIZER_AGENT.tools).toEqual([]);
 		expect(RAG_SUMMARIZER_AGENT.systemPrompt).toBeDefined();
 		expect(RAG_SUMMARIZER_AGENT.agents).toBeUndefined();
@@ -46,6 +48,7 @@ describe("builtin agents schema validation", () => {
 
 	it("RAG agent is a sequential workflow with two sub-agents", () => {
 		expect(ragAgent.type).toBe("sequential");
+		expect(ragAgent.exposedToUsers).toBe(true);
 		expect(ragAgent.agents).toHaveLength(2);
 		expect(ragAgent.agents).toContain("--semantic-searcher-agent--");
 		expect(ragAgent.agents).toContain("--rag-summarizer-agent--");

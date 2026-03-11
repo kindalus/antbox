@@ -170,6 +170,7 @@ paths:
             - agents
          summary: Get a structured answer from an agent
          operationId: answer
+         description: "Direct user calls are only allowed for agents with `exposedToUsers: true`."
          parameters:
             - $ref: "#/components/parameters/UUID"
          requestBody:
@@ -200,6 +201,7 @@ paths:
             - agents
          summary: Chat with an agent
          operationId: chat
+         description: "Direct user calls are only allowed for agents with `exposedToUsers: true`."
          parameters:
             - $ref: "#/components/parameters/UUID"
          requestBody:
@@ -1858,6 +1860,7 @@ components:
          required:
             - uuid
             - name
+            - exposedToUsers
             - createdTime
             - modifiedTime
          properties:
@@ -1875,6 +1878,9 @@ components:
                enum:
                   ["llm", "sequential", "parallel", "loop"]
                description: Agent execution type. Defaults to llm.
+            exposedToUsers:
+               type: boolean
+               description: Whether users can directly call this agent with chat or answer. Hidden agents can still be used internally by workflow agents.
             model:
                type: string
                description: Optional model identifier (ADK format). Falls back to tenant default model.
@@ -1901,7 +1907,7 @@ components:
                description: When the agent was last modified
       CreateAgentRequest:
          type: object
-         description: Request body for creating an agent.
+         description: "Request body for creating an agent. Agents default to `exposedToUsers: true` when omitted."
          required:
             - name
          anyOf:
@@ -1920,6 +1926,9 @@ components:
                type: string
                enum:
                   ["llm", "sequential", "parallel", "loop"]
+            exposedToUsers:
+               type: boolean
+               description: Whether users can directly call this agent with chat or answer.
             model:
                type: string
                description: Optional model identifier for llm agents

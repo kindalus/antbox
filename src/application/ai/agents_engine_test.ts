@@ -1,7 +1,7 @@
 import { describe, it } from "bdd";
 import { expect } from "expect";
 import { AgentsEngine, type AgentsEngineContext } from "./agents_engine.ts";
-import { right, left } from "shared/either.ts";
+import { left, right } from "shared/either.ts";
 import type { AntboxError } from "shared/antbox_error.ts";
 import type { AgentData } from "domain/configuration/agent_data.ts";
 import type { AuthenticationContext } from "application/security/authentication_context.ts";
@@ -22,6 +22,7 @@ function makeAgentData(overrides: Partial<AgentData> = {}): AgentData {
 		name: "Test Agent",
 		description: "A test agent",
 		type: "llm",
+		exposedToUsers: true,
 		model: "default",
 		systemPrompt: "You are a helpful assistant.",
 		createdTime: new Date().toISOString(),
@@ -36,6 +37,7 @@ function makeSequentialAgentData(overrides: Partial<AgentData> = {}): AgentData 
 		name: "Sequential Pipeline",
 		description: "A sequential pipeline",
 		type: "sequential",
+		exposedToUsers: true,
 		agents: ["--semantic-searcher-agent--", "--rag-summarizer-agent--"],
 		createdTime: new Date().toISOString(),
 		modifiedTime: new Date().toISOString(),
@@ -84,7 +86,8 @@ function makeContext(overrides: Partial<AgentsEngineContext> = {}): AgentsEngine
 			deleteAgent: async () => right(undefined as unknown as void),
 		} as unknown as import("./agents_service.ts").AgentsService,
 		nodeService: {} as unknown as import("application/nodes/node_service.ts").NodeService,
-		aspectsService: {} as unknown as import("application/aspects/aspects_service.ts").AspectsService,
+		aspectsService:
+			{} as unknown as import("application/aspects/aspects_service.ts").AspectsService,
 		defaultModel: "google/gemini-2.5-flash",
 		skills: [],
 		...overrides,
@@ -121,6 +124,23 @@ describe("AgentsEngine", () => {
 		});
 	});
 
+	describe("chat - hidden agents", () => {
+		it("rejects direct chat with agents not exposed to users", async () => {
+			const agentsService = {
+				getAgent: async () => right(makeAgentData({ exposedToUsers: false })),
+				listAgents: async () => right([]),
+			} as unknown as import("./agents_service.ts").AgentsService;
+
+			const engine = new AgentsEngine(makeContext({ agentsService }));
+			const result = await engine.chat(mockAuthContext, "hidden-agent", "Hello");
+
+			expect(result.isLeft()).toBe(true);
+			if (result.isLeft()) {
+				expect(result.value.message).toContain("not available for direct chat");
+			}
+		});
+	});
+
 	describe("answer - agent not found", () => {
 		it("returns error when agent UUID does not exist", async () => {
 			const engine = new AgentsEngine(makeContext());
@@ -130,6 +150,23 @@ describe("AgentsEngine", () => {
 			expect(result.isLeft()).toBe(true);
 			if (result.isLeft()) {
 				expect(result.value.message).toContain("Agent not found");
+			}
+		});
+	});
+
+	describe("answer - hidden agents", () => {
+		it("rejects direct answer with agents not exposed to users", async () => {
+			const agentsService = {
+				getAgent: async () => right(makeAgentData({ exposedToUsers: false })),
+				listAgents: async () => right([]),
+			} as unknown as import("./agents_service.ts").AgentsService;
+
+			const engine = new AgentsEngine(makeContext({ agentsService }));
+			const result = await engine.answer(mockAuthContext, "hidden-agent", "Hello");
+
+			expect(result.isLeft()).toBe(true);
+			if (result.isLeft()) {
+				expect(result.value.message).toContain("not available for direct answer");
 			}
 		});
 	});
@@ -207,8 +244,7 @@ describe("AgentsEngine", () => {
 	describe("model resolution", () => {
 		it("uses defaultModel when agent model is 'default'", async () => {
 			const agentsService = {
-				getAgent: async () =>
-					right(makeAgentData({ model: "default" })),
+				getAgent: async () => right(makeAgentData({ model: "default" })),
 				listAgents: async () => right([]),
 			} as unknown as import("./agents_service.ts").AgentsService;
 
@@ -219,8 +255,7 @@ describe("AgentsEngine", () => {
 
 		it("uses defaultModel when agent model is absent", async () => {
 			const agentsService = {
-				getAgent: async () =>
-					right(makeAgentData({ model: undefined })),
+				getAgent: async () => right(makeAgentData({ model: undefined })),
 				listAgents: async () => right([]),
 			} as unknown as import("./agents_service.ts").AgentsService;
 

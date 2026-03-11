@@ -12,6 +12,7 @@ export interface AgentData {
 	readonly name: string;
 	readonly description?: string;
 	readonly type?: AgentType; // default: "llm"
+	readonly exposedToUsers: boolean;
 
 	// LLM-only fields
 	readonly model?: string; // ADK model string; falls back to defaultModel if absent

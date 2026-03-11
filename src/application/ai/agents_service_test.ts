@@ -54,6 +54,7 @@ describe("AgentsService", () => {
 				expect(agent.name).toBe("Customer Support Agent");
 				expect(agent.description).toBe("Handles customer inquiries");
 				expect(agent.type).toBe("llm");
+				expect(agent.exposedToUsers).toBe(true);
 				expect(agent.systemPrompt).toBe("You are a helpful customer support agent.");
 				expect(agent.createdTime).toBeDefined();
 				expect(agent.modifiedTime).toBeDefined();
@@ -104,6 +105,22 @@ describe("AgentsService", () => {
 			expect(result.isRight()).toBe(true);
 			if (result.isRight()) {
 				expect(result.value.tools).toEqual([]);
+			}
+		});
+
+		it("should allow creating hidden agents", async () => {
+			const repo = new InMemoryConfigurationRepository();
+			const service = createAgentsService(repo);
+
+			const result = await service.createAgent(adminCtx, {
+				name: "Internal Search Agent",
+				systemPrompt: "You are internal only.",
+				exposedToUsers: false,
+			});
+
+			expect(result.isRight()).toBe(true);
+			if (result.isRight()) {
+				expect(result.value.exposedToUsers).toBe(false);
 			}
 		});
 
@@ -252,6 +269,7 @@ describe("AgentsService", () => {
 				expect(result.value.uuid).toBe(RAG_AGENT_UUID);
 				expect(result.value.name).toBe("RAG Agent");
 				expect(result.value.type).toBe("sequential");
+				expect(result.value.exposedToUsers).toBe(true);
 			}
 		});
 
@@ -266,6 +284,7 @@ describe("AgentsService", () => {
 				expect(result.value.uuid).toBe(SEMANTIC_SEARCHER_AGENT_UUID);
 				expect(result.value.name).toBe("Semantic Searcher");
 				expect(result.value.type).toBe("llm");
+				expect(result.value.exposedToUsers).toBe(false);
 			}
 		});
 
@@ -280,6 +299,7 @@ describe("AgentsService", () => {
 				expect(result.value.uuid).toBe(RAG_SUMMARIZER_AGENT_UUID);
 				expect(result.value.name).toBe("RAG Summarizer");
 				expect(result.value.type).toBe("llm");
+				expect(result.value.exposedToUsers).toBe(false);
 			}
 		});
 
@@ -357,6 +377,26 @@ describe("AgentsService", () => {
 			expect(result.isRight()).toBe(true);
 			if (result.isRight()) {
 				expect(result.value.length).toBeGreaterThan(0);
+			}
+		});
+
+		it("should include hidden agents in list results", async () => {
+			const repo = new InMemoryConfigurationRepository();
+			const service = createAgentsService(repo);
+
+			const created = await service.createAgent(adminCtx, {
+				name: "Internal Agent",
+				systemPrompt: "Internal only",
+				exposedToUsers: false,
+			});
+			expect(created.isRight()).toBe(true);
+			if (!created.isRight()) return;
+
+			const result = await service.listAgents(userCtx);
+			expect(result.isRight()).toBe(true);
+			if (result.isRight()) {
+				const uuids = result.value.map((agent) => agent.uuid);
+				expect(uuids).toContain(created.value.uuid);
 			}
 		});
 	});

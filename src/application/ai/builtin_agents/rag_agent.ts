@@ -1,7 +1,5 @@
 import type { AgentData } from "domain/configuration/agent_data.ts";
-import {
-	SEMANTIC_SEARCHER_AGENT_UUID,
-} from "./semantic_searcher_agent.ts";
+import { SEMANTIC_SEARCHER_AGENT_UUID } from "./semantic_searcher_agent.ts";
 import { RAG_SUMMARIZER_AGENT_UUID } from "./rag_summarizer_agent.ts";
 
 /**
@@ -19,6 +17,7 @@ const ragAgent: AgentData = {
 	description:
 		"Retrieval-Augmented Generation agent for knowledge discovery and document analysis within Antbox ECM",
 	type: "sequential",
+	exposedToUsers: true,
 	agents: [SEMANTIC_SEARCHER_AGENT_UUID, RAG_SUMMARIZER_AGENT_UUID],
 	createdTime: "2024-01-01T00:00:00.000Z",
 	modifiedTime: "2024-01-01T00:00:00.000Z",

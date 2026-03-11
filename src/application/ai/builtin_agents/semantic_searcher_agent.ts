@@ -95,6 +95,7 @@ export const SEMANTIC_SEARCHER_AGENT: AgentData = {
 	name: "Semantic Searcher",
 	description: "Searches the Antbox node repository using semantic and full-text strategies",
 	type: "llm",
+	exposedToUsers: false,
 	model: "default",
 	tools: ["runCode"],
 	systemPrompt: SEMANTIC_SEARCHER_SYSTEM_PROMPT,

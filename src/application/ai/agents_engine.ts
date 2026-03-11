@@ -1,16 +1,20 @@
 import {
+	createEvent,
 	FunctionTool,
 	InMemoryRunner,
-	LoopAgent,
+	isFinalResponse,
 	LlmAgent,
+	LoopAgent,
 	ParallelAgent,
 	SequentialAgent,
-	createEvent,
-	isFinalResponse,
 } from "@google/adk";
 import { z } from "zod";
 import { type Either, left, right } from "shared/either.ts";
-import { AntboxError, AntboxError as AntboxErrorClass } from "shared/antbox_error.ts";
+import {
+	AntboxError,
+	AntboxError as AntboxErrorClass,
+	ForbiddenError,
+} from "shared/antbox_error.ts";
 import { Logger } from "shared/logger.ts";
 import type { AuthenticationContext } from "../security/authentication_context.ts";
 import type { AgentData } from "domain/configuration/agent_data.ts";
@@ -21,7 +25,7 @@ import type { AspectsService } from "../aspects/aspects_service.ts";
 import { NodeServiceProxy } from "../nodes/node_service_proxy.ts";
 import { AspectServiceProxy } from "../aspects/aspect_service_proxy.ts";
 import { createRunCodeTool } from "./builtin_tools/run_code.ts";
-import { loadSkillInstruction, type LoadedSkill } from "./skills_loader.ts";
+import { type LoadedSkill, loadSkillInstruction } from "./skills_loader.ts";
 
 const APP_NAME = "antbox";
 
@@ -94,6 +98,10 @@ export class AgentsEngine {
 		}
 
 		const agentData = agentOrErr.value;
+		const exposedOrErr = this.#ensureExposedToUsers(agentData, "chat");
+		if (exposedOrErr.isLeft()) {
+			return left(exposedOrErr.value);
+		}
 
 		try {
 			const adkAgent = await this.#buildAdkAgent(agentData, authContext, options?.instructions);
@@ -153,6 +161,10 @@ export class AgentsEngine {
 		}
 
 		const agentData = agentOrErr.value;
+		const exposedOrErr = this.#ensureExposedToUsers(agentData, "answer");
+		if (exposedOrErr.isLeft()) {
+			return left(exposedOrErr.value);
+		}
 
 		try {
 			const adkAgent = await this.#buildAdkAgent(agentData, authContext, options?.instructions);
@@ -230,6 +242,19 @@ export class AgentsEngine {
 
 		// loop — uses only the first sub-agent
 		return new LoopAgent({ name, description, subAgents });
+	}
+
+	#ensureExposedToUsers(
+		agentData: AgentData,
+		operation: "chat" | "answer",
+	): Either<ForbiddenError, void> {
+		if (!agentData.exposedToUsers) {
+			return left(
+				new ForbiddenError(`Agent ${agentData.uuid} is not available for direct ${operation}`),
+			);
+		}
+
+		return right(undefined);
 	}
 
 	async #buildLlmAgent(

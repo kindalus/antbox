@@ -407,6 +407,7 @@ LLM agent example:
 	"name": "Ops Assistant",
 	"description": "Operational helper",
 	"type": "llm",
+	"exposedToUsers": true,
 	"model": "default",
 	"tools": ["runCode"],
 	"systemPrompt": "You are an operations assistant for Antbox."
@@ -419,9 +420,16 @@ Workflow agent example:
 {
 	"name": "RAG Pipeline",
 	"type": "sequential",
+	"exposedToUsers": true,
 	"agents": ["--semantic-searcher-agent--", "--rag-summarizer-agent--"]
 }
 ```
+
+Rules:
+
+- all agents remain visible through `GET /v2/agents` and `GET /v2/agents/{uuid}`
+- only agents with `exposedToUsers: true` may be called via `/chat` or `/answer`
+- hidden agents are intended for internal composition inside workflow agents
 
 ## 8. Search (Structured + Semantic)
 

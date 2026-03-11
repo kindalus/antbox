@@ -14,6 +14,7 @@ export const AgentDataSchema = z
 		name: z.string().min(1, "Agent name is required"),
 		description: z.string().optional(),
 		type: agentTypeSchema,
+		exposedToUsers: z.boolean(),
 		model: z.string().optional(),
 		tools: z.array(z.string()).optional(),
 		systemPrompt: z.string().optional(),

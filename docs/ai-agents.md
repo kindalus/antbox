@@ -18,21 +18,22 @@ Antbox supports two classes of agents:
 type AgentType = "llm" | "sequential" | "parallel" | "loop";
 
 interface AgentData {
-  uuid: string;
-  name: string;
-  description?: string;
-  type?: AgentType; // default: "llm"
+	uuid: string;
+	name: string;
+	description?: string;
+	type?: AgentType; // default: "llm"
+	exposedToUsers: boolean;
 
-  // llm-only
-  model?: string;        // "default" or explicit provider model id
-  tools?: string[];      // undefined = all tools, [] = no tools
-  systemPrompt?: string; // required for llm agents
+	// llm-only
+	model?: string; // "default" or explicit provider model id
+	tools?: string[]; // undefined = all tools, [] = no tools
+	systemPrompt?: string; // required for llm agents
 
-  // workflow-only
-  agents?: string[];     // required non-empty for workflow agents
+	// workflow-only
+	agents?: string[]; // required non-empty for workflow agents
 
-  createdTime: string;
-  modifiedTime: string;
+	createdTime: string;
+	modifiedTime: string;
 }
 ```
 
@@ -41,6 +42,9 @@ Validation rules:
 - `llm` agents require `systemPrompt`.
 - workflow agents require non-empty `agents`.
 - workflow agents must not define `systemPrompt`, `model`, or `tools`.
+- agents default to `exposedToUsers: true` when omitted on create
+- `exposedToUsers: false` blocks direct `/chat` and `/answer`, but the agent can still be used
+  inside workflow agents
 
 ## Built-in agents
 
@@ -52,14 +56,18 @@ Every tenant exposes three read-only built-ins:
 
 Built-in agents can be listed and fetched, but cannot be updated or deleted.
 
+- `--rag-agent--` is exposed to users
+- `--semantic-searcher-agent--` is internal-only (`exposedToUsers: false`)
+- `--rag-summarizer-agent--` is internal-only (`exposedToUsers: false`)
+
 ## Endpoints
 
 - `POST /v2/agents/-/upload` - create an agent
 - `GET /v2/agents` - list custom + built-in agents
 - `GET /v2/agents/{uuid}` - get one agent
 - `DELETE /v2/agents/{uuid}` - delete a custom agent
-- `POST /v2/agents/{uuid}/-/chat` - multi-turn chat
-- `POST /v2/agents/{uuid}/-/answer` - single-turn answer
+- `POST /v2/agents/{uuid}/-/chat` - multi-turn chat for agents with `exposedToUsers: true`
+- `POST /v2/agents/{uuid}/-/answer` - single-turn answer for agents with `exposedToUsers: true`
 
 ## Create examples
 
@@ -67,12 +75,13 @@ Built-in agents can be listed and fetched, but cannot be updated or deleted.
 
 ```json
 {
-  "name": "Support Agent",
-  "description": "General support assistant",
-  "type": "llm",
-  "model": "default",
-  "tools": ["runCode"],
-  "systemPrompt": "You are a helpful support assistant."
+	"name": "Support Agent",
+	"description": "General support assistant",
+	"type": "llm",
+	"exposedToUsers": true,
+	"model": "default",
+	"tools": ["runCode"],
+	"systemPrompt": "You are a helpful support assistant."
 }
 ```
 
@@ -80,10 +89,11 @@ Built-in agents can be listed and fetched, but cannot be updated or deleted.
 
 ```json
 {
-  "name": "RAG Pipeline",
-  "description": "Search then summarize",
-  "type": "sequential",
-  "agents": ["--semantic-searcher-agent--", "--rag-summarizer-agent--"]
+	"name": "RAG Pipeline",
+	"description": "Search then summarize",
+	"type": "sequential",
+	"exposedToUsers": true,
+	"agents": ["--semantic-searcher-agent--", "--rag-summarizer-agent--"]
 }
 ```
 
@@ -93,13 +103,13 @@ Built-in agents can be listed and fetched, but cannot be updated or deleted.
 
 ```json
 {
-  "text": "Find documents about invoice approval.",
-  "options": {
-    "history": [],
-    "temperature": 0.3,
-    "maxTokens": 1024,
-    "instructions": "Reply with concise bullet points"
-  }
+	"text": "Find documents about invoice approval.",
+	"options": {
+		"history": [],
+		"temperature": 0.3,
+		"maxTokens": 1024,
+		"instructions": "Reply with concise bullet points"
+	}
 }
 ```
 
@@ -107,11 +117,11 @@ Built-in agents can be listed and fetched, but cannot be updated or deleted.
 
 ```json
 {
-  "text": "Summarize this topic",
-  "options": {
-    "temperature": 0.2,
-    "maxTokens": 512
-  }
+	"text": "Summarize this topic",
+	"options": {
+		"temperature": 0.2,
+		"maxTokens": 512
+	}
 }
 ```
 

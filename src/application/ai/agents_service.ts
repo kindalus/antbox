@@ -17,6 +17,11 @@ export interface AgentsServiceContext {
 	readonly configRepo: ConfigurationRepository;
 }
 
+export interface CreateAgentData
+	extends Omit<AgentData, "uuid" | "createdTime" | "modifiedTime" | "exposedToUsers"> {
+	exposedToUsers?: boolean;
+}
+
 /**
  * AgentsService - Manages AI agent configurations (CRUD operations only)
  *
@@ -42,7 +47,7 @@ export class AgentsService {
 
 	async createAgent(
 		ctx: AuthenticationContext,
-		data: Omit<AgentData, "uuid" | "createdTime" | "modifiedTime">,
+		data: CreateAgentData,
 	): Promise<Either<AntboxError, AgentData>> {
 		// Check admin permission
 		if (!this.#isAdmin(ctx)) {
@@ -54,6 +59,7 @@ export class AgentsService {
 			uuid: UuidGenerator.generate(),
 			...data,
 			type: data.type ?? "llm",
+			exposedToUsers: data.exposedToUsers ?? true,
 			createdTime: now,
 			modifiedTime: now,
 		};
@@ -126,6 +132,7 @@ export class AgentsService {
 			...updates,
 			uuid, // Ensure UUID doesn't change
 			type: updates.type ?? existingOrErr.value.type ?? "llm",
+			exposedToUsers: updates.exposedToUsers ?? existingOrErr.value.exposedToUsers,
 			createdTime: existingOrErr.value.createdTime, // Preserve creation time
 			modifiedTime: new Date().toISOString(),
 		};

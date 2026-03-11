@@ -71,7 +71,7 @@ export class MongodbConfigurationRepository implements ConfigurationRepository {
 		collection: K,
 		data: CollectionMap[K],
 	): string {
-		if (collection === "users") {
+		if (collection === "users" || collection === "userPreferences") {
 			return (data as { email: string }).email;
 		}
 		return (data as { uuid: string }).uuid;

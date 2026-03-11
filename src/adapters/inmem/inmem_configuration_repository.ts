@@ -26,6 +26,7 @@ export class InMemoryConfigurationRepository implements ConfigurationRepository 
 		agents: Map<string, CollectionMap["agents"]>;
 		features: Map<string, CollectionMap["features"]>;
 		notifications: Map<string, CollectionMap["notifications"]>;
+		userPreferences: Map<string, CollectionMap["userPreferences"]>;
 	};
 
 	constructor() {
@@ -39,6 +40,7 @@ export class InMemoryConfigurationRepository implements ConfigurationRepository 
 			agents: new Map(),
 			features: new Map(),
 			notifications: new Map(),
+			userPreferences: new Map(),
 		};
 	}
 
@@ -50,7 +52,7 @@ export class InMemoryConfigurationRepository implements ConfigurationRepository 
 
 		// Determine the key based on collection type
 		// For users, the key is email; for others, it's uuid
-		const key = collection === "users"
+		const key = collection === "users" || collection === "userPreferences"
 			? (data as { email: string }).email
 			: (data as { uuid: string }).uuid;
 

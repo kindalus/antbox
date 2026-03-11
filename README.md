@@ -202,7 +202,8 @@ Optional tenant selection:
 - **Security admin**
   - `/v2/users`, `/v2/groups`, `/v2/api-keys`
 - **Other APIs**
-  - `/v2/articles`, `/v2/notifications`, `/v2/audit`, `/v2/templates`, `/v2/docs`
+  - `/v2/articles`, `/v2/notifications`, `/v2/user-preferences`, `/v2/audit`, `/v2/templates`,
+    `/v2/docs`
   - `/mcp`
   - `/webdav/*`
 

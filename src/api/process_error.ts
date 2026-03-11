@@ -6,6 +6,7 @@ import {
 	AntboxError,
 	BadRequestError,
 	ForbiddenError,
+	NotFoundError,
 	UnauthorizedError,
 } from "shared/antbox_error.ts";
 import { ValidationError } from "shared/validation_error.ts";
@@ -24,6 +25,7 @@ export function processError({ errorCode, message }: AntboxError): Response {
 	switch (errorCode) {
 		case NodeNotFoundError.ERROR_CODE:
 		case FolderNotFoundError.ERROR_CODE:
+		case NotFoundError.ERROR_CODE:
 			return sendNotFound(body);
 
 		case BadRequestError.ERROR_CODE:

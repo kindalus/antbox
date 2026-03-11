@@ -80,9 +80,11 @@ export class SqliteConfigurationRepository implements ConfigurationRepository {
 	}
 
 	#extractKey<K extends keyof CollectionMap>(collection: K, data: CollectionMap[K]): string {
-		// Users collection uses email as key, others use uuid
-		const record = data as Record<string, unknown>;
-		return collection === "users" ? record.email as string : record.uuid as string;
+		// Users and userPreferences collections use email as key, others use uuid
+		const record = data as unknown as Record<string, unknown>;
+		return collection === "users" || collection === "userPreferences"
+			? record.email as string
+			: record.uuid as string;
 	}
 
 	save<K extends keyof CollectionMap>(

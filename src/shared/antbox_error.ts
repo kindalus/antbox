@@ -39,3 +39,11 @@ export class BadRequestError extends AntboxError {
 		super(BadRequestError.ERROR_CODE, message);
 	}
 }
+
+export class NotFoundError extends AntboxError {
+	static ERROR_CODE = "NotFoundError";
+
+	constructor(message: string) {
+		super(NotFoundError.ERROR_CODE, message);
+	}
+}

@@ -1,4 +1,4 @@
-import postgres from "npm:postgres";
+import postgres from "npm:postgres@3.4.8";
 
 import type {
 	CollectionMap,
@@ -79,7 +79,7 @@ export class PostgresConfigurationRepository implements ConfigurationRepository 
 		collection: K,
 		data: CollectionMap[K],
 	): string {
-		if (collection === "users") {
+		if (collection === "users" || collection === "userPreferences") {
 			return (data as { email: string }).email;
 		}
 		return (data as { uuid: string }).uuid;

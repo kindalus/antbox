@@ -15,6 +15,7 @@ import type { FeaturesService } from "application/features/features_service.ts";
 import type { FeaturesEngine } from "application/features/features_engine.ts";
 import type { ConfigurationRepository } from "domain/configuration/configuration_repository.ts";
 import type { NotificationsService } from "application/notifications/notifications_service.ts";
+import type { UserPreferencesService } from "application/preferences/user_preferences_service.ts";
 
 export interface AntboxTenant {
 	name: string;
@@ -38,6 +39,7 @@ export interface AntboxTenant {
 	workflowInstancesService: WorkflowInstancesService;
 	agentsService: AgentsService;
 	notificationsService: NotificationsService;
+	userPreferencesService: UserPreferencesService;
 	ragService?: RAGService;
 
 	// Engines (execution logic)

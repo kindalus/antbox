@@ -24,6 +24,7 @@ import { WorkflowInstancesEngine } from "application/workflows/workflow_instance
 import { AgentsService } from "application/ai/agents_service.ts";
 import { AgentsEngine } from "application/ai/agents_engine.ts";
 import { NotificationsService } from "application/notifications/notifications_service.ts";
+import { UserPreferencesService } from "application/preferences/user_preferences_service.ts";
 import { RAGService } from "application/ai/rag_service.ts";
 import { loadSkills } from "application/ai/skills_loader.ts";
 import type { EmbeddingsProvider } from "domain/ai/embeddings_provider.ts";
@@ -187,6 +188,7 @@ async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
 	const articleService = new ArticleService(nodeService);
 
 	const notificationsService = new NotificationsService(configRepo);
+	const userPreferencesService = new UserPreferencesService(configRepo);
 
 	const auditLoggingService = new AuditLoggingService(
 		eventStoreRepository,
@@ -199,9 +201,7 @@ async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
 	});
 
 	// Load skill metadata (tool-based loading at runtime)
-	const skills = cfg.ai?.enabled
-		? await loadSkills(BUILTIN_SKILLS_DIR, cfg.ai.skillsPath)
-		: [];
+	const skills = cfg.ai?.enabled ? await loadSkills(BUILTIN_SKILLS_DIR, cfg.ai.skillsPath) : [];
 
 	// Create AgentsEngine (execution logic)
 	const agentsEngine = new AgentsEngine({
@@ -232,6 +232,7 @@ async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
 		nodeService,
 		notificationsService,
 		ragService,
+		userPreferencesService,
 		usersService,
 		workflowsService,
 		workflowInstancesService,

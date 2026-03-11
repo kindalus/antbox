@@ -43,6 +43,8 @@ tags:
      description: Operations related to templates
    - name: users
      description: Operations related to users
+   - name: user-preferences
+     description: Operations related to private user preferences for the authenticated user
    - name: workflows
      description: Operations related to workflow instances
 paths:
@@ -1519,6 +1521,92 @@ paths:
                description: User deleted
             default:
                $ref: "#/components/responses/Error"
+   /user-preferences:
+      get:
+         tags:
+            - user-preferences
+         summary: Get current user preferences
+         operationId: getUserPreferences
+         responses:
+            "200":
+               description: User preferences for the authenticated user
+               content:
+                  application/json:
+                     schema:
+                        $ref: "#/components/schemas/UserPreferences"
+            default:
+               $ref: "#/components/responses/Error"
+      post:
+         tags:
+            - user-preferences
+         summary: Create current user preferences
+         operationId: createUserPreferences
+         requestBody:
+            required: true
+            content:
+               application/json:
+                  schema:
+                     $ref: "#/components/schemas/UpdateUserPreferencesRequest"
+         responses:
+            "201":
+               description: User preferences created
+               content:
+                  application/json:
+                     schema:
+                        $ref: "#/components/schemas/UserPreferences"
+            default:
+               $ref: "#/components/responses/Error"
+      patch:
+         tags:
+            - user-preferences
+         summary: Update current user preferences
+         operationId: updateUserPreferences
+         requestBody:
+            required: true
+            content:
+               application/json:
+                  schema:
+                     $ref: "#/components/schemas/UpdateUserPreferencesRequest"
+         responses:
+            "200":
+               description: User preferences updated
+               content:
+                  application/json:
+                     schema:
+                        $ref: "#/components/schemas/UserPreferences"
+            default:
+               $ref: "#/components/responses/Error"
+      delete:
+         tags:
+            - user-preferences
+         summary: Delete current user preferences
+         operationId: deleteUserPreferences
+         responses:
+            "200":
+               description: User preferences deleted
+            default:
+               $ref: "#/components/responses/Error"
+   "/user-preferences/{key}":
+      get:
+         tags:
+            - user-preferences
+         summary: Get a single current user preference
+         operationId: getUserPreference
+         parameters:
+            - name: key
+              in: path
+              required: true
+              schema:
+                 type: string
+         responses:
+            "200":
+               description: Preference value for the authenticated user
+               content:
+                  application/json:
+                     schema:
+                        {}
+            default:
+               $ref: "#/components/responses/Error"
    /workflow-instances:
       get:
          tags:
@@ -2706,6 +2794,30 @@ components:
             active:
                type: boolean
                description: Whether the user can login
+      UserPreferences:
+         type: object
+         description: Private preferences for the authenticated user.
+         required:
+            - email
+            - preferences
+         properties:
+            email:
+               type: string
+               format: email
+               description: Email of the authenticated user.
+            preferences:
+               type: object
+               additionalProperties: true
+               description: Arbitrary key-value preferences owned by the authenticated user.
+      UpdateUserPreferencesRequest:
+         type: object
+         required:
+            - preferences
+         properties:
+            preferences:
+               type: object
+               additionalProperties: true
+               description: Preference values to create or shallow-merge for the authenticated user.
       NodeLike:
          description: Union of all node types (content layer only, not configuration records)
          oneOf:

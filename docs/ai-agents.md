@@ -26,7 +26,7 @@ interface AgentData {
 
 	// llm-only
 	model?: string; // "default" or explicit provider model id
-	tools?: string[]; // undefined = all tools, [] = no tools
+	tools?: boolean | string[]; // true = all, false/undefined/[] = skillLoader only
 	systemPrompt?: string; // required for llm agents
 
 	// workflow-only
@@ -45,6 +45,14 @@ Validation rules:
 - agents default to `exposedToUsers: true` when omitted on create
 - `exposedToUsers: false` blocks direct `/chat` and `/answer`, but the agent can still be used
   inside workflow agents
+
+Tool rules for llm agents:
+
+- `tools: true` -> all tools
+- `tools: false` -> only `skillLoader`
+- omitted `tools` -> same as `[]`, only `skillLoader`
+- `tools: []` -> only `skillLoader`
+- `tools: ["runCode"]` -> listed tools plus `skillLoader`
 
 ## Built-in agents
 
@@ -80,7 +88,7 @@ Built-in agents can be listed and fetched, but cannot be updated or deleted.
 	"type": "llm",
 	"exposedToUsers": true,
 	"model": "default",
-	"tools": ["runCode"],
+	"tools": true,
 	"systemPrompt": "You are a helpful support assistant."
 }
 ```
@@ -132,4 +140,4 @@ Current built-in function tool:
 - `runCode`
 
 Skill tools are also available when configured for the tenant and included in the agent's `tools`
-allow-list (or when `tools` is omitted).
+allow-list. `skillLoader` is always available for llm agents.

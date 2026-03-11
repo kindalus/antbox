@@ -409,7 +409,7 @@ LLM agent example:
 	"type": "llm",
 	"exposedToUsers": true,
 	"model": "default",
-	"tools": ["runCode"],
+	"tools": true,
 	"systemPrompt": "You are an operations assistant for Antbox."
 }
 ```
@@ -430,6 +430,9 @@ Rules:
 - all agents remain visible through `GET /v2/agents` and `GET /v2/agents/{uuid}`
 - only agents with `exposedToUsers: true` may be called via `/chat` or `/answer`
 - hidden agents are intended for internal composition inside workflow agents
+- `tools: true` grants all tools
+- `tools: false`, omitted `tools`, or `tools: []` grant only `skillLoader`
+- `tools: ["name"]` grants the listed tools plus `skillLoader`
 
 ## 8. Search (Structured + Semantic)
 

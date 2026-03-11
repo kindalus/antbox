@@ -56,6 +56,22 @@ export interface AgentsEngineContext {
 	readonly skills: LoadedSkill[];
 }
 
+export function selectAgentTools<T extends { name: string }>(
+	allTools: T[],
+	tools: AgentData["tools"],
+): T[] {
+	if (tools === true) {
+		return allTools;
+	}
+
+	if (tools === false || tools === undefined) {
+		return allTools.filter((tool) => tool.name === "skillLoader");
+	}
+
+	const allowedNames = new Set(tools);
+	return allTools.filter((tool) => tool.name === "skillLoader" || allowedNames.has(tool.name));
+}
+
 // ============================================================================
 // AGENTS ENGINE
 // ============================================================================
@@ -287,15 +303,7 @@ export class AgentsEngine {
 		agentData: AgentData,
 	): Promise<FunctionTool[]> {
 		const allTools = await this.#buildFunctionTools(authContext);
-
-		// If tools is absent, pass all tools
-		if (agentData.tools === undefined) {
-			return allTools;
-		}
-
-		// Filter to only named tools, but keep skillLoader always available
-		const allowedNames = new Set(agentData.tools);
-		return allTools.filter((t) => t.name === "skillLoader" || allowedNames.has(t.name));
+		return selectAgentTools(allTools, agentData.tools);
 	}
 
 	async #buildFunctionTools(

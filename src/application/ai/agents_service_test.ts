@@ -92,6 +92,22 @@ describe("AgentsService", () => {
 			}
 		});
 
+		it("should create LLM agent with tools=true", async () => {
+			const repo = new InMemoryConfigurationRepository();
+			const service = createAgentsService(repo);
+
+			const result = await service.createAgent(adminCtx, {
+				name: "All Tools Agent",
+				systemPrompt: "You may use all tools.",
+				tools: true,
+			});
+
+			expect(result.isRight()).toBe(true);
+			if (result.isRight()) {
+				expect(result.value.tools).toBe(true);
+			}
+		});
+
 		it("should create LLM agent with empty tools (no tools)", async () => {
 			const repo = new InMemoryConfigurationRepository();
 			const service = createAgentsService(repo);
@@ -105,6 +121,22 @@ describe("AgentsService", () => {
 			expect(result.isRight()).toBe(true);
 			if (result.isRight()) {
 				expect(result.value.tools).toEqual([]);
+			}
+		});
+
+		it("should create LLM agent with tools=false", async () => {
+			const repo = new InMemoryConfigurationRepository();
+			const service = createAgentsService(repo);
+
+			const result = await service.createAgent(adminCtx, {
+				name: "Skill Loader Only Agent",
+				systemPrompt: "You may use only skillLoader.",
+				tools: false,
+			});
+
+			expect(result.isRight()).toBe(true);
+			if (result.isRight()) {
+				expect(result.value.tools).toBe(false);
 			}
 		});
 

@@ -16,7 +16,7 @@ export interface AgentData {
 
 	// LLM-only fields
 	readonly model?: string; // ADK model string; falls back to defaultModel if absent
-	readonly tools?: string[]; // named tools to inject (absent = all; [] = none)
+	readonly tools?: boolean | string[]; // true = all, false/undefined/[] = skillLoader only
 	readonly systemPrompt?: string; // the system instruction
 
 	// Workflow-only fields

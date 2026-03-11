@@ -49,7 +49,7 @@ export const RAG_SUMMARIZER_AGENT: AgentData = {
 	type: "llm",
 	exposedToUsers: false,
 	model: "default",
-	tools: [],
+	tools: false,
 	systemPrompt: RAG_SUMMARIZER_SYSTEM_PROMPT,
 	createdTime: "2024-01-01T00:00:00.000Z",
 	modifiedTime: "2024-01-01T00:00:00.000Z",

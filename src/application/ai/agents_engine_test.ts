@@ -1,6 +1,6 @@
 import { describe, it } from "bdd";
 import { expect } from "expect";
-import { AgentsEngine, type AgentsEngineContext } from "./agents_engine.ts";
+import { AgentsEngine, type AgentsEngineContext, selectAgentTools } from "./agents_engine.ts";
 import { left, right } from "shared/either.ts";
 import type { AntboxError } from "shared/antbox_error.ts";
 import type { AgentData } from "domain/configuration/agent_data.ts";
@@ -73,7 +73,7 @@ function makeContext(overrides: Partial<AgentsEngineContext> = {}): AgentsEngine
 							name: "RAG Summarizer",
 							type: "llm",
 							model: "default",
-							tools: [],
+							tools: false,
 							systemPrompt: "You summarize search results.",
 						}),
 					);
@@ -200,6 +200,51 @@ describe("AgentsEngine", () => {
 	});
 
 	describe("tools filtering", () => {
+		it("tools=true enables all tools", () => {
+			const selected = selectAgentTools(
+				[{ name: "runCode" }, { name: "skillLoader" }],
+				true,
+			);
+
+			expect(selected.map((tool) => tool.name)).toEqual(["runCode", "skillLoader"]);
+		});
+
+		it("tools=false keeps only skillLoader", () => {
+			const selected = selectAgentTools(
+				[{ name: "runCode" }, { name: "skillLoader" }],
+				false,
+			);
+
+			expect(selected.map((tool) => tool.name)).toEqual(["skillLoader"]);
+		});
+
+		it("tools undefined keeps only skillLoader", () => {
+			const selected = selectAgentTools(
+				[{ name: "runCode" }, { name: "skillLoader" }],
+				undefined,
+			);
+
+			expect(selected.map((tool) => tool.name)).toEqual(["skillLoader"]);
+		});
+
+		it("empty tools array keeps only skillLoader", () => {
+			const selected = selectAgentTools(
+				[{ name: "runCode" }, { name: "skillLoader" }],
+				[],
+			);
+
+			expect(selected.map((tool) => tool.name)).toEqual(["skillLoader"]);
+		});
+
+		it("tools array keeps listed tools plus skillLoader", () => {
+			const selected = selectAgentTools(
+				[{ name: "runCode" }, { name: "skillLoader" }, { name: "other" }],
+				["runCode"],
+			);
+
+			expect(selected.map((tool) => tool.name)).toEqual(["runCode", "skillLoader"]);
+		});
+
 		it("engine can be constructed with discovered skills for filtering", () => {
 			const skills = [
 				{

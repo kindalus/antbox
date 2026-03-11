@@ -16,7 +16,7 @@ export const AgentDataSchema = z
 		type: agentTypeSchema,
 		exposedToUsers: z.boolean(),
 		model: z.string().optional(),
-		tools: z.array(z.string()).optional(),
+		tools: z.union([z.boolean(), z.array(z.string())]).optional(),
 		systemPrompt: z.string().optional(),
 		agents: z.array(z.string()).optional(),
 		createdTime: z.string(),

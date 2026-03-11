@@ -1885,10 +1885,12 @@ components:
                type: string
                description: Optional model identifier (ADK format). Falls back to tenant default model.
             tools:
-               type: array
-               description: Optional list of tool names. Omitted means all tools; empty means no tools.
-               items:
-                  type: string
+               description: Tool access for llm agents. `true` grants all tools; `false`, omitted, or `[]` grants only `skillLoader`; arrays grant the listed tools plus `skillLoader`.
+               oneOf:
+                  - type: boolean
+                  - type: array
+                    items:
+                       type: string
             systemPrompt:
                type: string
                description: System prompt for llm agents.
@@ -1933,9 +1935,12 @@ components:
                type: string
                description: Optional model identifier for llm agents
             tools:
-               type: array
-               items:
-                  type: string
+               description: Tool access for llm agents. `true` grants all tools; `false`, omitted, or `[]` grants only `skillLoader`; arrays grant the listed tools plus `skillLoader`.
+               oneOf:
+                  - type: boolean
+                  - type: array
+                    items:
+                       type: string
             systemPrompt:
                type: string
                description: Required for llm agents

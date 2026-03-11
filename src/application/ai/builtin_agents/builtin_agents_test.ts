@@ -38,10 +38,10 @@ describe("builtin agents schema validation", () => {
 		expect(SEMANTIC_SEARCHER_AGENT.agents).toBeUndefined();
 	});
 
-	it("RAG summarizer has empty tools list", () => {
+	it("RAG summarizer disables direct tools", () => {
 		expect(RAG_SUMMARIZER_AGENT.type).toBe("llm");
 		expect(RAG_SUMMARIZER_AGENT.exposedToUsers).toBe(false);
-		expect(RAG_SUMMARIZER_AGENT.tools).toEqual([]);
+		expect(RAG_SUMMARIZER_AGENT.tools).toBe(false);
 		expect(RAG_SUMMARIZER_AGENT.systemPrompt).toBeDefined();
 		expect(RAG_SUMMARIZER_AGENT.agents).toBeUndefined();
 	});

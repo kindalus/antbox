@@ -1,6 +1,6 @@
 import { ApiKeysService } from "application/security/api_keys_service.ts";
-import { UsersService } from "application/security/users_service.ts";
-import type { AuthenticationContext, Principal } from "application/security/authentication_context.ts";
+import { ExternalLoginService } from "application/security/external_login_service.ts";
+import type { Principal } from "application/security/authentication_context.ts";
 import { Groups } from "domain/users_groups/groups.ts";
 import { Users } from "domain/users_groups/users.ts";
 import { type Either, left, right } from "shared/either.ts";
@@ -9,31 +9,22 @@ import { getQuery } from "./get_query.ts";
 import { getTenant } from "./get_tenant.ts";
 import type { HttpHandler } from "./handler.ts";
 import type { HttpMiddleware } from "./middleware.ts";
-import { decodeJwt, importJWK, type JWK, jwtVerify, type KeyObject } from "jose";
+import { decodeJwt, jwtVerify, type KeyObject } from "jose";
 
 export function authenticationMiddleware(
 	tenants: AntboxTenant[],
 ): HttpMiddleware {
 	return (next: HttpHandler) => {
-		const jwks = new Map<string, KeyObject | Uint8Array>();
 		const secrets = new Map<string, Uint8Array>();
-		const usersServices = new Map<string, UsersService>();
+		const externalLoginServices = new Map<string, ExternalLoginService>();
 		const apiKeysServices = new Map<string, ApiKeysService>();
 
 		const initPromise = Promise.all(
 			tenants.map(async (tenant) => {
-				const jwkOrErr = await importJwkKey(tenant.rawJwk as unknown as JWK);
-
-				if (jwkOrErr.isLeft()) {
-					throw jwkOrErr.value;
-				}
-
-				const jwk = jwkOrErr.value;
 				const secret = importKey(tenant.symmetricKey);
 
-				jwks.set(tenant.name, jwk);
 				secrets.set(tenant.name, secret);
-				usersServices.set(tenant.name, tenant.usersService);
+				externalLoginServices.set(tenant.name, tenant.externalLoginService);
 				apiKeysServices.set(tenant.name, tenant.apiKeysService);
 			}),
 		);
@@ -44,11 +35,10 @@ export function authenticationMiddleware(
 			const tenantName = getTenant(req, tenants).name;
 
 			const apiKeysService = apiKeysServices.get(tenantName);
-			const usersService = usersServices.get(tenantName);
+			const externalLoginService = externalLoginServices.get(tenantName);
 			const secret = secrets.get(tenantName);
-			const jwk = jwks.get(tenantName);
 
-			if (!apiKeysService || !usersService || !secret || !jwk) {
+			if (!apiKeysService || !externalLoginService || !secret) {
 				storeAnonymous(req);
 				return next(req);
 			}
@@ -76,7 +66,7 @@ export function authenticationMiddleware(
 				return next(req);
 			}
 
-			await authenticateToken(jwk, usersService, req, token);
+			await authenticateToken(externalLoginService, req, token);
 			return next(req);
 		};
 	};
@@ -158,21 +148,11 @@ async function authenticateApiKey(
 }
 
 async function authenticateToken(
-	jwk: KeyObject | Uint8Array,
-	usersService: UsersService,
+	externalLoginService: ExternalLoginService,
 	req: Request,
 	token: string,
 ) {
-	const tokenOrErr = await verifyToken(jwk, token);
-	if (tokenOrErr.isLeft()) {
-		return storeAnonymous(req);
-	}
-
-	// TODO: Fix this - use elevated context
-	const userOrErr = await usersService.getUser(
-		undefined as unknown as AuthenticationContext,
-		tokenOrErr.value.payload.email,
-	);
+	const userOrErr = await externalLoginService.resolvePrincipal(token);
 	if (userOrErr.isLeft()) {
 		return storeAnonymous(req);
 	}
@@ -187,16 +167,6 @@ function verifyToken(
 	return jwtVerify(token, key)
 		.then((payload) => right(payload))
 		.catch((e) => left(e)) as Promise<Either<Error, { payload: Principal }>>;
-}
-
-function importJwkKey(
-	key: JWK,
-): Promise<Either<TypeError, KeyObject | Uint8Array>> {
-	return importJWK(key)
-		.then((jwk) => right(jwk))
-		.catch((e) => left(e)) as Promise<
-			Either<TypeError, KeyObject | Uint8Array>
-		>;
 }
 
 function importKey(key: string): Uint8Array {

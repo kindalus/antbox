@@ -25,6 +25,7 @@ import { AgentsService } from "application/ai/agents_service.ts";
 import { AgentsEngine } from "application/ai/agents_engine.ts";
 import { NotificationsService } from "application/notifications/notifications_service.ts";
 import { UserPreferencesService } from "application/preferences/user_preferences_service.ts";
+import { ExternalLoginService } from "application/security/external_login_service.ts";
 import { RAGService } from "application/ai/rag_service.ts";
 import { loadSkills } from "application/ai/skills_loader.ts";
 import type { EmbeddingsProvider } from "domain/ai/embeddings_provider.ts";
@@ -154,6 +155,7 @@ async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
 	const groupsService = new GroupsService(configRepo);
 	const usersService = new UsersService(configRepo);
 	const apiKeysService = new ApiKeysService(configRepo);
+	const externalLoginService = new ExternalLoginService(usersService, rawJwk);
 	const aspectsService = new AspectsService(configRepo);
 	const workflowsService = new WorkflowsService(configRepo);
 
@@ -227,6 +229,7 @@ async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
 		articleService,
 		aspectsService,
 		auditLoggingService,
+		externalLoginService,
 		featuresService,
 		groupsService,
 		nodeService,

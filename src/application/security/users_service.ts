@@ -1,5 +1,5 @@
 import type { AntboxError } from "shared/antbox_error.ts";
-import { BadRequestError, ForbiddenError } from "shared/antbox_error.ts";
+import { BadRequestError, ForbiddenError, NotFoundError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
 import { ValidationError } from "shared/validation_error.ts";
 import type { AuthenticationContext } from "./authentication_context.ts";
@@ -8,6 +8,11 @@ import type { UserData } from "domain/configuration/user_data.ts";
 import { UserDataSchema } from "domain/configuration/user_schema.ts";
 import { ADMINS_GROUP_UUID } from "domain/configuration/builtin_groups.ts";
 import { BUILTIN_USERS, ROOT_USER_EMAIL } from "domain/configuration/builtin_users.ts";
+
+export interface UserAuthenticationLookup {
+	readonly email?: string;
+	readonly phone?: string;
+}
 
 /**
  * UsersService - Manages users in the configuration repository
@@ -166,6 +171,43 @@ export class UsersService {
 		}
 
 		return this.configRepo.delete("users", email);
+	}
+
+	async findUserForAuthentication(
+		lookup: UserAuthenticationLookup,
+	): Promise<Either<AntboxError, UserData>> {
+		if (lookup.email) {
+			const builtinUser = BUILTIN_USERS.find((user) => user.email === lookup.email);
+			if (builtinUser) {
+				return right(builtinUser);
+			}
+
+			const userOrErr = await this.configRepo.get("users", lookup.email);
+			if (userOrErr.isRight()) {
+				return userOrErr;
+			}
+		}
+
+		if (lookup.phone) {
+			const customUsersOrErr = await this.configRepo.list("users");
+			if (customUsersOrErr.isLeft()) {
+				return left(customUsersOrErr.value);
+			}
+
+			const allUsers = [...BUILTIN_USERS, ...customUsersOrErr.value];
+			const user = allUsers.find((candidate) => candidate.phone === lookup.phone);
+			if (user) {
+				return right(user);
+			}
+		}
+
+		return left(
+			new NotFoundError(
+				`User not found for ${
+					lookup.email ? `email '${lookup.email}'` : `phone '${lookup.phone}'`
+				}`,
+			),
+		);
 	}
 
 	#isAdmin(ctx: AuthenticationContext): boolean {

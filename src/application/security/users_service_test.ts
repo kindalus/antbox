@@ -296,6 +296,76 @@ describe("UsersService", () => {
 		});
 	});
 
+	describe("findUserForAuthentication", () => {
+		it("finds a user by email", async () => {
+			const repo = new InMemoryConfigurationRepository();
+			const service = new UsersService(repo);
+
+			await service.createUser(adminCtx, {
+				email: "john.doe@example.com",
+				title: "John Doe",
+				group: "developers",
+				groups: ["developers"],
+				hasWhatsapp: false,
+				active: true,
+			});
+
+			const result = await service.findUserForAuthentication({ email: "john.doe@example.com" });
+
+			expect(result.isRight()).toBe(true);
+			if (result.isRight()) {
+				expect(result.value.email).toBe("john.doe@example.com");
+			}
+		});
+
+		it("finds a user by phone", async () => {
+			const repo = new InMemoryConfigurationRepository();
+			const service = new UsersService(repo);
+
+			await service.createUser(adminCtx, {
+				email: "john.doe@example.com",
+				title: "John Doe",
+				group: "developers",
+				groups: ["developers"],
+				phone: "+1234567890",
+				hasWhatsapp: true,
+				active: true,
+			});
+
+			const result = await service.findUserForAuthentication({ phone: "+1234567890" });
+
+			expect(result.isRight()).toBe(true);
+			if (result.isRight()) {
+				expect(result.value.email).toBe("john.doe@example.com");
+			}
+		});
+
+		it("prefers email when both email and phone are given", async () => {
+			const repo = new InMemoryConfigurationRepository();
+			const service = new UsersService(repo);
+
+			await service.createUser(adminCtx, {
+				email: "john.doe@example.com",
+				title: "John Doe",
+				group: "developers",
+				groups: ["developers"],
+				phone: "+1234567890",
+				hasWhatsapp: true,
+				active: true,
+			});
+
+			const result = await service.findUserForAuthentication({
+				email: "john.doe@example.com",
+				phone: "+0000000000",
+			});
+
+			expect(result.isRight()).toBe(true);
+			if (result.isRight()) {
+				expect(result.value.email).toBe("john.doe@example.com");
+			}
+		});
+	});
+
 	describe("listUsers", () => {
 		it("should list custom and builtin users", async () => {
 			const repo = new InMemoryConfigurationRepository();

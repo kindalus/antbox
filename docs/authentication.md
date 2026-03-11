@@ -38,7 +38,7 @@ Response:
 
 ```json
 {
-  "jwt": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+	"jwt": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
 }
 ```
 
@@ -51,6 +51,7 @@ Set-Cookie: token=<jwt>; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=1440
 ```
 
 Notes:
+
 - The cookie is **Secure**, so browsers do not send it over plain HTTP. Use Bearer tokens for local
   HTTP testing or run behind HTTPS.
 - `Max-Age` matches the JWT expiration (4 hours).
@@ -81,9 +82,46 @@ If omitted, Antbox uses the first tenant in the configuration.
 
 ## Endpoints
 
+- **POST** `/v2/challenge` - validate external bearer JWT and check whether a local Antbox user
+  exists
+- **POST** `/v2/login` - validate external bearer JWT and return `{ email, name, groups }`
 - **POST** `/v2/login/root` - root login (returns JWT + cookie)
 - **POST** `/v2/login/logout` - clear auth cookie
 - **GET** `/v2/login/me` - current user profile (requires auth)
+
+## External Login Flow
+
+For non-root users, Antbox supports an external identity resolution flow.
+
+- both `/v2/challenge` and `/v2/login` require `Authorization: Bearer <jwt>`
+- Antbox validates the JWT against the tenant JWK
+- Antbox resolves the identity using claims in this order:
+  1. `email`
+  2. `phone_number`
+  3. `phone`
+- if both `email` and phone are present, `email` wins
+- Antbox then looks up the local user and always resolves groups from the Antbox user record, not
+  from JWT groups
+
+`POST /v2/challenge`
+
+- returns `204` if a matching local user exists
+- returns `404` otherwise
+
+`POST /v2/login`
+
+- returns:
+
+```json
+{
+	"email": "john.doe@example.com",
+	"name": "John Doe",
+	"groups": ["developers", "staff"]
+}
+```
+
+The external tool can use this response to build its own JWT for subsequent requests. Antbox will
+still override JWT groups on every request with the groups stored in the local Antbox user.
 
 ## Token Expiration
 
@@ -92,5 +130,5 @@ If omitted, Antbox uses the first tenant in the configuration.
 
 ## CORS and Credentials
 
-For cross-origin cookie usage, the client must send `credentials: "include"` and the server
-responds with `Access-Control-Allow-Credentials: true` and a specific origin.
+For cross-origin cookie usage, the client must send `credentials: "include"` and the server responds
+with `Access-Control-Allow-Credentials: true` and a specific origin.

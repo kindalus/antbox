@@ -884,6 +884,58 @@ paths:
                   application/json:
                      schema:
                         $ref: "#/components/schemas/AntboxError"
+   /challenge:
+      post:
+         tags:
+            - login
+         summary: External user challenge
+         operationId: challengeExternalUser
+         description: Validates an external bearer JWT against the tenant JWK and checks whether a local Antbox user exists for the token email or phone claims.
+         security:
+            - bearerAuth: []
+         responses:
+            "204":
+               description: Matching local user exists
+            "404":
+               description: No matching local user exists
+               content:
+                  application/json:
+                     schema:
+                        $ref: "#/components/schemas/AntboxError"
+            default:
+               $ref: "#/components/responses/Error"
+   /login:
+      post:
+         tags:
+            - login
+         summary: External user login
+         operationId: loginExternalUser
+         description: Validates an external bearer JWT against the tenant JWK, resolves the local Antbox user by email or phone, and returns the user profile for downstream JWT minting.
+         security:
+            - bearerAuth: []
+         responses:
+            "200":
+               description: Matching user profile
+               content:
+                  application/json:
+                     schema:
+                        type: object
+                        required:
+                           - email
+                           - name
+                           - groups
+                        properties:
+                           email:
+                              type: string
+                              format: email
+                           name:
+                              type: string
+                           groups:
+                              type: array
+                              items:
+                                 type: string
+            default:
+               $ref: "#/components/responses/Error"
    "/login/logout":
       post:
          tags:

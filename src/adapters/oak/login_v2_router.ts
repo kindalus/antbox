@@ -1,6 +1,12 @@
 import { Router } from "@oak/oak";
 import type { AntboxTenant } from "api/antbox_tenant.ts";
-import { logoutHandler, meHandler, rootHandler } from "api/login_handler.ts";
+import {
+	challengeHandler,
+	externalLoginHandler,
+	logoutHandler,
+	meHandler,
+	rootHandler,
+} from "api/login_handler.ts";
 import { adapt } from "./adapt.ts";
 
 /**
@@ -16,11 +22,13 @@ import { adapt } from "./adapt.ts";
  * app.use(router.routes(), router.allowedMethods());
  */
 export default function (tenants: AntboxTenant[]) {
-	const loginRouter = new Router({ prefix: "/login" });
+	const loginRouter = new Router();
 
-	loginRouter.post("/root", adapt(rootHandler(tenants)));
-	loginRouter.post("/logout", adapt(logoutHandler(tenants)));
-	loginRouter.get("/me", adapt(meHandler(tenants)));
+	loginRouter.post("/challenge", adapt(challengeHandler(tenants)));
+	loginRouter.post("/login", adapt(externalLoginHandler(tenants)));
+	loginRouter.post("/login/root", adapt(rootHandler(tenants)));
+	loginRouter.post("/login/logout", adapt(logoutHandler(tenants)));
+	loginRouter.get("/login/me", adapt(meHandler(tenants)));
 
 	return loginRouter;
 }

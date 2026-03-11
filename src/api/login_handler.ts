@@ -4,7 +4,8 @@ import type { AntboxTenant } from "./antbox_tenant.ts";
 import { defaultMiddlewareChain } from "./default_middleware_chain.ts";
 import { getAuthenticationContext } from "./get_authentication_context.ts";
 import { getTenant } from "./get_tenant.ts";
-import { type HttpHandler, sendOK, sendUnauthorized } from "./handler.ts";
+import { type HttpHandler, sendNoContent, sendOK, sendUnauthorized } from "./handler.ts";
+import { processError } from "./process_error.ts";
 
 import { ROOT_USER } from "application/security/builtin_users/index.ts";
 import { ADMINS_GROUP } from "application/security/builtin_groups/index.ts";
@@ -68,6 +69,46 @@ export function logoutHandler(tenants: AntboxTenant[]): HttpHandler {
 	);
 }
 
+export function challengeHandler(tenants: AntboxTenant[]): HttpHandler {
+	return defaultMiddlewareChain(
+		tenants,
+		async (req: Request): Promise<Response> => {
+			const tenant = getTenant(req, tenants);
+			const token = getBearerToken(req);
+			if (!token) {
+				return sendUnauthorized();
+			}
+
+			const result = await tenant.externalLoginService.challenge(token);
+			if (result.isLeft()) {
+				return processError(result.value);
+			}
+
+			return sendNoContent();
+		},
+	);
+}
+
+export function externalLoginHandler(tenants: AntboxTenant[]): HttpHandler {
+	return defaultMiddlewareChain(
+		tenants,
+		async (req: Request): Promise<Response> => {
+			const tenant = getTenant(req, tenants);
+			const token = getBearerToken(req);
+			if (!token) {
+				return sendUnauthorized();
+			}
+
+			const result = await tenant.externalLoginService.login(token);
+			if (result.isLeft()) {
+				return processError(result.value);
+			}
+
+			return sendOK(result.value);
+		},
+	);
+}
+
 export function meHandler(tenants: AntboxTenant[]): HttpHandler {
 	return defaultMiddlewareChain(
 		tenants,
@@ -103,4 +144,14 @@ async function sha256(str: string) {
 	const hashBuffer = await crypto.subtle.digest("SHA-256", strAsBuffer);
 	const hashArray = Array.from(new Uint8Array(hashBuffer));
 	return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function getBearerToken(req: Request): string | undefined {
+	const authorization = req.headers.get("authorization");
+	if (!authorization) {
+		return undefined;
+	}
+
+	const match = authorization.match(/^Bearer\s+(.+)$/i);
+	return match?.[1];
 }

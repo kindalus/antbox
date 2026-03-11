@@ -1,214 +1,83 @@
 import { describe, it } from "bdd";
 import { expect } from "expect";
-import { getQuery } from "./get_query.ts";
+import { exportJWK, generateKeyPair, SignJWT } from "jose";
 
-// Helper function to create a mock request
-function createMockRequest(options: {
-	headers?: Record<string, string>;
-	url?: string;
-}): Request {
-	const headers = new Headers(options.headers || {});
-	const url = options.url || "http://localhost:3000";
+import { InMemoryConfigurationRepository } from "adapters/inmem/inmem_configuration_repository.ts";
+import { ApiKeysService } from "application/security/api_keys_service.ts";
+import { ExternalLoginService } from "application/security/external_login_service.ts";
+import { UsersService } from "application/security/users_service.ts";
+import type { AuthenticationContext } from "application/security/authentication_context.ts";
+import { ADMINS_GROUP_UUID } from "domain/configuration/builtin_groups.ts";
+import type { AntboxTenant } from "./antbox_tenant.ts";
+import { authenticationMiddleware } from "./authentication_middleware.ts";
 
-	return new Request(url, {
-		method: "GET",
-		headers,
-	});
-}
+describe("authenticationMiddleware", () => {
+	const adminCtx: AuthenticationContext = {
+		tenant: "default",
+		principal: {
+			email: "admin@example.com",
+			groups: [ADMINS_GROUP_UUID],
+		},
+		mode: "Action",
+	};
 
-// Helper function to extract API key using the same logic as the middleware
-function extractApiKey(req: Request): string | undefined {
-	// Check Authorization header first (standard practice)
-	const authHeader = req.headers.get("authorization");
-	if (authHeader) {
-		// Match "ApiKey <key>" format (case-insensitive)
-		const match = authHeader.match(/^apikey\s+(.+)$/i);
-		if (match) {
-			return match[1];
-		}
-	}
+	it("overrides jwt groups with local user groups for external tokens", async () => {
+		const repo = new InMemoryConfigurationRepository();
+		const usersService = new UsersService(repo);
+		await usersService.createUser(adminCtx, {
+			email: "john.doe@example.com",
+			title: "John Doe",
+			group: "developers",
+			groups: ["developers", "staff"],
+			hasWhatsapp: false,
+			active: true,
+		});
 
-	// Fall back to query parameter
-	const query = getQuery(req);
-	return query["api_key"];
-}
+		const { publicKey, privateKey } = await generateKeyPair("RS256");
+		const rawJwk = { ...(await exportJWK(publicKey)), alg: "RS256" };
+		const externalLoginService = new ExternalLoginService(
+			usersService,
+			rawJwk as unknown as Record<string, string>,
+		);
+		const apiKeysService = new ApiKeysService(repo);
 
-describe("Authentication Middleware - API Key Extraction", () => {
-	describe("Authorization header", () => {
-		it("should extract API key from Authorization: ApiKey <key> header", () => {
-			const req = createMockRequest({
+		const tenant = {
+			name: "default",
+			rootPasswd: "demo",
+			rawJwk: rawJwk as unknown as Record<string, string>,
+			symmetricKey: "test-symmetric-key",
+			externalLoginService,
+			apiKeysService,
+			usersService,
+		} as unknown as AntboxTenant;
+
+		const token = await new SignJWT({
+			email: "john.doe@example.com",
+			groups: ["admins"],
+		})
+			.setProtectedHeader({ alg: "RS256", kid: "test-key" })
+			.setIssuedAt()
+			.setIssuer("external-idp")
+			.setExpirationTime("1h")
+			.sign(privateKey);
+
+		const handler = authenticationMiddleware([tenant])(async (req: Request) => {
+			return new Response(req.headers.get("X-Principal"), {
+				headers: { "Content-Type": "application/json" },
+			});
+		});
+
+		const response = await handler(
+			new Request("http://localhost/v2/login/me", {
 				headers: {
-					"Authorization": "ApiKey my-secret-key",
+					Authorization: `Bearer ${token}`,
+					"X-Tenant": "default",
 				},
-			});
+			}),
+		);
 
-			const apiKey = extractApiKey(req);
-			expect(apiKey).toBe("my-secret-key");
-		});
-
-		it("should extract API key from Authorization header (case-insensitive)", () => {
-			const req = createMockRequest({
-				headers: {
-					"Authorization": "APIKEY my-secret-key",
-				},
-			});
-
-			const apiKey = extractApiKey(req);
-			expect(apiKey).toBe("my-secret-key");
-		});
-
-		it("should extract API key from Authorization header (mixed case)", () => {
-			const req = createMockRequest({
-				headers: {
-					"Authorization": "apikey my-secret-key",
-				},
-			});
-
-			const apiKey = extractApiKey(req);
-			expect(apiKey).toBe("my-secret-key");
-		});
-
-		it("should handle API key with spaces and special characters", () => {
-			const req = createMockRequest({
-				headers: {
-					"Authorization": "ApiKey my-secret-key-with-dashes_and_underscores",
-				},
-			});
-
-			const apiKey = extractApiKey(req);
-			expect(apiKey).toBe("my-secret-key-with-dashes_and_underscores");
-		});
-
-		it("should not extract from Bearer token", () => {
-			const req = createMockRequest({
-				headers: {
-					"Authorization": "Bearer my-jwt-token",
-				},
-			});
-
-			const apiKey = extractApiKey(req);
-			expect(apiKey).toBe(undefined);
-		});
-
-		it("should not extract from malformed ApiKey header", () => {
-			const req = createMockRequest({
-				headers: {
-					"Authorization": "ApiKey",
-				},
-			});
-
-			const apiKey = extractApiKey(req);
-			expect(apiKey).toBe(undefined);
-		});
-	});
-
-	describe("Query parameter", () => {
-		it("should extract API key from api_key query parameter", () => {
-			const req = createMockRequest({
-				url: "http://localhost:3000?api_key=my-secret-key",
-			});
-
-			const apiKey = extractApiKey(req);
-			expect(apiKey).toBe("my-secret-key");
-		});
-
-		it("should extract API key from api_key with other query parameters", () => {
-			const req = createMockRequest({
-				url: "http://localhost:3000?foo=bar&api_key=my-secret-key&baz=qux",
-			});
-
-			const apiKey = extractApiKey(req);
-			expect(apiKey).toBe("my-secret-key");
-		});
-
-		it("should handle URL-encoded API key", () => {
-			const req = createMockRequest({
-				url: "http://localhost:3000?api_key=my%2Dsecret%2Dkey",
-			});
-
-			const apiKey = extractApiKey(req);
-			expect(apiKey).toBe("my-secret-key");
-		});
-	});
-
-	describe("Precedence", () => {
-		it("should prefer Authorization header over query parameter", () => {
-			const req = createMockRequest({
-				headers: {
-					"Authorization": "ApiKey header-key",
-				},
-				url: "http://localhost:3000?api_key=query-key",
-			});
-
-			const apiKey = extractApiKey(req);
-			expect(apiKey).toBe("header-key");
-		});
-	});
-
-	describe("Legacy compatibility (should fail)", () => {
-		it("should NOT extract from old x-api-key header", () => {
-			const req = createMockRequest({
-				headers: {
-					"x-api-key": "my-secret-key",
-				},
-			});
-
-			const apiKey = extractApiKey(req);
-			expect(apiKey).toBe(undefined);
-		});
-
-		it("should NOT extract from old x-api-key query parameter", () => {
-			const req = createMockRequest({
-				url: "http://localhost:3000?x-api-key=my-secret-key",
-			});
-
-			const apiKey = extractApiKey(req);
-			expect(apiKey).toBe(undefined);
-		});
-
-		it("should NOT authenticate with old x-api-key header format", () => {
-			const req = createMockRequest({
-				headers: {
-					"x-api-key": "my-secret-key",
-				},
-			});
-
-			const apiKey = extractApiKey(req);
-			expect(apiKey).toBe(undefined);
-		});
-
-		it("should NOT authenticate with old x-api-key query parameter format", () => {
-			const req = createMockRequest({
-				url: "http://localhost:3000?x-api-key=my-secret-key",
-			});
-
-			const apiKey = extractApiKey(req);
-			expect(apiKey).toBe(undefined);
-		});
-	});
-
-	describe("No API key provided", () => {
-		it("should return undefined when no API key is provided", () => {
-			const req = createMockRequest({
-				headers: {
-					"Content-Type": "application/json",
-				},
-				url: "http://localhost:3000",
-			});
-
-			const apiKey = extractApiKey(req);
-			expect(apiKey).toBe(undefined);
-		});
-
-		it("should return undefined when Authorization header has different scheme", () => {
-			const req = createMockRequest({
-				headers: {
-					"Authorization": "Basic dXNlcjpwYXNz",
-				},
-			});
-
-			const apiKey = extractApiKey(req);
-			expect(apiKey).toBe(undefined);
-		});
+		const principal = await response.json();
+		expect(principal.email).toBe("john.doe@example.com");
+		expect(principal.groups).toEqual(["developers", "staff"]);
 	});
 });

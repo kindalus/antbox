@@ -4,7 +4,6 @@ import {
 	challengeHandler,
 	externalLoginHandler,
 	logoutHandler,
-	meHandler,
 	rootHandler,
 } from "api/login_handler.ts";
 import { adapt } from "./adapt.ts";
@@ -28,7 +27,6 @@ export default function (tenants: AntboxTenant[]) {
 	loginRouter.post("/login", adapt(externalLoginHandler(tenants)));
 	loginRouter.post("/login/root", adapt(rootHandler(tenants)));
 	loginRouter.post("/login/logout", adapt(logoutHandler(tenants)));
-	loginRouter.get("/login/me", adapt(meHandler(tenants)));
 
 	return loginRouter;
 }

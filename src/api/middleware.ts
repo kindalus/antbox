@@ -67,8 +67,9 @@ export const corsMiddleware: HttpMiddleware = (next: HttpHandler) => async (req:
 
 export const logMiddleware: HttpMiddleware = (next: HttpHandler) => async (req: Request) => {
 	try {
+		const start = Temporal.Now.instant();
 		const res = await next(req);
-		Logger.debug(`${req.method} ${req.url} ${res.status}`);
+		Logger.debug(`${req.method} ${req.url} ${res.status} ${Temporal.Now.instant().since(start)}`);
 
 		return res;
 	} catch (error) {

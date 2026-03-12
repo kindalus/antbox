@@ -1,11 +1,12 @@
-type LogLevel = "debug" | "info" | "warn" | "error" | "fatal";
+type LogLevel = "debug" | "info" | "warn" | "error" | "fatal" | "trace";
 
 const LOG_LEVELS: Record<LogLevel, number> = {
-	debug: 0,
-	info: 1,
-	warn: 2,
-	error: 3,
-	fatal: 4,
+	trace: 0,
+	debug: 1,
+	info: 2,
+	warn: 3,
+	error: 4,
+	fatal: 5,
 };
 
 function getLogLevel(): number {
@@ -44,9 +45,15 @@ export class Logger {
 				break;
 			case "error":
 				console.error("[ERROR]", ...output);
+				console.trace();
+				break;
+			case "trace":
+				console.debug("[TRACE]", ...output);
+				console.trace();
 				break;
 			case "fatal":
 				console.error("[FATAL]", ...output);
+				console.trace();
 				break;
 		}
 	}
@@ -71,6 +78,10 @@ export class Logger {
 		Logger.#emit("fatal", [], ...args);
 	}
 
+	static trace(...args: unknown[]): void {
+		Logger.#emit("trace", [], ...args);
+	}
+
 	debug(...args: unknown[]): void {
 		Logger.#emit("debug", this.#prefixes, ...args);
 	}
@@ -89,5 +100,9 @@ export class Logger {
 
 	fatal(...args: unknown[]): void {
 		Logger.#emit("fatal", this.#prefixes, ...args);
+	}
+
+	trace(...args: unknown[]): void {
+		Logger.#emit("trace", this.#prefixes, ...args);
 	}
 }

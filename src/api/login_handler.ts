@@ -126,8 +126,8 @@ export function meHandler(tenants: AntboxTenant[]): HttpHandler {
 				return sendUnauthorized();
 			}
 
-			const { email, title, groups } = userOrErr.value;
-			return sendOK({ email, name: title, groups });
+			const { email, title, group, groups } = userOrErr.value;
+			return sendOK({ email, name: title, groups: [group, ...groups] });
 		},
 	);
 }

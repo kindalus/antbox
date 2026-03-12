@@ -57,7 +57,7 @@ export class ExternalLoginService {
 		return right({
 			email: userOrErr.value.email,
 			name: userOrErr.value.title,
-			groups: userOrErr.value.groups,
+			groups: [userOrErr.value.group, ...userOrErr.value.groups],
 		});
 	}
 

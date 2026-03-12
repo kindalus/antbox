@@ -156,8 +156,8 @@ async function authenticateToken(
 	if (userOrErr.isLeft()) {
 		return storeAnonymous(req);
 	}
-
-	storePrincipal(req, userOrErr.value.email, userOrErr.value.groups);
+	const groups = [userOrErr.value.group, ...userOrErr.value.groups];
+	storePrincipal(req, userOrErr.value.email, groups);
 }
 
 function verifyToken(

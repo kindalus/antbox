@@ -22,7 +22,9 @@ describe("ExternalLoginService", () => {
 		const repo = new InMemoryConfigurationRepository();
 		const usersService = new UsersService(repo);
 		const { publicKey, privateKey } = await generateKeyPair("RS256");
-		const rawJwk = { ...(await exportJWK(publicKey)), alg: "RS256" };
+		const rawJwks = {
+			keys: [{ ...(await exportJWK(publicKey)), alg: "RS256", kid: "test-key" }],
+		};
 
 		await usersService.createUser(adminCtx, {
 			email: "john.doe@example.com",
@@ -34,10 +36,10 @@ describe("ExternalLoginService", () => {
 			active: true,
 		});
 
-		const service = new ExternalLoginService(
-			usersService,
-			rawJwk as unknown as Record<string, string>,
-		);
+		const service = new ExternalLoginService(usersService, {
+			type: "local",
+			jwks: rawJwks,
+		});
 
 		return { privateKey, service };
 	}

@@ -22,7 +22,7 @@ export interface TenantConfiguration {
 	name: string;
 	rootPasswd?: string;
 	key?: string;
-	jwk?: string;
+	jwks?: string;
 	storage?: ModuleConfiguration;
 	repository?: ModuleConfiguration;
 	configurationRepository?: ModuleConfiguration;

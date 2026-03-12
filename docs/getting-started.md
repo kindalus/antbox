@@ -36,8 +36,8 @@ rootPasswd = "demo"
 # Provide crypto material explicitly (recommended)
 # key can be a base64 string or a file path
 key = "base64-encoded-secret"
-# jwk must point to a JSON Web Key file (path or URL)
-jwk = "./.config/antbox.jwk"
+# jwks must point to a JSON Web Key Set file (path or URL)
+jwks = "./.config/antbox.jwks"
 
 # Required
 eventStoreRepository = ["inmem/inmem_event_store_repository.ts"]
@@ -50,7 +50,7 @@ storage = ["inmem/inmem_storage_provider.ts"]
 Notes:
 
 - `eventStoreRepository` is required for every tenant.
-- If `key` and `jwk` are not provided, the server will try to read defaults and exit on failure.
+- If `key` and `jwks` are not provided, the server will try to read defaults and exit on failure.
 - For production, use persistent `repository` and `storage` adapters.
 
 ## Start the Server
@@ -97,7 +97,7 @@ Response:
 
 ```json
 {
-  "jwt": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+	"jwt": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
 }
 ```
 

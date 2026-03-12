@@ -21,7 +21,6 @@ import type { ExternalLoginService } from "application/security/external_login_s
 export interface AntboxTenant {
 	name: string;
 	rootPasswd: string;
-	rawJwk: Record<string, string>;
 	symmetricKey: string;
 
 	// Configuration Repository

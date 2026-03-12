@@ -1,4 +1,11 @@
-import { decodeJwt, importJWK, type JWK, type JWTPayload, jwtVerify, type KeyObject } from "jose";
+import {
+	createLocalJWKSet,
+	createRemoteJWKSet,
+	decodeJwt,
+	type JSONWebKeySet,
+	type JWTPayload,
+	jwtVerify,
+} from "jose";
 
 import type { UserData } from "domain/configuration/user_data.ts";
 import { type AntboxError, BadRequestError, UnauthorizedError } from "shared/antbox_error.ts";
@@ -16,14 +23,20 @@ interface ExternalIdentity {
 	readonly phone?: string;
 }
 
+export type ExternalJwksSource =
+	| { readonly type: "remote"; readonly url: string }
+	| { readonly type: "local"; readonly jwks: JSONWebKeySet };
+
 export class ExternalLoginService {
-	readonly #jwkPromise: Promise<Either<TypeError, KeyObject | Uint8Array>>;
+	readonly #jwks: ReturnType<typeof createRemoteJWKSet> | ReturnType<typeof createLocalJWKSet>;
 
 	constructor(
 		private readonly usersService: UsersService,
-		rawJwk: Record<string, string>,
+		source: ExternalJwksSource,
 	) {
-		this.#jwkPromise = importJwkKey(rawJwk as unknown as JWK);
+		this.#jwks = source.type === "remote"
+			? createRemoteJWKSet(new URL(source.url))
+			: createLocalJWKSet(source.jwks);
 	}
 
 	async challenge(token: string): Promise<Either<AntboxError, void>> {
@@ -76,12 +89,7 @@ export class ExternalLoginService {
 			return left(new UnauthorizedError());
 		}
 
-		const jwkOrErr = await this.#jwkPromise;
-		if (jwkOrErr.isLeft()) {
-			return left(new BadRequestError(`Failed to load tenant JWK: ${jwkOrErr.value.message}`));
-		}
-
-		const verification = await verifyToken(jwkOrErr.value, token);
+		const verification = await verifyToken(this.#jwks, token);
 		if (verification.isLeft()) {
 			return left(new UnauthorizedError());
 		}
@@ -115,18 +123,10 @@ function decodeJwtSafe(token: string): Either<AntboxError, JWTPayload> {
 }
 
 function verifyToken(
-	key: KeyObject | Uint8Array,
+	jwks: ReturnType<typeof createRemoteJWKSet> | ReturnType<typeof createLocalJWKSet>,
 	token: string,
 ): Promise<Either<Error, { payload: JWTPayload }>> {
-	return jwtVerify(token, key)
+	return jwtVerify(token, jwks)
 		.then((payload) => right(payload))
 		.catch((error) => left(error)) as Promise<Either<Error, { payload: JWTPayload }>>;
-}
-
-function importJwkKey(
-	key: JWK,
-): Promise<Either<TypeError, KeyObject | Uint8Array>> {
-	return importJWK(key)
-		.then((jwk) => right(jwk))
-		.catch((error) => left(error)) as Promise<Either<TypeError, KeyObject | Uint8Array>>;
 }

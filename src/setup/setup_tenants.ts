@@ -8,7 +8,7 @@ import type { StorageProvider } from "application/nodes/storage_provider.ts";
 import type { NodeRepository } from "domain/nodes/node_repository.ts";
 import type { EventStoreRepository } from "domain/audit/event_store_repository.ts";
 import type { ConfigurationRepository } from "domain/configuration/configuration_repository.ts";
-import { JWK, ROOT_PASSWD, SYMMETRIC_KEY } from "./server_defaults.ts";
+import { JWKS, ROOT_PASSWD, SYMMETRIC_KEY } from "./server_defaults.ts";
 import { providerFrom } from "adapters/module_configuration_parser.ts";
 import { FeaturesService } from "application/features/features_service.ts";
 import { FeaturesEngine } from "application/features/features_engine.ts";
@@ -46,7 +46,7 @@ const BUILTIN_SKILLS_DIR = fromFileUrl(
  * @remarks
  * External setup:
  * - Configure repository/storage/event store adapters in `ServerConfiguration`.
- * - Ensure JWK and symmetric key paths or URLs are reachable.
+ * - Ensure JWKS and symmetric key paths or URLs are reachable.
  * - Grant Deno permissions for file, env, and network access required by adapters.
  *
  * @example
@@ -62,7 +62,7 @@ async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
 	const passwd = cfg?.rootPasswd ?? ROOT_PASSWD;
 	const symmetricKey = await loadSymmetricKey(cfg?.key);
 
-	const rawJwk = await loadJwk(cfg?.jwk);
+	const externalJwks = await loadJwks(cfg?.jwks);
 	const nodeRepository = await providerFrom<NodeRepository>(cfg?.repository);
 	const storage = await providerFrom<StorageProvider>(cfg?.storage);
 	const eventStoreRepository = await providerFrom<EventStoreRepository>(
@@ -155,7 +155,7 @@ async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
 	const groupsService = new GroupsService(configRepo);
 	const usersService = new UsersService(configRepo);
 	const apiKeysService = new ApiKeysService(configRepo);
-	const externalLoginService = new ExternalLoginService(usersService, rawJwk);
+	const externalLoginService = new ExternalLoginService(usersService, externalJwks);
 	const aspectsService = new AspectsService(configRepo);
 	const workflowsService = new WorkflowsService(configRepo);
 
@@ -217,7 +217,6 @@ async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
 	return {
 		name: cfg.name,
 		rootPasswd: passwd,
-		rawJwk,
 		symmetricKey,
 
 		// Configuration Repository
@@ -247,30 +246,25 @@ async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
 	};
 }
 
-async function loadJwk(jwkPath?: string): Promise<Record<string, string>> {
-	if (!jwkPath) {
-		jwkPath = JWK;
-	}
+async function loadJwks(
+	jwksPath?: string,
+): Promise<import("application/security/external_login_service.ts").ExternalJwksSource> {
+	const sourcePath = jwksPath ?? JWKS;
 
 	try {
-		let content: string;
-
-		// Check if jwkPath is a URL
-		if (jwkPath.startsWith("http://") || jwkPath.startsWith("https://")) {
-			const response = await fetch(jwkPath);
-			if (!response.ok) {
-				throw new Error(`Failed to fetch JWK from URL: ${response.statusText}`);
-			}
-			content = await response.text();
-		} else {
-			jwkPath = resolve(jwkPath);
-			content = await Deno.readTextFile(jwkPath);
+		if (sourcePath.startsWith("http://") || sourcePath.startsWith("https://")) {
+			return { type: "remote", url: sourcePath };
 		}
 
-		return JSON.parse(content);
+		const resolvedPath = resolve(sourcePath);
+		const content = await Deno.readTextFile(resolvedPath);
+		return {
+			type: "local",
+			jwks: JSON.parse(content),
+		};
 	} catch (error) {
 		Logger.error(
-			`JWK loading failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+			`JWKS loading failed: ${error instanceof Error ? error.message : "Unknown error"}`,
 		);
 		Deno.exit(-1);
 	}

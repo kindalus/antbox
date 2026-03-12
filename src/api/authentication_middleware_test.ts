@@ -34,17 +34,18 @@ describe("authenticationMiddleware", () => {
 		});
 
 		const { publicKey, privateKey } = await generateKeyPair("RS256");
-		const rawJwk = { ...(await exportJWK(publicKey)), alg: "RS256" };
+		const rawJwks = {
+			keys: [{ ...(await exportJWK(publicKey)), alg: "RS256", kid: "test-key" }],
+		};
 		const externalLoginService = new ExternalLoginService(
 			usersService,
-			rawJwk as unknown as Record<string, string>,
+			{ type: "local", jwks: rawJwks },
 		);
 		const apiKeysService = new ApiKeysService(repo);
 
 		const tenant = {
 			name: "default",
 			rootPasswd: "demo",
-			rawJwk: rawJwk as unknown as Record<string, string>,
 			symmetricKey: "test-symmetric-key",
 			externalLoginService,
 			apiKeysService,

@@ -94,7 +94,7 @@ If omitted, Antbox uses the first tenant in the configuration.
 For non-root users, Antbox supports an external identity resolution flow.
 
 - both `/v2/challenge` and `/v2/login` require `Authorization: Bearer <jwt>`
-- Antbox validates the JWT against the tenant JWK
+- Antbox validates the JWT against the tenant JWKS
 - Antbox resolves the identity using claims in this order:
   1. `email`
   2. `phone_number`

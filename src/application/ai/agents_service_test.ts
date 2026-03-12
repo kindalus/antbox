@@ -6,6 +6,7 @@ import { AgentsService } from "application/ai/agents_service.ts";
 import { ADMINS_GROUP_UUID } from "domain/configuration/builtin_groups.ts";
 import {
 	RAG_AGENT_UUID,
+	RAG_NODE_FILTERING_AGENT_UUID,
 	RAG_SUMMARIZER_AGENT_UUID,
 	SEMANTIC_SEARCHER_AGENT_UUID,
 } from "domain/configuration/builtin_agents.ts";
@@ -202,7 +203,11 @@ describe("AgentsService", () => {
 				name: "My Pipeline",
 				description: "A sequential pipeline",
 				type: "sequential",
-				agents: ["--semantic-searcher-agent--", "--rag-summarizer-agent--"],
+				agents: [
+					"--semantic-searcher-agent--",
+					"--rag-node-filtering-agent--",
+					"--rag-summarizer-agent--",
+				],
 			});
 
 			expect(result.isRight()).toBe(true);
@@ -210,6 +215,7 @@ describe("AgentsService", () => {
 				expect(result.value.type).toBe("sequential");
 				expect(result.value.agents).toEqual([
 					"--semantic-searcher-agent--",
+					"--rag-node-filtering-agent--",
 					"--rag-summarizer-agent--",
 				]);
 			}
@@ -222,7 +228,11 @@ describe("AgentsService", () => {
 			const result = await service.createAgent(adminCtx, {
 				name: "Parallel Runner",
 				type: "parallel",
-				agents: ["--semantic-searcher-agent--", "--rag-summarizer-agent--"],
+				agents: [
+					"--semantic-searcher-agent--",
+					"--rag-node-filtering-agent--",
+					"--rag-summarizer-agent--",
+				],
 			});
 
 			expect(result.isRight()).toBe(true);
@@ -335,6 +345,21 @@ describe("AgentsService", () => {
 			}
 		});
 
+		it("should get builtin RAG node filtering agent", async () => {
+			const repo = new InMemoryConfigurationRepository();
+			const service = createAgentsService(repo);
+
+			const result = await service.getAgent(adminCtx, RAG_NODE_FILTERING_AGENT_UUID);
+
+			expect(result.isRight()).toBe(true);
+			if (result.isRight()) {
+				expect(result.value.uuid).toBe(RAG_NODE_FILTERING_AGENT_UUID);
+				expect(result.value.name).toBe("RAG Node Filtering Agent");
+				expect(result.value.type).toBe("llm");
+				expect(result.value.exposedToUsers).toBe(false);
+			}
+		});
+
 		it("should allow non-admin to get agent", async () => {
 			const repo = new InMemoryConfigurationRepository();
 			const service = createAgentsService(repo);
@@ -355,7 +380,7 @@ describe("AgentsService", () => {
 	});
 
 	describe("listAgents", () => {
-		it("should include all 3 builtin agents plus custom agents", async () => {
+		it("should include all 4 builtin agents plus custom agents", async () => {
 			const repo = new InMemoryConfigurationRepository();
 			const service = createAgentsService(repo);
 
@@ -374,12 +399,12 @@ describe("AgentsService", () => {
 
 			expect(result.isRight()).toBe(true);
 			if (result.isRight()) {
-				// Should include 2 custom agents + 3 builtins (RAG Agent, Semantic Searcher, RAG Summarizer)
-				expect(result.value.length).toBe(5);
+				// Should include 2 custom agents + 4 builtins
+				expect(result.value.length).toBe(6);
 			}
 		});
 
-		it("should include the 3 builtin agents when no custom agents", async () => {
+		it("should include the 4 builtin agents when no custom agents", async () => {
 			const repo = new InMemoryConfigurationRepository();
 			const service = createAgentsService(repo);
 
@@ -387,10 +412,11 @@ describe("AgentsService", () => {
 
 			expect(result.isRight()).toBe(true);
 			if (result.isRight()) {
-				expect(result.value.length).toBe(3);
+				expect(result.value.length).toBe(4);
 				const uuids = result.value.map((a) => a.uuid);
 				expect(uuids).toContain(RAG_AGENT_UUID);
 				expect(uuids).toContain(SEMANTIC_SEARCHER_AGENT_UUID);
+				expect(uuids).toContain("--rag-node-filtering-agent--");
 				expect(uuids).toContain(RAG_SUMMARIZER_AGENT_UUID);
 			}
 		});

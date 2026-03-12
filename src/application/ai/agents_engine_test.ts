@@ -38,7 +38,11 @@ function makeSequentialAgentData(overrides: Partial<AgentData> = {}): AgentData 
 		description: "A sequential pipeline",
 		type: "sequential",
 		exposedToUsers: true,
-		agents: ["--semantic-searcher-agent--", "--rag-summarizer-agent--"],
+		agents: [
+			"--semantic-searcher-agent--",
+			"--rag-node-filtering-agent--",
+			"--rag-summarizer-agent--",
+		],
 		createdTime: new Date().toISOString(),
 		modifiedTime: new Date().toISOString(),
 		...overrides,
@@ -75,6 +79,18 @@ function makeContext(overrides: Partial<AgentsEngineContext> = {}): AgentsEngine
 							model: "default",
 							tools: false,
 							systemPrompt: "You summarize search results.",
+						}),
+					);
+				}
+				if (uuid === "--rag-node-filtering-agent--") {
+					return right(
+						makeAgentData({
+							uuid: "--rag-node-filtering-agent--",
+							name: "RAG Node Filtering Agent",
+							type: "llm",
+							model: "default",
+							tools: false,
+							systemPrompt: "You filter node search results.",
 						}),
 					);
 				}

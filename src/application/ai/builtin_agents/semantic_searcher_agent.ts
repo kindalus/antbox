@@ -73,13 +73,18 @@ Always return a JSON array of results:
   {
     "uuid": "node-uuid-here",
     "name": "Document Title",
-    "snippet": "Relevant excerpt from the document content or description..."
+    "snippet": "Relevant excerpt from the document content or description...",
+    "parent": "parent-folder-uuid",
+    "parentTitle": "Parent Folder Title"
   }
 ]
 \`\`\`
 
 - Include up to 5 most relevant results
 - The \`snippet\` should be the most relevant portion of \`fulltext\` or \`description\` (max 300 chars)
+- Include \`parent\` as the node parent UUID
+- Include \`parentTitle\` by resolving the parent folder when possible with \`nodes.get(node.parent)\`
+- If the parent cannot be resolved, keep \`parent\` and set \`parentTitle\` to an empty string
 - If no results found, return an empty array: \`[]\`
 - ONLY output the JSON array, nothing else
 

@@ -1,11 +1,11 @@
 engine = "oak"
 port = 7180
-
-[[tenants]]
-name = "sandbox"
 rootPasswd = "demo"
 key = "./.config/antbox.key"
 jwks = "./.config/antbox.jwks"
+
+[[tenants]]
+name = "sandbox"
 storage = ["inmem/inmem_storage_provider.ts"]
 repository = ["sqlite/sqlite_node_repository.ts"]
 configurationRepository = ["sqlite/sqlite_configuration_repository.ts"]

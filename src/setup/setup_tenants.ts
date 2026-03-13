@@ -55,21 +55,24 @@ const BUILTIN_SKILLS_DIR = fromFileUrl(
 export function setupTenants(
 	cfg: ServerConfiguration,
 ): Promise<AntboxTenant[]> {
-	return Promise.all(cfg.tenants.map(setupTenant));
+	return Promise.all(cfg.tenants.map((tenantCfg) => setupTenant(cfg, tenantCfg)));
 }
 
-async function setupTenant(cfg: TenantConfiguration): Promise<AntboxTenant> {
-	const passwd = cfg?.rootPasswd ?? ROOT_PASSWD;
-	const symmetricKey = await loadSymmetricKey(cfg?.key);
+async function setupTenant(
+	serverCfg: ServerConfiguration,
+	cfg: TenantConfiguration,
+): Promise<AntboxTenant> {
+	const passwd = cfg.rootPasswd ?? serverCfg.rootPasswd ?? ROOT_PASSWD;
+	const symmetricKey = await loadSymmetricKey(cfg.key ?? serverCfg.key);
 
-	const externalJwks = await loadJwks(cfg?.jwks);
-	const nodeRepository = await providerFrom<NodeRepository>(cfg?.repository);
-	const storage = await providerFrom<StorageProvider>(cfg?.storage);
+	const externalJwks = await loadJwks(cfg.jwks ?? serverCfg.jwks);
+	const nodeRepository = await providerFrom<NodeRepository>(cfg.repository);
+	const storage = await providerFrom<StorageProvider>(cfg.storage);
 	const eventStoreRepository = await providerFrom<EventStoreRepository>(
-		cfg?.eventStoreRepository,
+		cfg.eventStoreRepository,
 	);
 	const configRepo = await providerFrom<ConfigurationRepository>(
-		cfg?.configurationRepository,
+		cfg.configurationRepository,
 	);
 
 	// Validate all required repositories are configured

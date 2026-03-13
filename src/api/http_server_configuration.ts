@@ -1,6 +1,9 @@
 export interface ServerConfiguration {
 	port?: number;
 	engine?: string;
+	rootPasswd?: string;
+	key?: string;
+	jwks?: string;
 	tenants: TenantConfiguration[];
 }
 
@@ -23,9 +26,9 @@ export interface TenantConfiguration {
 	rootPasswd?: string;
 	key?: string;
 	jwks?: string;
-	storage?: ModuleConfiguration;
-	repository?: ModuleConfiguration;
-	configurationRepository?: ModuleConfiguration;
-	eventStoreRepository?: ModuleConfiguration;
+	storage: ModuleConfiguration;
+	repository: ModuleConfiguration;
+	configurationRepository: ModuleConfiguration;
+	eventStoreRepository: ModuleConfiguration;
 	ai?: AIConfiguration;
 }

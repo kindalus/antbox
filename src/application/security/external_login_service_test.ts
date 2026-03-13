@@ -1,8 +1,10 @@
 import { describe, it } from "bdd";
 import { expect } from "expect";
 import { exportJWK, generateKeyPair, SignJWT } from "jose";
+import { stub } from "mock";
 
 import { InMemoryConfigurationRepository } from "adapters/inmem/inmem_configuration_repository.ts";
+import { Logger } from "shared/logger.ts";
 import { UsersService } from "./users_service.ts";
 import { ExternalLoginService } from "./external_login_service.ts";
 import type { AuthenticationContext } from "./authentication_context.ts";
@@ -115,6 +117,30 @@ describe("ExternalLoginService", () => {
 		expect(result.isLeft()).toBe(true);
 		if (result.isLeft()) {
 			expect(result.value.message).toContain("email or phone number");
+		}
+	});
+
+	it("logs a warning when external JWT verification fails", async () => {
+		const { service } = await createFixture();
+		const { privateKey: otherPrivateKey } = await generateKeyPair("RS256");
+		const token = await signToken(otherPrivateKey, { email: "john.doe@example.com" });
+		const warnings: unknown[][] = [];
+		const loggerWarn = stub(Logger, "warn", (...args: unknown[]) => {
+			warnings.push(args);
+		});
+
+		try {
+			const result = await service.resolvePrincipal(token);
+
+			expect(result.isLeft()).toBe(true);
+			expect(warnings).toHaveLength(1);
+			expect(warnings[0][0]).toBe("External token JWT verification failed");
+			expect(warnings[0][1]).toMatchObject({
+				issuer: "external-idp",
+			});
+			expect((warnings[0][1] as { error: string }).error).toContain("signature verification");
+		} finally {
+			loggerWarn.restore();
 		}
 	});
 });

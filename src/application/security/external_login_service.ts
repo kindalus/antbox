@@ -10,6 +10,7 @@ import {
 import type { UserData } from "domain/configuration/user_data.ts";
 import { type AntboxError, BadRequestError, UnauthorizedError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
+import { Logger } from "shared/logger.ts";
 import { UsersService } from "./users_service.ts";
 
 export interface ExternalLoginResult {
@@ -91,6 +92,10 @@ export class ExternalLoginService {
 
 		const verification = await verifyToken(this.#jwks, token);
 		if (verification.isLeft()) {
+			Logger.warn("External token JWT verification failed", {
+				issuer: decoded.value.iss,
+				error: verification.value.message,
+			});
 			return left(new UnauthorizedError());
 		}
 

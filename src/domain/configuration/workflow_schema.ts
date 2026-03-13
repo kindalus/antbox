@@ -34,6 +34,87 @@ export const WorkflowDataSchema = z.object({
 	groupsAllowed: z.array(z.string()),
 	createdTime: z.string(),
 	modifiedTime: z.string(),
+}).superRefine((data, ctx) => {
+	const stateNames = data.states.map((s) => s.name);
+
+	// Exactly one initial state
+	const initialStates = data.states.filter((s) => s.isInitial);
+	if (initialStates.length === 0) {
+		ctx.addIssue({
+			code: z.ZodIssueCode.custom,
+			message: "Workflow must have exactly one initial state",
+			path: ["states"],
+		});
+	} else if (initialStates.length > 1) {
+		ctx.addIssue({
+			code: z.ZodIssueCode.custom,
+			message: `Workflow must have exactly one initial state, found ${initialStates.length}: ${initialStates.map((s) => s.name).join(", ")}`,
+			path: ["states"],
+		});
+	}
+
+	// Unique state names
+	const seenStateNames = new Set<string>();
+	for (const name of stateNames) {
+		if (seenStateNames.has(name)) {
+			ctx.addIssue({
+				code: z.ZodIssueCode.custom,
+				message: `Duplicate state name: "${name}"`,
+				path: ["states"],
+			});
+			break;
+		}
+		seenStateNames.add(name);
+	}
+
+	// Unique signals per state and transition targets exist
+	for (let i = 0; i < data.states.length; i++) {
+		const state = data.states[i];
+		const seenSignals = new Set<string>();
+
+		for (const transition of state.transitions ?? []) {
+			// Unique signal within state
+			if (seenSignals.has(transition.signal)) {
+				ctx.addIssue({
+					code: z.ZodIssueCode.custom,
+					message: `Duplicate signal "${transition.signal}" in state "${state.name}"`,
+					path: ["states", i, "transitions"],
+				});
+			}
+			seenSignals.add(transition.signal);
+
+			// Transition target exists
+			if (!stateNames.includes(transition.targetState)) {
+				ctx.addIssue({
+					code: z.ZodIssueCode.custom,
+					message: `Transition target "${transition.targetState}" in state "${state.name}" does not exist`,
+					path: ["states", i, "transitions"],
+				});
+			}
+		}
+	}
+
+	// availableStateNames matches actual state names
+	const availableSet = new Set(data.availableStateNames);
+	const stateSet = new Set(stateNames);
+
+	const missing = [...stateSet].filter((n) => !availableSet.has(n));
+	const extra = [...availableSet].filter((n) => !stateSet.has(n));
+
+	if (missing.length > 0) {
+		ctx.addIssue({
+			code: z.ZodIssueCode.custom,
+			message: `availableStateNames is missing state(s): ${missing.join(", ")}`,
+			path: ["availableStateNames"],
+		});
+	}
+	if (extra.length > 0) {
+		ctx.addIssue({
+			code: z.ZodIssueCode.custom,
+			message: `availableStateNames contains unknown state(s): ${extra.join(", ")}`,
+			path: ["availableStateNames"],
+		});
+	}
 });
 
 export type WorkflowDataSchemaType = z.infer<typeof WorkflowDataSchema>;

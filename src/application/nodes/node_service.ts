@@ -727,6 +727,11 @@ export class NodeService {
 
 		safeMetadata = await this.#filterReadonlyProperties(ctx, nodeOrErr.value, safeMetadata);
 
+		if (ctx.principal.email !== Users.WORKFLOW_INSTANCE_USER_EMAIL) {
+			delete safeMetadata.workflowInstanceUuid;
+			delete safeMetadata.workflowState;
+		}
+
 		const voidOrErr = nodeOrErr.value.update(safeMetadata);
 		if (voidOrErr.isLeft()) {
 			return left(voidOrErr.value);

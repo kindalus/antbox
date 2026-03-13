@@ -1687,7 +1687,7 @@ paths:
       get:
          tags:
             - workflows
-         summary: Get a workflow instance by node UUID
+         summary: Get a workflow instance by instance UUID
          operationId: getWorkflowInstance
          parameters:
             - $ref: "#/components/parameters/UUID"
@@ -1700,14 +1700,13 @@ paths:
                         $ref: "#/components/schemas/WorkflowInstance"
             default:
                $ref: "#/components/responses/Error"
-   "/workflow-instances/{uuid}/-/start":
+   "/workflow-instances/-/start":
       post:
          tags:
             - workflows
          summary: Start a workflow instance for a node
+         description: No instance UUID exists yet at start time. Provide nodeUuid and workflowDefinitionUuid in the request body. The response includes the newly created instance UUID.
          operationId: startWorkflow
-         parameters:
-            - $ref: "#/components/parameters/UUID"
          requestBody:
             required: true
             content:
@@ -1715,12 +1714,17 @@ paths:
                   schema:
                      type: object
                      required:
+                        - nodeUuid
                         - workflowDefinitionUuid
                      properties:
+                        nodeUuid:
+                           type: string
+                           format: uuid
+                           description: UUID of the node to attach the workflow to
                         workflowDefinitionUuid:
                            type: string
                            format: uuid
-                           description: UUID of the workflow definition node
+                           description: UUID of the workflow definition to use
                         groupsAllowed:
                            type: array
                            description: Optional override for groups allowed to view and interact with this workflow instance. If not specified, uses the workflow definition's groupsAllowed. If empty array, all users can access.
@@ -1741,6 +1745,7 @@ paths:
          tags:
             - workflows
          summary: Transition a workflow instance to a new state
+         description: "{uuid} is the workflow instance UUID."
          operationId: transitionWorkflow
          parameters:
             - $ref: "#/components/parameters/UUID"
@@ -1773,7 +1778,7 @@ paths:
          tags:
             - workflows
          summary: Cancel a running workflow instance
-         description: Only the workflow owner or users in the --admins-- group can cancel a workflow instance
+         description: "{uuid} is the workflow instance UUID. Only the workflow owner or users in the --admins-- group can cancel a workflow instance."
          operationId: cancelWorkflow
          parameters:
             - $ref: "#/components/parameters/UUID"
@@ -1803,7 +1808,7 @@ paths:
          tags:
             - workflows
          summary: Update a node involved in a workflow instance
-         description: Update node metadata for a node that is part of an active workflow. Only users in groups allowed to modify in the current state can perform updates.
+         description: "{uuid} is the workflow instance UUID. Update node metadata for a node that is part of an active workflow. Only users in groups allowed to modify in the current state can perform updates."
          operationId: updateWorkflowNode
          parameters:
             - $ref: "#/components/parameters/UUID"
@@ -1835,7 +1840,7 @@ paths:
          tags:
             - workflows
          summary: Update file content of a node involved in a workflow instance
-         description: Update file content for a file node that is part of an active workflow. Only users in groups allowed to modify in the current state can perform updates.
+         description: "{uuid} is the workflow instance UUID. Update file content for a file node that is part of an active workflow. Only users in groups allowed to modify in the current state can perform updates."
          operationId: updateWorkflowNodeFile
          parameters:
             - $ref: "#/components/parameters/UUID"

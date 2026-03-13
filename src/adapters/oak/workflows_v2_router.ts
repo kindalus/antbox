@@ -32,8 +32,10 @@ export default function (tenants: AntboxTenant[]): Router {
 	const router = new Router();
 
 	// Workflow instance operations
+	// :uuid always refers to the workflow instance UUID, except for /-/start where
+	// no instance exists yet — nodeUuid and workflowDefinitionUuid are passed in the body.
 	router.get("/workflow-instances", adapt(findActiveWorkflowsHandler(tenants)));
-	router.post("/workflow-instances/:uuid/-/start", adapt(startWorkflowHandler(tenants)));
+	router.post("/workflow-instances/-/start", adapt(startWorkflowHandler(tenants)));
 	router.post(
 		"/workflow-instances/:uuid/-/transition",
 		adapt(transitionWorkflowHandler(tenants)),

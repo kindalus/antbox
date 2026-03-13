@@ -18,13 +18,11 @@ export function startWorkflowHandler(tenants: AntboxTenant[]): HttpHandler {
 			const tenant = getTenant(req, tenants);
 			const engine = tenant.workflowInstancesEngine;
 
-			const params = getParams(req);
-			if (!params.uuid) {
-				return sendBadRequest({ error: "{ uuid } not given" });
-			}
-
 			try {
 				const body = await req.json();
+				if (!body?.nodeUuid) {
+					return sendBadRequest({ error: "{ nodeUuid } not given" });
+				}
 				if (!body?.workflowDefinitionUuid) {
 					return sendBadRequest({ error: "{ workflowDefinitionUuid } not given" });
 				}
@@ -32,7 +30,7 @@ export function startWorkflowHandler(tenants: AntboxTenant[]): HttpHandler {
 				return await engine
 					.startWorkflow(
 						getAuthenticationContext(req),
-						params.uuid,
+						body.nodeUuid,
 						body.workflowDefinitionUuid,
 						body.groupsAllowed,
 					)

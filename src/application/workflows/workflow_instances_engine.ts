@@ -168,14 +168,14 @@ export class WorkflowInstancesEngine {
 
 	async transition(
 		authCtx: AuthenticationContext,
-		nodeUuid: string,
+		instanceUuid: string,
 		signal: string,
 		message?: string,
 	): Promise<Either<AntboxError, WorkflowInstanceData>> {
 		// Get workflow instance
-		const instanceOrErr = await this.#workflowInstancesService.getWorkflowInstanceByNodeUuid(
+		const instanceOrErr = await this.#workflowInstancesService.getWorkflowInstance(
 			authCtx,
-			nodeUuid,
+			instanceUuid,
 		);
 		if (instanceOrErr.isLeft()) {
 			return left(instanceOrErr.value);
@@ -224,6 +224,8 @@ export class WorkflowInstancesEngine {
 					: workflowDefOrErr.value.groupsAllowed,
 			};
 		}
+
+		const nodeUuid = instance.nodeUuid;
 
 		// Get the node
 		const nodeOrErr = await this.#nodeService.get(authCtx, nodeUuid);
@@ -339,17 +341,18 @@ export class WorkflowInstancesEngine {
 
 	async cancelWorkflow(
 		authCtx: AuthenticationContext,
-		nodeUuid: string,
+		instanceUuid: string,
 	): Promise<Either<AntboxError, WorkflowInstanceData>> {
 		// Get workflow instance
-		const instanceOrErr = await this.#workflowInstancesService.getWorkflowInstanceByNodeUuid(
+		const instanceOrErr = await this.#workflowInstancesService.getWorkflowInstance(
 			authCtx,
-			nodeUuid,
+			instanceUuid,
 		);
 		if (instanceOrErr.isLeft()) {
 			return left(instanceOrErr.value);
 		}
 		const instance = instanceOrErr.value;
+		const nodeUuid = instance.nodeUuid;
 
 		// Check if user is allowed to cancel this instance
 		// Only the owner or admins can cancel
@@ -417,18 +420,19 @@ export class WorkflowInstancesEngine {
 
 	async updateNode(
 		authCtx: AuthenticationContext,
-		nodeUuid: string,
+		instanceUuid: string,
 		metadata: Partial<NodeMetadata>,
 	): Promise<Either<AntboxError, void>> {
 		// Get workflow instance
-		const instanceOrErr = await this.#workflowInstancesService.getWorkflowInstanceByNodeUuid(
+		const instanceOrErr = await this.#workflowInstancesService.getWorkflowInstance(
 			authCtx,
-			nodeUuid,
+			instanceUuid,
 		);
 		if (instanceOrErr.isLeft()) {
 			return left(instanceOrErr.value);
 		}
 		const instance = instanceOrErr.value;
+		const nodeUuid = instance.nodeUuid;
 
 		// Check if user is allowed to access this instance
 		if (!this.#hasPermission(authCtx, instance.groupsAllowed)) {
@@ -499,18 +503,19 @@ export class WorkflowInstancesEngine {
 
 	async updateNodeFile(
 		authCtx: AuthenticationContext,
-		nodeUuid: string,
+		instanceUuid: string,
 		file: File,
 	): Promise<Either<AntboxError, void>> {
 		// Get workflow instance
-		const instanceOrErr = await this.#workflowInstancesService.getWorkflowInstanceByNodeUuid(
+		const instanceOrErr = await this.#workflowInstancesService.getWorkflowInstance(
 			authCtx,
-			nodeUuid,
+			instanceUuid,
 		);
 		if (instanceOrErr.isLeft()) {
 			return left(instanceOrErr.value);
 		}
 		const instance = instanceOrErr.value;
+		const nodeUuid = instance.nodeUuid;
 
 		// Check if user is allowed to access this instance
 		if (!this.#hasPermission(authCtx, instance.groupsAllowed)) {

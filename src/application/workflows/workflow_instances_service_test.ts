@@ -187,6 +187,63 @@ describe("WorkflowInstancesService", () => {
 
 			expect(result.isLeft()).toBe(true);
 		});
+
+		it("should ignore completed instances and return the running one", async () => {
+			const repo = new InMemoryConfigurationRepository();
+			const service = createService(repo);
+
+			const completed: WorkflowInstanceData = {
+				...createWorkflowInstance("instance-completed", "node-789", []),
+				running: false,
+				cancelled: false,
+			};
+			const running = createWorkflowInstance("instance-running", "node-789", []);
+			await repo.save("workflowInstances", completed);
+			await repo.save("workflowInstances", running);
+
+			const result = await service.getWorkflowInstanceByNodeUuid(adminCtx, "node-789");
+
+			expect(result.isRight()).toBe(true);
+			if (result.isRight()) {
+				expect(result.value.uuid).toBe("instance-running");
+			}
+		});
+
+		it("should return error when only a cancelled instance exists for node", async () => {
+			const repo = new InMemoryConfigurationRepository();
+			const service = createService(repo);
+
+			const cancelled: WorkflowInstanceData = {
+				...createWorkflowInstance("instance-cancelled", "node-abc", []),
+				running: false,
+				cancelled: true,
+			};
+			await repo.save("workflowInstances", cancelled);
+
+			const result = await service.getWorkflowInstanceByNodeUuid(adminCtx, "node-abc");
+
+			expect(result.isLeft()).toBe(true);
+			if (result.isLeft()) {
+				expect(result.value.errorCode).toBe("BadRequestError");
+			}
+		});
+
+		it("should return first running instance and not error when duplicates exist", async () => {
+			const repo = new InMemoryConfigurationRepository();
+			const service = createService(repo);
+
+			const first = createWorkflowInstance("instance-first", "node-dup", []);
+			const second = createWorkflowInstance("instance-second", "node-dup", []);
+			await repo.save("workflowInstances", first);
+			await repo.save("workflowInstances", second);
+
+			const result = await service.getWorkflowInstanceByNodeUuid(adminCtx, "node-dup");
+
+			expect(result.isRight()).toBe(true);
+			if (result.isRight()) {
+				expect(result.value.uuid).toBe("instance-first");
+			}
+		});
 	});
 
 	describe("listWorkflowInstances", () => {

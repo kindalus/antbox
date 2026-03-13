@@ -223,6 +223,36 @@ export class MongodbNodeRepository implements NodeRepository {
 		}
 	}
 
+	async getEmbeddingContents(
+		uuids: string[],
+	): Promise<Either<AntboxError, Record<string, string>>> {
+		if (uuids.length === 0) {
+			return right({});
+		}
+
+		try {
+			const docs = await this.#collection.find(
+				{ _id: { $in: uuids.map((uuid) => toObjectId(uuid)) } } as Filter<Document>,
+				{ projection: { embeddingContentMd: 1 } },
+			).toArray();
+
+			const contents: Record<string, string> = {};
+			for (const doc of docs) {
+				const dbDoc = doc as unknown as NodeDbModel;
+				if (
+					typeof dbDoc.embeddingContentMd === "string" && dbDoc.embeddingContentMd.length > 0
+				) {
+					contents[dbDoc.uuid] = dbDoc.embeddingContentMd;
+				}
+			}
+
+			return right(contents);
+		} catch (err) {
+			// deno-lint-ignore no-explicit-any
+			return left(new MongodbError((err as any).message));
+		}
+	}
+
 	async deleteEmbedding(uuid: string): Promise<Either<AntboxError, void>> {
 		try {
 			await this.#collection.updateOne(

@@ -1,5 +1,6 @@
 import { Logger } from "shared/logger.ts";
 import { loadTemplate, TEMPLATES } from "api/templates/index.ts";
+import { CALL_AGENT_FEATURE_UUID } from "domain/configuration/builtin_features.ts";
 import { type Feature, featureDataToFeature } from "domain/features/feature.ts";
 import { RunContext } from "domain/features/feature_run_context.ts";
 import { NodeLike } from "domain/node_like.ts";
@@ -19,7 +20,9 @@ import { EventBus } from "shared/event_bus.ts";
 import { ValidationError } from "shared/validation_error.ts";
 import { DOCS, loadDoc } from "../../../docs/index.ts";
 import type { OCRProvider } from "domain/ai/ocr_provider.ts";
+import type { ChatMessage } from "domain/ai/chat_message.ts";
 import type { AuthenticationContext } from "../security/authentication_context.ts";
+import { toYamlMetadata } from "../nodes/node_markdown.ts";
 import { NodeService } from "../nodes/node_service.ts";
 import { NodeServiceProxy } from "../nodes/node_service_proxy.ts";
 import type { FeaturesService } from "./features_service.ts";
@@ -30,9 +33,18 @@ interface RunnableRecord {
 	timestamp: number;
 }
 
+export interface AgentAnswerExecutor {
+	answer(
+		authContext: AuthenticationContext,
+		agentUuid: string,
+		text: string,
+	): Promise<Either<AntboxError, ChatMessage>>;
+}
+
 export interface FeaturesEngineContext {
 	featuresService: FeaturesService;
 	nodeService: NodeService;
+	agentsEngine?: AgentAnswerExecutor;
 	ocrProvider?: OCRProvider;
 	eventBus: EventBus;
 }
@@ -52,11 +64,13 @@ export class FeaturesEngine {
 
 	readonly #featuresService: FeaturesService;
 	readonly #nodeService: NodeService;
+	readonly #agentsEngine?: AgentAnswerExecutor;
 	readonly #ocrProvider?: OCRProvider;
 
 	constructor(ctx: FeaturesEngineContext) {
 		this.#featuresService = ctx.featuresService;
 		this.#nodeService = ctx.nodeService;
+		this.#agentsEngine = ctx.agentsEngine;
 		this.#ocrProvider = ctx.ocrProvider;
 
 		// Register event handlers for domain-wide triggers
@@ -586,6 +600,128 @@ export class FeaturesEngine {
 		});
 	}
 
+	async #runBuiltinFeature<T>(
+		ctx: AuthenticationContext,
+		feature: Feature,
+		params: Record<string, unknown>,
+	): Promise<Either<AntboxError, T> | undefined> {
+		if (feature.uuid !== CALL_AGENT_FEATURE_UUID) {
+			return undefined;
+		}
+
+		return this.#runCallAgentFeature(ctx, params) as Promise<Either<AntboxError, T>>;
+	}
+
+	async #runCallAgentFeature(
+		ctx: AuthenticationContext,
+		params: Record<string, unknown>,
+	): Promise<Either<AntboxError, { status: "started" | "completed"; message?: ChatMessage }>> {
+		if (!this.#agentsEngine) {
+			return left(new BadRequestError("Agents engine not available"));
+		}
+
+		const agentUuid = params.agentUuid;
+		if (typeof agentUuid !== "string" || agentUuid.trim().length === 0) {
+			return left(new BadRequestError("Parameter 'agentUuid' must be a non-empty string"));
+		}
+
+		const prompt = params.prompt;
+		if (typeof prompt !== "string" || prompt.trim().length === 0) {
+			return left(new BadRequestError("Parameter 'prompt' must be a non-empty string"));
+		}
+
+		const uuids = Array.isArray(params.uuids)
+			? params.uuids.filter((uuid): uuid is string => typeof uuid === "string")
+			: [];
+		const runSync = this.#toBoolean(params.runSync, false);
+		const finalPrompt = await this.#buildCallAgentPrompt(ctx, uuids, prompt);
+
+		if (finalPrompt.isLeft()) {
+			return left(finalPrompt.value);
+		}
+
+		if (!runSync) {
+			void this.#agentsEngine.answer(ctx, agentUuid.trim(), finalPrompt.value)
+				.then((result) => {
+					if (result.isLeft()) {
+						Logger.error(
+							`Background agent action ${CALL_AGENT_FEATURE_UUID} failed for agent ${agentUuid}: ${result.value.message}`,
+						);
+					}
+				})
+				.catch((error) => {
+					Logger.error(
+						`Background agent action ${CALL_AGENT_FEATURE_UUID} failed for agent ${agentUuid}:`,
+						error,
+					);
+				});
+
+			return right({ status: "started" });
+		}
+
+		const answerOrErr = await this.#agentsEngine.answer(ctx, agentUuid.trim(), finalPrompt.value);
+		if (answerOrErr.isLeft()) {
+			return left(answerOrErr.value);
+		}
+
+		return right({
+			status: "completed",
+			message: answerOrErr.value,
+		});
+	}
+
+	async #buildCallAgentPrompt(
+		ctx: AuthenticationContext,
+		uuids: string[],
+		prompt: string,
+	): Promise<Either<AntboxError, string>> {
+		const nodesOrErr = await Promise.all(uuids.map((uuid) => this.#nodeService.get(ctx, uuid)));
+		const nodes = nodesOrErr
+			.filter((nodeOrErr) => nodeOrErr.isRight())
+			.map((nodeOrErr) => nodeOrErr.value);
+
+		const contentsOrErr = await this.#nodeService.getEmbeddingContents(
+			ctx,
+			nodes.map((node) => node.uuid),
+		);
+		if (contentsOrErr.isLeft()) {
+			return left(contentsOrErr.value);
+		}
+
+		const relevantNodes = nodes.map((node, index) => {
+			const contentMd = contentsOrErr.value[node.uuid];
+
+			if (contentMd) {
+				return contentMd;
+			}
+
+			return `[ metadata for node ${index} ]\n${toYamlMetadata(node)}`;
+		});
+
+		return right(
+			`${prompt.trimEnd()}\n\nRelevant nodes metadata:\n\n${relevantNodes.join("\n\n")}`,
+		);
+	}
+
+	#toBoolean(value: unknown, defaultValue: boolean): boolean {
+		if (typeof value === "boolean") {
+			return value;
+		}
+
+		if (typeof value === "string") {
+			const normalized = value.trim().toLowerCase();
+			if (["true", "1", "yes", "y"].includes(normalized)) {
+				return true;
+			}
+
+			if (["false", "0", "no", "n", ""].includes(normalized)) {
+				return false;
+			}
+		}
+
+		return defaultValue;
+	}
+
 	async #run<T>(
 		ctx: AuthenticationContext,
 		uuid: string,
@@ -631,6 +767,11 @@ export class FeaturesEngine {
 
 		if (validationErr) {
 			return left(validationErr);
+		}
+
+		const builtinResult = await this.#runBuiltinFeature<T>(authContext, feature, params);
+		if (builtinResult) {
+			return builtinResult;
 		}
 
 		try {
@@ -936,20 +1077,27 @@ export class FeaturesEngine {
 		featureUuid: string;
 		parameters: Record<string, string>;
 	} {
-		const parts = actionString.trim().split(/\s+/);
-		const featureUuid = parts[0];
+		const trimmed = actionString.trim();
+		const firstSpaceIndex = trimmed.indexOf(" ");
+
+		if (firstSpaceIndex === -1) {
+			return {
+				featureUuid: trimmed,
+				parameters: {},
+			};
+		}
+
+		const featureUuid = trimmed.substring(0, firstSpaceIndex);
+		const paramsString = trimmed.substring(firstSpaceIndex + 1).trim();
 		const parameters: Record<string, string> = {};
 
-		// Parse key=value parameters
-		for (let i = 1; i < parts.length; i++) {
-			const paramPart = parts[i];
-			const equalIndex = paramPart.indexOf("=");
+		const paramRegex = /(\w+)=(?:'([^']*)'|"([^"]*)"|([^\s]+))/g;
+		let match;
 
-			if (equalIndex > 0) {
-				const key = paramPart.substring(0, equalIndex);
-				const value = paramPart.substring(equalIndex + 1);
-				parameters[key] = value;
-			}
+		while ((match = paramRegex.exec(paramsString)) !== null) {
+			const key = match[1];
+			const value = match[2] ?? match[3] ?? match[4];
+			parameters[key] = value;
 		}
 
 		return { featureUuid, parameters };

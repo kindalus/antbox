@@ -476,8 +476,29 @@ export class NodeService {
 		filters: NodeFilters | string,
 		pageSize = 20,
 		pageToken = 1,
-	): Promise<Either<AntboxError, NodeFilterResult & { scores?: Record<string, number> }>> {
+	): Promise<
+		Either<
+			AntboxError,
+			NodeFilterResult & { scores?: Record<string, number>; contentMd?: Record<string, string> }
+		>
+	> {
 		return this.findService.find(ctx, filters, pageSize, pageToken);
+	}
+
+	async getEmbeddingContents(
+		ctx: AuthenticationContext,
+		uuids: string[],
+	): Promise<Either<AntboxError, Record<string, string>>> {
+		const uniqueUuids = [...new Set(uuids)];
+		const accessibleNodeResults = await Promise.all(
+			uniqueUuids.map((uuid) => this.get(ctx, uuid)),
+		);
+
+		const permittedUuids = accessibleNodeResults
+			.filter((nodeOrErr) => nodeOrErr.isRight())
+			.map((nodeOrErr) => nodeOrErr.value.uuid);
+
+		return this.context.repository.getEmbeddingContents(permittedUuids);
 	}
 
 	async get(

@@ -19,6 +19,10 @@ interface ListenEvent {
 	port?: number;
 }
 
+export function getTenantSetupConfiguration(config: ServerConfiguration): ServerConfiguration {
+	return config;
+}
+
 function toUrlHost(hostname: string): string {
 	if (hostname.includes(":")) {
 		return `[${hostname}]`;
@@ -39,9 +43,7 @@ function toUrlHost(hostname: string): string {
  * await startServer(config);
  */
 async function startServer(config: ServerConfiguration) {
-	const tenants = await setupTenants({
-		tenants: config.tenants,
-	});
+	const tenants = await setupTenants(getTenantSetupConfiguration(config));
 
 	// Start WebDAV path cache cleanup (runs every minute)
 	startPathCacheCleanup(60000);

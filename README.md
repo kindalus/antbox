@@ -129,12 +129,12 @@ Minimal example:
 ```toml
 engine = "oak"
 port = 7180
-
-[[tenants]]
-name = "demo"
 rootPasswd = "demo"
 key = "./.config/antbox.key"
 jwks = "./.config/antbox.jwks"
+
+[[tenants]]
+name = "demo"
 storage = ["flat_file/flat_file_storage_provider.ts", "./data/storage"]
 repository = ["sqlite/sqlite_node_repository.ts", "./data/repository"]
 configurationRepository = ["sqlite/sqlite_configuration_repository.ts", "./data/config"]

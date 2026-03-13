@@ -32,7 +32,12 @@ const MOVE_UP_RUN = `async function(ctx, args) {
 	}
 }`;
 
+const CALL_AGENT_RUN = `async function() {
+	return undefined;
+}`;
+
 export const MOVE_UP_FEATURE_UUID = "move_up";
+export const CALL_AGENT_FEATURE_UUID = "call_agent";
 
 export const MOVE_UP_FEATURE: FeatureData = {
 	uuid: MOVE_UP_FEATURE_UUID,
@@ -75,10 +80,65 @@ export const MOVE_UP_FEATURE: FeatureData = {
 	modifiedTime: BASE_TIME,
 };
 
+export const CALL_AGENT_FEATURE: FeatureData = {
+	uuid: CALL_AGENT_FEATURE_UUID,
+	title: "Call Agent",
+	description: "Call an AI agent with a prompt enriched by relevant node metadata and content",
+	exposeAction: true,
+	runOnCreates: false,
+	runOnUpdates: false,
+	runOnDeletes: false,
+	runManually: true,
+	filters: [],
+	exposeExtension: false,
+	exposeAITool: false,
+	runAs: undefined,
+	groupsAllowed: [],
+	parameters: [
+		{
+			name: "uuids",
+			type: "array",
+			arrayType: "string",
+			required: true,
+			description: "Array of node UUIDs to include in the agent context",
+			defaultValue: undefined,
+		},
+		{
+			name: "agentUuid",
+			type: "string",
+			required: true,
+			description: "Agent UUID to execute",
+			defaultValue: undefined,
+		},
+		{
+			name: "prompt",
+			type: "string",
+			required: true,
+			description: "Prompt to send to the target agent",
+			defaultValue: undefined,
+		},
+		{
+			name: "runSync",
+			type: "boolean",
+			required: false,
+			description: "Wait for the agent answer before returning",
+			defaultValue: false,
+		},
+	],
+	returnType: "object",
+	returnDescription: "Returns started status for background execution or the final agent message",
+	returnContentType: "application/json",
+	tags: ["ai", "agent"],
+	run: CALL_AGENT_RUN,
+	createdTime: BASE_TIME,
+	modifiedTime: BASE_TIME,
+};
+
 /**
  * Built-in features available in all tenants
  * These are readonly and cannot be modified or deleted
  */
 export const BUILTIN_FEATURES: readonly FeatureData[] = [
 	MOVE_UP_FEATURE,
+	CALL_AGENT_FEATURE,
 ];

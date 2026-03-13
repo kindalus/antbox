@@ -1,16 +1,12 @@
 import { Logger } from "shared/logger.ts";
 import type { AuthenticationContext } from "../security/authentication_context.ts";
 import type { NodeServiceContext } from "./node_service_context.ts";
-import type {
-	NodeFilters,
-	NodeFilters1D,
-	NodeFilters2D,
-} from "domain/nodes/node_filter.ts";
+import type { NodeFilters, NodeFilters1D, NodeFilters2D } from "domain/nodes/node_filter.ts";
 import { isNodeFilters2D } from "domain/nodes/node_filter.ts";
 import { NodesFilters } from "domain/nodes_filters.ts";
 import type { NodeFilterResult } from "domain/nodes/node_repository.ts";
 import { AntboxError } from "shared/antbox_error.ts";
-import { Either, right } from "shared/either.ts";
+import { Either, left, right } from "shared/either.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import type { AuthorizationService } from "../security/authorization_service.ts";
 import { FolderNode } from "domain/nodes/folder_node.ts";
@@ -97,7 +93,12 @@ export class FindService {
 		filters: NodeFilters | string,
 		pageSize = 20,
 		pageToken = 1,
-	): Promise<Either<AntboxError, NodeFilterResult & { scores?: Record<string, number> }>> {
+	): Promise<
+		Either<
+			AntboxError,
+			NodeFilterResult & { scores?: Record<string, number>; contentMd?: Record<string, string> }
+		>
+	> {
 		// Stage 1: Handle string-based filters
 		if (typeof filters === "string") {
 			// Check if this is a semantic search query (starts with ?)
@@ -149,7 +150,12 @@ export class FindService {
 		query: string,
 		pageSize: number,
 		pageToken: number,
-	): Promise<Either<AntboxError, NodeFilterResult & { scores?: Record<string, number> }>> {
+	): Promise<
+		Either<
+			AntboxError,
+			NodeFilterResult & { scores?: Record<string, number>; contentMd?: Record<string, string> }
+		>
+	> {
 		// Check if repository supports embeddings and embedding model is available
 		if (!this.context.repository.supportsEmbeddings() || !this.context.embeddingsProvider) {
 			Logger.warn(
@@ -213,7 +219,11 @@ export class FindService {
 			const stage3 = stage2.filter((r) => r.status === "fulfilled").map((r) => r.value);
 			const processedFilters = stage3.filter((f) => f.length);
 
-			const r = await this.context.repository.filter(processedFilters, Number.MAX_SAFE_INTEGER, 1);
+			const r = await this.context.repository.filter(
+				processedFilters,
+				Number.MAX_SAFE_INTEGER,
+				1,
+			);
 
 			// Sort results by score (semantic relevance)
 			r.nodes.sort((a, b) => (scores[b.uuid] ?? 0) - (scores[a.uuid] ?? 0));
@@ -221,6 +231,12 @@ export class FindService {
 			const firstIndex = (pageToken - 1) * pageSize;
 			const lastIndex = firstIndex + pageSize;
 			const nodes = r.nodes.slice(firstIndex, lastIndex);
+			const contentMdOrErr = await this.context.repository.getEmbeddingContents(
+				nodes.map((node) => node.uuid),
+			);
+			if (contentMdOrErr.isLeft()) {
+				return left(contentMdOrErr.value);
+			}
 
 			Logger.debug(`Results: ${JSON.stringify(r, null, 2)}`);
 
@@ -229,6 +245,7 @@ export class FindService {
 				pageSize,
 				pageToken,
 				scores,
+				contentMd: contentMdOrErr.value,
 			});
 		} catch (error) {
 			Logger.error("Semantic search failed:", error);

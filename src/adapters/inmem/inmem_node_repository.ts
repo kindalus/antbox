@@ -115,6 +115,19 @@ export class InMemoryNodeRepository implements NodeRepository {
 		return Promise.resolve(right(entry.node));
 	}
 
+	getEmbeddingContents(uuids: string[]): Promise<Either<AntboxError, Record<string, string>>> {
+		const contents: Record<string, string> = {};
+
+		for (const uuid of uuids) {
+			const contentMd = this.#data[uuid]?.contentMd;
+			if (typeof contentMd === "string" && contentMd.length > 0) {
+				contents[uuid] = contentMd;
+			}
+		}
+
+		return Promise.resolve(right(contents));
+	}
+
 	filter(
 		filters: NodeFilters,
 		pageSize = 20,

@@ -36,6 +36,10 @@ export class NullNodeRepository implements NodeRepository {
 		return Promise.resolve(right(this.#nullNode));
 	}
 
+	getEmbeddingContents(_uuids: string[]): Promise<Either<AntboxError, Record<string, string>>> {
+		return Promise.resolve(right({}));
+	}
+
 	filter(
 		_filters: NodeFilters,
 		pageSize?: number,

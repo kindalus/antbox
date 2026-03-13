@@ -5,18 +5,23 @@ import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus.ts";
 import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository.ts";
 import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider.ts";
 import { NullOCRProvider } from "adapters/ocr/null_ocr_provider.ts";
+import type { ChatMessage } from "domain/ai/chat_message.ts";
+import { CALL_AGENT_FEATURE_UUID } from "domain/configuration/builtin_features.ts";
 import type { FeatureData } from "domain/configuration/feature_data.ts";
 import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import { Groups } from "domain/users_groups/groups.ts";
 import { Users } from "domain/users_groups/users.ts";
-import { BadRequestError } from "shared/antbox_error.ts";
+import { type AntboxError, BadRequestError } from "shared/antbox_error.ts";
+import { type Either, right } from "shared/either.ts";
 import type { AuthenticationContext } from "application/security/authentication_context.ts";
 import { NodeService } from "application/nodes/node_service.ts";
 import { FeaturesEngine } from "./features_engine.ts";
 import { FeaturesService } from "./features_service.ts";
+import type { AgentAnswerExecutor } from "./features_engine.ts";
 
 interface Harness {
+	repository: InMemoryNodeRepository;
 	nodeService: NodeService;
 	featuresService: FeaturesService;
 	engine: FeaturesEngine;
@@ -31,11 +36,27 @@ const adminCtx: AuthenticationContext = {
 	},
 };
 
-function createHarness(useOCR = false): Harness {
+class MockAgentsEngine implements AgentAnswerExecutor {
+	calls: Array<{ authCtx: AuthenticationContext; agentUuid: string; text: string }> = [];
+	answerImpl: (
+		authCtx: AuthenticationContext,
+		agentUuid: string,
+		text: string,
+	) => Promise<Either<AntboxError, ChatMessage>> = (_authCtx, _agentUuid, _text) =>
+		Promise.resolve(right({ role: "model", parts: [{ text: "ok" }] }));
+
+	answer(authCtx: AuthenticationContext, agentUuid: string, text: string) {
+		this.calls.push({ authCtx, agentUuid, text });
+		return this.answerImpl(authCtx, agentUuid, text);
+	}
+}
+
+function createHarness(useOCR = false, agentsEngine?: AgentAnswerExecutor): Harness {
 	const configRepo = new InMemoryConfigurationRepository();
 	const eventBus = new InMemoryEventBus();
+	const repository = new InMemoryNodeRepository();
 	const nodeService = new NodeService({
-		repository: new InMemoryNodeRepository(),
+		repository,
 		storage: new InMemoryStorageProvider(),
 		bus: eventBus,
 		configRepo,
@@ -44,11 +65,12 @@ function createHarness(useOCR = false): Harness {
 	const engine = new FeaturesEngine({
 		featuresService,
 		nodeService,
+		agentsEngine,
 		ocrProvider: useOCR ? new NullOCRProvider() : undefined,
 		eventBus,
 	});
 
-	return { nodeService, featuresService, engine };
+	return { repository, nodeService, featuresService, engine };
 }
 
 function createFeatureRun(
@@ -214,6 +236,151 @@ describe("FeaturesEngine", () => {
 		if (result.isLeft()) {
 			expect(result.value).toBeInstanceOf(BadRequestError);
 			expect(result.value.message).toContain("not exposed as action");
+		}
+	});
+
+	it("runAction can call an agent with node metadata and embedded content", async () => {
+		const agentsEngine = new MockAgentsEngine();
+		const harness = createHarness(false, agentsEngine);
+
+		await harness.nodeService.create(adminCtx, {
+			uuid: "agent-folder",
+			title: "Agent Folder",
+			mimetype: Nodes.FOLDER_MIMETYPE,
+			parent: Nodes.ROOT_FOLDER_UUID,
+		});
+
+		await harness.nodeService.createFile(
+			adminCtx,
+			new File(["Agent source content"], "agent.txt", { type: "text/plain" }),
+			{
+				uuid: "agent-file",
+				title: "agent.txt",
+				mimetype: "text/plain",
+				parent: "agent-folder",
+			},
+		);
+		await harness.repository.upsertEmbedding(
+			"agent-file",
+			[1],
+			"---\nuuid: agent-file\ntitle: agent.txt\n---\n\nEmbedded node content",
+		);
+
+		const result = await harness.engine.runAction<{
+			status: "completed";
+			message: ChatMessage;
+		}>(
+			adminCtx,
+			CALL_AGENT_FEATURE_UUID,
+			["agent-file"],
+			{
+				agentUuid: "--rag-agent--",
+				prompt: "Summarize this node",
+				runSync: true,
+			},
+		);
+
+		expect(result.isRight()).toBe(true);
+		if (result.isRight()) {
+			expect(result.value.status).toBe("completed");
+			expect(result.value.message.parts[0].text).toBe("ok");
+		}
+
+		expect(agentsEngine.calls).toHaveLength(1);
+		expect(agentsEngine.calls[0].agentUuid).toBe("--rag-agent--");
+		expect(agentsEngine.calls[0].text).toContain("Summarize this node");
+		expect(agentsEngine.calls[0].text).toContain("Relevant nodes metadata:");
+		expect(agentsEngine.calls[0].text).not.toContain("[ metadata for node 0 ]");
+		expect(agentsEngine.calls[0].text).toContain("Embedded node content");
+	});
+
+	it("runAction falls back to metadata when embedded content is unavailable", async () => {
+		const agentsEngine = new MockAgentsEngine();
+		const harness = createHarness(false, agentsEngine);
+
+		await harness.nodeService.create(adminCtx, {
+			uuid: "metadata-folder",
+			title: "Metadata Folder",
+			mimetype: Nodes.FOLDER_MIMETYPE,
+			parent: Nodes.ROOT_FOLDER_UUID,
+		});
+
+		await harness.nodeService.create(adminCtx, {
+			uuid: "metadata-node",
+			title: "Metadata Node",
+			description: "Metadata only node",
+			mimetype: Nodes.FOLDER_MIMETYPE,
+			parent: "metadata-folder",
+		});
+
+		const result = await harness.engine.runAction<{
+			status: "completed";
+			message: ChatMessage;
+		}>(
+			adminCtx,
+			CALL_AGENT_FEATURE_UUID,
+			["metadata-node"],
+			{
+				agentUuid: "--rag-agent--",
+				prompt: "Summarize metadata",
+				runSync: true,
+			},
+		);
+
+		expect(result.isRight()).toBe(true);
+		expect(agentsEngine.calls).toHaveLength(1);
+		expect(agentsEngine.calls[0].text).toContain("[ metadata for node 0 ]");
+		expect(agentsEngine.calls[0].text).toContain("uuid: metadata-node");
+		expect(agentsEngine.calls[0].text).toContain("description: Metadata only node");
+	});
+
+	it("runAction returns immediately when agent action runs in background", async () => {
+		const agentsEngine = new MockAgentsEngine();
+		let resolveAnswer: (() => void) | undefined;
+		const pendingAnswer = new Promise<Either<AntboxError, ChatMessage>>((resolve) => {
+			resolveAnswer = () => resolve(right({ role: "model", parts: [{ text: "done" }] }));
+		});
+		agentsEngine.answerImpl = () => pendingAnswer;
+		const harness = createHarness(false, agentsEngine);
+
+		await harness.nodeService.create(adminCtx, {
+			uuid: "background-agent-folder",
+			title: "Background Agent Folder",
+			mimetype: Nodes.FOLDER_MIMETYPE,
+			parent: Nodes.ROOT_FOLDER_UUID,
+		});
+
+		await harness.nodeService.createFile(
+			adminCtx,
+			new File(["Background content"], "background.txt", { type: "text/plain" }),
+			{
+				uuid: "background-agent-file",
+				title: "background.txt",
+				mimetype: "text/plain",
+				parent: "background-agent-folder",
+			},
+		);
+
+		try {
+			const result = await harness.engine.runAction<{ status: "started" }>(
+				adminCtx,
+				CALL_AGENT_FEATURE_UUID,
+				["background-agent-file"],
+				{
+					agentUuid: "--rag-agent--",
+					prompt: "Run in background",
+				},
+			);
+
+			expect(result.isRight()).toBe(true);
+			if (result.isRight()) {
+				expect(result.value.status).toBe("started");
+			}
+
+			expect(agentsEngine.calls).toHaveLength(1);
+		} finally {
+			resolveAnswer?.();
+			await pendingAnswer;
 		}
 	});
 

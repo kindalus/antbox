@@ -12,8 +12,8 @@ import { NodeUpdatedEvent } from "domain/nodes/node_updated_event.ts";
 import { NodeDeletedEvent } from "domain/nodes/node_deleted_event.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
-import { stringify as yamlStringify } from "@std/yaml";
 import { createElevatedContext } from "application/security/elevated_context.ts";
+import { toEmbeddingMarkdown } from "application/nodes/node_markdown.ts";
 
 /** Default number of top results to retrieve */
 export const RAG_TOP_K = 5;
@@ -86,11 +86,17 @@ export class RAGService {
 		}
 
 		const candidates = searchOrErr.value.nodes.filter((r) => r.score >= actualThreshold);
+		const contentMdOrErr = await this.#repository.getEmbeddingContents(
+			candidates.map(({ node }) => node.uuid),
+		);
+		if (contentMdOrErr.isLeft()) {
+			return left(contentMdOrErr.value);
+		}
 
-		const docs: RagDocument[] = candidates.map(({ node, score, content }) => ({
+		const docs: RagDocument[] = candidates.map(({ node, score }) => ({
 			uuid: node.uuid,
 			title: node.title,
-			content,
+			content: contentMdOrErr.value[node.uuid] ?? "",
 			score,
 		}));
 
@@ -190,25 +196,4 @@ export class RAGService {
 			);
 		}
 	}
-}
-
-function toYamlMetadata(node: NodeMetadata): string {
-	const filtered: Record<string, unknown> = {};
-	for (const [k, v] of Object.entries(node)) {
-		if (v !== undefined && v !== null) {
-			filtered[k] = v;
-		}
-	}
-	return yamlStringify(filtered).trimEnd();
-}
-
-function toEmbeddingMarkdown(metadata: NodeMetadata, content = ""): string {
-	const frontmatter = toYamlMetadata(metadata);
-	const body = content.trim();
-
-	if (!body) {
-		return `---\n${frontmatter}\n---`;
-	}
-
-	return `---\n${frontmatter}\n---\n\n${body}`;
 }

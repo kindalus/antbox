@@ -144,6 +144,10 @@ class FlatFileNodeRepository implements NodeRepository {
 		return this.#base.getById(uuid);
 	}
 
+	getEmbeddingContents(uuids: string[]): Promise<Either<AntboxError, Record<string, string>>> {
+		return this.#base.getEmbeddingContents(uuids);
+	}
+
 	filter(
 		filters: NodeFilters,
 		pageSize = 20,

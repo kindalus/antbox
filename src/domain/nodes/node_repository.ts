@@ -26,6 +26,7 @@ export interface NodeRepository {
 	add(node: NodeLike): Promise<Either<DuplicatedNodeError, void>>;
 	getByFid(fid: string): Promise<Either<NodeNotFoundError, NodeLike>>;
 	getById(uuid: string): Promise<Either<NodeNotFoundError, NodeLike>>;
+	getEmbeddingContents(uuids: string[]): Promise<Either<AntboxError, Record<string, string>>>;
 	filter(
 		filters: NodeFilter[] | NodeFilters2D,
 		pageSize?: number,

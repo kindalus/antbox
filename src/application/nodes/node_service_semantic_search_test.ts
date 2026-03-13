@@ -132,6 +132,10 @@ describe("NodeService", () => {
 			if (result.isRight()) {
 				// Should have results
 				expect(result.value.nodes.length).toBeGreaterThan(0);
+				expect(result.value.contentMd).toBeDefined();
+				for (const node of result.value.nodes) {
+					expect(result.value.contentMd?.[node.uuid]).toContain(node.uuid);
+				}
 			}
 		});
 

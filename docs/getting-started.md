@@ -28,30 +28,32 @@ Minimal example (`.config/antbox.toml`):
 ```toml
 engine = "oak"
 port = 7180
-
-[[tenants]]
-name = "local"
 rootPasswd = "demo"
 
-# Provide crypto material explicitly (recommended)
+# Server-wide crypto/auth defaults for tenants
 # key can be a base64 string or a file path
 key = "base64-encoded-secret"
 # jwks must point to a JSON Web Key Set file (path or URL)
 jwks = "./.config/antbox.jwks"
 
-# Required
-eventStoreRepository = ["inmem/inmem_event_store_repository.ts"]
+[[tenants]]
+name = "local"
 
-# Optional (defaults to in-memory if omitted)
+# Required for every tenant
 repository = ["inmem/inmem_node_repository.ts"]
 storage = ["inmem/inmem_storage_provider.ts"]
+configurationRepository = ["sqlite/sqlite_configuration_repository.ts", "./data/config"]
+eventStoreRepository = ["inmem/inmem_event_store_repository.ts"]
 ```
 
 Notes:
 
-- `eventStoreRepository` is required for every tenant.
-- If `key` and `jwks` are not provided, the server will try to read defaults and exit on failure.
-- For production, use persistent `repository` and `storage` adapters.
+- `repository`, `storage`, `configurationRepository`, and `eventStoreRepository` are required for
+  every tenant.
+- `rootPasswd`, `key`, and `jwks` can be defined globally and inherited by tenants, or overridden
+  per tenant.
+- If `key` and `jwks` are not provided anywhere, the server will try to read built-in defaults and
+  exit on failure.
 
 ## Start the Server
 

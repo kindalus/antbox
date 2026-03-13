@@ -279,6 +279,36 @@ export class SqliteNodeRepository implements NodeRepository {
 		}
 	}
 
+	getEmbeddingContents(uuids: string[]): Promise<Either<AntboxError, Record<string, string>>> {
+		if (uuids.length === 0) {
+			return Promise.resolve(right({}));
+		}
+
+		try {
+			const placeholders = uuids.map(() => "?").join(", ");
+			const rows = this.#db.prepare(
+				`SELECT uuid, embedding_content_md FROM nodes WHERE uuid IN (${placeholders})`,
+			).all(...uuids) as Array<{
+				uuid: string;
+				embedding_content_md: string | null;
+			}>;
+
+			const contents: Record<string, string> = {};
+			for (const row of rows) {
+				if (
+					typeof row.embedding_content_md === "string" && row.embedding_content_md.length > 0
+				) {
+					contents[row.uuid] = row.embedding_content_md;
+				}
+			}
+
+			return Promise.resolve(right(contents));
+		} catch (err) {
+			const error = err as Error;
+			return Promise.resolve(left(new SqliteError(error.message)));
+		}
+	}
+
 	async update(node: NodeLike): Promise<Either<NodeNotFoundError, void>> {
 		const existing = await this.getById(node.uuid);
 

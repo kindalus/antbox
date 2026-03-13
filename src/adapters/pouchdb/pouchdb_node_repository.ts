@@ -375,6 +375,31 @@ class PouchdbNodeRepository implements NodeRepository {
 		}
 	}
 
+	async getEmbeddingContents(
+		uuids: string[],
+	): Promise<Either<AntboxError, Record<string, string>>> {
+		const contents: Record<string, string> = {};
+
+		try {
+			for (const uuid of uuids) {
+				const docOrErr = await this.#readFromDb(uuid);
+				if (docOrErr.isLeft()) {
+					continue;
+				}
+
+				const contentMd = docOrErr.value.embeddingContentMd;
+				if (typeof contentMd === "string" && contentMd.length > 0) {
+					contents[uuid] = contentMd;
+				}
+			}
+
+			return right(contents);
+		} catch (err: unknown) {
+			Logger.error(err);
+			return left(new UnknownError((err as Error).message));
+		}
+	}
+
 	async deleteEmbedding(uuid: string): Promise<Either<AntboxError, void>> {
 		const doc = await this.#readFromDb(uuid);
 

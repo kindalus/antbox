@@ -177,6 +177,39 @@ export class PostgresNodeRepository implements NodeRepository {
 		}
 	}
 
+	async getEmbeddingContents(
+		uuids: string[],
+	): Promise<Either<AntboxError, Record<string, string>>> {
+		if (uuids.length === 0) {
+			return right({});
+		}
+
+		try {
+			const rows = await this.#sql<{
+				uuid: string;
+				embedding_content_md: string | null;
+			}[]>`
+				SELECT uuid, embedding_content_md
+				FROM nodes
+				WHERE uuid IN ${this.#sql(uuids)}
+			`;
+
+			const contents: Record<string, string> = {};
+			for (const row of rows) {
+				if (
+					typeof row.embedding_content_md === "string" && row.embedding_content_md.length > 0
+				) {
+					contents[row.uuid] = row.embedding_content_md;
+				}
+			}
+
+			return right(contents);
+		} catch (err) {
+			const error = err as Error;
+			return left(new PostgresError(error.message));
+		}
+	}
+
 	async deleteEmbedding(uuid: string): Promise<Either<AntboxError, void>> {
 		try {
 			await this.#sql`

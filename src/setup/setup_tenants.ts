@@ -167,10 +167,28 @@ async function setupTenant(
 		configRepo,
 	});
 
+	// Create AgentsService (CRUD only)
+	const agentsService = new AgentsService({
+		configRepo,
+	});
+
+	// Load skill metadata (tool-based loading at runtime)
+	const skills = cfg.ai?.enabled ? await loadSkills(BUILTIN_SKILLS_DIR, cfg.ai.skillsPath) : [];
+
+	// Create AgentsEngine (execution logic)
+	const agentsEngine = new AgentsEngine({
+		agentsService,
+		nodeService,
+		aspectsService,
+		defaultModel: cfg.ai?.defaultModel ?? "google/gemini-2.5-flash",
+		skills,
+	});
+
 	// Create FeaturesEngine (execution logic)
 	const featuresEngine = new FeaturesEngine({
 		featuresService,
 		nodeService,
+		agentsEngine,
 		ocrProvider,
 		eventBus,
 	});
@@ -199,23 +217,6 @@ async function setupTenant(
 		eventStoreRepository,
 		eventBus,
 	);
-
-	// Create AgentsService (CRUD only)
-	const agentsService = new AgentsService({
-		configRepo,
-	});
-
-	// Load skill metadata (tool-based loading at runtime)
-	const skills = cfg.ai?.enabled ? await loadSkills(BUILTIN_SKILLS_DIR, cfg.ai.skillsPath) : [];
-
-	// Create AgentsEngine (execution logic)
-	const agentsEngine = new AgentsEngine({
-		agentsService,
-		nodeService,
-		aspectsService,
-		defaultModel: cfg.ai?.defaultModel ?? "google/gemini-2.5-flash",
-		skills,
-	});
 
 	return {
 		name: cfg.name,

@@ -8,7 +8,7 @@ import { loadConfiguration } from "setup/load_configuration.ts";
 import { startPathCacheCleanup } from "integration/webdav/webdav_path_cache.ts";
 
 interface CommandOpts {
-	config?: string;
+	configDir?: string;
 	keys?: boolean;
 	demo?: boolean;
 	sandbox?: boolean;
@@ -82,28 +82,27 @@ if (import.meta.main) {
 		.name("antbox")
 		.description("Antbox ECM Server")
 		.option(
-			"-f, --config <file>",
-			"configuration file path",
-			"./.config/antbox.toml",
+			"-c, --config-dir <dir>",
+			"configuration directory path",
 		)
 		.option("--keys", "print crypto keys and exit")
 		.option("--demo", "run with demo configuration")
 		.option("--sandbox", "run with sandbox configuration")
 		.action(async (opts: CommandOpts) => {
+			let configDir = opts.configDir;
+
+			if (opts.demo) {
+				configDir = "./.config/demo";
+			} else if (opts.sandbox) {
+				configDir = "./.config/sandbox";
+			}
+
 			if (opts.keys) {
-				printServerKeys({});
+				printServerKeys({ configDir });
 				Deno.exit(0);
 			}
 
-			let configPath = opts.config || "./.config/antbox.toml";
-
-			if (opts.demo) {
-				configPath = "./.config/demo.toml";
-			} else if (opts.sandbox) {
-				configPath = "./.config/sandbox.toml";
-			}
-
-			const config = await loadConfiguration(configPath);
+			const config = await loadConfiguration(configDir);
 			await startServer(config);
 		})
 		.parse(process.argv);

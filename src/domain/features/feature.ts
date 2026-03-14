@@ -12,6 +12,8 @@ export interface Feature {
 	runOnCreates: boolean;
 	runOnUpdates: boolean;
 	runOnDeletes: boolean;
+	runOnEmbeddingsCreated: boolean;
+	runOnEmbeddingsUpdated: boolean;
 	runManually: boolean;
 	filters: NodeFilter[];
 	exposeExtension: boolean;
@@ -44,6 +46,8 @@ export interface FeatureMetadata {
 	exposeAction: boolean;
 	runOnCreates: boolean;
 	runOnUpdates: boolean;
+	runOnEmbeddingsCreated: boolean;
+	runOnEmbeddingsUpdated: boolean;
 	runManually: boolean;
 	filters: NodeFilter[];
 	exposeExtension: boolean;
@@ -87,6 +91,8 @@ function asFeatureData(
 		runOnCreates: feature.runOnCreates,
 		runOnUpdates: feature.runOnUpdates,
 		runOnDeletes: feature.runOnDeletes,
+		runOnEmbeddingsCreated: feature.runOnEmbeddingsCreated,
+		runOnEmbeddingsUpdated: feature.runOnEmbeddingsUpdated,
 		runManually: feature.runManually,
 		filters: feature.filters,
 		exposeExtension: feature.exposeExtension,
@@ -129,6 +135,8 @@ export function featureToFeatureData(
 		runOnCreates: feature.runOnCreates,
 		runOnUpdates: feature.runOnUpdates,
 		runOnDeletes: feature.runOnDeletes,
+		runOnEmbeddingsCreated: feature.runOnEmbeddingsCreated,
+		runOnEmbeddingsUpdated: feature.runOnEmbeddingsUpdated,
 		runManually: feature.runManually,
 		filters: feature.filters,
 		exposeExtension: feature.exposeExtension,
@@ -153,6 +161,8 @@ export function featureToModuleSource(feature: SerializableFeature): string {
 	runOnCreates: ${feature.runOnCreates},
 	runOnUpdates: ${feature.runOnUpdates},
 	runOnDeletes: ${feature.runOnDeletes},
+	runOnEmbeddingsCreated: ${feature.runOnEmbeddingsCreated},
+	runOnEmbeddingsUpdated: ${feature.runOnEmbeddingsUpdated},
 	runManually: ${feature.runManually},
 	filters: ${JSON.stringify(feature.filters)},
 	exposeExtension: ${feature.exposeExtension},

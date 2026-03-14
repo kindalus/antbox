@@ -1,32 +1,40 @@
 import { Logger } from "shared/logger.ts";
-import { ROOT_PASSWD, SYMMETRIC_KEY } from "setup/server_defaults.ts";
+import { ROOT_PASSWD } from "setup/server_defaults.ts";
 import { fileExistsSync, readFileSync } from "shared/os_helpers.ts";
+import { join } from "node:path";
+import { getDefaultConfigDir } from "setup/load_configuration.ts";
 
 /**
  * Prints server cryptographic keys to stdout.
  *
  * @remarks
  * External setup:
- * - Ensure the JWKS file exists (default: `.config/antbox.jwks`) or pass `jwksPath`.
- * - Deno requires `--allow-read` to read the JWKS file.
+ * - Ensure the JWKS file exists in the config directory.
+ * - Deno requires `--allow-read` to read the files.
  *
  * @example
- * printServerKeys({ jwksPath: "./.config/antbox.jwks" });
+ * printServerKeys({ configDir: "/path/to/config" });
  */
 export function printServerKeys(opts?: {
 	passwd?: string;
-	symmetricKey?: string;
-	jwksPath?: string;
+	configDir?: string;
 }) {
+	const dir = opts?.configDir || getDefaultConfigDir();
+	const keyPath = join(dir, "antbox.key");
+	const jwksPath = join(dir, "antbox.jwks");
+
 	Logger.info("Root passwd:\t", opts?.passwd ?? ROOT_PASSWD);
 
-	Logger.info("Symmetric Key:\t", opts?.symmetricKey ?? SYMMETRIC_KEY);
+	if (fileExistsSync(keyPath)) {
+		Logger.info("Symmetric Key:\t", readFileSync(keyPath).trim());
+	} else {
+		Logger.warn(`Symmetric Key file not found: ${keyPath}`);
+	}
 
-	const path = opts?.jwksPath ?? ".config/antbox.jwks";
-	if (!fileExistsSync(path)) {
-		Logger.error(`JWKS file not found: ${path}`);
+	if (!fileExistsSync(jwksPath)) {
+		Logger.error(`JWKS file not found: ${jwksPath}`);
 		Deno.exit(-1);
 	}
 
-	Logger.info("JSON Web Key Set:\t", JSON.stringify(readFileSync(path), null, 4));
+	Logger.info("JSON Web Key Set:\t", JSON.stringify(JSON.parse(readFileSync(jwksPath)), null, 4));
 }

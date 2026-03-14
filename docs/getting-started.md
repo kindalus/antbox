@@ -20,21 +20,23 @@ cd antbox
 
 ## Configuration
 
-Antbox loads a TOML configuration file. By default it looks for `./.config/antbox.toml`. You can
-also pass `--demo` or `--sandbox`, which map to `./.config/demo.toml` and `./.config/sandbox.toml`.
+Antbox uses a central configuration directory. By default, it manages its configuration in
+`$HOME/.config/antbox` (or `%USERPROFILE%\.config\antbox` on Windows).
 
-Minimal example (`.config/antbox.toml`):
+When you start Antbox for the first time, it automatically creates this directory, generates
+cryptographic keys (`antbox.key` and `antbox.jwks`), and creates a default `config.toml` file.
+
+You can override the configuration directory using the `--config-dir` (or `-c`) flag. You can also
+pass `--demo` or `--sandbox`, which map to `./.config/demo` and `./.config/sandbox` directories
+relative to the execution path.
+
+Minimal example (`config.toml`):
 
 ```toml
 engine = "oak"
 port = 7180
+logLevel = "info"
 rootPasswd = "demo"
-
-# Server-wide crypto/auth defaults for tenants
-# key can be a base64 string or a file path
-key = "base64-encoded-secret"
-# jwks must point to a JSON Web Key Set file (path or URL)
-jwks = "./.config/antbox.jwks"
 
 [[tenants]]
 name = "local"
@@ -52,21 +54,23 @@ Notes:
   every tenant.
 - `rootPasswd`, `key`, and `jwks` can be defined globally and inherited by tenants, or overridden
   per tenant.
-- If `key` and `jwks` are not provided anywhere, the server will try to read built-in defaults and
-  exit on failure.
+- If `key` and `jwks` are not provided anywhere, the server will default to loading them from the
+  configuration directory or generate them if they don't exist.
+- Module paths that start with `./` or `../` are automatically resolved relative to the
+  configuration directory.
 
 ## Start the Server
 
 Recommended (uses required Deno flags):
 
 ```bash
-./start_server.sh --config ./.config/antbox.toml
+./start_server.sh --config-dir /path/to/your/config
 ```
 
 Or run directly:
 
 ```bash
-deno run -A --unstable-raw-imports main.ts --config ./.config/antbox.toml
+deno run -A --unstable-raw-imports main.ts --config-dir /path/to/your/config
 ```
 
 You should see:

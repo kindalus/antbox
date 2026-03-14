@@ -119,6 +119,8 @@ function createFeatureInput(
 		runOnCreates: false,
 		runOnUpdates: false,
 		runOnDeletes: false,
+		runOnEmbeddingsCreated: false,
+		runOnEmbeddingsUpdated: false,
 		runManually: true,
 		filters: [],
 		exposeExtension: false,

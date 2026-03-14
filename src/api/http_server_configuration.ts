@@ -1,6 +1,7 @@
 export interface ServerConfiguration {
 	port?: number;
 	engine?: string;
+	logLevel?: string;
 	rootPasswd?: string;
 	key?: string;
 	jwks?: string;

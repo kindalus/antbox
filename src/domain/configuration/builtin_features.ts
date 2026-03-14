@@ -38,6 +38,7 @@ const CALL_AGENT_RUN = `async function() {
 
 export const MOVE_UP_FEATURE_UUID = "move_up";
 export const CALL_AGENT_FEATURE_UUID = "call_agent";
+export const AUTO_TAG_FEATURE_UUID = "auto_tag";
 
 export const MOVE_UP_FEATURE: FeatureData = {
 	uuid: MOVE_UP_FEATURE_UUID,
@@ -47,6 +48,8 @@ export const MOVE_UP_FEATURE: FeatureData = {
 	runOnCreates: false,
 	runOnUpdates: false,
 	runOnDeletes: false,
+	runOnEmbeddingsCreated: false,
+	runOnEmbeddingsUpdated: false,
 	runManually: true,
 	filters: [
 		[
@@ -88,6 +91,8 @@ export const CALL_AGENT_FEATURE: FeatureData = {
 	runOnCreates: false,
 	runOnUpdates: false,
 	runOnDeletes: false,
+	runOnEmbeddingsCreated: false,
+	runOnEmbeddingsUpdated: false,
 	runManually: true,
 	filters: [],
 	exposeExtension: false,
@@ -134,6 +139,53 @@ export const CALL_AGENT_FEATURE: FeatureData = {
 	modifiedTime: BASE_TIME,
 };
 
+const AUTO_TAG_RUN = `async function() {
+	return undefined;
+}`;
+
+export const AUTO_TAG_FEATURE: FeatureData = {
+	uuid: AUTO_TAG_FEATURE_UUID,
+	title: "Auto Tag",
+	description: "Automatically extracts aspect property values from node content using AI analysis",
+	exposeAction: true,
+	runOnCreates: false,
+	runOnUpdates: false,
+	runOnDeletes: false,
+	runOnEmbeddingsCreated: false,
+	runOnEmbeddingsUpdated: false,
+	runManually: true,
+	filters: [],
+	exposeExtension: false,
+	exposeAITool: false,
+	runAs: undefined,
+	groupsAllowed: [],
+	parameters: [
+		{
+			name: "uuids",
+			type: "array",
+			arrayType: "string",
+			required: true,
+			description: "Array of node UUIDs to extract aspect properties from",
+			defaultValue: undefined,
+		},
+		{
+			name: "aspects",
+			type: "array",
+			arrayType: "string",
+			required: true,
+			description: "Array of aspect UUIDs to extract properties for",
+			defaultValue: undefined,
+		},
+	],
+	returnType: "void",
+	returnDescription: "Extracts and applies aspect properties to the specified nodes",
+	returnContentType: undefined,
+	tags: ["ai", "auto-tag"],
+	run: AUTO_TAG_RUN,
+	createdTime: BASE_TIME,
+	modifiedTime: BASE_TIME,
+};
+
 /**
  * Built-in features available in all tenants
  * These are readonly and cannot be modified or deleted
@@ -141,4 +193,5 @@ export const CALL_AGENT_FEATURE: FeatureData = {
 export const BUILTIN_FEATURES: readonly FeatureData[] = [
 	MOVE_UP_FEATURE,
 	CALL_AGENT_FEATURE,
+	AUTO_TAG_FEATURE,
 ];

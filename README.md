@@ -105,13 +105,22 @@ Examples:
 ```bash
 ./start_server.sh --demo
 ./start_server.sh --sandbox
-./start_server.sh -f /etc/antbox/production.toml
+./start_server.sh -c /etc/antbox
 ./start_server.sh --keys
 ```
 
 ## Configuration
 
-Antbox uses TOML configuration. Default file: `.config/antbox.toml`.
+Antbox is configured via a central configuration directory. By default, it uses
+`$HOME/.config/antbox` (or `%USERPROFILE%\.config\antbox` on Windows).
+
+When you start Antbox for the first time, it will automatically:
+
+1. Create this directory if it doesn't exist.
+2. Generate a default `config.toml` file inside it.
+3. Generate cryptographic keys (`antbox.key` and `antbox.jwks`).
+
+You can override the configuration directory using the `-c, --config-dir` CLI flag.
 
 Each tenant defines these core adapters:
 
@@ -124,14 +133,13 @@ Module configuration format:
 
 - `["module/path.ts", "param1", "param2"]`
 
-Minimal example:
+Minimal example of `config.toml`:
 
 ```toml
 engine = "oak"
 port = 7180
+logLevel = "info"
 rootPasswd = "demo"
-key = "./.config/antbox.key"
-jwks = "./.config/antbox.jwks"
 
 [[tenants]]
 name = "demo"

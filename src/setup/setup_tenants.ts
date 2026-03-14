@@ -8,7 +8,7 @@ import type { StorageProvider } from "application/nodes/storage_provider.ts";
 import type { NodeRepository } from "domain/nodes/node_repository.ts";
 import type { EventStoreRepository } from "domain/audit/event_store_repository.ts";
 import type { ConfigurationRepository } from "domain/configuration/configuration_repository.ts";
-import { JWKS, ROOT_PASSWD, SYMMETRIC_KEY } from "./server_defaults.ts";
+import { ROOT_PASSWD } from "./server_defaults.ts";
 import { providerFrom } from "adapters/module_configuration_parser.ts";
 import { FeaturesService } from "application/features/features_service.ts";
 import { FeaturesEngine } from "application/features/features_engine.ts";
@@ -32,7 +32,7 @@ import type { EmbeddingsProvider } from "domain/ai/embeddings_provider.ts";
 import type { OCRProvider } from "domain/ai/ocr_provider.ts";
 import { NullOCRProvider } from "adapters/ocr/null_ocr_provider.ts";
 
-import { resolve } from "path";
+import { resolve } from "node:path";
 import { fromFileUrl } from "jsr:@std/path@1.1.2";
 import { registerCacheInvalidationHandlers } from "integration/webdav/webdav_cache_invalidation_handler.ts";
 
@@ -189,6 +189,7 @@ async function setupTenant(
 		featuresService,
 		nodeService,
 		agentsEngine,
+		aspectsService,
 		ocrProvider,
 		eventBus,
 	});
@@ -253,14 +254,16 @@ async function setupTenant(
 async function loadJwks(
 	jwksPath?: string,
 ): Promise<import("application/security/external_login_service.ts").ExternalJwksSource> {
-	const sourcePath = jwksPath ?? JWKS;
+	if (!jwksPath) {
+		throw new Error("JWKS path is not configured");
+	}
 
 	try {
-		if (sourcePath.startsWith("http://") || sourcePath.startsWith("https://")) {
-			return { type: "remote", url: sourcePath };
+		if (jwksPath.startsWith("http://") || jwksPath.startsWith("https://")) {
+			return { type: "remote", url: jwksPath };
 		}
 
-		const resolvedPath = resolve(sourcePath);
+		const resolvedPath = resolve(jwksPath);
 		const content = await Deno.readTextFile(resolvedPath);
 		return {
 			type: "local",
@@ -276,7 +279,7 @@ async function loadJwks(
 
 async function loadSymmetricKey(keyPath?: string): Promise<string> {
 	if (!keyPath) {
-		keyPath = SYMMETRIC_KEY;
+		throw new Error("Symmetric key path is not configured");
 	}
 
 	// If it looks like a key value (base64), return it directly

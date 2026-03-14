@@ -53,6 +53,8 @@ export interface FeatureData {
 	readonly runOnCreates: boolean;
 	readonly runOnUpdates: boolean;
 	readonly runOnDeletes: boolean;
+	readonly runOnEmbeddingsCreated: boolean;
+	readonly runOnEmbeddingsUpdated: boolean;
 	readonly runManually: boolean;
 	readonly filters: NodeFilter[];
 	readonly exposeExtension: boolean;

@@ -380,7 +380,7 @@ describe("AgentsService", () => {
 	});
 
 	describe("listAgents", () => {
-		it("should include all 4 builtin agents plus custom agents", async () => {
+		it("should include all 5 builtin agents plus custom agents", async () => {
 			const repo = new InMemoryConfigurationRepository();
 			const service = createAgentsService(repo);
 
@@ -399,12 +399,12 @@ describe("AgentsService", () => {
 
 			expect(result.isRight()).toBe(true);
 			if (result.isRight()) {
-				// Should include 2 custom agents + 4 builtins
-				expect(result.value.length).toBe(6);
+				// Should include 2 custom agents + 5 builtins
+				expect(result.value.length).toBe(7);
 			}
 		});
 
-		it("should include the 4 builtin agents when no custom agents", async () => {
+		it("should include the 5 builtin agents when no custom agents", async () => {
 			const repo = new InMemoryConfigurationRepository();
 			const service = createAgentsService(repo);
 
@@ -412,7 +412,7 @@ describe("AgentsService", () => {
 
 			expect(result.isRight()).toBe(true);
 			if (result.isRight()) {
-				expect(result.value.length).toBe(4);
+				expect(result.value.length).toBe(5);
 				const uuids = result.value.map((a) => a.uuid);
 				expect(uuids).toContain(RAG_AGENT_UUID);
 				expect(uuids).toContain(SEMANTIC_SEARCHER_AGENT_UUID);

@@ -48,6 +48,8 @@ describe("FeaturesService", () => {
 		runOnCreates: false,
 		runOnUpdates: false,
 		runOnDeletes: false,
+		runOnEmbeddingsCreated: false,
+		runOnEmbeddingsUpdated: false,
 		runManually: true,
 		filters: [],
 		exposeExtension: false,
@@ -86,6 +88,8 @@ describe("FeaturesService", () => {
 			runOnCreates: false,
 			runOnUpdates: false,
 			runOnDeletes: false,
+			runOnEmbeddingsCreated: false,
+			runOnEmbeddingsUpdated: false,
 			runManually: true,
 			filters: [],
 			exposeExtension: false,
@@ -170,6 +174,8 @@ describe("FeaturesService", () => {
 				runOnCreates: false,
 				runOnUpdates: false,
 				runOnDeletes: false,
+				runOnEmbeddingsCreated: false,
+				runOnEmbeddingsUpdated: false,
 				runManually: true,
 				filters: [],
 				exposeExtension: false,
@@ -525,8 +531,8 @@ describe("FeaturesService", () => {
 
 			expect(result.isRight()).toBe(true);
 			if (result.isRight()) {
-				// Should include 2 custom features + 1 builtin (Move Up)
-				expect(result.value.length).toBe(3);
+				// Should include 2 custom features + 3 builtins (Move Up, Call Agent, Auto Tag)
+				expect(result.value.length).toBe(5);
 			}
 		});
 

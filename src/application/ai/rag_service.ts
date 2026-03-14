@@ -10,6 +10,8 @@ import type { RagDocument } from "domain/ai/rag_document.ts";
 import { NodeCreatedEvent } from "domain/nodes/node_created_event.ts";
 import { NodeUpdatedEvent } from "domain/nodes/node_updated_event.ts";
 import { NodeDeletedEvent } from "domain/nodes/node_deleted_event.ts";
+import { EmbeddingCreatedEvent } from "domain/nodes/embedding_created_event.ts";
+import { EmbeddingUpdatedEvent } from "domain/nodes/embedding_updated_event.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { createElevatedContext } from "application/security/elevated_context.ts";
@@ -29,6 +31,7 @@ export class RAGService {
 	readonly #nodeService: NodeService;
 	readonly #embeddingsProvider: EmbeddingsProvider;
 	readonly #ocrProvider: OCRProvider;
+	readonly #eventBus: EventBus;
 
 	constructor(
 		eventBus: EventBus,
@@ -41,6 +44,7 @@ export class RAGService {
 		this.#nodeService = nodeService;
 		this.#embeddingsProvider = embeddingsProvider;
 		this.#ocrProvider = ocrProvider;
+		this.#eventBus = eventBus;
 
 		if (!repository.supportsEmbeddings()) {
 			return;
@@ -110,12 +114,18 @@ export class RAGService {
 	async #handleNodeCreated(event: NodeCreatedEvent): Promise<void> {
 		const node = event.payload;
 
+		let success: boolean;
 		if (Nodes.isFile(node)) {
-			await this.#indexFile(node, event.tenant);
-			return;
+			success = await this.#indexFile(node, event.tenant);
+		} else {
+			success = await this.#indexNodeMetadata(node);
 		}
 
-		await this.#indexNodeMetadata(node);
+		if (success) {
+			this.#eventBus.publish(
+				new EmbeddingCreatedEvent(event.userEmail, event.tenant, node.uuid),
+			);
+		}
 	}
 
 	async #handleNodeUpdated(event: NodeUpdatedEvent): Promise<void> {
@@ -131,19 +141,25 @@ export class RAGService {
 
 		const node = nodeOrErr.value;
 
+		let success: boolean;
 		if (Nodes.isFile(node)) {
-			await this.#indexFile(node, event.tenant);
-			return;
+			success = await this.#indexFile(node, event.tenant);
+		} else {
+			success = await this.#indexNodeMetadata(node);
 		}
 
-		await this.#indexNodeMetadata(node);
+		if (success) {
+			this.#eventBus.publish(
+				new EmbeddingUpdatedEvent(event.userEmail, event.tenant, node.uuid),
+			);
+		}
 	}
 
 	async #handleNodeDeleted(event: NodeDeletedEvent): Promise<void> {
 		await this.#deleteEmbedding(event.payload.uuid);
 	}
 
-	async #indexFile(node: NodeMetadata, tenant: string): Promise<void> {
+	async #indexFile(node: NodeMetadata, tenant: string): Promise<boolean> {
 		let bodyContent = "";
 
 		if ((node.size ?? 0) > 0) {
@@ -161,19 +177,19 @@ export class RAGService {
 		}
 
 		const markdown = toEmbeddingMarkdown(node, bodyContent);
-		await this.#generateAndStore(node.uuid, markdown);
+		return this.#generateAndStore(node.uuid, markdown);
 	}
 
-	async #indexNodeMetadata(metadata: NodeMetadata): Promise<void> {
+	async #indexNodeMetadata(metadata: NodeMetadata): Promise<boolean> {
 		const markdown = toEmbeddingMarkdown(metadata);
-		await this.#generateAndStore(metadata.uuid, markdown);
+		return this.#generateAndStore(metadata.uuid, markdown);
 	}
 
-	async #generateAndStore(uuid: string, text: string): Promise<void> {
+	async #generateAndStore(uuid: string, text: string): Promise<boolean> {
 		const embeddingsOrErr = await this.#embeddingsProvider.embed([text]);
 		if (embeddingsOrErr.isLeft()) {
 			Logger.error(`RAGService: embedding failed for ${uuid}: ${embeddingsOrErr.value.message}`);
-			return;
+			return false;
 		}
 
 		const storeOrErr = await this.#repository.upsertEmbedding(
@@ -185,7 +201,10 @@ export class RAGService {
 			Logger.error(
 				`RAGService: store embedding failed for ${uuid}: ${storeOrErr.value.message}`,
 			);
+			return false;
 		}
+
+		return true;
 	}
 
 	async #deleteEmbedding(uuid: string): Promise<void> {

@@ -1,6 +1,13 @@
 import { Logger } from "shared/logger.ts";
 import { loadTemplate, TEMPLATES } from "api/templates/index.ts";
-import { CALL_AGENT_FEATURE_UUID } from "domain/configuration/builtin_features.ts";
+import {
+	AUTO_TAG_FEATURE_UUID,
+	CALL_AGENT_FEATURE_UUID,
+} from "domain/configuration/builtin_features.ts";
+import { ASPECT_FIELD_EXTRACTOR_AGENT_UUID } from "application/ai/builtin_agents/aspect_field_extractor_agent.ts";
+import { EmbeddingCreatedEvent } from "domain/nodes/embedding_created_event.ts";
+import { EmbeddingUpdatedEvent } from "domain/nodes/embedding_updated_event.ts";
+import type { AspectsService } from "application/aspects/aspects_service.ts";
 import { type Feature, featureDataToFeature } from "domain/features/feature.ts";
 import { RunContext } from "domain/features/feature_run_context.ts";
 import { NodeLike } from "domain/node_like.ts";
@@ -45,6 +52,7 @@ export interface FeaturesEngineContext {
 	featuresService: FeaturesService;
 	nodeService: NodeService;
 	agentsEngine?: AgentAnswerExecutor;
+	aspectsService?: AspectsService;
 	ocrProvider?: OCRProvider;
 	eventBus: EventBus;
 }
@@ -65,12 +73,14 @@ export class FeaturesEngine {
 	readonly #featuresService: FeaturesService;
 	readonly #nodeService: NodeService;
 	readonly #agentsEngine?: AgentAnswerExecutor;
+	readonly #aspectsService?: AspectsService;
 	readonly #ocrProvider?: OCRProvider;
 
 	constructor(ctx: FeaturesEngineContext) {
 		this.#featuresService = ctx.featuresService;
 		this.#nodeService = ctx.nodeService;
 		this.#agentsEngine = ctx.agentsEngine;
+		this.#aspectsService = ctx.aspectsService;
 		this.#ocrProvider = ctx.ocrProvider;
 
 		// Register event handlers for domain-wide triggers
@@ -85,6 +95,14 @@ export class FeaturesEngine {
 
 		ctx.eventBus.subscribe(NodeDeletedEvent.EVENT_ID, {
 			handle: (evt: NodeDeletedEvent) => this.#runOnDelete(evt),
+		});
+
+		ctx.eventBus.subscribe(EmbeddingCreatedEvent.EVENT_ID, {
+			handle: (evt: EmbeddingCreatedEvent) => this.#runOnEmbeddingsCreated(evt),
+		});
+
+		ctx.eventBus.subscribe(EmbeddingUpdatedEvent.EVENT_ID, {
+			handle: (evt: EmbeddingUpdatedEvent) => this.#runOnEmbeddingsUpdated(evt),
 		});
 
 		// FOLDER HOOKS
@@ -605,11 +623,15 @@ export class FeaturesEngine {
 		feature: Feature,
 		params: Record<string, unknown>,
 	): Promise<Either<AntboxError, T> | undefined> {
-		if (feature.uuid !== CALL_AGENT_FEATURE_UUID) {
-			return undefined;
+		if (feature.uuid === CALL_AGENT_FEATURE_UUID) {
+			return this.#runCallAgentFeature(ctx, params) as Promise<Either<AntboxError, T>>;
 		}
 
-		return this.#runCallAgentFeature(ctx, params) as Promise<Either<AntboxError, T>>;
+		if (feature.uuid === AUTO_TAG_FEATURE_UUID) {
+			return this.#runAutoTagFeature(ctx, params) as Promise<Either<AntboxError, T>>;
+		}
+
+		return undefined;
 	}
 
 	async #runCallAgentFeature(
@@ -1071,6 +1093,202 @@ export class FeaturesEngine {
 				);
 			}
 		}
+	}
+
+	async #runOnEmbeddingsCreated(evt: EmbeddingCreatedEvent) {
+		const runCriteria: NodeFilters = [["runOnEmbeddingsCreated", "==", true]];
+
+		const elevatedContext: AuthenticationContext = {
+			mode: "Action",
+			principal: {
+				email: Users.ROOT_USER_EMAIL,
+				groups: [Groups.ADMINS_GROUP_UUID],
+			},
+			tenant: evt.tenant,
+		};
+
+		const actions = await this.#getAutomaticActions(runCriteria, elevatedContext);
+
+		const actionContext: AuthenticationContext = {
+			mode: "Action",
+			principal: {
+				email: evt.userEmail,
+				groups: [Groups.ADMINS_GROUP_UUID],
+			},
+			tenant: evt.tenant,
+		};
+
+		const nodeOrErr = await this.#nodeService.get(elevatedContext, evt.payload.uuid);
+		if (nodeOrErr.isLeft()) {
+			Logger.warn(
+				`Skipping automatic onEmbeddingsCreated features for node ${evt.payload.uuid}: ${nodeOrErr.value.message}`,
+			);
+			return;
+		}
+
+		for (const feature of actions) {
+			await this.#runAutomaticAction(actionContext, feature, nodeOrErr.value, "onCreate");
+		}
+	}
+
+	async #runOnEmbeddingsUpdated(evt: EmbeddingUpdatedEvent) {
+		const runCriteria: NodeFilters = [["runOnEmbeddingsUpdated", "==", true]];
+
+		const elevatedContext: AuthenticationContext = {
+			mode: "Action",
+			principal: {
+				email: Users.ROOT_USER_EMAIL,
+				groups: [Groups.ADMINS_GROUP_UUID],
+			},
+			tenant: evt.tenant,
+		};
+
+		const actions = await this.#getAutomaticActions(runCriteria, elevatedContext);
+
+		const actionContext: AuthenticationContext = {
+			mode: "Action",
+			principal: {
+				email: evt.userEmail,
+				groups: [Groups.ADMINS_GROUP_UUID],
+			},
+			tenant: evt.tenant,
+		};
+
+		const nodeOrErr = await this.#nodeService.get(elevatedContext, evt.payload.uuid);
+		if (nodeOrErr.isLeft()) {
+			Logger.warn(
+				`Skipping automatic onEmbeddingsUpdated features for node ${evt.payload.uuid}: ${nodeOrErr.value.message}`,
+			);
+			return;
+		}
+
+		for (const feature of actions) {
+			await this.#runAutomaticAction(actionContext, feature, nodeOrErr.value, "onUpdate");
+		}
+	}
+
+	async #runAutoTagFeature(
+		ctx: AuthenticationContext,
+		params: Record<string, unknown>,
+	): Promise<Either<AntboxError, void>> {
+		if (!this.#agentsEngine) {
+			return left(new BadRequestError("Agents engine not available"));
+		}
+
+		if (!this.#aspectsService) {
+			return left(new BadRequestError("Aspects service not available"));
+		}
+
+		const uuids = Array.isArray(params.uuids)
+			? params.uuids.filter((uuid): uuid is string => typeof uuid === "string")
+			: [];
+
+		const aspects = Array.isArray(params.aspects)
+			? params.aspects.filter((a): a is string => typeof a === "string")
+			: [];
+
+		if (uuids.length === 0) {
+			return left(new BadRequestError("Parameter 'uuids' must be a non-empty array"));
+		}
+
+		if (aspects.length === 0) {
+			return left(new BadRequestError("Parameter 'aspects' must be a non-empty array"));
+		}
+
+		for (const uuid of uuids) {
+			const contentsOrErr = await this.#nodeService.getEmbeddingContents(ctx, [uuid]);
+			if (contentsOrErr.isLeft()) {
+				Logger.warn(`Auto-tag: failed to get embedding contents for node ${uuid}, skipping`);
+				continue;
+			}
+
+			const contentMd = contentsOrErr.value[uuid];
+			if (!contentMd) {
+				Logger.warn(`Auto-tag: no contentMd available for node ${uuid}, skipping`);
+				continue;
+			}
+
+			for (const aspectUuid of aspects) {
+				const aspectOrErr = await this.#aspectsService.getAspect(ctx, aspectUuid);
+				if (aspectOrErr.isLeft()) {
+					Logger.warn(
+						`Auto-tag: failed to get aspect ${aspectUuid}: ${aspectOrErr.value.message}, skipping`,
+					);
+					continue;
+				}
+
+				const aspect = aspectOrErr.value;
+				const prompt = `## Document Content\n\n${contentMd}\n\n## Aspect Definition\n\n${
+					JSON.stringify({
+						uuid: aspect.uuid,
+						title: aspect.title,
+						properties: aspect.properties,
+					})
+				}`;
+
+				const answerOrErr = await this.#agentsEngine.answer(
+					ctx,
+					ASPECT_FIELD_EXTRACTOR_AGENT_UUID,
+					prompt,
+				);
+
+				if (answerOrErr.isLeft()) {
+					Logger.warn(
+						`Auto-tag: agent extraction failed for node ${uuid}, aspect ${aspectUuid}: ${answerOrErr.value.message}`,
+					);
+					continue;
+				}
+
+				let extractedValues: Record<string, unknown>;
+				try {
+					const responseText = answerOrErr.value.parts
+						.map((p) => p.text ?? "")
+						.join("");
+					const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+					extractedValues = JSON.parse(jsonMatch ? jsonMatch[0] : responseText);
+				} catch {
+					Logger.warn(
+						`Auto-tag: failed to parse agent response for node ${uuid}, aspect ${aspectUuid}`,
+					);
+					continue;
+				}
+
+				if (Object.keys(extractedValues).length === 0) {
+					continue;
+				}
+
+				const properties: Record<string, unknown> = {};
+				for (const [propName, propValue] of Object.entries(extractedValues)) {
+					properties[`${aspectUuid}:${propName}`] = propValue;
+				}
+
+				const nodeOrErr = await this.#nodeService.get(ctx, uuid);
+				if (nodeOrErr.isLeft()) {
+					Logger.warn(
+						`Auto-tag: failed to get node ${uuid} for update: ${nodeOrErr.value.message}`,
+					);
+					continue;
+				}
+
+				const existingAspects = nodeOrErr.value.aspects ?? [];
+				const newAspects = existingAspects.includes(aspectUuid)
+					? existingAspects
+					: [...existingAspects, aspectUuid];
+
+				const updateOrErr = await this.#nodeService.update(ctx, uuid, {
+					aspects: newAspects,
+					properties: { ...nodeOrErr.value.properties, ...properties },
+				} as NodeMetadata);
+
+				if (updateOrErr.isLeft()) {
+					Logger.warn(
+						`Auto-tag: failed to update node ${uuid} with aspect ${aspectUuid}: ${updateOrErr.value.message}`,
+					);
+				}
+			}
+		}
+
+		return right(undefined);
 	}
 
 	#parseActionString(actionString: string): {

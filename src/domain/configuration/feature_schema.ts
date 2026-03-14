@@ -35,6 +35,8 @@ export const FeatureDataSchema = z.object({
 	runOnCreates: z.boolean(),
 	runOnUpdates: z.boolean(),
 	runOnDeletes: z.boolean(),
+	runOnEmbeddingsCreated: z.boolean(),
+	runOnEmbeddingsUpdated: z.boolean(),
 	runManually: z.boolean(),
 	filters: z.array(NodeFilterSchema),
 	exposeExtension: z.boolean(),
@@ -59,7 +61,8 @@ export const FeatureDataSchema = z.object({
 	}
 
 	if (
-		(feature.runOnCreates || feature.runOnUpdates || feature.runOnDeletes) &&
+		(feature.runOnCreates || feature.runOnUpdates || feature.runOnDeletes ||
+			feature.runOnEmbeddingsCreated || feature.runOnEmbeddingsUpdated) &&
 		!feature.exposeAction
 	) {
 		ctx.addIssue({

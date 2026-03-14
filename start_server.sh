@@ -4,7 +4,7 @@
 # This script wraps main.ts and provides the same argument interface
 
 # Default values
-CONFIG_FILE=""
+CONFIG_DIR=""
 KEYS_FLAG=""
 DEMO_FLAG=""
 SANDBOX_FLAG=""
@@ -17,8 +17,8 @@ while [[ $# -gt 0 ]]; do
       KEYS_FLAG="--keys"
       shift
       ;;
-    -f|--config)
-      CONFIG_FILE="--config $2"
+    -c|--config-dir)
+      CONFIG_DIR="--config-dir $2"
       shift
       shift
       ;;
@@ -36,18 +36,18 @@ while [[ $# -gt 0 ]]; do
       echo "Usage: $0 [OPTIONS]"
       echo ""
       echo "Options:"
-      echo "  --keys              Print crypto keys and exit"
-      echo "  -f, --config FILE   Override default server configuration file [./.config/antbox.toml]"
-      echo "  --demo              Run with demo configuration (demo.toml)"
-      echo "  --sandbox           Run with sandbox configuration (sandbox.toml)"
-      echo "  -h, --help          Show this help message"
+      echo "  --keys                  Print crypto keys and exit"
+      echo "  -c, --config-dir DIR    Override default server configuration directory [$HOME/.config/antbox]"
+      echo "  --demo                  Run with demo configuration"
+      echo "  --sandbox               Run with sandbox configuration"
+      echo "  -h, --help              Show this help message"
       echo ""
       echo "Examples:"
-      echo "  $0                            # Run with default configuration"
-      echo "  $0 --demo                     # Run demo server"
-      echo "  $0 --sandbox                  # Run sandbox server"
-      echo "  $0 -f custom.toml             # Run with custom configuration"
-      echo "  $0 --keys                     # Print crypto keys"
+      echo "  $0                                # Run with default configuration"
+      echo "  $0 --demo                         # Run demo server"
+      echo "  $0 --sandbox                      # Run sandbox server"
+      echo "  $0 -c /etc/antbox                 # Run with custom configuration directory"
+      echo "  $0 --keys                         # Print crypto keys"
       exit 0
       ;;
     *)
@@ -66,8 +66,8 @@ if [[ -n "$KEYS_FLAG" ]]; then
   DENO_CMD="$DENO_CMD $KEYS_FLAG"
 fi
 
-if [[ -n "$CONFIG_FILE" ]]; then
-  DENO_CMD="$DENO_CMD $CONFIG_FILE"
+if [[ -n "$CONFIG_DIR" ]]; then
+  DENO_CMD="$DENO_CMD $CONFIG_DIR"
 fi
 
 if [[ -n "$DEMO_FLAG" ]]; then

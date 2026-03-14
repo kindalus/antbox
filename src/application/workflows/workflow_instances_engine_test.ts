@@ -190,7 +190,7 @@ const BASE_WORKFLOW: Omit<WorkflowData, "uuid" | "createdTime" | "modifiedTime">
 	],
 	availableStateNames: ["draft", "review"],
 	filters: [["mimetype", "==", "application/pdf"]],
-	groupsAllowed: ["--editors--"],
+	participants: ["--editors--"],
 };
 
 async function createWorkflowDef(

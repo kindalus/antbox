@@ -39,7 +39,7 @@ export class WorkflowInstancesService {
 		// Check builtin instances first (currently none)
 		const builtinInstance = BUILTIN_WORKFLOW_INSTANCES.find((i) => i.uuid === uuid);
 		if (builtinInstance) {
-			if (!this.#hasPermission(ctx, builtinInstance.groupsAllowed)) {
+			if (!this.#hasPermission(ctx, builtinInstance.participants)) {
 				return left(new ForbiddenError("Not authorized to view this workflow instance"));
 			}
 			return right(builtinInstance);
@@ -51,7 +51,7 @@ export class WorkflowInstancesService {
 		}
 
 		// Check permission
-		if (!this.#hasPermission(ctx, instanceOrErr.value.groupsAllowed)) {
+		if (!this.#hasPermission(ctx, instanceOrErr.value.participants)) {
 			return left(new ForbiddenError("Not authorized to view this workflow instance"));
 		}
 
@@ -73,11 +73,11 @@ export class WorkflowInstancesService {
 						modifiedTime: workflowDefOrErr.value.modifiedTime,
 						states: workflowDefOrErr.value.states,
 						availableStateNames: workflowDefOrErr.value.availableStateNames,
-						groupsAllowed: workflowDefOrErr.value.groupsAllowed,
+						participants: workflowDefOrErr.value.participants,
 					},
-					groupsAllowed: (instance.groupsAllowed && instance.groupsAllowed.length > 0)
-						? instance.groupsAllowed
-						: workflowDefOrErr.value.groupsAllowed,
+					participants: (instance.participants && instance.participants.length > 0)
+						? instance.participants
+						: workflowDefOrErr.value.participants,
 				};
 
 				// Ignore backfill failures; the instance is still returned
@@ -117,7 +117,7 @@ export class WorkflowInstancesService {
 		const instance = running[0];
 
 		// Check permission
-		if (!this.#hasPermission(ctx, instance.groupsAllowed)) {
+		if (!this.#hasPermission(ctx, instance.participants)) {
 			return left(new ForbiddenError("Not authorized to view this workflow instance"));
 		}
 
@@ -138,7 +138,7 @@ export class WorkflowInstancesService {
 
 		// Filter by permission - only return instances user can access
 		const accessibleInstances = allInstances.filter((i) =>
-			this.#hasPermission(ctx, i.groupsAllowed)
+			this.#hasPermission(ctx, i.participants)
 		);
 
 		// Sort by startedTime (newest first)
@@ -174,18 +174,18 @@ export class WorkflowInstancesService {
 		return ctx.principal.groups.includes(ADMINS_GROUP_UUID);
 	}
 
-	#hasPermission(ctx: AuthenticationContext, groupsAllowed: string[]): boolean {
+	#hasPermission(ctx: AuthenticationContext, participants: string[]): boolean {
 		// Admins have access to everything
 		if (this.#isAdmin(ctx)) {
 			return true;
 		}
 
-		// If groupsAllowed is empty, everyone has access
-		if (!groupsAllowed || groupsAllowed.length === 0) {
+		// If participants is empty, all users have access
+		if (!participants || participants.length === 0) {
 			return true;
 		}
 
 		// Check if user is in any of the allowed groups
-		return ctx.principal.groups.some((g) => groupsAllowed.includes(g));
+		return ctx.principal.groups.some((g) => participants.includes(g));
 	}
 }

@@ -32,7 +32,7 @@ export function startWorkflowHandler(tenants: AntboxTenant[]): HttpHandler {
 						getAuthenticationContext(req),
 						body.nodeUuid,
 						body.workflowDefinitionUuid,
-						body.groupsAllowed,
+						body.participants,
 					)
 					.then(processServiceResult)
 					.catch(processError);

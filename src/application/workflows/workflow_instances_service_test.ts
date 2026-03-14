@@ -46,7 +46,7 @@ describe("WorkflowInstancesService", () => {
 	function createWorkflowInstance(
 		uuid: string,
 		nodeUuid: string,
-		groupsAllowed: string[] = [],
+		participants: string[] = [],
 	): WorkflowInstanceData {
 		return {
 			uuid,
@@ -66,14 +66,14 @@ describe("WorkflowInstancesService", () => {
 					{ name: "review", isFinal: true },
 				],
 				availableStateNames: ["draft", "review"],
-				groupsAllowed: [],
+				participants: [],
 			},
 			nodeUuid,
 			currentStateName: "draft",
 			history: [],
 			running: true,
 			cancelled: false,
-			groupsAllowed,
+			participants,
 			owner: "admin@example.com",
 			startedTime: new Date().toISOString(),
 			modifiedTime: new Date().toISOString(),
@@ -125,7 +125,7 @@ describe("WorkflowInstancesService", () => {
 			}
 		});
 
-		it("should allow access when groupsAllowed is empty", async () => {
+		it("should allow access when participants is empty", async () => {
 			const repo = new InMemoryConfigurationRepository();
 			const service = createService(repo);
 

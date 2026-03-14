@@ -12,7 +12,7 @@ export interface WorkflowDefinitionSnapshot {
 	modifiedTime: string;
 	states: WorkflowState[];
 	availableStateNames: string[];
-	groupsAllowed: string[];
+	participants: string[];
 }
 
 /**
@@ -56,8 +56,12 @@ export interface WorkflowInstanceData {
 	readonly running: boolean;
 	/** Has this workflow instance been cancelled? */
 	readonly cancelled: boolean;
-	/** List of groups allowed to view and interact */
-	readonly groupsAllowed: string[];
+	/**
+	 * Pool of groups allowed to view and interact with this instance.
+	 * Copied from WorkflowData.participants at start time (overridable).
+	 * transition.groupsAllowed and state.groupsAllowedToModify are subsets of this.
+	 */
+	readonly participants: string[];
 	/** Email of the user who started this workflow */
 	readonly owner: string;
 	/** When this workflow instance was started */

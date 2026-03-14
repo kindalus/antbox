@@ -49,7 +49,13 @@ export interface WorkflowData {
 	readonly states: WorkflowState[];
 	readonly availableStateNames: string[];
 	readonly filters: NodeFilters;
-	readonly groupsAllowed: string[];
+	/**
+	 * The pool of groups that may participate in instances of this workflow.
+	 * All groups listed in transition.groupsAllowed and state.groupsAllowedToModify
+	 * must be a subset of this list. Copied into WorkflowInstanceData.participants
+	 * at start time (overridable via the start API).
+	 */
+	readonly participants: string[];
 	readonly createdTime: string;
 	readonly modifiedTime: string;
 }

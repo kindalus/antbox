@@ -1725,9 +1725,9 @@ paths:
                            type: string
                            format: uuid
                            description: UUID of the workflow definition to use
-                        groupsAllowed:
+                        participants:
                            type: array
-                           description: Optional override for groups allowed to view and interact with this workflow instance. If not specified, uses the workflow definition's groupsAllowed. If empty array, all users can access.
+                           description: Optional override for the pool of groups allowed to view and interact with this workflow instance. If not specified, uses the workflow definition's participants. If empty array, all users can access.
                            items:
                               type: string
                               format: uuid
@@ -1929,9 +1929,9 @@ paths:
                         filters:
                            $ref: "#/components/schemas/NodeFilters"
                            description: Optional filters to restrict which nodes can use this workflow. Empty filters allow all nodes.
-                        groupsAllowed:
+                        participants:
                            type: array
-                           description: Optional list of groups allowed to start and view workflow instances. If empty or omitted, all users can start and view instances.
+                           description: Optional pool of groups allowed to start and view workflow instances. If empty or omitted, all users can start and view instances.
                            items:
                               type: string
                               format: uuid
@@ -3021,7 +3021,7 @@ components:
             - states
             - availableStateNames
             - filters
-            - groupsAllowed
+            - participants
          properties:
             uuid:
                type: string
@@ -3058,9 +3058,9 @@ components:
             filters:
                $ref: "#/components/schemas/NodeFilters"
                description: Filters to restrict which nodes can use this workflow. Empty filters allow all nodes.
-            groupsAllowed:
+            participants:
                type: array
-               description: List of groups allowed to start and view workflow instances. If empty, all users can start and view instances.
+               description: Pool of groups allowed to start and view workflow instances. If empty, all users can start and view instances.
                items:
                   type: string
                   format: uuid
@@ -3131,7 +3131,7 @@ components:
             - currentStateName
             - running
             - cancelled
-            - groupsAllowed
+            - participants
             - owner
             - startedTime
          properties:
@@ -3161,9 +3161,9 @@ components:
                description: History of state transitions
                items:
                   $ref: "#/components/schemas/WorkflowTransitionHistory"
-            groupsAllowed:
+            participants:
                type: array
-               description: List of groups allowed to view and interact with this workflow instance. If empty, all users can view and interact with it. Copied from workflow definition at start time, but can be overridden.
+               description: Pool of groups allowed to view and interact with this workflow instance. If empty, all users can view and interact with it. Copied from workflow definition at start time, but can be overridden.
                items:
                   type: string
                   format: uuid

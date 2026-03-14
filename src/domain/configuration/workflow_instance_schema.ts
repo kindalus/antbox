@@ -19,7 +19,7 @@ const WorkflowDefinitionSnapshotSchema = z.object({
 	modifiedTime: z.string(),
 	states: z.array(z.any()), // Complex nested structure
 	availableStateNames: z.array(z.string()),
-	groupsAllowed: z.array(z.string()),
+	participants: z.array(z.string()),
 });
 
 // Schema for WorkflowInstanceData
@@ -35,7 +35,7 @@ export const WorkflowInstanceDataSchema = z.object({
 	history: z.array(WorkflowTransitionHistorySchema),
 	running: z.boolean(),
 	cancelled: z.boolean(),
-	groupsAllowed: z.array(z.string()),
+	participants: z.array(z.string()),
 	owner: z.string().email("Valid owner email is required"),
 	startedTime: z.string(),
 	modifiedTime: z.string(),

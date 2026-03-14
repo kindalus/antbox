@@ -21,7 +21,7 @@ function baseWorkflow(overrides: Record<string, unknown> = {}) {
 		],
 		availableStateNames: ["draft", "review"],
 		filters: [],
-		groupsAllowed: [],
+		participants: [],
 		createdTime: now,
 		modifiedTime: now,
 		...overrides,
@@ -190,6 +190,55 @@ describe("WorkflowDataSchema", () => {
 			if (!result.success) {
 				const messages = result.error.issues.map((i) => i.message);
 				expect(messages.some((m) => m.includes("unknown state"))).toBe(true);
+			}
+		});
+	});
+
+	describe("subset invariant: groups must be subsets of participants", () => {
+		it("should reject when state.groupsAllowedToModify contains a group not in participants", () => {
+			const data = baseWorkflow({
+				participants: ["--editors--"],
+				states: [
+					{
+						name: "draft",
+						isInitial: true,
+						groupsAllowedToModify: ["--outsiders--"],
+						transitions: [{ signal: "submit", targetState: "review" }],
+					},
+					{ name: "review", isFinal: true },
+				],
+			});
+			const result = WorkflowDataSchema.safeParse(data);
+			expect(result.success).toBe(false);
+			if (!result.success) {
+				const messages = result.error.issues.map((i) => i.message);
+				expect(messages.some((m) => m.includes("groupsAllowedToModify"))).toBe(true);
+			}
+		});
+
+		it("should reject when transition.groupsAllowed contains a group not in participants", () => {
+			const data = baseWorkflow({
+				participants: ["--editors--"],
+				states: [
+					{
+						name: "draft",
+						isInitial: true,
+						transitions: [
+							{
+								signal: "submit",
+								targetState: "review",
+								groupsAllowed: ["--outsiders--"],
+							},
+						],
+					},
+					{ name: "review", isFinal: true },
+				],
+			});
+			const result = WorkflowDataSchema.safeParse(data);
+			expect(result.success).toBe(false);
+			if (!result.success) {
+				const messages = result.error.issues.map((i) => i.message);
+				expect(messages.some((m) => m.includes("groupsAllowed"))).toBe(true);
 			}
 		});
 	});

@@ -31,7 +31,7 @@ export const WorkflowDataSchema = z.object({
 	states: z.array(WorkflowStateSchema).min(1, "Workflow must have at least one state"),
 	availableStateNames: z.array(z.string()).min(1, "Available state names required"),
 	filters: z.array(z.tuple([z.string(), z.string(), z.any()])),
-	groupsAllowed: z.array(z.string()),
+	participants: z.array(z.string()),
 	createdTime: z.string(),
 	modifiedTime: z.string(),
 }).superRefine((data, ctx) => {
@@ -114,6 +114,40 @@ export const WorkflowDataSchema = z.object({
 			message: `availableStateNames contains unknown state(s): ${extra.join(", ")}`,
 			path: ["availableStateNames"],
 		});
+	}
+
+	// transition.groupsAllowed and state.groupsAllowedToModify must be subsets of participants
+	const participantsSet = new Set(data.participants);
+
+	for (let i = 0; i < data.states.length; i++) {
+		const state = data.states[i];
+
+		const outsideModify = (state.groupsAllowedToModify ?? []).filter(
+			(g) => !participantsSet.has(g),
+		);
+		if (outsideModify.length > 0) {
+			ctx.addIssue({
+				code: z.ZodIssueCode.custom,
+				message:
+					`State "${state.name}" groupsAllowedToModify contains group(s) not in participants: ${outsideModify.join(", ")}`,
+				path: ["states", i, "groupsAllowedToModify"],
+			});
+		}
+
+		for (let j = 0; j < (state.transitions ?? []).length; j++) {
+			const transition = state.transitions![j];
+			const outsideTransition = (transition.groupsAllowed ?? []).filter(
+				(g) => !participantsSet.has(g),
+			);
+			if (outsideTransition.length > 0) {
+				ctx.addIssue({
+					code: z.ZodIssueCode.custom,
+					message:
+						`Transition "${transition.signal}" in state "${state.name}" groupsAllowed contains group(s) not in participants: ${outsideTransition.join(", ")}`,
+					path: ["states", i, "transitions", j, "groupsAllowed"],
+				});
+			}
+		}
 	}
 });
 

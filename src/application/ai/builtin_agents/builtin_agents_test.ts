@@ -1,6 +1,7 @@
 import { describe, it } from "bdd";
 import { expect } from "expect";
 import { AgentDataSchema } from "domain/configuration/agent_schema.ts";
+import { RAG_NODE_FILTERING_AGENT } from "./rag_node_filtering_agent_agent.ts";
 import { SEMANTIC_SEARCHER_AGENT } from "./semantic_searcher_agent.ts";
 import { RAG_SUMMARIZER_AGENT } from "./rag_summarizer_agent.ts";
 import { ragAgent } from "./rag_agent.ts";
@@ -16,6 +17,14 @@ describe("builtin agents schema validation", () => {
 
 	it("RAG summarizer agent passes schema validation", () => {
 		const result = AgentDataSchema.safeParse(RAG_SUMMARIZER_AGENT);
+		if (!result.success) {
+			console.error("Validation errors:", result.error.issues);
+		}
+		expect(result.success).toBe(true);
+	});
+
+	it("RAG node filtering agent passes schema validation", () => {
+		const result = AgentDataSchema.safeParse(RAG_NODE_FILTERING_AGENT);
 		if (!result.success) {
 			console.error("Validation errors:", result.error.issues);
 		}
@@ -46,11 +55,20 @@ describe("builtin agents schema validation", () => {
 		expect(RAG_SUMMARIZER_AGENT.agents).toBeUndefined();
 	});
 
-	it("RAG agent is a sequential workflow with two sub-agents", () => {
+	it("RAG node filtering agent is internal and tool-free", () => {
+		expect(RAG_NODE_FILTERING_AGENT.type).toBe("llm");
+		expect(RAG_NODE_FILTERING_AGENT.exposedToUsers).toBe(false);
+		expect(RAG_NODE_FILTERING_AGENT.tools).toBe(false);
+		expect(RAG_NODE_FILTERING_AGENT.systemPrompt).toBeDefined();
+		expect(RAG_NODE_FILTERING_AGENT.agents).toBeUndefined();
+	});
+
+	it("RAG agent is a sequential workflow with three sub-agents", () => {
 		expect(ragAgent.type).toBe("sequential");
 		expect(ragAgent.exposedToUsers).toBe(true);
-		expect(ragAgent.agents).toHaveLength(2);
+		expect(ragAgent.agents).toHaveLength(3);
 		expect(ragAgent.agents).toContain("--semantic-searcher-agent--");
+		expect(ragAgent.agents).toContain("--rag-node-filtering-agent--");
 		expect(ragAgent.agents).toContain("--rag-summarizer-agent--");
 		expect(ragAgent.systemPrompt).toBeUndefined();
 		expect(ragAgent.model).toBeUndefined();

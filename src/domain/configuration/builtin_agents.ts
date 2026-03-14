@@ -1,11 +1,17 @@
 import {
 	builtinAgents,
 	RAG_AGENT_UUID,
+	RAG_NODE_FILTERING_AGENT_UUID,
 	RAG_SUMMARIZER_AGENT_UUID,
 	SEMANTIC_SEARCHER_AGENT_UUID,
 } from "application/ai/builtin_agents/index.ts";
 
-export { RAG_AGENT_UUID, RAG_SUMMARIZER_AGENT_UUID, SEMANTIC_SEARCHER_AGENT_UUID };
+export {
+	RAG_AGENT_UUID,
+	RAG_NODE_FILTERING_AGENT_UUID,
+	RAG_SUMMARIZER_AGENT_UUID,
+	SEMANTIC_SEARCHER_AGENT_UUID,
+};
 
 /**
  * Built-in agents available in all tenants

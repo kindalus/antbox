@@ -42,8 +42,14 @@ function toUrlHost(hostname: string): string {
  * @example
  * await startServer(config);
  */
-async function startServer(config: ServerConfiguration) {
+async function startServer(config: ServerConfiguration, configDir?: string) {
 	const tenants = await setupTenants(getTenantSetupConfiguration(config));
+
+	const reloadFn = async () => {
+		const newConfig = await loadConfiguration(configDir);
+		const newTenants = await setupTenants(getTenantSetupConfiguration(newConfig));
+		tenants.splice(0, tenants.length, ...newTenants);
+	};
 
 	// Start WebDAV path cache cleanup (runs every minute)
 	startPathCacheCleanup(60000);
@@ -53,7 +59,7 @@ async function startServer(config: ServerConfiguration) {
 	let startServerFn;
 	try {
 		const setupServer = await import(`./src/${serverLocation}`);
-		startServerFn = setupServer.default(tenants);
+		startServerFn = setupServer.default(tenants, reloadFn, configDir);
 	} catch (error) {
 		console.error(`Failed to load server engine module: ${serverLocation}`);
 		console.error(error);
@@ -103,7 +109,7 @@ if (import.meta.main) {
 			}
 
 			const config = await loadConfiguration(configDir);
-			await startServer(config);
+			await startServer(config, configDir);
 		})
 		.parse(process.argv);
 }

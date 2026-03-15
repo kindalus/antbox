@@ -1,5 +1,3 @@
-import { ApiKeysService } from "application/security/api_keys_service.ts";
-import { ExternalLoginService } from "application/security/external_login_service.ts";
 import type { Principal } from "application/security/authentication_context.ts";
 import { Groups } from "domain/users_groups/groups.ts";
 import { Users } from "domain/users_groups/users.ts";
@@ -15,28 +13,12 @@ export function authenticationMiddleware(
 	tenants: AntboxTenant[],
 ): HttpMiddleware {
 	return (next: HttpHandler) => {
-		const secrets = new Map<string, Uint8Array>();
-		const externalLoginServices = new Map<string, ExternalLoginService>();
-		const apiKeysServices = new Map<string, ApiKeysService>();
-
-		const initPromise = Promise.all(
-			tenants.map(async (tenant) => {
-				const secret = importKey(tenant.symmetricKey);
-
-				secrets.set(tenant.name, secret);
-				externalLoginServices.set(tenant.name, tenant.externalLoginService);
-				apiKeysServices.set(tenant.name, tenant.apiKeysService);
-			}),
-		);
-
 		return async (req: Request) => {
-			await initPromise;
+			const tenant = getTenant(req, tenants);
 
-			const tenantName = getTenant(req, tenants).name;
-
-			const apiKeysService = apiKeysServices.get(tenantName);
-			const externalLoginService = externalLoginServices.get(tenantName);
-			const secret = secrets.get(tenantName);
+			const secret = importKey(tenant.symmetricKey);
+			const apiKeysService = tenant.apiKeysService;
+			const externalLoginService = tenant.externalLoginService;
 
 			if (!apiKeysService || !externalLoginService || !secret) {
 				storeAnonymous(req);

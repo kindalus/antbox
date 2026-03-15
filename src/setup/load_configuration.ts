@@ -55,7 +55,7 @@ jwks = "antbox.jwks"
 
 [[tenants]]
 name = "default"
-storage = ["sqlite/sqlite_storage_provider.ts", "./data/storage.db"]
+storage = ["flat_file/flat_file_storage_provider.ts", "./data"]
 repository = ["sqlite/sqlite_node_repository.ts", "./data"]
 configurationRepository = ["sqlite/sqlite_configuration_repository.ts", "./data"]
 eventStoreRepository = ["sqlite/sqlite_event_store_repository.ts", "./data"]
@@ -75,7 +75,7 @@ eventStoreRepository = ["sqlite/sqlite_event_store_repository.ts", "./data"]
 	const jwksPath = join(dir, "antbox.jwks");
 	const privateJwkPath = join(dir, "antbox-private.jwk");
 	if (!fileExistsSync(jwksPath) || !fileExistsSync(privateJwkPath)) {
-		const { publicKey, privateKey } = await generateKeyPair("ES256");
+		const { publicKey, privateKey } = await generateKeyPair("ES256", { extractable: true });
 		const pubJwk = { ...(await exportJWK(publicKey)), alg: "ES256", kid: "antbox-auto-key" };
 		const privJwk = { ...(await exportJWK(privateKey)), alg: "ES256", kid: "antbox-auto-key" };
 

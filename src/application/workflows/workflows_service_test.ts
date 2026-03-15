@@ -69,7 +69,7 @@ describe("WorkflowsService", () => {
 				states,
 				availableStateNames: ["draft", "review", "approved"],
 				filters,
-				groupsAllowed: [ADMINS_GROUP_UUID],
+				participants: [ADMINS_GROUP_UUID],
 			});
 
 			expect(result.isRight()).toBe(true);
@@ -93,7 +93,7 @@ describe("WorkflowsService", () => {
 				states: [{ name: "start", isInitial: true }],
 				availableStateNames: ["start"],
 				filters: [],
-				groupsAllowed: [],
+				participants: [],
 			});
 
 			expect(result.isLeft()).toBe(true);
@@ -111,7 +111,7 @@ describe("WorkflowsService", () => {
 				states: [],
 				availableStateNames: [],
 				filters: [],
-				groupsAllowed: [],
+				participants: [],
 			});
 
 			expect(result.isLeft()).toBe(true);
@@ -131,7 +131,7 @@ describe("WorkflowsService", () => {
 				states: [{ name: "start", isInitial: true }],
 				availableStateNames: ["start"],
 				filters: [],
-				groupsAllowed: [],
+				participants: [],
 			});
 
 			expect(createResult.isRight()).toBe(true);
@@ -155,7 +155,7 @@ describe("WorkflowsService", () => {
 				states: [{ name: "start", isInitial: true }],
 				availableStateNames: ["start"],
 				filters: [],
-				groupsAllowed: [],
+				participants: [],
 			});
 
 			expect(createResult.isRight()).toBe(true);
@@ -177,7 +177,7 @@ describe("WorkflowsService", () => {
 				states: [{ name: "start", isInitial: true }],
 				availableStateNames: ["start"],
 				filters: [],
-				groupsAllowed: [],
+				participants: [],
 			});
 
 			await service.createWorkflow(adminCtx, {
@@ -185,7 +185,7 @@ describe("WorkflowsService", () => {
 				states: [{ name: "start", isInitial: true }],
 				availableStateNames: ["start"],
 				filters: [],
-				groupsAllowed: [],
+				participants: [],
 			});
 
 			const result = await service.listWorkflows(adminCtx);
@@ -207,7 +207,7 @@ describe("WorkflowsService", () => {
 				states: [{ name: "start", isInitial: true }],
 				availableStateNames: ["start"],
 				filters: [],
-				groupsAllowed: [],
+				participants: [],
 			});
 
 			expect(createResult.isRight()).toBe(true);
@@ -232,7 +232,7 @@ describe("WorkflowsService", () => {
 				states: [{ name: "start", isInitial: true }],
 				availableStateNames: ["start"],
 				filters: [],
-				groupsAllowed: [],
+				participants: [],
 			});
 
 			expect(createResult.isRight()).toBe(true);
@@ -259,7 +259,7 @@ describe("WorkflowsService", () => {
 				states: [{ name: "start", isInitial: true }],
 				availableStateNames: ["start"],
 				filters: [],
-				groupsAllowed: [],
+				participants: [],
 			});
 
 			expect(createResult.isRight()).toBe(true);
@@ -282,7 +282,7 @@ describe("WorkflowsService", () => {
 				states: [{ name: "start", isInitial: true }],
 				availableStateNames: ["start"],
 				filters: [],
-				groupsAllowed: [],
+				participants: [],
 			});
 
 			expect(createResult.isRight()).toBe(true);

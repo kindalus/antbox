@@ -34,7 +34,7 @@ export class WorkflowsService {
 			states: data.states || [],
 			availableStateNames: data.availableStateNames || [],
 			filters: data.filters || [],
-			groupsAllowed: data.groupsAllowed || [],
+			participants: data.participants || [],
 			createdTime: now,
 			modifiedTime: now,
 		};

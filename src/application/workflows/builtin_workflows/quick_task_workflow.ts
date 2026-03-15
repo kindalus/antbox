@@ -33,7 +33,7 @@ export const QUICK_TASK_WORKFLOW: WorkflowData = {
 	states,
 	availableStateNames: states.map((s) => s.name),
 	filters: [], // Applies to all nodes
-	groupsAllowed: [],
+	participants: [],
 	createdTime: new Date().toISOString(),
 	modifiedTime: new Date().toISOString(),
 };

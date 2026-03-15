@@ -57,7 +57,7 @@ export class WorkflowInstancesEngine {
 		authCtx: AuthenticationContext,
 		nodeUuid: string,
 		workflowDefinitionUuid: string,
-		groupsAllowedOverride?: string[],
+		participantsOverride?: string[],
 	): Promise<Either<AntboxError, WorkflowInstanceData>> {
 		// Check if node already has a workflow instance
 		const existingInstanceOrErr = await this.#workflowInstancesService
@@ -120,7 +120,7 @@ export class WorkflowInstancesEngine {
 			modifiedTime: workflowDef.modifiedTime,
 			states: workflowDef.states,
 			availableStateNames: workflowDef.availableStateNames,
-			groupsAllowed: workflowDef.groupsAllowed,
+			participants: workflowDef.participants,
 		};
 
 		const now = new Date().toISOString();
@@ -133,7 +133,7 @@ export class WorkflowInstancesEngine {
 			running: true,
 			cancelled: false,
 			history: [],
-			groupsAllowed: groupsAllowedOverride ?? workflowDef.groupsAllowed,
+			participants: participantsOverride ?? workflowDef.participants,
 			owner: authCtx.principal.email,
 			startedTime: now,
 			modifiedTime: now,
@@ -168,14 +168,14 @@ export class WorkflowInstancesEngine {
 
 	async transition(
 		authCtx: AuthenticationContext,
-		nodeUuid: string,
+		instanceUuid: string,
 		signal: string,
 		message?: string,
 	): Promise<Either<AntboxError, WorkflowInstanceData>> {
 		// Get workflow instance
-		const instanceOrErr = await this.#workflowInstancesService.getWorkflowInstanceByNodeUuid(
+		const instanceOrErr = await this.#workflowInstancesService.getWorkflowInstance(
 			authCtx,
-			nodeUuid,
+			instanceUuid,
 		);
 		if (instanceOrErr.isLeft()) {
 			return left(instanceOrErr.value);
@@ -183,7 +183,7 @@ export class WorkflowInstancesEngine {
 		let instance = instanceOrErr.value;
 
 		// Check if user is allowed to access this instance
-		if (!this.#hasPermission(authCtx, instance.groupsAllowed)) {
+		if (!this.#hasPermission(authCtx, instance.participants)) {
 			return left(new ForbiddenError());
 		}
 
@@ -212,18 +212,20 @@ export class WorkflowInstancesEngine {
 				modifiedTime: workflowDefOrErr.value.modifiedTime,
 				states: workflowDefOrErr.value.states,
 				availableStateNames: workflowDefOrErr.value.availableStateNames,
-				groupsAllowed: workflowDefOrErr.value.groupsAllowed,
+				participants: workflowDefOrErr.value.participants,
 			};
 
 			// Create updated instance with backfilled data
 			instance = {
 				...instance,
 				workflowDefinition: workflowDef,
-				groupsAllowed: instance.groupsAllowed.length > 0
-					? instance.groupsAllowed
-					: workflowDefOrErr.value.groupsAllowed,
+				participants: instance.participants.length > 0
+					? instance.participants
+					: workflowDefOrErr.value.participants,
 			};
 		}
+
+		const nodeUuid = instance.nodeUuid;
 
 		// Get the node
 		const nodeOrErr = await this.#nodeService.get(authCtx, nodeUuid);
@@ -339,17 +341,18 @@ export class WorkflowInstancesEngine {
 
 	async cancelWorkflow(
 		authCtx: AuthenticationContext,
-		nodeUuid: string,
+		instanceUuid: string,
 	): Promise<Either<AntboxError, WorkflowInstanceData>> {
 		// Get workflow instance
-		const instanceOrErr = await this.#workflowInstancesService.getWorkflowInstanceByNodeUuid(
+		const instanceOrErr = await this.#workflowInstancesService.getWorkflowInstance(
 			authCtx,
-			nodeUuid,
+			instanceUuid,
 		);
 		if (instanceOrErr.isLeft()) {
 			return left(instanceOrErr.value);
 		}
 		const instance = instanceOrErr.value;
+		const nodeUuid = instance.nodeUuid;
 
 		// Check if user is allowed to cancel this instance
 		// Only the owner or admins can cancel
@@ -417,21 +420,22 @@ export class WorkflowInstancesEngine {
 
 	async updateNode(
 		authCtx: AuthenticationContext,
-		nodeUuid: string,
+		instanceUuid: string,
 		metadata: Partial<NodeMetadata>,
 	): Promise<Either<AntboxError, void>> {
 		// Get workflow instance
-		const instanceOrErr = await this.#workflowInstancesService.getWorkflowInstanceByNodeUuid(
+		const instanceOrErr = await this.#workflowInstancesService.getWorkflowInstance(
 			authCtx,
-			nodeUuid,
+			instanceUuid,
 		);
 		if (instanceOrErr.isLeft()) {
 			return left(instanceOrErr.value);
 		}
 		const instance = instanceOrErr.value;
+		const nodeUuid = instance.nodeUuid;
 
 		// Check if user is allowed to access this instance
-		if (!this.#hasPermission(authCtx, instance.groupsAllowed)) {
+		if (!this.#hasPermission(authCtx, instance.participants)) {
 			return left(new ForbiddenError());
 		}
 
@@ -460,7 +464,7 @@ export class WorkflowInstancesEngine {
 				modifiedTime: workflowDefOrErr.value.modifiedTime,
 				states: workflowDefOrErr.value.states,
 				availableStateNames: workflowDefOrErr.value.availableStateNames,
-				groupsAllowed: workflowDefOrErr.value.groupsAllowed,
+				participants: workflowDefOrErr.value.participants,
 			};
 		}
 
@@ -475,7 +479,7 @@ export class WorkflowInstancesEngine {
 		}
 
 		// Check if user is in allowed groups for modification
-		if (!this.#canUserModifyInState(authCtx, currentState, instance.groupsAllowed)) {
+		if (!this.#canUserModifyInState(authCtx, currentState, instance.participants)) {
 			return left(new ForbiddenError());
 		}
 
@@ -499,21 +503,22 @@ export class WorkflowInstancesEngine {
 
 	async updateNodeFile(
 		authCtx: AuthenticationContext,
-		nodeUuid: string,
+		instanceUuid: string,
 		file: File,
 	): Promise<Either<AntboxError, void>> {
 		// Get workflow instance
-		const instanceOrErr = await this.#workflowInstancesService.getWorkflowInstanceByNodeUuid(
+		const instanceOrErr = await this.#workflowInstancesService.getWorkflowInstance(
 			authCtx,
-			nodeUuid,
+			instanceUuid,
 		);
 		if (instanceOrErr.isLeft()) {
 			return left(instanceOrErr.value);
 		}
 		const instance = instanceOrErr.value;
+		const nodeUuid = instance.nodeUuid;
 
 		// Check if user is allowed to access this instance
-		if (!this.#hasPermission(authCtx, instance.groupsAllowed)) {
+		if (!this.#hasPermission(authCtx, instance.participants)) {
 			return left(new ForbiddenError());
 		}
 
@@ -542,7 +547,7 @@ export class WorkflowInstancesEngine {
 				modifiedTime: workflowDefOrErr.value.modifiedTime,
 				states: workflowDefOrErr.value.states,
 				availableStateNames: workflowDefOrErr.value.availableStateNames,
-				groupsAllowed: workflowDefOrErr.value.groupsAllowed,
+				participants: workflowDefOrErr.value.participants,
 			};
 		}
 
@@ -557,7 +562,7 @@ export class WorkflowInstancesEngine {
 		}
 
 		// Check if user is in allowed groups for modification
-		if (!this.#canUserModifyInState(authCtx, currentState, instance.groupsAllowed)) {
+		if (!this.#canUserModifyInState(authCtx, currentState, instance.participants)) {
 			return left(new ForbiddenError());
 		}
 
@@ -587,33 +592,33 @@ export class WorkflowInstancesEngine {
 		return ctx.principal.groups.includes(ADMINS_GROUP_UUID);
 	}
 
-	#hasPermission(ctx: AuthenticationContext, groupsAllowed: string[]): boolean {
+	#hasPermission(ctx: AuthenticationContext, participants: string[]): boolean {
 		// Admins have access to everything
 		if (this.#isAdmin(ctx)) {
 			return true;
 		}
 
-		// If groupsAllowed is empty, everyone has access
-		if (!groupsAllowed || groupsAllowed.length === 0) {
+		// If participants is empty, everyone has access
+		if (!participants || participants.length === 0) {
 			return true;
 		}
 
-		// Check if user is in any of the allowed groups
-		return ctx.principal.groups.some((g) => groupsAllowed.includes(g));
+		// Check if user is in any of the participant groups
+		return ctx.principal.groups.some((g) => participants.includes(g));
 	}
 
 	#canUserModifyInState(
 		authCtx: AuthenticationContext,
 		state: { groupsAllowedToModify?: string[] },
-		workflowGroupsAllowed?: string[],
+		participants?: string[],
 	): boolean {
 		// Admins can always modify
 		if (this.#isAdmin(authCtx)) {
 			return true;
 		}
 
-		// Use state's groupsAllowedToModify if specified, otherwise use workflow's groupsAllowed
-		const allowedGroups = state.groupsAllowedToModify || workflowGroupsAllowed || [];
+		// Use state's groupsAllowedToModify if specified, otherwise fall back to instance participants
+		const allowedGroups = state.groupsAllowedToModify || participants || [];
 
 		// If no groups specified, all users can modify
 		if (allowedGroups.length === 0) {

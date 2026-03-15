@@ -104,6 +104,12 @@ export class Node {
 		if (metadata.unlockAuthorizedGroups !== undefined) {
 			this._unlockAuthorizedGroups = metadata.unlockAuthorizedGroups;
 		}
+		if (metadata.workflowInstanceUuid !== undefined) {
+			this._workflowInstanceUuid = metadata.workflowInstanceUuid ?? undefined;
+		}
+		if (metadata.workflowState !== undefined) {
+			this._workflowState = metadata.workflowState ?? undefined;
+		}
 
 		if (!this._fid?.length) {
 			this._fid = FidGenerator.generate(this._title);
@@ -186,6 +192,8 @@ export class Node {
 			locked: this.locked,
 			lockedBy: this.lockedBy,
 			unlockAuthorizedGroups: this.unlockAuthorizedGroups,
+			workflowInstanceUuid: this._workflowInstanceUuid,
+			workflowState: this._workflowState,
 		};
 	}
 

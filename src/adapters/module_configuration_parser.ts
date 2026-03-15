@@ -1,7 +1,6 @@
 import type { ModuleConfiguration } from "api/http_server_configuration.ts";
 import type { AntboxError } from "shared/antbox_error.ts";
 import type { Either } from "shared/either.ts";
-import { Logger } from "shared/logger.ts";
 
 /**
  * Loads and instantiates an adapter module from a ModuleConfiguration tuple.
@@ -29,15 +28,12 @@ export async function providerFrom<T>(
 	const [modulePath, ...params] = cfg;
 	const mod = await loadModule<T>(modulePath);
 	if (!mod) {
-		Logger.error("could not load module");
-		Deno.exit(-1);
+		throw new Error(`Could not load module`);
 	}
 
 	const providerOrErr = await mod(...params);
 	if (providerOrErr.isLeft()) {
-		Logger.error("could not load provider");
-		Logger.error(providerOrErr.value);
-		Deno.exit(-1);
+		throw new Error(`Could not initialize provider: ${providerOrErr.value}`);
 	}
 
 	return providerOrErr.value;
@@ -52,14 +48,11 @@ async function loadModule<T>(
 		const m = await import(path);
 
 		if (!m.default) {
-			Logger.error(`module [${path}] has no default export`);
-			Deno.exit(-1);
+			throw new Error(`Module [${path}] has no default export`);
 		}
 
 		return m.default;
 	} catch (e) {
-		Logger.error("could not load module");
-		Logger.error(e);
-		Deno.exit(-1);
+		throw new Error(`Could not load module [${path}]: ${e}`);
 	}
 }

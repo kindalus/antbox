@@ -1,3 +1,29 @@
+import { z } from "zod";
+
+export const ModuleConfigurationSchema = z.tuple([z.string()]).rest(z.string());
+
+export const AIConfigurationSchema = z.object({
+	enabled: z.boolean(),
+	defaultModel: z.string().min(1),
+	embeddingProvider: ModuleConfigurationSchema.optional(),
+	ocrProvider: ModuleConfigurationSchema.optional(),
+	skillsPath: z.string().optional(),
+});
+
+export const TenantConfigurationSchema = z.object({
+	name: z.string().min(1),
+	rootPasswd: z.string().optional(),
+	key: z.string().optional(),
+	jwks: z.string().optional(),
+	storage: ModuleConfigurationSchema,
+	repository: ModuleConfigurationSchema,
+	configurationRepository: ModuleConfigurationSchema,
+	eventStoreRepository: ModuleConfigurationSchema,
+	ai: AIConfigurationSchema.optional(),
+});
+
+export const TenantsConfigurationSchema = z.array(TenantConfigurationSchema).min(1);
+
 export interface ServerConfiguration {
 	port?: number;
 	engine?: string;

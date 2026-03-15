@@ -43,7 +43,13 @@ function toUrlHost(hostname: string): string {
  * await startServer(config);
  */
 async function startServer(config: ServerConfiguration, configDir?: string) {
-	const tenants = await setupTenants(getTenantSetupConfiguration(config));
+	let tenants;
+	try {
+		tenants = await setupTenants(getTenantSetupConfiguration(config));
+	} catch (err) {
+		console.error("Failed to setup tenants on startup:", err);
+		Deno.exit(-1);
+	}
 
 	const reloadFn = async () => {
 		const newConfig = await loadConfiguration(configDir);

@@ -1,11 +1,17 @@
 import { defaultMiddlewareChain } from "./default_middleware_chain.ts";
 import { getAuthenticationContext } from "./get_authentication_context.ts";
-import { type HttpHandler, sendBadRequest, sendForbidden, sendOK } from "./handler.ts";
+import {
+	type HttpHandler,
+	sendForbidden,
+	sendInternalServerError,
+	sendOK,
+	sendUnprocessableEntity,
+} from "./handler.ts";
 import type { AntboxTenant } from "./antbox_tenant.ts";
 import { Users } from "domain/users_groups/users.ts";
 import { loadConfiguration } from "setup/load_configuration.ts";
 import { saveTenantConfiguration } from "setup/save_configuration.ts";
-import type { TenantConfiguration } from "api/http_server_configuration.ts";
+import { TenantsConfigurationSchema } from "api/http_server_configuration.ts";
 
 export function adminRuntimeHandler(tenants: AntboxTenant[]): HttpHandler {
 	return defaultMiddlewareChain(tenants, (_req: Request): Promise<Response> => {
@@ -64,13 +70,24 @@ export function adminTenantsUpdateHandler(
 			return sendForbidden();
 		}
 
-		const body = await req.json() as TenantConfiguration[];
-		if (!Array.isArray(body) || body.length === 0) {
-			return sendBadRequest({ error: "tenants must be a non-empty array" });
+		const body = await req.json();
+
+		const validation = TenantsConfigurationSchema.safeParse(body);
+		if (!validation.success) {
+			return sendUnprocessableEntity({ errors: validation.error.flatten() });
 		}
 
-		await saveTenantConfiguration(configDir, body);
-		await reload();
+		const oldConfig = await loadConfiguration(configDir);
+
+		await saveTenantConfiguration(configDir, validation.data);
+
+		try {
+			await reload();
+		} catch (err) {
+			await saveTenantConfiguration(configDir, oldConfig.tenants);
+			return sendInternalServerError({ error: String(err) });
+		}
+
 		return sendOK({ updated: true });
 	});
 }

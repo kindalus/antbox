@@ -145,6 +145,15 @@ paths:
                   application/json:
                      schema:
                         $ref: "#/components/schemas/AntboxError"
+            "422":
+               description: Invalid tenant configuration
+               content:
+                  application/json:
+                     schema:
+                        type: object
+                        properties:
+                           errors:
+                              type: object
             default:
                $ref: "#/components/responses/Error"
    /actions:

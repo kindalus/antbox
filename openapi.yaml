@@ -13,6 +13,10 @@ security:
    - apiKeyHeader: []
    - apiKeyQuery: []
 tags:
+   - name: admin
+     description: Server administration operations (root-only)
+   - name: heartbeat
+     description: Server health check
    - name: actions
      description: Operations related to actions
    - name: agents
@@ -48,6 +52,101 @@ tags:
    - name: workflows
      description: Operations related to workflow instances
 paths:
+   /heartbeat:
+      get:
+         tags:
+            - heartbeat
+         summary: Server health check
+         operationId: heartbeat
+         description: Public endpoint. Returns server status and current timestamp. No authentication required.
+         security:
+            - {}
+         responses:
+            "200":
+               description: Server is up
+               content:
+                  application/json:
+                     schema:
+                        type: object
+                        required:
+                           - status
+                           - timestamp
+                        properties:
+                           status:
+                              type: string
+                              example: ok
+                           timestamp:
+                              type: string
+                              format: date-time
+   /admin/tenants:
+      get:
+         tags:
+            - admin
+         summary: Get tenant configurations
+         operationId: getAdminTenants
+         description: Returns the current TenantConfiguration array as stored in config.toml. Root-only.
+         security:
+            - bearerAuth: []
+            - cookieAuth: []
+         responses:
+            "200":
+               description: List of tenant configurations
+               content:
+                  application/json:
+                     schema:
+                        type: array
+                        items:
+                           $ref: "#/components/schemas/TenantConfiguration"
+            "403":
+               description: Forbidden - caller is not the root user
+               content:
+                  application/json:
+                     schema:
+                        $ref: "#/components/schemas/AntboxError"
+            default:
+               $ref: "#/components/responses/Error"
+      put:
+         tags:
+            - admin
+         summary: Replace tenant configurations
+         operationId: updateAdminTenants
+         description: Replaces the full tenant list in config.toml and triggers an in-process reload. Root-only.
+         security:
+            - bearerAuth: []
+            - cookieAuth: []
+         requestBody:
+            required: true
+            content:
+               application/json:
+                  schema:
+                     type: array
+                     minItems: 1
+                     items:
+                        $ref: "#/components/schemas/TenantConfiguration"
+         responses:
+            "200":
+               description: Tenants updated and reloaded
+               content:
+                  application/json:
+                     schema:
+                        type: object
+                        properties:
+                           updated:
+                              type: boolean
+            "400":
+               description: Bad request - tenants must be a non-empty array
+               content:
+                  application/json:
+                     schema:
+                        $ref: "#/components/schemas/AntboxError"
+            "403":
+               description: Forbidden - caller is not the root user
+               content:
+                  application/json:
+                     schema:
+                        $ref: "#/components/schemas/AntboxError"
+            default:
+               $ref: "#/components/responses/Error"
    /actions:
       get:
          tags:
@@ -594,6 +693,22 @@ paths:
                            $ref: "#/components/schemas/DocInfo"
             default:
                $ref: "#/components/responses/Error"
+   /docs/api:
+      get:
+         tags:
+            - docs
+         summary: Interactive API explorer
+         operationId: apiExplorer
+         description: Serves a Scalar UI page that renders the OpenAPI spec. No authentication required.
+         security:
+            - {}
+         responses:
+            "200":
+               description: HTML explorer page
+               content:
+                  text/html:
+                     schema:
+                        type: string
    "/docs/{uuid}":
       get:
          tags:
@@ -1999,6 +2114,61 @@ paths:
                $ref: "#/components/responses/Error"
 components:
    schemas:
+      ModuleConfiguration:
+         type: array
+         description: "Module path followed by zero or more string parameters: [modulePath, ...params]"
+         minItems: 1
+         items:
+            type: string
+      AIConfiguration:
+         type: object
+         required:
+            - enabled
+            - defaultModel
+         properties:
+            enabled:
+               type: boolean
+            defaultModel:
+               type: string
+               description: "ADK model string, e.g. \"google/gemini-2.5-flash\""
+            embeddingProvider:
+               $ref: "#/components/schemas/ModuleConfiguration"
+            ocrProvider:
+               $ref: "#/components/schemas/ModuleConfiguration"
+            skillsPath:
+               type: string
+               description: Path to extra skills directory
+      TenantConfiguration:
+         type: object
+         required:
+            - name
+            - storage
+            - repository
+            - configurationRepository
+            - eventStoreRepository
+         properties:
+            name:
+               type: string
+               description: Tenant identifier
+            rootPasswd:
+               type: string
+               description: Optional tenant-level root password override
+            key:
+               type: string
+               description: Path to symmetric key file
+            jwks:
+               type: string
+               description: Path or URL to JWKS file
+            storage:
+               $ref: "#/components/schemas/ModuleConfiguration"
+            repository:
+               $ref: "#/components/schemas/ModuleConfiguration"
+            configurationRepository:
+               $ref: "#/components/schemas/ModuleConfiguration"
+            eventStoreRepository:
+               $ref: "#/components/schemas/ModuleConfiguration"
+            ai:
+               $ref: "#/components/schemas/AIConfiguration"
       Agent:
          type: object
          description: AI Agent configuration data.

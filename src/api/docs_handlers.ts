@@ -5,6 +5,50 @@ import { type HttpHandler, sendBadRequest, sendNotFound } from "./handler.ts";
 import { DOCS, loadDoc } from "../../docs/index.ts";
 
 // ============================================================================
+// OPENAPI / DOCS EXPLORER HANDLERS
+// ============================================================================
+
+/**
+ * Serves the raw OpenAPI spec file.
+ * GET /openapi.yaml  (mounted outside /v2)
+ */
+export function openapiSpecHandler(specPath: string): HttpHandler {
+	return async (_req: Request): Promise<Response> => {
+		const text = await Deno.readTextFile(specPath);
+		return new Response(text, {
+			status: 200,
+			headers: { "Content-Type": "application/yaml" },
+		});
+	};
+}
+
+/**
+ * Serves a Scalar UI HTML page pointing at /openapi.yaml.
+ * GET /v2/docs/api
+ */
+export function apiExplorerHandler(): HttpHandler {
+	const html = `<!doctype html>
+<html>
+  <head>
+    <title>Antbox API</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+  </head>
+  <body>
+    <script id="api-reference" data-url="/openapi.yaml"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
+  </body>
+</html>`;
+	return (_req: Request): Promise<Response> =>
+		Promise.resolve(
+			new Response(html, {
+				status: 200,
+				headers: { "Content-Type": "text/html; charset=utf-8" },
+			}),
+		);
+}
+
+// ============================================================================
 // DOCS HANDLERS
 // ============================================================================
 

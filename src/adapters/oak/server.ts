@@ -1,3 +1,6 @@
+import { join } from "node:path";
+import { openapiSpecHandler } from "api/docs_handlers.ts";
+import { adapt } from "./adapt.ts";
 import webdavRouter from "adapters/oak/webdav_router.ts";
 import loginRouter from "adapters/oak/login_v2_router.ts";
 import nodesRouter from "adapters/oak/nodes_v2_router.ts";
@@ -42,6 +45,11 @@ export default function setupOakServer(
 	configDir?: string,
 ): startHttpServer {
 	const app = new Application();
+
+	const specPath = join(Deno.cwd(), "openapi.yaml");
+	const specRouter = new Router();
+	specRouter.get("/openapi.yaml", adapt(openapiSpecHandler(specPath)));
+	app.use(specRouter.routes(), specRouter.allowedMethods());
 
 	const webdav = webdavRouter(tenants);
 

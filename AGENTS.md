@@ -91,3 +91,20 @@ async create(data: NodeMetadata): Promise<Either<ValidationError, Node>>
 - Use Zod for all input validation
 - Use Either pattern for error handling instead of exceptions
 - New adapters must implement the corresponding interface from `src/domain/` or `src/application/`
+
+## API Changes
+
+- Any new or removed HTTP endpoint **must** have a corresponding `openapi.yaml` update in the same commit — spec and implementation must never drift
+- Before adding an endpoint, check whether its path, tags, and schemas already exist in `openapi.yaml` to avoid duplication
+- Public/unauthenticated endpoints must include `security: [{}]` in the spec entry
+
+## Testing
+
+- Every new handler or service method must have at least one test covering the happy path
+- Run `deno task test` before committing to ensure nothing is broken
+- Tests live next to the code they cover (e.g., `foo_service_test.ts` alongside `foo_service.ts`)
+
+## Impact Analysis
+
+- Before refactoring middleware or shared utilities, identify all call sites and verify behaviour is preserved
+- If a change affects authentication, multi-tenancy, or the event bus, call out the impact explicitly before proceeding

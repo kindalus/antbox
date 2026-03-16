@@ -29,7 +29,7 @@ export function adminRuntimeHandler(tenants: AntboxTenant[]): HttpHandler {
 		return Promise.resolve(sendOK({
 			deno: Deno.version,
 			memory: Deno.memoryUsage(),
-			uptime: Deno.uptime(),
+			uptime: Deno.osUptime(),
 			tenants: tenants.map((t) => t.name),
 		}));
 	});

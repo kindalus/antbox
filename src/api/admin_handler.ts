@@ -4,18 +4,24 @@ import {
 	type HttpHandler,
 	sendForbidden,
 	sendInternalServerError,
+	sendNotFound,
 	sendOK,
 	sendUnprocessableEntity,
 } from "./handler.ts";
 import type { AntboxTenant } from "./antbox_tenant.ts";
+import { getTenant } from "./get_tenant.ts";
 import { Users } from "domain/users_groups/users.ts";
 import { loadConfiguration } from "setup/load_configuration.ts";
 import { saveTenantConfiguration } from "setup/save_configuration.ts";
 import { TenantsConfigurationSchema } from "api/http_server_configuration.ts";
 
 export function adminRuntimeHandler(tenants: AntboxTenant[]): HttpHandler {
-	return defaultMiddlewareChain(tenants, (_req: Request): Promise<Response> => {
-		const ctx = getAuthenticationContext(_req);
+	return defaultMiddlewareChain(tenants, (req: Request): Promise<Response> => {
+		if (getTenant(req, tenants) !== tenants[0]) {
+			return Promise.resolve(sendNotFound());
+		}
+
+		const ctx = getAuthenticationContext(req);
 		if (ctx.principal.email !== Users.ROOT_USER_EMAIL) {
 			return Promise.resolve(sendForbidden());
 		}
@@ -33,8 +39,12 @@ export function adminReloadHandler(
 	tenants: AntboxTenant[],
 	reload: () => Promise<void>,
 ): HttpHandler {
-	return defaultMiddlewareChain(tenants, async (_req: Request): Promise<Response> => {
-		const ctx = getAuthenticationContext(_req);
+	return defaultMiddlewareChain(tenants, async (req: Request): Promise<Response> => {
+		if (getTenant(req, tenants) !== tenants[0]) {
+			return sendNotFound();
+		}
+
+		const ctx = getAuthenticationContext(req);
 		if (ctx.principal.email !== Users.ROOT_USER_EMAIL) {
 			return sendForbidden();
 		}
@@ -48,8 +58,12 @@ export function adminTenantsGetHandler(
 	tenants: AntboxTenant[],
 	configDir?: string,
 ): HttpHandler {
-	return defaultMiddlewareChain(tenants, async (_req: Request): Promise<Response> => {
-		const ctx = getAuthenticationContext(_req);
+	return defaultMiddlewareChain(tenants, async (req: Request): Promise<Response> => {
+		if (getTenant(req, tenants) !== tenants[0]) {
+			return sendNotFound();
+		}
+
+		const ctx = getAuthenticationContext(req);
 		if (ctx.principal.email !== Users.ROOT_USER_EMAIL) {
 			return sendForbidden();
 		}
@@ -65,6 +79,10 @@ export function adminTenantsUpdateHandler(
 	configDir?: string,
 ): HttpHandler {
 	return defaultMiddlewareChain(tenants, async (req: Request): Promise<Response> => {
+		if (getTenant(req, tenants) !== tenants[0]) {
+			return sendNotFound();
+		}
+
 		const ctx = getAuthenticationContext(req);
 		if (ctx.principal.email !== Users.ROOT_USER_EMAIL) {
 			return sendForbidden();

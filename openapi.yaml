@@ -78,6 +78,82 @@ paths:
                            timestamp:
                               type: string
                               format: date-time
+   /admin/runtime:
+      get:
+         tags:
+            - admin
+         summary: Get server runtime info
+         operationId: getAdminRuntime
+         description: Returns Deno version, memory usage, uptime and tenant list. Root-only. Only available on the default tenant.
+         security:
+            - bearerAuth: []
+            - cookieAuth: []
+         responses:
+            "200":
+               description: Runtime information
+               content:
+                  application/json:
+                     schema:
+                        type: object
+                        properties:
+                           deno:
+                              type: object
+                           memory:
+                              type: object
+                           uptime:
+                              type: number
+                           tenants:
+                              type: array
+                              items:
+                                 type: string
+            "403":
+               description: Forbidden - caller is not the root user
+               content:
+                  application/json:
+                     schema:
+                        $ref: "#/components/schemas/AntboxError"
+            "404":
+               description: Not found - admin endpoints are only available on the default tenant
+               content:
+                  application/json:
+                     schema:
+                        $ref: "#/components/schemas/AntboxError"
+            default:
+               $ref: "#/components/responses/Error"
+   /admin/reload:
+      post:
+         tags:
+            - admin
+         summary: Reload server configuration
+         operationId: adminReload
+         description: Triggers an in-process reload of all tenant configurations. Root-only. Only available on the default tenant.
+         security:
+            - bearerAuth: []
+            - cookieAuth: []
+         responses:
+            "200":
+               description: Server reloaded
+               content:
+                  application/json:
+                     schema:
+                        type: object
+                        properties:
+                           reloaded:
+                              type: boolean
+            "403":
+               description: Forbidden - caller is not the root user
+               content:
+                  application/json:
+                     schema:
+                        $ref: "#/components/schemas/AntboxError"
+            "404":
+               description: Not found - admin endpoints are only available on the default tenant
+               content:
+                  application/json:
+                     schema:
+                        $ref: "#/components/schemas/AntboxError"
+            default:
+               $ref: "#/components/responses/Error"
    /admin/tenants:
       get:
          tags:
@@ -99,6 +175,12 @@ paths:
                            $ref: "#/components/schemas/TenantConfiguration"
             "403":
                description: Forbidden - caller is not the root user
+               content:
+                  application/json:
+                     schema:
+                        $ref: "#/components/schemas/AntboxError"
+            "404":
+               description: Not found - admin endpoints are only available on the default tenant
                content:
                   application/json:
                      schema:
@@ -141,6 +223,12 @@ paths:
                         $ref: "#/components/schemas/AntboxError"
             "403":
                description: Forbidden - caller is not the root user
+               content:
+                  application/json:
+                     schema:
+                        $ref: "#/components/schemas/AntboxError"
+            "404":
+               description: Not found - admin endpoints are only available on the default tenant
                content:
                   application/json:
                      schema:

@@ -80,7 +80,7 @@ export class SqliteNodeRepository implements NodeRepository {
 
 		this.#ensureEmbeddingContentColumn();
 
-		this.#db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_nodes_fid ON nodes(fid);");
+		this.#db.exec("CREATE INDEX IF NOT EXISTS idx_nodes_fid ON nodes(fid);");
 		this.#db.exec("CREATE INDEX IF NOT EXISTS idx_nodes_parent ON nodes(parent);");
 		this.#db.exec("CREATE INDEX IF NOT EXISTS idx_nodes_mimetype ON nodes(mimetype);");
 

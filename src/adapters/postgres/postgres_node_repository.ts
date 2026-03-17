@@ -62,7 +62,7 @@ export class PostgresNodeRepository implements NodeRepository {
 			await this.#sql`
 				CREATE TABLE IF NOT EXISTS nodes (
 					uuid TEXT PRIMARY KEY,
-					fid TEXT UNIQUE NOT NULL,
+					fid TEXT NOT NULL,
 					title TEXT,
 					parent TEXT,
 					mimetype TEXT,

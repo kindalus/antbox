@@ -37,7 +37,7 @@ Per tenant, the main adapter slots are:
 
 ## Common built-ins
 
-- repositories: `inmem`, `flat_file`, `mongodb`, `pouchdb`, `sqlite`, `postgres`
+- repositories: `inmem`, `flat_file`, `mongodb`, `sqlite`, `postgres`
 - storage: `inmem`, `flat_file`, `google_drive`, `s3`
 - embeddings: deterministic and provider-backed adapters (for example Gemini)
 - OCR: null/text and provider-backed OCR adapters

@@ -16,7 +16,7 @@ single API-first runtime.
 - **Workflows** - Workflow definitions + runtime instances with transitions
 - **Multi-Tenant** - Tenant-level isolation for repositories, storage, and keys
 - **Pluggable Storage** - S3, Google Drive, flat-file, in-memory, null
-- **Pluggable Repositories** - SQLite, PostgreSQL, MongoDB, PouchDB, flat-file, in-memory
+- **Pluggable Repositories** - SQLite, PostgreSQL, MongoDB, flat-file, in-memory
 - **Security** - JWT, API keys, group-based authorization, and audit endpoints
 
 ## Quick Start

@@ -42,7 +42,7 @@ Antbox is an Enterprise Content Management (ECM) / Digital Asset Management (DAM
 3. **Adapters** (`src/adapters/`) - Infrastructure implementations
    - HTTP: Oak framework (`oak/`)
    - Storage: S3, Google Drive, flat-file, in-memory
-   - Repositories: SQLite, PostgreSQL, MongoDB, PouchDB, flat-file, in-memory
+   - Repositories: SQLite, PostgreSQL, MongoDB, flat-file, in-memory
    - AI Models: Google Gemini, OpenAI, Anthropic, Ollama
 
 4. **API** (`src/api/`) - HTTP handlers and middleware
@@ -50,31 +50,35 @@ Antbox is an Enterprise Content Management (ECM) / Digital Asset Management (DAM
 ### Key Patterns
 
 **Either<Error, Value>** - Used throughout for explicit error handling (no exceptions):
+
 ```typescript
 async create(data: NodeMetadata): Promise<Either<ValidationError, Node>>
 // Returns left(error) or right(value)
 ```
 
 **Service/Engine Separation**:
+
 - Services manage state/configuration (CRUD, persistence)
 - Engines execute dynamic behavior (run workflows, AI agents, custom features)
 
 **Multi-Tenancy** - Each tenant is completely isolated:
+
 - Separate database, storage, event store, and crypto keys per tenant
 - Configuration-driven tenant assembly in `src/setup/`
 
 **Event-Driven** - Domain events for audit trails and loose coupling:
+
 - Event bus in `src/adapters/inmem/inmem_event_bus.ts`
 - Events: `NodeCreatedEvent`, `NodeUpdatedEvent`, `NodeDeletedEvent`, etc.
 
 ### Core Abstractions
 
-| Interface | Purpose | Implementations |
-|-----------|---------|-----------------|
-| `NodeRepository` | Node metadata persistence | sqlite, postgres, mongodb, pouchdb, flat_file, inmem |
-| `StorageProvider` | File blob storage | s3, google_drive, flat_file, inmem, null |
-| `ConfigurationRepository` | System config (users, groups, workflows, etc.) | sqlite, postgres, mongodb, inmem |
-| `EventStoreRepository` | Immutable audit log | sqlite, postgres, mongodb, flat_file, inmem |
+| Interface                 | Purpose                                        | Implementations                             |
+| ------------------------- | ---------------------------------------------- | ------------------------------------------- |
+| `NodeRepository`          | Node metadata persistence                      | sqlite, postgres, mongodb, flat_file, inmem |
+| `StorageProvider`         | File blob storage                              | s3, google_drive, flat_file, inmem, null    |
+| `ConfigurationRepository` | System config (users, groups, workflows, etc.) | sqlite, postgres, mongodb, inmem            |
+| `EventStoreRepository`    | Immutable audit log                            | sqlite, postgres, mongodb, flat_file, inmem |
 
 ### Entry Points
 

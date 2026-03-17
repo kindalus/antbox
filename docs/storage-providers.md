@@ -71,7 +71,7 @@ Example `s3-config.json`:
 
 ## Related Adapters
 
-- **Repositories**: `inmem`, `flat_file`, `mongodb`, `pouchdb`
+- **Repositories**: `inmem`, `flat_file`, `mongodb`
 - **Vector databases** (for AI): `inmem`, `flat_file`
 
 See `docs/architecture.md` for a broader overview of adapters.

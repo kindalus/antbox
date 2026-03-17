@@ -28,8 +28,6 @@
     "jsdom": "npm:jsdom@27.0.0",
     "marked": "npm:marked@16.4.0",
     "mongodb": "npm:mongodb@6.20.0",
-    "pouchdb": "npm:pouchdb@9.0.0",
-    "pouchdb-find": "npm:pouchdb-find@9.0.0",
     "s3": "jsr:@hk/s3@0.1.0",
     "zod": "npm:zod@4.3.6"
   },

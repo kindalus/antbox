@@ -93,7 +93,10 @@ export class NodesFilters {
 	}
 
 	static #getFieldValue(node: NodeLike, fieldPath: string): unknown {
-		const fields = fieldPath.split(".");
+		const normalized = !fieldPath.startsWith("properties.") && fieldPath.includes(":")
+			? `properties.${fieldPath}`
+			: fieldPath;
+		const fields = normalized.split(".");
 
 		let acc: Record<string, unknown> | NodeLike = node;
 

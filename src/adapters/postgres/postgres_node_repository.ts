@@ -438,7 +438,8 @@ export class PostgresNodeRepository implements NodeRepository {
 		params: unknown[],
 		paramIndex: number,
 	): { clause: string; newParamIndex: number } {
-		const [field, operator, value] = filter;
+		const [rawField, operator, value] = filter;
+		const field = normalizeFieldName(rawField);
 
 		// Promoted columns use direct SQL, others use JSONB
 		const promotedColumns = ["uuid", "fid", "title", "parent", "mimetype"];
@@ -621,4 +622,11 @@ export class PostgresNodeRepository implements NodeRepository {
 	async close(): Promise<void> {
 		await this.#sql.end();
 	}
+}
+
+function normalizeFieldName(field: string): string {
+	if (!field.startsWith("properties.") && field.includes(":")) {
+		return `properties.${field}`;
+	}
+	return field;
 }

@@ -434,7 +434,8 @@ export class SqliteNodeRepository implements NodeRepository {
 	}
 
 	#filterToSql(filter: NodeFilter, params: BindValue[]): string {
-		const [field, operator, value] = filter;
+		const [rawField, operator, value] = filter;
+		const field = normalizeFieldName(rawField);
 
 		const promotedColumns = ["uuid", "fid", "title", "parent", "mimetype"];
 		const columnRef = promotedColumns.includes(field)
@@ -535,3 +536,10 @@ const operatorMap: Record<FilterOperator, SqlBuilder> = {
 		return `(${conditions.join(" AND ")})`;
 	},
 };
+
+function normalizeFieldName(field: string): string {
+	if (!field.startsWith("properties.") && field.includes(":")) {
+		return `properties.${field}`;
+	}
+	return field;
+}

@@ -98,8 +98,8 @@ export interface NodeMetadata {
 	// Present in: SmartFolderNode (required), FolderNode (optional)
 	// ============================================================================
 
-	/** Filter conditions for dynamic content */
-	filters?: NodeFilters;
+	/** Filter conditions for dynamic content (structured filters or filter query string) */
+	filters?: NodeFilters | string;
 
 	// ============================================================================
 	// ArticleNode FIELDS

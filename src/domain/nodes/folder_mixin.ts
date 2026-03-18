@@ -5,6 +5,7 @@ import { Permissions } from "domain/nodes/node.ts";
 import { NodeFilters } from "domain/nodes/node_filter.ts";
 import { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
+import { NodesFilters } from "../nodes_filters.ts";
 import { z } from "zod";
 import { toPropertyError } from "../validation_schemas.ts";
 
@@ -53,7 +54,7 @@ export function FolderMixin<TBase extends Constructor>(Base: TBase) {
 				this._group = metadata.group;
 			}
 
-			this._filters = metadata.filters ?? [];
+			this._filters = resolveFilters(metadata.filters);
 			this._permissions = metadata.permissions ?? {
 				group: ["Read", "Write", "Export"],
 				authenticated: ["Read", "Export"],
@@ -90,7 +91,9 @@ export function FolderMixin<TBase extends Constructor>(Base: TBase) {
 			this._onCreate = metadata.onCreate ?? this._onCreate;
 			this._onUpdate = metadata.onUpdate ?? this._onUpdate;
 			this._onDelete = metadata.onDelete ?? this._onDelete;
-			this._filters = metadata.filters ?? this._filters;
+			this._filters = metadata.filters !== undefined
+				? resolveFilters(metadata.filters)
+				: this._filters;
 			this._permissions = metadata.permissions ?? this._permissions;
 
 			return super.update(metadata);
@@ -118,4 +121,13 @@ export function FolderMixin<TBase extends Constructor>(Base: TBase) {
 			};
 		}
 	};
+}
+
+function resolveFilters(filters: NodeFilters | string | undefined): NodeFilters {
+	if (typeof filters === "string") {
+		const filtersOrErr = NodesFilters.parse(filters);
+		return filtersOrErr.isRight() ? filtersOrErr.value : [];
+	}
+
+	return filters ?? [];
 }

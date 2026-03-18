@@ -16,7 +16,7 @@ const SmartFolderValidationSchema = z.object({
 
 export class SmartFolderNode extends Node {
 	static create(
-		metadata: Partial<SmartFolderNode> = {},
+		metadata: Partial<NodeMetadata> = {},
 	): Either<ValidationError, SmartFolderNode> {
 		try {
 			return right(new SmartFolderNode(metadata));
@@ -30,13 +30,7 @@ export class SmartFolderNode extends Node {
 	constructor(metadata: Partial<NodeMetadata> = {}) {
 		super({ ...metadata, mimetype: Nodes.SMART_FOLDER_MIMETYPE });
 
-		if (typeof metadata.filters === "string") {
-			const filtersOrErr = NodesFilters.parse(metadata.filters);
-
-			if (filtersOrErr.isRight()) this._filters = filtersOrErr.value;
-		} else {
-			this._filters = metadata.filters ?? [];
-		}
+		this._filters = SmartFolderNode.#resolveFilters(metadata.filters);
 
 		this._validateSmartFolderNode();
 	}
@@ -49,10 +43,13 @@ export class SmartFolderNode extends Node {
 		metadata: Partial<NodeMetadata>,
 	): Either<ValidationError, void> {
 		try {
-			if (!metadata.filters?.length) {
-				return left(ValidationError.from(new PropertyRequiredError("filters")));
+			if (metadata.filters !== undefined) {
+				const resolved = SmartFolderNode.#resolveFilters(metadata.filters);
+				if (!resolved?.length) {
+					return left(ValidationError.from(new PropertyRequiredError("filters")));
+				}
+				this._filters = resolved;
 			}
-			this._filters = metadata.filters!;
 
 			return super.update(metadata);
 		} catch (err) {
@@ -65,6 +62,22 @@ export class SmartFolderNode extends Node {
 			...super.metadata,
 			filters: this._filters,
 		};
+	}
+
+	static #resolveFilters(
+		filters: NodeFilters | string | undefined,
+	): NodeFilters {
+		if (typeof filters !== "string") {
+			return filters ?? [];
+		}
+
+		const filtersOrErr = NodesFilters.parse(filters);
+
+		if (filtersOrErr.isLeft()) {
+			return [["fulltext", "match", filters]];
+		}
+
+		return filtersOrErr.value;
 	}
 
 	protected _validateSmartFolderNode() {

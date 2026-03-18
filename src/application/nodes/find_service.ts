@@ -1,27 +1,17 @@
-import { Logger } from "shared/logger.ts";
-import type { AuthenticationContext } from "../security/authentication_context.ts";
-import type { NodeServiceContext } from "./node_service_context.ts";
+import { FolderNode } from "domain/nodes/folder_node.ts";
 import type { NodeFilters, NodeFilters1D, NodeFilters2D } from "domain/nodes/node_filter.ts";
 import { isNodeFilters2D } from "domain/nodes/node_filter.ts";
-import { NodesFilters } from "domain/nodes_filters.ts";
 import type { NodeFilterResult } from "domain/nodes/node_repository.ts";
-import { AntboxError } from "shared/antbox_error.ts";
-import { Either, left, right } from "shared/either.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
-import type { AuthorizationService } from "../security/authorization_service.ts";
-import { FolderNode } from "domain/nodes/folder_node.ts";
-import { Users } from "domain/users_groups/users.ts";
+import { NodesFilters } from "domain/nodes_filters.ts";
 import { Groups } from "domain/users_groups/groups.ts";
-
-const DEFAULT_SEMANTIC_THRESHOLD = 0.5;
-
-function normalizeThreshold(value: number | undefined): number {
-	if (typeof value !== "number" || !Number.isFinite(value)) {
-		return DEFAULT_SEMANTIC_THRESHOLD;
-	}
-
-	return Math.max(0, Math.min(1, value));
-}
+import { Users } from "domain/users_groups/users.ts";
+import { AntboxError } from "shared/antbox_error.ts";
+import { Either, right } from "shared/either.ts";
+import { Logger } from "shared/logger.ts";
+import type { AuthenticationContext } from "../security/authentication_context.ts";
+import type { AuthorizationService } from "../security/authorization_service.ts";
+import type { NodeServiceContext } from "./node_service_context.ts";
 
 /**
  * Service responsible for finding nodes in the repository.
@@ -96,7 +86,7 @@ export class FindService {
 	): Promise<
 		Either<
 			AntboxError,
-			NodeFilterResult & { scores?: Record<string, number>; contentMd?: Record<string, string> }
+			NodeFilterResult & { scores?: Record<string, number> }
 		>
 	> {
 		// Stage 1: Handle string-based filters
@@ -153,7 +143,7 @@ export class FindService {
 	): Promise<
 		Either<
 			AntboxError,
-			NodeFilterResult & { scores?: Record<string, number>; contentMd?: Record<string, string> }
+			NodeFilterResult & { scores?: Record<string, number> }
 		>
 	> {
 		// Check if repository supports embeddings and embedding model is available
@@ -164,7 +154,7 @@ export class FindService {
 			return this.find(ctx, [["fulltext", "match", query]], pageSize, pageToken);
 		}
 
-		const threshold = normalizeThreshold(this.context.embeddingsProvider.relevanceThreshold());
+		const threshold = this.context.embeddingsProvider.relevanceThreshold();
 
 		try {
 			// Generate embedding for query using embedding model
@@ -231,12 +221,6 @@ export class FindService {
 			const firstIndex = (pageToken - 1) * pageSize;
 			const lastIndex = firstIndex + pageSize;
 			const nodes = r.nodes.slice(firstIndex, lastIndex);
-			const contentMdOrErr = await this.context.repository.getEmbeddingContents(
-				nodes.map((node) => node.uuid),
-			);
-			if (contentMdOrErr.isLeft()) {
-				return left(contentMdOrErr.value);
-			}
 
 			Logger.debug(`Results: ${JSON.stringify(r, null, 2)}`);
 
@@ -245,7 +229,6 @@ export class FindService {
 				pageSize,
 				pageToken,
 				scores,
-				contentMd: contentMdOrErr.value,
 			});
 		} catch (error) {
 			Logger.error("Semantic search failed:", error);

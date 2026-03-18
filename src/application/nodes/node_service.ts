@@ -479,7 +479,7 @@ export class NodeService {
 	): Promise<
 		Either<
 			AntboxError,
-			NodeFilterResult & { scores?: Record<string, number>; contentMd?: Record<string, string> }
+			NodeFilterResult & { scores?: Record<string, number> }
 		>
 	> {
 		return this.findService.find(ctx, filters, pageSize, pageToken);

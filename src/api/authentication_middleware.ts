@@ -4,7 +4,7 @@ import { Users } from "domain/users_groups/users.ts";
 import { type Either, left, right } from "shared/either.ts";
 import type { AntboxTenant } from "./antbox_tenant.ts";
 import { getQuery } from "./get_query.ts";
-import { getTenant } from "./get_tenant.ts";
+import { resolveTenant } from "./get_tenant.ts";
 import type { HttpHandler } from "./handler.ts";
 import type { HttpMiddleware } from "./middleware.ts";
 import { decodeJwt, jwtVerify, type KeyObject } from "jose";
@@ -14,7 +14,13 @@ export function authenticationMiddleware(
 ): HttpMiddleware {
 	return (next: HttpHandler) => {
 		return async (req: Request) => {
-			const tenant = getTenant(req, tenants);
+			const tenant = resolveTenant(req, tenants);
+			if (!tenant) {
+				return new Response(JSON.stringify({ message: "Tenant not found" }), {
+					status: 404,
+					headers: { "Content-Type": "application/json" },
+				});
+			}
 
 			const secret = importKey(tenant.symmetricKey);
 			const apiKeysService = tenant.apiKeysService;

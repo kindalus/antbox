@@ -18,6 +18,7 @@ export const AgentDataSchema = z
 		model: z.string().optional(),
 		tools: z.union([z.boolean(), z.array(z.string())]).optional(),
 		systemPrompt: z.string().optional(),
+		maxLlmCalls: z.number().int().positive().optional(),
 		agents: z.array(z.string()).optional(),
 		createdTime: z.string(),
 		modifiedTime: z.string(),
@@ -61,6 +62,13 @@ export const AgentDataSchema = z
 					code: z.ZodIssueCode.custom,
 					path: ["tools"],
 					message: "tools must not be set on workflow agents",
+				});
+			}
+			if (data.maxLlmCalls !== undefined) {
+				ctx.addIssue({
+					code: z.ZodIssueCode.custom,
+					path: ["maxLlmCalls"],
+					message: "maxLlmCalls must not be set on workflow agents",
 				});
 			}
 		}

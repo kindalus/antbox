@@ -101,6 +101,7 @@ export const SEMANTIC_SEARCHER_AGENT: AgentData = {
 	model: "default",
 	tools: ["runCode", "skillLoader"],
 	systemPrompt: SEMANTIC_SEARCHER_SYSTEM_PROMPT,
+	maxLlmCalls: 10,
 	createdTime: "2024-01-01T00:00:00.000Z",
 	modifiedTime: "2024-01-01T00:00:00.000Z",
 };

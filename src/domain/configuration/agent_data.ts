@@ -18,6 +18,7 @@ export interface AgentData {
 	readonly model?: string; // ADK model string; falls back to defaultModel if absent
 	readonly tools?: boolean | string[]; // true = all, false/undefined/[] = skillLoader only
 	readonly systemPrompt?: string; // the system instruction
+	readonly maxLlmCalls?: number; // max LLM call iterations; passed to ADK RunConfig
 
 	// Workflow-only fields
 	readonly agents?: string[]; // sub-agent UUIDs in execution order

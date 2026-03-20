@@ -8,6 +8,7 @@ import {
 	ParallelAgent,
 	SequentialAgent,
 } from "@google/adk";
+import type { RunConfig } from "@google/adk";
 import { z } from "zod";
 import { type Either, left, right } from "shared/either.ts";
 import {
@@ -147,11 +148,15 @@ export class AgentsEngine {
 			}
 
 			// Run the agent with the new user message
+			const runConfig = agentData.maxLlmCalls
+				? { maxLlmCalls: agentData.maxLlmCalls } as RunConfig
+				: undefined;
+
 			const responseText = await this.#runAndCollect(runner, {
 				userId: authContext.principal.email,
 				sessionId: session.id,
 				newMessage: { role: "user", parts: [{ text }] },
-			});
+			}, runConfig);
 
 			const updatedHistory: ChatHistory = [
 				...history,
@@ -191,10 +196,14 @@ export class AgentsEngine {
 
 			const runner = new InMemoryRunner({ agent: adkAgent, appName: APP_NAME });
 
+			const runConfig = agentData.maxLlmCalls
+				? { maxLlmCalls: agentData.maxLlmCalls } as RunConfig
+				: undefined;
+
 			const responseText = await this.#runAndCollect(runner, {
 				userId: authContext.principal.email,
 				newMessage: { role: "user", parts: [{ text }] },
-			});
+			}, runConfig);
 
 			const message: ChatMessage = {
 				role: "model",
@@ -406,6 +415,7 @@ export class AgentsEngine {
 			sessionId?: string;
 			newMessage: { role: string; parts: { text: string }[] };
 		},
+		runConfig?: RunConfig,
 	): Promise<string> {
 		let finalText = "";
 
@@ -414,10 +424,12 @@ export class AgentsEngine {
 				userId: params.userId,
 				sessionId: params.sessionId,
 				newMessage: params.newMessage,
+				runConfig,
 			}
 			: {
 				userId: params.userId,
 				newMessage: params.newMessage,
+				runConfig,
 			};
 
 		const generator = params.sessionId

@@ -5,13 +5,13 @@ export const RAG_NODE_FILTERING_AGENT_UUID = "--rag-node-filtering-agent--";
 const RAG_NODE_FILTERING_SYSTEM_PROMPT =
 	`You are a search-result filtering specialist in the Antbox RAG pipeline.
 
-## Your Task
+## Goal
 
-You receive the original user request plus a JSON array of node search results from the previous step.
-Your only job is to detect whether the user explicitly restricts results to a parent folder and, if so,
-filter the provided results accordingly.
+Your goal is to pass through search results unchanged unless the user explicitly restricts to a parent folder. You have no tools \u2014 you operate purely on the JSON payload provided in the conversation context.
 
-Each result has this structure:
+## Input
+
+You receive the original user request plus a JSON array of node search results from the previous step. Each result has this structure:
 
 \`\`\`json
 [
@@ -39,17 +39,52 @@ Match only by:
 
 Do not use fuzzy matching, partial matching, or infer restrictions that are not clearly stated.
 
-## Output Rules
+## Examples
+
+**Example 1 \u2014 User restricts to a folder**
+
+User query: "Find invoices in folder Contracts"
+
+Input:
+\`\`\`json
+[
+  {"uuid":"a1","name":"Invoice 2024-001","snippet":"...","parent":"c1","parentTitle":"Contracts"},
+  {"uuid":"a2","name":"Invoice 2024-002","snippet":"...","parent":"h1","parentTitle":"HR Docs"}
+]
+\`\`\`
+
+Output:
+\`\`\`json
+[{"uuid":"a1","name":"Invoice 2024-001","snippet":"...","parent":"c1","parentTitle":"Contracts"}]
+\`\`\`
+
+**Example 2 \u2014 No folder restriction**
+
+User query: "Find all vacation policies"
+
+Input:
+\`\`\`json
+[
+  {"uuid":"b1","name":"Vacation Policy","snippet":"...","parent":"h1","parentTitle":"HR Docs"},
+  {"uuid":"b2","name":"Vacation FAQ","snippet":"...","parent":"f1","parentTitle":"FAQs"}
+]
+\`\`\`
+
+Output (unchanged):
+\`\`\`json
+[
+  {"uuid":"b1","name":"Vacation Policy","snippet":"...","parent":"h1","parentTitle":"HR Docs"},
+  {"uuid":"b2","name":"Vacation FAQ","snippet":"...","parent":"f1","parentTitle":"FAQs"}
+]
+\`\`\`
+
+## Constraints
 
 - If there is no clear parent-folder restriction, return the input JSON array unchanged.
 - If there is a clear restriction, return only matching results.
 - If nothing matches, return an empty JSON array: \`[]\`.
 - Output only the JSON array, with the same object shape as the input.
 - Never add new results or modify fields beyond removing non-matching items.
-
-## Important Rules
-
-- You do not have access to tools.
 - You must only operate on the provided search result payload.
 - Never explain your reasoning; return only the JSON array.
 `;

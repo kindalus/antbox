@@ -119,10 +119,6 @@ export class AgentsEngine {
 		}
 
 		const agentData = agentOrErr.value;
-		const exposedOrErr = this.#ensureExposedToUsers(agentData, "chat");
-		if (exposedOrErr.isLeft()) {
-			return left(exposedOrErr.value);
-		}
 
 		try {
 			const adkAgent = await this.#buildAdkAgent(agentData, authContext, options?.instructions);
@@ -186,10 +182,6 @@ export class AgentsEngine {
 		}
 
 		const agentData = agentOrErr.value;
-		const exposedOrErr = this.#ensureExposedToUsers(agentData, "answer");
-		if (exposedOrErr.isLeft()) {
-			return left(exposedOrErr.value);
-		}
 
 		try {
 			const adkAgent = await this.#buildAdkAgent(agentData, authContext, options?.instructions);
@@ -271,19 +263,6 @@ export class AgentsEngine {
 
 		// loop — uses only the first sub-agent
 		return new LoopAgent({ name, description, subAgents });
-	}
-
-	#ensureExposedToUsers(
-		agentData: AgentData,
-		operation: "chat" | "answer",
-	): Either<ForbiddenError, void> {
-		if (!agentData.exposedToUsers) {
-			return left(
-				new ForbiddenError(`Agent ${agentData.uuid} is not available for direct ${operation}`),
-			);
-		}
-
-		return right(undefined);
 	}
 
 	async #buildLlmAgent(

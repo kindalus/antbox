@@ -1,6 +1,10 @@
 import { AuthenticationContext } from "application/security/authentication_context.ts";
 import { NodeService } from "application/nodes/node_service.ts";
+import { RAGService } from "application/ai/rag_service.ts";
+
 import { NodeMetadata } from "domain/nodes/node_metadata.ts";
+import { left, right } from "shared/either.ts";
+import { Logger } from "shared/logger.ts";
 
 /**
  * A per-request wrapper around NodeService that binds an AuthenticationContext.
@@ -10,10 +14,16 @@ import { NodeMetadata } from "domain/nodes/node_metadata.ts";
  */
 export class NodeServiceProxy {
 	readonly #nodeService: NodeService;
+	readonly #ragService?: RAGService;
 	readonly #ctx: AuthenticationContext;
 
-	constructor(nodeService: NodeService, authenticationContext: AuthenticationContext) {
+	constructor(
+		nodeService: NodeService,
+		ragService: RAGService | undefined,
+		authenticationContext: AuthenticationContext,
+	) {
 		this.#nodeService = nodeService;
+		this.#ragService = ragService;
 		this.#ctx = {
 			tenant: authenticationContext.tenant,
 			mode: authenticationContext.mode,
@@ -53,7 +63,37 @@ export class NodeServiceProxy {
 	}
 
 	find(filters: Parameters<NodeService["find"]>[1], pageSize?: number, pageToken?: number) {
+		Logger.instance("NodeServiceProxy.find").debug(JSON.stringify(filters));
 		return this.#nodeService.find(this.#ctx, filters, pageSize, pageToken);
+	}
+
+	async semanticQuery(text: string) {
+		if (!this.#ragService) {
+			return left("Service not available");
+		}
+
+		const TOP_K = 20;
+		const res = await this.#ragService.query(text, TOP_K);
+
+		Logger.instance("NodeServiceProxy.semanticSearch").debug(text);
+
+		if (res.isLeft()) {
+			return left(res.value);
+		}
+
+		let uuids = res.value.map((v) => v.uuid);
+		const valid = await this.#nodeService.find(this.#ctx, [["uuid", "in", uuids]]);
+
+		if (valid.isLeft()) {
+			return left(valid.value);
+		}
+
+		uuids = valid.value.nodes.map((v) => v.uuid);
+		const result = res.value.filter((v) => uuids.includes(v.uuid));
+
+		console.log(result);
+
+		return right(result);
 	}
 
 	get(uuid: string) {

@@ -44,6 +44,9 @@ export class GeminiEmbeddingsProvider implements EmbeddingsProvider {
 				const response = await this.#client.models.embedContent({
 					model: this.#modelName,
 					contents: { parts: [{ text }] },
+					config: {
+						taskType: "RETRIEVAL_DOCUMENT",
+					},
 				});
 
 				if (response.embeddings && response.embeddings[0]?.values) {

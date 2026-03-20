@@ -1,6 +1,7 @@
 import type { NodeServiceProxy } from "application/nodes/node_service_proxy.ts";
 import type { AspectServiceProxy } from "application/aspects/aspect_service_proxy.ts";
 import type { FeatureData } from "domain/configuration/feature_data.ts";
+import { Logger } from "shared/logger.ts";
 
 export interface RunCodeSDKs {
 	nodes: NodeServiceProxy;
@@ -72,6 +73,8 @@ export function createRunCodeTool(
 			// The code must export a default function
 			const moduleUrl = `data:text/typescript,${encodeURIComponent(code)}`;
 
+			Logger.instance("runCode").debug(code);
+
 			// Dynamically import the module
 			const module = await import(moduleUrl);
 
@@ -91,6 +94,8 @@ export function createRunCodeTool(
 			if (typeof result !== "string") {
 				result = JSON.stringify(result, null, 2);
 			}
+
+			Logger.instance("runCode").debug("Result:", result);
 
 			// Convert objects to JSON string
 			return result;

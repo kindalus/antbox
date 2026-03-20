@@ -202,8 +202,6 @@ export class FindService {
 				[],
 			);
 
-			Logger.debug(`Processing filters: ${JSON.stringify(stage1, null, 2)}`);
-
 			const batch = stage1.map((f) => this.#toFiltersWithAtResolved(f));
 			const stage2 = await Promise.allSettled(batch);
 			const stage3 = stage2.filter((r) => r.status === "fulfilled").map((r) => r.value);
@@ -221,8 +219,6 @@ export class FindService {
 			const firstIndex = (pageToken - 1) * pageSize;
 			const lastIndex = firstIndex + pageSize;
 			const nodes = r.nodes.slice(firstIndex, lastIndex);
-
-			Logger.debug(`Results: ${JSON.stringify(r, null, 2)}`);
 
 			return right({
 				nodes,

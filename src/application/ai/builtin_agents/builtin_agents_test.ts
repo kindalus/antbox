@@ -42,7 +42,7 @@ describe("builtin agents schema validation", () => {
 	it("semantic searcher has correct type and tools", () => {
 		expect(SEMANTIC_SEARCHER_AGENT.type).toBe("llm");
 		expect(SEMANTIC_SEARCHER_AGENT.exposedToUsers).toBe(false);
-		expect(SEMANTIC_SEARCHER_AGENT.tools).toEqual(["runCode"]);
+		expect(SEMANTIC_SEARCHER_AGENT.tools).toEqual(["runCode", "skillLoader"]);
 		expect(SEMANTIC_SEARCHER_AGENT.systemPrompt).toBeDefined();
 		expect(SEMANTIC_SEARCHER_AGENT.agents).toBeUndefined();
 	});

@@ -194,8 +194,6 @@ export class SqliteNodeRepository implements NodeRepository {
 				}
 			}
 
-			Logger.debug("Vector Search", JSON.stringify(nodes, null, 2));
-
 			return right({ nodes });
 		} catch (err) {
 			const error = err as Error;

@@ -22,11 +22,13 @@ export default async function({ nodes, aspects }) {
 
 ### 1. Semantic search (natural language)
 
+Use `semanticQuery` for embedding-based search. It returns `RagDocument[]` with `uuid`, `title`, `content`, and `score`.
+
 ```javascript
 export default async function({ nodes }) {
-  const result = await nodes.find("?contract termination clauses");
-  if (result.isLeft()) return JSON.stringify({ error: result.value.message });
-  return JSON.stringify(result.value.nodes);
+  const result = await nodes.semanticQuery("contract termination clauses");
+  if (result.isLeft()) return JSON.stringify({ error: result.value });
+  return JSON.stringify(result.value);
 }
 ```
 
@@ -107,7 +109,7 @@ export default async function({ nodes }) {
 
 ## Strategy
 
-1. Start broad with semantic search, then refine with metadata filters.
+1. Use `semanticQuery` for conceptual/natural language queries, then refine with metadata filters via `find`.
 2. Discover aspect UUIDs with `aspects.listAspects()` before aspect-property filtering.
 3. Always check `isLeft()` before reading `result.value`.
 4. Use `pageSize` and `pageToken` for large result sets.

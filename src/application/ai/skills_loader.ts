@@ -248,7 +248,9 @@ export async function loadSkills(
 	options?: LoadSkillsOptions,
 ): Promise<LoadedSkill[]> {
 	const includeDocumentationSkills = options?.includeDocumentationSkills ?? true;
-	const documentationSkills = includeDocumentationSkills ? await loadSkillsFromDocumentation() : [];
+	const documentationSkills = includeDocumentationSkills
+		? await loadSkillsFromDocumentation()
+		: [];
 	const builtinSkills = await readSkillsFromDirectory(builtinSkillsDir);
 	const extraSkills = extraSkillsPath ? await readSkillsFromDirectory(extraSkillsPath) : [];
 
@@ -281,6 +283,7 @@ export async function loadSkills(
  * suitable for injection into model context as loaded skill knowledge.
  */
 export async function loadSkillInstruction(skillFile: string): Promise<string | undefined> {
+	Logger.instance("SkillLoader").debug("File:", skillFile);
 	try {
 		const markdown = await Deno.readTextFile(skillFile);
 		const parsedSkill = parseSkillMarkdown(markdown);

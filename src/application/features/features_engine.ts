@@ -33,6 +33,7 @@ import { toYamlMetadata } from "../nodes/node_markdown.ts";
 import { NodeService } from "../nodes/node_service.ts";
 import { NodeServiceProxy } from "../nodes/node_service_proxy.ts";
 import type { FeaturesService } from "./features_service.ts";
+import { RAGService } from "../ai/rag_service.ts";
 
 type RecordKey = [string, string];
 interface RunnableRecord {
@@ -54,6 +55,7 @@ export interface FeaturesEngineContext {
 	agentsEngine?: AgentAnswerExecutor;
 	aspectsService?: AspectsService;
 	ocrProvider?: OCRProvider;
+	ragService?: RAGService;
 	eventBus: EventBus;
 }
 
@@ -75,6 +77,7 @@ export class FeaturesEngine {
 	readonly #agentsEngine?: AgentAnswerExecutor;
 	readonly #aspectsService?: AspectsService;
 	readonly #ocrProvider?: OCRProvider;
+	readonly #ragService?: RAGService;
 
 	constructor(ctx: FeaturesEngineContext) {
 		this.#featuresService = ctx.featuresService;
@@ -82,6 +85,7 @@ export class FeaturesEngine {
 		this.#agentsEngine = ctx.agentsEngine;
 		this.#aspectsService = ctx.aspectsService;
 		this.#ocrProvider = ctx.ocrProvider;
+		this.#ragService = ctx.ragService;
 
 		// Register event handlers for domain-wide triggers
 		// AUTOMATIC TRIGGERS
@@ -780,7 +784,7 @@ export class FeaturesEngine {
 
 		const runContext: RunContext = {
 			authenticationContext: authContext,
-			nodeService: new NodeServiceProxy(this.#nodeService, authContext),
+			nodeService: new NodeServiceProxy(this.#nodeService, this.#ragService, authContext),
 			logger: Logger.instance(`feature=${feature.uuid}`, `tenant=${authContext.tenant}`),
 		};
 

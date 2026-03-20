@@ -26,6 +26,7 @@ import { NodeServiceProxy } from "../nodes/node_service_proxy.ts";
 import { AspectServiceProxy } from "../aspects/aspect_service_proxy.ts";
 import { createRunCodeTool } from "./builtin_tools/run_code.ts";
 import { type LoadedSkill, loadSkillInstruction } from "./skills_loader.ts";
+import { RAGService } from "./rag_service.ts";
 
 const APP_NAME = "antbox";
 
@@ -52,6 +53,7 @@ export interface AgentsEngineContext {
 	readonly agentsService: AgentsService;
 	readonly nodeService: NodeService;
 	readonly aspectsService: AspectsService;
+	readonly ragService?: RAGService;
 	readonly defaultModel: string;
 	readonly skills: LoadedSkill[];
 }
@@ -90,6 +92,7 @@ export class AgentsEngine {
 	readonly #aspectsService: AspectsService;
 	readonly #defaultModel: string;
 	readonly #skills: LoadedSkill[];
+	readonly #ragService?: RAGService;
 
 	constructor(ctx: AgentsEngineContext) {
 		this.#agentsService = ctx.agentsService;
@@ -97,6 +100,7 @@ export class AgentsEngine {
 		this.#aspectsService = ctx.aspectsService;
 		this.#defaultModel = ctx.defaultModel;
 		this.#skills = ctx.skills;
+		this.#ragService = ctx.ragService;
 	}
 
 	/**
@@ -309,7 +313,7 @@ export class AgentsEngine {
 	async #buildFunctionTools(
 		authContext: AuthenticationContext,
 	): Promise<FunctionTool[]> {
-		const nodeProxy = new NodeServiceProxy(this.#nodeService, authContext);
+		const nodeProxy = new NodeServiceProxy(this.#nodeService, this.#ragService, authContext);
 		const aspectProxy = new AspectServiceProxy(this.#aspectsService, authContext);
 		const runCodeFn = createRunCodeTool(nodeProxy, aspectProxy, {});
 		const availableSkillsText = this.#formatAvailableSkills();
@@ -435,6 +439,7 @@ export class AgentsEngine {
 		if (additionalInstructions) {
 			instruction += `\n\n**INSTRUCTIONS**\n\n${additionalInstructions}`;
 		}
+
 		return instruction;
 	}
 

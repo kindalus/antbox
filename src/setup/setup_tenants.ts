@@ -178,6 +178,7 @@ async function setupTenant(
 	// Create AgentsEngine (execution logic)
 	const agentsEngine = new AgentsEngine({
 		agentsService,
+		ragService,
 		nodeService,
 		aspectsService,
 		defaultModel: cfg.ai?.defaultModel ?? "google/gemini-2.5-flash",
@@ -187,6 +188,7 @@ async function setupTenant(
 	// Create FeaturesEngine (execution logic)
 	const featuresEngine = new FeaturesEngine({
 		featuresService,
+		ragService,
 		nodeService,
 		agentsEngine,
 		aspectsService,

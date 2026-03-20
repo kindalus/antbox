@@ -75,8 +75,6 @@ export class NodeServiceProxy {
 		const TOP_K = 20;
 		const res = await this.#ragService.query(text, TOP_K);
 
-		Logger.instance("NodeServiceProxy.semanticSearch").debug(text);
-
 		if (res.isLeft()) {
 			return left(res.value);
 		}

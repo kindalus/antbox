@@ -73,8 +73,6 @@ export function createRunCodeTool(
 			// The code must export a default function
 			const moduleUrl = `data:text/typescript,${encodeURIComponent(code)}`;
 
-			Logger.instance("runCode").debug(code);
-
 			// Dynamically import the module
 			const module = await import(moduleUrl);
 
@@ -94,8 +92,6 @@ export function createRunCodeTool(
 			if (typeof result !== "string") {
 				result = JSON.stringify(result, null, 2);
 			}
-
-			Logger.instance("runCode").debug("Result:", result);
 
 			// Convert objects to JSON string
 			return result;

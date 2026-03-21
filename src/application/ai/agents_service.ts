@@ -86,7 +86,12 @@ export class AgentsService {
 			return right(builtinAgent);
 		}
 
-		return this.#configRepo.get("agents", uuid);
+		const agentOrErr = await this.#configRepo.get("agents", uuid);
+		if (agentOrErr.isLeft()) {
+			return agentOrErr;
+		}
+
+		return right(this.#normalizeAgent(agentOrErr.value));
 	}
 
 	async listAgents(
@@ -99,7 +104,10 @@ export class AgentsService {
 		}
 
 		// Combine builtin agents with custom agents
-		const allAgents = [...BUILTIN_AGENTS, ...customAgentsOrErr.value];
+		const allAgents = [
+			...BUILTIN_AGENTS,
+			...customAgentsOrErr.value.map((agent) => this.#normalizeAgent(agent)),
+		];
 
 		// Sort by name
 		allAgents.sort((a, b) => a.name.localeCompare(b.name));
@@ -132,7 +140,7 @@ export class AgentsService {
 			...updates,
 			uuid, // Ensure UUID doesn't change
 			type: updates.type ?? existingOrErr.value.type ?? "llm",
-			exposedToUsers: updates.exposedToUsers ?? existingOrErr.value.exposedToUsers,
+			exposedToUsers: updates.exposedToUsers ?? existingOrErr.value.exposedToUsers ?? true,
 			createdTime: existingOrErr.value.createdTime, // Preserve creation time
 			modifiedTime: new Date().toISOString(),
 		};
@@ -172,5 +180,12 @@ export class AgentsService {
 
 	#isAdmin(ctx: AuthenticationContext): boolean {
 		return ctx.principal.groups.includes(ADMINS_GROUP_UUID);
+	}
+
+	#normalizeAgent(agent: AgentData): AgentData {
+		return {
+			...agent,
+			exposedToUsers: agent.exposedToUsers ?? true,
+		};
 	}
 }

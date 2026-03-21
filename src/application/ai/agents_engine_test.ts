@@ -160,6 +160,31 @@ describe("AgentsEngine", () => {
 				expect(result.value.message).toContain("not available for direct chat");
 			}
 		});
+
+		it("allows direct chat when exposedToUsers is undefined", async () => {
+			const agentsService = {
+				getAgent: async () =>
+					right(makeAgentData({ exposedToUsers: undefined as unknown as boolean })),
+				listAgents: async () => right([]),
+			} as unknown as import("./agents_service.ts").AgentsService;
+
+			const engine = new AgentsEngine(makeContext({
+				agentsService,
+				tenantLimitsGuard: {
+					ensureCanCreateFile: async () => right(undefined),
+					ensureCanUpdateFile: async () => right(undefined),
+					ensureCanRunAgent: async () =>
+						left(new ForbiddenError("Agent token limit exceeded for the current month")),
+				},
+			}));
+			const result = await engine.chat(mockAuthContext, "legacy-agent", "Hello");
+
+			expect(result.isLeft()).toBe(true);
+			if (result.isLeft()) {
+				expect(result.value).toBeInstanceOf(ForbiddenError);
+				expect(result.value.message).toContain("Agent token limit exceeded");
+			}
+		});
 	});
 
 	describe("answer - agent not found", () => {
@@ -188,6 +213,31 @@ describe("AgentsEngine", () => {
 			expect(result.isLeft()).toBe(true);
 			if (result.isLeft()) {
 				expect(result.value.message).toContain("not available for direct answer");
+			}
+		});
+
+		it("allows direct answer when exposedToUsers is undefined", async () => {
+			const agentsService = {
+				getAgent: async () =>
+					right(makeAgentData({ exposedToUsers: undefined as unknown as boolean })),
+				listAgents: async () => right([]),
+			} as unknown as import("./agents_service.ts").AgentsService;
+
+			const engine = new AgentsEngine(makeContext({
+				agentsService,
+				tenantLimitsGuard: {
+					ensureCanCreateFile: async () => right(undefined),
+					ensureCanUpdateFile: async () => right(undefined),
+					ensureCanRunAgent: async () =>
+						left(new ForbiddenError("Agent token limit exceeded for the current month")),
+				},
+			}));
+			const result = await engine.answer(mockAuthContext, "legacy-agent", "Hello");
+
+			expect(result.isLeft()).toBe(true);
+			if (result.isLeft()) {
+				expect(result.value).toBeInstanceOf(ForbiddenError);
+				expect(result.value.message).toContain("Agent token limit exceeded");
 			}
 		});
 	});

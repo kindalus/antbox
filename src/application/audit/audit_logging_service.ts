@@ -6,6 +6,7 @@ import { NodeDeletedEvent } from "domain/nodes/node_deleted_event.ts";
 import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { NodeUpdatedEvent } from "domain/nodes/node_updated_event.ts";
 import { AgentInteractionCompletedEvent } from "domain/ai/agent_interaction_completed_event.ts";
+import { EmbeddingsGeneratedEvent } from "domain/ai/embeddings_generated_event.ts";
 import { Groups } from "domain/users_groups/groups.ts";
 import { type AntboxError, ForbiddenError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
@@ -48,55 +49,75 @@ export class AuditLoggingService {
 			AgentInteractionCompletedEvent.EVENT_ID,
 			eventHandlerFunc((e: AgentInteractionCompletedEvent) => this.#handleAgentInteraction(e)),
 		);
+
+		this.eventBus.subscribe(
+			EmbeddingsGeneratedEvent.EVENT_ID,
+			eventHandlerFunc((e: EmbeddingsGeneratedEvent) => this.#handleEmbeddingsGenerated(e)),
+		);
 	}
 
 	#handleAgentInteraction(event: AgentInteractionCompletedEvent): void {
-		this.repository.append(event.payload.agentUuid, "application/vnd.antbox.agent-usage", {
+		this.#appendToRepository(event.payload.agentUuid, "application/vnd.antbox.agent-usage", {
 			eventType: AgentInteractionCompletedEvent.EVENT_ID,
 			occurredOn: event.occurredOn.toISOString(),
 			userEmail: event.userEmail,
 			payload: event.payload,
-		}).catch((err) => {
-			Logger.error("Error appending agent usage log:", err);
+		});
+	}
+
+	#handleEmbeddingsGenerated(event: EmbeddingsGeneratedEvent): void {
+		this.#appendToRepository(event.payload.nodeUuid, "application/vnd.antbox.embeddings-usage", {
+			eventType: EmbeddingsGeneratedEvent.EVENT_ID,
+			occurredOn: event.occurredOn.toISOString(),
+			userEmail: event.userEmail,
+			payload: event.payload,
 		});
 	}
 
 	#handleNodeCreated(event: NodeCreatedEvent): void {
 		const node = event.payload;
 
-		this.repository.append(node.uuid, node.mimetype, {
+		this.#appendToRepository(node.uuid, node.mimetype, {
 			eventType: NodeCreatedEvent.EVENT_ID,
 			occurredOn: event.occurredOn.toISOString(),
 			userEmail: event.userEmail,
 			payload: event.payload,
-		}).catch((err) => {
-			Logger.error("Error appending NodeCreatedEvent to audit log:", err);
 		});
 	}
 
 	#handleNodeUpdated(event: NodeUpdatedEvent): void {
 		const changes = event.payload;
 
-		this.repository.append(changes.uuid, this.#getMimetypeFromChanges(changes), {
+		this.#appendToRepository(changes.uuid, this.#getMimetypeFromChanges(changes), {
 			eventType: NodeUpdatedEvent.EVENT_ID,
 			occurredOn: event.occurredOn.toISOString(),
 			userEmail: event.userEmail,
 			payload: event.payload,
-		}).catch((err) => {
-			Logger.error("Error appending NodeUpdatedEvent to audit log:", err);
 		});
 	}
 
 	#handleNodeDeleted(event: NodeDeletedEvent): void {
 		const node = event.payload;
 
-		this.repository.append(node.uuid, node.mimetype, {
+		this.#appendToRepository(node.uuid, node.mimetype, {
 			eventType: NodeDeletedEvent.EVENT_ID,
 			occurredOn: event.occurredOn.toISOString(),
 			userEmail: event.userEmail,
 			payload: event.payload,
+		});
+	}
+
+	#appendToRepository(
+		streamId: string,
+		mimetype: string,
+		event: Omit<AuditEventDTO, "streamId" | "sequence">,
+	): void {
+		this.repository.append(streamId, mimetype, event).then((result) => {
+			if (result.isLeft()) {
+				Logger.error(`Error appending ${event.eventType} to audit log:`, result.value);
+			}
 		}).catch((err) => {
-			Logger.error("Error appending NodeDeletedEvent to audit log:", err);
+			Logger.error(`Error appending ${event.eventType} to audit log:`, err);
 		});
 	}
 

@@ -4,6 +4,7 @@ import type { AuthenticationContext } from "application/security/authentication_
 import { InMemoryConfigurationRepository } from "adapters/inmem/inmem_configuration_repository.ts";
 import { AgentsService } from "application/ai/agents_service.ts";
 import { ADMINS_GROUP_UUID } from "domain/configuration/builtin_groups.ts";
+import type { AgentData } from "domain/configuration/agent_data.ts";
 import {
 	RAG_AGENT_UUID,
 	RAG_NODE_FILTERING_AGENT_UUID,
@@ -300,6 +301,27 @@ describe("AgentsService", () => {
 			}
 		});
 
+		it("should default exposedToUsers to true for legacy custom agents", async () => {
+			const repo = new InMemoryConfigurationRepository();
+			const service = createAgentsService(repo);
+
+			await repo.save("agents", {
+				uuid: "legacy-agent",
+				name: "Legacy Agent",
+				type: "llm",
+				systemPrompt: "Legacy instructions",
+				createdTime: new Date().toISOString(),
+				modifiedTime: new Date().toISOString(),
+			} as unknown as AgentData);
+
+			const result = await service.getAgent(adminCtx, "legacy-agent");
+
+			expect(result.isRight()).toBe(true);
+			if (result.isRight()) {
+				expect(result.value.exposedToUsers).toBe(true);
+			}
+		});
+
 		it("should get builtin RAG agent", async () => {
 			const repo = new InMemoryConfigurationRepository();
 			const service = createAgentsService(repo);
@@ -457,6 +479,27 @@ describe("AgentsService", () => {
 				expect(uuids).toContain(created.value.uuid);
 			}
 		});
+
+		it("should default exposedToUsers to true for legacy agents in list results", async () => {
+			const repo = new InMemoryConfigurationRepository();
+			const service = createAgentsService(repo);
+
+			await repo.save("agents", {
+				uuid: "legacy-list-agent",
+				name: "Legacy List Agent",
+				type: "llm",
+				systemPrompt: "Legacy instructions",
+				createdTime: new Date().toISOString(),
+				modifiedTime: new Date().toISOString(),
+			} as unknown as AgentData);
+
+			const result = await service.listAgents(userCtx);
+			expect(result.isRight()).toBe(true);
+			if (result.isRight()) {
+				const legacyAgent = result.value.find((agent) => agent.uuid === "legacy-list-agent");
+				expect(legacyAgent?.exposedToUsers).toBe(true);
+			}
+		});
 	});
 
 	describe("updateAgent", () => {
@@ -516,6 +559,31 @@ describe("AgentsService", () => {
 			});
 
 			expect(result.isLeft()).toBe(true);
+		});
+
+		it("should default exposedToUsers to true when updating a legacy agent", async () => {
+			const repo = new InMemoryConfigurationRepository();
+			const service = createAgentsService(repo);
+			const uuid = "--legacy-update-agent--";
+
+			await repo.save("agents", {
+				uuid,
+				name: "Legacy Update Agent",
+				type: "llm",
+				systemPrompt: "Legacy instructions",
+				createdTime: new Date().toISOString(),
+				modifiedTime: new Date().toISOString(),
+			} as unknown as AgentData);
+
+			const result = await service.updateAgent(adminCtx, uuid, {
+				name: "Updated Legacy Agent",
+			});
+
+			expect(result.isRight()).toBe(true);
+			if (result.isRight()) {
+				expect(result.value.name).toBe("Updated Legacy Agent");
+				expect(result.value.exposedToUsers).toBe(true);
+			}
 		});
 	});
 

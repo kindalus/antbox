@@ -125,7 +125,7 @@ export class AgentsEngine {
 
 		const agentData = agentOrErr.value;
 
-		if (!agentData.exposedToUsers) {
+		if (agentData.exposedToUsers === false) {
 			return left(
 				new AntboxErrorClass(
 					"Forbidden",
@@ -216,7 +216,7 @@ export class AgentsEngine {
 
 		const agentData = agentOrErr.value;
 
-		if (!agentData.exposedToUsers) {
+		if (agentData.exposedToUsers === false) {
 			return left(
 				new AntboxErrorClass(
 					"Forbidden",

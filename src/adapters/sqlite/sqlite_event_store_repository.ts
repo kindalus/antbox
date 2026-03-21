@@ -53,7 +53,7 @@ export class SqliteEventStoreRepository implements EventStoreRepository {
 	}
 
 	#sanitizeMimetype(mimetype: string): string {
-		return mimetype.replace(/\//g, "_");
+		return mimetype.replace(/[^a-zA-Z0-9]/g, "_");
 	}
 
 	#getTableName(mimetype: string): string {

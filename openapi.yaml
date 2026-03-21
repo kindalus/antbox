@@ -86,7 +86,7 @@ paths:
             - metrics
          summary: Get tenant storage usage
          operationId: getStorageUsage
-         description: Returns the tenant's current storage usage in bytes and configured storage limit in gigabytes.
+         description: Returns the tenant's current storage usage in gigabytes and configured storage limit in gigabytes.
          responses:
             "200":
                description: Tenant storage usage
@@ -2347,12 +2347,13 @@ components:
       StorageUsageMetrics:
          type: object
          required:
-            - totalBytes
+            - totalGb
             - limitGb
          properties:
-            totalBytes:
-               type: integer
+            totalGb:
+               type: number
                minimum: 0
+               description: Current storage usage in gigabytes
             limitGb:
                oneOf:
                   - type: number

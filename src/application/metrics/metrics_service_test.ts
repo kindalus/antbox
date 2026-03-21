@@ -5,6 +5,7 @@ import type { NodeRepository } from "domain/nodes/node_repository.ts";
 import type { EventStoreRepository } from "domain/audit/event_store_repository.ts";
 import type { AuditEvent } from "domain/audit/audit_event.ts";
 import type { TenantLimits } from "domain/metrics/tenant_limits.ts";
+import { AntboxError } from "shared/antbox_error.ts";
 
 const tenantLimits: TenantLimits = {
 	storage: 25,
@@ -13,9 +14,9 @@ const tenantLimits: TenantLimits = {
 
 Deno.test("MetricsService", async (t) => {
 	await t.step("getStorageUsage", async (t) => {
-		await t.step("returns aggregated total size", async () => {
+		await t.step("returns aggregated total size in gigabytes", async () => {
 			const mockNodeRepo = {
-				aggregateTotalSize: () => Promise.resolve(right(1024)),
+				aggregateTotalSize: () => Promise.resolve(right(1_500_000_000)),
 			} as unknown as NodeRepository;
 
 			const service = new MetricsService(
@@ -27,14 +28,15 @@ Deno.test("MetricsService", async (t) => {
 
 			assert(result.isRight());
 			if (result.isRight()) {
-				assertEquals(result.value.totalBytes, 1024);
+				assertEquals(result.value.totalGb, 1.5);
 				assertEquals(result.value.limitGb, 25);
 			}
 		});
 
 		await t.step("returns error if repository fails", async () => {
 			const mockNodeRepo = {
-				aggregateTotalSize: () => Promise.resolve(left({ message: "DB Error" } as any)),
+				aggregateTotalSize: () =>
+					Promise.resolve(left(new AntboxError("DatabaseError", "DB Error"))),
 			} as unknown as NodeRepository;
 
 			const service = new MetricsService(

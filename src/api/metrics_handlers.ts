@@ -5,24 +5,23 @@ import { getTenant } from "./get_tenant.ts";
 import { type HttpHandler, sendBadRequest } from "./handler.ts";
 import { processServiceResult } from "./process_service_result.ts";
 import { checkServiceAvailability } from "./service_availability.ts";
-import { getAuthenticationContext } from "./get_authentication_context.ts";
 
 export function getStorageUsageHandler(tenants: AntboxTenant[]): HttpHandler {
 	return defaultMiddlewareChain(
 		tenants,
 		async (req: Request): Promise<Response> => {
 			const tenant = getTenant(req, tenants);
-			const authCtx = getAuthenticationContext(req);
 
 			// Optional: Protect via admin/system user check if needed.
 			// Assuming general access or managed by an API key.
 
 			const service = tenant.metricsService;
-			if (!checkServiceAvailability(service, "metricsService")) {
-				return checkServiceAvailability(service, "metricsService") as unknown as Response; // returns 503
+			const unavailable = checkServiceAvailability(service, "metricsService");
+			if (unavailable) {
+				return unavailable;
 			}
 
-			const result = await service!.getStorageUsage();
+			const result = await service.getStorageUsage();
 			return processServiceResult(result);
 		},
 	);
@@ -50,11 +49,12 @@ export function getTokenUsageHandler(tenants: AntboxTenant[]): HttpHandler {
 			}
 
 			const service = tenant.metricsService;
-			if (!checkServiceAvailability(service, "metricsService")) {
-				return checkServiceAvailability(service, "metricsService") as unknown as Response; // returns 503
+			const unavailable = checkServiceAvailability(service, "metricsService");
+			if (unavailable) {
+				return unavailable;
 			}
 
-			const result = await service!.getTokenUsage(year, month);
+			const result = await service.getTokenUsage(year, month);
 			return processServiceResult(result);
 		},
 	);

@@ -5,6 +5,16 @@ import type { EventStoreRepository } from "domain/audit/event_store_repository.t
 import type { StorageUsageMetrics, TokenUsageMetrics } from "domain/metrics/tenant_metrics.ts";
 import type { TenantLimits } from "domain/metrics/tenant_limits.ts";
 
+const BYTES_PER_GB = 1_000_000_000;
+
+type UsagePayload = {
+	usage?: {
+		promptTokens?: number;
+		completionTokens?: number;
+		totalTokens?: number;
+	};
+};
+
 export class MetricsService {
 	readonly #nodeRepository: NodeRepository;
 	readonly #eventStore: EventStoreRepository;
@@ -26,7 +36,7 @@ export class MetricsService {
 			return left(sizeOrErr.value);
 		}
 		return right({
-			totalBytes: sizeOrErr.value,
+			totalGb: sizeOrErr.value / BYTES_PER_GB,
 			limitGb: this.#tenantLimits.storage,
 		});
 	}
@@ -77,8 +87,7 @@ export class MetricsService {
 			for (const event of streamEvents) {
 				const date = new Date(event.occurredOn);
 				if (date.getUTCFullYear() === year && date.getUTCMonth() + 1 === month) {
-					// eslint-disable-next-line @typescript-eslint/no-explicit-any
-					const payload = event.payload as any;
+					const payload = event.payload as UsagePayload;
 					if (payload?.usage) {
 						metrics.promptTokens += payload.usage.promptTokens ?? 0;
 						metrics.completionTokens += payload.usage.completionTokens ?? 0;

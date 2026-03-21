@@ -10,6 +10,6 @@ export interface TokenUsageMetrics {
 }
 
 export interface StorageUsageMetrics {
-	totalBytes: number;
+	totalGb: number;
 	limitGb: StorageLimit;
 }

@@ -28,6 +28,7 @@ import { UserPreferencesService } from "application/preferences/user_preferences
 import { ExternalLoginService } from "application/security/external_login_service.ts";
 import { RAGService } from "application/ai/rag_service.ts";
 import { MetricsService } from "application/metrics/metrics_service.ts";
+import { TenantLimitsGuard } from "application/metrics/tenant_limits_guard.ts";
 import { loadSkills } from "application/ai/skills_loader.ts";
 import type { EmbeddingsProvider } from "domain/ai/embeddings_provider.ts";
 import type { OCRProvider } from "domain/ai/ocr_provider.ts";
@@ -135,12 +136,19 @@ async function setupTenant(
 	}
 
 	// Create NodeService
+	const tenantLimitsGuard = new TenantLimitsGuard(
+		nodeRepository,
+		eventStoreRepository,
+		cfg.limits,
+	);
+
 	const nodeService = new NodeService({
 		repository: nodeRepository,
 		storage,
 		bus: eventBus,
 		configRepo,
 		embeddingsProvider,
+		tenantLimitsGuard,
 	});
 
 	// Create RAGService with event-driven indexing (requires embeddings support)
@@ -188,6 +196,7 @@ async function setupTenant(
 		defaultModel: cfg.ai?.defaultModel ?? "google/gemini-2.5-flash",
 		skills,
 		eventBus,
+		tenantLimitsGuard,
 	});
 
 	// Create FeaturesEngine (execution logic)

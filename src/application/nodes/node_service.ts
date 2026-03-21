@@ -235,6 +235,12 @@ export class NodeService {
 			size: file.size,
 		};
 
+		const limitsOrErr = await this.context.tenantLimitsGuard?.ensureCanCreateFile(file.size) ??
+			right(undefined);
+		if (limitsOrErr.isLeft()) {
+			return left(limitsOrErr.value);
+		}
+
 		const nodeOrErr = await this.#createNodeInRepository(ctx, fileMetadata);
 
 		if (nodeOrErr.isLeft()) {
@@ -851,11 +857,22 @@ export class NodeService {
 			);
 		}
 
-		await this.context.storage.write(uuid, file, {
+		const limitsOrErr = await this.context.tenantLimitsGuard?.ensureCanUpdateFile(
+			nodeOrErr.value.size ?? 0,
+			file.size,
+		) ?? right(undefined);
+		if (limitsOrErr.isLeft()) {
+			return left(limitsOrErr.value);
+		}
+
+		const writeOrErr = await this.context.storage.write(uuid, file, {
 			title: nodeOrErr.value.title,
 			parent: nodeOrErr.value.parent,
 			mimetype: nodeOrErr.value.mimetype,
 		});
+		if (writeOrErr.isLeft()) {
+			return left(writeOrErr.value);
+		}
 
 		const updateMetadata: Partial<NodeMetadata> = { size: file.size };
 
@@ -1159,7 +1176,7 @@ export class NodeService {
 	}
 
 	async #getNodeAspects(
-		ctx: AuthenticationContext,
+		_ctx: AuthenticationContext,
 		node: FileNode | FolderNode | MetaNode,
 	): Promise<Either<ValidationError, AspectData[]>> {
 		if (!node.aspects || node.aspects.length === 0) {

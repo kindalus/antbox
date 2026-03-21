@@ -16,6 +16,9 @@ import { Groups } from "domain/users_groups/groups.ts";
 import { errToMsg } from "shared/test_helpers.ts";
 import { NodeService } from "./node_service.ts";
 import { NodeServiceContext } from "./node_service_context.ts";
+import { TenantLimitsGuard } from "application/metrics/tenant_limits_guard.ts";
+import type { EventStoreRepository } from "domain/audit/event_store_repository.ts";
+import { Right } from "shared/either.ts";
 
 describe("NodeService", () => {
 	describe("update", () => {
@@ -635,6 +638,82 @@ describe("NodeService", () => {
 			// The embedding service should delete embeddings for zero-size files
 			// This is verified through the EmbeddingService tests
 		});
+
+		it("should block file updates that would exceed the storage threshold", async () => {
+			const repository = new InMemoryNodeRepository();
+			const service = nodeService({
+				repository,
+				tenantLimitsGuard: createTenantLimitsGuard(repository, {
+					storage: 0.0000001,
+					tokens: 1,
+				}),
+			});
+			const parent = await service.create(authCtx, {
+				title: "Parent Folder",
+				mimetype: Nodes.FOLDER_MIMETYPE,
+				parent: Nodes.ROOT_FOLDER_UUID,
+			});
+
+			const file = new File(["x".repeat(100)], "file.txt", {
+				type: "text/plain",
+			});
+			const nodeOrErr = await service.createFile(authCtx, file, {
+				parent: parent.right.uuid,
+			});
+
+			const updatedFile = new File(["x".repeat(106)], "file.txt", {
+				type: "text/plain",
+			});
+			const updateOrErr = await service.updateFile(
+				authCtx,
+				nodeOrErr.right.uuid,
+				updatedFile,
+			);
+
+			expect(updateOrErr.isLeft()).toBeTruthy();
+			if (updateOrErr.isLeft()) {
+				expect(updateOrErr.value).toBeInstanceOf(ForbiddenError);
+				expect(updateOrErr.value.message).toContain("Storage limit exceeded");
+			}
+		});
+
+		it("should allow file updates that reduce usage below the storage threshold", async () => {
+			const repository = new InMemoryNodeRepository();
+			const service = nodeService({
+				repository,
+				tenantLimitsGuard: createTenantLimitsGuard(repository, {
+					storage: 0.0000001,
+					tokens: 1,
+				}),
+			});
+			const parent = await service.create(authCtx, {
+				title: "Parent Folder",
+				mimetype: Nodes.FOLDER_MIMETYPE,
+				parent: Nodes.ROOT_FOLDER_UUID,
+			});
+
+			const file = new File(["x".repeat(100)], "file.txt", {
+				type: "text/plain",
+			});
+			const nodeOrErr = await service.createFile(authCtx, file, {
+				parent: parent.right.uuid,
+			});
+
+			const updatedFile = new File(["x".repeat(80)], "file.txt", {
+				type: "text/plain",
+			});
+			const updateOrErr = await service.updateFile(
+				authCtx,
+				nodeOrErr.right.uuid,
+				updatedFile,
+			);
+
+			expect(updateOrErr.isRight(), errToMsg(updateOrErr.value)).toBeTruthy();
+
+			const updatedNodeOrErr = await service.get(authCtx, nodeOrErr.right.uuid);
+			expect(updatedNodeOrErr.isRight(), errToMsg(updatedNodeOrErr.value)).toBeTruthy();
+			expect((updatedNodeOrErr.right as FileNode).size).toBe(80);
+		});
 	});
 
 	describe("update - UUID property validation", () => {
@@ -867,7 +946,7 @@ describe("NodeService", () => {
 				parent: Nodes.ROOT_FOLDER_UUID,
 			});
 
-			const parent = await service.create(authCtx, {
+			const _parent = await service.create(authCtx, {
 				title: "Parent Folder",
 				mimetype: Nodes.FOLDER_MIMETYPE,
 				parent: Nodes.ROOT_FOLDER_UUID,
@@ -1010,4 +1089,17 @@ const nodeService = (opts: Partial<NodeServiceContext> = {}) =>
 		repository: opts.repository ?? new InMemoryNodeRepository(),
 		bus: opts.bus ?? new InMemoryEventBus(),
 		configRepo: opts.configRepo ?? new InMemoryConfigurationRepository(),
+		tenantLimitsGuard: opts.tenantLimitsGuard,
 	});
+
+const createTenantLimitsGuard = (
+	repository: InMemoryNodeRepository,
+	limits: { storage: number | "pay-as-you-go"; tokens: number | "pay-as-you-go" },
+) =>
+	new TenantLimitsGuard(
+		repository,
+		{
+			getStreamsByMimetype: () => Promise.resolve(new Right(new Map())),
+		} as unknown as EventStoreRepository,
+		limits,
+	);

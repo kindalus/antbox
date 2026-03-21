@@ -6,7 +6,7 @@ import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository.ts"
 import type { AuthenticationContext } from "../security/authentication_context.ts";
 import { FolderNode } from "domain/nodes/folder_node.ts";
 import type { FileLikeNode } from "domain/node_like.ts";
-import { BadRequestError } from "shared/antbox_error.ts";
+import { BadRequestError, ForbiddenError } from "shared/antbox_error.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import type { Permissions } from "domain/nodes/node.ts";
 import { ValidationError } from "shared/validation_error.ts";
@@ -16,6 +16,8 @@ import type { AspectProperty } from "domain/configuration/aspect_data.ts";
 import { ADMINS_GROUP } from "application/security/builtin_groups/index.ts";
 import { Left, Right } from "shared/either.ts";
 import { InMemoryConfigurationRepository } from "adapters/inmem/inmem_configuration_repository.ts";
+import { TenantLimitsGuard } from "application/metrics/tenant_limits_guard.ts";
+import type { EventStoreRepository } from "domain/audit/event_store_repository.ts";
 
 describe("NodeService.create", () => {
 	it("should create a node and persist the metadata", async () => {
@@ -331,6 +333,31 @@ describe("NodeService.createFile", () => {
 		// The embedding service should not generate embeddings for zero-size files
 		// This is verified through the EmbeddingService tests
 	});
+
+	it("should block file creation when storage usage reaches the enforced threshold", async () => {
+		const repository = new InMemoryNodeRepository();
+		const service = nodeService({
+			repository,
+			tenantLimitsGuard: createTenantLimitsGuard(repository, { storage: 0.0000001, tokens: 1 }),
+		});
+
+		const parent = await service.create(authCtx, {
+			title: "Folder",
+			mimetype: Nodes.FOLDER_MIMETYPE,
+			parent: Nodes.ROOT_FOLDER_UUID,
+		});
+
+		const oversizedFile = new File(["x".repeat(105)], "limit.txt", { type: "text/plain" });
+		const nodeOrErr = await service.createFile(authCtx, oversizedFile, {
+			parent: parent.right.uuid,
+		});
+
+		expect(nodeOrErr.isLeft()).toBeTruthy();
+		if (nodeOrErr.isLeft()) {
+			expect(nodeOrErr.value).toBeInstanceOf(ForbiddenError);
+			expect(nodeOrErr.value.message).toContain("Storage limit exceeded");
+		}
+	});
 });
 
 describe("NodeService.duplicate", () => {
@@ -526,7 +553,20 @@ const nodeService = (opts: Partial<NodeServiceContext> = {}) =>
 		repository: opts.repository ?? new InMemoryNodeRepository(),
 		bus: opts.bus ?? new InMemoryEventBus(),
 		configRepo: opts.configRepo ?? new InMemoryConfigurationRepository(),
+		tenantLimitsGuard: opts.tenantLimitsGuard,
 	});
+
+const createTenantLimitsGuard = (
+	repository: InMemoryNodeRepository,
+	limits: { storage: number | "pay-as-you-go"; tokens: number | "pay-as-you-go" },
+) =>
+	new TenantLimitsGuard(
+		repository,
+		{
+			getStreamsByMimetype: () => Promise.resolve(new Right(new Map())),
+		} as unknown as EventStoreRepository,
+		limits,
+	);
 
 const dummyFile = new File(["Ola"], "ola.txt", { type: "text/plain" });
 

@@ -11,11 +11,7 @@ import {
 import type { RunConfig } from "@google/adk";
 import { z } from "zod";
 import { type Either, left, right } from "shared/either.ts";
-import {
-	AntboxError,
-	AntboxError as AntboxErrorClass,
-	ForbiddenError,
-} from "shared/antbox_error.ts";
+import { AntboxError, AntboxError as AntboxErrorClass } from "shared/antbox_error.ts";
 import { Logger } from "shared/logger.ts";
 import type { AuthenticationContext } from "../security/authentication_context.ts";
 import type { AgentData } from "domain/configuration/agent_data.ts";
@@ -30,6 +26,7 @@ import { AspectServiceProxy } from "../aspects/aspect_service_proxy.ts";
 import { createRunCodeTool } from "./builtin_tools/run_code.ts";
 import { type LoadedSkill, loadSkillInstruction } from "./skills_loader.ts";
 import { RAGService } from "./rag_service.ts";
+import type { TenantLimitsEnforcer } from "application/metrics/tenant_limits_guard.ts";
 
 const APP_NAME = "antbox";
 
@@ -60,6 +57,7 @@ export interface AgentsEngineContext {
 	readonly defaultModel: string;
 	readonly skills: LoadedSkill[];
 	readonly eventBus: EventBus;
+	readonly tenantLimitsGuard?: TenantLimitsEnforcer;
 }
 
 export function selectAgentTools<T extends { name: string }>(
@@ -98,6 +96,7 @@ export class AgentsEngine {
 	readonly #skills: LoadedSkill[];
 	readonly #ragService?: RAGService;
 	readonly #eventBus: EventBus;
+	readonly #tenantLimitsGuard?: TenantLimitsEnforcer;
 
 	constructor(ctx: AgentsEngineContext) {
 		this.#agentsService = ctx.agentsService;
@@ -107,6 +106,7 @@ export class AgentsEngine {
 		this.#skills = ctx.skills;
 		this.#ragService = ctx.ragService;
 		this.#eventBus = ctx.eventBus;
+		this.#tenantLimitsGuard = ctx.tenantLimitsGuard;
 	}
 
 	/**
@@ -132,6 +132,11 @@ export class AgentsEngine {
 					`Agent ${agentData.name} is not available for direct chat`,
 				),
 			);
+		}
+
+		const limitsOrErr = await this.#tenantLimitsGuard?.ensureCanRunAgent() ?? right(undefined);
+		if (limitsOrErr.isLeft()) {
+			return left(limitsOrErr.value);
 		}
 
 		try {
@@ -218,6 +223,11 @@ export class AgentsEngine {
 					`Agent ${agentData.name} is not available for direct answer`,
 				),
 			);
+		}
+
+		const limitsOrErr = await this.#tenantLimitsGuard?.ensureCanRunAgent() ?? right(undefined);
+		if (limitsOrErr.isLeft()) {
+			return left(limitsOrErr.value);
 		}
 
 		try {

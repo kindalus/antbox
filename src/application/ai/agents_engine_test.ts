@@ -2,7 +2,7 @@ import { describe, it } from "bdd";
 import { expect } from "expect";
 import { AgentsEngine, type AgentsEngineContext, selectAgentTools } from "./agents_engine.ts";
 import { left, right } from "shared/either.ts";
-import type { AntboxError } from "shared/antbox_error.ts";
+import { type AntboxError, ForbiddenError } from "shared/antbox_error.ts";
 import type { AgentData } from "domain/configuration/agent_data.ts";
 import type { AuthenticationContext } from "application/security/authentication_context.ts";
 
@@ -188,6 +188,46 @@ describe("AgentsEngine", () => {
 			expect(result.isLeft()).toBe(true);
 			if (result.isLeft()) {
 				expect(result.value.message).toContain("not available for direct answer");
+			}
+		});
+	});
+
+	describe("limits enforcement", () => {
+		it("blocks chat when the agent token threshold is reached", async () => {
+			const engine = new AgentsEngine(makeContext({
+				tenantLimitsGuard: {
+					ensureCanCreateFile: async () => right(undefined),
+					ensureCanUpdateFile: async () => right(undefined),
+					ensureCanRunAgent: async () =>
+						left(new ForbiddenError("Agent token limit exceeded for the current month")),
+				},
+			}));
+
+			const result = await engine.chat(mockAuthContext, "test-agent-uuid", "Hello");
+
+			expect(result.isLeft()).toBe(true);
+			if (result.isLeft()) {
+				expect(result.value).toBeInstanceOf(ForbiddenError);
+				expect(result.value.message).toContain("Agent token limit exceeded");
+			}
+		});
+
+		it("blocks answer when the agent token threshold is reached", async () => {
+			const engine = new AgentsEngine(makeContext({
+				tenantLimitsGuard: {
+					ensureCanCreateFile: async () => right(undefined),
+					ensureCanUpdateFile: async () => right(undefined),
+					ensureCanRunAgent: async () =>
+						left(new ForbiddenError("Agent token limit exceeded for the current month")),
+				},
+			}));
+
+			const result = await engine.answer(mockAuthContext, "test-agent-uuid", "Hello");
+
+			expect(result.isLeft()).toBe(true);
+			if (result.isLeft()) {
+				expect(result.value).toBeInstanceOf(ForbiddenError);
+				expect(result.value.message).toContain("Agent token limit exceeded");
 			}
 		});
 	});

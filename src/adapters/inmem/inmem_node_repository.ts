@@ -197,6 +197,17 @@ export class InMemoryNodeRepository implements NodeRepository {
 		return Promise.resolve(right(undefined));
 	}
 
+	aggregateTotalSize(): Promise<Either<AntboxError, number>> {
+		let total = 0;
+		for (const key in this.#data) {
+			const node = this.#data[key].node as { size?: number };
+			if (typeof node.size === "number") {
+				total += node.size;
+			}
+		}
+		return Promise.resolve(right(total));
+	}
+
 	#cosineSimilarity(vectorA: Embedding, vectorB: Embedding): number {
 		if (vectorA.length !== vectorB.length) {
 			return 0;

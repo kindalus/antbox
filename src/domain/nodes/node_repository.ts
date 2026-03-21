@@ -65,4 +65,10 @@ export interface NodeRepository {
 	 * @param uuid The node UUID
 	 */
 	deleteEmbedding(uuid: string): Promise<Either<AntboxError, void>>;
+
+	/**
+	 * Calculates the total size of all stored files in bytes.
+	 * Does not include folder nodes or system overhead.
+	 */
+	aggregateTotalSize(): Promise<Either<AntboxError, number>>;
 }

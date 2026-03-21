@@ -226,6 +226,20 @@ export class PostgresNodeRepository implements NodeRepository {
 		}
 	}
 
+	async aggregateTotalSize(): Promise<Either<AntboxError, number>> {
+		try {
+			const result = await this.#sql`
+				SELECT SUM((body->>'size')::numeric) as total
+				FROM nodes
+			`;
+			const total = Number(result[0]?.total ?? 0);
+			return right(total);
+		} catch (err) {
+			const error = err as Error;
+			return left(new PostgresError(error.message));
+		}
+	}
+
 	async add(node: NodeLike): Promise<Either<DuplicatedNodeError, void>> {
 		try {
 			const metadata = node.metadata;

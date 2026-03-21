@@ -214,6 +214,21 @@ export class SqliteNodeRepository implements NodeRepository {
 		}
 	}
 
+	aggregateTotalSize(): Promise<Either<AntboxError, number>> {
+		try {
+			// json_extract extracts the size property.
+			const rows = this.#db
+				.prepare("SELECT SUM(json_extract(body, '$.size')) as total FROM nodes")
+				.all() as { total: number | null }[];
+
+			const total = rows[0]?.total ?? 0;
+			return Promise.resolve(right(total));
+		} catch (err) {
+			const error = err as Error;
+			return Promise.resolve(left(new SqliteError(error.message)));
+		}
+	}
+
 	add(node: NodeLike): Promise<Either<DuplicatedNodeError, void>> {
 		try {
 			const body = JSON.stringify(node.metadata);

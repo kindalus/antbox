@@ -27,6 +27,7 @@ import { NotificationsService } from "application/notifications/notifications_se
 import { UserPreferencesService } from "application/preferences/user_preferences_service.ts";
 import { ExternalLoginService } from "application/security/external_login_service.ts";
 import { RAGService } from "application/ai/rag_service.ts";
+import { MetricsService } from "application/metrics/metrics_service.ts";
 import { loadSkills } from "application/ai/skills_loader.ts";
 import type { EmbeddingsProvider } from "domain/ai/embeddings_provider.ts";
 import type { OCRProvider } from "domain/ai/ocr_provider.ts";
@@ -222,6 +223,11 @@ async function setupTenant(
 		eventBus,
 	);
 
+	const metricsService = new MetricsService(
+		nodeRepository,
+		eventStoreRepository,
+	);
+
 	return {
 		name: cfg.name,
 		rootPasswd: passwd,
@@ -239,6 +245,7 @@ async function setupTenant(
 		externalLoginService,
 		featuresService,
 		groupsService,
+		metricsService,
 		nodeService,
 		notificationsService,
 		ragService,

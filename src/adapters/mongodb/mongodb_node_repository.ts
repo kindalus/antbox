@@ -266,6 +266,25 @@ export class MongodbNodeRepository implements NodeRepository {
 		}
 	}
 
+	async aggregateTotalSize(): Promise<Either<AntboxError, number>> {
+		try {
+			const result = await this.#collection.aggregate([
+				{
+					$group: {
+						_id: null,
+						total: { $sum: "$size" },
+					},
+				},
+			]).toArray();
+
+			const total = result.length > 0 ? (result[0].total as number) : 0;
+			return right(total);
+		} catch (err) {
+			// deno-lint-ignore no-explicit-any
+			return left(new MongodbError((err as any).message));
+		}
+	}
+
 	#cosineSimilarity(vectorA: Embedding, vectorB: Embedding): number {
 		if (vectorA.length !== vectorB.length) {
 			return 0;

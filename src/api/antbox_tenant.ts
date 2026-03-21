@@ -42,6 +42,7 @@ export interface AntboxTenant {
 	userPreferencesService: UserPreferencesService;
 	externalLoginService: ExternalLoginService;
 	ragService?: RAGService;
+	metricsService: import("application/metrics/metrics_service.ts").MetricsService;
 
 	// Engines (execution logic)
 	featuresEngine: FeaturesEngine;

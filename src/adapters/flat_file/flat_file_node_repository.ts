@@ -178,4 +178,8 @@ class FlatFileNodeRepository implements NodeRepository {
 	deleteEmbedding(uuid: string): Promise<Either<AntboxError, void>> {
 		return this.#base.deleteEmbedding(uuid);
 	}
+
+	aggregateTotalSize(): Promise<Either<AntboxError, number>> {
+		return this.#base.aggregateTotalSize();
+	}
 }

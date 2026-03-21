@@ -1,7 +1,11 @@
 import { right } from "shared/either.ts";
 import type { Either } from "shared/either.ts";
 import type { AntboxError } from "shared/antbox_error.ts";
-import type { Embedding, EmbeddingsProvider, EmbeddingsResult } from "domain/ai/embeddings_provider.ts";
+import type {
+	Embedding,
+	EmbeddingsProvider,
+	EmbeddingsResult,
+} from "domain/ai/embeddings_provider.ts";
 
 /**
  * DeterministicEmbeddingsProvider - Hash-based deterministic vectors for testing.

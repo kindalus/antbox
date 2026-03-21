@@ -22,6 +22,7 @@ import notificationsRouter from "adapters/oak/notifications_v2_router.ts";
 import userPreferencesRouter from "adapters/oak/user_preferences_v2_router.ts";
 import heartbeatRouter from "adapters/oak/heartbeat_v2_router.ts";
 import adminRouter from "adapters/oak/admin_v2_router.ts";
+import metricsRouter from "adapters/oak/metrics_router.ts";
 
 import type { AntboxTenant } from "api/antbox_tenant.ts";
 import { Application, Router } from "@oak/oak";
@@ -73,6 +74,7 @@ export default function setupOakServer(
 	const userPreferences = userPreferencesRouter(tenants);
 	const heartbeat = heartbeatRouter();
 	const admin = adminRouter(tenants, reload, configDir);
+	const metrics = metricsRouter(tenants);
 
 	const v2 = new Router({ prefix: "/v2" });
 
@@ -95,6 +97,7 @@ export default function setupOakServer(
 	v2.use(userPreferences.routes(), userPreferences.allowedMethods());
 	v2.use(heartbeat.routes(), heartbeat.allowedMethods());
 	v2.use(admin.routes(), admin.allowedMethods());
+	v2.use(metrics.routes(), metrics.allowedMethods());
 
 	app.use(v2.routes(), v2.allowedMethods());
 	app.use(mcp.routes(), mcp.allowedMethods());

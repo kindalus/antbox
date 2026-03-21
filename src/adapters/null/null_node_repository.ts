@@ -75,6 +75,10 @@ export class NullNodeRepository implements NodeRepository {
 		return Promise.resolve(right(undefined));
 	}
 
+	aggregateTotalSize(): Promise<Either<AntboxError, number>> {
+		return Promise.resolve(right(0));
+	}
+
 	#nullNode = FileNode.create({ title: "Null", mimetype: "null/null" }).right;
 }
 

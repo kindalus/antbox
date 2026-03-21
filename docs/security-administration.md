@@ -19,12 +19,12 @@ Create payload example:
 
 ```json
 {
-  "email": "jane@example.com",
-  "title": "Jane Doe",
-  "group": "--users--",
-  "groups": ["--users--"],
-  "hasWhatsapp": false,
-  "active": true
+	"email": "jane@example.com",
+	"title": "Jane Doe",
+	"group": "--users--",
+	"groups": ["--users--"],
+	"hasWhatsapp": false,
+	"active": true
 }
 ```
 
@@ -39,8 +39,8 @@ Create payload example:
 
 ```json
 {
-  "title": "Finance",
-  "description": "Finance department"
+	"title": "Finance",
+	"description": "Finance department"
 }
 ```
 
@@ -55,10 +55,10 @@ Create payload example:
 
 ```json
 {
-  "title": "CI pipeline",
-  "group": "--admins--",
-  "description": "Key for automated tasks",
-  "active": true
+	"title": "CI pipeline",
+	"group": "--admins--",
+	"description": "Key for automated tasks",
+	"active": true
 }
 ```
 

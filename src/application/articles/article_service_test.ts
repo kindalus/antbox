@@ -114,10 +114,10 @@ describe("ArticleService", () => {
 	});
 
 	describe("get", () => {
-			it("get should return article", async () => {
-				const service = createService();
+		it("get should return article", async () => {
+			const service = createService();
 
-				await service.createOrReplace(adminAuthContext, {
+			await service.createOrReplace(adminAuthContext, {
 				uuid: "--uuid--",
 				title: "javascript",
 				description: "The description",
@@ -135,11 +135,11 @@ describe("ArticleService", () => {
 
 			const articleOrErr = await service.get(adminAuthContext, "--uuid--");
 
-				expect(articleOrErr.isRight(), errMsg(articleOrErr.value)).toBeTruthy();
-			});
+			expect(articleOrErr.isRight(), errMsg(articleOrErr.value)).toBeTruthy();
+		});
 
-			it("get should return error if node is not article", async () => {
-				const service = createService();
+		it("get should return error if node is not article", async () => {
+			const service = createService();
 
 			const htmlOrErr = await service.get(adminAuthContext, "--json--");
 

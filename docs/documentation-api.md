@@ -18,10 +18,10 @@ Antbox serves built-in documentation through dedicated endpoints.
 
 ```json
 [
-  {
-    "uuid": "getting-started",
-    "description": "Getting started guide"
-  }
+	{
+		"uuid": "getting-started",
+		"description": "Getting started guide"
+	}
 ]
 ```
 

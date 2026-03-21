@@ -104,7 +104,9 @@ export class WorkflowInstancesService {
 		);
 
 		if (running.length === 0) {
-			return left(new BadRequestError(`No running workflow instance found for node ${nodeUuid}`));
+			return left(
+				new BadRequestError(`No running workflow instance found for node ${nodeUuid}`),
+			);
 		}
 
 		if (running.length > 1) {

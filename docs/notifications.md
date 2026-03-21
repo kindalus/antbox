@@ -32,10 +32,10 @@ All three send endpoints accept:
 
 ```json
 {
-  "targetUser": "user@example.com",
-  "targetGroup": "--admins--",
-  "title": "Build finished",
-  "body": "Nightly process completed"
+	"targetUser": "user@example.com",
+	"targetGroup": "--admins--",
+	"title": "Build finished",
+	"body": "Nightly process completed"
 }
 ```
 
@@ -51,7 +51,7 @@ Rules:
 
 ```json
 {
-  "uuids": ["uuid-1", "uuid-2"]
+	"uuids": ["uuid-1", "uuid-2"]
 }
 ```
 

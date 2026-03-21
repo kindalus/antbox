@@ -1,7 +1,7 @@
 import { right } from "shared/either.ts";
 import type { Either } from "shared/either.ts";
 import type { AntboxError } from "shared/antbox_error.ts";
-import type { Embedding, EmbeddingsProvider } from "domain/ai/embeddings_provider.ts";
+import type { Embedding, EmbeddingsProvider, EmbeddingsResult } from "domain/ai/embeddings_provider.ts";
 
 /**
  * DeterministicEmbeddingsProvider - Hash-based deterministic vectors for testing.
@@ -18,9 +18,17 @@ export class DeterministicEmbeddingsProvider implements EmbeddingsProvider {
 		this.#threshold = Math.max(0, Math.min(1, threshold));
 	}
 
-	embed(texts: string[]): Promise<Either<AntboxError, Embedding[]>> {
+	embed(texts: string[]): Promise<Either<AntboxError, EmbeddingsResult>> {
 		const embeddings = texts.map((text) => this.#createDeterministicEmbedding(text));
-		return Promise.resolve(right(embeddings));
+		const totalTokens = texts.reduce((sum, t) => sum + Math.ceil(t.length / 4), 0);
+		return Promise.resolve(right({
+			embeddings,
+			usage: {
+				promptTokens: totalTokens,
+				completionTokens: 0,
+				totalTokens: totalTokens,
+			},
+		}));
 	}
 
 	relevanceThreshold(): number {

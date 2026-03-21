@@ -1,7 +1,6 @@
 # Antbox Product Strategy & UX Analysis
 
-> Analysis Date: December 2024
-> Analyst: Product Strategy & UX Consultant
+> Analysis Date: December 2024 Analyst: Product Strategy & UX Consultant
 
 ---
 
@@ -9,7 +8,13 @@
 
 ### Product Summary
 
-**Antbox** is an open-source, API-first Enterprise Content Management (ECM) and Digital Asset Management (DAM) platform built with Deno and TypeScript. It offers multi-tenant document management with AI-powered processing via configurable agents, workflow automation with state machines, custom feature execution, and multi-language content support. Unlike heavyweight ECM suites, Antbox provides a lightweight, embeddable core with pluggable storage (S3, Google Drive, flat-file) and database adapters (MongoDB, Postgres), making it suitable for organizations seeking to build custom document-centric applications without vendor lock-in.
+**Antbox** is an open-source, API-first Enterprise Content Management (ECM) and Digital Asset
+Management (DAM) platform built with Deno and TypeScript. It offers multi-tenant document management
+with AI-powered processing via configurable agents, workflow automation with state machines, custom
+feature execution, and multi-language content support. Unlike heavyweight ECM suites, Antbox
+provides a lightweight, embeddable core with pluggable storage (S3, Google Drive, flat-file) and
+database adapters (MongoDB, Postgres), making it suitable for organizations seeking to build custom
+document-centric applications without vendor lock-in.
 
 ### Ideal Customer Profile (ICP)
 
@@ -19,7 +24,8 @@
 | **Secondary** | Enterprise dev teams replacing legacy ECM with modern API-first architecture                              |
 | **Tertiary**  | System integrators building vertical solutions (legal tech, healthcare records, compliance)               |
 
-**Firmographics:** Tech-forward, API-literate organizations; development teams comfortable with TypeScript/Deno; businesses in Portugal/EU (inferred from "Kindalus" and locale support for "pt")
+**Firmographics:** Tech-forward, API-literate organizations; development teams comfortable with
+TypeScript/Deno; businesses in Portugal/EU (inferred from "Kindalus" and locale support for "pt")
 
 ### Top Jobs-to-Be-Done
 
@@ -57,7 +63,12 @@
 
 ### Positioning Statement
 
-> **For** development teams building document-centric applications **who** need embeddable content management without the complexity of enterprise ECM, **Antbox** is an open-source, API-first ECM platform **that** provides document management, AI agents, and workflow automation in a lightweight, multi-tenant package. **Unlike** Alfresco or Nuxeo, Antbox runs on modern Deno/TypeScript, deploys anywhere with pluggable storage, and integrates AI natively—not as an add-on.
+> **For** development teams building document-centric applications **who** need embeddable content
+> management without the complexity of enterprise ECM, **Antbox** is an open-source, API-first ECM
+> platform **that** provides document management, AI agents, and workflow automation in a
+> lightweight, multi-tenant package. **Unlike** Alfresco or Nuxeo, Antbox runs on modern
+> Deno/TypeScript, deploys anywhere with pluggable storage, and integrates AI natively—not as an
+> add-on.
 
 ### Differentiation Matrix
 
@@ -170,18 +181,18 @@
 
 ### Top 10 Usability Issues
 
-| #   | Issue                                                   | Severity | Location                                      |
-| --- | ------------------------------------------------------- | -------- | --------------------------------------------- |
-| 1   | **No README or project description**                    | Critical | Root directory                                |
-| 2   | **No getting started guide**                            | Critical | `docs/` removed                               |
-| 3   | **No admin UI** – operators can't browse content        | High     | No UI code                                    |
-| 4   | **Single AI provider lock-in**                          | High     | `src/application/ai/`                         |
-| 5   | **Auth method confusion** – 4 methods, no guidance      | Medium   | `openapi.yaml:9-13`                           |
-| 6   | **No real-time events** – must poll for workflow status | Medium   | No WebSocket                                  |
-| 7   | **Disabled tests suggest instability**                  | Medium   | `workflow_instances_service_test.ts.disabled` |
-| 8   | **No Docker/container setup**                           | Medium   | No Dockerfile                                 |
-| 9   | **Unclear error codes** – `default` error responses     | Low      | `openapi.yaml` error schemas                  |
-| 10  | **No changelog/releases**                               | Low      | No CHANGELOG.md, no GitHub releases           |
+| #  | Issue                                                   | Severity | Location                                      |
+| -- | ------------------------------------------------------- | -------- | --------------------------------------------- |
+| 1  | **No README or project description**                    | Critical | Root directory                                |
+| 2  | **No getting started guide**                            | Critical | `docs/` removed                               |
+| 3  | **No admin UI** – operators can't browse content        | High     | No UI code                                    |
+| 4  | **Single AI provider lock-in**                          | High     | `src/application/ai/`                         |
+| 5  | **Auth method confusion** – 4 methods, no guidance      | Medium   | `openapi.yaml:9-13`                           |
+| 6  | **No real-time events** – must poll for workflow status | Medium   | No WebSocket                                  |
+| 7  | **Disabled tests suggest instability**                  | Medium   | `workflow_instances_service_test.ts.disabled` |
+| 8  | **No Docker/container setup**                           | Medium   | No Dockerfile                                 |
+| 9  | **Unclear error codes** – `default` error responses     | Low      | `openapi.yaml` error schemas                  |
+| 10 | **No changelog/releases**                               | Low      | No CHANGELOG.md, no GitHub releases           |
 
 ---
 
@@ -275,8 +286,14 @@
 
 ## Summary Recommendation
 
-Antbox has a **strong technical foundation** with modern architecture, native AI, and clean separation of concerns. The **critical gap is discoverability**—without documentation or a landing page, potential adopters cannot find or evaluate it.
+Antbox has a **strong technical foundation** with modern architecture, native AI, and clean
+separation of concerns. The **critical gap is discoverability**—without documentation or a landing
+page, potential adopters cannot find or evaluate it.
 
-**Immediate priority:** Publish a README, Docker image, and basic landing page. This unlocks the ability to gather feedback and build community. The AI agent capability is a genuine differentiator vs. Java-based ECM competitors—lean into this with examples and tutorials.
+**Immediate priority:** Publish a README, Docker image, and basic landing page. This unlocks the
+ability to gather feedback and build community. The AI agent capability is a genuine differentiator
+vs. Java-based ECM competitors—lean into this with examples and tutorials.
 
-**Strategic positioning:** "The developer-first ECM for TypeScript teams" occupies a clear niche between heavyweight enterprise ECM (Alfresco/Nuxeo) and content-focused headless CMS (Strapi/Directus).
+**Strategic positioning:** "The developer-first ECM for TypeScript teams" occupies a clear niche
+between heavyweight enterprise ECM (Alfresco/Nuxeo) and content-focused headless CMS
+(Strapi/Directus).

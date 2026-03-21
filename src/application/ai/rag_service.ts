@@ -12,6 +12,7 @@ import { NodeUpdatedEvent } from "domain/nodes/node_updated_event.ts";
 import { NodeDeletedEvent } from "domain/nodes/node_deleted_event.ts";
 import { EmbeddingCreatedEvent } from "domain/nodes/embedding_created_event.ts";
 import { EmbeddingUpdatedEvent } from "domain/nodes/embedding_updated_event.ts";
+import { EmbeddingsGeneratedEvent } from "domain/ai/embeddings_generated_event.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { createElevatedContext } from "application/security/elevated_context.ts";
@@ -82,7 +83,22 @@ export class RAGService {
 			return left(embeddingOrErr.value);
 		}
 
-		const queryVector = embeddingOrErr.value[0];
+		if (embeddingOrErr.value.usage) {
+			this.#eventBus.publish(
+				new EmbeddingsGeneratedEvent(
+					"system", // RAG query runs as system
+					"unknown", // Or pull from context if available
+					{
+						nodeUuid: "query", // Represents a search query
+						model: "default",
+						usage: embeddingOrErr.value.usage,
+						context: "search",
+					},
+				),
+			);
+		}
+
+		const queryVector = embeddingOrErr.value.embeddings[0];
 
 		const searchOrErr = await this.#repository.vectorSearch(queryVector, topK);
 		if (searchOrErr.isLeft()) {
@@ -118,7 +134,7 @@ export class RAGService {
 		if (Nodes.isFile(node)) {
 			success = await this.#indexFile(node, event.tenant);
 		} else {
-			success = await this.#indexNodeMetadata(node);
+			success = await this.#indexNodeMetadata(node, event.tenant);
 		}
 
 		if (success) {
@@ -145,7 +161,7 @@ export class RAGService {
 		if (Nodes.isFile(node)) {
 			success = await this.#indexFile(node, event.tenant);
 		} else {
-			success = await this.#indexNodeMetadata(node);
+			success = await this.#indexNodeMetadata(node, event.tenant);
 		}
 
 		if (success) {
@@ -177,24 +193,39 @@ export class RAGService {
 		}
 
 		const markdown = toEmbeddingMarkdown(node, bodyContent);
-		return this.#generateAndStore(node.uuid, markdown);
+		return this.#generateAndStore(node.uuid, markdown, tenant);
 	}
 
-	async #indexNodeMetadata(metadata: NodeMetadata): Promise<boolean> {
+	async #indexNodeMetadata(metadata: NodeMetadata, tenant: string): Promise<boolean> {
 		const markdown = toEmbeddingMarkdown(metadata);
-		return this.#generateAndStore(metadata.uuid, markdown);
+		return this.#generateAndStore(metadata.uuid, markdown, tenant);
 	}
 
-	async #generateAndStore(uuid: string, text: string): Promise<boolean> {
+	async #generateAndStore(uuid: string, text: string, tenant: string): Promise<boolean> {
 		const embeddingsOrErr = await this.#embeddingsProvider.embed([text]);
 		if (embeddingsOrErr.isLeft()) {
 			Logger.error(`RAGService: embedding failed for ${uuid}: ${embeddingsOrErr.value.message}`);
 			return false;
 		}
 
+		if (embeddingsOrErr.value.usage) {
+			this.#eventBus.publish(
+				new EmbeddingsGeneratedEvent(
+					"system",
+					tenant,
+					{
+						nodeUuid: uuid,
+						model: "default",
+						usage: embeddingsOrErr.value.usage,
+						context: "indexing",
+					},
+				),
+			);
+		}
+
 		const storeOrErr = await this.#repository.upsertEmbedding(
 			uuid,
-			embeddingsOrErr.value[0],
+			embeddingsOrErr.value.embeddings[0],
 			text,
 		);
 		if (storeOrErr.isLeft()) {

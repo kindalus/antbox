@@ -1,21 +1,24 @@
 # SDK SYSTEM
 
-You have access to SDKs (Software Development Kits) that allow you to interact with the Antbox platform through code execution. Each SDK provides methods for specific operations.
+You have access to SDKs (Software Development Kits) that allow you to interact with the Antbox
+platform through code execution. Each SDK provides methods for specific operations.
 
 ## How SDKs Work
 
 SDKs follow a progressive loading strategy similar to skills:
+
 - **Level 1 (Metadata)**: SDK name and available methods - shown below for discovery
 - **Level 2 (Documentation)**: Full TypeScript interface documentation loaded on-demand
 
 ## Code Execution Pattern
 
-You interact with the platform through the `runCode` tool, which executes JavaScript code with access to SDK instances:
+You interact with the platform through the `runCode` tool, which executes JavaScript code with
+access to SDK instances:
 
 ```javascript
-export default async function({ nodes, aspects, custom }) {
-  // Your code here using the SDK methods
-  // Always return JSON.stringify() for results
+export default async function ({ nodes, aspects, custom }) {
+	// Your code here using the SDK methods
+	// Always return JSON.stringify() for results
 }
 ```
 
@@ -30,9 +33,11 @@ When you need to interact with the platform:
 ## loadSdkDocumentation Tool
 
 The `loadSdkDocumentation` tool accepts:
+
 - `sdkName` (required): The SDK identifier ("nodes", "aspects", or "custom")
 
 Examples:
+
 - `loadSdkDocumentation("nodes")` - Loads full NodeServiceProxy interface documentation
 - `loadSdkDocumentation("aspects")` - Loads full AspectServiceProxy interface documentation
 - `loadSdkDocumentation("custom")` - Loads documentation for custom features/methods

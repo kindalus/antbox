@@ -23,7 +23,7 @@ export function resolveTenant(req: Request, tenants: AntboxTenant[]): AntboxTena
 	const paramTenant = params["x-tenant"];
 	const headerTenant = req.headers.get("X-Tenant") ?? undefined;
 
-	const requested = (paramTenant?.length ? paramTenant : headerTenant);
+	const requested = paramTenant?.length ? paramTenant : headerTenant;
 
 	if (!requested) return tenants[0];
 	if (requested === "default" || requested === tenants[0].name) return tenants[0];

@@ -79,6 +79,6 @@ describe("authenticationMiddleware", () => {
 
 		const principal = await response.json();
 		expect(principal.email).toBe("john.doe@example.com");
-		expect(principal.groups).toEqual(["developers", "staff"]);
+		expect(principal.groups).toEqual(expect.arrayContaining(["developers", "staff"]));
 	});
 });

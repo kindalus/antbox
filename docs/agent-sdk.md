@@ -14,12 +14,12 @@ The code runs with bound SDK proxies and the current user authentication context
 `runCode` expects an ESM module that exports a default async function:
 
 ```javascript
-export default async function({ nodes, aspects, custom }) {
-  const result = await nodes.list("--root--");
-  if (result.isLeft()) {
-    return JSON.stringify({ error: result.value.message });
-  }
-  return JSON.stringify(result.value);
+export default async function ({ nodes, aspects, custom }) {
+	const result = await nodes.list("--root--");
+	if (result.isLeft()) {
+		return JSON.stringify({ error: result.value.message });
+	}
+	return JSON.stringify(result.value);
 }
 ```
 
@@ -62,7 +62,7 @@ SDK methods return `Either<Error, Value>`:
 const nodeOrErr = await nodes.get("some-uuid");
 
 if (nodeOrErr.isLeft()) {
-  return JSON.stringify({ error: nodeOrErr.value.message });
+	return JSON.stringify({ error: nodeOrErr.value.message });
 }
 
 return JSON.stringify(nodeOrErr.value);

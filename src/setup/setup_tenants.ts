@@ -183,6 +183,7 @@ async function setupTenant(
 		aspectsService,
 		defaultModel: cfg.ai?.defaultModel ?? "google/gemini-2.5-flash",
 		skills,
+		eventBus,
 	});
 
 	// Create FeaturesEngine (execution logic)

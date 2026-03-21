@@ -2,7 +2,11 @@ import { left, right } from "shared/either.ts";
 import type { Either } from "shared/either.ts";
 import { AntboxError } from "shared/antbox_error.ts";
 import { Logger } from "shared/logger.ts";
-import type { Embedding, EmbeddingsProvider } from "domain/ai/embeddings_provider.ts";
+import type {
+	Embedding,
+	EmbeddingsProvider,
+	EmbeddingsResult,
+} from "domain/ai/embeddings_provider.ts";
 import { GoogleGenAI } from "@google/genai";
 
 /**
@@ -36,21 +40,35 @@ export class GeminiEmbeddingsProvider implements EmbeddingsProvider {
 		this.#client = new GoogleGenAI({ apiKey: key });
 	}
 
-	async embed(texts: string[]): Promise<Either<AntboxError, Embedding[]>> {
+	async embed(texts: string[]): Promise<Either<AntboxError, EmbeddingsResult>> {
 		try {
 			const embeddings: Embedding[] = [];
+			let totalPromptTokens = 0;
+			let totalCompletionTokens = 0;
+			let totalTokens = 0;
 
 			for (const text of texts) {
-				const response = await this.#client.models.embedContent({
-					model: this.#modelName,
-					contents: { parts: [{ text }] },
-					config: {
-						taskType: "RETRIEVAL_DOCUMENT",
-					},
-				});
+				const [countResponse, embedResponse] = await Promise.all([
+					this.#client.models.countTokens({
+						model: this.#modelName,
+						contents: { parts: [{ text }] },
+					}).catch(() => null),
+					this.#client.models.embedContent({
+						model: this.#modelName,
+						contents: { parts: [{ text }] },
+						config: {
+							taskType: "RETRIEVAL_DOCUMENT",
+						},
+					}),
+				]);
 
-				if (response.embeddings && response.embeddings[0]?.values) {
-					embeddings.push(response.embeddings[0].values);
+				if (countResponse) {
+					totalTokens += countResponse.totalTokens ?? 0;
+					totalPromptTokens += countResponse.totalTokens ?? 0; // Embeddings models only consume prompt tokens
+				}
+
+				if (embedResponse.embeddings && embedResponse.embeddings[0]?.values) {
+					embeddings.push(embedResponse.embeddings[0].values);
 				} else {
 					return left(
 						new AntboxError(
@@ -61,7 +79,14 @@ export class GeminiEmbeddingsProvider implements EmbeddingsProvider {
 				}
 			}
 
-			return right(embeddings);
+			return right({
+				embeddings,
+				usage: {
+					promptTokens: totalPromptTokens,
+					completionTokens: totalCompletionTokens,
+					totalTokens,
+				},
+			});
 		} catch (error) {
 			return left(
 				new AntboxError(

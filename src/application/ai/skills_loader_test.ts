@@ -152,7 +152,7 @@ describe("loadSkills", () => {
 			tempDir,
 			"rich-skill",
 			makeSkill(
-				"name: rich-skill\ndescription: Includes optional fields\nlicense: Apache-2.0\ncompatibility: Requires git and internet\nmetadata:\n  author: antbox\n  version: \"1.0\"",
+				'name: rich-skill\ndescription: Includes optional fields\nlicense: Apache-2.0\ncompatibility: Requires git and internet\nmetadata:\n  author: antbox\n  version: "1.0"',
 			),
 		);
 

@@ -177,19 +177,19 @@ describe("NodeService", () => {
 			]);
 		});
 
-			it("should not list nodes in 'Data Warehouse' folder for anonymous user", async () => {
-				const listOrErr = await service.list(anonymousCtx, "data-warehouse-uuid");
+		it("should not list nodes in 'Data Warehouse' folder for anonymous user", async () => {
+			const listOrErr = await service.list(anonymousCtx, "data-warehouse-uuid");
 
-				expect(listOrErr.isLeft()).toBeTruthy();
-				expect(listOrErr.value).toBeInstanceOf(UnauthorizedError);
-			});
+			expect(listOrErr.isLeft()).toBeTruthy();
+			expect(listOrErr.value).toBeInstanceOf(UnauthorizedError);
+		});
 
-			it("should list public nodes in 'Marca' folder for anonymous user", async () => {
-				const listOrErr = await service.list(anonymousCtx, "marca-uuid");
+		it("should list public nodes in 'Marca' folder for anonymous user", async () => {
+			const listOrErr = await service.list(anonymousCtx, "marca-uuid");
 
-				expect(listOrErr.isRight(), errToMsg(listOrErr.value)).toBeTruthy();
-				expect(listOrErr.right.length).toBe(7);
-			});
+			expect(listOrErr.isRight(), errToMsg(listOrErr.value)).toBeTruthy();
+			expect(listOrErr.right.length).toBe(7);
+		});
 
 		// Removed tests for system folders - configuration items are no longer stored as nodes
 

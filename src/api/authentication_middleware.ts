@@ -1,4 +1,6 @@
 import type { Principal } from "application/security/authentication_context.ts";
+import type { ApiKeysService } from "application/security/api_keys_service.ts";
+import type { ExternalLoginService } from "application/security/external_login_service.ts";
 import { Groups } from "domain/users_groups/groups.ts";
 import { Users } from "domain/users_groups/users.ts";
 import { type Either, left, right } from "shared/either.ts";

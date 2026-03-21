@@ -9,7 +9,7 @@ describe("DeterministicEmbeddingsProvider", () => {
 		const result = await provider.embed(["hello", "world"]);
 		expect(result.isRight()).toBe(true);
 		if (result.isRight()) {
-			expect(result.value).toHaveLength(2);
+			expect(result.value.embeddings).toHaveLength(2);
 		}
 	});
 
@@ -17,7 +17,7 @@ describe("DeterministicEmbeddingsProvider", () => {
 		const result = await provider.embed(["hello"]);
 		expect(result.isRight()).toBe(true);
 		if (result.isRight()) {
-			expect(result.value[0]).toHaveLength(128);
+			expect(result.value.embeddings[0]).toHaveLength(128);
 		}
 	});
 
@@ -27,7 +27,7 @@ describe("DeterministicEmbeddingsProvider", () => {
 		expect(r1.isRight()).toBe(true);
 		expect(r2.isRight()).toBe(true);
 		if (r1.isRight() && r2.isRight()) {
-			expect(r1.value[0]).toEqual(r2.value[0]);
+			expect(r1.value.embeddings[0]).toEqual(r2.value.embeddings[0]);
 		}
 	});
 
@@ -37,7 +37,7 @@ describe("DeterministicEmbeddingsProvider", () => {
 		expect(r1.isRight()).toBe(true);
 		expect(r2.isRight()).toBe(true);
 		if (r1.isRight() && r2.isRight()) {
-			expect(r1.value[0]).not.toEqual(r2.value[0]);
+			expect(r1.value.embeddings[0]).not.toEqual(r2.value.embeddings[0]);
 		}
 	});
 
@@ -45,7 +45,7 @@ describe("DeterministicEmbeddingsProvider", () => {
 		const result = await provider.embed(["normalize me"]);
 		expect(result.isRight()).toBe(true);
 		if (result.isRight()) {
-			const vector = result.value[0];
+			const vector = result.value.embeddings[0];
 			const magnitude = Math.sqrt(vector.reduce((sum: number, v: number) => sum + v * v, 0));
 			expect(magnitude).toBeCloseTo(1.0, 5);
 		}
@@ -55,7 +55,7 @@ describe("DeterministicEmbeddingsProvider", () => {
 		const result = await provider.embed([]);
 		expect(result.isRight()).toBe(true);
 		if (result.isRight()) {
-			expect(result.value).toHaveLength(0);
+			expect(result.value.embeddings).toHaveLength(0);
 		}
 	});
 
@@ -64,7 +64,7 @@ describe("DeterministicEmbeddingsProvider", () => {
 		const result = await defaultProvider.embed(["test"]);
 		expect(result.isRight()).toBe(true);
 		if (result.isRight()) {
-			expect(result.value[0]).toHaveLength(1536);
+			expect(result.value.embeddings[0]).toHaveLength(1536);
 		}
 	});
 

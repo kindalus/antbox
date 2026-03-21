@@ -1,10 +1,12 @@
 # SKILLS SYSTEM
 
-You have access to specialized Skills that extend your capabilities. Skills are modular resources containing domain-specific expertise, workflows, and best practices.
+You have access to specialized Skills that extend your capabilities. Skills are modular resources
+containing domain-specific expertise, workflows, and best practices.
 
 ## How Skills Work
 
 Skills follow a progressive loading strategy:
+
 - **Level 1 (Metadata)**: Skill name and description - shown below for discovery
 - **Level 2 (Core Instructions)**: Main instructions loaded when you activate a skill
 - **Level 3 (Resources)**: Extended resources loaded on-demand via links in Level 2
@@ -21,10 +23,12 @@ When a task matches a skill's description, use the `loadSkill` tool to load its 
 ## loadSkill Tool
 
 The `loadSkill` tool accepts:
+
 - `skillName` (required): The skill identifier (e.g., "pdf-processing")
 - `...resources` (optional): Additional resource slugs to load (variadic string parameters)
 
 Examples:
+
 - `loadSkill("pdf-processing")` - Loads core instructions
 - `loadSkill("pdf-processing", "form-filling")` - Loads core + Form Filling section
 - `loadSkill("pdf-processing", "form-filling", "reference")` - Loads core + multiple sections

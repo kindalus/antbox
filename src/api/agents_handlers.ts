@@ -168,4 +168,3 @@ export function answerHandler(tenants: AntboxTenant[]): HttpHandler {
 		},
 	);
 }
-

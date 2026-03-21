@@ -62,13 +62,13 @@ is available to all users.
 
 ```ts
 interface AspectData {
-  uuid: string;              // generated on create
-  title: string;
-  description?: string;
-  filters: NodeFilters;      // optional constraints
-  properties: AspectProperty[];
-  createdTime: string;
-  modifiedTime: string;
+	uuid: string; // generated on create
+	title: string;
+	description?: string;
+	filters: NodeFilters; // optional constraints
+	properties: AspectProperty[];
+	createdTime: string;
+	modifiedTime: string;
 }
 ```
 
@@ -76,18 +76,18 @@ interface AspectData {
 
 ```ts
 interface AspectProperty {
-  name: string;              // /^[a-zA-Z_][_a-zA-Z0-9_]{2,}$/
-  title: string;
-  type: "uuid" | "string" | "number" | "boolean" | "object" | "array" | "file";
-  arrayType?: "string" | "number" | "uuid";
-  contentType?: string;
-  readonly?: boolean;
-  searchable?: boolean;
-  validationRegex?: string;
-  validationList?: string[];
-  validationFilters?: NodeFilters;
-  required?: boolean;
-  defaultValue?: string | number | boolean;
+	name: string; // /^[a-zA-Z_][_a-zA-Z0-9_]{2,}$/
+	title: string;
+	type: "uuid" | "string" | "number" | "boolean" | "object" | "array" | "file";
+	arrayType?: "string" | "number" | "uuid";
+	contentType?: string;
+	readonly?: boolean;
+	searchable?: boolean;
+	validationRegex?: string;
+	validationList?: string[];
+	validationFilters?: NodeFilters;
+	required?: boolean;
+	defaultValue?: string | number | boolean;
 }
 ```
 
@@ -95,13 +95,13 @@ interface AspectProperty {
 
 ```json
 {
-  "title": "Book",
-  "description": "Metadata for books",
-  "filters": [],
-  "properties": [
-    { "name": "author", "title": "Author", "type": "string", "required": true },
-    { "name": "isbn", "title": "ISBN", "type": "string", "validationRegex": "^[0-9-]+$" }
-  ]
+	"title": "Book",
+	"description": "Metadata for books",
+	"filters": [],
+	"properties": [
+		{ "name": "author", "title": "Author", "type": "string", "required": true },
+		{ "name": "isbn", "title": "ISBN", "type": "string", "validationRegex": "^[0-9-]+$" }
+	]
 }
 ```
 
@@ -111,10 +111,10 @@ Set `aspects` and `properties` using the key format `aspectUuid:propertyName`:
 
 ```json
 {
-  "aspects": ["<aspect-uuid>"],
-  "properties": {
-    "<aspect-uuid>:author": "Jane Doe",
-    "<aspect-uuid>:isbn": "978-1-2345-6789-0"
-  }
+	"aspects": ["<aspect-uuid>"],
+	"properties": {
+		"<aspect-uuid>:author": "Jane Doe",
+		"<aspect-uuid>:isbn": "978-1-2345-6789-0"
+	}
 }
 ```

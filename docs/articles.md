@@ -26,25 +26,25 @@ If `uuid` is omitted in the JSON payload, the server derives it from the uploade
 
 ```json
 {
-  "uuid": "news-2026-03-01",
-  "title": "Release Notes",
-  "description": "Platform updates",
-  "parent": "--root--",
-  "articleAuthor": "editor@example.com",
-  "properties": {
-    "pt": {
-      "articleTitle": "Notas de lancamento",
-      "articleFid": "notas-de-lancamento",
-      "articleResume": "Resumo em portugues",
-      "articleBody": "Conteudo completo"
-    },
-    "en": {
-      "articleTitle": "Release Notes",
-      "articleFid": "release-notes",
-      "articleResume": "English summary",
-      "articleBody": "Full content"
-    }
-  }
+	"uuid": "news-2026-03-01",
+	"title": "Release Notes",
+	"description": "Platform updates",
+	"parent": "--root--",
+	"articleAuthor": "editor@example.com",
+	"properties": {
+		"pt": {
+			"articleTitle": "Notas de lancamento",
+			"articleFid": "notas-de-lancamento",
+			"articleResume": "Resumo em portugues",
+			"articleBody": "Conteudo completo"
+		},
+		"en": {
+			"articleTitle": "Release Notes",
+			"articleFid": "release-notes",
+			"articleResume": "English summary",
+			"articleBody": "Full content"
+		}
+	}
 }
 ```
 

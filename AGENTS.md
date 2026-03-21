@@ -1,6 +1,7 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this
+repository.
 
 ## Build & Development Commands
 
@@ -27,7 +28,9 @@ deno fmt                          # Format code (tabs, 100 char width)
 
 ## Architecture Overview
 
-Antbox is an Enterprise Content Management (ECM) / Digital Asset Management (DAM) platform built with Deno and TypeScript. It follows **Hexagonal Architecture (Ports & Adapters)** with strict layer separation:
+Antbox is an Enterprise Content Management (ECM) / Digital Asset Management (DAM) platform built
+with Deno and TypeScript. It follows **Hexagonal Architecture (Ports & Adapters)** with strict layer
+separation:
 
 ### Layers
 
@@ -36,8 +39,10 @@ Antbox is an Enterprise Content Management (ECM) / Digital Asset Management (DAM
    - Core types: `Node`, `FileNode`, `FolderNode`, `SmartFolderNode`, `Aspect`, `Workflow`, `Agent`
 
 2. **Application** (`src/application/`) - Business logic orchestration
-   - **Services**: CRUD and business operations (e.g., `NodeService`, `UsersService`, `AgentsService`)
-   - **Engines**: Dynamic execution (e.g., `AgentsEngine` for AI, `FeaturesEngine` for custom code, `WorkflowInstancesEngine` for state machines)
+   - **Services**: CRUD and business operations (e.g., `NodeService`, `UsersService`,
+     `AgentsService`)
+   - **Engines**: Dynamic execution (e.g., `AgentsEngine` for AI, `FeaturesEngine` for custom code,
+     `WorkflowInstancesEngine` for state machines)
 
 3. **Adapters** (`src/adapters/`) - Infrastructure implementations
    - HTTP: Oak framework (`oak/`)
@@ -88,7 +93,8 @@ async create(data: NodeMetadata): Promise<Either<ValidationError, Node>>
 
 ## Conventions
 
-- When committing changes, use conventional commits and never add Claude references to the commit message
+- When committing changes, use conventional commits and never add Claude references to the commit
+  message
 - Only commit on demand
 - TypeScript only (no JavaScript files)
 - Tabs for indentation, 100 character line width
@@ -98,8 +104,10 @@ async create(data: NodeMetadata): Promise<Either<ValidationError, Node>>
 
 ## API Changes
 
-- Any new or removed HTTP endpoint **must** have a corresponding `openapi.yaml` update in the same commit — spec and implementation must never drift
-- Before adding an endpoint, check whether its path, tags, and schemas already exist in `openapi.yaml` to avoid duplication
+- Any new or removed HTTP endpoint **must** have a corresponding `openapi.yaml` update in the same
+  commit — spec and implementation must never drift
+- Before adding an endpoint, check whether its path, tags, and schemas already exist in
+  `openapi.yaml` to avoid duplication
 - Public/unauthenticated endpoints must include `security: [{}]` in the spec entry
 
 ## Testing
@@ -110,5 +118,7 @@ async create(data: NodeMetadata): Promise<Either<ValidationError, Node>>
 
 ## Impact Analysis
 
-- Before refactoring middleware or shared utilities, identify all call sites and verify behaviour is preserved
-- If a change affects authentication, multi-tenancy, or the event bus, call out the impact explicitly before proceeding
+- Before refactoring middleware or shared utilities, identify all call sites and verify behaviour is
+  preserved
+- If a change affects authentication, multi-tenancy, or the event bus, call out the impact
+  explicitly before proceeding

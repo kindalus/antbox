@@ -25,15 +25,15 @@ Definition operations are admin-only.
 
 ```ts
 interface WorkflowData {
-  uuid: string;
-  title: string;
-  description?: string;
-  states: WorkflowState[];
-  availableStateNames: string[];
-  filters: NodeFilters;
-  groupsAllowed: string[];
-  createdTime: string;
-  modifiedTime: string;
+	uuid: string;
+	title: string;
+	description?: string;
+	states: WorkflowState[];
+	availableStateNames: string[];
+	filters: NodeFilters;
+	groupsAllowed: string[];
+	createdTime: string;
+	modifiedTime: string;
 }
 ```
 
@@ -41,24 +41,24 @@ interface WorkflowData {
 
 ```json
 {
-  "title": "Document Approval",
-  "description": "Simple draft/approved flow",
-  "availableStateNames": ["Draft", "Approved"],
-  "filters": [["mimetype", "!=", "application/vnd.antbox.folder"]],
-  "groupsAllowed": ["--admins--"],
-  "states": [
-    {
-      "name": "Draft",
-      "isInitial": true,
-      "transitions": [
-        { "signal": "approve", "targetState": "Approved", "groupsAllowed": ["--admins--"] }
-      ]
-    },
-    {
-      "name": "Approved",
-      "isFinal": true
-    }
-  ]
+	"title": "Document Approval",
+	"description": "Simple draft/approved flow",
+	"availableStateNames": ["Draft", "Approved"],
+	"filters": [["mimetype", "!=", "application/vnd.antbox.folder"]],
+	"groupsAllowed": ["--admins--"],
+	"states": [
+		{
+			"name": "Draft",
+			"isInitial": true,
+			"transitions": [
+				{ "signal": "approve", "targetState": "Approved", "groupsAllowed": ["--admins--"] }
+			]
+		},
+		{
+			"name": "Approved",
+			"isFinal": true
+		}
+	]
 }
 ```
 
@@ -77,8 +77,8 @@ interface WorkflowData {
 
 ```json
 {
-  "workflowDefinitionUuid": "workflow-uuid",
-  "groupsAllowed": ["--admins--"]
+	"workflowDefinitionUuid": "workflow-uuid",
+	"groupsAllowed": ["--admins--"]
 }
 ```
 
@@ -86,8 +86,8 @@ interface WorkflowData {
 
 ```json
 {
-  "signal": "approve",
-  "message": "Reviewed and approved"
+	"signal": "approve",
+	"message": "Reviewed and approved"
 }
 ```
 

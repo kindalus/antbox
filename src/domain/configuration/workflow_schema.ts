@@ -48,7 +48,9 @@ export const WorkflowDataSchema = z.object({
 	} else if (initialStates.length > 1) {
 		ctx.addIssue({
 			code: z.ZodIssueCode.custom,
-			message: `Workflow must have exactly one initial state, found ${initialStates.length}: ${initialStates.map((s) => s.name).join(", ")}`,
+			message: `Workflow must have exactly one initial state, found ${initialStates.length}: ${
+				initialStates.map((s) => s.name).join(", ")
+			}`,
 			path: ["states"],
 		});
 	}
@@ -87,7 +89,8 @@ export const WorkflowDataSchema = z.object({
 			if (!stateNames.includes(transition.targetState)) {
 				ctx.addIssue({
 					code: z.ZodIssueCode.custom,
-					message: `Transition target "${transition.targetState}" in state "${state.name}" does not exist`,
+					message:
+						`Transition target "${transition.targetState}" in state "${state.name}" does not exist`,
 					path: ["states", i, "transitions"],
 				});
 			}
@@ -129,7 +132,9 @@ export const WorkflowDataSchema = z.object({
 			ctx.addIssue({
 				code: z.ZodIssueCode.custom,
 				message:
-					`State "${state.name}" groupsAllowedToModify contains group(s) not in participants: ${outsideModify.join(", ")}`,
+					`State "${state.name}" groupsAllowedToModify contains group(s) not in participants: ${
+						outsideModify.join(", ")
+					}`,
 				path: ["states", i, "groupsAllowedToModify"],
 			});
 		}
@@ -143,7 +148,9 @@ export const WorkflowDataSchema = z.object({
 				ctx.addIssue({
 					code: z.ZodIssueCode.custom,
 					message:
-						`Transition "${transition.signal}" in state "${state.name}" groupsAllowed contains group(s) not in participants: ${outsideTransition.join(", ")}`,
+						`Transition "${transition.signal}" in state "${state.name}" groupsAllowed contains group(s) not in participants: ${
+							outsideTransition.join(", ")
+						}`,
 					path: ["states", i, "transitions", j, "groupsAllowed"],
 				});
 			}

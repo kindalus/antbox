@@ -165,7 +165,7 @@ export class FindService {
 				return this.find(ctx, [["fulltext", "match", query]], pageSize, pageToken);
 			}
 
-			const queryEmbedding = embeddingsOrErr.value[0];
+			const queryEmbedding = embeddingsOrErr.value.embeddings[0];
 
 			// Search using repository's vector search
 			const topK = Math.max(100, pageSize * pageToken);

@@ -59,13 +59,13 @@ Example `s3-config.json`:
 
 ```json
 {
-  "region": "us-east-1",
-  "endpoint": "https://s3.amazonaws.com",
-  "bucket": "my-bucket",
-  "credentials": {
-    "accessKeyId": "...",
-    "secretAccessKey": "..."
-  }
+	"region": "us-east-1",
+	"endpoint": "https://s3.amazonaws.com",
+	"bucket": "my-bucket",
+	"credentials": {
+		"accessKeyId": "...",
+		"secretAccessKey": "..."
+	}
 }
 ```
 

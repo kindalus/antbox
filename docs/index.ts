@@ -82,7 +82,7 @@ export const DOCS: DocInfo[] = [
 	},
 	{
 		uuid: "webdav",
-		description: "WebDAV integration endpoints and methods",
+		description: "WebDAV desktop mounting guide and protocol details",
 	},
 	{
 		uuid: "mcp",

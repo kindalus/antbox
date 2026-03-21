@@ -10,9 +10,16 @@ export interface ToolResponse {
 	text: string;
 }
 
+export interface TokenUsage {
+	promptTokens: number;
+	completionTokens: number;
+	totalTokens: number;
+}
+
 export interface ChatMessage {
 	role: ChatMessageRole;
 	parts: Array<ChatMessagePart>;
+	usage?: TokenUsage;
 }
 
 export interface ChatMessagePart {

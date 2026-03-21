@@ -5,6 +5,7 @@ import { NodeCreatedEvent } from "domain/nodes/node_created_event.ts";
 import { NodeDeletedEvent } from "domain/nodes/node_deleted_event.ts";
 import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { NodeUpdatedEvent } from "domain/nodes/node_updated_event.ts";
+import { AgentInteractionCompletedEvent } from "domain/ai/agent_interaction_completed_event.ts";
 import { Groups } from "domain/users_groups/groups.ts";
 import { type AntboxError, ForbiddenError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
@@ -42,6 +43,22 @@ export class AuditLoggingService {
 			NodeDeletedEvent.EVENT_ID,
 			eventHandlerFunc((e: NodeDeletedEvent) => this.#handleNodeDeleted(e)),
 		);
+
+		this.eventBus.subscribe(
+			AgentInteractionCompletedEvent.EVENT_ID,
+			eventHandlerFunc((e: AgentInteractionCompletedEvent) => this.#handleAgentInteraction(e)),
+		);
+	}
+
+	#handleAgentInteraction(event: AgentInteractionCompletedEvent): void {
+		this.repository.append(event.payload.agentUuid, "application/vnd.antbox.agent-usage", {
+			eventType: AgentInteractionCompletedEvent.EVENT_ID,
+			occurredOn: event.occurredOn.toISOString(),
+			userEmail: event.userEmail,
+			payload: event.payload,
+		}).catch((err) => {
+			Logger.error("Error appending agent usage log:", err);
+		});
 	}
 
 	#handleNodeCreated(event: NodeCreatedEvent): void {

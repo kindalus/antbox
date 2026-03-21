@@ -106,6 +106,11 @@ function makeContext(overrides: Partial<AgentsEngineContext> = {}): AgentsEngine
 			{} as unknown as import("application/aspects/aspects_service.ts").AspectsService,
 		defaultModel: "google/gemini-2.5-flash",
 		skills: [],
+		eventBus: {
+			publish: () => {},
+			subscribe: () => {},
+			unsubscribe: () => {},
+		},
 		...overrides,
 	};
 }

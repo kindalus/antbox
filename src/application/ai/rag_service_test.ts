@@ -414,7 +414,7 @@ describe("RAGService", () => {
 			const embeddingOrErr = await embeddingsProvider.embed([contentMd]);
 			expect(embeddingOrErr.isRight()).toBe(true);
 			if (embeddingOrErr.isRight()) {
-				await repository.upsertEmbedding("query-no-ocr", embeddingOrErr.value[0], contentMd);
+				await repository.upsertEmbedding("query-no-ocr", embeddingOrErr.value.embeddings[0], contentMd);
 			}
 
 			const result = await service.query("query-no-ocr", 5, 0.0);

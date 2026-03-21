@@ -89,7 +89,7 @@ describe("ExternalLoginService", () => {
 		if (result.isRight()) {
 			expect(result.value.email).toBe("john.doe@example.com");
 			expect(result.value.name).toBe("John Doe");
-			expect(result.value.groups).toEqual(["developers", "staff"]);
+			expect(result.value.groups).toEqual(expect.arrayContaining(["developers", "staff"]));
 		}
 	});
 

@@ -35,7 +35,8 @@ storage provider, keys, and optional AI components.
 
 ## Key Data Stores
 
-- **NodeRepository**: Metadata for content nodes (files, folders, smart folders, meta nodes, articles).
+- **NodeRepository**: Metadata for content nodes (files, folders, smart folders, meta nodes,
+  articles).
 - **StorageProvider**: Binary file content for file nodes.
 - **ConfigurationRepository**: Aspects, features, agents, workflows, users, groups, and API keys.
 - **EventStoreRepository**: Audit event streams (required per tenant).

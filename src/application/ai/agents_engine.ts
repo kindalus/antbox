@@ -19,7 +19,9 @@ import {
 import { Logger } from "shared/logger.ts";
 import type { AuthenticationContext } from "../security/authentication_context.ts";
 import type { AgentData } from "domain/configuration/agent_data.ts";
-import type { ChatHistory, ChatMessage } from "domain/ai/chat_message.ts";
+import type { ChatHistory, ChatMessage, TokenUsage } from "domain/ai/chat_message.ts";
+import { AgentInteractionCompletedEvent } from "domain/ai/agent_interaction_completed_event.ts";
+import type { EventBus } from "shared/event_bus.ts";
 import type { AgentsService } from "./agents_service.ts";
 import type { NodeService } from "../nodes/node_service.ts";
 import type { AspectsService } from "../aspects/aspects_service.ts";
@@ -57,6 +59,7 @@ export interface AgentsEngineContext {
 	readonly ragService?: RAGService;
 	readonly defaultModel: string;
 	readonly skills: LoadedSkill[];
+	readonly eventBus: EventBus;
 }
 
 export function selectAgentTools<T extends { name: string }>(
@@ -94,6 +97,7 @@ export class AgentsEngine {
 	readonly #defaultModel: string;
 	readonly #skills: LoadedSkill[];
 	readonly #ragService?: RAGService;
+	readonly #eventBus: EventBus;
 
 	constructor(ctx: AgentsEngineContext) {
 		this.#agentsService = ctx.agentsService;
@@ -102,6 +106,7 @@ export class AgentsEngine {
 		this.#defaultModel = ctx.defaultModel;
 		this.#skills = ctx.skills;
 		this.#ragService = ctx.ragService;
+		this.#eventBus = ctx.eventBus;
 	}
 
 	/**
@@ -119,6 +124,15 @@ export class AgentsEngine {
 		}
 
 		const agentData = agentOrErr.value;
+
+		if (!agentData.exposedToUsers) {
+			return left(
+				new AntboxErrorClass(
+					"Forbidden",
+					`Agent ${agentData.name} is not available for direct chat`,
+				),
+			);
+		}
 
 		try {
 			const adkAgent = await this.#buildAdkAgent(agentData, authContext, options?.instructions);
@@ -148,16 +162,30 @@ export class AgentsEngine {
 				? { maxLlmCalls: agentData.maxLlmCalls } as RunConfig
 				: undefined;
 
-			const responseText = await this.#runAndCollect(runner, {
+			const { text: responseText, usage } = await this.#runAndCollect(runner, {
 				userId: authContext.principal.email,
 				sessionId: session.id,
 				newMessage: { role: "user", parts: [{ text }] },
 			}, runConfig);
 
+			if (usage) {
+				this.#eventBus.publish(
+					new AgentInteractionCompletedEvent(
+						authContext.principal.email,
+						authContext.tenant,
+						{
+							agentUuid,
+							usage,
+							interactionType: "chat",
+						},
+					),
+				);
+			}
+
 			const updatedHistory: ChatHistory = [
 				...history,
 				{ role: "user", parts: [{ text }] },
-				{ role: "model", parts: [{ text: responseText }] },
+				{ role: "model", parts: [{ text: responseText }], usage },
 			];
 
 			return right(updatedHistory);
@@ -183,6 +211,15 @@ export class AgentsEngine {
 
 		const agentData = agentOrErr.value;
 
+		if (!agentData.exposedToUsers) {
+			return left(
+				new AntboxErrorClass(
+					"Forbidden",
+					`Agent ${agentData.name} is not available for direct answer`,
+				),
+			);
+		}
+
 		try {
 			const adkAgent = await this.#buildAdkAgent(agentData, authContext, options?.instructions);
 
@@ -192,14 +229,29 @@ export class AgentsEngine {
 				? { maxLlmCalls: agentData.maxLlmCalls } as RunConfig
 				: undefined;
 
-			const responseText = await this.#runAndCollect(runner, {
+			const { text: responseText, usage } = await this.#runAndCollect(runner, {
 				userId: authContext.principal.email,
 				newMessage: { role: "user", parts: [{ text }] },
 			}, runConfig);
 
+			if (usage) {
+				this.#eventBus.publish(
+					new AgentInteractionCompletedEvent(
+						authContext.principal.email,
+						authContext.tenant,
+						{
+							agentUuid,
+							usage,
+							interactionType: "answer",
+						},
+					),
+				);
+			}
+
 			const message: ChatMessage = {
 				role: "model",
 				parts: [{ text: responseText }],
+				usage,
 			};
 
 			return right(message);
@@ -395,8 +447,9 @@ export class AgentsEngine {
 			newMessage: { role: string; parts: { text: string }[] };
 		},
 		runConfig?: RunConfig,
-	): Promise<string> {
+	): Promise<{ text: string; usage?: TokenUsage }> {
 		let finalText = "";
+		let usage: TokenUsage | undefined;
 
 		const runParams = params.sessionId
 			? {
@@ -418,11 +471,18 @@ export class AgentsEngine {
 		for await (const event of generator) {
 			if (isFinalResponse(event) && event.content?.parts) {
 				finalText = event.content.parts.map((p: { text?: string }) => p.text ?? "").join("");
+				if (event.usageMetadata) {
+					usage = {
+						promptTokens: event.usageMetadata.promptTokenCount ?? 0,
+						completionTokens: event.usageMetadata.candidatesTokenCount ?? 0,
+						totalTokens: event.usageMetadata.totalTokenCount ?? 0,
+					};
+				}
 				break;
 			}
 		}
 
-		return finalText;
+		return { text: finalText, usage };
 	}
 
 	#buildInstruction(agentData: AgentData, additionalInstructions?: string): string {

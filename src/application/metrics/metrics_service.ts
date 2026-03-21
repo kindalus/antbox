@@ -3,14 +3,21 @@ import { type Either, left, right } from "shared/either.ts";
 import type { NodeRepository } from "domain/nodes/node_repository.ts";
 import type { EventStoreRepository } from "domain/audit/event_store_repository.ts";
 import type { StorageUsageMetrics, TokenUsageMetrics } from "domain/metrics/tenant_metrics.ts";
+import type { TenantLimits } from "domain/metrics/tenant_limits.ts";
 
 export class MetricsService {
 	readonly #nodeRepository: NodeRepository;
 	readonly #eventStore: EventStoreRepository;
+	readonly #tenantLimits: TenantLimits;
 
-	constructor(nodeRepository: NodeRepository, eventStore: EventStoreRepository) {
+	constructor(
+		nodeRepository: NodeRepository,
+		eventStore: EventStoreRepository,
+		tenantLimits: TenantLimits,
+	) {
 		this.#nodeRepository = nodeRepository;
 		this.#eventStore = eventStore;
+		this.#tenantLimits = tenantLimits;
 	}
 
 	async getStorageUsage(): Promise<Either<AntboxError, StorageUsageMetrics>> {
@@ -18,7 +25,14 @@ export class MetricsService {
 		if (sizeOrErr.isLeft()) {
 			return left(sizeOrErr.value);
 		}
-		return right({ totalBytes: sizeOrErr.value });
+		return right({
+			totalBytes: sizeOrErr.value,
+			limitGb: this.#tenantLimits.storage,
+		});
+	}
+
+	getLimits(): TenantLimits {
+		return { ...this.#tenantLimits };
 	}
 
 	async getTokenUsage(
@@ -31,6 +45,7 @@ export class MetricsService {
 			promptTokens: 0,
 			completionTokens: 0,
 			totalTokens: 0,
+			limitMillions: this.#tenantLimits.tokens,
 		};
 
 		// 1. Fetch agent usage

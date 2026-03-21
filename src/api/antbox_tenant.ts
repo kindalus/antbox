@@ -17,11 +17,13 @@ import type { ConfigurationRepository } from "domain/configuration/configuration
 import type { NotificationsService } from "application/notifications/notifications_service.ts";
 import type { UserPreferencesService } from "application/preferences/user_preferences_service.ts";
 import type { ExternalLoginService } from "application/security/external_login_service.ts";
+import type { TenantLimits } from "domain/metrics/tenant_limits.ts";
 
 export interface AntboxTenant {
 	name: string;
 	rootPasswd: string;
 	symmetricKey: string;
+	limits: TenantLimits;
 
 	// Configuration Repository
 	configurationRepository: ConfigurationRepository;

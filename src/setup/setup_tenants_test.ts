@@ -76,6 +76,10 @@ describe("setupTenants", () => {
 			repository: ["inmem/inmem_node_repository.ts"],
 			configurationRepository: [configurationRepository],
 			eventStoreRepository: ["inmem/inmem_event_store_repository.ts"],
+			limits: {
+				storage: 10,
+				tokens: 0,
+			},
 		};
 	}
 
@@ -94,6 +98,7 @@ describe("setupTenants", () => {
 			const [tenant] = await setupTenants(config);
 			expect(tenant.rootPasswd).toBe("global-root");
 			expect(tenant.symmetricKey).toBe("c2VydmVyLXNlY3JldA==");
+			expect(tenant.limits).toEqual({ storage: 10, tokens: 0 });
 
 			await tenant.usersService.createUser(createAdminContext(tenant.name), {
 				email: "john.doe@example.com",
@@ -111,6 +116,64 @@ describe("setupTenants", () => {
 			if (principalOrErr.isRight()) {
 				expect(principalOrErr.value.email).toBe("john.doe@example.com");
 			}
+		} finally {
+			await Deno.remove(modulePath);
+			await Deno.remove(jwksPath);
+		}
+	});
+
+	it("rejects non-zero token limits when AI is disabled", async () => {
+		const { jwksPath } = await createJwksFile();
+		const { modulePath, relativeModulePath } = await createConfigRepositoryModule();
+
+		try {
+			const config: ServerConfiguration = {
+				rootPasswd: "global-root",
+				key: "c2VydmVyLXNlY3JldA==",
+				jwks: jwksPath,
+				tenants: [{
+					...createTenantConfig("tenant-invalid-ai-disabled", relativeModulePath),
+					limits: {
+						storage: 10,
+						tokens: 1,
+					},
+				}],
+			};
+
+			await expect(setupTenants(config)).rejects.toThrow(
+				"Tenant tenant-invalid-ai-disabled: tokens limit must be 0 when AI is disabled",
+			);
+		} finally {
+			await Deno.remove(modulePath);
+			await Deno.remove(jwksPath);
+		}
+	});
+
+	it("rejects zero token limits when AI is enabled", async () => {
+		const { jwksPath } = await createJwksFile();
+		const { modulePath, relativeModulePath } = await createConfigRepositoryModule();
+
+		try {
+			const config: ServerConfiguration = {
+				rootPasswd: "global-root",
+				key: "c2VydmVyLXNlY3JldA==",
+				jwks: jwksPath,
+				tenants: [{
+					...createTenantConfig("tenant-invalid-ai-enabled", relativeModulePath),
+					ai: {
+						enabled: true,
+						defaultModel: "google/gemini-2.5-flash",
+					},
+					limits: {
+						storage: 10,
+						tokens: 0,
+					},
+				}],
+			};
+
+			await expect(setupTenants(config)).rejects.toThrow(
+				"Tenant tenant-invalid-ai-enabled: tokens limit must be greater than 0 when AI is enabled",
+			);
 		} finally {
 			await Deno.remove(modulePath);
 			await Deno.remove(jwksPath);
@@ -180,6 +243,10 @@ describe("setupTenants", () => {
 					storage: ["inmem/inmem_storage_provider.ts"],
 					configurationRepository: [relativeModulePath],
 					eventStoreRepository: ["inmem/inmem_event_store_repository.ts"],
+					limits: {
+						storage: 10,
+						tokens: 0,
+					},
 				} as unknown as TenantConfiguration],
 			} as ServerConfiguration;
 

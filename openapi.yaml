@@ -39,6 +39,8 @@ tags:
      description: Operations related to user groups
    - name: login
      description: Authentication operations
+   - name: metrics
+     description: Operations related to tenant usage metrics and limits
    - name: nodes
      description: Operations related to nodes (files, folders, etc.)
    - name: notifications
@@ -52,8 +54,8 @@ tags:
    - name: workflows
      description: Operations related to workflow instances
 paths:
-   /heartbeat:
-      get:
+    /heartbeat:
+       get:
          tags:
             - heartbeat
          summary: Server health check
@@ -78,7 +80,58 @@ paths:
                            timestamp:
                               type: string
                               format: date-time
-   /admin/runtime:
+    /metrics/storage:
+      get:
+         tags:
+            - metrics
+         summary: Get tenant storage usage
+         operationId: getStorageUsage
+         description: Returns the tenant's current storage usage in bytes and configured storage limit in gigabytes.
+         responses:
+            "200":
+               description: Tenant storage usage
+               content:
+                  application/json:
+                     schema:
+                        $ref: "#/components/schemas/StorageUsageMetrics"
+            default:
+               $ref: "#/components/responses/Error"
+    /metrics/tokens:
+      get:
+         tags:
+            - metrics
+         summary: Get monthly tenant token usage
+         operationId: getTokenUsage
+         description: Returns the tenant's AI token usage for the requested month together with the configured monthly token limit in millions.
+         parameters:
+            - in: query
+              name: year
+              required: true
+              schema:
+                 type: integer
+            - in: query
+              name: month
+              required: true
+              schema:
+                 type: integer
+                 minimum: 1
+                 maximum: 12
+         responses:
+            "200":
+               description: Tenant token usage for the requested month
+               content:
+                  application/json:
+                     schema:
+                        $ref: "#/components/schemas/TokenUsageMetrics"
+            "400":
+               description: Invalid year or month parameters
+               content:
+                  application/json:
+                     schema:
+                        $ref: "#/components/schemas/AntboxError"
+            default:
+               $ref: "#/components/responses/Error"
+    /admin/runtime:
       get:
          tags:
             - admin
@@ -120,7 +173,7 @@ paths:
                         $ref: "#/components/schemas/AntboxError"
             default:
                $ref: "#/components/responses/Error"
-   /admin/reload:
+    /admin/reload:
       post:
          tags:
             - admin
@@ -154,7 +207,7 @@ paths:
                         $ref: "#/components/schemas/AntboxError"
             default:
                $ref: "#/components/responses/Error"
-   /admin/tenants:
+    /admin/tenants:
       get:
          tags:
             - admin
@@ -244,7 +297,7 @@ paths:
                               type: object
             default:
                $ref: "#/components/responses/Error"
-   /actions:
+    /actions:
       get:
          tags:
             - actions
@@ -262,7 +315,7 @@ paths:
                            $ref: "#/components/schemas/Feature"
             default:
                $ref: "#/components/responses/Error"
-   "/actions/{uuid}/-/run":
+    "/actions/{uuid}/-/run":
       post:
          tags:
             - actions
@@ -294,7 +347,7 @@ paths:
                         $ref: "#/components/schemas/FeatureActionResult"
             default:
                $ref: "#/components/responses/Error"
-   /agents:
+    /agents:
       get:
          tags:
             - agents
@@ -311,7 +364,7 @@ paths:
                            $ref: "#/components/schemas/Agent"
             default:
                $ref: "#/components/responses/Error"
-   "/agents/-/upload":
+    "/agents/-/upload":
       post:
          tags:
             - agents
@@ -333,7 +386,7 @@ paths:
             default:
                $ref: "#/components/responses/Error"
 
-   "/agents/{uuid}":
+    "/agents/{uuid}":
       get:
          tags:
             - agents
@@ -362,7 +415,7 @@ paths:
                description: Agent deleted successfully
             default:
                $ref: "#/components/responses/Error"
-   "/agents/{uuid}/-/answer":
+    "/agents/{uuid}/-/answer":
       post:
          tags:
             - agents
@@ -393,7 +446,7 @@ paths:
                         $ref: "#/components/schemas/ChatMessage"
             default:
                $ref: "#/components/responses/Error"
-   "/agents/{uuid}/-/chat":
+    "/agents/{uuid}/-/chat":
       post:
          tags:
             - agents
@@ -424,7 +477,7 @@ paths:
                         $ref: "#/components/schemas/ChatHistory"
             default:
                $ref: "#/components/responses/Error"
-   /api-keys:
+    /api-keys:
       get:
          tags:
             - api-keys
@@ -470,7 +523,7 @@ paths:
                         $ref: "#/components/schemas/ApiKey"
             default:
                $ref: "#/components/responses/Error"
-   "/api-keys/{uuid}":
+    "/api-keys/{uuid}":
       get:
          tags:
             - api-keys
@@ -499,7 +552,7 @@ paths:
                description: API key deleted
             default:
                $ref: "#/components/responses/Error"
-   /aspects:
+    /aspects:
       get:
          tags:
             - aspects
@@ -516,7 +569,7 @@ paths:
                            $ref: "#/components/schemas/Aspect"
             default:
                $ref: "#/components/responses/Error"
-   "/aspects/-/upload":
+    "/aspects/-/upload":
       post:
          tags:
             - aspects
@@ -538,7 +591,7 @@ paths:
                         $ref: "#/components/schemas/Aspect"
             default:
                $ref: "#/components/responses/Error"
-   "/aspects/{uuid}":
+    "/aspects/{uuid}":
       get:
          tags:
             - aspects
@@ -567,7 +620,7 @@ paths:
                description: Aspect deleted
             default:
                $ref: "#/components/responses/Error"
-   "/aspects/{uuid}/-/export":
+    "/aspects/{uuid}/-/export":
       get:
          tags:
             - aspects
@@ -584,7 +637,7 @@ paths:
                         $ref: "#/components/schemas/Aspect"
             default:
                $ref: "#/components/responses/Error"
-   /articles:
+    /articles:
       get:
          tags:
             - articles
@@ -626,7 +679,7 @@ paths:
                         $ref: "#/components/schemas/RawArticleDTO"
             default:
                $ref: "#/components/responses/Error"
-   "/articles/{uuid}":
+    "/articles/{uuid}":
       get:
          tags:
             - articles
@@ -655,7 +708,7 @@ paths:
                description: Article deleted successfully
             default:
                $ref: "#/components/responses/Error"
-   "/articles/{uuid}/-/localized":
+    "/articles/{uuid}/-/localized":
       get:
          tags:
             - articles
@@ -680,7 +733,7 @@ paths:
                         $ref: "#/components/schemas/LocalizedArticleDTO"
             default:
                $ref: "#/components/responses/Error"
-   "/articles/-/fid/{fid}":
+    "/articles/-/fid/{fid}":
       get:
          tags:
             - articles
@@ -710,7 +763,7 @@ paths:
                         $ref: "#/components/schemas/LocalizedArticleDTO"
             default:
                $ref: "#/components/responses/Error"
-   "/audit/{uuid}":
+    "/audit/{uuid}":
       get:
          tags:
             - audit
@@ -742,7 +795,7 @@ paths:
                         $ref: "#/components/schemas/AntboxError"
             default:
                $ref: "#/components/responses/Error"
-   "/audit/-/deleted":
+    "/audit/-/deleted":
       get:
          tags:
             - audit
@@ -773,7 +826,7 @@ paths:
                         $ref: "#/components/schemas/AntboxError"
             default:
                $ref: "#/components/responses/Error"
-   /docs:
+    /docs:
       get:
          tags:
             - docs
@@ -790,7 +843,7 @@ paths:
                            $ref: "#/components/schemas/DocInfo"
             default:
                $ref: "#/components/responses/Error"
-   /docs/api:
+    /docs/api:
       get:
          tags:
             - docs
@@ -806,7 +859,7 @@ paths:
                   text/html:
                      schema:
                         type: string
-   "/docs/{uuid}":
+    "/docs/{uuid}":
       get:
          tags:
             - docs
@@ -823,7 +876,7 @@ paths:
                         type: string
             default:
                $ref: "#/components/responses/Error"
-   /extensions:
+    /extensions:
       get:
          tags:
             - extensions
@@ -841,7 +894,7 @@ paths:
                            $ref: "#/components/schemas/Feature"
             default:
                $ref: "#/components/responses/Error"
-   "/extensions/{uuid}/-/exec":
+    "/extensions/{uuid}/-/exec":
       get:
          tags:
             - extensions
@@ -902,7 +955,7 @@ paths:
                         format: binary
             default:
                $ref: "#/components/responses/Error"
-   /features:
+    /features:
       get:
          tags:
             - features
@@ -919,7 +972,7 @@ paths:
                            $ref: "#/components/schemas/Feature"
             default:
                $ref: "#/components/responses/Error"
-   "/features/-/upload":
+    "/features/-/upload":
       post:
          tags:
             - features
@@ -941,7 +994,7 @@ paths:
                         $ref: "#/components/schemas/Feature"
             default:
                $ref: "#/components/responses/Error"
-   "/features/{uuid}":
+    "/features/{uuid}":
       get:
          tags:
             - features
@@ -970,7 +1023,7 @@ paths:
                description: Feature deleted
             default:
                $ref: "#/components/responses/Error"
-   "/features/{uuid}/-/export":
+    "/features/{uuid}/-/export":
       get:
          tags:
             - features
@@ -987,7 +1040,7 @@ paths:
                         type: string
             default:
                $ref: "#/components/responses/Error"
-   /groups:
+    /groups:
       get:
          tags:
             - groups
@@ -1031,7 +1084,7 @@ paths:
                         $ref: "#/components/schemas/Group"
             default:
                $ref: "#/components/responses/Error"
-   "/groups/{uuid}":
+    "/groups/{uuid}":
       get:
          tags:
             - groups
@@ -1060,7 +1113,7 @@ paths:
                description: Group deleted
             default:
                $ref: "#/components/responses/Error"
-   "/login/root":
+    "/login/root":
       post:
          tags:
             - login
@@ -1096,7 +1149,7 @@ paths:
                   application/json:
                      schema:
                         $ref: "#/components/schemas/AntboxError"
-   /challenge:
+    /challenge:
       post:
          tags:
             - login
@@ -1116,7 +1169,7 @@ paths:
                         $ref: "#/components/schemas/AntboxError"
             default:
                $ref: "#/components/responses/Error"
-   /login:
+    /login:
       post:
          tags:
             - login
@@ -1148,7 +1201,7 @@ paths:
                                  type: string
             default:
                $ref: "#/components/responses/Error"
-   "/login/logout":
+    "/login/logout":
       post:
          tags:
             - login
@@ -1172,7 +1225,7 @@ paths:
                            message:
                               type: string
                               example: "Logged out successfully"
-   "/login/me":
+    "/login/me":
       get:
          tags:
             - login
@@ -1206,7 +1259,7 @@ paths:
                   application/json:
                      schema:
                         $ref: "#/components/schemas/AntboxError"
-   /nodes:
+    /nodes:
       get:
          tags:
             - nodes
@@ -1249,7 +1302,7 @@ paths:
                         $ref: "#/components/schemas/NodeMetadata"
             default:
                $ref: "#/components/responses/Error"
-   "/nodes/-/find":
+    "/nodes/-/find":
       post:
          tags:
             - nodes
@@ -1279,7 +1332,7 @@ paths:
                            $ref: "#/components/schemas/NodeMetadata"
             default:
                $ref: "#/components/responses/Error"
-   "/nodes/-/upload":
+    "/nodes/-/upload":
       post:
          tags:
             - nodes
@@ -1310,7 +1363,7 @@ paths:
                         $ref: "#/components/schemas/NodeMetadata"
             default:
                $ref: "#/components/responses/Error"
-   "/nodes/{uuid}":
+    "/nodes/{uuid}":
       get:
          tags:
             - nodes
@@ -1361,7 +1414,7 @@ paths:
                description: Node deleted
             default:
                $ref: "#/components/responses/Error"
-   "/nodes/{uuid}/-/breadcrumbs":
+    "/nodes/{uuid}/-/breadcrumbs":
       get:
          tags:
             - nodes
@@ -1380,7 +1433,7 @@ paths:
                            $ref: "#/components/schemas/NodeMetadata"
             default:
                $ref: "#/components/responses/Error"
-   "/nodes/{uuid}/-/copy":
+    "/nodes/{uuid}/-/copy":
       post:
          tags:
             - nodes
@@ -1405,7 +1458,7 @@ paths:
                description: Node copied
             default:
                $ref: "#/components/responses/Error"
-   "/nodes/{uuid}/-/duplicate":
+    "/nodes/{uuid}/-/duplicate":
       get:
          tags:
             - nodes
@@ -1422,7 +1475,7 @@ paths:
                         $ref: "#/components/schemas/NodeMetadata"
             default:
                $ref: "#/components/responses/Error"
-   "/nodes/{uuid}/-/evaluate":
+    "/nodes/{uuid}/-/evaluate":
       get:
          tags:
             - nodes
@@ -1441,7 +1494,7 @@ paths:
                            $ref: "#/components/schemas/NodeMetadata"
             default:
                $ref: "#/components/responses/Error"
-   "/nodes/{uuid}/-/export":
+    "/nodes/{uuid}/-/export":
       get:
          tags:
             - nodes
@@ -1459,7 +1512,7 @@ paths:
                         format: binary
             default:
                $ref: "#/components/responses/Error"
-   "/nodes/{uuid}/-/lock":
+    "/nodes/{uuid}/-/lock":
       post:
          tags:
             - nodes
@@ -1473,7 +1526,7 @@ paths:
                description: Node locked successfully
             default:
                $ref: "#/components/responses/Error"
-   "/nodes/{uuid}/-/unlock":
+    "/nodes/{uuid}/-/unlock":
       post:
          tags:
             - nodes
@@ -1487,7 +1540,7 @@ paths:
                description: Node unlocked successfully
             default:
                $ref: "#/components/responses/Error"
-   "/nodes/{uuid}/-/upload":
+    "/nodes/{uuid}/-/upload":
       put:
          tags:
             - nodes
@@ -1512,7 +1565,7 @@ paths:
                description: Content updated
             default:
                $ref: "#/components/responses/Error"
-   /notifications:
+    /notifications:
       get:
          tags:
             - notifications
@@ -1530,7 +1583,7 @@ paths:
                            $ref: "#/components/schemas/Notification"
             default:
                $ref: "#/components/responses/Error"
-   "/notifications/-/critical":
+    "/notifications/-/critical":
       post:
          tags:
             - notifications
@@ -1552,7 +1605,7 @@ paths:
                         $ref: "#/components/schemas/Notification"
             default:
                $ref: "#/components/responses/Error"
-   "/notifications/-/info":
+    "/notifications/-/info":
       post:
          tags:
             - notifications
@@ -1574,7 +1627,7 @@ paths:
                         $ref: "#/components/schemas/Notification"
             default:
                $ref: "#/components/responses/Error"
-   "/notifications/-/insight":
+    "/notifications/-/insight":
       post:
          tags:
             - notifications
@@ -1596,7 +1649,7 @@ paths:
                         $ref: "#/components/schemas/Notification"
             default:
                $ref: "#/components/responses/Error"
-   "/notifications/-/delete":
+    "/notifications/-/delete":
       post:
          tags:
             - notifications
@@ -1629,7 +1682,7 @@ paths:
                         $ref: "#/components/schemas/AntboxError"
             default:
                $ref: "#/components/responses/Error"
-   "/notifications/-/clear":
+    "/notifications/-/clear":
       post:
          tags:
             - notifications
@@ -1641,7 +1694,7 @@ paths:
                description: All user notifications cleared successfully
             default:
                $ref: "#/components/responses/Error"
-   /templates:
+    /templates:
       get:
          tags:
             - templates
@@ -1658,7 +1711,7 @@ paths:
                            $ref: "#/components/schemas/TemplateInfo"
             default:
                $ref: "#/components/responses/Error"
-   "/templates/{uuid}":
+    "/templates/{uuid}":
       get:
          tags:
             - templates
@@ -1681,7 +1734,7 @@ paths:
                         type: string
             default:
                $ref: "#/components/responses/Error"
-   /users:
+    /users:
       get:
          tags:
             - users
@@ -1718,7 +1771,7 @@ paths:
                         $ref: "#/components/schemas/User"
             default:
                $ref: "#/components/responses/Error"
-   "/users/{email}":
+    "/users/{email}":
       get:
          tags:
             - users
@@ -1767,7 +1820,7 @@ paths:
                         $ref: "#/components/schemas/User"
             default:
                $ref: "#/components/responses/Error"
-   "/users/{uuid}":
+    "/users/{uuid}":
       delete:
          tags:
             - users
@@ -1785,7 +1838,7 @@ paths:
                description: User deleted
             default:
                $ref: "#/components/responses/Error"
-   /user-preferences:
+    /user-preferences:
       get:
          tags:
             - user-preferences
@@ -1850,7 +1903,7 @@ paths:
                description: User preferences deleted
             default:
                $ref: "#/components/responses/Error"
-   "/user-preferences/{key}":
+    "/user-preferences/{key}":
       get:
          tags:
             - user-preferences
@@ -1871,7 +1924,7 @@ paths:
                         {}
             default:
                $ref: "#/components/responses/Error"
-   /workflow-instances:
+    /workflow-instances:
       get:
          tags:
             - workflows
@@ -1895,7 +1948,7 @@ paths:
                            $ref: "#/components/schemas/WorkflowInstance"
             default:
                $ref: "#/components/responses/Error"
-   "/workflow-instances/{uuid}":
+    "/workflow-instances/{uuid}":
       get:
          tags:
             - workflows
@@ -1912,7 +1965,7 @@ paths:
                         $ref: "#/components/schemas/WorkflowInstance"
             default:
                $ref: "#/components/responses/Error"
-   "/workflow-instances/-/start":
+    "/workflow-instances/-/start":
       post:
          tags:
             - workflows
@@ -1952,7 +2005,7 @@ paths:
                         $ref: "#/components/schemas/WorkflowInstance"
             default:
                $ref: "#/components/responses/Error"
-   "/workflow-instances/{uuid}/-/transition":
+    "/workflow-instances/{uuid}/-/transition":
       post:
          tags:
             - workflows
@@ -1985,7 +2038,7 @@ paths:
                         $ref: "#/components/schemas/WorkflowInstance"
             default:
                $ref: "#/components/responses/Error"
-   "/workflow-instances/{uuid}/-/cancel":
+    "/workflow-instances/{uuid}/-/cancel":
       post:
          tags:
             - workflows
@@ -2015,7 +2068,7 @@ paths:
                         $ref: "#/components/schemas/AntboxError"
             default:
                $ref: "#/components/responses/Error"
-   /workflow-instances/{uuid}/-/update:
+    /workflow-instances/{uuid}/-/update:
       patch:
          tags:
             - workflows
@@ -2047,7 +2100,7 @@ paths:
                         $ref: "#/components/schemas/AntboxError"
             default:
                $ref: "#/components/responses/Error"
-   /workflow-instances/{uuid}/-/update-file:
+    /workflow-instances/{uuid}/-/update-file:
       put:
          tags:
             - workflows
@@ -2085,7 +2138,7 @@ paths:
                         $ref: "#/components/schemas/AntboxError"
             default:
                $ref: "#/components/responses/Error"
-   /workflow-definitions:
+    /workflow-definitions:
       get:
          tags:
             - workflows
@@ -2156,7 +2209,7 @@ paths:
                         $ref: "#/components/schemas/WorkflowDefinition"
             default:
                $ref: "#/components/responses/Error"
-   "/workflow-definitions/{uuid}":
+    "/workflow-definitions/{uuid}":
       get:
          tags:
             - workflows
@@ -2192,7 +2245,7 @@ paths:
                         $ref: "#/components/schemas/AntboxError"
             default:
                $ref: "#/components/responses/Error"
-   "/workflow-definitions/{uuid}/-/export":
+    "/workflow-definitions/{uuid}/-/export":
       get:
          tags:
             - workflows
@@ -2235,6 +2288,28 @@ components:
             skillsPath:
                type: string
                description: Path to extra skills directory
+      TenantLimits:
+         type: object
+         required:
+            - storage
+            - tokens
+         properties:
+            storage:
+               oneOf:
+                  - type: number
+                    minimum: 0
+                    description: Storage limit in gigabytes
+                  - type: string
+                    enum:
+                       - pay-as-you-go
+            tokens:
+               oneOf:
+                  - type: integer
+                    minimum: 0
+                    description: Monthly token limit in millions
+                  - type: string
+                    enum:
+                       - pay-as-you-go
       TenantConfiguration:
          type: object
          required:
@@ -2243,6 +2318,7 @@ components:
             - repository
             - configurationRepository
             - eventStoreRepository
+            - limits
          properties:
             name:
                type: string
@@ -2266,6 +2342,58 @@ components:
                $ref: "#/components/schemas/ModuleConfiguration"
             ai:
                $ref: "#/components/schemas/AIConfiguration"
+            limits:
+               $ref: "#/components/schemas/TenantLimits"
+      StorageUsageMetrics:
+         type: object
+         required:
+            - totalBytes
+            - limitGb
+         properties:
+            totalBytes:
+               type: integer
+               minimum: 0
+            limitGb:
+               oneOf:
+                  - type: number
+                    minimum: 0
+                    description: Storage limit in gigabytes
+                  - type: string
+                    enum:
+                       - pay-as-you-go
+      TokenUsageMetrics:
+         type: object
+         required:
+            - year
+            - month
+            - promptTokens
+            - completionTokens
+            - totalTokens
+            - limitMillions
+         properties:
+            year:
+               type: integer
+            month:
+               type: integer
+               minimum: 1
+               maximum: 12
+            promptTokens:
+               type: integer
+               minimum: 0
+            completionTokens:
+               type: integer
+               minimum: 0
+            totalTokens:
+               type: integer
+               minimum: 0
+            limitMillions:
+               oneOf:
+                  - type: integer
+                    minimum: 0
+                    description: Monthly token limit in millions
+                  - type: string
+                    enum:
+                       - pay-as-you-go
       Agent:
          type: object
          description: AI Agent configuration data.

@@ -31,6 +31,7 @@ import { MetricsService } from "application/metrics/metrics_service.ts";
 import { loadSkills } from "application/ai/skills_loader.ts";
 import type { EmbeddingsProvider } from "domain/ai/embeddings_provider.ts";
 import type { OCRProvider } from "domain/ai/ocr_provider.ts";
+import type { TenantLimits } from "domain/metrics/tenant_limits.ts";
 import { NullOCRProvider } from "adapters/ocr/null_ocr_provider.ts";
 
 import { resolve } from "node:path";
@@ -63,6 +64,8 @@ async function setupTenant(
 	serverCfg: ServerConfiguration,
 	cfg: TenantConfiguration,
 ): Promise<AntboxTenant> {
+	validateTenantLimits(cfg);
+
 	const passwd = cfg.rootPasswd ?? serverCfg.rootPasswd ?? ROOT_PASSWD;
 	const symmetricKey = await loadSymmetricKey(cfg.key ?? serverCfg.key);
 
@@ -226,12 +229,14 @@ async function setupTenant(
 	const metricsService = new MetricsService(
 		nodeRepository,
 		eventStoreRepository,
+		cfg.limits,
 	);
 
 	return {
 		name: cfg.name,
 		rootPasswd: passwd,
 		symmetricKey,
+		limits: cfg.limits,
 
 		// Configuration Repository
 		configurationRepository: configRepo,
@@ -259,6 +264,35 @@ async function setupTenant(
 		agentsEngine,
 		workflowInstancesEngine,
 	};
+}
+
+function validateTenantLimits(cfg: TenantConfiguration): void {
+	if (!cfg.limits) {
+		throw new Error(`Tenant ${cfg.name}: limits are required but not configured`);
+	}
+
+	const aiEnabled = cfg.ai?.enabled === true;
+	const tokenLimit = cfg.limits.tokens;
+
+	if (typeof tokenLimit === "number" && (!Number.isInteger(tokenLimit) || tokenLimit < 0)) {
+		throw new Error(`Tenant ${cfg.name}: tokens limit must be a non-negative integer`);
+	}
+
+	if (!aiEnabled && tokenLimit !== 0) {
+		throw new Error(`Tenant ${cfg.name}: tokens limit must be 0 when AI is disabled`);
+	}
+
+	if (aiEnabled && tokenLimit !== "pay-as-you-go" && tokenLimit <= 0) {
+		throw new Error(`Tenant ${cfg.name}: tokens limit must be greater than 0 when AI is enabled`);
+	}
+
+	assertStorageLimit(cfg.name, cfg.limits);
+}
+
+function assertStorageLimit(tenantName: string, limits: TenantLimits): void {
+	if (typeof limits.storage === "number" && limits.storage < 0) {
+		throw new Error(`Tenant ${tenantName}: storage limit must be greater than or equal to 0`);
+	}
 }
 
 async function loadJwks(

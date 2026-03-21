@@ -4,6 +4,12 @@ import { MetricsService } from "./metrics_service.ts";
 import type { NodeRepository } from "domain/nodes/node_repository.ts";
 import type { EventStoreRepository } from "domain/audit/event_store_repository.ts";
 import type { AuditEvent } from "domain/audit/audit_event.ts";
+import type { TenantLimits } from "domain/metrics/tenant_limits.ts";
+
+const tenantLimits: TenantLimits = {
+	storage: 25,
+	tokens: 3,
+};
 
 Deno.test("MetricsService", async (t) => {
 	await t.step("getStorageUsage", async (t) => {
@@ -12,12 +18,17 @@ Deno.test("MetricsService", async (t) => {
 				aggregateTotalSize: () => Promise.resolve(right(1024)),
 			} as unknown as NodeRepository;
 
-			const service = new MetricsService(mockNodeRepo, {} as EventStoreRepository);
+			const service = new MetricsService(
+				mockNodeRepo,
+				{} as EventStoreRepository,
+				tenantLimits,
+			);
 			const result = await service.getStorageUsage();
 
 			assert(result.isRight());
 			if (result.isRight()) {
 				assertEquals(result.value.totalBytes, 1024);
+				assertEquals(result.value.limitGb, 25);
 			}
 		});
 
@@ -26,7 +37,11 @@ Deno.test("MetricsService", async (t) => {
 				aggregateTotalSize: () => Promise.resolve(left({ message: "DB Error" } as any)),
 			} as unknown as NodeRepository;
 
-			const service = new MetricsService(mockNodeRepo, {} as EventStoreRepository);
+			const service = new MetricsService(
+				mockNodeRepo,
+				{} as EventStoreRepository,
+				tenantLimits,
+			);
 			const result = await service.getStorageUsage();
 
 			assert(result.isLeft());
@@ -83,7 +98,11 @@ Deno.test("MetricsService", async (t) => {
 				},
 			} as unknown as EventStoreRepository;
 
-			const service = new MetricsService({} as NodeRepository, mockEventStore);
+			const service = new MetricsService(
+				{} as NodeRepository,
+				mockEventStore,
+				tenantLimits,
+			);
 			const result = await service.getTokenUsage(2026, 3);
 
 			assert(result.isRight());
@@ -93,7 +112,18 @@ Deno.test("MetricsService", async (t) => {
 				assertEquals(result.value.totalTokens, 35);
 				assertEquals(result.value.year, 2026);
 				assertEquals(result.value.month, 3);
+				assertEquals(result.value.limitMillions, 3);
 			}
 		});
+	});
+
+	await t.step("getLimits", async () => {
+		const service = new MetricsService(
+			{} as NodeRepository,
+			{} as EventStoreRepository,
+			tenantLimits,
+		);
+
+		assertEquals(service.getLimits(), tenantLimits);
 	});
 });

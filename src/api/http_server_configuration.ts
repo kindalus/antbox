@@ -1,6 +1,22 @@
 import { z } from "zod";
+import type { TenantLimits } from "domain/metrics/tenant_limits.ts";
 
 export const ModuleConfigurationSchema = z.tuple([z.string()]).rest(z.string());
+
+export const StorageLimitSchema = z.union([
+	z.number().nonnegative(),
+	z.literal("pay-as-you-go"),
+]);
+
+export const TokenLimitSchema = z.union([
+	z.number().int().nonnegative(),
+	z.literal("pay-as-you-go"),
+]);
+
+export const TenantLimitsSchema = z.object({
+	storage: StorageLimitSchema,
+	tokens: TokenLimitSchema,
+});
 
 export const AIConfigurationSchema = z.object({
 	enabled: z.boolean(),
@@ -20,6 +36,29 @@ export const TenantConfigurationSchema = z.object({
 	configurationRepository: ModuleConfigurationSchema,
 	eventStoreRepository: ModuleConfigurationSchema,
 	ai: AIConfigurationSchema.optional(),
+	limits: TenantLimitsSchema,
+}).superRefine((value, ctx) => {
+	const aiEnabled = value.ai?.enabled === true;
+
+	if (!aiEnabled && value.limits.tokens !== 0) {
+		ctx.addIssue({
+			code: z.ZodIssueCode.custom,
+			path: ["limits", "tokens"],
+			message: "tokens limit must be 0 when AI is disabled",
+		});
+	}
+
+	if (
+		aiEnabled &&
+		value.limits.tokens !== "pay-as-you-go" &&
+		value.limits.tokens <= 0
+	) {
+		ctx.addIssue({
+			code: z.ZodIssueCode.custom,
+			path: ["limits", "tokens"],
+			message: "tokens limit must be greater than 0 when AI is enabled",
+		});
+	}
 });
 
 export const TenantsConfigurationSchema = z.array(TenantConfigurationSchema).min(1);
@@ -58,4 +97,5 @@ export interface TenantConfiguration {
 	configurationRepository: ModuleConfiguration;
 	eventStoreRepository: ModuleConfiguration;
 	ai?: AIConfiguration;
+	limits: TenantLimits;
 }

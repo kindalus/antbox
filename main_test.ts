@@ -18,6 +18,10 @@ describe("getTenantSetupConfiguration", () => {
 				repository: ["inmem/inmem_node_repository.ts"],
 				configurationRepository: ["./src/adapters/.tmp-test-config.ts"],
 				eventStoreRepository: ["inmem/inmem_event_store_repository.ts"],
+				limits: {
+					storage: 10,
+					tokens: 0,
+				},
 			}],
 		};
 

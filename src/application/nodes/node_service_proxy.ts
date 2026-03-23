@@ -68,6 +68,7 @@ export class NodeServiceProxy {
 	}
 
 	async semanticQuery(text: string) {
+		Logger.instance("NodeServiceProxy.semanticQuery").debug(JSON.stringify(text));
 		if (!this.#ragService) {
 			return left("Service not available");
 		}
@@ -99,6 +100,7 @@ export class NodeServiceProxy {
 	}
 
 	list(parent?: string) {
+		Logger.instance("NodeServiceProxy.list").debug(JSON.stringify(parent));
 		return this.#nodeService.list(this.#ctx, parent);
 	}
 

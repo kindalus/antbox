@@ -8,6 +8,7 @@ import type { AgentData } from "domain/configuration/agent_data.ts";
 import { AgentDataSchema } from "domain/configuration/agent_schema.ts";
 import { ADMINS_GROUP_UUID } from "domain/configuration/builtin_groups.ts";
 import { BUILTIN_AGENTS } from "domain/configuration/builtin_agents.ts";
+import { customAgents, getCustomAgent } from "application/ai/custom_agents/index.ts";
 import { UuidGenerator } from "shared/uuid_generator.ts";
 
 /**
@@ -80,6 +81,11 @@ export class AgentsService {
 		_ctx: AuthenticationContext,
 		uuid: string,
 	): Promise<Either<AntboxError, AgentData>> {
+		const customAgent = getCustomAgent(uuid);
+		if (customAgent) {
+			return right(customAgent.data);
+		}
+
 		// Check builtin agents first
 		const builtinAgent = BUILTIN_AGENTS.find((a) => a.uuid === uuid);
 		if (builtinAgent) {
@@ -105,6 +111,7 @@ export class AgentsService {
 
 		// Combine builtin agents with custom agents
 		const allAgents = [
+			...customAgents,
 			...BUILTIN_AGENTS,
 			...customAgentsOrErr.value.map((agent) => this.#normalizeAgent(agent)),
 		];
@@ -126,8 +133,8 @@ export class AgentsService {
 		}
 
 		// Cannot update builtin agents
-		if (BUILTIN_AGENTS.some((a) => a.uuid === uuid)) {
-			return left(new BadRequestError("Cannot update builtin agents"));
+		if (this.#isSystemAgent(uuid)) {
+			return left(new BadRequestError("Cannot update system agents"));
 		}
 
 		const existingOrErr = await this.#configRepo.get("agents", uuid);
@@ -167,8 +174,8 @@ export class AgentsService {
 		}
 
 		// Cannot delete builtin agents
-		if (BUILTIN_AGENTS.some((a) => a.uuid === uuid)) {
-			return left(new BadRequestError("Cannot delete builtin agents"));
+		if (this.#isSystemAgent(uuid)) {
+			return left(new BadRequestError("Cannot delete system agents"));
 		}
 
 		return this.#configRepo.delete("agents", uuid);
@@ -180,6 +187,11 @@ export class AgentsService {
 
 	#isAdmin(ctx: AuthenticationContext): boolean {
 		return ctx.principal.groups.includes(ADMINS_GROUP_UUID);
+	}
+
+	#isSystemAgent(uuid: string): boolean {
+		return getCustomAgent(uuid) !== undefined ||
+			BUILTIN_AGENTS.some((agent) => agent.uuid === uuid);
 	}
 
 	#normalizeAgent(agent: AgentData): AgentData {

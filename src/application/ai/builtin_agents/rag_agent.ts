@@ -1,7 +1,7 @@
 import type { AgentData } from "domain/configuration/agent_data.ts";
 import { RAG_NODE_FILTERING_AGENT_UUID } from "./rag_node_filtering_agent_agent.ts";
-import { SEMANTIC_SEARCHER_AGENT_UUID } from "./semantic_searcher_agent.ts";
 import { RAG_SUMMARIZER_AGENT_UUID } from "./rag_summarizer_agent.ts";
+import { SEMANTIC_SEARCHER_AGENT_UUID } from "application/ai/custom_agents/index.ts";
 
 /**
  * Built-in RAG (Retrieval-Augmented Generation) Agent

@@ -1,4 +1,5 @@
 import {
+	type BaseAgent,
 	createEvent,
 	FunctionTool,
 	InMemoryRunner,
@@ -27,6 +28,7 @@ import { createRunCodeTool } from "./builtin_tools/run_code.ts";
 import { type LoadedSkill, loadSkillInstruction } from "./skills_loader.ts";
 import { RAGService } from "./rag_service.ts";
 import type { TenantLimitsEnforcer } from "application/metrics/tenant_limits_guard.ts";
+import { getCustomAgent } from "application/ai/custom_agents/index.ts";
 
 const APP_NAME = "antbox";
 
@@ -283,7 +285,18 @@ export class AgentsEngine {
 		agentData: AgentData,
 		authContext: AuthenticationContext,
 		additionalInstructions?: string,
-	): Promise<LlmAgent | SequentialAgent | ParallelAgent | LoopAgent> {
+	): Promise<BaseAgent> {
+		const customAgent = getCustomAgent(agentData.uuid);
+		if (customAgent) {
+			return customAgent.create({
+				sdk: {
+					nodes: new NodeServiceProxy(this.#nodeService, this.#ragService, authContext),
+				},
+				authContext,
+				additionalInstructions,
+			});
+		}
+
 		const type = agentData.type ?? "llm";
 
 		if (type === "llm") {

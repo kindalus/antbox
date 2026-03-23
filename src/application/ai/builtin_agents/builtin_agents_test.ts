@@ -2,19 +2,10 @@ import { describe, it } from "bdd";
 import { expect } from "expect";
 import { AgentDataSchema } from "domain/configuration/agent_schema.ts";
 import { RAG_NODE_FILTERING_AGENT } from "./rag_node_filtering_agent_agent.ts";
-import { SEMANTIC_SEARCHER_AGENT } from "./semantic_searcher_agent.ts";
 import { RAG_SUMMARIZER_AGENT } from "./rag_summarizer_agent.ts";
 import { ragAgent } from "./rag_agent.ts";
 
 describe("builtin agents schema validation", () => {
-	it("semantic searcher agent passes schema validation", () => {
-		const result = AgentDataSchema.safeParse(SEMANTIC_SEARCHER_AGENT);
-		if (!result.success) {
-			console.error("Validation errors:", result.error.issues);
-		}
-		expect(result.success).toBe(true);
-	});
-
 	it("RAG summarizer agent passes schema validation", () => {
 		const result = AgentDataSchema.safeParse(RAG_SUMMARIZER_AGENT);
 		if (!result.success) {
@@ -37,14 +28,6 @@ describe("builtin agents schema validation", () => {
 			console.error("Validation errors:", result.error.issues);
 		}
 		expect(result.success).toBe(true);
-	});
-
-	it("semantic searcher has correct type and tools", () => {
-		expect(SEMANTIC_SEARCHER_AGENT.type).toBe("llm");
-		expect(SEMANTIC_SEARCHER_AGENT.exposedToUsers).toBe(false);
-		expect(SEMANTIC_SEARCHER_AGENT.tools).toEqual(["runCode", "skillLoader"]);
-		expect(SEMANTIC_SEARCHER_AGENT.systemPrompt).toBeDefined();
-		expect(SEMANTIC_SEARCHER_AGENT.agents).toBeUndefined();
 	});
 
 	it("RAG summarizer disables direct tools", () => {

@@ -26,9 +26,9 @@ export class GeminiEmbeddingsProvider implements EmbeddingsProvider {
 	readonly #threshold: number;
 
 	constructor(
-		modelName = "gemini-embedding-001",
+		modelName = "gemini-embedding-2-preview",
 		apiKey?: string,
-		threshold = 0.65,
+		threshold = 0.6,
 	) {
 		const key = apiKey ?? Deno.env.get("GOOGLE_API_KEY") ?? Deno.env.get("GEMINI_API_KEY");
 		if (!key) {
@@ -40,24 +40,44 @@ export class GeminiEmbeddingsProvider implements EmbeddingsProvider {
 		this.#client = new GoogleGenAI({ apiKey: key });
 	}
 
+	/**
+	 * Normalizes an array of numbers (embedding) using L2 normalization.
+	 * @param values - The input array of numbers.
+	 * @returns A new array representing the normalized unit vector.
+	 */
+	#normalizeEmbedding(values: number[]): number[] {
+		// 1. Calculate the L2 norm (Euclidean length)
+		// reduce() sums up the squares of all the numbers in the array
+		const sumOfSquares = values.reduce((sum, val) => sum + val * val, 0);
+		const norm = Math.sqrt(sumOfSquares);
+
+		// Handle the edge case where the array is all zeros to prevent division by zero (NaN)
+		if (norm === 0) {
+			return [...values];
+		}
+
+		// 2. Divide each number by the norm to create the normalized array
+		return values.map((val) => val / norm);
+	}
+
 	async embed(texts: string[]): Promise<Either<AntboxError, EmbeddingsResult>> {
 		try {
 			const embeddings: Embedding[] = [];
 			let totalPromptTokens = 0;
-			let totalCompletionTokens = 0;
 			let totalTokens = 0;
 
 			for (const text of texts) {
 				const [countResponse, embedResponse] = await Promise.all([
 					this.#client.models.countTokens({
 						model: this.#modelName,
-						contents: { parts: [{ text }] },
+						contents: text,
 					}).catch(() => null),
 					this.#client.models.embedContent({
 						model: this.#modelName,
-						contents: { parts: [{ text }] },
+						contents: text,
 						config: {
 							taskType: "RETRIEVAL_DOCUMENT",
+							outputDimensionality: 768,
 						},
 					}),
 				]);
@@ -68,7 +88,8 @@ export class GeminiEmbeddingsProvider implements EmbeddingsProvider {
 				}
 
 				if (embedResponse.embeddings && embedResponse.embeddings[0]?.values) {
-					embeddings.push(embedResponse.embeddings[0].values);
+					const normalized = this.#normalizeEmbedding(embedResponse.embeddings[0].values);
+					embeddings.push(normalized);
 				} else {
 					return left(
 						new AntboxError(
@@ -83,7 +104,7 @@ export class GeminiEmbeddingsProvider implements EmbeddingsProvider {
 				embeddings,
 				usage: {
 					promptTokens: totalPromptTokens,
-					completionTokens: totalCompletionTokens,
+					completionTokens: 0,
 					totalTokens,
 				},
 			});
@@ -113,7 +134,7 @@ export default function buildGeminiEmbeddingsProvider(
 	return Promise.resolve(
 		right(
 			new GeminiEmbeddingsProvider(
-				modelName ?? "gemini-embedding-001",
+				modelName,
 				apiKey,
 				threshold ? parseFloat(threshold) : undefined,
 			),

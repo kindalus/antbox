@@ -352,6 +352,29 @@ describe("AgentsService", () => {
 			}
 		});
 
+		it("should prefer custom agents over repository agents with the same UUID", async () => {
+			const repo = new InMemoryConfigurationRepository();
+			const service = createAgentsService(repo);
+
+			await repo.save("agents", {
+				uuid: SEMANTIC_SEARCHER_AGENT_UUID,
+				name: "Repository Semantic Searcher",
+				type: "llm",
+				exposedToUsers: true,
+				systemPrompt: "Repository instructions",
+				createdTime: new Date().toISOString(),
+				modifiedTime: new Date().toISOString(),
+			} as AgentData);
+
+			const result = await service.getAgent(adminCtx, SEMANTIC_SEARCHER_AGENT_UUID);
+
+			expect(result.isRight()).toBe(true);
+			if (result.isRight()) {
+				expect(result.value.name).toBe("Semantic Searcher");
+				expect(result.value.exposedToUsers).toBe(false);
+			}
+		});
+
 		it("should get builtin RAG summarizer agent", async () => {
 			const repo = new InMemoryConfigurationRepository();
 			const service = createAgentsService(repo);
@@ -402,7 +425,7 @@ describe("AgentsService", () => {
 	});
 
 	describe("listAgents", () => {
-		it("should include all 5 builtin agents plus custom agents", async () => {
+		it("should include all 5 system agents plus repository agents", async () => {
 			const repo = new InMemoryConfigurationRepository();
 			const service = createAgentsService(repo);
 
@@ -421,12 +444,12 @@ describe("AgentsService", () => {
 
 			expect(result.isRight()).toBe(true);
 			if (result.isRight()) {
-				// Should include 2 custom agents + 5 builtins
+				// Should include 2 repository agents + 5 system agents
 				expect(result.value.length).toBe(7);
 			}
 		});
 
-		it("should include the 5 builtin agents when no custom agents", async () => {
+		it("should include the 5 system agents when no repository agents", async () => {
 			const repo = new InMemoryConfigurationRepository();
 			const service = createAgentsService(repo);
 

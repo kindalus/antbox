@@ -5,6 +5,7 @@ import { left, right } from "shared/either.ts";
 import { type AntboxError, ForbiddenError } from "shared/antbox_error.ts";
 import type { AgentData } from "domain/configuration/agent_data.ts";
 import type { AuthenticationContext } from "application/security/authentication_context.ts";
+import { SEMANTIC_SEARCHER_AGENT } from "application/ai/custom_agents/index.ts";
 
 // ============================================================================
 // MOCKS
@@ -307,6 +308,65 @@ describe("AgentsEngine", () => {
 			const result = await engine.chat(mockAuthContext, "pipeline-agent", "Hello");
 
 			expect(result.isLeft()).toBe(true);
+		});
+	});
+
+	describe("custom agent dispatch", () => {
+		it("runs the semantic searcher custom agent with node SDK access", async () => {
+			let findCalls = 0;
+			const agentsService = {
+				getAgent: async () => right({ ...SEMANTIC_SEARCHER_AGENT, exposedToUsers: true }),
+				listAgents: async () => right([]),
+			} as unknown as import("./agents_service.ts").AgentsService;
+			const nodeService = {
+				find: async (_ctx: unknown, filters: unknown) => {
+					findCalls += 1;
+					if (findCalls === 1) {
+						expect(filters).toEqual([["fulltext", "match", "vacation policy 2025"]]);
+						return right({
+							pageToken: 1,
+							pageSize: 20,
+							nodes: [{
+								uuid: "node-1",
+								title: "Vacation Policy 2025",
+								description: "All employees are entitled to 22 days...",
+								parent: "folder-1",
+							}],
+						});
+					}
+
+					expect(filters).toEqual([["uuid", "in", ["folder-1"]]]);
+					return right({
+						pageToken: 1,
+						pageSize: 20,
+						nodes: [{
+							uuid: "folder-1",
+							title: "HR Policies",
+							parent: "",
+						}],
+					});
+				},
+			} as unknown as import("application/nodes/node_service.ts").NodeService;
+
+			const engine = new AgentsEngine(makeContext({ agentsService, nodeService }));
+			const result = await engine.answer(
+				mockAuthContext,
+				SEMANTIC_SEARCHER_AGENT.uuid,
+				"Vacation policy 2025",
+			);
+
+			expect(result.isRight()).toBe(true);
+			if (result.isRight()) {
+				expect(JSON.parse(result.value.parts[0].text ?? "[]")).toEqual([
+					{
+						uuid: "node-1",
+						name: "Vacation Policy 2025",
+						snippet: "All employees are entitled to 22 days...",
+						parent: "folder-1",
+						parentTitle: "HR Policies",
+					},
+				]);
+			}
 		});
 	});
 

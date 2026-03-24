@@ -1,4 +1,4 @@
-import { BaseAgent, type BaseAgentConfig, type InvocationContext } from "@google/adk";
+import { BaseAgent, type BaseAgentConfig } from "@google/adk";
 import type { NodeServiceProxy } from "application/nodes/node_service_proxy.ts";
 
 export interface AntboxAgentSdk {
@@ -15,11 +15,5 @@ export abstract class BaseAntboxAgent extends BaseAgent {
 	constructor(config: BaseAntboxAgentConfig) {
 		super(config);
 		this.sdk = config.sdk;
-	}
-
-	protected async *runLiveImpl(
-		context: InvocationContext,
-	): AsyncGenerator<import("@google/adk").Event, void, void> {
-		yield* this.runAsyncImpl(context);
 	}
 }

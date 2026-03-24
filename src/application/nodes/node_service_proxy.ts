@@ -90,8 +90,6 @@ export class NodeServiceProxy {
 		uuids = valid.value.nodes.map((v) => v.uuid);
 		const result = res.value.filter((v) => uuids.includes(v.uuid));
 
-		console.log(result);
-
 		return right(result);
 	}
 

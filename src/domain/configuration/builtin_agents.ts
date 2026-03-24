@@ -1,17 +1,8 @@
-import {
-	builtinAgents,
-	RAG_AGENT_UUID,
-	RAG_NODE_FILTERING_AGENT_UUID,
-	RAG_SUMMARIZER_AGENT_UUID,
-} from "application/ai/builtin_agents/index.ts";
-import { SEMANTIC_SEARCHER_AGENT_UUID } from "application/ai/custom_agents/index.ts";
+import { builtinAgents } from "application/ai/builtin_agents/index.ts";
+import { RAG_AGENT_UUID } from "application/ai/builtin_agents/rag_agent.ts";
+import { ASPECT_FIELD_EXTRACTOR_AGENT_UUID } from "application/ai/builtin_agents/aspect_field_extractor_agent.ts";
 
-export {
-	RAG_AGENT_UUID,
-	RAG_NODE_FILTERING_AGENT_UUID,
-	RAG_SUMMARIZER_AGENT_UUID,
-	SEMANTIC_SEARCHER_AGENT_UUID,
-};
+export { ASPECT_FIELD_EXTRACTOR_AGENT_UUID, RAG_AGENT_UUID };
 
 /**
  * Built-in agents available in all tenants

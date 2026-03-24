@@ -293,6 +293,7 @@ export class AgentsEngine {
 					nodes: new NodeServiceProxy(this.#nodeService, this.#ragService, authContext),
 				},
 				authContext,
+				defaultModel: this.#defaultModel,
 				additionalInstructions,
 			});
 		}

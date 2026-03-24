@@ -6,10 +6,8 @@ import { AgentsService } from "application/ai/agents_service.ts";
 import { ADMINS_GROUP_UUID } from "domain/configuration/builtin_groups.ts";
 import type { AgentData } from "domain/configuration/agent_data.ts";
 import {
+	ASPECT_FIELD_EXTRACTOR_AGENT_UUID,
 	RAG_AGENT_UUID,
-	RAG_NODE_FILTERING_AGENT_UUID,
-	RAG_SUMMARIZER_AGENT_UUID,
-	SEMANTIC_SEARCHER_AGENT_UUID,
 } from "domain/configuration/builtin_agents.ts";
 
 function createAgentsService(repo: InMemoryConfigurationRepository) {
@@ -204,20 +202,15 @@ describe("AgentsService", () => {
 				name: "My Pipeline",
 				description: "A sequential pipeline",
 				type: "sequential",
-				agents: [
-					"--semantic-searcher-agent--",
-					"--rag-node-filtering-agent--",
-					"--rag-summarizer-agent--",
-				],
+				agents: [RAG_AGENT_UUID, ASPECT_FIELD_EXTRACTOR_AGENT_UUID],
 			});
 
 			expect(result.isRight()).toBe(true);
 			if (result.isRight()) {
 				expect(result.value.type).toBe("sequential");
 				expect(result.value.agents).toEqual([
-					"--semantic-searcher-agent--",
-					"--rag-node-filtering-agent--",
-					"--rag-summarizer-agent--",
+					RAG_AGENT_UUID,
+					ASPECT_FIELD_EXTRACTOR_AGENT_UUID,
 				]);
 			}
 		});
@@ -229,11 +222,7 @@ describe("AgentsService", () => {
 			const result = await service.createAgent(adminCtx, {
 				name: "Parallel Runner",
 				type: "parallel",
-				agents: [
-					"--semantic-searcher-agent--",
-					"--rag-node-filtering-agent--",
-					"--rag-summarizer-agent--",
-				],
+				agents: [RAG_AGENT_UUID, ASPECT_FIELD_EXTRACTOR_AGENT_UUID],
 			});
 
 			expect(result.isRight()).toBe(true);
@@ -271,7 +260,7 @@ describe("AgentsService", () => {
 			const result = await service.createAgent(adminCtx, {
 				name: "Bad Workflow",
 				type: "sequential",
-				agents: ["--semantic-searcher-agent--"],
+				agents: [RAG_AGENT_UUID],
 				systemPrompt: "This should not be here",
 			});
 
@@ -337,69 +326,40 @@ describe("AgentsService", () => {
 			}
 		});
 
-		it("should get builtin semantic searcher agent", async () => {
-			const repo = new InMemoryConfigurationRepository();
-			const service = createAgentsService(repo);
-
-			const result = await service.getAgent(adminCtx, SEMANTIC_SEARCHER_AGENT_UUID);
-
-			expect(result.isRight()).toBe(true);
-			if (result.isRight()) {
-				expect(result.value.uuid).toBe(SEMANTIC_SEARCHER_AGENT_UUID);
-				expect(result.value.name).toBe("Semantic Searcher");
-				expect(result.value.type).toBe("llm");
-				expect(result.value.exposedToUsers).toBe(false);
-			}
-		});
-
-		it("should prefer custom agents over repository agents with the same UUID", async () => {
+		it("should prefer custom RAG agent over repository agents with the same UUID", async () => {
 			const repo = new InMemoryConfigurationRepository();
 			const service = createAgentsService(repo);
 
 			await repo.save("agents", {
-				uuid: SEMANTIC_SEARCHER_AGENT_UUID,
-				name: "Repository Semantic Searcher",
+				uuid: RAG_AGENT_UUID,
+				name: "Repository RAG Agent",
 				type: "llm",
-				exposedToUsers: true,
+				exposedToUsers: false,
 				systemPrompt: "Repository instructions",
 				createdTime: new Date().toISOString(),
 				modifiedTime: new Date().toISOString(),
 			} as AgentData);
 
-			const result = await service.getAgent(adminCtx, SEMANTIC_SEARCHER_AGENT_UUID);
+			const result = await service.getAgent(adminCtx, RAG_AGENT_UUID);
 
 			expect(result.isRight()).toBe(true);
 			if (result.isRight()) {
-				expect(result.value.name).toBe("Semantic Searcher");
-				expect(result.value.exposedToUsers).toBe(false);
+				expect(result.value.uuid).toBe(RAG_AGENT_UUID);
+				expect(result.value.name).toBe("RAG Agent");
+				expect(result.value.exposedToUsers).toBe(true);
 			}
 		});
 
-		it("should get builtin RAG summarizer agent", async () => {
+		it("should get builtin aspect field extractor agent", async () => {
 			const repo = new InMemoryConfigurationRepository();
 			const service = createAgentsService(repo);
 
-			const result = await service.getAgent(adminCtx, RAG_SUMMARIZER_AGENT_UUID);
+			const result = await service.getAgent(adminCtx, ASPECT_FIELD_EXTRACTOR_AGENT_UUID);
 
 			expect(result.isRight()).toBe(true);
 			if (result.isRight()) {
-				expect(result.value.uuid).toBe(RAG_SUMMARIZER_AGENT_UUID);
-				expect(result.value.name).toBe("RAG Summarizer");
-				expect(result.value.type).toBe("llm");
-				expect(result.value.exposedToUsers).toBe(false);
-			}
-		});
-
-		it("should get builtin RAG node filtering agent", async () => {
-			const repo = new InMemoryConfigurationRepository();
-			const service = createAgentsService(repo);
-
-			const result = await service.getAgent(adminCtx, RAG_NODE_FILTERING_AGENT_UUID);
-
-			expect(result.isRight()).toBe(true);
-			if (result.isRight()) {
-				expect(result.value.uuid).toBe(RAG_NODE_FILTERING_AGENT_UUID);
-				expect(result.value.name).toBe("RAG Node Filtering Agent");
+				expect(result.value.uuid).toBe(ASPECT_FIELD_EXTRACTOR_AGENT_UUID);
+				expect(result.value.name).toBe("Aspect Field Extractor");
 				expect(result.value.type).toBe("llm");
 				expect(result.value.exposedToUsers).toBe(false);
 			}
@@ -425,7 +385,7 @@ describe("AgentsService", () => {
 	});
 
 	describe("listAgents", () => {
-		it("should include all 5 system agents plus repository agents", async () => {
+		it("should include all 2 system agents plus repository agents", async () => {
 			const repo = new InMemoryConfigurationRepository();
 			const service = createAgentsService(repo);
 
@@ -444,12 +404,12 @@ describe("AgentsService", () => {
 
 			expect(result.isRight()).toBe(true);
 			if (result.isRight()) {
-				// Should include 2 repository agents + 5 system agents
-				expect(result.value.length).toBe(7);
+				// Should include 2 repository agents + 2 system agents
+				expect(result.value.length).toBe(4);
 			}
 		});
 
-		it("should include the 5 system agents when no repository agents", async () => {
+		it("should include the 2 system agents when no repository agents", async () => {
 			const repo = new InMemoryConfigurationRepository();
 			const service = createAgentsService(repo);
 
@@ -457,12 +417,10 @@ describe("AgentsService", () => {
 
 			expect(result.isRight()).toBe(true);
 			if (result.isRight()) {
-				expect(result.value.length).toBe(5);
+				expect(result.value.length).toBe(2);
 				const uuids = result.value.map((a) => a.uuid);
 				expect(uuids).toContain(RAG_AGENT_UUID);
-				expect(uuids).toContain(SEMANTIC_SEARCHER_AGENT_UUID);
-				expect(uuids).toContain("--rag-node-filtering-agent--");
-				expect(uuids).toContain(RAG_SUMMARIZER_AGENT_UUID);
+				expect(uuids).toContain(ASPECT_FIELD_EXTRACTOR_AGENT_UUID);
 			}
 		});
 
@@ -658,11 +616,11 @@ describe("AgentsService", () => {
 			expect(result.isLeft()).toBe(true);
 		});
 
-		it("should reject delete of builtin semantic searcher agent", async () => {
+		it("should reject delete of builtin aspect extractor agent", async () => {
 			const repo = new InMemoryConfigurationRepository();
 			const service = createAgentsService(repo);
 
-			const result = await service.deleteAgent(adminCtx, SEMANTIC_SEARCHER_AGENT_UUID);
+			const result = await service.deleteAgent(adminCtx, ASPECT_FIELD_EXTRACTOR_AGENT_UUID);
 
 			expect(result.isLeft()).toBe(true);
 		});

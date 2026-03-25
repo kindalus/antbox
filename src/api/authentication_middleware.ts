@@ -19,7 +19,7 @@ export function authenticationMiddleware(
 			const tenant = resolveTenant(req, tenants);
 			if (!tenant) {
 				return new Response(JSON.stringify({ message: "Tenant not found" }), {
-					status: 404,
+					status: 400,
 					headers: { "Content-Type": "application/json" },
 				});
 			}

@@ -21,6 +21,27 @@ describe("authenticationMiddleware", () => {
 		mode: "Action",
 	};
 
+	it("returns 400 when the requested tenant does not exist", async () => {
+		const tenant = {
+			name: "default",
+			rootPasswd: "demo",
+			symmetricKey: "test-symmetric-key",
+		} as unknown as AntboxTenant;
+
+		const handler = authenticationMiddleware([tenant])(async () => {
+			return new Response("ok");
+		});
+
+		const response = await handler(
+			new Request("http://localhost/v2/nodes", {
+				headers: { "X-Tenant": "missing-tenant" },
+			}),
+		);
+
+		expect(response.status).toBe(400);
+		await expect(response.json()).resolves.toEqual({ message: "Tenant not found" });
+	});
+
 	it("overrides jwt groups with local user groups for external tokens", async () => {
 		const repo = new InMemoryConfigurationRepository();
 		const usersService = new UsersService(repo);

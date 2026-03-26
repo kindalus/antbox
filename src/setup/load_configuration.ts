@@ -55,10 +55,14 @@ jwks = "antbox.jwks"
 
 [[tenants]]
 name = "default"
-storage = ["flat_file/flat_file_storage_provider.ts", "./data"]
-repository = ["sqlite/sqlite_node_repository.ts", "./data"]
-configurationRepository = ["sqlite/sqlite_configuration_repository.ts", "./data"]
-eventStoreRepository = ["sqlite/sqlite_event_store_repository.ts", "./data"]
+storage = ["flat_file/flat_file_storage_provider.ts", "./data/storage"]
+repository = ["sqlite/sqlite_node_repository.ts", "./data/repository"]
+configurationRepository = ["sqlite/sqlite_configuration_repository.ts", "./data/config"]
+eventStoreRepository = ["sqlite/sqlite_event_store_repository.ts", "./data/events"]
+
+[tenants.limits]
+storage = "pay-as-you-go"
+tokens = 0
 `;
 		await Deno.writeTextFile(configPath, defaultConfig);
 		Logger.info(`Created default configuration file: ${configPath}`);

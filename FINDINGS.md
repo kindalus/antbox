@@ -87,7 +87,7 @@ TypeScript/Deno; businesses in Portugal/EU (inferred from "Kindalus" and locale 
 
 - AI Agents: `src/application/ai/agents_engine.ts`, `src/application/ai/rag_service.ts`
 - Workflows: `src/application/workflows/workflow_instances_engine.ts`
-- Multi-tenant: `src/api/antbox_tenant.ts`, `.config/demo.toml`
+- Multi-tenant: `src/api/antbox_tenant.ts`, `.config/demo/config.toml`
 - OpenAPI: `openapi.yaml` (79.6KB comprehensive spec)
 
 ---

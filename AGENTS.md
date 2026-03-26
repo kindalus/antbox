@@ -22,7 +22,7 @@ deno fmt                          # Format code (tabs, 100 char width)
 
 # Run server
 ./start_server.sh --demo          # Development mode (SQLite + flat-file)
-./start_server.sh -f config.toml  # Production with custom config
+./start_server.sh -c /etc/antbox  # Production with custom config directory
 ./start_server.sh --keys          # Generate crypto keys
 ```
 

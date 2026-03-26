@@ -94,9 +94,9 @@ Use `start_server.sh`:
 
 | Option              | Description                                        |
 | ------------------- | -------------------------------------------------- |
-| `--demo`            | Demo config (`.config/demo.toml`)                  |
-| `--sandbox`         | Sandbox config (`.config/sandbox.toml`)            |
-| `-f, --config FILE` | Custom config file (default `.config/antbox.toml`) |
+| `--demo`            | Demo config directory (`.config/demo/`)            |
+| `--sandbox`         | Sandbox config directory (`.config/sandbox/`)      |
+| `-c, --config-dir DIR` | Custom config directory (default `$HOME/.config/antbox`) |
 | `--keys`            | Generate and print crypto keys, then exit          |
 | `-h, --help`        | Show help                                          |
 
@@ -118,7 +118,7 @@ When you start Antbox for the first time, it will automatically:
 
 1. Create this directory if it doesn't exist.
 2. Generate a default `config.toml` file inside it.
-3. Generate cryptographic keys (`antbox.key` and `antbox.jwks`).
+3. Generate cryptographic keys (`antbox.key`, `antbox.jwks`, and `antbox-private.jwk`).
 
 You can override the configuration directory using the `-c, --config-dir` CLI flag.
 
@@ -132,6 +132,9 @@ Each tenant defines these core adapters:
 Module configuration format:
 
 - `["module/path.ts", "param1", "param2"]`
+- every tenant must define `limits`
+- when AI is disabled, set `limits.tokens = 0`
+- when AI is enabled, `limits.tokens` must be greater than `0` or `"pay-as-you-go"`
 
 Minimal example of `config.toml`:
 
@@ -147,6 +150,10 @@ storage = ["flat_file/flat_file_storage_provider.ts", "./data/storage"]
 repository = ["sqlite/sqlite_node_repository.ts", "./data/repository"]
 configurationRepository = ["sqlite/sqlite_configuration_repository.ts", "./data/config"]
 eventStoreRepository = ["sqlite/sqlite_event_store_repository.ts", "./data/events"]
+
+[tenants.limits]
+storage = "pay-as-you-go"
+tokens = 0
 
 [tenants.ai]
 enabled = false

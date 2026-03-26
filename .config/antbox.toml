@@ -11,6 +11,10 @@ repository = ["mongodb/mongodb_node_repository.ts", "mongodb://localhost:27017/a
 configurationRepository = ["mongodb/mongodb_configuration_repository.ts", "mongodb://localhost:27017/antbox"]
 eventStoreRepository = ["mongodb/mongodb_event_store_repository.ts", "mongodb://localhost:27017/antbox"]
 
+[tenants.limits]
+storage = "pay-as-you-go"
+tokens = 0
+
 [tenants.ai]
 enabled = false
 defaultModel = "google/gemini-2.5-flash"

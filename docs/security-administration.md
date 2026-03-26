@@ -13,7 +13,7 @@ This guide covers user, group, and API key administration endpoints.
 - `GET /v2/users` - list users
 - `GET /v2/users/{email}` - get user
 - `PATCH /v2/users/{email}` - update user
-- `DELETE /v2/users/{uuid}` - delete user (current route shape)
+- `DELETE /v2/users/{email}` - delete user
 
 Create payload example:
 

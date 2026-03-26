@@ -11,7 +11,7 @@ storage provider.
 
 ## Configuration Format
 
-Adapters are configured using module arrays in `antbox.toml`:
+Adapters are configured using module arrays in `config.toml`:
 
 ```toml
 [[tenants]]
@@ -71,7 +71,8 @@ Example `s3-config.json`:
 
 ## Related Adapters
 
-- **Repositories**: `inmem`, `flat_file`, `mongodb`
-- **Vector databases** (for AI): `inmem`, `flat_file`
+- **Repositories**: `inmem`, `flat_file`, `sqlite`, `postgres`, `mongodb`
+- **AI retrieval**: configure `[tenants.ai]` with an `embeddingProvider`; semantic search also
+  requires a repository that supports embeddings
 
 See `docs/architecture.md` for a broader overview of adapters.

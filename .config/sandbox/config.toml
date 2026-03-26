@@ -1,8 +1,8 @@
 engine = "oak"
 port = 7180
 rootPasswd = "demo"
-key = "./.config/antbox.key"
-jwks = "./.config/antbox.jwks"
+key = "../antbox.key"
+jwks = "../antbox.jwks"
 
 [[tenants]]
 name = "sandbox"
@@ -10,6 +10,10 @@ storage = ["inmem/inmem_storage_provider.ts"]
 repository = ["sqlite/sqlite_node_repository.ts"]
 configurationRepository = ["sqlite/sqlite_configuration_repository.ts"]
 eventStoreRepository = ["sqlite/sqlite_event_store_repository.ts"]
+
+[tenants.limits]
+storage = "pay-as-you-go"
+tokens = 0
 
 [tenants.ai]
 enabled = false

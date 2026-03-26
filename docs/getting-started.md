@@ -24,7 +24,8 @@ Antbox uses a central configuration directory. By default, it manages its config
 `$HOME/.config/antbox` (or `%USERPROFILE%\.config\antbox` on Windows).
 
 When you start Antbox for the first time, it automatically creates this directory, generates
-cryptographic keys (`antbox.key` and `antbox.jwks`), and creates a default `config.toml` file.
+cryptographic keys (`antbox.key`, `antbox.jwks`, and `antbox-private.jwk`), and creates a default
+`config.toml` file.
 
 You can override the configuration directory using the `--config-dir` (or `-c`) flag. You can also
 pass `--demo` or `--sandbox`, which map to `./.config/demo` and `./.config/sandbox` directories
@@ -46,18 +47,25 @@ repository = ["inmem/inmem_node_repository.ts"]
 storage = ["inmem/inmem_storage_provider.ts"]
 configurationRepository = ["sqlite/sqlite_configuration_repository.ts", "./data/config"]
 eventStoreRepository = ["inmem/inmem_event_store_repository.ts"]
+
+[tenants.limits]
+storage = "pay-as-you-go"
+tokens = 0
 ```
 
 Notes:
 
 - `repository`, `storage`, `configurationRepository`, and `eventStoreRepository` are required for
   every tenant.
+- `limits` is required for every tenant.
 - `rootPasswd`, `key`, and `jwks` can be defined globally and inherited by tenants, or overridden
   per tenant.
 - If `key` and `jwks` are not provided anywhere, the server will default to loading them from the
   configuration directory or generate them if they don't exist.
 - Module paths that start with `./` or `../` are automatically resolved relative to the
   configuration directory.
+- When AI is disabled, `limits.tokens` must be `0`.
+- When AI is enabled, `limits.tokens` must be greater than `0` or `"pay-as-you-go"`.
 
 ## Start the Server
 
@@ -76,7 +84,11 @@ deno run -A --unstable-raw-imports main.ts --config-dir /path/to/your/config
 You should see:
 
 ```
-Antbox Server (oak) started successfully on port :: 7180
+WebDAV path cache cleanup started
+Antbox Server (oak) started successfully on http://localhost:7180
+- http://localhost:7180/v2 for REST API
+- http://localhost:7180/mcp for MCP
+- http://localhost:7180/webdav for WebDAV
 ```
 
 ## Authentication (Quick Login)

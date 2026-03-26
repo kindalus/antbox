@@ -15,11 +15,11 @@ storage provider, keys, and optional AI components.
 ```
 +---------------------------------------------------------------------------------------+
 |                                       Adapters                                        |
-|  HTTP (oak) | WebDAV | Storage (inmem/flat_file/gdrive/s3) | Repos (inmem/mongo/pouch) |
-|  Vector DB (inmem/flat_file) | AI Models (google/deterministic)                        |
+|  HTTP (oak) | WebDAV | Storage (inmem/flat_file/gdrive/s3) | Repos (inmem/flat_file/sqlite/postgres/mongodb) |
+|  AI/OCR/Embeddings Providers | External JWKS | Docs/OpenAPI                             |
 +----------------------------------^--------------------^-------------------------------+
-                                   |                    |
-                                   v                    v
+                                    |                    |
+                                    v                    v
 +---------------------------------------------------------------------------------------+
 |                                     Application                                       |
 |  NodeService | AspectsService | FeaturesService/Engine | AgentsService/Engine         |
@@ -47,8 +47,8 @@ configuration.
 ## Ports and Adapters
 
 The application layer defines ports (interfaces) such as `StorageProvider`, `NodeRepository`,
-`VectorDatabase`, and `AIModel`. Adapters implement these ports and are loaded dynamically from
-module paths configured in `antbox.toml`.
+`EmbeddingsProvider`, `OCRProvider`, and AI model abstractions. Adapters implement these ports and
+are loaded dynamically from module paths configured in `config.toml`.
 
 ## Execution Engines
 

@@ -6,7 +6,7 @@ description: Adapters configuration reference
 # Adapters
 
 Antbox uses a ports-and-adapters architecture. Each tenant is assembled from adapter modules loaded
-from `antbox.toml`.
+from `config.toml` in the active configuration directory.
 
 ## Module array format
 
@@ -33,7 +33,7 @@ Per tenant, the main adapter slots are:
 - `storage` - file blob storage (`StorageProvider`)
 - `eventStoreRepository` - audit/event persistence (required)
 - `configurationRepository` - config entities (users, groups, features, agents, workflows)
-- `vectorDatabase` / embedding-related adapters for AI retrieval
+- `embeddingProvider` and `ocrProvider` under `[tenants.ai]` when AI features are enabled
 
 ## Common built-ins
 

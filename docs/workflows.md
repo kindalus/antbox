@@ -31,7 +31,7 @@ interface WorkflowData {
 	states: WorkflowState[];
 	availableStateNames: string[];
 	filters: NodeFilters;
-	groupsAllowed: string[];
+	participants: string[];
 	createdTime: string;
 	modifiedTime: string;
 }
@@ -45,7 +45,7 @@ interface WorkflowData {
 	"description": "Simple draft/approved flow",
 	"availableStateNames": ["Draft", "Approved"],
 	"filters": [["mimetype", "!=", "application/vnd.antbox.folder"]],
-	"groupsAllowed": ["--admins--"],
+	"participants": ["--admins--"],
 	"states": [
 		{
 			"name": "Draft",
@@ -66,21 +66,29 @@ interface WorkflowData {
 
 - `GET /v2/workflow-instances`
 - `GET /v2/workflow-instances?workflowDefinitionUuid={uuid}`
-- `GET /v2/workflow-instances/{nodeUuid}`
-- `POST /v2/workflow-instances/{nodeUuid}/-/start`
-- `POST /v2/workflow-instances/{nodeUuid}/-/transition`
-- `POST /v2/workflow-instances/{nodeUuid}/-/cancel`
-- `PATCH /v2/workflow-instances/{nodeUuid}/-/update`
-- `PUT /v2/workflow-instances/{nodeUuid}/-/update-file`
+- `GET /v2/workflow-instances/{uuid}`
+- `POST /v2/workflow-instances/-/start`
+- `POST /v2/workflow-instances/{uuid}/-/transition`
+- `POST /v2/workflow-instances/{uuid}/-/cancel`
+- `PATCH /v2/workflow-instances/{uuid}/-/update`
+- `PUT /v2/workflow-instances/{uuid}/-/update-file`
+
+`GET /v2/workflow-instances` returns active workflow instances only.
+
+For instance routes, `{uuid}` is always the workflow instance UUID.
 
 ### Start
 
 ```json
 {
+	"nodeUuid": "node-uuid",
 	"workflowDefinitionUuid": "workflow-uuid",
-	"groupsAllowed": ["--admins--"]
+	"participants": ["--admins--"]
 }
 ```
+
+`participants` is optional and can only narrow access relative to the workflow definition. For
+public workflow definitions (`participants: []`), non-empty overrides are rejected.
 
 ### Transition
 
@@ -100,6 +108,15 @@ part.
 
 ## Access and behavior
 
-- Starting/transitioning/updating instances checks workflow groups and state rules.
+- `participants` controls who can start, view, and interact with instances.
+- `transition.groupsAllowed` controls who may trigger a transition.
+- `state.groupsAllowedToModify` controls who may update node metadata or file content in that state.
 - Final state transition unlocks the node and clears workflow metadata on the node.
 - Cancel is allowed to the workflow owner or admins.
+
+## Builtins
+
+The system always exposes these immutable builtin workflow definitions:
+
+- `builtin-quick-task`
+- `builtin-standard-task`

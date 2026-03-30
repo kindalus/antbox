@@ -87,6 +87,18 @@ export class WorkflowInstancesEngine {
 		}
 		const workflowDef = workflowDefOrErr.value;
 
+		if (!this.#hasPermission(authCtx, workflowDef.participants)) {
+			return left(new ForbiddenError("Not authorized to start this workflow"));
+		}
+
+		const effectiveParticipantsOrErr = this.#resolveParticipants(
+			workflowDef.participants,
+			participantsOverride,
+		);
+		if (effectiveParticipantsOrErr.isLeft()) {
+			return left(effectiveParticipantsOrErr.value);
+		}
+
 		// Check if node is locked
 		if (node.locked) {
 			return left(new BadRequestError(`The node ${node.uuid} is locked`));
@@ -133,7 +145,7 @@ export class WorkflowInstancesEngine {
 			running: true,
 			cancelled: false,
 			history: [],
-			participants: participantsOverride ?? workflowDef.participants,
+			participants: effectiveParticipantsOrErr.value,
 			owner: authCtx.principal.email,
 			startedTime: now,
 			modifiedTime: now,
@@ -158,10 +170,19 @@ export class WorkflowInstancesEngine {
 			return left(saveOrErr.value);
 		}
 
-		await this.#nodeService.update(authCtx, nodeUuid, {
-			workflowInstanceUuid: workflowInstance.uuid,
-			workflowState: workflowInstance.currentStateName,
-		});
+		const nodeUpdateOrErr = await this.#nodeService.update(
+			this.#workflowInstanceCtx(authCtx),
+			nodeUuid,
+			{
+				workflowInstanceUuid: workflowInstance.uuid,
+				workflowState: workflowInstance.currentStateName,
+			},
+		);
+		if (nodeUpdateOrErr.isLeft()) {
+			await this.#configRepo.delete("workflowInstances", workflowInstance.uuid);
+			await this.#nodeService.unlock(authCtx, nodeUuid);
+			return left(nodeUpdateOrErr.value);
+		}
 
 		return right(workflowInstance);
 	}
@@ -325,15 +346,33 @@ export class WorkflowInstancesEngine {
 		// Check if we reached a final state
 		if (!updatedInstance.running) {
 			// Unlock the node
-			await this.#nodeService.unlock(authCtx, nodeUuid);
-			await this.#nodeService.update(authCtx, nodeUuid, {
-				workflowState: null as unknown as string,
-				workflowInstanceUuid: null as unknown as string,
-			});
+			const unlockOrErr = await this.#nodeService.unlock(authCtx, nodeUuid);
+			if (unlockOrErr.isLeft()) {
+				return left(unlockOrErr.value);
+			}
+
+			const nodeUpdateOrErr = await this.#nodeService.update(
+				this.#workflowInstanceCtx(authCtx),
+				nodeUuid,
+				{
+					workflowState: null as unknown as string,
+					workflowInstanceUuid: null as unknown as string,
+				},
+			);
+			if (nodeUpdateOrErr.isLeft()) {
+				return left(nodeUpdateOrErr.value);
+			}
 		} else {
-			await this.#nodeService.update(authCtx, nodeUuid, {
-				workflowState: updatedInstance.currentStateName,
-			});
+			const nodeUpdateOrErr = await this.#nodeService.update(
+				this.#workflowInstanceCtx(authCtx),
+				nodeUuid,
+				{
+					workflowState: updatedInstance.currentStateName,
+				},
+			);
+			if (nodeUpdateOrErr.isLeft()) {
+				return left(nodeUpdateOrErr.value);
+			}
 		}
 
 		return right(updatedInstance);
@@ -387,11 +426,22 @@ export class WorkflowInstancesEngine {
 		}
 
 		// Unlock the node
-		await this.#nodeService.unlock(authCtx, nodeUuid);
-		await this.#nodeService.update(authCtx, nodeUuid, {
-			workflowState: null as unknown as string,
-			workflowInstanceUuid: null as unknown as string,
-		});
+		const unlockOrErr = await this.#nodeService.unlock(authCtx, nodeUuid);
+		if (unlockOrErr.isLeft()) {
+			return left(unlockOrErr.value);
+		}
+
+		const nodeUpdateOrErr = await this.#nodeService.update(
+			this.#workflowInstanceCtx(authCtx),
+			nodeUuid,
+			{
+				workflowState: null as unknown as string,
+				workflowInstanceUuid: null as unknown as string,
+			},
+		);
+		if (nodeUpdateOrErr.isLeft()) {
+			return left(nodeUpdateOrErr.value);
+		}
 
 		return right(updatedInstance);
 	}
@@ -484,14 +534,7 @@ export class WorkflowInstancesEngine {
 		}
 
 		// Create workflow-instance context
-		const workflowInstanceCtx: AuthenticationContext = {
-			tenant: authCtx.tenant,
-			principal: {
-				email: Users.WORKFLOW_INSTANCE_USER_EMAIL,
-				groups: [Groups.ADMINS_GROUP_UUID],
-			},
-			mode: authCtx.mode,
-		};
+		const workflowInstanceCtx = this.#workflowInstanceCtx(authCtx);
 
 		// Call node service with workflow-instance credentials
 		return await this.#nodeService.update(
@@ -567,14 +610,7 @@ export class WorkflowInstancesEngine {
 		}
 
 		// Create workflow-instance context
-		const workflowInstanceCtx: AuthenticationContext = {
-			tenant: authCtx.tenant,
-			principal: {
-				email: Users.WORKFLOW_INSTANCE_USER_EMAIL,
-				groups: [Groups.ADMINS_GROUP_UUID],
-			},
-			mode: authCtx.mode,
-		};
+		const workflowInstanceCtx = this.#workflowInstanceCtx(authCtx);
 
 		// Call node service with workflow-instance credentials
 		return await this.#nodeService.updateFile(
@@ -627,6 +663,53 @@ export class WorkflowInstancesEngine {
 
 		// Check if user belongs to any of the allowed groups
 		return allowedGroups.some((allowedGroup) => authCtx.principal.groups.includes(allowedGroup));
+	}
+
+	#resolveParticipants(
+		workflowParticipants: string[],
+		participantsOverride?: string[],
+	): Either<AntboxError, string[]> {
+		if (!participantsOverride) {
+			return right(workflowParticipants);
+		}
+
+		if (workflowParticipants.length === 0) {
+			if (participantsOverride.length === 0) {
+				return right(participantsOverride);
+			}
+
+			return left(
+				new BadRequestError(
+					"Cannot override participants for a public workflow definition",
+				),
+			);
+		}
+
+		const invalidParticipants = participantsOverride.filter((participant) =>
+			!workflowParticipants.includes(participant)
+		);
+		if (invalidParticipants.length > 0) {
+			return left(
+				new BadRequestError(
+					`participants override must be a subset of workflow participants: ${
+						invalidParticipants.join(", ")
+					}`,
+				),
+			);
+		}
+
+		return right(participantsOverride);
+	}
+
+	#workflowInstanceCtx(authCtx: AuthenticationContext): AuthenticationContext {
+		return {
+			tenant: authCtx.tenant,
+			principal: {
+				email: Users.WORKFLOW_INSTANCE_USER_EMAIL,
+				groups: [Groups.ADMINS_GROUP_UUID],
+			},
+			mode: authCtx.mode,
+		};
 	}
 
 	/**

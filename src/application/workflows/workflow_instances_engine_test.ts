@@ -43,7 +43,7 @@ interface NodeServiceStub {
 	nodeMetadata: NodeMetadata;
 	lockCalls: Array<{ uuid: string; groups: string[] }>;
 	unlockCalls: string[];
-	updateCalls: Array<{ uuid: string; metadata: Partial<NodeMetadata> }>;
+	updateCalls: Array<{ uuid: string; metadata: Partial<NodeMetadata>; email: string }>;
 	updateFileCalls: Array<{ uuid: string; file: File }>;
 	service: NodeService;
 }
@@ -94,8 +94,8 @@ function makeNodeServiceStub(metadata: Partial<NodeMetadata> = {}): NodeServiceS
 			stub.nodeMetadata = { ...stub.nodeMetadata, locked: false };
 			return Promise.resolve(right(undefined));
 		},
-		update: (_ctx: AuthenticationContext, uuid: string, m: Partial<NodeMetadata>) => {
-			stub.updateCalls.push({ uuid, metadata: m });
+		update: (ctx: AuthenticationContext, uuid: string, m: Partial<NodeMetadata>) => {
+			stub.updateCalls.push({ uuid, metadata: m, email: ctx.principal.email });
 			return Promise.resolve(right(undefined));
 		},
 		updateFile: (_ctx: AuthenticationContext, uuid: string, file: File) => {
@@ -281,6 +281,79 @@ describe("WorkflowInstancesEngine", () => {
 				expect(snapshot.availableStateNames).toEqual(def.availableStateNames);
 			}
 		});
+
+		it("should reject start when caller is outside workflow participants", async () => {
+			const { engine, workflowsService } = makeHarness();
+			const def = await createWorkflowDef(workflowsService, {
+				participants: ["--editors--"],
+			});
+
+			const result = await engine.startWorkflow(otherCtx, "node-001", def.uuid);
+
+			expect(result.isLeft()).toBe(true);
+		});
+
+		it("should allow narrowing participants override", async () => {
+			const { engine, workflowsService } = makeHarness();
+			const def = await createWorkflowDef(workflowsService, {
+				participants: ["--editors--", "--reviewers--"],
+			});
+
+			const result = await engine.startWorkflow(ownerCtx, "node-001", def.uuid, ["--editors--"]);
+
+			expect(result.isRight()).toBe(true);
+			if (result.isRight()) {
+				expect(result.value.participants).toEqual(["--editors--"]);
+			}
+		});
+
+		it("should reject widening participants override", async () => {
+			const { engine, workflowsService } = makeHarness();
+			const def = await createWorkflowDef(workflowsService, {
+				participants: ["--editors--"],
+			});
+
+			const result = await engine.startWorkflow(ownerCtx, "node-001", def.uuid, [
+				"--editors--",
+				"--reviewers--",
+			]);
+
+			expect(result.isLeft()).toBe(true);
+		});
+
+		it("should reject non-empty participants override for public workflow", async () => {
+			const { engine, workflowsService } = makeHarness();
+			const def = await createWorkflowDef(workflowsService, {
+				participants: [],
+				states: [
+					{
+						name: "draft",
+						isInitial: true,
+						transitions: [{ signal: "submit", targetState: "review" }],
+					},
+					{
+						name: "review",
+						isFinal: true,
+					},
+				],
+			});
+
+			const result = await engine.startWorkflow(ownerCtx, "node-001", def.uuid, ["--editors--"]);
+
+			expect(result.isLeft()).toBe(true);
+		});
+
+		it("should update node workflow metadata with workflow-instance credentials", async () => {
+			const { engine, workflowsService, nodeStub } = makeHarness();
+			const def = await createWorkflowDef(workflowsService);
+
+			const result = await engine.startWorkflow(ownerCtx, "node-001", def.uuid);
+
+			expect(result.isRight()).toBe(true);
+			expect(nodeStub.updateCalls.length).toBe(1);
+			expect(nodeStub.updateCalls[0].metadata.workflowInstanceUuid).toBeDefined();
+			expect(nodeStub.updateCalls[0].email).toBe("workflow-instance@antbox.io");
+		});
 	});
 
 	describe("transition", () => {
@@ -414,6 +487,19 @@ describe("WorkflowInstancesEngine", () => {
 				expect(result.value.running).toBe(false);
 			}
 		});
+
+		it("should clear node workflow metadata with workflow-instance credentials on final state", async () => {
+			const { engine, workflowsService, nodeStub } = makeHarness();
+			const def = await createWorkflowDef(workflowsService);
+			const instance = await startedInstance(engine, def.uuid);
+
+			const result = await engine.transition(ownerCtx, instance.uuid, "submit");
+
+			expect(result.isRight()).toBe(true);
+			expect(nodeStub.updateCalls.at(-1)?.metadata.workflowInstanceUuid).toBeNull();
+			expect(nodeStub.updateCalls.at(-1)?.metadata.workflowState).toBeNull();
+			expect(nodeStub.updateCalls.at(-1)?.email).toBe("workflow-instance@antbox.io");
+		});
 	});
 
 	describe("cancelWorkflow", () => {
@@ -489,6 +575,19 @@ describe("WorkflowInstancesEngine", () => {
 
 			expect(nodeStub.unlockCalls.length).toBe(1);
 			expect(nodeStub.unlockCalls[0]).toBe("node-001");
+		});
+
+		it("should clear node workflow metadata with workflow-instance credentials on cancel", async () => {
+			const { engine, workflowsService, nodeStub } = makeHarness();
+			const def = await createWorkflowDef(workflowsService);
+			const instance = await startedInstance(engine, def.uuid);
+
+			const result = await engine.cancelWorkflow(ownerCtx, instance.uuid);
+
+			expect(result.isRight()).toBe(true);
+			expect(nodeStub.updateCalls.at(-1)?.metadata.workflowInstanceUuid).toBeNull();
+			expect(nodeStub.updateCalls.at(-1)?.metadata.workflowState).toBeNull();
+			expect(nodeStub.updateCalls.at(-1)?.email).toBe("workflow-instance@antbox.io");
 		});
 	});
 

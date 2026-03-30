@@ -4,6 +4,10 @@ import { InMemoryConfigurationRepository } from "adapters/inmem/inmem_configurat
 import { WorkflowsService } from "./workflows_service.ts";
 import type { AuthenticationContext } from "../security/authentication_context.ts";
 import { ADMINS_GROUP_UUID } from "domain/configuration/builtin_groups.ts";
+import {
+	QUICK_TASK_WORKFLOW_UUID,
+	STANDARD_TASK_WORKFLOW_UUID,
+} from "domain/configuration/builtin_workflows.ts";
 import type { WorkflowState } from "domain/configuration/workflow_data.ts";
 import type { NodeFilter } from "domain/nodes/node_filter.ts";
 
@@ -122,6 +126,18 @@ describe("WorkflowsService", () => {
 	});
 
 	describe("getWorkflow", () => {
+		it("should get builtin workflow successfully", async () => {
+			const repo = new InMemoryConfigurationRepository();
+			const service = new WorkflowsService(repo);
+
+			const result = await service.getWorkflow(adminCtx, QUICK_TASK_WORKFLOW_UUID);
+
+			expect(result.isRight()).toBe(true);
+			if (result.isRight()) {
+				expect(result.value.uuid).toBe(QUICK_TASK_WORKFLOW_UUID);
+			}
+		});
+
 		it("should get workflow successfully", async () => {
 			const repo = new InMemoryConfigurationRepository();
 			const service = new WorkflowsService(repo);
@@ -192,12 +208,32 @@ describe("WorkflowsService", () => {
 
 			expect(result.isRight()).toBe(true);
 			if (result.isRight()) {
-				expect(result.value.length).toBe(2);
+				expect(result.value.length).toBe(4);
+				expect(result.value.map((workflow) => workflow.uuid)).toContain(
+					QUICK_TASK_WORKFLOW_UUID,
+				);
+				expect(result.value.map((workflow) => workflow.uuid)).toContain(
+					STANDARD_TASK_WORKFLOW_UUID,
+				);
 			}
 		});
 	});
 
 	describe("updateWorkflow", () => {
+		it("should reject update of builtin workflow", async () => {
+			const repo = new InMemoryConfigurationRepository();
+			const service = new WorkflowsService(repo);
+
+			const result = await service.updateWorkflow(adminCtx, QUICK_TASK_WORKFLOW_UUID, {
+				title: "Updated Title",
+			});
+
+			expect(result.isLeft()).toBe(true);
+			if (result.isLeft()) {
+				expect(result.value.errorCode).toBe("BadRequestError");
+			}
+		});
+
 		it("should update workflow successfully as admin", async () => {
 			const repo = new InMemoryConfigurationRepository();
 			const service = new WorkflowsService(repo);
@@ -250,6 +286,18 @@ describe("WorkflowsService", () => {
 	});
 
 	describe("deleteWorkflow", () => {
+		it("should reject delete of builtin workflow", async () => {
+			const repo = new InMemoryConfigurationRepository();
+			const service = new WorkflowsService(repo);
+
+			const result = await service.deleteWorkflow(adminCtx, QUICK_TASK_WORKFLOW_UUID);
+
+			expect(result.isLeft()).toBe(true);
+			if (result.isLeft()) {
+				expect(result.value.errorCode).toBe("BadRequestError");
+			}
+		});
+
 		it("should delete workflow successfully as admin", async () => {
 			const repo = new InMemoryConfigurationRepository();
 			const service = new WorkflowsService(repo);
@@ -293,6 +341,27 @@ describe("WorkflowsService", () => {
 				if (result.isLeft()) {
 					expect(result.value.errorCode).toBe("ForbiddenError");
 				}
+			}
+		});
+	});
+
+	describe("createOrReplaceWorkflow", () => {
+		it("should reject create or replace for builtin workflow uuid", async () => {
+			const repo = new InMemoryConfigurationRepository();
+			const service = new WorkflowsService(repo);
+
+			const result = await service.createOrReplaceWorkflow(adminCtx, {
+				uuid: QUICK_TASK_WORKFLOW_UUID,
+				title: "Quick Task",
+				states: [{ name: "Open", isInitial: true }],
+				availableStateNames: ["Open"],
+				filters: [],
+				participants: [],
+			});
+
+			expect(result.isLeft()).toBe(true);
+			if (result.isLeft()) {
+				expect(result.value.errorCode).toBe("BadRequestError");
 			}
 		});
 	});

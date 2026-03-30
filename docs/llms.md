@@ -819,7 +819,7 @@ WORKFLOW_UUID=$(curl -sS -X POST "$BASE_URL/v2/workflow-definitions" \
     "description": "Draft -> Approved",
     "availableStateNames": ["Draft", "Approved"],
     "filters": [["mimetype", "!=", "application/vnd.antbox.folder"]],
-    "groupsAllowed": ["--admins--"],
+    "participants": ["--admins--"],
     "states": [
       {
         "name": "Draft",
@@ -835,9 +835,9 @@ WORKFLOW_UUID=$(curl -sS -X POST "$BASE_URL/v2/workflow-definitions" \
     ]
   }' | jq -r '.uuid')
 
-curl -sS -X POST "$BASE_URL/v2/workflow-instances/$FILE_UUID/-/start" \
+ curl -sS -X POST "$BASE_URL/v2/workflow-instances/-/start" \
   "${COMMON[@]}" "${JSON[@]}" \
-  -d "{\"workflowDefinitionUuid\":\"$WORKFLOW_UUID\"}"
+  -d "{\"nodeUuid\":\"$FILE_UUID\",\"workflowDefinitionUuid\":\"$WORKFLOW_UUID\"}"
 ```
 
 ### 15.8 Structured + semantic search

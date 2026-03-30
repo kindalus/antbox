@@ -54,8 +54,8 @@ tags:
    - name: workflows
      description: Operations related to workflow instances
 paths:
-    /heartbeat:
-       get:
+   /heartbeat:
+      get:
          tags:
             - heartbeat
          summary: Server health check
@@ -80,7 +80,7 @@ paths:
                            timestamp:
                               type: string
                               format: date-time
-    /metrics/storage:
+   /metrics/storage:
       get:
          tags:
             - metrics
@@ -96,7 +96,7 @@ paths:
                         $ref: "#/components/schemas/StorageUsageMetrics"
             default:
                $ref: "#/components/responses/Error"
-    /metrics/tokens:
+   /metrics/tokens:
       get:
          tags:
             - metrics
@@ -131,7 +131,7 @@ paths:
                         $ref: "#/components/schemas/AntboxError"
             default:
                $ref: "#/components/responses/Error"
-    /admin/runtime:
+   /admin/runtime:
       get:
          tags:
             - admin
@@ -173,7 +173,7 @@ paths:
                         $ref: "#/components/schemas/AntboxError"
             default:
                $ref: "#/components/responses/Error"
-    /admin/reload:
+   /admin/reload:
       post:
          tags:
             - admin
@@ -207,7 +207,7 @@ paths:
                         $ref: "#/components/schemas/AntboxError"
             default:
                $ref: "#/components/responses/Error"
-    /admin/tenants:
+   /admin/tenants:
       get:
          tags:
             - admin
@@ -297,7 +297,7 @@ paths:
                               type: object
             default:
                $ref: "#/components/responses/Error"
-    /actions:
+   /actions:
       get:
          tags:
             - actions
@@ -315,7 +315,7 @@ paths:
                            $ref: "#/components/schemas/Feature"
             default:
                $ref: "#/components/responses/Error"
-    "/actions/{uuid}/-/run":
+   "/actions/{uuid}/-/run":
       post:
          tags:
             - actions
@@ -347,7 +347,7 @@ paths:
                         $ref: "#/components/schemas/FeatureActionResult"
             default:
                $ref: "#/components/responses/Error"
-    /agents:
+   /agents:
       get:
          tags:
             - agents
@@ -364,7 +364,7 @@ paths:
                            $ref: "#/components/schemas/Agent"
             default:
                $ref: "#/components/responses/Error"
-    "/agents/-/upload":
+   "/agents/-/upload":
       post:
          tags:
             - agents
@@ -386,7 +386,7 @@ paths:
             default:
                $ref: "#/components/responses/Error"
 
-    "/agents/{uuid}":
+   "/agents/{uuid}":
       get:
          tags:
             - agents
@@ -415,7 +415,7 @@ paths:
                description: Agent deleted successfully
             default:
                $ref: "#/components/responses/Error"
-    "/agents/{uuid}/-/answer":
+   "/agents/{uuid}/-/answer":
       post:
          tags:
             - agents
@@ -446,7 +446,7 @@ paths:
                         $ref: "#/components/schemas/ChatMessage"
             default:
                $ref: "#/components/responses/Error"
-    "/agents/{uuid}/-/chat":
+   "/agents/{uuid}/-/chat":
       post:
          tags:
             - agents
@@ -477,7 +477,7 @@ paths:
                         $ref: "#/components/schemas/ChatHistory"
             default:
                $ref: "#/components/responses/Error"
-    /api-keys:
+   /api-keys:
       get:
          tags:
             - api-keys
@@ -523,7 +523,7 @@ paths:
                         $ref: "#/components/schemas/ApiKey"
             default:
                $ref: "#/components/responses/Error"
-    "/api-keys/{uuid}":
+   "/api-keys/{uuid}":
       get:
          tags:
             - api-keys
@@ -552,7 +552,7 @@ paths:
                description: API key deleted
             default:
                $ref: "#/components/responses/Error"
-    /aspects:
+   /aspects:
       get:
          tags:
             - aspects
@@ -569,7 +569,7 @@ paths:
                            $ref: "#/components/schemas/Aspect"
             default:
                $ref: "#/components/responses/Error"
-    "/aspects/-/upload":
+   "/aspects/-/upload":
       post:
          tags:
             - aspects
@@ -591,7 +591,7 @@ paths:
                         $ref: "#/components/schemas/Aspect"
             default:
                $ref: "#/components/responses/Error"
-    "/aspects/{uuid}":
+   "/aspects/{uuid}":
       get:
          tags:
             - aspects
@@ -620,7 +620,7 @@ paths:
                description: Aspect deleted
             default:
                $ref: "#/components/responses/Error"
-    "/aspects/{uuid}/-/export":
+   "/aspects/{uuid}/-/export":
       get:
          tags:
             - aspects
@@ -637,7 +637,7 @@ paths:
                         $ref: "#/components/schemas/Aspect"
             default:
                $ref: "#/components/responses/Error"
-    /articles:
+   /articles:
       get:
          tags:
             - articles
@@ -679,7 +679,7 @@ paths:
                         $ref: "#/components/schemas/RawArticleDTO"
             default:
                $ref: "#/components/responses/Error"
-    "/articles/{uuid}":
+   "/articles/{uuid}":
       get:
          tags:
             - articles
@@ -708,7 +708,7 @@ paths:
                description: Article deleted successfully
             default:
                $ref: "#/components/responses/Error"
-    "/articles/{uuid}/-/localized":
+   "/articles/{uuid}/-/localized":
       get:
          tags:
             - articles
@@ -733,7 +733,7 @@ paths:
                         $ref: "#/components/schemas/LocalizedArticleDTO"
             default:
                $ref: "#/components/responses/Error"
-    "/articles/-/fid/{fid}":
+   "/articles/-/fid/{fid}":
       get:
          tags:
             - articles
@@ -763,7 +763,7 @@ paths:
                         $ref: "#/components/schemas/LocalizedArticleDTO"
             default:
                $ref: "#/components/responses/Error"
-    "/audit/{uuid}":
+   "/audit/{uuid}":
       get:
          tags:
             - audit
@@ -795,7 +795,7 @@ paths:
                         $ref: "#/components/schemas/AntboxError"
             default:
                $ref: "#/components/responses/Error"
-    "/audit/-/deleted":
+   "/audit/-/deleted":
       get:
          tags:
             - audit
@@ -826,7 +826,7 @@ paths:
                         $ref: "#/components/schemas/AntboxError"
             default:
                $ref: "#/components/responses/Error"
-    /docs:
+   /docs:
       get:
          tags:
             - docs
@@ -843,7 +843,7 @@ paths:
                            $ref: "#/components/schemas/DocInfo"
             default:
                $ref: "#/components/responses/Error"
-    /docs/api:
+   /docs/api:
       get:
          tags:
             - docs
@@ -859,7 +859,7 @@ paths:
                   text/html:
                      schema:
                         type: string
-    "/docs/{uuid}":
+   "/docs/{uuid}":
       get:
          tags:
             - docs
@@ -876,7 +876,7 @@ paths:
                         type: string
             default:
                $ref: "#/components/responses/Error"
-    /extensions:
+   /extensions:
       get:
          tags:
             - extensions
@@ -894,7 +894,7 @@ paths:
                            $ref: "#/components/schemas/Feature"
             default:
                $ref: "#/components/responses/Error"
-    "/extensions/{uuid}/-/exec":
+   "/extensions/{uuid}/-/exec":
       get:
          tags:
             - extensions
@@ -955,7 +955,7 @@ paths:
                         format: binary
             default:
                $ref: "#/components/responses/Error"
-    /features:
+   /features:
       get:
          tags:
             - features
@@ -972,7 +972,7 @@ paths:
                            $ref: "#/components/schemas/Feature"
             default:
                $ref: "#/components/responses/Error"
-    "/features/-/upload":
+   "/features/-/upload":
       post:
          tags:
             - features
@@ -994,7 +994,7 @@ paths:
                         $ref: "#/components/schemas/Feature"
             default:
                $ref: "#/components/responses/Error"
-    "/features/{uuid}":
+   "/features/{uuid}":
       get:
          tags:
             - features
@@ -1023,7 +1023,7 @@ paths:
                description: Feature deleted
             default:
                $ref: "#/components/responses/Error"
-    "/features/{uuid}/-/export":
+   "/features/{uuid}/-/export":
       get:
          tags:
             - features
@@ -1040,7 +1040,7 @@ paths:
                         type: string
             default:
                $ref: "#/components/responses/Error"
-    /groups:
+   /groups:
       get:
          tags:
             - groups
@@ -1084,7 +1084,7 @@ paths:
                         $ref: "#/components/schemas/Group"
             default:
                $ref: "#/components/responses/Error"
-    "/groups/{uuid}":
+   "/groups/{uuid}":
       get:
          tags:
             - groups
@@ -1113,7 +1113,7 @@ paths:
                description: Group deleted
             default:
                $ref: "#/components/responses/Error"
-    "/login/root":
+   "/login/root":
       post:
          tags:
             - login
@@ -1149,7 +1149,7 @@ paths:
                   application/json:
                      schema:
                         $ref: "#/components/schemas/AntboxError"
-    /challenge:
+   /challenge:
       post:
          tags:
             - login
@@ -1169,7 +1169,7 @@ paths:
                         $ref: "#/components/schemas/AntboxError"
             default:
                $ref: "#/components/responses/Error"
-    /login:
+   /login:
       post:
          tags:
             - login
@@ -1201,7 +1201,7 @@ paths:
                                  type: string
             default:
                $ref: "#/components/responses/Error"
-    "/login/logout":
+   "/login/logout":
       post:
          tags:
             - login
@@ -1225,7 +1225,7 @@ paths:
                            message:
                               type: string
                               example: "Logged out successfully"
-    "/login/me":
+   "/login/me":
       get:
          tags:
             - login
@@ -1259,7 +1259,7 @@ paths:
                   application/json:
                      schema:
                         $ref: "#/components/schemas/AntboxError"
-    /nodes:
+   /nodes:
       get:
          tags:
             - nodes
@@ -1302,7 +1302,7 @@ paths:
                         $ref: "#/components/schemas/NodeMetadata"
             default:
                $ref: "#/components/responses/Error"
-    "/nodes/-/find":
+   "/nodes/-/find":
       post:
          tags:
             - nodes
@@ -1332,7 +1332,7 @@ paths:
                            $ref: "#/components/schemas/NodeMetadata"
             default:
                $ref: "#/components/responses/Error"
-    "/nodes/-/upload":
+   "/nodes/-/upload":
       post:
          tags:
             - nodes
@@ -1363,7 +1363,7 @@ paths:
                         $ref: "#/components/schemas/NodeMetadata"
             default:
                $ref: "#/components/responses/Error"
-    "/nodes/{uuid}":
+   "/nodes/{uuid}":
       get:
          tags:
             - nodes
@@ -1414,7 +1414,7 @@ paths:
                description: Node deleted
             default:
                $ref: "#/components/responses/Error"
-    "/nodes/{uuid}/-/breadcrumbs":
+   "/nodes/{uuid}/-/breadcrumbs":
       get:
          tags:
             - nodes
@@ -1433,7 +1433,7 @@ paths:
                            $ref: "#/components/schemas/NodeMetadata"
             default:
                $ref: "#/components/responses/Error"
-    "/nodes/{uuid}/-/copy":
+   "/nodes/{uuid}/-/copy":
       post:
          tags:
             - nodes
@@ -1458,7 +1458,7 @@ paths:
                description: Node copied
             default:
                $ref: "#/components/responses/Error"
-    "/nodes/{uuid}/-/duplicate":
+   "/nodes/{uuid}/-/duplicate":
       get:
          tags:
             - nodes
@@ -1475,7 +1475,7 @@ paths:
                         $ref: "#/components/schemas/NodeMetadata"
             default:
                $ref: "#/components/responses/Error"
-    "/nodes/{uuid}/-/evaluate":
+   "/nodes/{uuid}/-/evaluate":
       get:
          tags:
             - nodes
@@ -1494,7 +1494,7 @@ paths:
                            $ref: "#/components/schemas/NodeMetadata"
             default:
                $ref: "#/components/responses/Error"
-    "/nodes/{uuid}/-/export":
+   "/nodes/{uuid}/-/export":
       get:
          tags:
             - nodes
@@ -1512,7 +1512,7 @@ paths:
                         format: binary
             default:
                $ref: "#/components/responses/Error"
-    "/nodes/{uuid}/-/lock":
+   "/nodes/{uuid}/-/lock":
       post:
          tags:
             - nodes
@@ -1526,7 +1526,7 @@ paths:
                description: Node locked successfully
             default:
                $ref: "#/components/responses/Error"
-    "/nodes/{uuid}/-/unlock":
+   "/nodes/{uuid}/-/unlock":
       post:
          tags:
             - nodes
@@ -1540,7 +1540,7 @@ paths:
                description: Node unlocked successfully
             default:
                $ref: "#/components/responses/Error"
-    "/nodes/{uuid}/-/upload":
+   "/nodes/{uuid}/-/upload":
       put:
          tags:
             - nodes
@@ -1565,7 +1565,7 @@ paths:
                description: Content updated
             default:
                $ref: "#/components/responses/Error"
-    /notifications:
+   /notifications:
       get:
          tags:
             - notifications
@@ -1583,7 +1583,7 @@ paths:
                            $ref: "#/components/schemas/Notification"
             default:
                $ref: "#/components/responses/Error"
-    "/notifications/-/critical":
+   "/notifications/-/critical":
       post:
          tags:
             - notifications
@@ -1605,7 +1605,7 @@ paths:
                         $ref: "#/components/schemas/Notification"
             default:
                $ref: "#/components/responses/Error"
-    "/notifications/-/info":
+   "/notifications/-/info":
       post:
          tags:
             - notifications
@@ -1627,7 +1627,7 @@ paths:
                         $ref: "#/components/schemas/Notification"
             default:
                $ref: "#/components/responses/Error"
-    "/notifications/-/insight":
+   "/notifications/-/insight":
       post:
          tags:
             - notifications
@@ -1649,7 +1649,7 @@ paths:
                         $ref: "#/components/schemas/Notification"
             default:
                $ref: "#/components/responses/Error"
-    "/notifications/-/delete":
+   "/notifications/-/delete":
       post:
          tags:
             - notifications
@@ -1682,7 +1682,7 @@ paths:
                         $ref: "#/components/schemas/AntboxError"
             default:
                $ref: "#/components/responses/Error"
-    "/notifications/-/clear":
+   "/notifications/-/clear":
       post:
          tags:
             - notifications
@@ -1694,7 +1694,7 @@ paths:
                description: All user notifications cleared successfully
             default:
                $ref: "#/components/responses/Error"
-    /templates:
+   /templates:
       get:
          tags:
             - templates
@@ -1711,7 +1711,7 @@ paths:
                            $ref: "#/components/schemas/TemplateInfo"
             default:
                $ref: "#/components/responses/Error"
-    "/templates/{uuid}":
+   "/templates/{uuid}":
       get:
          tags:
             - templates
@@ -1734,7 +1734,7 @@ paths:
                         type: string
             default:
                $ref: "#/components/responses/Error"
-    /users:
+   /users:
       get:
          tags:
             - users
@@ -1771,7 +1771,7 @@ paths:
                         $ref: "#/components/schemas/User"
             default:
                $ref: "#/components/responses/Error"
-    "/users/{email}":
+   "/users/{email}":
       get:
          tags:
             - users
@@ -1820,7 +1820,7 @@ paths:
                         $ref: "#/components/schemas/User"
             default:
                $ref: "#/components/responses/Error"
-    "/users/{uuid}":
+   "/users/{uuid}":
       delete:
          tags:
             - users
@@ -1838,7 +1838,7 @@ paths:
                description: User deleted
             default:
                $ref: "#/components/responses/Error"
-    /user-preferences:
+   /user-preferences:
       get:
          tags:
             - user-preferences
@@ -1903,7 +1903,7 @@ paths:
                description: User preferences deleted
             default:
                $ref: "#/components/responses/Error"
-    "/user-preferences/{key}":
+   "/user-preferences/{key}":
       get:
          tags:
             - user-preferences
@@ -1924,7 +1924,7 @@ paths:
                         {}
             default:
                $ref: "#/components/responses/Error"
-    /workflow-instances:
+   /workflow-instances:
       get:
          tags:
             - workflows
@@ -1935,8 +1935,7 @@ paths:
               in: query
               schema:
                  type: string
-                 format: uuid
-              description: Optional workflow definition UUID to filter instances
+              description: Optional workflow definition identifier to filter instances
          responses:
             "200":
                description: A list of active workflow instances
@@ -1948,7 +1947,7 @@ paths:
                            $ref: "#/components/schemas/WorkflowInstance"
             default:
                $ref: "#/components/responses/Error"
-    "/workflow-instances/{uuid}":
+   "/workflow-instances/{uuid}":
       get:
          tags:
             - workflows
@@ -1965,12 +1964,12 @@ paths:
                         $ref: "#/components/schemas/WorkflowInstance"
             default:
                $ref: "#/components/responses/Error"
-    "/workflow-instances/-/start":
+   "/workflow-instances/-/start":
       post:
          tags:
             - workflows
          summary: Start a workflow instance for a node
-         description: No instance UUID exists yet at start time. Provide nodeUuid and workflowDefinitionUuid in the request body. The response includes the newly created instance UUID.
+         description: No instance UUID exists yet at start time. Provide nodeUuid and workflowDefinitionUuid in the request body. The caller must be allowed by the workflow definition participants. The response includes the newly created instance UUID.
          operationId: startWorkflow
          requestBody:
             required: true
@@ -1984,18 +1983,15 @@ paths:
                      properties:
                         nodeUuid:
                            type: string
-                           format: uuid
                            description: UUID of the node to attach the workflow to
                         workflowDefinitionUuid:
                            type: string
-                           format: uuid
-                           description: UUID of the workflow definition to use
+                           description: Identifier of the workflow definition to use
                         participants:
                            type: array
-                           description: Optional override for the pool of groups allowed to view and interact with this workflow instance. If not specified, uses the workflow definition's participants. If empty array, all users can access.
+                           description: Optional narrowing override for the pool of groups allowed to view and interact with this workflow instance. If not specified, uses the workflow definition's participants. Overrides must be a subset of the workflow definition participants.
                            items:
                               type: string
-                              format: uuid
          responses:
             "200":
                description: Workflow instance started successfully
@@ -2005,7 +2001,7 @@ paths:
                         $ref: "#/components/schemas/WorkflowInstance"
             default:
                $ref: "#/components/responses/Error"
-    "/workflow-instances/{uuid}/-/transition":
+   "/workflow-instances/{uuid}/-/transition":
       post:
          tags:
             - workflows
@@ -2038,7 +2034,7 @@ paths:
                         $ref: "#/components/schemas/WorkflowInstance"
             default:
                $ref: "#/components/responses/Error"
-    "/workflow-instances/{uuid}/-/cancel":
+   "/workflow-instances/{uuid}/-/cancel":
       post:
          tags:
             - workflows
@@ -2068,7 +2064,7 @@ paths:
                         $ref: "#/components/schemas/AntboxError"
             default:
                $ref: "#/components/responses/Error"
-    /workflow-instances/{uuid}/-/update:
+   /workflow-instances/{uuid}/-/update:
       patch:
          tags:
             - workflows
@@ -2100,7 +2096,7 @@ paths:
                         $ref: "#/components/schemas/AntboxError"
             default:
                $ref: "#/components/responses/Error"
-    /workflow-instances/{uuid}/-/update-file:
+   /workflow-instances/{uuid}/-/update-file:
       put:
          tags:
             - workflows
@@ -2138,7 +2134,7 @@ paths:
                         $ref: "#/components/schemas/AntboxError"
             default:
                $ref: "#/components/responses/Error"
-    /workflow-definitions:
+   /workflow-definitions:
       get:
          tags:
             - workflows
@@ -2173,8 +2169,7 @@ paths:
                      properties:
                         uuid:
                            type: string
-                           format: uuid
-                           description: Optional UUID for update, omit for create
+                           description: Optional workflow definition identifier for update, omit for create
                         title:
                            type: string
                            description: Workflow definition title
@@ -2199,7 +2194,6 @@ paths:
                            description: Optional pool of groups allowed to start and view workflow instances. If empty or omitted, all users can start and view instances.
                            items:
                               type: string
-                              format: uuid
          responses:
             "200":
                description: Workflow definition created or updated successfully
@@ -2209,7 +2203,7 @@ paths:
                         $ref: "#/components/schemas/WorkflowDefinition"
             default:
                $ref: "#/components/responses/Error"
-    "/workflow-definitions/{uuid}":
+   "/workflow-definitions/{uuid}":
       get:
          tags:
             - workflows
@@ -2245,7 +2239,7 @@ paths:
                         $ref: "#/components/schemas/AntboxError"
             default:
                $ref: "#/components/responses/Error"
-    "/workflow-definitions/{uuid}/-/export":
+   "/workflow-definitions/{uuid}/-/export":
       get:
          tags:
             - workflows
@@ -3411,7 +3405,6 @@ components:
             - uuid
             - title
             - description
-            - owner
             - createdTime
             - modifiedTime
             - states
@@ -3421,7 +3414,6 @@ components:
          properties:
             uuid:
                type: string
-               format: uuid
                description: Unique identifier for the workflow definition
             title:
                type: string
@@ -3429,10 +3421,6 @@ components:
             description:
                type: string
                description: Workflow definition description
-            owner:
-               type: string
-               format: email
-               description: Email of the workflow definition owner
             createdTime:
                type: string
                format: date-time
@@ -3459,7 +3447,6 @@ components:
                description: Pool of groups allowed to start and view workflow instances. If empty, all users can start and view instances.
                items:
                   type: string
-                  format: uuid
       WorkflowState:
          type: object
          required:
@@ -3468,6 +3455,11 @@ components:
             name:
                type: string
                description: Unique name of the state (e.g., "Draft", "In Review")
+            groupsAllowedToModify:
+               type: array
+               description: List of groups allowed to modify node metadata or file content in this state
+               items:
+                  type: string
             isInitial:
                type: boolean
                description: Is this where new items start?
@@ -3517,52 +3509,89 @@ components:
                description: List of groups allowed to execute this transition
                items:
                   type: string
-                  format: uuid
+      WorkflowDefinitionSnapshot:
+         type: object
+         required:
+            - uuid
+            - title
+            - description
+            - createdTime
+            - modifiedTime
+            - states
+            - availableStateNames
+            - participants
+         properties:
+            uuid:
+               type: string
+               description: Workflow definition identifier at the time the instance started
+            title:
+               type: string
+            description:
+               type: string
+            createdTime:
+               type: string
+               format: date-time
+            modifiedTime:
+               type: string
+               format: date-time
+            states:
+               type: array
+               items:
+                  $ref: "#/components/schemas/WorkflowState"
+            availableStateNames:
+               type: array
+               items:
+                  type: string
+            participants:
+               type: array
+               items:
+                  type: string
       WorkflowInstance:
          type: object
          required:
             - uuid
             - workflowDefinitionUuid
+            - workflowDefinition
             - nodeUuid
             - currentStateName
+            - history
             - running
             - cancelled
             - participants
             - owner
             - startedTime
+            - modifiedTime
          properties:
             uuid:
                type: string
-               format: uuid
                description: Unique identifier for the workflow instance
             workflowDefinitionUuid:
                type: string
-               format: uuid
-               description: UUID of the workflow definition node
+               description: Identifier of the workflow definition used by the instance
+            workflowDefinition:
+               $ref: "#/components/schemas/WorkflowDefinitionSnapshot"
             nodeUuid:
                type: string
-               format: uuid
                description: UUID of the node this workflow is attached to
             currentStateName:
                type: string
                description: Name of the current state in the workflow
+            history:
+               type: array
+               description: History of state transitions
+               items:
+                  $ref: "#/components/schemas/WorkflowTransitionHistory"
             running:
                type: boolean
                description: Whether the workflow is still running (false when a final state is reached or cancelled)
             cancelled:
                type: boolean
                description: Whether this workflow instance has been cancelled. A cancelled workflow stops running and cannot be transitioned further.
-            history:
-               type: array
-               description: History of state transitions
-               items:
-                  $ref: "#/components/schemas/WorkflowTransitionHistory"
             participants:
                type: array
-               description: Pool of groups allowed to view and interact with this workflow instance. If empty, all users can view and interact with it. Copied from workflow definition at start time, but can be overridden.
+               description: Pool of groups allowed to view and interact with this workflow instance. If empty, all users can view and interact with it. Copied from the workflow definition at start time, but can be narrowed by the start request.
                items:
                   type: string
-                  format: uuid
             owner:
                type: string
                format: email
@@ -3571,6 +3600,10 @@ components:
                type: string
                format: date-time
                description: Timestamp when this workflow instance was started
+            modifiedTime:
+               type: string
+               format: date-time
+               description: Timestamp when the workflow instance last changed
       WorkflowTransitionHistory:
          type: object
          required:

@@ -451,6 +451,103 @@ describe("FeaturesEngine", () => {
 		expect(payload).toEqual({ ok: true, value: "hello" });
 	});
 
+	it("runExtension coerces and validates typed parameters", async () => {
+		const harness = createHarness();
+
+		const featureUuid = await createFeature(harness, {
+			exposeAction: false,
+			exposeExtension: true,
+			parameters: [
+				{ name: "count", type: "number", required: true },
+				{ name: "enabled", type: "boolean", required: true },
+				{ name: "when", type: "date", required: true },
+				{ name: "filters", type: "object", required: true },
+				{ name: "tags", type: "array", arrayType: "string", required: true },
+			],
+			returnType: "object",
+			run: createFeatureRun({
+				runBody:
+					"return { count: args.count, enabled: args.enabled, when: args.when, filters: args.filters, tags: args.tags };",
+			}),
+		});
+
+		const request = new Request("http://localhost/v2/extensions/test?count=42&enabled=true", {
+			method: "POST",
+			headers: new Headers({ "content-type": "application/json" }),
+			body: JSON.stringify({
+				count: "42",
+				enabled: "true",
+				when: "2025-01-02T03:04:05.000Z",
+				filters: '{"status":"open"}',
+				tags: '["a","b"]',
+			}),
+		});
+
+		const response = await harness.engine.runExtension(adminCtx, featureUuid, request);
+
+		const payload = await response.json() as Record<string, unknown>;
+		expect(response.status).toBe(200);
+		expect(payload).toEqual({
+			count: 42,
+			enabled: true,
+			when: "2025-01-02T03:04:05.000Z",
+			filters: { status: "open" },
+			tags: ["a", "b"],
+		});
+	});
+
+	it("runExtension rejects invalid typed parameters before feature execution", async () => {
+		const harness = createHarness();
+
+		const featureUuid = await createFeature(harness, {
+			exposeAction: false,
+			exposeExtension: true,
+			parameters: [{ name: "count", type: "number", required: true }],
+			returnType: "object",
+			run: createFeatureRun({ runBody: "return { ok: true };" }),
+		});
+
+		const request = new Request("http://localhost/v2/extensions/test", {
+			method: "POST",
+			headers: new Headers({ "content-type": "application/json" }),
+			body: JSON.stringify({ count: "not-a-number" }),
+		});
+
+		const response = await harness.engine.runExtension(adminCtx, featureUuid, request);
+
+		expect(response.status).toBe(400);
+		await expect(response.text()).resolves.toBe("Parameter 'count' must be a number");
+	});
+
+	it("runExtension validates file parameter content type", async () => {
+		const harness = createHarness();
+
+		const featureUuid = await createFeature(harness, {
+			exposeAction: false,
+			exposeExtension: true,
+			parameters: [
+				{ name: "upload", type: "file", contentType: "text/plain", required: true },
+			],
+			returnType: "object",
+			run: createFeatureRun({ runBody: "return { ok: true };" }),
+		});
+
+		const formData = new FormData();
+		formData.set("upload", new File(["image"], "image.png", { type: "image/png" }));
+
+		const request = new Request("http://localhost/v2/extensions/test", {
+			method: "POST",
+			body: formData,
+		});
+
+		const response = await harness.engine.runExtension(adminCtx, featureUuid, request);
+
+		expect(response.status).toBe(400);
+		await expect(response.text()).resolves.toBe(
+			"Parameter 'upload' must have content type 'text/plain'",
+		);
+	});
+
 	it("exposes ctx.logger to features", async () => {
 		const harness = createHarness();
 		const originalInfo = console.info;

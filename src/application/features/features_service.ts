@@ -28,7 +28,8 @@ export interface CreateFeatureData extends Omit<FeatureData, "createdTime" | "mo
  * Access control:
  * - Create/Delete: Admin-only
  * - Update: Admin-only (features can be modified)
- * - Read: Public (all users can view features)
+ * - Read: Allowed when the caller can run the feature
+ * - Export: Admin-only
  */
 export class FeaturesService {
 	readonly #configRepo: ConfigurationRepository;
@@ -69,12 +70,16 @@ export class FeaturesService {
 	}
 
 	async getFeature(
-		_ctx: AuthenticationContext,
+		ctx: AuthenticationContext,
 		uuid: string,
 	): Promise<Either<AntboxError, FeatureData>> {
 		// Check builtin features first
 		const builtinFeature = BUILTIN_FEATURES.find((f) => f.uuid === uuid);
 		if (builtinFeature) {
+			if (!this.#canRunFeature(ctx, builtinFeature)) {
+				return left(new ForbiddenError("Not authorized to access this feature"));
+			}
+
 			return right(builtinFeature);
 		}
 
@@ -83,7 +88,16 @@ export class FeaturesService {
 			return customFeatureOrErr;
 		}
 
-		return this.#normalizeAndPersist(customFeatureOrErr.value);
+		const featureOrErr = await this.#normalizeAndPersist(customFeatureOrErr.value);
+		if (featureOrErr.isLeft()) {
+			return left(featureOrErr.value);
+		}
+
+		if (!this.#canRunFeature(ctx, featureOrErr.value)) {
+			return left(new ForbiddenError("Not authorized to access this feature"));
+		}
+
+		return right(featureOrErr.value);
 	}
 
 	async listFeatures(
@@ -121,13 +135,18 @@ export class FeaturesService {
 			return right(allFeatures);
 		}
 
-		return right(allFeatures.filter((f) => {
-			if (!f.groupsAllowed?.length) {
-				return true;
-			}
+		return right(allFeatures.filter((f) => this.#canRunFeature(ctx, f)));
+	}
 
-			return f.groupsAllowed.some((g) => ctx.principal.groups.includes(g));
-		}));
+	async exportFeature(
+		ctx: AuthenticationContext,
+		uuid: string,
+	): Promise<Either<AntboxError, FeatureData>> {
+		if (!this.#isAdmin(ctx)) {
+			return left(new ForbiddenError("Only admins can export features"));
+		}
+
+		return this.getFeature(ctx, uuid);
 	}
 
 	async updateFeature(
@@ -281,6 +300,18 @@ export class FeaturesService {
 
 	#isAdmin(ctx: AuthenticationContext): boolean {
 		return ctx.principal.groups.includes(ADMINS_GROUP_UUID);
+	}
+
+	#canRunFeature(ctx: AuthenticationContext, feature: FeatureData): boolean {
+		if (this.#isAdmin(ctx) || ctx.principal.email === Users.ROOT_USER_EMAIL) {
+			return true;
+		}
+
+		if (!feature.groupsAllowed?.length) {
+			return true;
+		}
+
+		return feature.groupsAllowed.some((group) => ctx.principal.groups.includes(group));
 	}
 
 	async #normalizeAndPersist(rawFeature: FeatureData): Promise<Either<AntboxError, FeatureData>> {

@@ -436,6 +436,29 @@ describe("FeaturesService", () => {
 			expect(result.isRight()).toBe(true);
 		});
 
+		it("should reject non-admin get when feature groups are not allowed", async () => {
+			const service = createService();
+
+			const createResult = await service.createFeature(
+				adminCtx,
+				createFeatureInput({
+					title: "Restricted Feature",
+					description: "Restricted",
+					groupsAllowed: ["--editors--"],
+				}),
+			);
+
+			expect(createResult.isRight()).toBe(true);
+			if (!createResult.isRight()) return;
+
+			const result = await service.getFeature(userCtx, createResult.value.uuid);
+
+			expect(result.isLeft()).toBe(true);
+			if (result.isLeft()) {
+				expect(result.value.errorCode).toBe("ForbiddenError");
+			}
+		});
+
 		it("migrates legacy module-based features on read", async () => {
 			const fixture = createFixture();
 
@@ -565,6 +588,29 @@ describe("FeaturesService", () => {
 			expect(result.isRight()).toBe(true);
 			if (result.isRight()) {
 				expect(result.value.length).toBeGreaterThan(0);
+			}
+		});
+
+		it("should hide unrunnable features from non-admin lists", async () => {
+			const service = createService();
+
+			await service.createFeature(
+				adminCtx,
+				createFeatureInput({ title: "Public Feature", groupsAllowed: [] }),
+			);
+			await service.createFeature(
+				adminCtx,
+				createFeatureInput({ title: "Restricted Feature", groupsAllowed: ["--editors--"] }),
+			);
+
+			const result = await service.listFeatures(userCtx);
+
+			expect(result.isRight()).toBe(true);
+			if (result.isRight()) {
+				expect(result.value.some((feature) => feature.title === "Public Feature")).toBe(true);
+				expect(result.value.some((feature) => feature.title === "Restricted Feature")).toBe(
+					false,
+				);
 			}
 		});
 
@@ -871,6 +917,43 @@ describe("FeaturesService", () => {
 			const result = await service.deleteFeature(adminCtx, MOVE_UP_FEATURE_UUID);
 
 			expect(result.isLeft()).toBe(true);
+		});
+	});
+
+	describe("exportFeature", () => {
+		it("should allow admins to export features", async () => {
+			const service = createService();
+
+			const createResult = await service.createFeature(
+				adminCtx,
+				createFeatureInput({ title: "Exportable Feature" }),
+			);
+
+			expect(createResult.isRight()).toBe(true);
+			if (!createResult.isRight()) return;
+
+			const result = await service.exportFeature(adminCtx, createResult.value.uuid);
+
+			expect(result.isRight()).toBe(true);
+		});
+
+		it("should reject non-admin export with forbidden", async () => {
+			const service = createService();
+
+			const createResult = await service.createFeature(
+				adminCtx,
+				createFeatureInput({ title: "Restricted Export" }),
+			);
+
+			expect(createResult.isRight()).toBe(true);
+			if (!createResult.isRight()) return;
+
+			const result = await service.exportFeature(userCtx, createResult.value.uuid);
+
+			expect(result.isLeft()).toBe(true);
+			if (result.isLeft()) {
+				expect(result.value.errorCode).toBe("ForbiddenError");
+			}
 		});
 	});
 });

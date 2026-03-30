@@ -5,6 +5,7 @@ import { left, right } from "shared/either.ts";
 import { type AntboxError, ForbiddenError } from "shared/antbox_error.ts";
 import type { AgentData } from "domain/configuration/agent_data.ts";
 import type { AuthenticationContext } from "application/security/authentication_context.ts";
+import type { FeatureData } from "domain/configuration/feature_data.ts";
 
 // ============================================================================
 // MOCKS
@@ -61,6 +62,9 @@ function makeContext(overrides: Partial<AgentsEngineContext> = {}): AgentsEngine
 			updateAgent: async () => right(makeAgentData()),
 			deleteAgent: async () => right(undefined as unknown as void),
 		} as unknown as import("./agents_service.ts").AgentsService,
+		featuresService: {
+			listAITools: async () => right([]),
+		} as unknown as import("application/features/features_service.ts").FeaturesService,
 		nodeService: {} as unknown as import("application/nodes/node_service.ts").NodeService,
 		aspectsService:
 			{} as unknown as import("application/aspects/aspects_service.ts").AspectsService,
@@ -271,6 +275,94 @@ describe("AgentsEngine", () => {
 	});
 
 	describe("tools filtering", () => {
+		it("includes feature-backed AI tools for agents", async () => {
+			const featureTool: FeatureData = {
+				uuid: "count_children_tool",
+				title: "Count Children Tool",
+				description: "Counts child nodes",
+				exposeAction: false,
+				runOnCreates: false,
+				runOnUpdates: false,
+				runOnDeletes: false,
+				runOnEmbeddingsCreated: false,
+				runOnEmbeddingsUpdated: false,
+				runManually: false,
+				filters: [],
+				exposeExtension: false,
+				exposeAITool: true,
+				runAs: undefined,
+				groupsAllowed: [],
+				parameters: [{ name: "parent", type: "string", required: true }],
+				returnType: "object",
+				returnDescription: "Child count",
+				returnContentType: "application/json",
+				tags: ["ai"],
+				run: "async function() { return { count: 1 }; }",
+				createdTime: new Date().toISOString(),
+				modifiedTime: new Date().toISOString(),
+			};
+
+			const engine = new AgentsEngine(makeContext({
+				featuresService: {
+					listAITools: async () => right([featureTool]),
+				} as unknown as import("application/features/features_service.ts").FeaturesService,
+			}));
+
+			const result = await engine.listAvailableToolNames(
+				mockAuthContext,
+				makeAgentData({ tools: true }),
+			);
+
+			expect(result.isRight()).toBe(true);
+			if (result.isRight()) {
+				expect(result.value).toContain("count_children_tool");
+				expect(result.value).toContain("runCode");
+				expect(result.value).toContain("skillLoader");
+			}
+		});
+
+		it("applies agent tool allowlists to feature-backed AI tools", async () => {
+			const featureTool: FeatureData = {
+				uuid: "count_children_tool",
+				title: "Count Children Tool",
+				description: "Counts child nodes",
+				exposeAction: false,
+				runOnCreates: false,
+				runOnUpdates: false,
+				runOnDeletes: false,
+				runOnEmbeddingsCreated: false,
+				runOnEmbeddingsUpdated: false,
+				runManually: false,
+				filters: [],
+				exposeExtension: false,
+				exposeAITool: true,
+				runAs: undefined,
+				groupsAllowed: [],
+				parameters: [{ name: "parent", type: "string", required: true }],
+				returnType: "object",
+				tags: [],
+				run: "async function() { return { count: 1 }; }",
+				createdTime: new Date().toISOString(),
+				modifiedTime: new Date().toISOString(),
+			};
+
+			const engine = new AgentsEngine(makeContext({
+				featuresService: {
+					listAITools: async () => right([featureTool]),
+				} as unknown as import("application/features/features_service.ts").FeaturesService,
+			}));
+
+			const result = await engine.listAvailableToolNames(
+				mockAuthContext,
+				makeAgentData({ tools: ["count_children_tool"] }),
+			);
+
+			expect(result.isRight()).toBe(true);
+			if (result.isRight()) {
+				expect(result.value).toEqual(["skillLoader", "count_children_tool"]);
+			}
+		});
+
 		it("tools=true enables all tools", () => {
 			const selected = selectAgentTools(
 				[{ name: "runCode" }, { name: "skillLoader" }],

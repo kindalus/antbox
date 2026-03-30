@@ -184,7 +184,10 @@ export function exportFeatureHandler(tenants: AntboxTenant[]): HttpHandler {
 				return Promise.resolve(sendBadRequest({ error: "{ uuid } not given" }));
 			}
 
-			const featureOrErr = await service.getFeature(getAuthenticationContext(req), params.uuid);
+			const featureOrErr = await service.exportFeature(
+				getAuthenticationContext(req),
+				params.uuid,
+			);
 
 			if (featureOrErr.isLeft()) {
 				return processError(featureOrErr.value);

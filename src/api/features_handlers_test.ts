@@ -1,6 +1,13 @@
 import { describe, it } from "bdd";
 import { expect } from "expect";
-import { parseFeatureUpload } from "./features_handlers.ts";
+import {
+	exportFeatureHandler,
+	getFeatureHandler,
+	parseFeatureUpload,
+} from "./features_handlers.ts";
+import type { AntboxTenant } from "./antbox_tenant.ts";
+import { ForbiddenError } from "shared/antbox_error.ts";
+import { left, right } from "shared/either.ts";
 
 const featureModule = `export default {
 	uuid: "raw_upload_feature",
@@ -87,7 +94,36 @@ const invalidActionFeatureModule = `export default {
 	async run() {
 		return undefined;
 	},
-};`;
+	};`;
+
+function makeTenant(overrides: Partial<AntboxTenant> = {}): AntboxTenant {
+	return {
+		name: "default",
+		rootPasswd: "root",
+		symmetricKey: "secret",
+		limits: { storage: 1, tokens: 0 },
+		configurationRepository: {} as AntboxTenant["configurationRepository"],
+		nodeService: {} as AntboxTenant["nodeService"],
+		aspectsService: {} as AntboxTenant["aspectsService"],
+		featuresService: {} as AntboxTenant["featuresService"],
+		apiKeysService: {} as AntboxTenant["apiKeysService"],
+		groupsService: {} as AntboxTenant["groupsService"],
+		usersService: {} as AntboxTenant["usersService"],
+		articleService: {} as AntboxTenant["articleService"],
+		auditLoggingService: {} as AntboxTenant["auditLoggingService"],
+		workflowsService: {} as AntboxTenant["workflowsService"],
+		workflowInstancesService: {} as AntboxTenant["workflowInstancesService"],
+		agentsService: {} as AntboxTenant["agentsService"],
+		notificationsService: {} as AntboxTenant["notificationsService"],
+		userPreferencesService: {} as AntboxTenant["userPreferencesService"],
+		externalLoginService: {} as AntboxTenant["externalLoginService"],
+		metricsService: {} as AntboxTenant["metricsService"],
+		featuresEngine: {} as AntboxTenant["featuresEngine"],
+		agentsEngine: {} as AntboxTenant["agentsEngine"],
+		workflowInstancesEngine: {} as AntboxTenant["workflowInstancesEngine"],
+		...overrides,
+	};
+}
 
 describe("features_handlers", () => {
 	describe("parseFeatureUpload", () => {
@@ -184,6 +220,91 @@ describe("features_handlers", () => {
 			expect(result.value.message).toContain(
 				"Action features must declare required parameter 'uuids'",
 			);
+		});
+	});
+
+	describe("handlers", () => {
+		it("returns forbidden when getFeature is unauthorized", async () => {
+			const handler = getFeatureHandler([
+				makeTenant({
+					featuresService: {
+						getFeature: async () =>
+							left(new ForbiddenError("Not authorized to access this feature")),
+					} as unknown as AntboxTenant["featuresService"],
+				}),
+			]);
+
+			const response = await handler(
+				new Request("http://localhost/v2/features/restricted", {
+					headers: { "x-params": JSON.stringify({ uuid: "restricted" }) },
+				}),
+			);
+
+			expect(response.status).toBe(403);
+		});
+
+		it("returns forbidden when exportFeature is unauthorized", async () => {
+			const handler = exportFeatureHandler([
+				makeTenant({
+					featuresService: {
+						exportFeature: async () =>
+							left(new ForbiddenError("Only admins can export features")),
+					} as unknown as AntboxTenant["featuresService"],
+				}),
+			]);
+
+			const response = await handler(
+				new Request("http://localhost/v2/features/restricted/-/export", {
+					headers: { "x-params": JSON.stringify({ uuid: "restricted" }) },
+				}),
+			);
+
+			expect(response.status).toBe(403);
+		});
+
+		it("exports feature modules for admins", async () => {
+			const handler = exportFeatureHandler([
+				makeTenant({
+					featuresService: {
+						exportFeature: async () =>
+							right({
+								uuid: "test_feature",
+								title: "Test Feature",
+								description: "Export test",
+								exposeAction: true,
+								runOnCreates: false,
+								runOnUpdates: false,
+								runOnDeletes: false,
+								runOnEmbeddingsCreated: false,
+								runOnEmbeddingsUpdated: false,
+								runManually: true,
+								filters: [],
+								exposeExtension: false,
+								exposeAITool: false,
+								groupsAllowed: [],
+								parameters: [{
+									name: "uuids",
+									type: "array",
+									arrayType: "string",
+									required: true,
+								}],
+								returnType: "void",
+								run: "async function() { return undefined; }",
+								createdTime: "2024-01-01T00:00:00.000Z",
+								modifiedTime: "2024-01-01T00:00:00.000Z",
+							}),
+					} as unknown as AntboxTenant["featuresService"],
+				}),
+			]);
+
+			const response = await handler(
+				new Request("http://localhost/v2/features/test_feature/-/export", {
+					headers: { "x-params": JSON.stringify({ uuid: "test_feature" }) },
+				}),
+			);
+
+			expect(response.status).toBe(200);
+			expect(response.headers.get("Content-Type")).toBe("application/javascript");
 		});
 	});
 });

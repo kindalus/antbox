@@ -29,6 +29,8 @@ import { type LoadedSkill, loadSkillInstruction } from "./skills_loader.ts";
 import { RAGService } from "./rag_service.ts";
 import type { TenantLimitsEnforcer } from "application/metrics/tenant_limits_guard.ts";
 import { getCustomAgent } from "application/ai/custom_agents/index.ts";
+import type { FeaturesService } from "application/features/features_service.ts";
+import type { FeatureData, FeatureParameter } from "domain/configuration/feature_data.ts";
 
 const APP_NAME = "antbox";
 
@@ -53,6 +55,7 @@ export interface AnswerOptions {
 
 export interface AgentsEngineContext {
 	readonly agentsService: AgentsService;
+	readonly featuresService: FeaturesService;
 	readonly nodeService: NodeService;
 	readonly aspectsService: AspectsService;
 	readonly ragService?: RAGService;
@@ -60,6 +63,14 @@ export interface AgentsEngineContext {
 	readonly skills: LoadedSkill[];
 	readonly eventBus: EventBus;
 	readonly tenantLimitsGuard?: TenantLimitsEnforcer;
+}
+
+export interface FeatureAIToolExecutor {
+	runAITool<T>(
+		authContext: AuthenticationContext,
+		uuid: string,
+		parameters: Record<string, unknown>,
+	): Promise<Either<AntboxError, T>>;
 }
 
 export function selectAgentTools<T extends { name: string }>(
@@ -92,6 +103,7 @@ export function selectAgentTools<T extends { name: string }>(
  */
 export class AgentsEngine {
 	readonly #agentsService: AgentsService;
+	readonly #featuresService: FeaturesService;
 	readonly #nodeService: NodeService;
 	readonly #aspectsService: AspectsService;
 	readonly #defaultModel: string;
@@ -99,9 +111,11 @@ export class AgentsEngine {
 	readonly #ragService?: RAGService;
 	readonly #eventBus: EventBus;
 	readonly #tenantLimitsGuard?: TenantLimitsEnforcer;
+	#featureAIToolExecutor?: FeatureAIToolExecutor;
 
 	constructor(ctx: AgentsEngineContext) {
 		this.#agentsService = ctx.agentsService;
+		this.#featuresService = ctx.featuresService;
 		this.#nodeService = ctx.nodeService;
 		this.#aspectsService = ctx.aspectsService;
 		this.#defaultModel = ctx.defaultModel;
@@ -109,6 +123,26 @@ export class AgentsEngine {
 		this.#ragService = ctx.ragService;
 		this.#eventBus = ctx.eventBus;
 		this.#tenantLimitsGuard = ctx.tenantLimitsGuard;
+	}
+
+	setFeatureAIToolExecutor(executor: FeatureAIToolExecutor) {
+		this.#featureAIToolExecutor = executor;
+	}
+
+	async listAvailableToolNames(
+		authContext: AuthenticationContext,
+		agentData: AgentData,
+	): Promise<Either<AntboxError, string[]>> {
+		try {
+			const tools = await this.#buildTools(authContext, agentData);
+			return right(tools.map((tool) => tool.name));
+		} catch (error) {
+			return left(
+				(error as AntboxError).errorCode
+					? (error as AntboxError)
+					: new AntboxErrorClass("AgentToolsError", `Failed to build tools: ${error}`),
+			);
+		}
 	}
 
 	/**
@@ -431,7 +465,107 @@ export class AgentsEngine {
 			}),
 		});
 
-		return [runCodeTool, skillLoaderTool];
+		const featureToolsOrErr = await this.#buildFeatureAITools(authContext);
+		if (featureToolsOrErr.isLeft()) {
+			throw featureToolsOrErr.value;
+		}
+
+		return [runCodeTool, skillLoaderTool, ...featureToolsOrErr.value];
+	}
+
+	async #buildFeatureAITools(
+		authContext: AuthenticationContext,
+	): Promise<Either<AntboxError, FunctionTool[]>> {
+		const aiToolsOrErr = await this.#featuresService.listAITools(authContext);
+		if (aiToolsOrErr.isLeft()) {
+			return left(aiToolsOrErr.value);
+		}
+
+		return right(
+			aiToolsOrErr.value.map((feature) => this.#featureToFunctionTool(authContext, feature)),
+		);
+	}
+
+	#featureToFunctionTool(
+		authContext: AuthenticationContext,
+		feature: FeatureData,
+	): FunctionTool {
+		return new FunctionTool({
+			name: feature.uuid,
+			description: feature.description,
+			execute: async (params: Record<string, unknown>) => {
+				if (!this.#featureAIToolExecutor) {
+					throw new Error("Feature AI tool executor not available");
+				}
+
+				const resultOrErr = await this.#featureAIToolExecutor.runAITool(
+					authContext,
+					feature.uuid,
+					params,
+				);
+				if (resultOrErr.isLeft()) {
+					throw new Error(resultOrErr.value.message);
+				}
+
+				return resultOrErr.value;
+			},
+			parameters: this.#featureParametersToSchema(feature.parameters),
+		});
+	}
+
+	#featureParametersToSchema(parameters: FeatureParameter[]) {
+		const shape: Record<string, z.ZodTypeAny> = {};
+
+		for (const parameter of parameters) {
+			const description = parameter.description ?? parameter.name;
+			let schema: z.ZodTypeAny;
+
+			switch (parameter.type) {
+				case "string":
+					schema = z.string();
+					break;
+				case "date":
+					schema = z.string().describe(`${description} (ISO-8601 date string)`);
+					break;
+				case "number":
+					schema = z.number();
+					break;
+				case "boolean":
+					schema = z.boolean();
+					break;
+				case "object":
+					schema = z.record(z.string(), z.unknown());
+					break;
+				case "file":
+					schema = z.instanceof(File);
+					break;
+				case "array":
+					schema = z.array(this.#featureArrayItemSchema(parameter.arrayType));
+					break;
+			}
+
+			if (parameter.required) {
+				shape[parameter.name] = schema.describe(description);
+			} else {
+				shape[parameter.name] = schema.optional().describe(description);
+			}
+		}
+
+		return z.object(shape);
+	}
+
+	#featureArrayItemSchema(arrayType: FeatureParameter["arrayType"]): z.ZodTypeAny {
+		switch (arrayType) {
+			case "number":
+				return z.number();
+			case "file":
+				return z.instanceof(File);
+			case "object":
+				return z.record(z.string(), z.unknown());
+			case "string":
+			case undefined:
+				return z.string();
+		}
 	}
 
 	// ========================================================================

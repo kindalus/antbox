@@ -12,7 +12,7 @@ A feature can be exposed as:
 
 1. **Action** (`exposeAction`) - run on a set of nodes
 2. **Extension** (`exposeExtension`) - custom HTTP endpoint
-3. **AI Tool** (`exposeAITool`) - callable by agents (when enabled)
+3. **AI Tool** (`exposeAITool`) - exposed to agents as a callable tool
 
 ## FeatureData (stored in config)
 
@@ -65,6 +65,7 @@ export default {
 	filters: [],
 	groupsAllowed: [],
 	parameters: [
+		{ name: "uuids", type: "array", arrayType: "string", required: true },
 		{ name: "suffix", type: "string", required: true },
 	],
 	returnType: "void",
@@ -99,8 +100,9 @@ async run(ctx, args) {
 
 POST to `/v2/features/-/upload` with `multipart/form-data` and a file in the `file` field.
 
-Note: create/update/delete operations require admin privileges. Listing is available to all users,
-but results are filtered by `groupsAllowed` for non-admins.
+Note: create/update/delete operations require admin privileges. `groupsAllowed` defines who may run
+a feature. Non-admin list/detail visibility follows the same rule: if a user cannot run a feature,
+it is not shown to them. Exporting a feature module is admin-only.
 
 UUID resolution rules:
 
@@ -112,6 +114,8 @@ Validation rules:
 
 - a feature must be exposed as at least one of: action, extension, or AI tool
 - automatic triggers (`runOnCreates`, `runOnUpdates`, `runOnDeletes`) are only valid for actions
+- runtime validates and coerces parameters from JSON, query params, and form data before executing
+  feature code
 
 ```javascript
 export default {
@@ -128,6 +132,7 @@ export default {
 	exposeAITool: false,
 	groupsAllowed: [],
 	parameters: [
+		{ name: "uuids", type: "array", arrayType: "string", required: true },
 		{ name: "suffix", type: "string", required: true },
 	],
 	returnType: "void",
@@ -164,7 +169,17 @@ curl -sS -X POST "$BASE_URL/v2/features/-/upload" \
 - Execute extension: `GET|POST /v2/extensions/{uuid}/-/exec`
 
 Extension parameters are taken from query params (GET) or request body (POST JSON or form data).
+Declared parameter types are validated at runtime, with string coercion for numbers, booleans,
+dates, arrays, and JSON objects where possible.
+
+## AI Tools
+
+- AI tool features are discovered by `AgentsEngine` and exposed to agents by feature `uuid`
+- there is no public HTTP route for AI-tool execution
+- `groupsAllowed` still applies at execution time, so agents only receive feature-backed tools that
+  are runnable for the current authentication context
 
 ## Exporting a Feature Module
 
 - `GET /v2/features/{uuid}/-/export`
+- admin-only

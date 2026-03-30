@@ -278,7 +278,8 @@ Best practice for generation:
 - action feature: `exposeAction: true`, required `parameters` entry for `uuids: array<string>`,
   optional `runManually` and `runOnCreates/Updates/Deletes`
 - extension feature: `exposeExtension: true` and extension-friendly `returnType`
-- AI tool feature: `exposeAITool: true` and parameter schema designed for tool arguments
+- AI tool feature: `exposeAITool: true` and parameter schema designed for tool arguments; these are
+  exposed to agents by feature `uuid`
 
 ### Starter module snippets
 
@@ -336,7 +337,8 @@ export default {
 
 - actions: `GET /v2/actions`, `POST /v2/actions/{uuid}/-/run`
 - extensions: `GET /v2/extensions`, `GET|POST /v2/extensions/{uuid}/-/exec`
-- AI tools: no dedicated public HTTP route; execution is engine-driven (agent/features runtime)
+- AI tools: no dedicated public HTTP route; execution is engine-driven and exposed through
+  `AgentsEngine`
 
 ## 7. Configuration Entities (Admin Domain)
 

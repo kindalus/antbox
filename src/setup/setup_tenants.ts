@@ -190,6 +190,7 @@ async function setupTenant(
 	// Create AgentsEngine (execution logic)
 	const agentsEngine = new AgentsEngine({
 		agentsService,
+		featuresService,
 		ragService,
 		nodeService,
 		aspectsService,
@@ -209,6 +210,7 @@ async function setupTenant(
 		ocrProvider,
 		eventBus,
 	});
+	agentsEngine.setFeatureAIToolExecutor(featuresEngine);
 
 	// Create WorkflowInstancesService (CRUD only)
 	const workflowInstancesService = new WorkflowInstancesService({

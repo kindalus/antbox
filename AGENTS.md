@@ -122,3 +122,10 @@ async create(data: NodeMetadata): Promise<Either<ValidationError, Node>>
   preserved
 - If a change affects authentication, multi-tenancy, or the event bus, call out the impact
   explicitly before proceeding
+
+## Deferred Hardening
+
+- Feature sandboxing/isolation is still needed. Dynamic feature code and AI code tools currently run
+  without a dedicated sandbox boundary.
+- Privilege-elevated feature execution needs follow-up review. Automatic features and `runAs` remain
+  powerful and should be revisited with a stricter privilege model.

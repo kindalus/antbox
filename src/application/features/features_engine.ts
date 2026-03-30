@@ -4,6 +4,7 @@ import {
 	AUTO_TAG_FEATURE_UUID,
 	CALL_AGENT_FEATURE_UUID,
 } from "domain/configuration/builtin_features.ts";
+import type { FeatureParameter } from "domain/configuration/feature_data.ts";
 import { ASPECT_FIELD_EXTRACTOR_AGENT_UUID } from "application/ai/builtin_agents/aspect_field_extractor_agent.ts";
 import { EmbeddingCreatedEvent } from "domain/nodes/embedding_created_event.ts";
 import { EmbeddingUpdatedEvent } from "domain/nodes/embedding_updated_event.ts";
@@ -376,7 +377,9 @@ export class FeaturesEngine {
 		// First check if the feature is exposed as extension
 		const featureOrErr = await this.#featuresService.getFeature(ctx, uuid);
 		if (featureOrErr.isLeft()) {
-			return new Response(featureOrErr.value.message, { status: 404 });
+			return new Response(featureOrErr.value.message, {
+				status: featureOrErr.value instanceof ForbiddenError ? 403 : 404,
+			});
 		}
 
 		const feature = featureOrErr.value;
@@ -394,6 +397,10 @@ export class FeaturesEngine {
 			let errCode = 500;
 
 			if (resultOrErr.value instanceof ValidationError) {
+				errCode = 400;
+			}
+
+			if (resultOrErr.value instanceof BadRequestError) {
 				errCode = 400;
 			}
 
@@ -788,20 +795,20 @@ export class FeaturesEngine {
 			logger: Logger.instance(`feature=${feature.uuid}`, `tenant=${authContext.tenant}`),
 		};
 
-		// Validate parameters
-		const validationErr = this.#validateParameters(feature.parameters, params);
-
-		if (validationErr) {
-			return left(validationErr);
+		const validatedParamsOrErr = this.#validateParameters(feature.parameters, params);
+		if (validatedParamsOrErr.isLeft()) {
+			return left(validatedParamsOrErr.value);
 		}
 
-		const builtinResult = await this.#runBuiltinFeature<T>(authContext, feature, params);
+		const validatedParams = validatedParamsOrErr.value;
+
+		const builtinResult = await this.#runBuiltinFeature<T>(authContext, feature, validatedParams);
 		if (builtinResult) {
 			return builtinResult;
 		}
 
 		try {
-			const result = await feature.run(runContext, params);
+			const result = await feature.run(runContext, validatedParams);
 			return right(result as T);
 		} catch (error) {
 			return left(
@@ -1326,21 +1333,241 @@ export class FeaturesEngine {
 	}
 
 	#validateParameters(
-		parameterDefs:
-			| Array<{ name: string; type: string; required?: boolean }>
-			| undefined,
+		parameterDefs: FeatureParameter[] | undefined,
 		providedParams: Record<string, unknown>,
-	): AntboxError | null {
-		if (!parameterDefs) {
-			return null;
+	): Either<AntboxError, Record<string, unknown>> {
+		if (!parameterDefs || parameterDefs.length === 0) {
+			return right(providedParams);
 		}
-		for (const paramDef of parameterDefs) {
-			if (paramDef.required && !(paramDef.name in providedParams)) {
-				return new BadRequestError(
-					`Required parameter '${paramDef.name}' is missing`,
+
+		const normalizedParams: Record<string, unknown> = { ...providedParams };
+
+		for (const parameter of parameterDefs) {
+			const hasValue = parameter.name in normalizedParams;
+			const rawValue = normalizedParams[parameter.name];
+
+			if (!hasValue || rawValue === undefined || rawValue === null || rawValue === "") {
+				if (parameter.defaultValue !== undefined) {
+					normalizedParams[parameter.name] = parameter.defaultValue;
+					continue;
+				}
+
+				if (parameter.required) {
+					return left(
+						new BadRequestError(`Required parameter '${parameter.name}' is missing`),
+					);
+				}
+
+				delete normalizedParams[parameter.name];
+				continue;
+			}
+
+			const valueOrErr = this.#coerceParameterValue(parameter, rawValue);
+			if (valueOrErr.isLeft()) {
+				return left(valueOrErr.value);
+			}
+
+			normalizedParams[parameter.name] = valueOrErr.value;
+		}
+
+		return right(normalizedParams);
+	}
+
+	#coerceParameterValue(
+		parameter: FeatureParameter,
+		value: unknown,
+	): Either<AntboxError, unknown> {
+		switch (parameter.type) {
+			case "string":
+				return typeof value === "string"
+					? right(value)
+					: left(new BadRequestError(`Parameter '${parameter.name}' must be a string`));
+			case "number": {
+				const parsed = typeof value === "number"
+					? value
+					: typeof value === "string" && value.trim().length > 0
+					? Number(value)
+					: Number.NaN;
+				return Number.isFinite(parsed)
+					? right(parsed)
+					: left(new BadRequestError(`Parameter '${parameter.name}' must be a number`));
+			}
+			case "boolean": {
+				if (typeof value === "boolean") {
+					return right(value);
+				}
+
+				if (typeof value === "string") {
+					const normalized = value.trim().toLowerCase();
+					if (["true", "1", "yes", "y"].includes(normalized)) {
+						return right(true);
+					}
+					if (["false", "0", "no", "n"].includes(normalized)) {
+						return right(false);
+					}
+				}
+
+				return left(new BadRequestError(`Parameter '${parameter.name}' must be a boolean`));
+			}
+			case "date": {
+				if (typeof value !== "string") {
+					return left(
+						new BadRequestError(`Parameter '${parameter.name}' must be an ISO date string`),
+					);
+				}
+
+				const parsed = new Date(value);
+				return Number.isNaN(parsed.getTime())
+					? left(
+						new BadRequestError(
+							`Parameter '${parameter.name}' must be a valid ISO date string`,
+						),
+					)
+					: right(parsed.toISOString());
+			}
+			case "object": {
+				if (this.#isPlainObject(value)) {
+					return right(value);
+				}
+
+				if (typeof value === "string") {
+					try {
+						const parsed = JSON.parse(value);
+						return this.#isPlainObject(parsed)
+							? right(parsed)
+							: left(new BadRequestError(`Parameter '${parameter.name}' must be an object`));
+					} catch {
+						return left(
+							new BadRequestError(`Parameter '${parameter.name}' must be valid JSON object`),
+						);
+					}
+				}
+
+				return left(new BadRequestError(`Parameter '${parameter.name}' must be an object`));
+			}
+			case "file": {
+				if (!(value instanceof File)) {
+					return left(new BadRequestError(`Parameter '${parameter.name}' must be a file`));
+				}
+
+				if (parameter.contentType && value.type !== parameter.contentType) {
+					return left(
+						new BadRequestError(
+							`Parameter '${parameter.name}' must have content type '${parameter.contentType}'`,
+						),
+					);
+				}
+
+				return right(value);
+			}
+			case "array":
+				return this.#coerceArrayParameterValue(parameter, value);
+		}
+	}
+
+	#coerceArrayParameterValue(
+		parameter: FeatureParameter,
+		value: unknown,
+	): Either<AntboxError, unknown[]> {
+		let values: unknown[];
+
+		if (Array.isArray(value)) {
+			values = value;
+		} else if (typeof value === "string") {
+			try {
+				const parsed = JSON.parse(value);
+				if (Array.isArray(parsed)) {
+					values = parsed;
+				} else {
+					values = value.split(",").map((entry) => entry.trim()).filter((entry) =>
+						entry.length > 0
+					);
+				}
+			} catch {
+				values = value.split(",").map((entry) => entry.trim()).filter((entry) =>
+					entry.length > 0
 				);
 			}
+		} else {
+			return left(new BadRequestError(`Parameter '${parameter.name}' must be an array`));
 		}
-		return null;
+
+		const coerced: unknown[] = [];
+		for (const item of values) {
+			const itemOrErr = this.#coerceArrayItem(parameter, item);
+			if (itemOrErr.isLeft()) {
+				return left(itemOrErr.value);
+			}
+
+			coerced.push(itemOrErr.value);
+		}
+
+		return right(coerced);
+	}
+
+	#coerceArrayItem(parameter: FeatureParameter, value: unknown): Either<AntboxError, unknown> {
+		switch (parameter.arrayType) {
+			case "number": {
+				const parsed = typeof value === "number"
+					? value
+					: typeof value === "string" && value.trim().length > 0
+					? Number(value)
+					: Number.NaN;
+				return Number.isFinite(parsed) ? right(parsed) : left(
+					new BadRequestError(`Parameter '${parameter.name}' must contain only numbers`),
+				);
+			}
+			case "object": {
+				if (this.#isPlainObject(value)) {
+					return right(value);
+				}
+
+				if (typeof value === "string") {
+					try {
+						const parsed = JSON.parse(value);
+						return this.#isPlainObject(parsed) ? right(parsed) : left(
+							new BadRequestError(
+								`Parameter '${parameter.name}' must contain only objects`,
+							),
+						);
+					} catch {
+						return left(
+							new BadRequestError(`Parameter '${parameter.name}' must contain only objects`),
+						);
+					}
+				}
+
+				return left(
+					new BadRequestError(`Parameter '${parameter.name}' must contain only objects`),
+				);
+			}
+			case "file": {
+				if (!(value instanceof File)) {
+					return left(
+						new BadRequestError(`Parameter '${parameter.name}' must contain only files`),
+					);
+				}
+
+				if (parameter.contentType && value.type !== parameter.contentType) {
+					return left(
+						new BadRequestError(
+							`Parameter '${parameter.name}' files must have content type '${parameter.contentType}'`,
+						),
+					);
+				}
+
+				return right(value);
+			}
+			case "string":
+			case undefined:
+				return typeof value === "string" ? right(value) : left(
+					new BadRequestError(`Parameter '${parameter.name}' must contain only strings`),
+				);
+		}
+	}
+
+	#isPlainObject(value: unknown): value is Record<string, unknown> {
+		return typeof value === "object" && value !== null && !Array.isArray(value) &&
+			!(value instanceof File);
 	}
 }

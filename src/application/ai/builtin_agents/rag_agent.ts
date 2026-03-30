@@ -25,12 +25,37 @@ import {
 export const RAG_AGENT_UUID = "--rag-agent--";
 
 const INLINE_KEYWORD_AGENT_NAME = "rag_inline_keyword_fallback";
+const INLINE_REWRITE_AGENT_NAME = "rag_inline_query_rewrite";
 const INLINE_SUMMARIZER_AGENT_NAME = "rag_inline_summarizer";
 const INLINE_APP_NAME = "antbox-rag-inline";
 const INLINE_MAX_LLM_CALLS = 10;
 
 const KEYWORD_LIMIT = 5;
 const MAX_RESULT_ITEMS = 10;
+const MAX_CONTEXT_EVENTS = 4;
+
+const FOLLOW_UP_PREFIXES = [
+	"and",
+	"also",
+	"so",
+	"what about",
+	"how about",
+	"what if",
+	"what else",
+	"and what about",
+];
+
+const REFERENTIAL_PRONOUNS = [
+	"it",
+	"its",
+	"they",
+	"them",
+	"their",
+	"that",
+	"this",
+	"these",
+	"those",
+];
 
 const KEYWORD_AGENT_SYSTEM_PROMPT = `You infer fallback search keywords for Antbox full-text search.
 
@@ -44,12 +69,28 @@ Example output:
 ["vacation policy", "carry over", "days"]
 `;
 
+const QUERY_REWRITE_SYSTEM_PROMPT = `You rewrite follow-up questions into standalone Antbox retrieval queries.
+
+Rules:
+- Use the provided conversation context to resolve references like "it", "they", "that", or "how many are there".
+- Return only one standalone search query as plain text.
+- Preserve the user's language.
+- Do not answer the question.
+- Do not include explanations, markdown, labels, or quotes.
+
+Examples:
+- Conversation about remote work policy + "What about contractors?" -> "What is the remote work policy for contractors?"
+- Conversation listing courses + "So how many are they" -> "How many courses are on the system?"
+`;
+
 const RAG_SUMMARIZER_SYSTEM_PROMPT = `You are a knowledge synthesis specialist.
 
 Goal: compose a well-cited, natural-language answer to the user's question using only the provided search results.
 
 Input format:
 - A section labeled "User query:" followed by the original request.
+- An optional section labeled "Resolved query:" with the standalone retrieval query.
+- An optional section labeled "Conversation context:" with the recent chat turns.
 - A section labeled "Search results:" followed by one of these:
   - raw retrieved content text from semantic search
   - a JSON array string of node metadata from fallback full-text search
@@ -90,7 +131,7 @@ type UsageMetadata = {
 };
 
 type StageRunner = (
-	stage: "keywords" | "summarize",
+	stage: "rewrite" | "keywords" | "summarize",
 	input: string,
 	userId: string,
 ) => Promise<{ text: string; usageMetadata?: UsageMetadata }>;
@@ -100,6 +141,11 @@ type SearchPayload = {
 	usageMetadata?: UsageMetadata;
 };
 
+type ConversationTurn = {
+	role: "user" | "model";
+	text: string;
+};
+
 const ragAgent: AgentData = {
 	uuid: RAG_AGENT_UUID,
 	name: "RAG Agent",
@@ -107,7 +153,7 @@ const ragAgent: AgentData = {
 		"Retrieval-Augmented Generation agent for knowledge discovery and document analysis within Antbox ECM",
 	type: "sequential",
 	exposedToUsers: true,
-	agents: [INLINE_KEYWORD_AGENT_NAME, INLINE_SUMMARIZER_AGENT_NAME],
+	agents: [INLINE_REWRITE_AGENT_NAME, INLINE_KEYWORD_AGENT_NAME, INLINE_SUMMARIZER_AGENT_NAME],
 	createdTime: "2024-01-01T00:00:00.000Z",
 	modifiedTime: "2024-01-01T00:00:00.000Z",
 };
@@ -120,6 +166,7 @@ export interface RagAgentConfig extends Omit<BaseAntboxAgentConfig, "name" | "de
 
 export class RagAgent extends BaseAntboxAgent {
 	readonly #keywordAgent: LlmAgent;
+	readonly #rewriteAgent: LlmAgent;
 	readonly #summarizerAgent: LlmAgent;
 	readonly #stageRunner: StageRunner;
 
@@ -134,6 +181,14 @@ export class RagAgent extends BaseAntboxAgent {
 			name: INLINE_KEYWORD_AGENT_NAME,
 			description: "Infers fallback full-text keywords when semantic search returns no hits",
 			instruction: KEYWORD_AGENT_SYSTEM_PROMPT,
+			model: config.defaultModel,
+			tools: [],
+		});
+
+		this.#rewriteAgent = new LlmAgent({
+			name: INLINE_REWRITE_AGENT_NAME,
+			description: "Rewrites follow-up questions into standalone retrieval queries",
+			instruction: QUERY_REWRITE_SYSTEM_PROMPT,
 			model: config.defaultModel,
 			tools: [],
 		});
@@ -158,11 +213,14 @@ export class RagAgent extends BaseAntboxAgent {
 		context: InvocationContext,
 	): AsyncGenerator<Event, void, undefined> {
 		const query = this.#extractQuery(context);
-		const searchResult = await this.#search(query, context.userId);
+		const conversationContext = this.#extractRecentConversation(context);
+		const rewriteResult = await this.#rewriteQuery(context.userId, query, conversationContext);
+		const searchQuery = rewriteResult.text;
+		const searchResult = await this.#search(searchQuery, context.userId);
 
 		const summarizeResult = await this.#stageRunner(
 			"summarize",
-			this.#buildStageInput(query, searchResult.text),
+			this.#buildStageInput(query, searchQuery, conversationContext, searchResult.text),
 			context.userId,
 		);
 
@@ -174,7 +232,11 @@ export class RagAgent extends BaseAntboxAgent {
 				role: "model",
 				parts: [{ text: summarizeResult.text }],
 			},
-			usageMetadata: this.#mergeUsage(searchResult.usageMetadata, summarizeResult.usageMetadata),
+			usageMetadata: this.#mergeUsage(
+				rewriteResult.usageMetadata,
+				searchResult.usageMetadata,
+				summarizeResult.usageMetadata,
+			),
 		});
 	}
 
@@ -189,6 +251,82 @@ export class RagAgent extends BaseAntboxAgent {
 	#extractQuery(context: InvocationContext): string {
 		const parts = context.userContent?.parts ?? [];
 		return parts.map((part) => part.text ?? "").join(" ").trim();
+	}
+
+	async #rewriteQuery(
+		userId: string,
+		query: string,
+		conversationContext: ConversationTurn[],
+	): Promise<{ text: string; usageMetadata?: UsageMetadata }> {
+		if (!query || !this.#shouldUseConversationContext(query) || conversationContext.length === 0) {
+			return { text: query };
+		}
+
+		const rewriteResult = await this.#stageRunner(
+			"rewrite",
+			this.#buildRewriteStageInput(query, conversationContext),
+			userId,
+		);
+		const rewrittenQuery = rewriteResult.text.trim();
+
+		return {
+			text: rewrittenQuery || query,
+			usageMetadata: rewriteResult.usageMetadata,
+		};
+	}
+
+	#shouldUseConversationContext(query: string): boolean {
+		const normalizedQuery = query.trim().toLowerCase();
+		if (!normalizedQuery) {
+			return false;
+		}
+
+		if (FOLLOW_UP_PREFIXES.some((prefix) => normalizedQuery.startsWith(prefix))) {
+			return true;
+		}
+
+		const words = normalizedQuery.split(/\s+/).filter((word) => word.length > 0);
+		return words.length <= 12 &&
+			words.some((word) => REFERENTIAL_PRONOUNS.includes(word.replace(/[^a-z]/g, "")));
+	}
+
+	#extractRecentConversation(context: InvocationContext): ConversationTurn[] {
+		return context.session.events
+			.filter((event) => event.invocationId !== context.invocationId)
+			.filter((event) => this.#isVisibleConversationEvent(event, context.branch))
+			.map((event) => {
+				const text = (event.content?.parts ?? [])
+					.map((part) => part.text ?? "")
+					.join("")
+					.trim();
+				const role = event.content?.role;
+
+				if (!text || (role !== "user" && role !== "model")) {
+					return undefined;
+				}
+
+				return { role, text } satisfies ConversationTurn;
+			})
+			.filter((turn): turn is ConversationTurn => turn !== undefined)
+			.slice(-MAX_CONTEXT_EVENTS);
+	}
+
+	#formatConversationContext(conversationContext: ConversationTurn[]): string {
+		return conversationContext.map((turn) =>
+			`${turn.role === "user" ? "User" : "Assistant"}: ${turn.text}`
+		).join("\n");
+	}
+
+	#isVisibleConversationEvent(event: Event, branch?: string): boolean {
+		if (!event.content) {
+			return false;
+		}
+
+		if (!branch) {
+			return !event.branch;
+		}
+
+		return !event.branch || event.branch === branch || branch.startsWith(`${event.branch}.`);
 	}
 
 	async #search(query: string, userId: string): Promise<SearchPayload> {
@@ -246,6 +384,11 @@ export class RagAgent extends BaseAntboxAgent {
 		return `User query:\n${query}`;
 	}
 
+	#buildRewriteStageInput(query: string, conversationContext: ConversationTurn[]): string {
+		const conversation = this.#formatConversationContext(conversationContext);
+		return `Conversation context:\n${conversation}\n\nCurrent user question:\n${query}`;
+	}
+
 	#parseKeywords(text: string): string[] {
 		try {
 			const parsed = JSON.parse(text);
@@ -296,16 +439,38 @@ export class RagAgent extends BaseAntboxAgent {
 		return new Map(parentRes.value.nodes.map((node) => [node.uuid, node.title]));
 	}
 
-	#buildStageInput(query: string, searchResultsJson: string): string {
-		return `User query:\n${query}\n\nSearch results:\n${searchResultsJson}`;
+	#buildStageInput(
+		query: string,
+		resolvedQuery: string,
+		conversationContext: ConversationTurn[],
+		searchResultsJson: string,
+	): string {
+		const sections = [`User query:\n${query}`];
+
+		if (resolvedQuery && resolvedQuery !== query) {
+			sections.push(`Resolved query:\n${resolvedQuery}`);
+		}
+
+		if (conversationContext.length > 0) {
+			sections.push(
+				`Conversation context:\n${this.#formatConversationContext(conversationContext)}`,
+			);
+		}
+
+		sections.push(`Search results:\n${searchResultsJson}`);
+		return sections.join("\n\n");
 	}
 
 	async #runInlineAgent(
-		stage: "keywords" | "summarize",
+		stage: "rewrite" | "keywords" | "summarize",
 		input: string,
 		userId: string,
 	): Promise<{ text: string; usageMetadata?: UsageMetadata }> {
-		const agent = stage === "keywords" ? this.#keywordAgent : this.#summarizerAgent;
+		const agent = stage === "rewrite"
+			? this.#rewriteAgent
+			: stage === "keywords"
+			? this.#keywordAgent
+			: this.#summarizerAgent;
 		const runner = new InMemoryRunner({ agent, appName: INLINE_APP_NAME });
 		const runConfig: RunConfig = { maxLlmCalls: INLINE_MAX_LLM_CALLS };
 

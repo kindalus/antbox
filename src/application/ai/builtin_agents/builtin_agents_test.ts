@@ -25,6 +25,7 @@ describe("builtin agents schema validation", () => {
 		expect(ragAgent.type).toBe("sequential");
 		expect(ragAgent.exposedToUsers).toBe(true);
 		expect(ragAgent.agents).toEqual([
+			"rag_inline_query_rewrite",
 			"rag_inline_keyword_fallback",
 			"rag_inline_summarizer",
 		]);

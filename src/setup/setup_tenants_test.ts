@@ -57,6 +57,44 @@ describe("setupTenants", () => {
 		return { modulePath, relativeModulePath };
 	}
 
+	async function createStorageProviderModule() {
+		const adaptersDir = `${Deno.cwd()}/src/adapters`;
+		const modulePath = await Deno.makeTempFile({
+			dir: adaptersDir,
+			prefix: ".tmp-storage-provider-",
+			suffix: ".ts",
+		});
+		const relativeModulePath = `./${basename(modulePath)}`;
+
+		await Deno.writeTextFile(
+			modulePath,
+			[
+				'import { right } from "../shared/either.ts";',
+				"",
+				"let listenerRegistered = false;",
+				"",
+				"export function wasListenerRegistered() {",
+				"\treturn listenerRegistered;",
+				"}",
+				"",
+				"export default function buildStorageProvider() {",
+				"\treturn Promise.resolve(right({",
+				"\t\tdelete: async () => right(undefined),",
+				"\t\twrite: async () => right(undefined),",
+				'\t\tread: async () => right(new File([], "test.txt")),',
+				"\t\tstartListeners: (subscribe) => {",
+				'\t\t\tlistenerRegistered = typeof subscribe === "function";',
+				"\t\t},",
+				"\t\tprovideCDN: () => false,",
+				"\t\tgetCDNUrl: () => undefined,",
+				"\t}));",
+				"}",
+			].join("\n"),
+		);
+
+		return { modulePath, relativeModulePath };
+	}
+
 	async function signExternalToken(
 		privateKey: Awaited<ReturnType<typeof generateKeyPair>>["privateKey"],
 		email: string,
@@ -118,6 +156,35 @@ describe("setupTenants", () => {
 			}
 		} finally {
 			await Deno.remove(modulePath);
+			await Deno.remove(jwksPath);
+		}
+	});
+
+	it("registers storage provider listeners during tenant setup", async () => {
+		const { jwksPath } = await createJwksFile();
+		const { modulePath: configModulePath, relativeModulePath: configModule } =
+			await createConfigRepositoryModule();
+		const { modulePath: storageModulePath, relativeModulePath: storageModule } =
+			await createStorageProviderModule();
+
+		try {
+			const config: ServerConfiguration = {
+				rootPasswd: "global-root",
+				key: "c2VydmVyLXNlY3JldA==",
+				jwks: jwksPath,
+				tenants: [{
+					...createTenantConfig("tenant-storage-listeners", configModule),
+					storage: [storageModule],
+				}],
+			};
+
+			await setupTenants(config);
+
+			const storageModuleExports = await import(`file://${storageModulePath}`);
+			expect(storageModuleExports.wasListenerRegistered()).toBe(true);
+		} finally {
+			await Deno.remove(configModulePath);
+			await Deno.remove(storageModulePath);
 			await Deno.remove(jwksPath);
 		}
 	});

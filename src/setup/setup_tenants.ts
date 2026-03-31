@@ -106,6 +106,7 @@ async function setupTenant(
 	}
 
 	const eventBus = new InMemoryEventBus();
+	storage.startListeners(eventBus.subscribe.bind(eventBus));
 
 	// Load AI providers
 	let embeddingsProvider: EmbeddingsProvider | undefined;

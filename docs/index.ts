@@ -81,6 +81,10 @@ export const DOCS: DocInfo[] = [
 		description: "Storage providers documentation",
 	},
 	{
+		uuid: "google-drive",
+		description: "Google Drive Shared Drive adapter setup guide",
+	},
+	{
 		uuid: "webdav",
 		description: "WebDAV desktop mounting guide and protocol details",
 	},

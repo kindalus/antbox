@@ -42,6 +42,13 @@ Per tenant, the main adapter slots are:
 - embeddings: deterministic and provider-backed adapters (for example Gemini)
 - OCR: null/text and provider-backed OCR adapters
 
+Google Drive note:
+
+- `google_drive/google_drive_storage_provider.ts` expects a Google service account JSON key plus a
+  **Shared Drive ID**
+- the adapter is Shared Drive-only; normal My Drive folder IDs are not supported
+- see `docs/google-drive.md` for setup steps
+
 ## Validation scripts
 
 Use these tasks to run adapter contract checks:

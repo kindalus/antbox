@@ -41,13 +41,19 @@ storage = ["flat_file/flat_file_storage_provider.ts", "/path/to/storage"]
 
 ### Google Drive
 
+Antbox supports **Google Shared Drives only** for the Google Drive adapter. The configured Google
+target is the **Shared Drive ID**, not a folder ID. Antbox writes top-level nodes directly under the
+Shared Drive root.
+
 ```toml
 storage = [
   "google_drive/google_drive_storage_provider.ts",
   "/path/to/service-account.json",
-  "<google-drive-root-folder-id>"
+  "<shared-drive-id>"
 ]
 ```
+
+See `docs/google-drive.md` for the required Google Cloud / Google Workspace setup steps.
 
 ### S3
 

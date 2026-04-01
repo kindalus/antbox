@@ -260,12 +260,12 @@ describe("NodeService", () => {
 			const service = nodeService({ configRepo });
 
 			const props: AspectProperty[] = [{
-				name: "readonly_field",
+				name: "readonly-field",
 				title: "Readonly Field",
 				readonly: true,
 				type: "string",
 			}, {
-				name: "editable_field",
+				name: "editable-field",
 				title: "Editable Field",
 				type: "string",
 			}];
@@ -285,8 +285,8 @@ describe("NodeService", () => {
 				parent: Nodes.ROOT_FOLDER_UUID,
 				aspects: ["readonly-aspect"],
 				properties: {
-					"readonly-aspect:readonly_field": "initial_value",
-					"readonly-aspect:editable_field": "initial_editable",
+					"readonly-aspect:readonly-field": "initial_value",
+					"readonly-aspect:editable-field": "initial_editable",
 				},
 			});
 
@@ -295,8 +295,8 @@ describe("NodeService", () => {
 			// Try to update both readonly and editable properties
 			const updateOrErr = await service.update(authCtx, nodeOrErr.right.uuid, {
 				properties: {
-					"readonly-aspect:readonly_field": "attempted_change", // Should be ignored
-					"readonly-aspect:editable_field": "updated_editable", // Should be updated
+					"readonly-aspect:readonly-field": "attempted_change", // Should be ignored
+					"readonly-aspect:editable-field": "updated_editable", // Should be updated
 				},
 			});
 
@@ -309,10 +309,10 @@ describe("NodeService", () => {
 			const updatedNode = updatedNodeOrErr.right as FolderNode;
 
 			// Readonly property should keep original value
-			expect(updatedNode.properties["readonly-aspect:readonly_field"])
+			expect(updatedNode.properties["readonly-aspect:readonly-field"])
 				.toBe("initial_value");
 			// Editable property should have new value
-			expect(updatedNode.properties["readonly-aspect:editable_field"])
+			expect(updatedNode.properties["readonly-aspect:editable-field"])
 				.toBe("updated_editable");
 		});
 
@@ -321,7 +321,7 @@ describe("NodeService", () => {
 			const service = nodeService({ configRepo });
 
 			const props: AspectProperty[] = [{
-				name: "readonly_only",
+				name: "readonly-only",
 				title: "Readonly Only",
 				type: "number",
 				readonly: true,
@@ -343,7 +343,7 @@ describe("NodeService", () => {
 				parent: Nodes.ROOT_FOLDER_UUID,
 				aspects: ["readonly-only-aspect"],
 				properties: {
-					"readonly-only-aspect:readonly_property": "initial_value",
+					"readonly-only-aspect:readonly-property": "initial_value",
 				},
 			});
 
@@ -352,7 +352,7 @@ describe("NodeService", () => {
 			// Try to update only readonly property
 			const updateOrErr = await service.update(authCtx, nodeOrErr.right.uuid, {
 				properties: {
-					"readonly-only-aspect:readonly_only": 999, // Should be ignored
+					"readonly-only-aspect:readonly-only": 999, // Should be ignored
 				},
 			});
 
@@ -364,7 +364,7 @@ describe("NodeService", () => {
 
 			const updatedNode = updatedNodeOrErr.right as FolderNode;
 			expect(
-				updatedNode.properties["readonly-only-aspect:readonly_only"],
+				updatedNode.properties["readonly-only-aspect:readonly-only"],
 			).toBe(42);
 		});
 
@@ -373,7 +373,7 @@ describe("NodeService", () => {
 			const service = nodeService({ configRepo });
 
 			const aspect1Props: AspectProperty[] = [{
-				name: "readonly_prop",
+				name: "readonly-prop",
 				title: "Readonly Property",
 				type: "string",
 				readonly: true,
@@ -381,7 +381,7 @@ describe("NodeService", () => {
 			}];
 
 			const aspect2Props: AspectProperty[] = [{
-				name: "editable_prop",
+				name: "editable-prop",
 				title: "Editable Property",
 				type: "string",
 			}];
@@ -407,8 +407,8 @@ describe("NodeService", () => {
 				parent: Nodes.ROOT_FOLDER_UUID,
 				aspects: ["aspect-with-readonly", "aspect-with-editable"],
 				properties: {
-					"aspect-with-readonly:readonly_prop": "readonly_default",
-					"aspect-with-editable:editable_prop": "initial_editable",
+					"aspect-with-readonly:readonly-prop": "readonly_default",
+					"aspect-with-editable:editable-prop": "initial_editable",
 				},
 			});
 
@@ -417,8 +417,8 @@ describe("NodeService", () => {
 			// Try to update properties from both aspects
 			const updateOrErr = await service.update(authCtx, nodeOrErr.right.uuid, {
 				properties: {
-					"aspect-with-readonly:readonly_prop": "should_be_ignored",
-					"aspect-with-editable:editable_prop": "should_be_updated",
+					"aspect-with-readonly:readonly-prop": "should_be_ignored",
+					"aspect-with-editable:editable-prop": "should_be_updated",
 				},
 			});
 
@@ -431,10 +431,10 @@ describe("NodeService", () => {
 			const updatedNode = updatedNodeOrErr.right as FolderNode;
 
 			expect(
-				updatedNode.properties["aspect-with-readonly:readonly_prop"],
+				updatedNode.properties["aspect-with-readonly:readonly-prop"],
 			).toBe("readonly_default");
 			expect(
-				updatedNode.properties["aspect-with-editable:editable_prop"],
+				updatedNode.properties["aspect-with-editable:editable-prop"],
 			).toBe("should_be_updated");
 		});
 	});

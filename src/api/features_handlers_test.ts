@@ -10,7 +10,7 @@ import { ForbiddenError } from "shared/antbox_error.ts";
 import { left, right } from "shared/either.ts";
 
 const featureModule = `export default {
-	uuid: "raw_upload_feature",
+	uuid: "rawUploadFeature",
 	title: "Raw Upload Feature",
 	description: "Parses a raw JavaScript upload",
 	exposeAction: true,
@@ -71,7 +71,7 @@ const featureModuleWithoutUuid = `export default {
 };`;
 
 const invalidActionFeatureModule = `export default {
-	uuid: "invalid_action_feature",
+	uuid: "invalidActionFeature",
 	title: "Invalid Action Feature",
 	description: "Missing uuids parameter",
 	exposeAction: true,
@@ -148,7 +148,7 @@ describe("features_handlers", () => {
 				return;
 			}
 
-			expect(result.value.uuid).toBe("raw_upload_feature");
+			expect(result.value.uuid).toBe("rawUploadFeature");
 			expect(result.value.title).toBe("Raw Upload Feature");
 			expect(result.value.parameters[0].name).toBe("uuids");
 			expect(result.value.parameters[1].name).toBe("suffix");
@@ -177,7 +177,7 @@ describe("features_handlers", () => {
 				return;
 			}
 
-			expect(result.value.uuid).toBe("minha_feature");
+			expect(result.value.uuid).toBe("minhaFeature");
 		});
 
 		it("rejects requests without a file", async () => {
@@ -200,7 +200,7 @@ describe("features_handlers", () => {
 			const formData = new FormData();
 			formData.set(
 				"file",
-				new File([invalidActionFeatureModule], "invalid_action_feature.js", {
+				new File([invalidActionFeatureModule], "invalidActionFeature.js", {
 					type: "application/javascript",
 				}),
 			);
@@ -268,7 +268,7 @@ describe("features_handlers", () => {
 					featuresService: {
 						exportFeature: async () =>
 							right({
-								uuid: "test_feature",
+								uuid: "testFeature",
 								title: "Test Feature",
 								description: "Export test",
 								exposeAction: true,
@@ -298,8 +298,8 @@ describe("features_handlers", () => {
 			]);
 
 			const response = await handler(
-				new Request("http://localhost/v2/features/test_feature/-/export", {
-					headers: { "x-params": JSON.stringify({ uuid: "test_feature" }) },
+				new Request("http://localhost/v2/features/testFeature/-/export", {
+					headers: { "x-params": JSON.stringify({ uuid: "testFeature" }) },
 				}),
 			);
 

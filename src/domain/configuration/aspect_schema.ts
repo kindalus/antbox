@@ -3,8 +3,8 @@ import { z } from "zod";
 // Schema for AspectProperty
 const AspectPropertySchema = z.object({
 	name: z.string().regex(
-		/^[a-zA-Z_][_a-zA-Z0-9_]{2,}$/,
-		"Property name must start with letter or underscore and be at least 3 characters",
+		/^[a-z][a-z0-9-]{2,}$/,
+		"Property name must be kebab-case (min 3 chars)",
 	),
 	title: z.string().min(1, "Property title is required"),
 	type: z.enum(["uuid", "string", "number", "boolean", "object", "array", "date"]),
@@ -21,8 +21,8 @@ const AspectPropertySchema = z.object({
 // Schema for AspectData
 export const AspectDataSchema = z.object({
 	uuid: z.string().regex(
-		/^([A-Za-z0-9_-]{4,}|--[A-Za-z0-9_]{4,}--)$/,
-		"UUID must be at least 4 characters using letters, numbers, underscores, or hyphens",
+		/^([a-z][a-z0-9-]{3,}|--[a-z][a-z0-9-]+--)$/,
+		"UUID must be kebab-case (min 4 chars) or a builtin wrapped in --",
 	),
 	title: z.string().min(3, "Aspect title must be at least 3 characters"),
 	description: z.string().optional(),

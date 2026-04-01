@@ -76,7 +76,7 @@ interface AspectData {
 
 ```ts
 interface AspectProperty {
-	name: string; // /^[a-zA-Z_][_a-zA-Z0-9_]{2,}$/
+	name: string; // kebab-case, /^[a-z][a-z0-9-]{2,}$/
 	title: string;
 	type: "uuid" | "string" | "number" | "boolean" | "object" | "array" | "file";
 	arrayType?: "string" | "number" | "uuid";

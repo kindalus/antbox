@@ -41,7 +41,7 @@ describe("FeaturesService", () => {
 	}`;
 
 	const sampleLegacyFeatureModule = `export default {
-		uuid: "legacy-feature",
+		uuid: "legacyFeature",
 		title: "Legacy Feature",
 		description: "Stored as a full module",
 		exposeAction: true,
@@ -81,7 +81,7 @@ describe("FeaturesService", () => {
 			(overrides.exposeAction === false ? [] : defaultActionParameters);
 
 		return {
-			uuid: `feature_${featureCounter}_uuid`,
+			uuid: `feature${featureCounter}Uuid`,
 			title: "Test Feature",
 			description: "Feature used in tests",
 			exposeAction: true,
@@ -167,7 +167,7 @@ describe("FeaturesService", () => {
 			const service = createService();
 
 			const result = await service.createFeature(adminCtx, {
-				uuid: "raw_upload_feature",
+				uuid: "rawUploadFeature",
 				title: "Custom Action",
 				description: "A custom action feature",
 				exposeAction: true,
@@ -189,7 +189,7 @@ describe("FeaturesService", () => {
 
 			expect(result.isRight()).toBe(true);
 			if (result.isRight()) {
-				expect(result.value.uuid).toBe("raw_upload_feature");
+				expect(result.value.uuid).toBe("rawUploadFeature");
 			}
 		});
 
@@ -465,7 +465,7 @@ describe("FeaturesService", () => {
 			await fixture.configRepo.save(
 				"features",
 				{
-					uuid: "legacy-feature",
+					uuid: "legacyFeature",
 					title: "Legacy Feature",
 					description: "Stored as a full module",
 					exposeAction: true,
@@ -486,14 +486,14 @@ describe("FeaturesService", () => {
 				} as unknown as import("domain/configuration/feature_data.ts").FeatureData,
 			);
 
-			const result = await fixture.service.getFeature(adminCtx, "legacy-feature");
+			const result = await fixture.service.getFeature(adminCtx, "legacyFeature");
 
 			expect(result.isRight()).toBe(true);
 			if (!result.isRight()) return;
 
 			expect(result.value.run).toContain("legacy feature executed");
 
-			const persisted = await fixture.configRepo.get("features", "legacy-feature");
+			const persisted = await fixture.configRepo.get("features", "legacyFeature");
 			expect(persisted.isRight()).toBe(true);
 			if (!persisted.isRight()) return;
 
@@ -620,7 +620,7 @@ describe("FeaturesService", () => {
 			await fixture.configRepo.save(
 				"features",
 				{
-					uuid: "legacy-list-feature",
+					uuid: "legacyListFeature",
 					title: "Legacy List Feature",
 					description: "Stored as a full module",
 					exposeAction: true,
@@ -637,7 +637,7 @@ describe("FeaturesService", () => {
 					returnType: "void",
 					createdTime: "2024-01-01T00:00:00.000Z",
 					modifiedTime: "2024-01-01T00:00:00.000Z",
-					module: sampleLegacyFeatureModule.replaceAll("legacy-feature", "legacy-list-feature")
+					module: sampleLegacyFeatureModule.replaceAll("legacyFeature", "legacyListFeature")
 						.replaceAll("Legacy Feature", "Legacy List Feature"),
 				} as unknown as import("domain/configuration/feature_data.ts").FeatureData,
 			);
@@ -647,9 +647,9 @@ describe("FeaturesService", () => {
 			expect(result.isRight()).toBe(true);
 			if (!result.isRight()) return;
 
-			expect(result.value.some((feature) => feature.uuid === "legacy-list-feature")).toBe(true);
+			expect(result.value.some((feature) => feature.uuid === "legacyListFeature")).toBe(true);
 
-			const persisted = await fixture.configRepo.get("features", "legacy-list-feature");
+			const persisted = await fixture.configRepo.get("features", "legacyListFeature");
 			expect(persisted.isRight()).toBe(true);
 			if (!persisted.isRight()) return;
 

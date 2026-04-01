@@ -112,7 +112,7 @@ function createFeatureInput(
 		(overrides.exposeAction === false ? [] : defaultActionParameters);
 
 	return {
-		uuid: `engine_feature_${featureCounter}`,
+		uuid: `engineFeature${featureCounter}`,
 		title: "Test Feature",
 		description: "Feature used in tests",
 		exposeAction: true,

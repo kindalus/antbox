@@ -5,7 +5,7 @@ import { ACTION_UUIDS_PARAMETER_ERROR, hasRequiredActionUuidsParameter } from ".
  * Zod schema for FeatureParameter validation
  */
 const FeatureParameterSchema = z.object({
-	name: z.string().min(1, "Parameter name is required"),
+	name: z.string().regex(/^[a-z][a-zA-Z0-9]*$/, "Parameter name must be camelCase"),
 	type: z.enum(["string", "date", "number", "boolean", "object", "array", "file"]),
 	arrayType: z.enum(["string", "number", "file", "object"]).optional(),
 	contentType: z.string().optional(),
@@ -28,7 +28,7 @@ const NodeFilterSchema = z.tuple([
  * Zod schema for FeatureData validation
  */
 export const FeatureDataSchema = z.object({
-	uuid: z.string().regex(/^([\w\d]{4,}|--[\w\d]{4,}--)$/),
+	uuid: z.string().regex(/^[a-z][a-zA-Z0-9]{3,}$/, "UUID must be camelCase (min 4 chars)"),
 	title: z.string().min(1, "Feature title is required"),
 	description: z.string().min(1, "Feature description is required"),
 	exposeAction: z.boolean(),

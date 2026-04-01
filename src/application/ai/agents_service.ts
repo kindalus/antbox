@@ -57,7 +57,7 @@ export class AgentsService {
 
 		const now = new Date().toISOString();
 		const agentData: AgentData = {
-			uuid: UuidGenerator.generate(),
+			uuid: UuidGenerator.generateKebabCase(),
 			...data,
 			type: data.type ?? "llm",
 			exposedToUsers: data.exposedToUsers ?? true,

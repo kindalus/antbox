@@ -132,9 +132,9 @@ Send `multipart/form-data` with a file in the `file` field. The file content is 
 
 UUID resolution rules:
 
-- if the JSON payload contains `uuid`, that value is used
-- otherwise Antbox uses the uploaded file name without the last extension
-- spaces in the file name are replaced with `-`
+- if the JSON payload contains `uuid`, that value is used (must be kebab-case, min 4 chars)
+- otherwise Antbox uses the uploaded file name without the last extension, with spaces replaced by `-`
+  (the derived name must be valid kebab-case)
 
 Minimal aspect file:
 
@@ -182,7 +182,7 @@ The create response contains the resolved aspect UUID. Use that UUID in node `as
 Critical rules:
 
 - property keys must be prefixed: `${aspectUuid}:${propertyName}`
-- aspect property names must match `/^[a-zA-Z_][_a-zA-Z0-9_]{2,}$/`
+- aspect property names must be kebab-case: `/^[a-z][a-z0-9-]{2,}$/`
 - when `aspects` changes, properties not belonging to selected aspects are dropped
 - readonly aspect properties cannot be overridden by regular updates
 - uuid/uuid[] aspect properties are existence-validated against nodes
@@ -199,9 +199,9 @@ records that still contain `module` are normalized on read.
 
 UUID resolution rules:
 
-- if `export default.uuid` exists, that value is used
-- otherwise Antbox uses the uploaded file name without the last extension
-- spaces in the file name are replaced with `_`
+- if `export default.uuid` exists, that value is used (must be camelCase, min 4 chars)
+- otherwise Antbox derives the UUID from the uploaded file name: strips the extension then converts
+  the basename to camelCase (spaces, hyphens, and underscores act as word separators)
 
 Validation rules:
 
@@ -212,7 +212,7 @@ Minimal valid module:
 
 ```javascript
 export default {
-	uuid: "tag_pending_invoices",
+	uuid: "tagPendingInvoices",
 	title: "Tag Pending Invoices",
 	description: "Adds pending tag to invoice nodes",
 	exposeAction: true,
@@ -287,7 +287,7 @@ Extension-oriented feature:
 
 ```javascript
 export default {
-	uuid: "health_extension",
+	uuid: "healthExtension",
 	title: "Health Extension",
 	description: "Simple extension response",
 	exposeAction: false,
@@ -311,7 +311,7 @@ AI-tool-oriented feature:
 
 ```javascript
 export default {
-	uuid: "count_children_tool",
+	uuid: "countChildrenTool",
 	title: "Count Children Tool",
 	description: "Returns child count for a folder",
 	exposeAction: false,
@@ -640,7 +640,7 @@ FILE_UUID=$(curl -sS -X POST "$BASE_URL/v2/nodes/-/upload" \
 ### 15.3 Create aspect + attribute it to a node
 
 ```bash
-cat > ./contract_metadata.json <<'EOF'
+cat > ./contract-metadata.json <<'EOF'
 {
   "title": "Contract Metadata",
   "description": "Fields for contracts",
@@ -666,7 +666,7 @@ EOF
 
 ASPECT_UUID=$(curl -sS -X POST "$BASE_URL/v2/aspects/-/upload" \
   "${COMMON[@]}" \
-  -F "file=@./contract_metadata.json;type=application/json" | jq -r '.uuid')
+  -F "file=@./contract-metadata.json;type=application/json" | jq -r '.uuid')
 
 curl -sS -X PATCH "$BASE_URL/v2/nodes/$FILE_UUID" \
   "${COMMON[@]}" "${JSON[@]}" \
@@ -684,7 +684,7 @@ curl -sS -X PATCH "$BASE_URL/v2/nodes/$FILE_UUID" \
 ```bash
 FEATURE_MODULE=$(cat <<'EOF'
 export default {
-  uuid: "mark_contract_approved",
+  uuid: "markContractApproved",
   title: "Mark Contract Approved",
   description: "Updates status to Approved",
   exposeAction: true,
@@ -714,11 +714,11 @@ EOF
 )
 
 FEATURE_MODULE=${FEATURE_MODULE//__ASPECT_UUID__/$ASPECT_UUID}
-printf "%s" "$FEATURE_MODULE" > ./mark_contract_approved.js
+printf "%s" "$FEATURE_MODULE" > ./markContractApproved.js
 
 FEATURE_UUID=$(curl -sS -X POST "$BASE_URL/v2/features/-/upload" \
 	"${COMMON[@]}" \
-	-F "file=@./mark_contract_approved.js;type=application/javascript" | jq -r '.uuid')
+	-F "file=@./markContractApproved.js;type=application/javascript" | jq -r '.uuid')
 ```
 
 Run the action on one node:
@@ -734,7 +734,7 @@ Create and execute an extension feature:
 ```bash
 EXT_MODULE=$(cat <<'EOF'
 export default {
-  uuid: "contracts_health_extension",
+  uuid: "contractsHealthExtension",
   title: "Contracts Health Extension",
   description: "Extension endpoint example",
   exposeAction: false,
@@ -755,11 +755,11 @@ export default {
 EOF
 )
 
-printf "%s" "$EXT_MODULE" > ./contracts_health_extension.js
+printf "%s" "$EXT_MODULE" > ./contractsHealthExtension.js
 
 EXT_UUID=$(curl -sS -X POST "$BASE_URL/v2/features/-/upload" \
 	"${COMMON[@]}" \
-	-F "file=@./contracts_health_extension.js;type=application/javascript" | jq -r '.uuid')
+	-F "file=@./contractsHealthExtension.js;type=application/javascript" | jq -r '.uuid')
 
 curl -sS -X GET "${COMMON[@]}" "$BASE_URL/v2/extensions/$EXT_UUID/-/exec"
 ```

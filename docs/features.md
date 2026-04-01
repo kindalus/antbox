@@ -106,20 +106,21 @@ it is not shown to them. Exporting a feature module is admin-only.
 
 UUID resolution rules:
 
-- if the uploaded module defines `uuid`, that value is used
-- otherwise Antbox uses the uploaded file name without the last extension
-- spaces in the file name are replaced with `_`
+- if the uploaded module defines `uuid`, that value is used (must be camelCase, min 4 chars)
+- otherwise Antbox derives the UUID from the uploaded file name: strips the extension then converts
+  the basename to camelCase (spaces, hyphens, and underscores act as word separators)
 
 Validation rules:
 
 - a feature must be exposed as at least one of: action, extension, or AI tool
 - automatic triggers (`runOnCreates`, `runOnUpdates`, `runOnDeletes`) are only valid for actions
+- parameter `name` must be camelCase: `/^[a-z][a-zA-Z0-9]*$/` (e.g. `uuids`, `agentUuid`, `runSync`)
 - runtime validates and coerces parameters from JSON, query params, and form data before executing
   feature code
 
 ```javascript
 export default {
-	uuid: "rename_nodes",
+	uuid: "renameNodes",
 	title: "Rename Nodes",
 	description: "Append a suffix",
 	exposeAction: true,
@@ -154,7 +155,7 @@ Example upload:
 curl -sS -X POST "$BASE_URL/v2/features/-/upload" \
   -H "X-Tenant: default" \
   -H "Authorization: Bearer $JWT" \
-  -F "file=@./rename_nodes.js;type=application/javascript"
+  -F "file=@./renameNodes.js;type=application/javascript"
 ```
 
 ## Actions

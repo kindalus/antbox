@@ -45,7 +45,7 @@ describe("Aspects", () => {
 	describe("propertyName", () => {
 		it("should generate correct property name format", () => {
 			const property: AspectProperty = {
-				name: "test_property",
+				name: "test-property",
 				title: "Test Property",
 				type: "string",
 			};
@@ -53,26 +53,26 @@ describe("Aspects", () => {
 			const aspect = createMockAspectData([property]);
 			const propertyName = Aspects.propertyName(aspect, property);
 
-			expect(propertyName).toBe(`${aspect.uuid}:test_property`);
+			expect(propertyName).toBe(`${aspect.uuid}:test-property`);
 		});
 
 		it("should handle different property names", () => {
 			const properties: AspectProperty[] = [
-				{ name: "simple_name", title: "Simple", type: "string" },
-				{ name: "complex_property_name", title: "Complex", type: "number" },
-				{ name: "uuid_prop", title: "UUID", type: "uuid" },
+				{ name: "simple-name", title: "Simple", type: "string" },
+				{ name: "complex-property-name", title: "Complex", type: "number" },
+				{ name: "uuid-prop", title: "UUID", type: "uuid" },
 			];
 
 			const aspect = createMockAspectData(properties);
 
 			expect(Aspects.propertyName(aspect, properties[0])).toBe(
-				`${aspect.uuid}:simple_name`,
+				`${aspect.uuid}:simple-name`,
 			);
 			expect(Aspects.propertyName(aspect, properties[1])).toBe(
-				`${aspect.uuid}:complex_property_name`,
+				`${aspect.uuid}:complex-property-name`,
 			);
 			expect(Aspects.propertyName(aspect, properties[2])).toBe(
-				`${aspect.uuid}:uuid_prop`,
+				`${aspect.uuid}:uuid-prop`,
 			);
 		});
 	});
@@ -128,7 +128,7 @@ describe("Aspects", () => {
 
 		it("should validate required properties", () => {
 			const property: AspectProperty = {
-				name: "required_prop",
+				name: "required-prop",
 				title: "Required Property",
 				type: "string",
 				required: true,
@@ -158,7 +158,7 @@ describe("Aspects", () => {
 
 		it("should handle false boolean values for required properties", () => {
 			const property: AspectProperty = {
-				name: "bool_prop",
+				name: "bool-prop",
 				title: "Boolean Property",
 				type: "boolean",
 				required: true,
@@ -181,7 +181,7 @@ describe("Aspects", () => {
 
 		it("should validate string property types", () => {
 			const property: AspectProperty = {
-				name: "string_prop",
+				name: "string-prop",
 				title: "String Property",
 				type: "string",
 				required: false,
@@ -211,7 +211,7 @@ describe("Aspects", () => {
 
 		it("should validate number property types", () => {
 			const property: AspectProperty = {
-				name: "number_prop",
+				name: "number-prop",
 				title: "Number Property",
 				type: "number",
 				required: false,
@@ -241,7 +241,7 @@ describe("Aspects", () => {
 
 		it("should validate boolean property types", () => {
 			const property: AspectProperty = {
-				name: "bool_prop",
+				name: "bool-prop",
 				title: "Boolean Property",
 				type: "boolean",
 				required: false,
@@ -279,7 +279,7 @@ describe("Aspects", () => {
 
 		it("should skip type validation for undefined/null values", () => {
 			const property: AspectProperty = {
-				name: "optional_prop",
+				name: "optional-prop",
 				title: "Optional Property",
 				type: "string",
 				required: false,
@@ -316,7 +316,7 @@ describe("Aspects", () => {
 
 		it("should handle non-primitive types gracefully", () => {
 			const properties: AspectProperty[] = [
-				{ name: "uuid_prop", title: "UUID Property", type: "uuid" },
+				{ name: "uuid-prop", title: "UUID Property", type: "uuid" },
 				{ name: "object_prop", title: "Object Property", type: "object" },
 				{ name: "array_prop", title: "Array Property", type: "array" },
 				{ name: "file_prop", title: "File Property", type: "file" },
@@ -326,7 +326,7 @@ describe("Aspects", () => {
 			const specification = Aspects.specificationFrom(aspect);
 
 			const node = createMockAspectableNode({
-				[`${aspect.uuid}:uuid_prop`]: "some-uuid",
+				[`${aspect.uuid}:uuid-prop`]: "some-uuid",
 				[`${aspect.uuid}:object_prop`]: { key: "value" },
 				[`${aspect.uuid}:array_prop`]: [1, 2, 3],
 				[`${aspect.uuid}:file_prop`]: "file-reference",
@@ -343,13 +343,13 @@ describe("Aspects", () => {
 		it("should combine multiple property validations", () => {
 			const properties: AspectProperty[] = [
 				{
-					name: "required_string",
+					name: "required-string",
 					title: "Required String",
 					type: "string",
 					required: true,
 				},
 				{
-					name: "optional_number",
+					name: "optional-number",
 					title: "Optional Number",
 					type: "number",
 					required: false,
@@ -361,8 +361,8 @@ describe("Aspects", () => {
 
 			// Test with all valid properties
 			const validNode = createMockAspectableNode({
-				[`${aspect.uuid}:required_string`]: "valid string",
-				[`${aspect.uuid}:optional_number`]: 42,
+				[`${aspect.uuid}:required-string`]: "valid string",
+				[`${aspect.uuid}:optional-number`]: 42,
 			});
 			const validResult = specification.isSatisfiedBy(validNode);
 
@@ -370,7 +370,7 @@ describe("Aspects", () => {
 
 			// Test with missing required property
 			const invalidNode = createMockAspectableNode({
-				[`${aspect.uuid}:optional_number`]: 42,
+				[`${aspect.uuid}:optional-number`]: 42,
 			});
 			const invalidResult = specification.isSatisfiedBy(invalidNode);
 
@@ -379,8 +379,8 @@ describe("Aspects", () => {
 
 			// Test with type mismatch
 			const typeMismatchNode = createMockAspectableNode({
-				[`${aspect.uuid}:required_string`]: "valid string",
-				[`${aspect.uuid}:optional_number`]: "not a number",
+				[`${aspect.uuid}:required-string`]: "valid string",
+				[`${aspect.uuid}:optional-number`]: "not a number",
 			});
 			const typeMismatchResult = specification.isSatisfiedBy(typeMismatchNode);
 
@@ -403,7 +403,7 @@ describe("Aspects", () => {
 
 		it("should validate validationList for string properties", () => {
 			const property: AspectProperty = {
-				name: "list_prop",
+				name: "list-prop",
 				title: "List Property",
 				type: "string",
 				validationList: ["apple", "banana", "cherry"],
@@ -432,7 +432,7 @@ describe("Aspects", () => {
 
 		it("should validate validationList for array of strings", () => {
 			const property: AspectProperty = {
-				name: "list_array_prop",
+				name: "list-array-prop",
 				title: "List Array Property",
 				type: "array",
 				arrayType: "string",
@@ -462,7 +462,7 @@ describe("Aspects", () => {
 
 		it("should validate validationRegex for string properties", () => {
 			const property: AspectProperty = {
-				name: "regex_prop",
+				name: "regex-prop",
 				title: "Regex Property",
 				type: "string",
 				validationRegex: "^[a-z]+$",
@@ -491,7 +491,7 @@ describe("Aspects", () => {
 
 		it("should validate validationRegex for array of strings", () => {
 			const property: AspectProperty = {
-				name: "regex_array_prop",
+				name: "regex-array-prop",
 				title: "Regex Array Property",
 				type: "array",
 				arrayType: "string",

@@ -22,7 +22,7 @@ export function getFileBasename(fileName: string): string {
 export function resolveUploadUuid(
 	explicitUuid: string | undefined,
 	fileName: string,
-	spaceReplacement: "_" | "-",
+	spaceReplacement: "_" | "-" | "camelCase",
 	artifactType: "feature" | "aspect",
 ): Either<BadRequestError, string> {
 	const providedUuid = explicitUuid?.trim();
@@ -36,6 +36,14 @@ export function resolveUploadUuid(
 			new BadRequestError(
 				`${artifactType} uuid not provided and uploaded file name is missing`,
 			),
+		);
+	}
+
+	if (spaceReplacement === "camelCase") {
+		const words = basename.split(/[\s_-]+/);
+		return right(
+			words[0].toLowerCase() +
+				words.slice(1).map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(""),
 		);
 	}
 

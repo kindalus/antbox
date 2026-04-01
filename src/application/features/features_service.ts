@@ -66,7 +66,7 @@ export class FeaturesService {
 			return left(ValidationError.from(...errors));
 		}
 
-		return this.#configRepo.save("features", featureData);
+		return this.#configRepo.save("features", validation.data as FeatureData);
 	}
 
 	async getFeature(
@@ -192,7 +192,7 @@ export class FeaturesService {
 			return left(ValidationError.from(...errors));
 		}
 
-		return this.#configRepo.save("features", updatedData);
+		return this.#configRepo.save("features", validation.data as FeatureData);
 	}
 
 	async deleteFeature(

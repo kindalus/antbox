@@ -28,7 +28,7 @@ export function resolveUploadUuid(
 ): Either<BadRequestError, string> {
 	const providedUuid = explicitUuid?.trim();
 	if (providedUuid) {
-		return right(providedUuid);
+		return right(spaceReplacement === "camelCase" ? kebabToCamelCase(providedUuid) : providedUuid);
 	}
 
 	const basename = getFileBasename(fileName).trim();

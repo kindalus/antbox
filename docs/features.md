@@ -163,7 +163,7 @@ curl -sS -X POST "$BASE_URL/v2/features/-/upload" \
 ## Actions
 
 - List actions: `GET /v2/actions`
-- Run action: `POST /v2/actions/{uuid}/-/run` with body `{ uuids: [...], parameters?: {...} }`
+- Run action: `POST /v2/actions/{uuid}` with body `{ uuids: [...], parameters?: {...} }`
 - Every action must declare a required `uuids` parameter as `array<string>` in `parameters`
 
 Automatic triggers (all require `exposeAction: true`):
@@ -177,7 +177,7 @@ Automatic triggers (all require `exposeAction: true`):
 ## Extensions
 
 - List extensions: `GET /v2/extensions`
-- Execute extension: `GET|POST /v2/extensions/{uuid}/-/exec`
+- Execute extension: `GET|POST /v2/extensions/{uuid}`
 
 Extension parameters are taken from query params (GET) or request body (POST JSON or form data).
 Declared parameter types are validated at runtime, with string coercion for numbers, booleans,

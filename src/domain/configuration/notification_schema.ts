@@ -3,8 +3,8 @@ import { z } from "zod";
 export const NotificationDataSchema = z
 	.object({
 		uuid: z.string().regex(
-			/^([\w\d]{8,}|--[\w\d]{4,}--)$/,
-			"UUID must be at least 8 alphanumeric characters or wrapped in -- with at least 4 characters",
+			/^([\w\d]{4,}|--[\w\d]{4,}--)$/,
+			"UUID must be at least 4 alphanumeric characters or wrapped in -- with at least 4 characters",
 		),
 		targetUser: z.string().email("Target user must be a valid email").optional(),
 		targetGroup: z.string().min(1, "Target group must not be empty").optional(),

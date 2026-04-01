@@ -28,7 +28,7 @@ const NodeFilterSchema = z.tuple([
  * Zod schema for FeatureData validation
  */
 export const FeatureDataSchema = z.object({
-	uuid: z.string().regex(/^([\w\d]{8,}|--[\w\d]{4,}--)$/),
+	uuid: z.string().regex(/^([\w\d]{4,}|--[\w\d]{4,}--)$/),
 	title: z.string().min(1, "Feature title is required"),
 	description: z.string().min(1, "Feature description is required"),
 	exposeAction: z.boolean(),

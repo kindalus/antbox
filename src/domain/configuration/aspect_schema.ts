@@ -21,8 +21,8 @@ const AspectPropertySchema = z.object({
 // Schema for AspectData
 export const AspectDataSchema = z.object({
 	uuid: z.string().regex(
-		/^([A-Za-z0-9_-]{8,}|--[A-Za-z0-9_]{4,}--)$/,
-		"UUID must be at least 8 characters using letters, numbers, underscores, or hyphens",
+		/^([A-Za-z0-9_-]{4,}|--[A-Za-z0-9_]{4,}--)$/,
+		"UUID must be at least 4 characters using letters, numbers, underscores, or hyphens",
 	),
 	title: z.string().min(3, "Aspect title must be at least 3 characters"),
 	description: z.string().optional(),

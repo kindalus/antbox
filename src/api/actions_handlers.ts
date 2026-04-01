@@ -7,6 +7,7 @@ import { type HttpHandler, sendBadRequest } from "./handler.ts";
 import { processError } from "./process_error.ts";
 import { processServiceResult } from "./process_service_result.ts";
 import { checkServiceAvailability } from "./service_availability.ts";
+import { kebabToCamelCase } from "shared/string_utils.ts";
 
 // ============================================================================
 // ACTIONS HANDLERS
@@ -57,12 +58,17 @@ export function runActionHandler(tenants: AntboxTenant[]): HttpHandler {
 					return sendBadRequest({ error: "{ uuids } array not given" });
 				}
 
+				const rawParams: Record<string, unknown> = body.parameters || {};
+				const parameters = Object.fromEntries(
+					Object.entries(rawParams).map(([k, v]) => [kebabToCamelCase(k), v]),
+				);
+
 				return await engine
 					.runAction(
 						getAuthenticationContext(req),
-						params.uuid,
+						kebabToCamelCase(params.uuid),
 						body.uuids,
-						body.parameters || {},
+						parameters,
 					)
 					.then(processServiceResult)
 					.catch(processError);

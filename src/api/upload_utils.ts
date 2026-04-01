@@ -1,5 +1,6 @@
 import { BadRequestError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
+import { kebabToCamelCase } from "shared/string_utils.ts";
 
 export function getUploadFile(formData: FormData): Either<BadRequestError, File> {
 	const file = formData.get("file");
@@ -40,11 +41,7 @@ export function resolveUploadUuid(
 	}
 
 	if (spaceReplacement === "camelCase") {
-		const words = basename.split(/[\s_-]+/);
-		return right(
-			words[0].toLowerCase() +
-				words.slice(1).map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(""),
-		);
+		return right(kebabToCamelCase(basename));
 	}
 
 	return right(basename.replaceAll(" ", spaceReplacement));

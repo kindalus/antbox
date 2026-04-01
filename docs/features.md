@@ -25,6 +25,8 @@ interface FeatureData {
 	runOnCreates: boolean;
 	runOnUpdates: boolean;
 	runOnDeletes: boolean;
+	runOnEmbeddingsCreated: boolean;
+	runOnEmbeddingsUpdated: boolean;
 	runManually: boolean;
 	filters: NodeFilter[];
 	exposeExtension: boolean;
@@ -113,7 +115,7 @@ UUID resolution rules:
 Validation rules:
 
 - a feature must be exposed as at least one of: action, extension, or AI tool
-- automatic triggers (`runOnCreates`, `runOnUpdates`, `runOnDeletes`) are only valid for actions
+- automatic triggers (`runOnCreates`, `runOnUpdates`, `runOnDeletes`, `runOnEmbeddingsCreated`, `runOnEmbeddingsUpdated`) are only valid for actions
 - parameter `name` must be camelCase: `/^[a-z][a-zA-Z0-9]*$/` (e.g. `uuids`, `agentUuid`, `runSync`)
 - runtime validates and coerces parameters from JSON, query params, and form data before executing
   feature code
@@ -163,6 +165,14 @@ curl -sS -X POST "$BASE_URL/v2/features/-/upload" \
 - List actions: `GET /v2/actions`
 - Run action: `POST /v2/actions/{uuid}/-/run` with body `{ uuids: [...], parameters?: {...} }`
 - Every action must declare a required `uuids` parameter as `array<string>` in `parameters`
+
+Automatic triggers (all require `exposeAction: true`):
+
+- `runOnCreates` — fires when a node is created in a folder that targets the action
+- `runOnUpdates` — fires when a node is updated
+- `runOnDeletes` — fires when a node is deleted
+- `runOnEmbeddingsCreated` — fires when vector embeddings are first generated for a node
+- `runOnEmbeddingsUpdated` — fires when a node's vector embeddings are updated
 
 ## Extensions
 

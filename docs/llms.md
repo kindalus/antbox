@@ -206,7 +206,7 @@ UUID resolution rules:
 Validation rules:
 
 - at least one of `exposeAction`, `exposeExtension`, or `exposeAITool` must be `true`
-- `runOnCreates`, `runOnUpdates`, and `runOnDeletes` are only allowed when `exposeAction` is `true`
+- `runOnCreates`, `runOnUpdates`, `runOnDeletes`, `runOnEmbeddingsCreated`, and `runOnEmbeddingsUpdated` are only allowed when `exposeAction` is `true`
 
 Minimal valid module:
 
@@ -276,7 +276,7 @@ Best practice for generation:
 ### Feature mode matrix
 
 - action feature: `exposeAction: true`, required `parameters` entry for `uuids: array<string>`,
-  optional `runManually` and `runOnCreates/Updates/Deletes`
+  optional `runManually`, `runOnCreates/Updates/Deletes`, and `runOnEmbeddingsCreated/Updated`
 - extension feature: `exposeExtension: true` and extension-friendly `returnType`
 - AI tool feature: `exposeAITool: true` and parameter schema designed for tool arguments; these are
   exposed to agents by feature `uuid`

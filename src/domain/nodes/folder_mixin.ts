@@ -55,12 +55,16 @@ export function FolderMixin<TBase extends Constructor>(Base: TBase) {
 			}
 
 			this._filters = resolveFilters(metadata.filters);
-			this._permissions = metadata.permissions ?? {
+
+			const defaultPermissions: Permissions = {
 				group: ["Read", "Write", "Export"],
 				authenticated: ["Read", "Export"],
 				anonymous: [],
 				advanced: {},
 			};
+			this._permissions = metadata.permissions
+				? { ...defaultPermissions, ...metadata.permissions }
+				: defaultPermissions;
 		}
 
 		get group(): string {

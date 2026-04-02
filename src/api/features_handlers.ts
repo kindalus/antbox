@@ -81,7 +81,7 @@ export async function parseFeatureUpload(
 	const uuidOrErr = resolveUploadUuid(
 		featureOrErr.value.uuid,
 		fileOrErr.value.name,
-		"_",
+		"camelCase",
 		"feature",
 	);
 	if (uuidOrErr.isLeft()) {

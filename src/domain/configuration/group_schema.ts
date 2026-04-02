@@ -2,8 +2,8 @@ import { z } from "zod";
 
 export const GroupDataSchema = z.object({
 	uuid: z.string().regex(
-		/^([\w\d]{8,}|--[\w\d]{4,}--)$/,
-		"UUID must be at least 8 alphanumeric characters or wrapped in -- with at least 4 characters",
+		/^([a-z][a-z0-9-]{3,}|--[a-z][a-z0-9-]+--)$/,
+		"UUID must be kebab-case (min 4 chars) or a builtin wrapped in --",
 	),
 	title: z.string().min(3, "Group title must be at least 3 characters"),
 	description: z.string().optional(),

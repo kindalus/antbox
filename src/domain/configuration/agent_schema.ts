@@ -10,7 +10,7 @@ const agentTypeSchema = z.enum(["llm", "sequential", "parallel", "loop"]).option
  */
 export const AgentDataSchema = z
 	.object({
-		uuid: z.string().regex(/^([\w\d]{8,}|--[\w\d-]{4,}--)$/),
+		uuid: z.string().regex(/^([a-z][a-z0-9-]{3,}|--[a-z][a-z0-9-]+--)$/, "UUID must be kebab-case (min 4 chars) or a builtin wrapped in --"),
 		name: z.string().min(1, "Agent name is required"),
 		description: z.string().optional(),
 		type: agentTypeSchema,

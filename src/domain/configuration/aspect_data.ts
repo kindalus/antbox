@@ -5,7 +5,7 @@ import type { NodeFilters } from "domain/nodes/node_filter.ts";
  */
 export interface AspectProperty {
 	/**
-	 * Property name - regex /[a-zA-Z_][_a-zA-Z0-9_]{2,}/
+	 * Property name - kebab-case, regex /^[a-z][a-z0-9-]{2,}$/
 	 */
 	name: string;
 	title: string;

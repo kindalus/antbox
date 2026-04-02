@@ -184,7 +184,7 @@ export class NotificationsService {
 		}
 
 		const notification: NotificationData = {
-			uuid: UuidGenerator.generate(),
+			uuid: UuidGenerator.generateKebabCase(),
 			targetUser: payload.targetUser,
 			targetGroup: payload.targetGroup,
 			priority,

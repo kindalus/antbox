@@ -7,6 +7,7 @@ import { type HttpHandler, sendBadRequest } from "./handler.ts";
 import { processError } from "./process_error.ts";
 import { processServiceResult } from "./process_service_result.ts";
 import { checkServiceAvailability } from "./service_availability.ts";
+import { kebabToCamelCase } from "shared/string_utils.ts";
 
 // ============================================================================
 // EXTENSIONS HANDLERS
@@ -52,7 +53,7 @@ export function runExtensionHandler(tenants: AntboxTenant[]): HttpHandler {
 			}
 
 			return engine
-				.runExtension(getAuthenticationContext(req), params.uuid, req);
+				.runExtension(getAuthenticationContext(req), kebabToCamelCase(params.uuid), req);
 		},
 	);
 }

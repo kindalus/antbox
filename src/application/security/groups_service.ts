@@ -32,7 +32,7 @@ export class GroupsService {
 
 		const now = new Date().toISOString();
 		const groupData: GroupData = {
-			uuid: UuidGenerator.generate(),
+			uuid: UuidGenerator.generateKebabCase(),
 			title: data.title,
 			description: data.description,
 			createdTime: now,

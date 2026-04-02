@@ -25,6 +25,8 @@ interface FeatureData {
 	runOnCreates: boolean;
 	runOnUpdates: boolean;
 	runOnDeletes: boolean;
+	runOnEmbeddingsCreated: boolean;
+	runOnEmbeddingsUpdated: boolean;
 	runManually: boolean;
 	filters: NodeFilter[];
 	exposeExtension: boolean;
@@ -106,20 +108,21 @@ it is not shown to them. Exporting a feature module is admin-only.
 
 UUID resolution rules:
 
-- if the uploaded module defines `uuid`, that value is used
-- otherwise Antbox uses the uploaded file name without the last extension
-- spaces in the file name are replaced with `_`
+- if the uploaded module defines `uuid`, that value is used (must be camelCase, min 4 chars)
+- otherwise Antbox derives the UUID from the uploaded file name: strips the extension then converts
+  the basename to camelCase (spaces, hyphens, and underscores act as word separators)
 
 Validation rules:
 
 - a feature must be exposed as at least one of: action, extension, or AI tool
-- automatic triggers (`runOnCreates`, `runOnUpdates`, `runOnDeletes`) are only valid for actions
+- automatic triggers (`runOnCreates`, `runOnUpdates`, `runOnDeletes`, `runOnEmbeddingsCreated`, `runOnEmbeddingsUpdated`) are only valid for actions
+- parameter `name` must be camelCase: `/^[a-z][a-zA-Z0-9]*$/` (e.g. `uuids`, `agentUuid`, `runSync`)
 - runtime validates and coerces parameters from JSON, query params, and form data before executing
   feature code
 
 ```javascript
 export default {
-	uuid: "rename_nodes",
+	uuid: "renameNodes",
 	title: "Rename Nodes",
 	description: "Append a suffix",
 	exposeAction: true,
@@ -154,19 +157,27 @@ Example upload:
 curl -sS -X POST "$BASE_URL/v2/features/-/upload" \
   -H "X-Tenant: default" \
   -H "Authorization: Bearer $JWT" \
-  -F "file=@./rename_nodes.js;type=application/javascript"
+  -F "file=@./renameNodes.js;type=application/javascript"
 ```
 
 ## Actions
 
 - List actions: `GET /v2/actions`
-- Run action: `POST /v2/actions/{uuid}/-/run` with body `{ uuids: [...], parameters?: {...} }`
+- Run action: `POST /v2/actions/{uuid}` with body `{ uuids: [...], parameters?: {...} }`
 - Every action must declare a required `uuids` parameter as `array<string>` in `parameters`
+
+Automatic triggers (all require `exposeAction: true`):
+
+- `runOnCreates` — fires when a node is created in a folder that targets the action
+- `runOnUpdates` — fires when a node is updated
+- `runOnDeletes` — fires when a node is deleted
+- `runOnEmbeddingsCreated` — fires when vector embeddings are first generated for a node
+- `runOnEmbeddingsUpdated` — fires when a node's vector embeddings are updated
 
 ## Extensions
 
 - List extensions: `GET /v2/extensions`
-- Execute extension: `GET|POST /v2/extensions/{uuid}/-/exec`
+- Execute extension: `GET|POST /v2/extensions/{uuid}`
 
 Extension parameters are taken from query params (GET) or request body (POST JSON or form data).
 Declared parameter types are validated at runtime, with string coercion for numbers, booleans,

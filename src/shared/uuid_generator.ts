@@ -9,6 +9,14 @@ export class UuidGenerator {
 		return UuidGenerator.#instance.generate();
 	}
 
+	static generateKebabCase(length = 8): string {
+		if (!UuidGenerator.#instance) {
+			UuidGenerator.#instance = new UuidGenerator();
+		}
+
+		return UuidGenerator.#instance.generateKebabCase(length);
+	}
+
 	private readonly charTable;
 
 	constructor() {
@@ -21,6 +29,18 @@ export class UuidGenerator {
 		const char = Math.floor(Math.random() * this.charTable.length);
 
 		return this.charTable[char].concat(this.generate(lenght - 1));
+	}
+
+	generateKebabCase(length = 8): string {
+		const letters = this.buildSmallCasesArray();
+		const lettersAndDigits = [...letters, ...this.buildNumbersArray()];
+
+		const first = letters[Math.floor(Math.random() * letters.length)];
+		let result = first;
+		for (let i = 1; i < length; i++) {
+			result += lettersAndDigits[Math.floor(Math.random() * lettersAndDigits.length)];
+		}
+		return result;
 	}
 
 	private buildCharactersArray() {

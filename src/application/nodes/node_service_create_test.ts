@@ -576,7 +576,7 @@ describe("NodeService.create - UUID property validation", () => {
 		const service = nodeService({ configRepo });
 
 		const props: AspectProperty[] = [{
-			name: "reference_prop",
+			name: "reference-prop",
 			title: "Reference Property",
 			type: "uuid",
 		}];
@@ -590,7 +590,7 @@ describe("NodeService.create - UUID property validation", () => {
 			mimetype: Nodes.FOLDER_MIMETYPE,
 			aspects: ["reference-aspect"],
 			properties: {
-				"reference-aspect:reference_prop": "non-existing-node-uuid",
+				"reference-aspect:reference-prop": "non-existing-node-uuid",
 			},
 			parent: Nodes.ROOT_FOLDER_UUID,
 		});
@@ -612,7 +612,7 @@ describe("NodeService.create - UUID property validation", () => {
 		});
 
 		const props: AspectProperty[] = [{
-			name: "reference_prop",
+			name: "reference-prop",
 			title: "Reference Property",
 			type: "uuid",
 		}];
@@ -626,7 +626,7 @@ describe("NodeService.create - UUID property validation", () => {
 			mimetype: Nodes.FOLDER_MIMETYPE,
 			aspects: ["reference-aspect"],
 			properties: {
-				"reference-aspect:reference_prop": "target-node-uuid",
+				"reference-aspect:reference-prop": "target-node-uuid",
 			},
 			parent: Nodes.ROOT_FOLDER_UUID,
 		});
@@ -647,7 +647,7 @@ describe("NodeService.create - UUID property validation", () => {
 		});
 
 		const props: AspectProperty[] = [{
-			name: "references_prop",
+			name: "references-prop",
 			title: "References Property",
 			type: "array",
 			arrayType: "uuid",
@@ -663,7 +663,7 @@ describe("NodeService.create - UUID property validation", () => {
 			parent: Nodes.ROOT_FOLDER_UUID,
 			aspects: ["references-aspect"],
 			properties: {
-				"references-aspect:references_prop": [
+				"references-aspect:references-prop": [
 					"existing-node-uuid",
 					"non-existing-node-uuid",
 				],
@@ -694,7 +694,7 @@ describe("NodeService.create - UUID property validation", () => {
 		});
 
 		const props: AspectProperty[] = [{
-			name: "references_prop",
+			name: "references-prop",
 			title: "References Property",
 			type: "array",
 			arrayType: "uuid",
@@ -709,7 +709,7 @@ describe("NodeService.create - UUID property validation", () => {
 			mimetype: Nodes.FOLDER_MIMETYPE,
 			aspects: ["references-aspect"],
 			properties: {
-				"references-aspect:references_prop": ["target-node-1", "target-node-2"],
+				"references-aspect:references-prop": ["target-node-1", "target-node-2"],
 			},
 			parent: Nodes.ROOT_FOLDER_UUID,
 		});
@@ -735,7 +735,7 @@ describe("NodeService.create - UUID property validation", () => {
 		});
 
 		const props: AspectProperty[] = [{
-			name: "folder_reference_prop",
+			name: "folder_reference-prop",
 			title: "Folder Reference Property",
 			type: "uuid",
 			validationFilters: [["mimetype", "==", Nodes.FOLDER_MIMETYPE]],
@@ -750,7 +750,7 @@ describe("NodeService.create - UUID property validation", () => {
 			mimetype: Nodes.FOLDER_MIMETYPE,
 			aspects: ["filtered-aspect"],
 			properties: {
-				"filtered-aspect:folder_reference_prop": "file-node-uuid",
+				"filtered-aspect:folder_reference-prop": "file-node-uuid",
 			},
 			parent: Nodes.ROOT_FOLDER_UUID,
 		});
@@ -772,7 +772,7 @@ describe("NodeService.create - UUID property validation", () => {
 		});
 
 		const props: AspectProperty[] = [{
-			name: "folder_reference_prop",
+			name: "folder_reference-prop",
 			title: "Folder Reference Property",
 			type: "uuid",
 			validationFilters: [["mimetype", "==", Nodes.FOLDER_MIMETYPE]],
@@ -787,7 +787,7 @@ describe("NodeService.create - UUID property validation", () => {
 			mimetype: Nodes.FOLDER_MIMETYPE,
 			aspects: ["filtered-aspect"],
 			properties: {
-				"filtered-aspect:folder_reference_prop": "folder-node-uuid",
+				"filtered-aspect:folder_reference-prop": "folder-node-uuid",
 			},
 			parent: Nodes.ROOT_FOLDER_UUID,
 		});
@@ -820,7 +820,7 @@ describe("NodeService.create - UUID property validation", () => {
 		});
 
 		const props: AspectProperty[] = [{
-			name: "folder_references_prop",
+			name: "folder_references-prop",
 			title: "Folder References Property",
 			type: "array",
 			arrayType: "uuid",
@@ -842,7 +842,7 @@ describe("NodeService.create - UUID property validation", () => {
 			parent: Nodes.ROOT_FOLDER_UUID,
 			aspects: ["filtered-references-aspect"],
 			properties: {
-				"filtered-references-aspect:folder_references_prop": [
+				"filtered-references-aspect:folder_references-prop": [
 					"folder-node-uuid",
 					"file-node-uuid",
 				],
@@ -873,7 +873,7 @@ describe("NodeService.create - UUID property validation", () => {
 		});
 
 		const props: AspectProperty[] = [{
-			name: "folder_references_prop",
+			name: "folder_references-prop",
 			title: "Folder References Property",
 			type: "array",
 			arrayType: "uuid",
@@ -895,7 +895,7 @@ describe("NodeService.create - UUID property validation", () => {
 			parent: Nodes.ROOT_FOLDER_UUID,
 			aspects: ["filtered-references-aspect"],
 			properties: {
-				"filtered-references-aspect:folder_references_prop": [
+				"filtered-references-aspect:folder_references-prop": [
 					"folder-node-1",
 					"folder-node-2",
 				],
@@ -918,7 +918,7 @@ describe("NodeService.create - UUID property validation", () => {
 		});
 
 		const props: AspectProperty[] = [{
-			name: "project_folder_prop",
+			name: "project-folder-prop",
 			title: "Project Folder Property",
 			type: "uuid",
 			validationFilters: [
@@ -936,7 +936,7 @@ describe("NodeService.create - UUID property validation", () => {
 			mimetype: Nodes.FOLDER_MIMETYPE,
 			aspects: ["complex-filtered-aspect"],
 			properties: {
-				"complex-filtered-aspect:project_folder_prop": "regular-folder-uuid",
+				"complex-filtered-aspect:project-folder-prop": "regular-folder-uuid",
 			},
 			parent: Nodes.ROOT_FOLDER_UUID,
 		});

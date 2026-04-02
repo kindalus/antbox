@@ -1,4 +1,5 @@
 import { Logger } from "shared/logger.ts";
+import { kebabToCamelCase } from "shared/string_utils.ts";
 import { loadTemplate, TEMPLATES } from "api/templates/index.ts";
 import {
 	AUTO_TAG_FEATURE_UUID,
@@ -394,7 +395,11 @@ export class FeaturesEngine {
 			return new Response(paramsOrErr.value.message, { status: 400 });
 		}
 
-		const resultOrErr = await this.#run(ctx, uuid, paramsOrErr.value);
+		const params = Object.fromEntries(
+			Object.entries(paramsOrErr.value).map(([k, v]) => [kebabToCamelCase(k), v]),
+		);
+
+		const resultOrErr = await this.#run(ctx, uuid, params);
 		if (resultOrErr.isLeft()) {
 			let errCode = 500;
 

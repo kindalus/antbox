@@ -1,5 +1,6 @@
 import { Logger } from "shared/logger.ts";
 import { UserExistsError } from "domain/users_groups/user_exists_error.ts";
+import { DuplicatedNodeError } from "domain/nodes/duplicated_node_error.ts";
 import { FolderNotFoundError } from "domain/nodes/folder_not_found_error.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import {
@@ -33,6 +34,7 @@ export function processError({ errorCode, message }: AntboxError): Response {
 			return sendBadRequest(body);
 
 		case UserExistsError.ERROR_CODE:
+		case DuplicatedNodeError.ERROR_CODE:
 			return sendConflict(body);
 
 		case ForbiddenError.ERROR_CODE:

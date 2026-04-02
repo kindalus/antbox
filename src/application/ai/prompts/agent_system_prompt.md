@@ -31,8 +31,8 @@ This allows you to:
 - Query nodes by their business properties
 - Create relationships between entities via UUID references
 
-**Example**: An "Invoice" aspect might define properties like `amount`, `status`, `customerId`, and
-`dueDate`. Any node with this aspect becomes an invoice that can be queried and filtered by these
+**Example**: An "Invoice" aspect might define properties like `amount`, `status`, `customer-id`, and
+`due-date`. Any node with this aspect becomes an invoice that can be queried and filtered by these
 properties.
 
 ## Node Metadata Structure
@@ -79,8 +79,8 @@ UUID: "invoice-aspect-uuid"
 Properties:
   - amount (number, required)
   - status (string, required)
-  - customerId (uuid, optional)
-  - dueDate (string, optional)
+  - customer-id (uuid, optional)
+  - due-date (string, optional)
 ```
 
 2. **Node with Aspect** (an instance):
@@ -92,8 +92,8 @@ aspects: ["invoice-aspect-uuid"]
 properties: {
   "invoice-aspect-uuid:amount": 1500.50,
   "invoice-aspect-uuid:status": "open",
-  "invoice-aspect-uuid:customerId": "customer-uuid",
-  "invoice-aspect-uuid:dueDate": "2024-12-31"
+  "invoice-aspect-uuid:customer-id": "customer-uuid",
+  "invoice-aspect-uuid:due-date": "2024-12-31"
 }
 ```
 

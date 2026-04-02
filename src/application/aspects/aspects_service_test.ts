@@ -47,13 +47,13 @@ describe("AspectsService", () => {
 
 			const properties: AspectProperty[] = [
 				{
-					name: "author_name",
+					name: "author-name",
 					title: "Author Name",
 					type: "string",
 					required: true,
 				},
 				{
-					name: "publish_date",
+					name: "publish-date",
 					title: "Publish Date",
 					type: "string",
 					readonly: false,
@@ -78,7 +78,7 @@ describe("AspectsService", () => {
 				expect(aspect.description).toBe("Metadata for articles");
 				expect(aspect.filters.length).toBe(1);
 				expect(aspect.properties.length).toBe(2);
-				expect(aspect.properties[0].name).toBe("author_name");
+				expect(aspect.properties[0].name).toBe("author-name");
 				expect(aspect.properties[0].required).toBe(true);
 				expect(aspect.uuid).toBe(aspectData.uuid);
 				expect(typeof aspect.createdTime).toBe("string");
@@ -354,7 +354,7 @@ describe("AspectsService", () => {
 			if (createResult.isRight()) {
 				const newProperties: AspectProperty[] = [
 					{
-						name: "new_field",
+						name: "new-field",
 						title: "New Field",
 						type: "string",
 					},
@@ -371,7 +371,7 @@ describe("AspectsService", () => {
 				expect(updateResult.isRight()).toBe(true);
 				if (updateResult.isRight()) {
 					expect(updateResult.value.properties.length).toBe(1);
-					expect(updateResult.value.properties[0].name).toBe("new_field");
+					expect(updateResult.value.properties[0].name).toBe("new-field");
 				}
 			}
 		});
@@ -489,21 +489,21 @@ describe("AspectsService", () => {
 
 			const properties: AspectProperty[] = [
 				{
-					name: "email_field",
+					name: "email-field",
 					title: "Email",
 					type: "string",
 					required: true,
 					validationRegex: "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$",
 				},
 				{
-					name: "status_field",
+					name: "status-field",
 					title: "Status",
 					type: "string",
 					validationList: ["draft", "published", "archived"],
 					defaultValue: "draft",
 				},
 				{
-					name: "tags_field",
+					name: "tags-field",
 					title: "Tags",
 					type: "array",
 					arrayType: "string",

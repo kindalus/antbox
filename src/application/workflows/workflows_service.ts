@@ -28,7 +28,7 @@ export class WorkflowsService {
 
 		const now = new Date().toISOString();
 		const workflowData: WorkflowData = {
-			uuid: data.uuid || UuidGenerator.generate(),
+			uuid: data.uuid || UuidGenerator.generateKebabCase(),
 			title: data.title || "",
 			description: data.description || "",
 			states: data.states || [],

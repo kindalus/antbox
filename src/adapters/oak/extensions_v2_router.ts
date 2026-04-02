@@ -20,8 +20,8 @@ export default function (tenants: AntboxTenant[]): Router {
 
 	// Extensions operations
 	router.get("/", adapt(listExtensionsHandler(tenants)));
-	router.get("/:uuid/-/exec", adapt(runExtensionHandler(tenants)));
-	router.post("/:uuid/-/exec", adapt(runExtensionHandler(tenants)));
+	router.get("/:uuid", adapt(runExtensionHandler(tenants)));
+	router.post("/:uuid", adapt(runExtensionHandler(tenants)));
 
 	return router;
 }

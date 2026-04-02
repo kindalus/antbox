@@ -36,6 +36,8 @@ import { NodeServiceProxy } from "../nodes/node_service_proxy.ts";
 import type { FeaturesService } from "./features_service.ts";
 import { RAGService } from "../ai/rag_service.ts";
 
+const MAX_RUNNABLE_DEPTH = 3;
+
 type RecordKey = [string, string];
 interface RunnableRecord {
 	count: number;
@@ -454,7 +456,7 @@ export class FeaturesEngine {
 
 	static #getRunnable(key: RecordKey): RunnableRecord {
 		if (!this.#runnable.has(key)) {
-			this.#runnable.set(key, { count: 1, timestamp: Date.now() });
+			this.#runnable.set(key, { count: 0, timestamp: Date.now() });
 		}
 
 		return this.#runnable.get(key)!;
@@ -463,7 +465,7 @@ export class FeaturesEngine {
 	static #incRunnable(key: RecordKey) {
 		const runnable = this.#getRunnable(key);
 		this.#runnable.set(key, {
-			count: runnable?.count ?? 0 + 1,
+			count: (runnable?.count ?? 0) + 1,
 			timestamp: Date.now(),
 		});
 	}
@@ -542,6 +544,14 @@ export class FeaturesEngine {
 		parameters: Record<string, string>,
 		hookName: "onCreate" | "onUpdate" | "onDelete",
 	): Promise<void> {
+		const current = FeaturesEngine.#getRunnable([featureUuid, "action"]);
+		if (current.count > MAX_RUNNABLE_DEPTH) {
+			Logger.warn(
+				`Skipping folder ${hookName} feature ${featureUuid}: max runnable depth (${MAX_RUNNABLE_DEPTH}) exceeded`,
+			);
+			return;
+		}
+
 		const result = await this.runAction(ctx, featureUuid, [nodeUuid], parameters);
 		if (result.isLeft()) {
 			Logger.warn(
@@ -566,6 +576,14 @@ export class FeaturesEngine {
 
 		if (!feature.exposeAction) {
 			Logger.warn(`Skipping non-action automatic feature ${feature.uuid}`);
+			return;
+		}
+
+		const current = FeaturesEngine.#getRunnable([feature.uuid, "action"]);
+		if (current.count > MAX_RUNNABLE_DEPTH) {
+			Logger.warn(
+				`Skipping automatic ${triggerName} feature ${feature.uuid}: max runnable depth (${MAX_RUNNABLE_DEPTH}) exceeded`,
+			);
 			return;
 		}
 

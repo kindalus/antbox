@@ -1,8 +1,9 @@
 import { builtinAgents } from "application/ai/builtin_agents/index.ts";
 import { RAG_AGENT_UUID } from "application/ai/builtin_agents/rag_agent.ts";
 import { ASPECT_FIELD_EXTRACTOR_AGENT_UUID } from "application/ai/builtin_agents/aspect_field_extractor_agent.ts";
+import { CODE_WRITER_AGENT_UUID } from "application/ai/builtin_agents/code_writer_agent.ts";
 
-export { ASPECT_FIELD_EXTRACTOR_AGENT_UUID, RAG_AGENT_UUID };
+export { ASPECT_FIELD_EXTRACTOR_AGENT_UUID, CODE_WRITER_AGENT_UUID, RAG_AGENT_UUID };
 
 /**
  * Built-in agents available in all tenants

@@ -7,6 +7,7 @@ import { ADMINS_GROUP_UUID } from "domain/configuration/builtin_groups.ts";
 import type { AgentData } from "domain/configuration/agent_data.ts";
 import {
 	ASPECT_FIELD_EXTRACTOR_AGENT_UUID,
+	CODE_WRITER_AGENT_UUID,
 	RAG_AGENT_UUID,
 } from "domain/configuration/builtin_agents.ts";
 
@@ -385,7 +386,7 @@ describe("AgentsService", () => {
 	});
 
 	describe("listAgents", () => {
-		it("should include all 2 system agents plus repository agents", async () => {
+		it("should include all 3 system agents plus repository agents", async () => {
 			const repo = new InMemoryConfigurationRepository();
 			const service = createAgentsService(repo);
 
@@ -404,12 +405,12 @@ describe("AgentsService", () => {
 
 			expect(result.isRight()).toBe(true);
 			if (result.isRight()) {
-				// Should include 2 repository agents + 2 system agents
-				expect(result.value.length).toBe(4);
+				// Should include 2 repository agents + 3 system agents
+				expect(result.value.length).toBe(5);
 			}
 		});
 
-		it("should include the 2 system agents when no repository agents", async () => {
+		it("should include the 3 system agents when no repository agents", async () => {
 			const repo = new InMemoryConfigurationRepository();
 			const service = createAgentsService(repo);
 
@@ -417,10 +418,11 @@ describe("AgentsService", () => {
 
 			expect(result.isRight()).toBe(true);
 			if (result.isRight()) {
-				expect(result.value.length).toBe(2);
+				expect(result.value.length).toBe(3);
 				const uuids = result.value.map((a) => a.uuid);
 				expect(uuids).toContain(RAG_AGENT_UUID);
 				expect(uuids).toContain(ASPECT_FIELD_EXTRACTOR_AGENT_UUID);
+				expect(uuids).toContain(CODE_WRITER_AGENT_UUID);
 			}
 		});
 

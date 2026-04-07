@@ -92,13 +92,13 @@ Use `start_server.sh`:
 ./start_server.sh [OPTIONS]
 ```
 
-| Option              | Description                                        |
-| ------------------- | -------------------------------------------------- |
-| `--demo`            | Demo config directory (`.config/demo/`)            |
-| `--sandbox`         | Sandbox config directory (`.config/sandbox/`)      |
+| Option                 | Description                                              |
+| ---------------------- | -------------------------------------------------------- |
+| `--demo`               | Demo config directory (`.config/demo/`)                  |
+| `--sandbox`            | Sandbox config directory (`.config/sandbox/`)            |
 | `-c, --config-dir DIR` | Custom config directory (default `$HOME/.config/antbox`) |
-| `--keys`            | Generate and print crypto keys, then exit          |
-| `-h, --help`        | Show help                                          |
+| `--keys`               | Generate and print crypto keys, then exit                |
+| `-h, --help`           | Show help                                                |
 
 Examples:
 
@@ -183,6 +183,9 @@ Optional tenant selection:
 
 - header: `X-Tenant: <tenant-name>`
 - query: `?x-tenant=<tenant-name>`
+- tenant name must match the configured tenant `name` exactly (for example `demo`, `sandbox`,
+  `production`)
+- if omitted, MCP falls back to the first configured tenant
 
 ### Common endpoint groups
 

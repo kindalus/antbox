@@ -41,6 +41,8 @@ tags:
      description: Authentication operations
    - name: metrics
      description: Operations related to tenant usage metrics and limits
+   - name: mcp
+     description: Model Context Protocol operations
    - name: nodes
      description: Operations related to nodes (files, folders, etc.)
    - name: notifications
@@ -80,6 +82,73 @@ paths:
                            timestamp:
                               type: string
                               format: date-time
+   /mcp:
+      servers:
+         - url: /
+           description: MCP endpoint is mounted outside the /v2 API base path
+      post:
+         tags:
+            - mcp
+         summary: MCP JSON-RPC endpoint
+         operationId: mcpPost
+         description: >-
+            Model Context Protocol endpoint over JSON-RPC 2.0. Requires
+            Authorization: Bearer <token> on every request, where the bearer
+            token is currently an Antbox API key secret rather than a JWT.
+            Tenant selection may be provided via X-Tenant header or
+            x-tenant query parameter. If omitted, the first configured tenant
+            is used.
+         security:
+            - mcpBearerAuth: []
+         parameters:
+            - in: header
+              name: X-Tenant
+              required: false
+              schema:
+                 type: string
+              description: Exact configured tenant name.
+            - in: query
+              name: x-tenant
+              required: false
+              schema:
+                 type: string
+              description: Exact configured tenant name. Used if X-Tenant header is absent.
+            - in: header
+              name: MCP-Protocol-Version
+              required: false
+              schema:
+                 type: string
+                 example: "2025-11-25"
+              description: Optional MCP protocol version header. If sent, it must match the server version.
+         requestBody:
+            required: true
+            content:
+               application/json:
+                  schema:
+                     type: object
+                     description: JSON-RPC 2.0 request envelope
+         responses:
+            "200":
+               description: JSON-RPC success or error response
+               content:
+                  application/json:
+                     schema:
+                        type: object
+                        description: JSON-RPC 2.0 response envelope
+            "202":
+               description: Accepted notification or client response with no body returned
+            "400":
+               description: Invalid JSON-RPC request, unsupported protocol version, or invalid tenant selection
+               content:
+                  application/json:
+                     schema:
+                        type: object
+            "401":
+               description: Missing or invalid bearer token
+               content:
+                  application/json:
+                     schema:
+                        type: object
    /metrics/storage:
       get:
          tags:
@@ -3937,6 +4006,11 @@ components:
          in: query
          name: api_key
          description: "API key in query parameter (Priority 4)"
+      mcpBearerAuth:
+         type: http
+         scheme: bearer
+         bearerFormat: API key secret
+         description: "MCP bearer token. Current implementation expects an Antbox API key secret in Authorization: Bearer <token>."
    parameters:
       UUID:
          name: uuid

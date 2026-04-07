@@ -84,9 +84,24 @@ function hasUnsupportedQueryAuth(req: Request): boolean {
 	}
 }
 
+function resolveRequestedTenantName(req: Request): string | undefined {
+	const headerTenant = req.headers.get("x-tenant")?.trim();
+	if (headerTenant) {
+		return headerTenant;
+	}
+
+	try {
+		const url = new URL(req.url);
+		const queryTenant = url.searchParams.get("x-tenant")?.trim();
+		return queryTenant && queryTenant.length > 0 ? queryTenant : undefined;
+	} catch {
+		return undefined;
+	}
+}
+
 function resolveTenant(req: Request, tenants: AntboxTenant[]): AntboxTenant | undefined {
-	const requestedTenant = req.headers.get("x-tenant")?.trim();
-	if (!requestedTenant) {
+	const requestedTenant = resolveRequestedTenantName(req);
+	if (!requestedTenant || requestedTenant === "default") {
 		return tenants[0];
 	}
 
@@ -145,7 +160,7 @@ function ensureProtocolVersion(req: Request): Response | undefined {
  * Authentication profile:
  * - only `Authorization: Bearer <access_token>`
  * - bearer token is validated as an API key secret
- * - `X-Tenant` is optional (defaults to first tenant)
+ * - `X-Tenant` header or `?x-tenant=` query is optional (defaults to first tenant)
  */
 export function mcpHttpHandler(
 	tenants: AntboxTenant[],
@@ -169,7 +184,7 @@ export function mcpHttpHandler(
 				createJsonRpcErrorResponse(
 					null,
 					JSON_RPC_ERROR.INVALID_REQUEST,
-					"Invalid X-Tenant header",
+					"Invalid tenant selection. Use X-Tenant header or x-tenant query parameter with the exact configured tenant name.",
 				),
 			);
 		}

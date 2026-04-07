@@ -119,6 +119,28 @@ describe("mcp_http_handler", () => {
 		expect(payload.result.protocolVersion).toBe(MCP_PROTOCOL_VERSION);
 	});
 
+	it("accepts tenant selection via x-tenant query parameter", async () => {
+		const fixture = await createFixture();
+
+		const response = await fixture.handler(
+			new Request("http://localhost:7180/mcp?x-tenant=default", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					Authorization: `Bearer ${fixture.validToken}`,
+				},
+				body: JSON.stringify({
+					jsonrpc: "2.0",
+					id: 1,
+					method: "initialize",
+					params: { protocolVersion: MCP_PROTOCOL_VERSION },
+				}),
+			}),
+		);
+
+		expect(response.status).toBe(200);
+	});
+
 	it("rejects unknown X-Tenant header", async () => {
 		const fixture = await createFixture();
 
@@ -133,6 +155,8 @@ describe("mcp_http_handler", () => {
 		);
 
 		expect(response.status).toBe(400);
+		const payload = await response.json() as { error: { message: string } };
+		expect(payload.error.message).toContain("Invalid tenant selection");
 	});
 
 	it("returns 202 for notifications", async () => {

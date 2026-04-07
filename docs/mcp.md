@@ -17,7 +17,10 @@ Antbox exposes a Model Context Protocol (MCP) endpoint over HTTP using JSON-RPC 
 - This header must be sent on every MCP HTTP request
 - The bearer token is currently an Antbox API key secret
 - Cookie auth and query auth are not accepted on this endpoint
-- Tenant selection uses optional `X-Tenant: <tenant-name>`
+- Tenant selection uses optional `X-Tenant: <tenant-name>` or `?x-tenant=<tenant-name>`
+- Tenant name must match the configured tenant `name` exactly (for example `demo`, `sandbox`,
+  `production`)
+- If omitted, MCP falls back to the first configured tenant
 
 Current scope note:
 

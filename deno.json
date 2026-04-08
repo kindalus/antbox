@@ -1,4 +1,7 @@
 {
+	"name": "antbox",
+	"version": "2.0.0",
+	"exports": "./main.ts",
 	"imports": {
 		"adapters/": "./src/adapters/",
 		"api/": "./src/api/",

@@ -8,6 +8,7 @@ import process from "node:process";
 import { loadConfiguration } from "setup/load_configuration.ts";
 import { startPathCacheCleanup } from "integration/webdav/webdav_path_cache.ts";
 import { Logger } from "shared/logger.ts";
+import { APP_VERSION } from "shared/app_metadata.ts";
 
 interface CommandOpts {
 	configDir?: string;
@@ -120,7 +121,7 @@ async function startServer(config: ServerConfiguration, configDir?: string) {
 		const baseUrl = `http://${effectiveHostname}:${effectivePort}`;
 
 		console.log(
-			`Antbox Server (${config.engine}) started successfully on ${baseUrl}`,
+			`Antbox Server v${APP_VERSION} (${config.engine}) started successfully on ${baseUrl}`,
 		);
 		console.log(`- ${baseUrl}/v2 for REST API`);
 		console.log(`- ${baseUrl}/mcp for MCP`);

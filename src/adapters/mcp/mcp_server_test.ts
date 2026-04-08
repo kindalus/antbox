@@ -8,6 +8,7 @@ import { NodeService } from "application/nodes/node_service.ts";
 import type { AuthenticationContext } from "application/security/authentication_context.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import { Groups } from "domain/users_groups/groups.ts";
+import { APP_NAME, APP_VERSION } from "shared/app_metadata.ts";
 import { MCP_PROTOCOL_VERSION, type McpRequestContext, processMcpRequest } from "./mcp_server.ts";
 
 async function createFixture() {
@@ -46,6 +47,28 @@ async function createFixture() {
 		{
 			uuid: "public-file",
 			parent: "public-folder",
+		},
+	);
+
+	await nodeService.create(adminAuthContext, {
+		uuid: "anonymous-folder",
+		title: "Anonymous Folder",
+		mimetype: Nodes.FOLDER_MIMETYPE,
+		parent: Nodes.ROOT_FOLDER_UUID,
+		permissions: {
+			group: ["Read", "Write", "Export"],
+			authenticated: ["Read"],
+			anonymous: ["Read"],
+			advanced: {},
+		},
+	});
+
+	await nodeService.createFile(
+		adminAuthContext,
+		new File(["hello anonymous"], "anonymous.txt", { type: "text/plain" }),
+		{
+			uuid: "anonymous-file",
+			parent: "anonymous-folder",
 		},
 	);
 
@@ -91,6 +114,15 @@ async function createFixture() {
 		},
 	};
 
+	const anonymousAuthContext: AuthenticationContext = {
+		tenant: "default",
+		mode: "Direct",
+		principal: {
+			email: "anonymous@antbox.io",
+			groups: [],
+		},
+	};
+
 	const base = {
 		tenant: "default",
 		nodeService,
@@ -100,10 +132,17 @@ async function createFixture() {
 		memberContext: {
 			...base,
 			authContext: memberAuthContext,
+			toolsEnabled: true,
 		} satisfies McpRequestContext,
 		outsiderContext: {
 			...base,
 			authContext: outsiderAuthContext,
+			toolsEnabled: true,
+		} satisfies McpRequestContext,
+		anonymousContext: {
+			...base,
+			authContext: anonymousAuthContext,
+			toolsEnabled: false,
 		} satisfies McpRequestContext,
 	};
 }
@@ -123,9 +162,34 @@ describe("mcp_server", () => {
 		);
 
 		expect(response?.error).toBeUndefined();
-		expect((response?.result as { protocolVersion: string }).protocolVersion).toBe(
-			MCP_PROTOCOL_VERSION,
+		const result = response?.result as {
+			protocolVersion: string;
+			serverInfo: { name: string; version: string };
+		};
+		expect(result.protocolVersion).toBe(MCP_PROTOCOL_VERSION);
+		expect(result.serverInfo.name).toBe(APP_NAME);
+		expect(result.serverInfo.version).toBe(APP_VERSION);
+	});
+
+	it("omits tools capability during anonymous initialize", async () => {
+		const fixture = await createFixture();
+
+		const response = await processMcpRequest(
+			{
+				jsonrpc: "2.0",
+				id: 10,
+				method: "initialize",
+				params: { protocolVersion: MCP_PROTOCOL_VERSION },
+			},
+			fixture.anonymousContext,
 		);
+
+		expect(response?.error).toBeUndefined();
+		const result = response?.result as {
+			capabilities: { tools?: unknown; resources: unknown };
+		};
+		expect(result.capabilities.resources).toBeDefined();
+		expect(result.capabilities.tools).toBeUndefined();
 	});
 
 	it("lists available MCP tools", async () => {
@@ -234,6 +298,44 @@ describe("mcp_server", () => {
 		expect(toolResult.structuredContent?.nodes[0].uuid).toBe("public-file");
 	});
 
+	it("rejects tools/list anonymously", async () => {
+		const fixture = await createFixture();
+
+		const response = await processMcpRequest(
+			{
+				jsonrpc: "2.0",
+				id: 11,
+				method: "tools/list",
+			},
+			fixture.anonymousContext,
+		);
+
+		expect(response?.error?.code).toBe(-32601);
+		expect(response?.error?.message).toBe("Method not found: tools/list");
+	});
+
+	it("rejects tools/call anonymously", async () => {
+		const fixture = await createFixture();
+
+		const response = await processMcpRequest(
+			{
+				jsonrpc: "2.0",
+				id: 12,
+				method: "tools/call",
+				params: {
+					name: "nodes.list",
+					arguments: {
+						parent: "anonymous-folder",
+					},
+				},
+			},
+			fixture.anonymousContext,
+		);
+
+		expect(response?.error?.code).toBe(-32601);
+		expect(response?.error?.message).toBe("Method not found: tools/call");
+	});
+
 	it("lists curated documentation resources only", async () => {
 		const fixture = await createFixture();
 
@@ -262,7 +364,28 @@ describe("mcp_server", () => {
 		]);
 	});
 
-	it("reads allowlisted documentation resource without frontmatter", async () => {
+	it("reads anonymous node resource when permissions allow it", async () => {
+		const fixture = await createFixture();
+
+		const response = await processMcpRequest(
+			{
+				jsonrpc: "2.0",
+				id: 42,
+				method: "resources/read",
+				params: { uri: "antbox://nodes/anonymous-file" },
+			},
+			fixture.anonymousContext,
+		);
+
+		expect(response?.error).toBeUndefined();
+		const contents = (response?.result as {
+			contents: Array<{ text: string }>;
+		}).contents;
+		expect(contents).toHaveLength(1);
+		expect(contents[0].text).toContain("anonymous-file");
+	});
+
+	it("reads node resources for authenticated clients", async () => {
 		const fixture = await createFixture();
 
 		const response = await processMcpRequest(
@@ -270,7 +393,7 @@ describe("mcp_server", () => {
 				jsonrpc: "2.0",
 				id: 4,
 				method: "resources/read",
-				params: { uri: "antbox://docs/llms" },
+				params: { uri: "antbox://nodes/anonymous-file" },
 			},
 			fixture.memberContext,
 		);
@@ -282,8 +405,7 @@ describe("mcp_server", () => {
 		}).contents;
 
 		expect(contents).toHaveLength(1);
-		expect(contents[0].text.startsWith("---")).toBe(false);
-		expect(contents[0].text.length > 0).toBeTruthy();
+		expect(contents[0].text).toContain("anonymous-file");
 	});
 
 	it("rejects non-allowlisted documentation resource", async () => {

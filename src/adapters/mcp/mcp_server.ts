@@ -3,6 +3,7 @@ import type { NodeService } from "application/nodes/node_service.ts";
 import type { AuthenticationContext } from "application/security/authentication_context.ts";
 import { ForbiddenError, UnauthorizedError } from "shared/antbox_error.ts";
 import { Logger } from "shared/logger.ts";
+import { APP_NAME, APP_VERSION } from "shared/app_metadata.ts";
 import { ValidationError } from "shared/validation_error.ts";
 import { z } from "zod";
 
@@ -150,6 +151,7 @@ interface McpResourceTemplate {
 export interface McpRequestContext {
 	tenant: string;
 	authContext: AuthenticationContext;
+	toolsEnabled: boolean;
 	nodeService: NodeService;
 }
 
@@ -558,20 +560,25 @@ export async function processMcpRequest(
 				return createJsonRpcResultResponse(requestId, {
 					protocolVersion: MCP_PROTOCOL_VERSION,
 					capabilities: {
-						tools: {
-							listChanged: false,
-						},
+						...(context.toolsEnabled
+							? {
+								tools: {
+									listChanged: false,
+								},
+							}
+							: {}),
 						resources: {
 							listChanged: false,
 							subscribe: false,
 						},
 					},
 					serverInfo: {
-						name: "antbox",
-						version: "0.1.0",
+						name: APP_NAME,
+						version: APP_VERSION,
 					},
-					instructions:
-						"Use Authorization: Bearer <access_token> on every request. X-Tenant is optional.",
+					instructions: context.toolsEnabled
+						? "Use Authorization: Bearer <access_token> on every request for tools and resources. X-Tenant is optional."
+						: "Authorization: Bearer <access_token> is optional. Without it, MCP exposes resources only and does not expose tools. X-Tenant is optional.",
 				});
 			}
 
@@ -582,6 +589,15 @@ export async function processMcpRequest(
 				return createJsonRpcResultResponse(requestId, {});
 
 			case "tools/list":
+				if (!context.toolsEnabled) {
+					status = "method_not_found";
+					return createJsonRpcErrorResponse(
+						requestId,
+						JSON_RPC_ERROR.METHOD_NOT_FOUND,
+						"Method not found: tools/list",
+					);
+				}
+
 				return createJsonRpcResultResponse(requestId, {
 					tools: mcpTools.map((tool) => ({
 						name: tool.name,
@@ -591,6 +607,14 @@ export async function processMcpRequest(
 				});
 
 			case "tools/call": {
+				if (!context.toolsEnabled) {
+					status = "method_not_found";
+					return createJsonRpcErrorResponse(
+						requestId,
+						JSON_RPC_ERROR.METHOD_NOT_FOUND,
+						"Method not found: tools/call",
+					);
+				}
 				const params = toolsCallParamsSchema.safeParse(request.params ?? {});
 				if (!params.success) {
 					return createJsonRpcErrorResponse(

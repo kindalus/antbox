@@ -25,8 +25,9 @@ import adminRouter from "adapters/oak/admin_v2_router.ts";
 import metricsRouter from "adapters/oak/metrics_router.ts";
 
 import type { AntboxTenant } from "api/antbox_tenant.ts";
-import { Application, Router } from "@oak/oak";
+import { Application, type Context, Router } from "@oak/oak";
 import type { HttpServerOpts, startHttpServer } from "api/http_server.ts";
+import { setServerHeader } from "shared/app_metadata.ts";
 
 /**
  * Creates the Oak HTTP server for a set of tenants.
@@ -40,12 +41,22 @@ import type { HttpServerOpts, startHttpServer } from "api/http_server.ts";
  * const startServer = setupOakServer(tenants);
  * await startServer({ port: 7180 });
  */
+export async function serverHeaderMiddleware(
+	ctx: Pick<Context, "response">,
+	next: () => Promise<unknown>,
+): Promise<void> {
+	await next();
+	setServerHeader(ctx.response.headers);
+}
+
 export default function setupOakServer(
 	tenants: AntboxTenant[],
 	reload: () => Promise<void>,
 	configDir?: string,
 ): startHttpServer {
 	const app = new Application();
+
+	app.use(serverHeaderMiddleware);
 
 	const specPath = join(Deno.cwd(), "openapi.yaml");
 	const specRouter = new Router();

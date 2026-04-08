@@ -13,9 +13,11 @@ Antbox exposes a Model Context Protocol (MCP) endpoint over HTTP using JSON-RPC 
 
 ## Authentication and tenant routing
 
-- MCP requires bearer auth in header: `Authorization: Bearer <token>`
-- This header must be sent on every MCP HTTP request
-- The bearer token is currently an Antbox API key secret
+- MCP accepts optional bearer auth in header: `Authorization: Bearer <token>`
+- When a bearer token is present and valid, MCP exposes both tools and resources
+- When a bearer token is present but invalid, the request is rejected
+- When no bearer token is present, MCP runs in anonymous resource-only mode
+- In anonymous mode, resources remain available but tools are not exposed
 - Cookie auth and query auth are not accepted on this endpoint
 - Tenant selection uses optional `X-Tenant: <tenant-name>` or `?x-tenant=<tenant-name>`
 - Tenant name must match the configured tenant `name` exactly (for example `demo`, `sandbox`,
@@ -28,14 +30,19 @@ Current scope note:
 
 ## Supported MCP methods
 
+Always available:
+
 - `initialize`
 - `notifications/initialized`
 - `ping`
-- `tools/list`
-- `tools/call`
 - `resources/list`
 - `resources/templates/list`
 - `resources/read`
+
+Available only with a valid bearer token:
+
+- `tools/list`
+- `tools/call`
 
 ## Tool catalog (initial)
 
@@ -60,6 +67,8 @@ Resource template:
 - `antbox://nodes/{uuid}` - node metadata by UUID/FID
 
 ## Example flow
+
+Authenticated flow:
 
 ```bash
 BASE_URL="http://localhost:7180"

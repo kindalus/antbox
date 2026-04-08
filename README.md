@@ -175,9 +175,10 @@ Full contract: `openapi.yaml`
 | API key header | `Authorization: ApiKey <secret>` |
 | API key query  | `?api_key=<secret>`              |
 
-MCP endpoint (`/mcp`) requires `Authorization: Bearer <token>` on every request. Current
-implementation treats this bearer token as an API key secret. OAuth discovery/challenge flow for MCP
-is not implemented yet.
+MCP endpoint (`/mcp`) accepts optional `Authorization: Bearer <token>`. Current implementation uses
+this bearer token as an API key secret. A valid bearer token exposes tools and resources; an invalid
+bearer token is rejected; no bearer token exposes resources only. OAuth discovery/challenge flow for
+MCP is not implemented yet.
 
 Optional tenant selection:
 

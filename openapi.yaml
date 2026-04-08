@@ -92,13 +92,16 @@ paths:
          summary: MCP JSON-RPC endpoint
          operationId: mcpPost
          description: >-
-            Model Context Protocol endpoint over JSON-RPC 2.0. Requires
-            Authorization: Bearer <token> on every request, where the bearer
-            token is currently an Antbox API key secret rather than a JWT.
-            Tenant selection may be provided via X-Tenant header or
-            x-tenant query parameter. If omitted, the first configured tenant
-            is used.
+            Model Context Protocol endpoint over JSON-RPC 2.0. Authorization:
+            Bearer <token> is optional. When present and valid, the bearer
+            token is treated as an Antbox API key secret and MCP exposes both
+            tools and resources. When present but invalid, the request is
+            rejected. When absent, MCP exposes resources only and does not
+            expose tools. Tenant selection may be provided via X-Tenant header
+            or x-tenant query parameter. If omitted, the first configured
+            tenant is used.
          security:
+            - {}
             - mcpBearerAuth: []
          parameters:
             - in: header

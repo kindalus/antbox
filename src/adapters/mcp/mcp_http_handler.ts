@@ -119,6 +119,17 @@ function buildApiKeyAuthContext(tenantName: string, group: string): Authenticati
 	};
 }
 
+function buildAnonymousAuthContext(tenantName: string): AuthenticationContext {
+	return {
+		tenant: tenantName,
+		mode: "Direct",
+		principal: {
+			email: Users.ANONYMOUS_USER_EMAIL,
+			groups: [],
+		},
+	};
+}
+
 function buildJsonResponse(status: number, body: unknown): Response {
 	return new Response(JSON.stringify(body), {
 		status,
@@ -158,8 +169,9 @@ function ensureProtocolVersion(req: Request): Response | undefined {
  * Processes one HTTP request for the `/mcp` endpoint.
  *
  * Authentication profile:
- * - only `Authorization: Bearer <access_token>`
- * - bearer token is validated as an API key secret
+ * - `Authorization: Bearer <access_token>` enables full MCP access when valid
+ * - invalid bearer tokens are rejected
+ * - requests without a bearer token run in anonymous resource-only mode
  * - `X-Tenant` header or `?x-tenant=` query is optional (defaults to first tenant)
  */
 export function mcpHttpHandler(
@@ -190,27 +202,24 @@ export function mcpHttpHandler(
 		}
 
 		const token = extractBearerToken(req);
-		if (!token) {
-			return buildJsonResponse(
-				401,
-				createJsonRpcErrorResponse(
-					null,
-					JSON_RPC_ERROR.UNAUTHORIZED,
-					"MCP requires Authorization: Bearer <access_token>",
-				),
-			);
-		}
+		let authContext = buildAnonymousAuthContext(tenant.name);
+		let toolsEnabled = false;
 
-		const apiKeyOrErr = await tenant.apiKeysService.getApiKeyBySecret(token);
-		if (apiKeyOrErr.isLeft()) {
-			return buildJsonResponse(
-				401,
-				createJsonRpcErrorResponse(
-					null,
-					JSON_RPC_ERROR.UNAUTHORIZED,
-					"Invalid access token",
-				),
-			);
+		if (token) {
+			const apiKeyOrErr = await tenant.apiKeysService.getApiKeyBySecret(token);
+			if (apiKeyOrErr.isLeft()) {
+				return buildJsonResponse(
+					401,
+					createJsonRpcErrorResponse(
+						null,
+						JSON_RPC_ERROR.UNAUTHORIZED,
+						"Invalid access token",
+					),
+				);
+			}
+
+			authContext = buildApiKeyAuthContext(tenant.name, apiKeyOrErr.value.group);
+			toolsEnabled = true;
 		}
 
 		let payload: unknown;
@@ -242,10 +251,10 @@ export function mcpHttpHandler(
 			return buildNoContentAcceptedResponse();
 		}
 
-		const authContext = buildApiKeyAuthContext(tenant.name, apiKeyOrErr.value.group);
 		const response = await processMcpRequest(payload, {
 			tenant: tenant.name,
 			authContext,
+			toolsEnabled,
 			nodeService: tenant.nodeService,
 		});
 

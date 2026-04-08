@@ -7,6 +7,7 @@ import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider.t
 import { NodeService } from "application/nodes/node_service.ts";
 import { ApiKeysService } from "application/security/api_keys_service.ts";
 import type { AuthenticationContext } from "application/security/authentication_context.ts";
+import { Nodes } from "domain/nodes/nodes.ts";
 import { Groups } from "domain/users_groups/groups.ts";
 import type { AntboxTenant } from "api/antbox_tenant.ts";
 import { MCP_PROTOCOL_VERSION } from "./mcp_server.ts";
@@ -35,6 +36,28 @@ async function createFixture(): Promise<Fixture> {
 			groups: [Groups.ADMINS_GROUP_UUID],
 		},
 	};
+
+	await nodeService.create(adminContext, {
+		uuid: "anonymous-folder",
+		title: "Anonymous Folder",
+		mimetype: Nodes.FOLDER_MIMETYPE,
+		parent: Nodes.ROOT_FOLDER_UUID,
+		permissions: {
+			group: ["Read", "Write", "Export"],
+			authenticated: ["Read"],
+			anonymous: ["Read"],
+			advanced: {},
+		},
+	});
+
+	await nodeService.createFile(
+		adminContext,
+		new File(["hello anonymous"], "anonymous.txt", { type: "text/plain" }),
+		{
+			uuid: "anonymous-file",
+			parent: "anonymous-folder",
+		},
+	);
 
 	const createdApiKey = await apiKeysService.createApiKey(adminContext, {
 		title: "mcp token",
@@ -71,14 +94,26 @@ function createRequest(payload: unknown, headers: HeadersInit = {}): Request {
 }
 
 describe("mcp_http_handler", () => {
-	it("requires Bearer authorization header", async () => {
+	it("allows anonymous initialize in resource-only mode", async () => {
 		const fixture = await createFixture();
 
 		const response = await fixture.handler(
 			createRequest({ jsonrpc: "2.0", id: 1, method: "initialize" }),
 		);
 
-		expect(response.status).toBe(401);
+		expect(response.status).toBe(200);
+		const payload = await response.json() as {
+			result: {
+				protocolVersion: string;
+				capabilities: {
+					tools?: unknown;
+					resources: unknown;
+				};
+			};
+		};
+		expect(payload.result.protocolVersion).toBe(MCP_PROTOCOL_VERSION);
+		expect(payload.result.capabilities.resources).toBeDefined();
+		expect(payload.result.capabilities.tools).toBeUndefined();
 	});
 
 	it("rejects unsupported auth query parameter", async () => {
@@ -94,6 +129,19 @@ describe("mcp_http_handler", () => {
 		});
 
 		const response = await fixture.handler(req);
+		expect(response.status).toBe(401);
+	});
+
+	it("rejects invalid Bearer API key", async () => {
+		const fixture = await createFixture();
+
+		const response = await fixture.handler(
+			createRequest(
+				{ jsonrpc: "2.0", id: 1, method: "initialize" },
+				{ Authorization: "Bearer invalid-token" },
+			),
+		);
+
 		expect(response.status).toBe(401);
 	});
 
@@ -157,6 +205,84 @@ describe("mcp_http_handler", () => {
 		expect(response.status).toBe(400);
 		const payload = await response.json() as { error: { message: string } };
 		expect(payload.error.message).toContain("Invalid tenant selection");
+	});
+
+	it("allows anonymous resources/list", async () => {
+		const fixture = await createFixture();
+
+		const response = await fixture.handler(
+			createRequest({ jsonrpc: "2.0", id: 20, method: "resources/list" }),
+		);
+
+		expect(response.status).toBe(200);
+		const payload = await response.json() as { result: { resources: unknown[] } };
+		expect(payload.result.resources.length > 0).toBe(true);
+	});
+
+	it("allows anonymous resources/templates/list", async () => {
+		const fixture = await createFixture();
+
+		const response = await fixture.handler(
+			createRequest({ jsonrpc: "2.0", id: 21, method: "resources/templates/list" }),
+		);
+
+		expect(response.status).toBe(200);
+		const payload = await response.json() as { result: { resourceTemplates: unknown[] } };
+		expect(payload.result.resourceTemplates.length > 0).toBe(true);
+	});
+
+	it("allows anonymous node resources/read when permissions allow it", async () => {
+		const fixture = await createFixture();
+
+		const response = await fixture.handler(
+			createRequest(
+				{
+					jsonrpc: "2.0",
+					id: 22,
+					method: "resources/read",
+					params: { uri: "antbox://nodes/anonymous-file" },
+				},
+			),
+		);
+
+		expect(response.status).toBe(200);
+		const payload = await response.json() as {
+			result: { contents: Array<{ text: string }> };
+		};
+		expect(payload.result.contents[0].text).toContain("anonymous-file");
+	});
+
+	it("does not expose tools/list anonymously", async () => {
+		const fixture = await createFixture();
+
+		const response = await fixture.handler(
+			createRequest({ jsonrpc: "2.0", id: 23, method: "tools/list" }),
+		);
+
+		expect(response.status).toBe(200);
+		const payload = await response.json() as { error: { code: number; message: string } };
+		expect(payload.error.code).toBe(-32601);
+		expect(payload.error.message).toBe("Method not found: tools/list");
+	});
+
+	it("does not expose tools/call anonymously", async () => {
+		const fixture = await createFixture();
+
+		const response = await fixture.handler(
+			createRequest(
+				{
+					jsonrpc: "2.0",
+					id: 24,
+					method: "tools/call",
+					params: { name: "nodes.list", arguments: {} },
+				},
+			),
+		);
+
+		expect(response.status).toBe(200);
+		const payload = await response.json() as { error: { code: number; message: string } };
+		expect(payload.error.code).toBe(-32601);
+		expect(payload.error.message).toBe("Method not found: tools/call");
 	});
 
 	it("returns 202 for notifications", async () => {

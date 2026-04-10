@@ -2,11 +2,11 @@ import { defaultMiddlewareChain } from "./default_middleware_chain.ts";
 import { getAuthenticationContext } from "./get_authentication_context.ts";
 import {
 	type HttpHandler,
+	sendBadRequest,
 	sendForbidden,
 	sendInternalServerError,
 	sendNotFound,
 	sendOK,
-	sendUnprocessableEntity,
 } from "./handler.ts";
 import type { AntboxTenant } from "./antbox_tenant.ts";
 import { getTenant } from "./get_tenant.ts";
@@ -88,14 +88,34 @@ export function adminTenantsUpdateHandler(
 			return sendForbidden();
 		}
 
-		const body = await req.json();
+		let body: unknown;
+		try {
+			body = await req.json();
+		} catch (_error) {
+			return sendBadRequest({ error: "Invalid JSON body" });
+		}
 
 		const validation = TenantsConfigurationSchema.safeParse(body);
 		if (!validation.success) {
-			return sendUnprocessableEntity({ errors: validation.error.flatten() });
+			return sendBadRequest({ errors: validation.error.flatten() });
 		}
 
 		const oldConfig = await loadConfiguration(configDir);
+		for (const tenant of validation.data) {
+			const effectiveKey = tenant.key ?? oldConfig.key;
+			if (!effectiveKey?.trim()) {
+				return sendBadRequest({
+					error: `Tenant ${tenant.name}: symmetric key path is required`,
+				});
+			}
+
+			const effectiveJwks = tenant.jwks ?? oldConfig.jwks;
+			if (!effectiveJwks?.trim()) {
+				return sendBadRequest({
+					error: `Tenant ${tenant.name}: JWKS path is required`,
+				});
+			}
+		}
 
 		await saveTenantConfiguration(configDir, validation.data);
 

@@ -26,11 +26,13 @@ export const AIConfigurationSchema = z.object({
 	skillsPath: z.string().optional(),
 });
 
+const OptionalNonEmptyStringSchema = z.string().trim().min(1).optional();
+
 export const TenantConfigurationSchema = z.object({
 	name: z.string().min(1),
 	rootPasswd: z.string().optional(),
-	key: z.string().optional(),
-	jwks: z.string().optional(),
+	key: OptionalNonEmptyStringSchema,
+	jwks: OptionalNonEmptyStringSchema,
 	storage: ModuleConfigurationSchema,
 	repository: ModuleConfigurationSchema,
 	configurationRepository: ModuleConfigurationSchema,

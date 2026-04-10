@@ -100,4 +100,22 @@ describe("TenantConfigurationSchema", () => {
 
 		expect(result.success).toBe(false);
 	});
+
+	it("rejects empty symmetric key paths", () => {
+		const result = TenantConfigurationSchema.safeParse({
+			...makeTenantConfig(),
+			key: "",
+		});
+
+		expect(result.success).toBe(false);
+	});
+
+	it("rejects empty jwks paths", () => {
+		const result = TenantConfigurationSchema.safeParse({
+			...makeTenantConfig(),
+			jwks: "",
+		});
+
+		expect(result.success).toBe(false);
+	});
 });

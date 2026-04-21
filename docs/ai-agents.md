@@ -108,6 +108,10 @@ agent capabilities. Built-in/system agent UUIDs cannot be replaced.
 }
 ```
 
+Chat history can include intermediate tool interaction turns. Antbox now preserves and replays model
+tool calls and tool responses across `/chat` requests so the next request can continue with that
+context.
+
 `POST /v2/agents/{uuid}/-/answer`
 
 ```json
@@ -132,3 +136,28 @@ Current built-in function tools include:
 
 Feature-backed AI tools are also available when configured for the tenant and included in the
 agent's `tools` allow-list. `load_skill` is always available for agents.
+
+## Debugging agent runs
+
+Antbox can emit detailed debug traces for ADK-based agent runs through environment variables.
+
+### Environment variables
+
+- `ANTBOX_AGENT_DEBUG_TRACE`
+  - enables agent-run debug tracing when set to `1`, `true`, `yes`, or `on`
+  - logs the effective agent instruction, selected tools, important ADK events, tool calls, tool
+    responses, finish reasons, error codes/messages, and final text summary
+- `ANTBOX_LOG_LEVEL`
+  - controls log verbosity globally
+  - valid values: `trace`, `debug`, `info`, `warn`, `error`, `fatal`
+  - agent debug traces require this to allow debug output, typically `debug` or `trace`
+
+### Example
+
+```bash
+ANTBOX_AGENT_DEBUG_TRACE=1 ANTBOX_LOG_LEVEL=debug ./start_server.sh --demo
+```
+
+If `config.toml` sets `logLevel`, Antbox uses that value when `ANTBOX_LOG_LEVEL` is not already set
+in the environment. Setting `ANTBOX_LOG_LEVEL` explicitly overrides the config-derived value for the
+current process.

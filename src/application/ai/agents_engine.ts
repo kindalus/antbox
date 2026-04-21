@@ -1,10 +1,14 @@
 import {
 	type BaseAgent,
 	createEvent,
+	type Event,
 	FunctionTool,
+	getFunctionCalls,
+	getFunctionResponses,
 	InMemoryRunner,
 	isFinalResponse,
 	LlmAgent,
+	stringifyContent,
 } from "@google/adk";
 import type { RunConfig } from "@google/adk";
 import { z } from "zod";
@@ -13,7 +17,12 @@ import { AntboxError, AntboxError as AntboxErrorClass } from "shared/antbox_erro
 import { Logger } from "shared/logger.ts";
 import type { AuthenticationContext } from "../security/authentication_context.ts";
 import type { AgentData } from "domain/configuration/agent_data.ts";
-import type { ChatHistory, ChatMessage, TokenUsage } from "domain/ai/chat_message.ts";
+import type {
+	ChatHistory,
+	ChatMessage,
+	ChatMessagePart,
+	TokenUsage,
+} from "domain/ai/chat_message.ts";
 import { AgentInteractionCompletedEvent } from "domain/ai/agent_interaction_completed_event.ts";
 import type { EventBus } from "shared/event_bus.ts";
 import { type AgentsService, resolveAgentSystemPrompt } from "./agents_service.ts";
@@ -77,6 +86,7 @@ export interface ToolSelectionEntry {
 }
 
 const DEFAULT_AGENT_TOOL_NAME = "load_skill";
+const AGENT_DEBUG_TRACE_ENV = "ANTBOX_AGENT_DEBUG_TRACE";
 const NODE_FILTER_OPERATORS = [
 	"==",
 	"<=",
@@ -117,6 +127,224 @@ function toSnakeCase(value: string): string {
 
 function matchesToolName(tool: ToolSelectionEntry, candidate: string): boolean {
 	return tool.name === candidate || tool.allowlistNames?.includes(candidate) === true;
+}
+
+function safeStringify(value: unknown): string {
+	if (typeof value === "string") {
+		return value;
+	}
+
+	try {
+		return JSON.stringify(value);
+	} catch {
+		return String(value);
+	}
+}
+
+function truncateDebugText(value: string, maxLength = 500): string {
+	if (value.length <= maxLength) {
+		return value;
+	}
+
+	return `${value.slice(0, maxLength)}…`;
+}
+
+function isAgentDebugTraceEnabled(): boolean {
+	const value = Deno.env.get(AGENT_DEBUG_TRACE_ENV)?.trim().toLowerCase();
+	return value === "1" || value === "true" || value === "yes" || value === "on";
+}
+
+function usageMetadataToTokenUsage(
+	usageMetadata?: {
+		promptTokenCount?: number | null;
+		candidatesTokenCount?: number | null;
+		totalTokenCount?: number | null;
+	},
+): TokenUsage | undefined {
+	if (!usageMetadata) {
+		return undefined;
+	}
+
+	return {
+		promptTokens: usageMetadata.promptTokenCount ?? 0,
+		completionTokens: usageMetadata.candidatesTokenCount ?? 0,
+		totalTokens: usageMetadata.totalTokenCount ?? 0,
+	};
+}
+
+export function normalizeToolResult<T>(value: T): T | { results: T } {
+	return Array.isArray(value) ? { results: value } : value;
+}
+
+export function buildAgentDebugRunTrace(
+	params: {
+		agentUuid: string;
+		agentName: string;
+		model: string;
+		instruction: string;
+		toolNames: string[];
+		interactionType: "chat" | "answer";
+		userText: string;
+		additionalInstructions?: string;
+	},
+): Record<string, unknown> {
+	return {
+		type: "agent_run_start",
+		agentUuid: params.agentUuid,
+		agentName: params.agentName,
+		model: params.model,
+		interactionType: params.interactionType,
+		toolNames: params.toolNames,
+		userText: params.userText,
+		additionalInstructions: params.additionalInstructions,
+		instructionLength: params.instruction.length,
+		instruction: params.instruction,
+	};
+}
+
+export function summarizeAgentDebugEvent(event: Event): Record<string, unknown> {
+	const text = stringifyContent(event).trim();
+	const functionCalls = getFunctionCalls(event).map((call) => ({
+		id: call.id,
+		name: call.name,
+		argsKeys: Object.keys((call.args ?? {}) as Record<string, unknown>),
+		argsPreview: truncateDebugText(safeStringify(call.args ?? {}), 300),
+	}));
+	const functionResponses = getFunctionResponses(event).map((response) => {
+		const responseText = safeStringify(response.response);
+		return {
+			id: response.id,
+			name: response.name,
+			responseLength: responseText.length,
+			responsePreview: truncateDebugText(responseText, 300),
+		};
+	});
+
+	return {
+		type: "agent_run_event",
+		id: event.id,
+		invocationId: event.invocationId,
+		author: event.author,
+		branch: event.branch,
+		timestamp: event.timestamp,
+		contentRole: event.content?.role,
+		isFinalResponse: isFinalResponse(event),
+		finishReason: event.finishReason ? String(event.finishReason) : undefined,
+		errorCode: event.errorCode,
+		errorMessage: event.errorMessage,
+		textLength: text.length,
+		textPreview: truncateDebugText(text, 300),
+		toolCallCount: functionCalls.length,
+		toolCalls: functionCalls,
+		toolResponseCount: functionResponses.length,
+		toolResponses: functionResponses,
+		usage: usageMetadataToTokenUsage(event.usageMetadata),
+	};
+}
+
+function shouldTraceAgentDebugEvent(event: Event): boolean {
+	return isFinalResponse(event) ||
+		getFunctionCalls(event).length > 0 ||
+		getFunctionResponses(event).length > 0 ||
+		event.errorCode !== undefined ||
+		event.errorMessage !== undefined;
+}
+
+export function eventToChatMessages(
+	event: Event,
+	options: { includeText?: boolean } = {},
+): ChatMessage[] {
+	const messages: ChatMessage[] = [];
+	const modelParts: ChatMessagePart[] = [];
+	const toolParts: ChatMessagePart[] = [];
+	const userParts: ChatMessagePart[] = [];
+
+	for (const functionCall of getFunctionCalls(event)) {
+		if (!functionCall.name) {
+			continue;
+		}
+		modelParts.push({
+			toolCall: {
+				id: functionCall.id,
+				name: functionCall.name,
+				args: (functionCall.args ?? {}) as Record<string, unknown>,
+			},
+		});
+	}
+
+	for (const functionResponse of getFunctionResponses(event)) {
+		if (!functionResponse.name) {
+			continue;
+		}
+		toolParts.push({
+			toolResponse: {
+				id: functionResponse.id,
+				name: functionResponse.name,
+				text: safeStringify(functionResponse.response),
+			},
+		});
+	}
+
+	if (options.includeText !== false) {
+		const text = stringifyContent(event).trim();
+		if (text.length > 0) {
+			const targetParts = event.content?.role === "user" ? userParts : modelParts;
+			targetParts.push({ text });
+		}
+	}
+
+	if (userParts.length > 0) {
+		messages.push({ role: "user", parts: userParts });
+	}
+	if (modelParts.length > 0) {
+		messages.push({ role: "model", parts: modelParts });
+	}
+	if (toolParts.length > 0) {
+		messages.push({ role: "tool", parts: toolParts });
+	}
+
+	return messages;
+}
+
+export function chatMessageToEvent(
+	msg: ChatMessage,
+	agentName: string,
+	invocationId = "history",
+): Event {
+	const parts = msg.parts.flatMap((part) => {
+		const mappedParts: Array<Record<string, unknown>> = [];
+		if (part.text !== undefined) {
+			mappedParts.push({ text: part.text });
+		}
+		if (part.toolCall) {
+			mappedParts.push({
+				functionCall: {
+					id: part.toolCall.id,
+					name: part.toolCall.name,
+					args: part.toolCall.args,
+				},
+			});
+		}
+		if (part.toolResponse) {
+			mappedParts.push({
+				functionResponse: {
+					id: part.toolResponse.id,
+					name: part.toolResponse.name,
+					response: { result: part.toolResponse.text },
+				},
+			});
+		}
+		return mappedParts;
+	});
+
+	return createEvent({
+		author: msg.role === "user" ? "user" : agentName,
+		content: {
+			role: msg.role === "model" ? "model" : "user",
+			parts,
+		},
+		invocationId,
+	});
 }
 
 export function selectAgentTools<T extends ToolSelectionEntry>(
@@ -226,11 +454,11 @@ export class AgentsEngine {
 		return right([
 			...history,
 			{ role: "user", parts: [{ text }] },
-			{
-				role: "model",
-				parts: [{ text: interactionOrErr.value.text }],
-				usage: interactionOrErr.value.usage,
-			},
+			...interactionOrErr.value.messages.map((message, index) =>
+				index === interactionOrErr.value.messages.length - 1 && message.role === "model"
+					? { ...message, usage: interactionOrErr.value.usage ?? message.usage }
+					: message
+			),
 		]);
 	}
 
@@ -272,7 +500,7 @@ export class AgentsEngine {
 			instructions?: string;
 			interactionType: "chat" | "answer";
 		},
-	): Promise<Either<AntboxError, { text: string; usage?: TokenUsage }>> {
+	): Promise<Either<AntboxError, { text: string; usage?: TokenUsage; messages: ChatMessage[] }>> {
 		const agentOrErr = await this.#agentsService.getAgent(authContext, agentUuid);
 		if (agentOrErr.isLeft()) {
 			return left(agentOrErr.value);
@@ -294,7 +522,21 @@ export class AgentsEngine {
 		}
 
 		try {
-			const adkAgent = await this.#buildAdkAgent(agentData, authContext, options.instructions);
+			const debugLogger = isAgentDebugTraceEnabled()
+				? Logger.instance(
+					"AgentsEngine",
+					`tenant=${authContext.tenant}`,
+					`agent=${agentData.uuid}`,
+				)
+				: undefined;
+			const adkAgent = await this.#buildAdkAgent(
+				agentData,
+				authContext,
+				options.instructions,
+				debugLogger,
+				options.interactionType,
+				text,
+			);
 			const runner = new InMemoryRunner({ agent: adkAgent, appName: APP_NAME });
 			const history = options.history ?? [];
 			let sessionId: string | undefined;
@@ -304,15 +546,8 @@ export class AgentsEngine {
 					userId: authContext.principal.email,
 				});
 				sessionId = session.id;
-				for (const msg of history) {
-					const adkEvent = createEvent({
-						author: msg.role === "model" ? adkAgent.name : "user",
-						content: {
-							role: msg.role === "model" ? "model" : "user",
-							parts: msg.parts.map((p) => ({ text: p.text ?? "" })),
-						},
-						invocationId: "history",
-					});
+				for (const [index, msg] of history.entries()) {
+					const adkEvent = chatMessageToEvent(msg, adkAgent.name, `history-${index + 1}`);
 					await runner.sessionService.appendEvent({ session, event: adkEvent });
 				}
 			}
@@ -320,11 +555,16 @@ export class AgentsEngine {
 			const runConfig = agentData.maxLlmCalls
 				? { maxLlmCalls: agentData.maxLlmCalls } as RunConfig
 				: undefined;
-			const result = await this.#runAndCollect(runner, {
-				userId: authContext.principal.email,
-				sessionId,
-				newMessage: { role: "user", parts: [{ text }] },
-			}, runConfig);
+			const result = await this.#runAndCollect(
+				runner,
+				{
+					userId: authContext.principal.email,
+					sessionId,
+					newMessage: { role: "user", parts: [{ text }] },
+				},
+				runConfig,
+				debugLogger,
+			);
 
 			if (result.usage) {
 				this.#eventBus.publish(
@@ -356,6 +596,9 @@ export class AgentsEngine {
 		agentData: AgentData,
 		authContext: AuthenticationContext,
 		additionalInstructions?: string,
+		debugLogger?: Logger,
+		interactionType?: "chat" | "answer",
+		userText?: string,
 	): Promise<BaseAgent> {
 		const customAgent = getCustomAgent(agentData.uuid);
 		if (customAgent) {
@@ -369,13 +612,23 @@ export class AgentsEngine {
 			});
 		}
 
-		return this.#buildLlmAgent(agentData, authContext, additionalInstructions);
+		return this.#buildLlmAgent(
+			agentData,
+			authContext,
+			additionalInstructions,
+			debugLogger,
+			interactionType,
+			userText,
+		);
 	}
 
 	async #buildLlmAgent(
 		agentData: AgentData,
 		authContext: AuthenticationContext,
 		additionalInstructions?: string,
+		debugLogger?: Logger,
+		interactionType?: "chat" | "answer",
+		userText?: string,
 	): Promise<LlmAgent> {
 		const model = !agentData.model || agentData.model === "default"
 			? this.#defaultModel
@@ -383,6 +636,23 @@ export class AgentsEngine {
 
 		const tools = await this.#buildTools(authContext, agentData);
 		const instruction = this.#buildInstruction(agentData, additionalInstructions);
+		if (debugLogger && interactionType && userText !== undefined) {
+			debugLogger.debug(
+				"agent_debug_trace_start",
+				JSON.stringify(
+					buildAgentDebugRunTrace({
+						agentUuid: agentData.uuid,
+						agentName: agentData.name,
+						model,
+						instruction,
+						toolNames: tools.map((tool) => tool.name),
+						interactionType,
+						userText,
+						additionalInstructions,
+					}),
+				),
+			);
+		}
 
 		return new LlmAgent({
 			name: this.#sanitizeName(agentData.name),
@@ -485,7 +755,7 @@ export class AgentsEngine {
 								result.value instanceof Error ? result.value.message : String(result.value),
 							);
 						}
-						return result.value;
+						return normalizeToolResult(result.value);
 					},
 					parameters: z.object({
 						query: z.string().min(1),
@@ -577,7 +847,7 @@ export class AgentsEngine {
 						throw new Error(resultOrErr.value.message);
 					}
 
-					return resultOrErr.value;
+					return normalizeToolResult(resultOrErr.value);
 				},
 				parameters: this.#featureParametersToSchema(parameterAliases),
 			}),
@@ -719,9 +989,11 @@ export class AgentsEngine {
 			newMessage: { role: string; parts: { text: string }[] };
 		},
 		runConfig?: RunConfig,
-	): Promise<{ text: string; usage?: TokenUsage }> {
+		debugLogger?: Logger,
+	): Promise<{ text: string; usage?: TokenUsage; messages: ChatMessage[] }> {
 		let finalText = "";
 		let usage: TokenUsage | undefined;
+		const messages: ChatMessage[] = [];
 
 		const runParams = params.sessionId
 			? {
@@ -741,20 +1013,36 @@ export class AgentsEngine {
 			: runner.runEphemeral(runParams as Parameters<typeof runner.runEphemeral>[0]);
 
 		for await (const event of generator) {
-			if (isFinalResponse(event) && event.content?.parts) {
-				finalText = event.content.parts.map((p: { text?: string }) => p.text ?? "").join("");
-				if (event.usageMetadata) {
-					usage = {
-						promptTokens: event.usageMetadata.promptTokenCount ?? 0,
-						completionTokens: event.usageMetadata.candidatesTokenCount ?? 0,
-						totalTokens: event.usageMetadata.totalTokenCount ?? 0,
-					};
+			if (debugLogger && shouldTraceAgentDebugEvent(event)) {
+				debugLogger.debug(
+					"agent_debug_trace_event",
+					JSON.stringify(summarizeAgentDebugEvent(event)),
+				);
+			}
+			messages.push(...eventToChatMessages(event, { includeText: isFinalResponse(event) }));
+			if (isFinalResponse(event)) {
+				const text = stringifyContent(event).trim();
+				if (text.length > 0) {
+					finalText = text;
 				}
-				break;
+				usage = usageMetadataToTokenUsage(event.usageMetadata) ?? usage;
 			}
 		}
 
-		return { text: finalText, usage };
+		if (debugLogger) {
+			debugLogger.debug(
+				"agent_debug_trace_end",
+				JSON.stringify({
+					type: "agent_run_end",
+					finalTextLength: finalText.length,
+					finalTextPreview: truncateDebugText(finalText, 300),
+					messageCount: messages.length,
+					usage,
+				}),
+			);
+		}
+
+		return { text: finalText, usage, messages };
 	}
 
 	#buildInstruction(agentData: AgentData, additionalInstructions?: string): string {

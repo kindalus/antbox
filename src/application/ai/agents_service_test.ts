@@ -347,7 +347,7 @@ describe("AgentsService", () => {
 			}
 		});
 
-		it("should prefer custom RAG agent over repository agents with the same UUID", async () => {
+		it("should prefer builtin RAG agent over repository agents with the same UUID", async () => {
 			const repo = new InMemoryConfigurationRepository();
 			const service = createAgentsService(repo);
 

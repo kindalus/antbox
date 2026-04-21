@@ -2755,6 +2755,8 @@ components:
             - name
             - args
          properties:
+            id:
+               type: string
             name:
                type: string
             args:
@@ -2766,6 +2768,8 @@ components:
             - name
             - text
          properties:
+            id:
+               type: string
             name:
                type: string
             text:

@@ -1,11 +1,22 @@
 import { describe, it } from "bdd";
 import { expect } from "expect";
-import { AgentsEngine, type AgentsEngineContext, selectAgentTools } from "./agents_engine.ts";
+import { createEvent } from "@google/adk";
+import {
+	AgentsEngine,
+	type AgentsEngineContext,
+	buildAgentDebugRunTrace,
+	chatMessageToEvent,
+	eventToChatMessages,
+	normalizeToolResult,
+	selectAgentTools,
+	summarizeAgentDebugEvent,
+} from "./agents_engine.ts";
 import { left, right } from "shared/either.ts";
 import { type AntboxError, ForbiddenError } from "shared/antbox_error.ts";
 import type { AgentData } from "domain/configuration/agent_data.ts";
 import type { AuthenticationContext } from "application/security/authentication_context.ts";
 import type { FeatureData } from "domain/configuration/feature_data.ts";
+import { ragAgent } from "./builtin_agents/rag_agent.ts";
 
 // ============================================================================
 // MOCKS
@@ -69,6 +80,210 @@ function makeContext(overrides: Partial<AgentsEngineContext> = {}): AgentsEngine
 // ============================================================================
 
 describe("AgentsEngine", () => {
+	describe("debug tracing", () => {
+		it("builds a debug trace for the effective agent run configuration", () => {
+			const trace = buildAgentDebugRunTrace({
+				agentUuid: "--rag-agent--",
+				agentName: "RAG Agent",
+				model: "google/gemini-2.5-flash",
+				instruction: "Use semantic_search, then answer the user.",
+				toolNames: ["semantic_search", "get_node"],
+				interactionType: "chat",
+				userText: "Quanto foi gasto em impostos aduaneiros neste mes?",
+				additionalInstructions: "Responde em português.",
+			});
+
+			expect(trace).toEqual({
+				type: "agent_run_start",
+				agentUuid: "--rag-agent--",
+				agentName: "RAG Agent",
+				model: "google/gemini-2.5-flash",
+				interactionType: "chat",
+				toolNames: ["semantic_search", "get_node"],
+				userText: "Quanto foi gasto em impostos aduaneiros neste mes?",
+				additionalInstructions: "Responde em português.",
+				instructionLength: 42,
+				instruction: "Use semantic_search, then answer the user.",
+			});
+		});
+
+		it("summarizes finish and tool metadata for debug traces", () => {
+			const event = createEvent({
+				author: "rag_agent",
+				invocationId: "turn-1",
+				finishReason: "MAX_TOKENS" as never,
+				errorCode: "MAX_TOKENS",
+				errorMessage: "Output token limit reached",
+				usageMetadata: {
+					promptTokenCount: 123,
+					candidatesTokenCount: 456,
+					totalTokenCount: 579,
+				},
+				content: {
+					role: "model",
+					parts: [{
+						functionCall: {
+							id: "call-1",
+							name: "semantic_search",
+							args: { query: "gastos impostos aduaneiros este mês" },
+						},
+					}],
+				},
+			});
+
+			expect(summarizeAgentDebugEvent(event)).toEqual({
+				type: "agent_run_event",
+				id: event.id,
+				invocationId: "turn-1",
+				author: "rag_agent",
+				branch: undefined,
+				timestamp: event.timestamp,
+				contentRole: "model",
+				isFinalResponse: false,
+				finishReason: "MAX_TOKENS",
+				errorCode: "MAX_TOKENS",
+				errorMessage: "Output token limit reached",
+				textLength: 0,
+				textPreview: "",
+				toolCallCount: 1,
+				toolCalls: [{
+					id: "call-1",
+					name: "semantic_search",
+					argsKeys: ["query"],
+					argsPreview: '{"query":"gastos impostos aduaneiros este mês"}',
+				}],
+				toolResponseCount: 0,
+				toolResponses: [],
+				usage: {
+					promptTokens: 123,
+					completionTokens: 456,
+					totalTokens: 579,
+				},
+			});
+		});
+	});
+
+	describe("tool result normalization", () => {
+		it("wraps top-level arrays and leaves objects unchanged", () => {
+			expect(normalizeToolResult([1, 2, 3])).toEqual({ results: [1, 2, 3] });
+			expect(normalizeToolResult({ total: 42 })).toEqual({ total: 42 });
+		});
+	});
+
+	describe("history serialization", () => {
+		it("converts ADK tool events into chat history messages", () => {
+			const toolCallEvent = createEvent({
+				author: "test_agent",
+				invocationId: "turn-1",
+				content: {
+					role: "model",
+					parts: [{
+						functionCall: {
+							id: "call-1",
+							name: "semantic_search",
+							args: { query: "impostos aduaneiros" },
+						},
+					}],
+				},
+			});
+			const toolResultEvent = createEvent({
+				author: "test_agent",
+				invocationId: "turn-1",
+				content: {
+					role: "user",
+					parts: [{
+						functionResponse: {
+							id: "call-1",
+							name: "semantic_search",
+							response: { total: 42 },
+						},
+					}],
+				},
+			});
+			const finalEvent = createEvent({
+				author: "test_agent",
+				invocationId: "turn-1",
+				content: {
+					role: "model",
+					parts: [{ text: "Gastamos 42 em impostos." }],
+				},
+			});
+
+			expect(eventToChatMessages(toolCallEvent, { includeText: false })).toEqual([{
+				role: "model",
+				parts: [{
+					toolCall: {
+						id: "call-1",
+						name: "semantic_search",
+						args: { query: "impostos aduaneiros" },
+					},
+				}],
+			}]);
+			expect(eventToChatMessages(toolResultEvent, { includeText: false })).toEqual([{
+				role: "tool",
+				parts: [{
+					toolResponse: {
+						id: "call-1",
+						name: "semantic_search",
+						text: '{"total":42}',
+					},
+				}],
+			}]);
+			expect(eventToChatMessages(finalEvent, { includeText: true })).toEqual([{
+				role: "model",
+				parts: [{ text: "Gastamos 42 em impostos." }],
+			}]);
+		});
+
+		it("replays tool turns back into ADK event content", () => {
+			const toolCallEvent = chatMessageToEvent(
+				{
+					role: "model",
+					parts: [{
+						toolCall: {
+							id: "call-7",
+							name: "get_node",
+							args: { uuid: "node-1" },
+						},
+					}],
+				},
+				"test_agent",
+				"history-1",
+			);
+			const toolResponseEvent = chatMessageToEvent(
+				{
+					role: "tool",
+					parts: [{
+						toolResponse: {
+							id: "call-7",
+							name: "get_node",
+							text: '{"uuid":"node-1"}',
+						},
+					}],
+				},
+				"test_agent",
+				"history-2",
+			);
+
+			expect(toolCallEvent.content?.role).toBe("model");
+			expect(toolCallEvent.content?.parts?.[0]).toEqual({
+				functionCall: {
+					id: "call-7",
+					name: "get_node",
+					args: { uuid: "node-1" },
+				},
+			});
+			expect(toolResponseEvent.content?.role).toBe("user");
+			expect(toolResponseEvent.content?.parts?.[0]).toEqual({
+				functionResponse: {
+					id: "call-7",
+					name: "get_node",
+					response: { result: '{"uuid":"node-1"}' },
+				},
+			});
+		});
+	});
+
 	describe("construction", () => {
 		it("can be constructed with valid context", () => {
 			const engine = new AgentsEngine(makeContext());
@@ -453,6 +668,21 @@ describe("AgentsEngine", () => {
 
 			const engine = new AgentsEngine(makeContext({ skills }));
 			expect(engine).toBeDefined();
+		});
+
+		it("builtin rag agent now uses standard retrieval tools", async () => {
+			const engine = new AgentsEngine(makeContext());
+			const result = await engine.listAvailableToolNames(mockAuthContext, ragAgent);
+
+			expect(result.isRight()).toBe(true);
+			if (result.isRight()) {
+				expect([...result.value].sort()).toEqual([
+					"find_nodes",
+					"get_node",
+					"load_skill",
+					"semantic_search",
+				]);
+			}
 		});
 
 		it("agents work without requiring a type field", async () => {

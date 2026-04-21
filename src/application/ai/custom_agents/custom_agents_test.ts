@@ -1,24 +1,13 @@
 import { describe, it } from "bdd";
 import { expect } from "expect";
-import { AgentDataSchema } from "domain/configuration/agent_schema.ts";
-import { customAgents, getCustomAgent, RAG_AGENT, RAG_AGENT_UUID } from "./index.ts";
+import { customAgents, getCustomAgent } from "./index.ts";
 
 describe("custom agents", () => {
-	it("RAG agent metadata passes schema validation", () => {
-		const result = AgentDataSchema.safeParse(RAG_AGENT);
-		if (!result.success) {
-			console.error("Validation errors:", result.error.issues);
-		}
-		expect(result.success).toBe(true);
+	it("has no built-in custom agent registrations", () => {
+		expect(customAgents).toEqual([]);
 	});
 
-	it("RAG metadata is exported in the custom registry", () => {
-		expect(customAgents.map((agent) => agent.uuid)).toContain(RAG_AGENT_UUID);
-		expect(getCustomAgent(RAG_AGENT_UUID)?.data).toEqual(RAG_AGENT);
-	});
-
-	it("RAG keeps its public metadata contract", () => {
-		expect(RAG_AGENT.exposedToUsers).toBe(true);
-		expect(RAG_AGENT.systemPrompt?.length ?? 0).toBeGreaterThan(0);
+	it("does not register the builtin RAG agent as a custom runtime", () => {
+		expect(getCustomAgent("--rag-agent--")).toBeUndefined();
 	});
 });

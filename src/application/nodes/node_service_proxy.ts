@@ -73,7 +73,7 @@ export class NodeServiceProxy {
 			return left("Service not available");
 		}
 
-		const TOP_K = 20;
+		const TOP_K = 10;
 		const res = await this.#ragService.query(text, TOP_K);
 
 		if (res.isLeft()) {

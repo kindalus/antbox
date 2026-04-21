@@ -1,11 +1,13 @@
 export type ChatMessageRole = "user" | "model" | "tool";
 
 export interface ToolCall {
+	id?: string;
 	name: string;
 	args: Record<string, unknown>;
 }
 
 export interface ToolResponse {
+	id?: string;
 	name: string;
 	text: string;
 }

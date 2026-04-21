@@ -21,10 +21,12 @@ describe("builtin agents schema validation", () => {
 		expect(result.success).toBe(true);
 	});
 
-	it("RAG agent metadata stays LLM-compatible while remaining custom-run", () => {
+	it("RAG agent metadata stays prompt-driven and retrieval-focused", () => {
 		expect(ragAgent.exposedToUsers).toBe(true);
 		expect(ragAgent.systemPrompt?.length ?? 0).toBeGreaterThan(0);
-		expect(ragAgent.model).toBeUndefined();
-		expect(ragAgent.tools).toBeUndefined();
+		expect(ragAgent.systemPrompt).toContain("semantic_search");
+		expect(ragAgent.systemPrompt).toContain("Before answering");
+		expect(ragAgent.model).toBe("default");
+		expect(ragAgent.tools).toEqual(["semantic_search", "find_nodes", "get_node"]);
 	});
 });

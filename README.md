@@ -109,6 +109,27 @@ Examples:
 ./start_server.sh --keys
 ```
 
+### Debug logging and agent traces
+
+Antbox supports environment-variable-based logging and agent tracing:
+
+- `ANTBOX_LOG_LEVEL`
+  - global log verbosity
+  - valid values: `trace`, `debug`, `info`, `warn`, `error`, `fatal`
+- `ANTBOX_AGENT_DEBUG_TRACE`
+  - enables extra debug logs for ADK agent runs when set to `1`, `true`, `yes`, or `on`
+  - includes the effective instruction, selected tools, tool calls/responses, finish reasons,
+    provider errors, and final response summary
+
+Example:
+
+```bash
+ANTBOX_AGENT_DEBUG_TRACE=1 ANTBOX_LOG_LEVEL=debug ./start_server.sh --demo
+```
+
+If `config.toml` defines `logLevel`, Antbox uses it when `ANTBOX_LOG_LEVEL` is not set in the shell
+environment.
+
 ## Configuration
 
 Antbox is configured via a central configuration directory. By default, it uses

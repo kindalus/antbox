@@ -396,7 +396,7 @@ Create payload example:
 
 ### Agents
 
-- `POST /v2/agents/-/upload`
+- `POST /v2/agents/-/upload` (create or replace)
 - `GET /v2/agents`
 - `GET /v2/agents/{uuid}`
 - `DELETE /v2/agents/{uuid}`
@@ -433,6 +433,8 @@ Rules:
 - all agents remain visible through `GET /v2/agents` and `GET /v2/agents/{uuid}`
 - only agents with `exposedToUsers: true` may be called via `/chat` or `/answer`
 - `answer` and `chat` use the same engine path; `answer` ignores history
+- `uuid` is optional on `/agents/-/upload`; omit it to create a new agent or provide it to replace
+  an existing custom agent
 - `systemPrompt` is optional; when omitted, Antbox supplies a generic agent prompt
 - `tools: true` grants all tools
 - `tools: false`, omitted `tools`, or `tools: []` grant only `load_skill`

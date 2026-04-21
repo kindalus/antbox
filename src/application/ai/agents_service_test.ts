@@ -72,6 +72,39 @@ describe("AgentsService", () => {
 			expect(result.isRight()).toBe(true);
 		});
 
+		it("uses a caller-provided uuid when creating an agent", async () => {
+			const repo = new InMemoryConfigurationRepository();
+			const service = createAgentsService(repo);
+
+			const result = await service.createAgent(adminCtx, {
+				uuid: "support-agent",
+				name: "Support Agent",
+				systemPrompt: "You are helpful.",
+			} as never);
+
+			expect(result.isRight()).toBe(true);
+			if (result.isRight()) {
+				expect(result.value.uuid).toBe("support-agent");
+			}
+		});
+
+		it("createOrReplaceAgent reports whether the upload created a new agent", async () => {
+			const repo = new InMemoryConfigurationRepository();
+			const service = createAgentsService(repo);
+
+			const result = await service.createOrReplaceAgent(adminCtx, {
+				uuid: "upsert-agent",
+				name: "Upsert Agent",
+				systemPrompt: "You are helpful.",
+			} as never);
+
+			expect(result.isRight()).toBe(true);
+			if (result.isRight()) {
+				expect(result.value.created).toBe(true);
+				expect(result.value.agent.uuid).toBe("upsert-agent");
+			}
+		});
+
 		it("should create LLM agent with tools whitelist", async () => {
 			const repo = new InMemoryConfigurationRepository();
 			const service = createAgentsService(repo);
@@ -164,6 +197,54 @@ describe("AgentsService", () => {
 			if (result.isRight()) {
 				expect(result.value.systemPrompt).toBe(DEFAULT_AGENT_SYSTEM_PROMPT);
 			}
+		});
+
+		it("replaces an existing custom agent when the same uuid is uploaded", async () => {
+			const repo = new InMemoryConfigurationRepository();
+			const service = createAgentsService(repo);
+			const createdTime = "2024-01-01T00:00:00.000Z";
+
+			await repo.save("agents", {
+				uuid: "replaceable-agent",
+				name: "Original Agent",
+				description: "Original description",
+				exposedToUsers: false,
+				model: "default",
+				tools: ["run_code"],
+				systemPrompt: "Original instructions",
+				createdTime,
+				modifiedTime: createdTime,
+			} as AgentData);
+
+			const result = await service.createAgent(adminCtx, {
+				uuid: "replaceable-agent",
+				name: "Replacement Agent",
+				systemPrompt: "Replacement instructions",
+			} as never);
+
+			expect(result.isRight()).toBe(true);
+			if (result.isRight()) {
+				expect(result.value.uuid).toBe("replaceable-agent");
+				expect(result.value.name).toBe("Replacement Agent");
+				expect(result.value.description).toBeUndefined();
+				expect(result.value.exposedToUsers).toBe(true);
+				expect(result.value.tools).toBeUndefined();
+				expect(result.value.createdTime).toBe(createdTime);
+				expect(result.value.modifiedTime).not.toBe(createdTime);
+			}
+		});
+
+		it("rejects uploads that target system agent uuids", async () => {
+			const repo = new InMemoryConfigurationRepository();
+			const service = createAgentsService(repo);
+
+			const result = await service.createAgent(adminCtx, {
+				uuid: RAG_AGENT_UUID,
+				name: "Fake RAG",
+				systemPrompt: "Nope",
+			} as never);
+
+			expect(result.isLeft()).toBe(true);
 		});
 
 		it("should reject creation as non-admin", async () => {

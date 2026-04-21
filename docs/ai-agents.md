@@ -53,14 +53,16 @@ Built-in agents can be listed and fetched, but cannot be updated or deleted.
 
 ## Endpoints
 
-- `POST /v2/agents/-/upload` - create an agent
+- `POST /v2/agents/-/upload` - create or replace a custom agent
 - `GET /v2/agents` - list custom + built-in agents
 - `GET /v2/agents/{uuid}` - get one agent
 - `DELETE /v2/agents/{uuid}` - delete a custom agent
 - `POST /v2/agents/{uuid}/-/chat` - interaction with caller-provided history
 - `POST /v2/agents/{uuid}/-/answer` - same interaction model, but ignores history
 
-## Create example
+## Create or replace example
+
+Create a new agent:
 
 ```json
 {
@@ -72,7 +74,23 @@ Built-in agents can be listed and fetched, but cannot be updated or deleted.
 }
 ```
 
-If `systemPrompt` is omitted, Antbox uses a generic prompt tailored to Antbox agent capabilities.
+Replace an existing custom agent by UUID:
+
+```json
+{
+	"uuid": "support-agent",
+	"name": "Support Agent",
+	"description": "General support assistant",
+	"exposedToUsers": true,
+	"model": "default",
+	"tools": true
+}
+```
+
+If `uuid` is omitted, Antbox creates a new custom agent and generates the UUID. If `uuid` is
+provided and matches an existing custom agent, Antbox replaces it with the supplied payload (this is
+not a partial update). If `systemPrompt` is omitted, Antbox uses a generic prompt tailored to Antbox
+agent capabilities. Built-in/system agent UUIDs cannot be replaced.
 
 ## Chat and answer payloads
 

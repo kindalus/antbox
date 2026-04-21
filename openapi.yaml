@@ -431,15 +431,44 @@ paths:
       post:
          tags:
             - agents
-         summary: Create an agent
-         operationId: createAgent
+         summary: Create or replace an agent
+         description: Upsert a tenant-scoped agent from a JSON object body. If `uuid` is omitted, the server generates one and creates a new agent. If `uuid` is provided and matches an existing custom agent, that agent is replaced. Built-in/system agent UUIDs cannot be replaced.
+         operationId: createOrReplaceAgent
          requestBody:
             required: true
             content:
                application/json:
                   schema:
                      $ref: "#/components/schemas/CreateAgentRequest"
+                  examples:
+                     minimal:
+                        summary: Create a new agent with the default Antbox system prompt
+                        value:
+                           name: Support Agent
+                           description: General support assistant
+                           model: default
+                           tools:
+                              - find_nodes
+                              - get_node
+                              - semantic_search
+                     replace:
+                        summary: Replace an existing custom agent by UUID
+                        value:
+                           uuid: contract-assistant
+                           name: Contract Assistant
+                           description: Helps with contract repository tasks
+                           model: default
+                           tools:
+                              - run_code
+                           systemPrompt: You are a contract operations assistant for Antbox.
+                           maxLlmCalls: 8
          responses:
+            "200":
+               description: Agent replaced successfully
+               content:
+                  application/json:
+                     schema:
+                        $ref: "#/components/schemas/Agent"
             "201":
                description: Agent created successfully
                content:
@@ -2489,6 +2518,10 @@ components:
             systemPrompt:
                type: string
                description: Optional system prompt for the agent. Defaults to a generic Antbox assistant prompt when omitted.
+            maxLlmCalls:
+               type: integer
+               minimum: 1
+               description: Optional limit for agent LLM call iterations.
             createdTime:
                type: string
                format: date-time
@@ -2499,10 +2532,13 @@ components:
                description: When the agent was last modified
       CreateAgentRequest:
          type: object
-         description: "Request body for creating an agent. Agents default to `exposedToUsers: true` when omitted."
+         description: "Request body for creating or replacing an agent. If `uuid` is omitted, the server creates a new agent with a generated UUID. If `uuid` is provided and matches an existing custom agent, that agent is replaced with the supplied payload (this is not a partial update). Agents default to `exposedToUsers: true` when omitted."
          required:
             - name
          properties:
+            uuid:
+               type: string
+               description: Optional agent UUID. Omit to create a new agent with a generated UUID; provide to replace an existing custom agent.
             name:
                type: string
                description: Display name of the agent
@@ -2525,6 +2561,10 @@ components:
             systemPrompt:
                type: string
                description: Optional system prompt for the agent. Defaults to a generic Antbox assistant prompt when omitted.
+            maxLlmCalls:
+               type: integer
+               minimum: 1
+               description: Optional limit for agent LLM call iterations.
       ApiKey:
          type: object
          description: API Key configuration data for programmatic access.

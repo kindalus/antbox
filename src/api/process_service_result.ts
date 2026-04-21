@@ -22,3 +22,15 @@ export function processServiceCreateResult<T>(
 
 	return sendCreated(resultOrErr.value);
 }
+
+export function processServiceUpsertResult<T>(
+	resultOrErr: Either<AntboxError, { created: boolean; agent: T }>,
+): Response {
+	if (resultOrErr.isLeft()) {
+		return processError(resultOrErr.value);
+	}
+
+	return resultOrErr.value.created
+		? sendCreated(resultOrErr.value.agent)
+		: sendOK(resultOrErr.value.agent);
+}

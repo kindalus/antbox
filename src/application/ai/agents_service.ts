@@ -20,7 +20,13 @@ export interface AgentsServiceContext {
 
 export interface CreateAgentData
 	extends Omit<AgentData, "uuid" | "createdTime" | "modifiedTime" | "exposedToUsers"> {
+	uuid?: string;
 	exposedToUsers?: boolean;
+}
+
+export interface UpsertAgentResult {
+	agent: AgentData;
+	created: boolean;
 }
 
 export const DEFAULT_AGENT_SYSTEM_PROMPT = [
@@ -64,18 +70,38 @@ export class AgentsService {
 		ctx: AuthenticationContext,
 		data: CreateAgentData,
 	): Promise<Either<AntboxError, AgentData>> {
+		const resultOrErr = await this.createOrReplaceAgent(ctx, data);
+		if (resultOrErr.isLeft()) {
+			return left(resultOrErr.value);
+		}
+
+		return right(resultOrErr.value.agent);
+	}
+
+	async createOrReplaceAgent(
+		ctx: AuthenticationContext,
+		data: CreateAgentData,
+	): Promise<Either<AntboxError, UpsertAgentResult>> {
 		// Check admin permission
 		if (!this.#isAdmin(ctx)) {
 			return left(new ForbiddenError("Only admins can create agents"));
 		}
 
+		const desiredUuid = data.uuid ?? UuidGenerator.generateKebabCase();
+		if (this.#isSystemAgent(desiredUuid)) {
+			return left(new BadRequestError("Cannot replace system agents"));
+		}
+
 		const now = new Date().toISOString();
+		const existingOrErr = await this.#configRepo.get("agents", desiredUuid);
+		const createdTime = existingOrErr.isRight() ? existingOrErr.value.createdTime : now;
+		const created = existingOrErr.isLeft();
 		const agentData: AgentData = {
-			uuid: UuidGenerator.generateKebabCase(),
+			uuid: desiredUuid,
 			...data,
 			exposedToUsers: data.exposedToUsers ?? true,
 			systemPrompt: resolveAgentSystemPrompt(data.systemPrompt),
-			createdTime: now,
+			createdTime,
 			modifiedTime: now,
 		};
 
@@ -88,7 +114,12 @@ export class AgentsService {
 			return left(ValidationError.from(...errors));
 		}
 
-		return this.#configRepo.save("agents", agentData);
+		const savedOrErr = await this.#configRepo.save("agents", validation.data as AgentData);
+		if (savedOrErr.isLeft()) {
+			return left(savedOrErr.value);
+		}
+
+		return right({ agent: savedOrErr.value, created });
 	}
 
 	async getAgent(

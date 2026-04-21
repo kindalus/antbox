@@ -6,7 +6,7 @@ import { getParams } from "./get_params.ts";
 import { getTenant } from "./get_tenant.ts";
 import { type HttpHandler, sendBadRequest } from "./handler.ts";
 import { processError } from "./process_error.ts";
-import { processServiceCreateResult, processServiceResult } from "./process_service_result.ts";
+import { processServiceResult, processServiceUpsertResult } from "./process_service_result.ts";
 import { checkServiceAvailability } from "./service_availability.ts";
 // ============================================================================
 // CRUD HANDLERS
@@ -29,8 +29,8 @@ export function createOrReplaceAgentHandler(tenants: AntboxTenant[]): HttpHandle
 			}
 
 			return tenant.agentsService!
-				.createAgent(getAuthenticationContext(req), metadata)
-				.then(processServiceCreateResult)
+				.createOrReplaceAgent(getAuthenticationContext(req), metadata)
+				.then(processServiceUpsertResult)
 				.catch(processError);
 		},
 	);

@@ -2,7 +2,7 @@ import { describe, it } from "bdd";
 import { expect } from "expect";
 import type { AuthenticationContext } from "application/security/authentication_context.ts";
 import { InMemoryConfigurationRepository } from "adapters/inmem/inmem_configuration_repository.ts";
-import { AgentsService } from "application/ai/agents_service.ts";
+import { AgentsService, DEFAULT_AGENT_SYSTEM_PROMPT } from "application/ai/agents_service.ts";
 import { ADMINS_GROUP_UUID } from "domain/configuration/builtin_groups.ts";
 import type { AgentData } from "domain/configuration/agent_data.ts";
 import {
@@ -44,7 +44,6 @@ describe("AgentsService", () => {
 			const result = await service.createAgent(adminCtx, {
 				name: "Customer Support Agent",
 				description: "Handles customer inquiries",
-				type: "llm",
 				systemPrompt: "You are a helpful customer support agent.",
 			});
 
@@ -54,7 +53,6 @@ describe("AgentsService", () => {
 				expect(agent.uuid).toBeDefined();
 				expect(agent.name).toBe("Customer Support Agent");
 				expect(agent.description).toBe("Handles customer inquiries");
-				expect(agent.type).toBe("llm");
 				expect(agent.exposedToUsers).toBe(true);
 				expect(agent.systemPrompt).toBe("You are a helpful customer support agent.");
 				expect(agent.createdTime).toBeDefined();
@@ -62,7 +60,7 @@ describe("AgentsService", () => {
 			}
 		});
 
-		it("should default type to 'llm' when not specified", async () => {
+		it("creates agents without requiring a type field", async () => {
 			const repo = new InMemoryConfigurationRepository();
 			const service = createAgentsService(repo);
 
@@ -72,9 +70,6 @@ describe("AgentsService", () => {
 			});
 
 			expect(result.isRight()).toBe(true);
-			if (result.isRight()) {
-				expect(result.value.type).toBe("llm");
-			}
 		});
 
 		it("should create LLM agent with tools whitelist", async () => {
@@ -84,12 +79,12 @@ describe("AgentsService", () => {
 			const result = await service.createAgent(adminCtx, {
 				name: "Code Agent",
 				systemPrompt: "You run code to answer questions.",
-				tools: ["runCode"],
+				tools: ["run_code"],
 			});
 
 			expect(result.isRight()).toBe(true);
 			if (result.isRight()) {
-				expect(result.value.tools).toEqual(["runCode"]);
+				expect(result.value.tools).toEqual(["run_code"]);
 			}
 		});
 
@@ -131,7 +126,7 @@ describe("AgentsService", () => {
 
 			const result = await service.createAgent(adminCtx, {
 				name: "Skill Loader Only Agent",
-				systemPrompt: "You may use only skillLoader.",
+				systemPrompt: "You may use only load_skill.",
 				tools: false,
 			});
 
@@ -157,16 +152,18 @@ describe("AgentsService", () => {
 			}
 		});
 
-		it("should fail LLM agent creation without systemPrompt", async () => {
+		it("defaults systemPrompt when creating an agent without one", async () => {
 			const repo = new InMemoryConfigurationRepository();
 			const service = createAgentsService(repo);
 
 			const result = await service.createAgent(adminCtx, {
-				name: "Bad Agent",
-				type: "llm",
+				name: "Default Prompt Agent",
 			} as never);
 
-			expect(result.isLeft()).toBe(true);
+			expect(result.isRight()).toBe(true);
+			if (result.isRight()) {
+				expect(result.value.systemPrompt).toBe(DEFAULT_AGENT_SYSTEM_PROMPT);
+			}
 		});
 
 		it("should reject creation as non-admin", async () => {
@@ -188,81 +185,6 @@ describe("AgentsService", () => {
 			const result = await service.createAgent(adminCtx, {
 				name: "",
 				systemPrompt: "Test instructions",
-			});
-
-			expect(result.isLeft()).toBe(true);
-		});
-	});
-
-	describe("createAgent — workflow agents", () => {
-		it("should create sequential agent successfully", async () => {
-			const repo = new InMemoryConfigurationRepository();
-			const service = createAgentsService(repo);
-
-			const result = await service.createAgent(adminCtx, {
-				name: "My Pipeline",
-				description: "A sequential pipeline",
-				type: "sequential",
-				agents: [RAG_AGENT_UUID, ASPECT_FIELD_EXTRACTOR_AGENT_UUID],
-			});
-
-			expect(result.isRight()).toBe(true);
-			if (result.isRight()) {
-				expect(result.value.type).toBe("sequential");
-				expect(result.value.agents).toEqual([
-					RAG_AGENT_UUID,
-					ASPECT_FIELD_EXTRACTOR_AGENT_UUID,
-				]);
-			}
-		});
-
-		it("should create parallel agent successfully", async () => {
-			const repo = new InMemoryConfigurationRepository();
-			const service = createAgentsService(repo);
-
-			const result = await service.createAgent(adminCtx, {
-				name: "Parallel Runner",
-				type: "parallel",
-				agents: [RAG_AGENT_UUID, ASPECT_FIELD_EXTRACTOR_AGENT_UUID],
-			});
-
-			expect(result.isRight()).toBe(true);
-		});
-
-		it("should fail sequential agent creation without agents field", async () => {
-			const repo = new InMemoryConfigurationRepository();
-			const service = createAgentsService(repo);
-
-			const result = await service.createAgent(adminCtx, {
-				name: "Bad Pipeline",
-				type: "sequential",
-			} as never);
-
-			expect(result.isLeft()).toBe(true);
-		});
-
-		it("should fail sequential agent creation with empty agents array", async () => {
-			const repo = new InMemoryConfigurationRepository();
-			const service = createAgentsService(repo);
-
-			const result = await service.createAgent(adminCtx, {
-				name: "Bad Pipeline",
-				type: "sequential",
-				agents: [],
-			});
-
-			expect(result.isLeft()).toBe(true);
-		});
-
-		it("should fail workflow agent with systemPrompt set", async () => {
-			const repo = new InMemoryConfigurationRepository();
-			const service = createAgentsService(repo);
-
-			const result = await service.createAgent(adminCtx, {
-				name: "Bad Workflow",
-				type: "sequential",
-				agents: [RAG_AGENT_UUID],
-				systemPrompt: "This should not be here",
 			});
 
 			expect(result.isLeft()).toBe(true);
@@ -298,7 +220,6 @@ describe("AgentsService", () => {
 			await repo.save("agents", {
 				uuid: "legacy-agent",
 				name: "Legacy Agent",
-				type: "llm",
 				systemPrompt: "Legacy instructions",
 				createdTime: new Date().toISOString(),
 				modifiedTime: new Date().toISOString(),
@@ -312,6 +233,25 @@ describe("AgentsService", () => {
 			}
 		});
 
+		it("defaults systemPrompt for legacy agents missing one", async () => {
+			const repo = new InMemoryConfigurationRepository();
+			const service = createAgentsService(repo);
+
+			await repo.save("agents", {
+				uuid: "legacy-no-prompt-agent",
+				name: "Legacy No Prompt Agent",
+				createdTime: new Date().toISOString(),
+				modifiedTime: new Date().toISOString(),
+			} as unknown as AgentData);
+
+			const result = await service.getAgent(adminCtx, "legacy-no-prompt-agent");
+
+			expect(result.isRight()).toBe(true);
+			if (result.isRight()) {
+				expect(result.value.systemPrompt).toBe(DEFAULT_AGENT_SYSTEM_PROMPT);
+			}
+		});
+
 		it("should get builtin RAG agent", async () => {
 			const repo = new InMemoryConfigurationRepository();
 			const service = createAgentsService(repo);
@@ -322,7 +262,6 @@ describe("AgentsService", () => {
 			if (result.isRight()) {
 				expect(result.value.uuid).toBe(RAG_AGENT_UUID);
 				expect(result.value.name).toBe("RAG Agent");
-				expect(result.value.type).toBe("sequential");
 				expect(result.value.exposedToUsers).toBe(true);
 			}
 		});
@@ -334,7 +273,6 @@ describe("AgentsService", () => {
 			await repo.save("agents", {
 				uuid: RAG_AGENT_UUID,
 				name: "Repository RAG Agent",
-				type: "llm",
 				exposedToUsers: false,
 				systemPrompt: "Repository instructions",
 				createdTime: new Date().toISOString(),
@@ -361,7 +299,6 @@ describe("AgentsService", () => {
 			if (result.isRight()) {
 				expect(result.value.uuid).toBe(ASPECT_FIELD_EXTRACTOR_AGENT_UUID);
 				expect(result.value.name).toBe("Aspect Field Extractor");
-				expect(result.value.type).toBe("llm");
 				expect(result.value.exposedToUsers).toBe(false);
 			}
 		});
@@ -470,7 +407,6 @@ describe("AgentsService", () => {
 			await repo.save("agents", {
 				uuid: "legacy-list-agent",
 				name: "Legacy List Agent",
-				type: "llm",
 				systemPrompt: "Legacy instructions",
 				createdTime: new Date().toISOString(),
 				modifiedTime: new Date().toISOString(),
@@ -481,6 +417,27 @@ describe("AgentsService", () => {
 			if (result.isRight()) {
 				const legacyAgent = result.value.find((agent) => agent.uuid === "legacy-list-agent");
 				expect(legacyAgent?.exposedToUsers).toBe(true);
+			}
+		});
+
+		it("defaults systemPrompt in list results for legacy agents missing one", async () => {
+			const repo = new InMemoryConfigurationRepository();
+			const service = createAgentsService(repo);
+
+			await repo.save("agents", {
+				uuid: "legacy-list-no-prompt-agent",
+				name: "Legacy List No Prompt Agent",
+				createdTime: new Date().toISOString(),
+				modifiedTime: new Date().toISOString(),
+			} as unknown as AgentData);
+
+			const result = await service.listAgents(userCtx);
+			expect(result.isRight()).toBe(true);
+			if (result.isRight()) {
+				const legacyAgent = result.value.find((agent) =>
+					agent.uuid === "legacy-list-no-prompt-agent"
+				);
+				expect(legacyAgent?.systemPrompt).toBe(DEFAULT_AGENT_SYSTEM_PROMPT);
 			}
 		});
 	});
@@ -552,7 +509,6 @@ describe("AgentsService", () => {
 			await repo.save("agents", {
 				uuid,
 				name: "Legacy Update Agent",
-				type: "llm",
 				systemPrompt: "Legacy instructions",
 				createdTime: new Date().toISOString(),
 				modifiedTime: new Date().toISOString(),

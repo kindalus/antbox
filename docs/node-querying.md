@@ -5,9 +5,9 @@ description: Query and search nodes with semantic, metadata, and aspect filters
 
 # Node Querying
 
-This guide focuses on querying and searching nodes with `runCode` using `NodeServiceProxy.find`.
+This guide focuses on querying and searching nodes with `run_code` using `NodeServiceProxy.find`.
 
-## runCode pattern
+## run_code pattern
 
 All code must export a default async function receiving `{ nodes, aspects }`.
 

@@ -1,6 +1,6 @@
 ---
 name: sdk-consumer
-description: Full TypeScript interface documentation for the Antbox SDK (nodes and aspects). Use when writing or reviewing runCode snippets that call NodeServiceProxy or AspectServiceProxy methods.
+description: Full TypeScript interface documentation for the Antbox SDK (nodes and aspects). Use when writing or reviewing run_code snippets that call NodeServiceProxy or AspectServiceProxy methods.
 ---
 
 You are an SDK documentation specialist with full knowledge of the Antbox platform APIs. Provide
@@ -216,7 +216,7 @@ type Either<L, R> = {
 | `application/vnd.antbox.aspect`      | Aspect definition                    |
 | `application/vnd.antbox.feature`     | Feature/action definition            |
 
-## runCode Template
+## run_code Template
 
 ```javascript
 export default async function ({ nodes, aspects }) {

@@ -133,8 +133,8 @@ Send `multipart/form-data` with a file in the `file` field. The file content is 
 UUID resolution rules:
 
 - if the JSON payload contains `uuid`, that value is used (must be kebab-case, min 4 chars)
-- otherwise Antbox uses the uploaded file name without the last extension, with spaces replaced by `-`
-  (the derived name must be valid kebab-case)
+- otherwise Antbox uses the uploaded file name without the last extension, with spaces replaced by
+  `-` (the derived name must be valid kebab-case)
 
 Minimal aspect file:
 
@@ -206,7 +206,8 @@ UUID resolution rules:
 Validation rules:
 
 - at least one of `exposeAction`, `exposeExtension`, or `exposeAITool` must be `true`
-- `runOnCreates`, `runOnUpdates`, `runOnDeletes`, `runOnEmbeddingsCreated`, and `runOnEmbeddingsUpdated` are only allowed when `exposeAction` is `true`
+- `runOnCreates`, `runOnUpdates`, `runOnDeletes`, `runOnEmbeddingsCreated`, and
+  `runOnEmbeddingsUpdated` are only allowed when `exposeAction` is `true`
 
 Minimal valid module:
 
@@ -408,7 +409,6 @@ LLM agent example:
 {
 	"name": "Ops Assistant",
 	"description": "Operational helper",
-	"type": "llm",
 	"exposedToUsers": true,
 	"model": "default",
 	"tools": true,
@@ -420,10 +420,11 @@ Workflow agent example:
 
 ```json
 {
-	"name": "RAG Pipeline",
-	"type": "sequential",
+	"name": "RAG Assistant",
 	"exposedToUsers": true,
-	"agents": ["--semantic-searcher-agent--", "--rag-summarizer-agent--"]
+	"model": "default",
+	"tools": true,
+	"systemPrompt": "You are a retrieval assistant for Antbox content."
 }
 ```
 
@@ -431,10 +432,11 @@ Rules:
 
 - all agents remain visible through `GET /v2/agents` and `GET /v2/agents/{uuid}`
 - only agents with `exposedToUsers: true` may be called via `/chat` or `/answer`
-- hidden agents are intended for internal composition inside workflow agents
+- `answer` and `chat` use the same engine path; `answer` ignores history
+- `systemPrompt` is optional; when omitted, Antbox supplies a generic agent prompt
 - `tools: true` grants all tools
-- `tools: false`, omitted `tools`, or `tools: []` grant only `skillLoader`
-- `tools: ["name"]` grants the listed tools plus `skillLoader`
+- `tools: false`, omitted `tools`, or `tools: []` grant only `load_skill`
+- `tools: ["name"]` grants the listed tools plus `load_skill`
 
 ## 8. Search (Structured + Semantic)
 
@@ -481,13 +483,17 @@ Implementation notes:
 - semantic results are relevance-sorted, then paginated
 - when embeddings/search fail, fulltext fallback is used
 
-## 9. `runCode` Tool Contract (AgentsEngine)
+## 9. `run_code` Tool Contract (AgentsEngine)
 
-Built-in function tool currently available in `AgentsEngine`:
+Built-in function tools currently available in `AgentsEngine` include:
 
-- `runCode`
+- `run_code`
+- `find_nodes`
+- `get_node`
+- `semantic_search`
+- `load_skill`
 
-`runCode` expects ESM code:
+`run_code` expects ESM code:
 
 ```javascript
 export default async function ({ nodes, aspects, custom }) {
@@ -570,7 +576,7 @@ High-level behavior:
 - `DELETE /v2/users/{uuid}` route currently names path param as `uuid`, but handler expects `email`.
 - `/v2/docs` returns only entries registered in `docs/index.ts`.
 - in `AgentsEngine`, do not assume non-existent runtime function tools such as
-  `loadSdkDocumentation`; currently rely on `runCode` + skill tools.
+  `loadSdkDocumentation`; currently rely on `run_code`, retrieval tools, and `load_skill`.
 
 ## 14. Recommended LLM Execution Pattern
 
@@ -800,9 +806,8 @@ AGENT_UUID=$(curl -sS -X POST "$BASE_URL/v2/agents/-/upload" \
   -d '{
     "name": "Contract Assistant",
     "description": "Helps with contract repository tasks",
-    "type": "llm",
     "model": "default",
-    "tools": ["runCode"],
+    "tools": ["run_code"],
     "systemPrompt": "You are a contract operations assistant for Antbox."
   }' | jq -r '.uuid')
 

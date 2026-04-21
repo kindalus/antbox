@@ -1,7 +1,6 @@
 import type { NodeServiceProxy } from "application/nodes/node_service_proxy.ts";
 import type { AspectServiceProxy } from "application/aspects/aspect_service_proxy.ts";
 import type { FeatureData } from "domain/configuration/feature_data.ts";
-import { Logger } from "shared/logger.ts";
 
 export interface RunCodeSDKs {
 	nodes: NodeServiceProxy;
@@ -12,11 +11,11 @@ export interface RunCodeSDKs {
 export type RunCodeFunction = (code: string) => Promise<string>;
 
 /**
- * FeatureData definition for the runCode tool
+ * FeatureData definition for the run_code tool
  */
 export const RUN_CODE_TOOL: Partial<FeatureData> = {
-	uuid: "runCode",
-	title: "runCode",
+	uuid: "run_code",
+	title: "run_code",
 	description:
 		`Execute JavaScript/TypeScript code to interact with the platform. The code must be an ESM (ECMAScript Module) that exports a single default async function.
 
@@ -49,7 +48,7 @@ export default async function({ nodes, aspects, custom }) {
 };
 
 /**
- * Factory function that creates a runCode tool with bound SDK instances.
+ * Factory function that creates a run_code tool with bound SDK instances.
  *
  * @param nodes - NodeServiceProxy instance
  * @param aspects - AspectServiceProxy instance

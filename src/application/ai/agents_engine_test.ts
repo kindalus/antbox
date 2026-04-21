@@ -22,24 +22,9 @@ function makeAgentData(overrides: Partial<AgentData> = {}): AgentData {
 		uuid: "test-agent-uuid",
 		name: "Test Agent",
 		description: "A test agent",
-		type: "llm",
 		exposedToUsers: true,
 		model: "default",
 		systemPrompt: "You are a helpful assistant.",
-		createdTime: new Date().toISOString(),
-		modifiedTime: new Date().toISOString(),
-		...overrides,
-	};
-}
-
-function makeSequentialAgentData(overrides: Partial<AgentData> = {}): AgentData {
-	return {
-		uuid: "sequential-agent-uuid",
-		name: "Sequential Pipeline",
-		description: "A sequential pipeline",
-		type: "sequential",
-		exposedToUsers: true,
-		agents: ["stage-a", "stage-b"],
 		createdTime: new Date().toISOString(),
 		modifiedTime: new Date().toISOString(),
 		...overrides,
@@ -149,6 +134,31 @@ describe("AgentsEngine", () => {
 				expect(result.value.message).toContain("Agent token limit exceeded");
 			}
 		});
+
+		it("allows direct chat when systemPrompt is missing", async () => {
+			const agentsService = {
+				getAgent: async () =>
+					right(makeAgentData({ systemPrompt: undefined as unknown as string })),
+				listAgents: async () => right([]),
+			} as unknown as import("./agents_service.ts").AgentsService;
+
+			const engine = new AgentsEngine(makeContext({
+				agentsService,
+				tenantLimitsGuard: {
+					ensureCanCreateFile: async () => right(undefined),
+					ensureCanUpdateFile: async () => right(undefined),
+					ensureCanRunAgent: async () =>
+						left(new ForbiddenError("Agent token limit exceeded for the current month")),
+				},
+			}));
+			const result = await engine.chat(mockAuthContext, "legacy-no-prompt-agent", "Hello");
+
+			expect(result.isLeft()).toBe(true);
+			if (result.isLeft()) {
+				expect(result.value).toBeInstanceOf(ForbiddenError);
+				expect(result.value.message).toContain("Agent token limit exceeded");
+			}
+		});
 	});
 
 	describe("answer - agent not found", () => {
@@ -204,6 +214,31 @@ describe("AgentsEngine", () => {
 				expect(result.value.message).toContain("Agent token limit exceeded");
 			}
 		});
+
+		it("allows direct answer when systemPrompt is missing", async () => {
+			const agentsService = {
+				getAgent: async () =>
+					right(makeAgentData({ systemPrompt: undefined as unknown as string })),
+				listAgents: async () => right([]),
+			} as unknown as import("./agents_service.ts").AgentsService;
+
+			const engine = new AgentsEngine(makeContext({
+				agentsService,
+				tenantLimitsGuard: {
+					ensureCanCreateFile: async () => right(undefined),
+					ensureCanUpdateFile: async () => right(undefined),
+					ensureCanRunAgent: async () =>
+						left(new ForbiddenError("Agent token limit exceeded for the current month")),
+				},
+			}));
+			const result = await engine.answer(mockAuthContext, "legacy-no-prompt-agent", "Hello");
+
+			expect(result.isLeft()).toBe(true);
+			if (result.isLeft()) {
+				expect(result.value).toBeInstanceOf(ForbiddenError);
+				expect(result.value.message).toContain("Agent token limit exceeded");
+			}
+		});
 	});
 
 	describe("limits enforcement", () => {
@@ -246,38 +281,10 @@ describe("AgentsEngine", () => {
 		});
 	});
 
-	describe("sequential agent dispatch", () => {
-		it("returns error when sequential agent has unknown sub-agent UUID", async () => {
-			const agentsService = {
-				getAgent: async (_ctx: unknown, uuid: string) => {
-					if (uuid === "pipeline-agent") {
-						return right(
-							makeSequentialAgentData({
-								uuid: "pipeline-agent",
-								agents: ["not-found-sub-agent"],
-							}),
-						);
-					}
-					// Sub-agent lookup returns not found
-					return left(
-						{ errorCode: "NotFound", message: "Agent not found" } as AntboxError,
-					);
-				},
-				listAgents: async () => right([]),
-			} as unknown as import("./agents_service.ts").AgentsService;
-
-			const engine = new AgentsEngine(makeContext({ agentsService }));
-
-			const result = await engine.chat(mockAuthContext, "pipeline-agent", "Hello");
-
-			expect(result.isLeft()).toBe(true);
-		});
-	});
-
 	describe("tools filtering", () => {
-		it("includes feature-backed AI tools for agents", async () => {
+		it("includes feature-backed AI tools for agents using snake_case aliases", async () => {
 			const featureTool: FeatureData = {
-				uuid: "count_children_tool",
+				uuid: "countChildrenTool",
 				title: "Count Children Tool",
 				description: "Counts child nodes",
 				exposeAction: false,
@@ -292,7 +299,7 @@ describe("AgentsEngine", () => {
 				exposeAITool: true,
 				runAs: undefined,
 				groupsAllowed: [],
-				parameters: [{ name: "parent", type: "string", required: true }],
+				parameters: [{ name: "parentUuid", type: "string", required: true }],
 				returnType: "object",
 				returnDescription: "Child count",
 				returnContentType: "application/json",
@@ -316,14 +323,14 @@ describe("AgentsEngine", () => {
 			expect(result.isRight()).toBe(true);
 			if (result.isRight()) {
 				expect(result.value).toContain("count_children_tool");
-				expect(result.value).toContain("runCode");
-				expect(result.value).toContain("skillLoader");
+				expect(result.value).toContain("run_code");
+				expect(result.value).toContain("load_skill");
 			}
 		});
 
 		it("applies agent tool allowlists to feature-backed AI tools", async () => {
 			const featureTool: FeatureData = {
-				uuid: "count_children_tool",
+				uuid: "countChildrenTool",
 				title: "Count Children Tool",
 				description: "Counts child nodes",
 				exposeAction: false,
@@ -338,7 +345,7 @@ describe("AgentsEngine", () => {
 				exposeAITool: true,
 				runAs: undefined,
 				groupsAllowed: [],
-				parameters: [{ name: "parent", type: "string", required: true }],
+				parameters: [{ name: "parentUuid", type: "string", required: true }],
 				returnType: "object",
 				tags: [],
 				run: "async function() { return { count: 1 }; }",
@@ -359,53 +366,69 @@ describe("AgentsEngine", () => {
 
 			expect(result.isRight()).toBe(true);
 			if (result.isRight()) {
-				expect(result.value).toEqual(["skillLoader", "count_children_tool"]);
+				expect(result.value).toEqual(["load_skill", "count_children_tool"]);
 			}
 		});
 
 		it("tools=true enables all tools", () => {
 			const selected = selectAgentTools(
-				[{ name: "runCode" }, { name: "skillLoader" }],
+				[
+					{ name: "run_code", allowlistNames: ["runCode"] },
+					{ name: "load_skill", allowlistNames: ["skillLoader"] },
+				],
 				true,
 			);
 
-			expect(selected.map((tool) => tool.name)).toEqual(["runCode", "skillLoader"]);
+			expect(selected.map((tool) => tool.name)).toEqual(["run_code", "load_skill"]);
 		});
 
-		it("tools=false keeps only skillLoader", () => {
+		it("tools=false keeps only load_skill", () => {
 			const selected = selectAgentTools(
-				[{ name: "runCode" }, { name: "skillLoader" }],
+				[
+					{ name: "run_code", allowlistNames: ["runCode"] },
+					{ name: "load_skill", allowlistNames: ["skillLoader"] },
+				],
 				false,
 			);
 
-			expect(selected.map((tool) => tool.name)).toEqual(["skillLoader"]);
+			expect(selected.map((tool) => tool.name)).toEqual(["load_skill"]);
 		});
 
-		it("tools undefined keeps only skillLoader", () => {
+		it("tools undefined keeps only load_skill", () => {
 			const selected = selectAgentTools(
-				[{ name: "runCode" }, { name: "skillLoader" }],
+				[
+					{ name: "run_code", allowlistNames: ["runCode"] },
+					{ name: "load_skill", allowlistNames: ["skillLoader"] },
+				],
 				undefined,
 			);
 
-			expect(selected.map((tool) => tool.name)).toEqual(["skillLoader"]);
+			expect(selected.map((tool) => tool.name)).toEqual(["load_skill"]);
 		});
 
-		it("empty tools array keeps only skillLoader", () => {
+		it("empty tools array keeps only load_skill", () => {
 			const selected = selectAgentTools(
-				[{ name: "runCode" }, { name: "skillLoader" }],
+				[
+					{ name: "run_code", allowlistNames: ["runCode"] },
+					{ name: "load_skill", allowlistNames: ["skillLoader"] },
+				],
 				[],
 			);
 
-			expect(selected.map((tool) => tool.name)).toEqual(["skillLoader"]);
+			expect(selected.map((tool) => tool.name)).toEqual(["load_skill"]);
 		});
 
-		it("tools array keeps listed tools plus skillLoader", () => {
+		it("tools array keeps listed tools plus load_skill, accepting legacy names", () => {
 			const selected = selectAgentTools(
-				[{ name: "runCode" }, { name: "skillLoader" }, { name: "other" }],
+				[
+					{ name: "run_code", allowlistNames: ["runCode"] },
+					{ name: "load_skill", allowlistNames: ["skillLoader"] },
+					{ name: "other" },
+				],
 				["runCode"],
 			);
 
-			expect(selected.map((tool) => tool.name)).toEqual(["runCode", "skillLoader"]);
+			expect(selected.map((tool) => tool.name)).toEqual(["run_code", "load_skill"]);
 		});
 
 		it("engine can be constructed with discovered skills for filtering", () => {
@@ -432,20 +455,14 @@ describe("AgentsEngine", () => {
 			expect(engine).toBeDefined();
 		});
 
-		it("LLM agent with no type field still resolves as LLM", async () => {
-			// Validates that type defaults to "llm" at the engine level.
-			// getAgent returns an agent without explicit type.
+		it("agents work without requiring a type field", async () => {
 			const agentsService = {
-				getAgent: async () =>
-					right(
-						makeAgentData({ type: undefined, systemPrompt: "You are helpful." }),
-					),
+				getAgent: async () => right(makeAgentData({ systemPrompt: "You are helpful." })),
 				listAgents: async () => right([]),
 			} as unknown as import("./agents_service.ts").AgentsService;
 
 			const engine = new AgentsEngine(makeContext({ agentsService }));
 			expect(engine).toBeDefined();
-			// Actual LLM call would fail without API key; we confirm no construction error
 		});
 	});
 

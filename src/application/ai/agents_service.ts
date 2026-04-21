@@ -23,6 +23,20 @@ export interface CreateAgentData
 	exposedToUsers?: boolean;
 }
 
+export const DEFAULT_AGENT_SYSTEM_PROMPT = [
+	"You are a helpful AI assistant operating inside Antbox, an enterprise content and asset management platform.",
+	"Help users answer questions, find and inspect nodes, and use available tools to retrieve or transform information stored in Antbox.",
+	"Prefer the simplest accurate tool for the task: use find_nodes, get_node, and semantic_search for retrieval; load_skill for specialized instructions; and run_code only for advanced multi-step workflows.",
+	"Use feature-backed AI tools when they clearly match the task.",
+	"Ground your answers in retrieved Antbox data when possible, be concise, and clearly state when information is missing or uncertain.",
+	"Do not claim a tool action succeeded unless the tool result confirms it.",
+].join(" ");
+
+export function resolveAgentSystemPrompt(systemPrompt?: string): string {
+	const normalized = systemPrompt?.trim();
+	return normalized && normalized.length > 0 ? normalized : DEFAULT_AGENT_SYSTEM_PROMPT;
+}
+
 /**
  * AgentsService - Manages AI agent configurations (CRUD operations only)
  *
@@ -59,8 +73,8 @@ export class AgentsService {
 		const agentData: AgentData = {
 			uuid: UuidGenerator.generateKebabCase(),
 			...data,
-			type: data.type ?? "llm",
 			exposedToUsers: data.exposedToUsers ?? true,
+			systemPrompt: resolveAgentSystemPrompt(data.systemPrompt),
 			createdTime: now,
 			modifiedTime: now,
 		};
@@ -146,8 +160,10 @@ export class AgentsService {
 			...existingOrErr.value,
 			...updates,
 			uuid, // Ensure UUID doesn't change
-			type: updates.type ?? existingOrErr.value.type ?? "llm",
 			exposedToUsers: updates.exposedToUsers ?? existingOrErr.value.exposedToUsers ?? true,
+			systemPrompt: resolveAgentSystemPrompt(
+				updates.systemPrompt ?? existingOrErr.value.systemPrompt,
+			),
 			createdTime: existingOrErr.value.createdTime, // Preserve creation time
 			modifiedTime: new Date().toISOString(),
 		};
@@ -198,6 +214,7 @@ export class AgentsService {
 		return {
 			...agent,
 			exposedToUsers: agent.exposedToUsers ?? true,
+			systemPrompt: resolveAgentSystemPrompt(agent.systemPrompt),
 		};
 	}
 }

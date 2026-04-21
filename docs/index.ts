@@ -38,7 +38,7 @@ export const DOCS: DocInfo[] = [
 	},
 	{
 		uuid: "agent-sdk",
-		description: "Agent runCode SDK reference",
+		description: "Agent run_code SDK reference",
 	},
 	{
 		uuid: "agent-skills",

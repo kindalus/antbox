@@ -5,24 +5,15 @@
  * Agents are mutable and can be updated after creation
  */
 
-export type AgentType = "llm" | "sequential" | "parallel" | "loop";
-
 export interface AgentData {
 	readonly uuid: string;
 	readonly name: string;
 	readonly description?: string;
-	readonly type?: AgentType; // default: "llm"
 	readonly exposedToUsers: boolean;
-
-	// LLM-only fields
 	readonly model?: string; // ADK model string; falls back to defaultModel if absent
-	readonly tools?: boolean | string[]; // true = all, false/undefined/[] = skillLoader only
-	readonly systemPrompt?: string; // the system instruction
+	readonly tools?: boolean | string[]; // true = all, false/undefined/[] = load_skill only
+	readonly systemPrompt?: string; // optional custom system instruction; defaults if absent
 	readonly maxLlmCalls?: number; // max LLM call iterations; passed to ADK RunConfig
-
-	// Workflow-only fields
-	readonly agents?: string[]; // sub-agent UUIDs in execution order
-
 	readonly createdTime: string;
 	readonly modifiedTime: string;
 }

@@ -24,9 +24,8 @@ export function createOrReplaceAgentHandler(tenants: AntboxTenant[]): HttpHandle
 			}
 
 			const metadata = await req.json();
-
-			if (!metadata?.systemPrompt && !metadata?.agents) {
-				return sendBadRequest({ error: "{ systemPrompt } or { agents } not given" });
+			if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+				return sendBadRequest({ error: "JSON object body required" });
 			}
 
 			return tenant.agentsService!

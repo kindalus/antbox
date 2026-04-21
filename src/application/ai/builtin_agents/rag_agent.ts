@@ -69,7 +69,8 @@ Example output:
 ["vacation policy", "carry over", "days"]
 `;
 
-const QUERY_REWRITE_SYSTEM_PROMPT = `You rewrite follow-up questions into standalone Antbox retrieval queries.
+const QUERY_REWRITE_SYSTEM_PROMPT =
+	`You rewrite follow-up questions into standalone Antbox retrieval queries.
 
 Rules:
 - Use the provided conversation context to resolve references like "it", "they", "that", or "how many are there".
@@ -151,9 +152,9 @@ const ragAgent: AgentData = {
 	name: "RAG Agent",
 	description:
 		"Retrieval-Augmented Generation agent for knowledge discovery and document analysis within Antbox ECM",
-	type: "sequential",
 	exposedToUsers: true,
-	agents: [INLINE_REWRITE_AGENT_NAME, INLINE_KEYWORD_AGENT_NAME, INLINE_SUMMARIZER_AGENT_NAME],
+	systemPrompt:
+		"You are the built-in Antbox RAG agent. Execution is handled by the server-side RAG pipeline.",
 	createdTime: "2024-01-01T00:00:00.000Z",
 	modifiedTime: "2024-01-01T00:00:00.000Z",
 };
@@ -258,7 +259,9 @@ export class RagAgent extends BaseAntboxAgent {
 		query: string,
 		conversationContext: ConversationTurn[],
 	): Promise<{ text: string; usageMetadata?: UsageMetadata }> {
-		if (!query || !this.#shouldUseConversationContext(query) || conversationContext.length === 0) {
+		if (
+			!query || !this.#shouldUseConversationContext(query) || conversationContext.length === 0
+		) {
 			return { text: query };
 		}
 

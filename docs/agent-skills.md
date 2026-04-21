@@ -5,8 +5,8 @@ description: How agent skills work
 
 # Agent Skills
 
-Antbox uses a tool-based Agent Skills integration. Skills are discovered at startup, exposed to
-agents through a function tool, and loaded on demand as instruction text.
+Antbox uses a Pi-style metadata-first skill integration. Skills are discovered at startup, listed in
+agent context as lightweight metadata, and loaded on demand only when needed.
 
 ## Current implementation
 
@@ -19,10 +19,10 @@ Skills are integrated with these components:
 At runtime:
 
 1. Skills are discovered during tenant setup.
-2. Agent toolset always includes `skillLoader`.
-3. The model can call `skillLoader` with a skill name.
-4. The loader returns the skill instruction body (frontmatter removed).
-5. That tool response becomes part of model context for the current reasoning flow.
+2. Agent instructions include an `<available_skills>` block with skill metadata.
+3. The model can call `load_skill` with a skill name.
+4. Antbox returns the full skill instruction body (frontmatter removed), wrapped with path guidance.
+5. That loaded content becomes part of model context for the current reasoning flow.
 
 ## Skill sources
 
@@ -32,7 +32,8 @@ Antbox loads skills from three sources:
 2. Built-in skills from `src/application/ai/builtin_skills/*/SKILL.md`.
 3. Optional tenant skills from `[tenants.ai].skillsPath`.
 
-When duplicate skill names exist, later sources win. Effective precedence is:
+When duplicate skill names exist, later configured sources override earlier ones. Current effective
+precedence is:
 
 - extra skills > built-in skills > documentation skills
 
@@ -68,29 +69,25 @@ For documentation-based skills (`docs/*.md`):
 
 - frontmatter `name` and `description` must match the corresponding entry in `docs/index.ts`
 
-## `skillLoader` tool
+## `load_skill` tool
 
-Agents receive a `skillLoader` function tool with this behavior:
+Agents receive a `load_skill` function tool with this behavior:
 
-- `name`: `skillLoader`
+- `name`: `load_skill`
 - `parameter`: `name` (skill name)
-- description contains a discoverable list of available skills
-
-Usage:
-
-- if skill exists: returns a payload containing skill metadata and full instruction body
-- if not found: returns error text plus the available skill list
-- if file read/parse fails: returns load failure text
+- loads only previously discovered skills
+- returns the full skill body plus relative-path guidance
 
 Important:
 
-- `skillLoader` is always included in the agent toolset, even when `agent.tools` is an empty array
-- no skill scripts are executed yet (instruction loading only)
+- `load_skill` is always included in the agent toolset, even when `agent.tools` is an empty array
+- no skill scripts are executed automatically; only instruction loading happens
+- arbitrary filesystem reads are not exposed through this tool
 
 ## Documentation skills
 
 All documents listed in `docs/index.ts` are also treated as skills. This enables models to load
-domain docs through `skillLoader` instead of hardcoding documentation text in prompts.
+domain docs through `load_skill` instead of hardcoding documentation text in prompts.
 
 Each `docs/*.md` file listed in `docs/index.ts` must start with this frontmatter shape:
 
@@ -113,7 +110,7 @@ Create a directory under your configured `skillsPath`, for example:
 ---
 name: pdf-processing
 description: Extract and normalize text from PDF documents.
-allowed-tools: runCode
+allowed-tools: run_code
 ---
 
 # PDF Processing

@@ -5,9 +5,6 @@ import {
 	InMemoryRunner,
 	isFinalResponse,
 	LlmAgent,
-	LoopAgent,
-	ParallelAgent,
-	SequentialAgent,
 } from "@google/adk";
 import type { RunConfig } from "@google/adk";
 import { z } from "zod";
@@ -19,7 +16,7 @@ import type { AgentData } from "domain/configuration/agent_data.ts";
 import type { ChatHistory, ChatMessage, TokenUsage } from "domain/ai/chat_message.ts";
 import { AgentInteractionCompletedEvent } from "domain/ai/agent_interaction_completed_event.ts";
 import type { EventBus } from "shared/event_bus.ts";
-import type { AgentsService } from "./agents_service.ts";
+import { type AgentsService, resolveAgentSystemPrompt } from "./agents_service.ts";
 import type { NodeService } from "../nodes/node_service.ts";
 import type { AspectsService } from "../aspects/aspects_service.ts";
 import { NodeServiceProxy } from "../nodes/node_service_proxy.ts";
@@ -31,6 +28,7 @@ import type { TenantLimitsEnforcer } from "application/metrics/tenant_limits_gua
 import { getCustomAgent } from "application/ai/custom_agents/index.ts";
 import type { FeaturesService } from "application/features/features_service.ts";
 import type { FeatureData, FeatureParameter } from "domain/configuration/feature_data.ts";
+import type { NodeFilters } from "domain/nodes/node_filter.ts";
 
 const APP_NAME = "antbox";
 
@@ -73,7 +71,55 @@ export interface FeatureAIToolExecutor {
 	): Promise<Either<AntboxError, T>>;
 }
 
-export function selectAgentTools<T extends { name: string }>(
+export interface ToolSelectionEntry {
+	name: string;
+	allowlistNames?: string[];
+}
+
+const DEFAULT_AGENT_TOOL_NAME = "load_skill";
+const NODE_FILTER_OPERATORS = [
+	"==",
+	"<=",
+	">=",
+	"<",
+	">",
+	"!=",
+	"in",
+	"not-in",
+	"match",
+	"contains",
+	"contains-all",
+	"contains-any",
+	"not-contains",
+	"contains-none",
+] as const;
+
+const nodeFilterSchema = z.tuple([
+	z.string().min(1),
+	z.enum(NODE_FILTER_OPERATORS),
+	z.unknown(),
+]);
+
+const nodeFiltersSchema = z.union([
+	z.string().min(1),
+	z.array(nodeFilterSchema).min(1),
+	z.array(z.array(nodeFilterSchema).min(1)).min(1),
+]);
+
+function toSnakeCase(value: string): string {
+	return value
+		.replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+		.replace(/[^a-zA-Z0-9]+/g, "_")
+		.replace(/_+/g, "_")
+		.replace(/^_+|_+$/g, "")
+		.toLowerCase();
+}
+
+function matchesToolName(tool: ToolSelectionEntry, candidate: string): boolean {
+	return tool.name === candidate || tool.allowlistNames?.includes(candidate) === true;
+}
+
+export function selectAgentTools<T extends ToolSelectionEntry>(
 	allTools: T[],
 	tools: AgentData["tools"],
 ): T[] {
@@ -81,12 +127,25 @@ export function selectAgentTools<T extends { name: string }>(
 		return allTools;
 	}
 
-	if (tools === false || tools === undefined) {
-		return allTools.filter((tool) => tool.name === "skillLoader");
+	const isDefaultTool = (tool: T) => matchesToolName(tool, DEFAULT_AGENT_TOOL_NAME);
+	if (tools === false || tools === undefined || tools.length === 0) {
+		return allTools.filter(isDefaultTool);
 	}
 
 	const allowedNames = new Set(tools);
-	return allTools.filter((tool) => tool.name === "skillLoader" || allowedNames.has(tool.name));
+	return allTools.filter((tool) => {
+		if (isDefaultTool(tool)) {
+			return true;
+		}
+
+		for (const allowedName of allowedNames) {
+			if (matchesToolName(tool, allowedName)) {
+				return true;
+			}
+		}
+
+		return false;
+	});
 }
 
 // ============================================================================
@@ -99,7 +158,7 @@ export function selectAgentTools<T extends { name: string }>(
  * Uses a stateless session approach: each call creates a fresh ADK session,
  * injects conversation history as events, and runs the agent.
  *
- * Supports LLM agents and workflow orchestration agents (sequential, parallel, loop).
+ * Supports LLM agents with built-in tools, feature-backed AI tools, and custom coded agents.
  */
 export class AgentsEngine {
 	readonly #agentsService: AgentsService;
@@ -154,86 +213,25 @@ export class AgentsEngine {
 		text: string,
 		options?: ChatOptions,
 	): Promise<Either<AntboxError, ChatHistory>> {
-		const agentOrErr = await this.#agentsService.getAgent(authContext, agentUuid);
-		if (agentOrErr.isLeft()) {
-			return left(agentOrErr.value);
+		const interactionOrErr = await this.#runInteraction(authContext, agentUuid, text, {
+			history: options?.history,
+			instructions: options?.instructions,
+			interactionType: "chat",
+		});
+		if (interactionOrErr.isLeft()) {
+			return left(interactionOrErr.value);
 		}
 
-		const agentData = agentOrErr.value;
-
-		if (agentData.exposedToUsers === false) {
-			return left(
-				new AntboxErrorClass(
-					"Forbidden",
-					`Agent ${agentData.name} is not available for direct chat`,
-				),
-			);
-		}
-
-		const limitsOrErr = await this.#tenantLimitsGuard?.ensureCanRunAgent() ?? right(undefined);
-		if (limitsOrErr.isLeft()) {
-			return left(limitsOrErr.value);
-		}
-
-		try {
-			const adkAgent = await this.#buildAdkAgent(agentData, authContext, options?.instructions);
-
-			const runner = new InMemoryRunner({ agent: adkAgent, appName: APP_NAME });
-			const session = await runner.sessionService.createSession({
-				appName: APP_NAME,
-				userId: authContext.principal.email,
-			});
-
-			// Inject prior history into the session
-			const history = options?.history ?? [];
-			for (const msg of history) {
-				const adkEvent = createEvent({
-					author: msg.role === "model" ? adkAgent.name : "user",
-					content: {
-						role: msg.role === "model" ? "model" : "user",
-						parts: msg.parts.map((p) => ({ text: p.text ?? "" })),
-					},
-					invocationId: "history",
-				});
-				await runner.sessionService.appendEvent({ session, event: adkEvent });
-			}
-
-			// Run the agent with the new user message
-			const runConfig = agentData.maxLlmCalls
-				? { maxLlmCalls: agentData.maxLlmCalls } as RunConfig
-				: undefined;
-
-			const { text: responseText, usage } = await this.#runAndCollect(runner, {
-				userId: authContext.principal.email,
-				sessionId: session.id,
-				newMessage: { role: "user", parts: [{ text }] },
-			}, runConfig);
-
-			if (usage) {
-				this.#eventBus.publish(
-					new AgentInteractionCompletedEvent(
-						authContext.principal.email,
-						authContext.tenant,
-						{
-							agentUuid,
-							usage,
-							interactionType: "chat",
-						},
-					),
-				);
-			}
-
-			const updatedHistory: ChatHistory = [
-				...history,
-				{ role: "user", parts: [{ text }] },
-				{ role: "model", parts: [{ text: responseText }], usage },
-			];
-
-			return right(updatedHistory);
-		} catch (error) {
-			Logger.error("AgentsEngine.chat error:", error);
-			return left(new AntboxErrorClass("AgentChatError", `Agent chat failed: ${error}`));
-		}
+		const history = options?.history ?? [];
+		return right([
+			...history,
+			{ role: "user", parts: [{ text }] },
+			{
+				role: "model",
+				parts: [{ text: interactionOrErr.value.text }],
+				usage: interactionOrErr.value.usage,
+			},
+		]);
 	}
 
 	/**
@@ -245,18 +243,47 @@ export class AgentsEngine {
 		text: string,
 		options?: AnswerOptions,
 	): Promise<Either<AntboxError, ChatMessage>> {
+		const interactionOrErr = await this.#runInteraction(authContext, agentUuid, text, {
+			history: [],
+			instructions: options?.instructions,
+			interactionType: "answer",
+		});
+		if (interactionOrErr.isLeft()) {
+			return left(interactionOrErr.value);
+		}
+
+		return right({
+			role: "model",
+			parts: [{ text: interactionOrErr.value.text }],
+			usage: interactionOrErr.value.usage,
+		});
+	}
+
+	// ========================================================================
+	// PRIVATE: ADK AGENT BUILDERS
+	// ========================================================================
+
+	async #runInteraction(
+		authContext: AuthenticationContext,
+		agentUuid: string,
+		text: string,
+		options: {
+			history?: ChatHistory;
+			instructions?: string;
+			interactionType: "chat" | "answer";
+		},
+	): Promise<Either<AntboxError, { text: string; usage?: TokenUsage }>> {
 		const agentOrErr = await this.#agentsService.getAgent(authContext, agentUuid);
 		if (agentOrErr.isLeft()) {
 			return left(agentOrErr.value);
 		}
 
 		const agentData = agentOrErr.value;
-
 		if (agentData.exposedToUsers === false) {
 			return left(
 				new AntboxErrorClass(
 					"Forbidden",
-					`Agent ${agentData.name} is not available for direct answer`,
+					`Agent ${agentData.name} is not available for direct ${options.interactionType}`,
 				),
 			);
 		}
@@ -267,54 +294,64 @@ export class AgentsEngine {
 		}
 
 		try {
-			const adkAgent = await this.#buildAdkAgent(agentData, authContext, options?.instructions);
-
+			const adkAgent = await this.#buildAdkAgent(agentData, authContext, options.instructions);
 			const runner = new InMemoryRunner({ agent: adkAgent, appName: APP_NAME });
+			const history = options.history ?? [];
+			let sessionId: string | undefined;
+			if (history.length > 0) {
+				const session = await runner.sessionService.createSession({
+					appName: APP_NAME,
+					userId: authContext.principal.email,
+				});
+				sessionId = session.id;
+				for (const msg of history) {
+					const adkEvent = createEvent({
+						author: msg.role === "model" ? adkAgent.name : "user",
+						content: {
+							role: msg.role === "model" ? "model" : "user",
+							parts: msg.parts.map((p) => ({ text: p.text ?? "" })),
+						},
+						invocationId: "history",
+					});
+					await runner.sessionService.appendEvent({ session, event: adkEvent });
+				}
+			}
 
 			const runConfig = agentData.maxLlmCalls
 				? { maxLlmCalls: agentData.maxLlmCalls } as RunConfig
 				: undefined;
-
-			const { text: responseText, usage } = await this.#runAndCollect(runner, {
+			const result = await this.#runAndCollect(runner, {
 				userId: authContext.principal.email,
+				sessionId,
 				newMessage: { role: "user", parts: [{ text }] },
 			}, runConfig);
 
-			if (usage) {
+			if (result.usage) {
 				this.#eventBus.publish(
 					new AgentInteractionCompletedEvent(
 						authContext.principal.email,
 						authContext.tenant,
 						{
 							agentUuid,
-							usage,
-							interactionType: "answer",
+							usage: result.usage,
+							interactionType: options.interactionType,
 						},
 					),
 				);
 			}
 
-			const message: ChatMessage = {
-				role: "model",
-				parts: [{ text: responseText }],
-				usage,
-			};
-
-			return right(message);
+			return right(result);
 		} catch (error) {
-			Logger.error("AgentsEngine.answer error:", error);
-			return left(new AntboxErrorClass("AgentAnswerError", `Agent answer failed: ${error}`));
+			Logger.error(`AgentsEngine.${options.interactionType} error:`, error);
+			return left(
+				new AntboxErrorClass(
+					options.interactionType === "chat" ? "AgentChatError" : "AgentAnswerError",
+					`Agent ${options.interactionType} failed: ${error}`,
+				),
+			);
 		}
 	}
 
-	// ========================================================================
-	// PRIVATE: ADK AGENT BUILDERS
-	// ========================================================================
-
-	/**
-	 * Resolves the appropriate ADK agent type based on AgentData.type.
-	 * Recursively builds sub-agents for workflow types.
-	 */
 	async #buildAdkAgent(
 		agentData: AgentData,
 		authContext: AuthenticationContext,
@@ -332,47 +369,7 @@ export class AgentsEngine {
 			});
 		}
 
-		const type = agentData.type ?? "llm";
-
-		if (type === "llm") {
-			return this.#buildLlmAgent(agentData, authContext, additionalInstructions);
-		}
-
-		// Workflow agent — resolve sub-agents recursively
-		const subAgentUuids = agentData.agents ?? [];
-		const subAgentDatas = await Promise.all(
-			subAgentUuids.map((uuid) => this.#agentsService.getAgent(authContext, uuid)),
-		);
-
-		// Fail fast if any sub-agent is not found
-		for (const result of subAgentDatas) {
-			if (result.isLeft()) {
-				throw new Error(`Sub-agent not found: ${result.value.message}`);
-			}
-		}
-
-		const subAgents = await Promise.all(
-			subAgentDatas.map((r) =>
-				this.#buildAdkAgent(
-					(r as { isLeft(): false; isRight(): true; value: AgentData }).value,
-					authContext,
-				)
-			),
-		);
-
-		const name = this.#sanitizeName(agentData.name);
-		const description = agentData.description ?? agentData.name;
-
-		if (type === "sequential") {
-			return new SequentialAgent({ name, description, subAgents });
-		}
-
-		if (type === "parallel") {
-			return new ParallelAgent({ name, description, subAgents });
-		}
-
-		// loop — uses only the first sub-agent
-		return new LoopAgent({ name, description, subAgents });
+		return this.#buildLlmAgent(agentData, authContext, additionalInstructions);
 	}
 
 	async #buildLlmAgent(
@@ -405,77 +402,144 @@ export class AgentsEngine {
 		agentData: AgentData,
 	): Promise<FunctionTool[]> {
 		const allTools = await this.#buildFunctionTools(authContext);
-		return selectAgentTools(allTools, agentData.tools);
+		return selectAgentTools(allTools, agentData.tools).map((tool) => tool.tool);
 	}
 
 	async #buildFunctionTools(
 		authContext: AuthenticationContext,
-	): Promise<FunctionTool[]> {
+	): Promise<Array<{ tool: FunctionTool; name: string; allowlistNames: string[] }>> {
 		const nodeProxy = new NodeServiceProxy(this.#nodeService, this.#ragService, authContext);
 		const aspectProxy = new AspectServiceProxy(this.#aspectsService, authContext);
 		const runCodeFn = createRunCodeTool(nodeProxy, aspectProxy, {});
-		const availableSkillsText = this.#formatAvailableSkills();
 
-		const runCodeTool = new FunctionTool({
-			name: "runCode",
-			description:
-				`Execute JavaScript/TypeScript code to interact with the platform. The code must be an ESM module that exports a default async function receiving { nodes, aspects }.`,
-			execute: async ({ code }) => runCodeFn(code),
-			parameters: z.object({
-				code: z.string().describe(
-					"ESM JavaScript/TypeScript module code with a default export function",
-				),
-			}),
-		});
-
-		const skillLoaderTool = new FunctionTool({
-			name: "skillLoader",
-			description:
-				`Load an Agent Skill to gain more knowledge before completing the task. If you need domain-specific guidance, use this loader. Available skills are:\n${availableSkillsText}`,
-			execute: async ({ name }) => {
-				const skillName = String(name).trim();
-				const skill = this.#skills.find((s) => s.frontmatter.name === skillName);
-
-				if (!skill) {
-					return `Skill '${skillName}' not found. Available skills are:\n${availableSkillsText}`;
-				}
-
-				const instruction = await loadSkillInstruction(skill.skillFile);
-				if (!instruction) {
-					return `Failed to load skill '${skillName}'.`;
-				}
-
-				return [
-					`Skill '${skillName}' loaded. Add this knowledge to your context for the current task:`,
-					`# ${skill.frontmatter.name}`,
-					skill.frontmatter.description,
-					skill.frontmatter.compatibility
-						? `Compatibility: ${skill.frontmatter.compatibility}`
-						: "",
-					skill.frontmatter.license ? `License: ${skill.frontmatter.license}` : "",
-					skill.frontmatter.metadata && Object.keys(skill.frontmatter.metadata).length > 0
-						? `Metadata: ${JSON.stringify(skill.frontmatter.metadata)}`
-						: "",
-					"",
-					instruction,
-				].filter((line) => line.length > 0).join("\n");
+		const builtInTools: Array<{ tool: FunctionTool; name: string; allowlistNames: string[] }> = [
+			{
+				name: "run_code",
+				allowlistNames: ["run_code", "runCode"],
+				tool: new FunctionTool({
+					name: "run_code",
+					description:
+						"Execute JavaScript/TypeScript code for advanced multi-step workflows involving nodes and aspects.",
+					execute: async ({ code }) => runCodeFn(code),
+					parameters: z.object({
+						code: z.string().describe(
+							"ESM JavaScript/TypeScript module code with a default export function",
+						),
+					}),
+				}),
 			},
-			parameters: z.object({
-				name: z.string().describe("Skill name to load"),
-			}),
-		});
+			{
+				name: "find_nodes",
+				allowlistNames: ["find_nodes"],
+				tool: new FunctionTool({
+					name: "find_nodes",
+					description: "Find nodes using structured filters or plain-text search.",
+					execute: async ({ filters, page_size, page_token }) => {
+						const result = await nodeProxy.find(
+							filters as NodeFilters | string,
+							page_size,
+							page_token,
+						);
+						if (result.isLeft()) {
+							throw new Error(result.value.message);
+						}
+						return result.value;
+					},
+					parameters: z.object({
+						filters: nodeFiltersSchema.describe(
+							"Structured node filters or plain-text search string",
+						),
+						page_size: z.number().int().min(1).max(200).optional(),
+						page_token: z.number().int().min(1).optional(),
+					}),
+				}),
+			},
+			{
+				name: "get_node",
+				allowlistNames: ["get_node"],
+				tool: new FunctionTool({
+					name: "get_node",
+					description: "Get a single node by UUID.",
+					execute: async ({ uuid }) => {
+						const result = await nodeProxy.get(uuid);
+						if (result.isLeft()) {
+							throw new Error(result.value.message);
+						}
+						return result.value;
+					},
+					parameters: z.object({
+						uuid: z.string().min(1),
+					}),
+				}),
+			},
+			{
+				name: "semantic_search",
+				allowlistNames: ["semantic_search"],
+				tool: new FunctionTool({
+					name: "semantic_search",
+					description: "Run semantic search over indexed node content.",
+					execute: async ({ query }) => {
+						const result = await nodeProxy.semanticQuery(query);
+						if (result.isLeft()) {
+							throw new Error(
+								result.value instanceof Error ? result.value.message : String(result.value),
+							);
+						}
+						return result.value;
+					},
+					parameters: z.object({
+						query: z.string().min(1),
+					}),
+				}),
+			},
+			{
+				name: "load_skill",
+				allowlistNames: ["load_skill", "skillLoader"],
+				tool: new FunctionTool({
+					name: "load_skill",
+					description: "Load a discovered skill by name to get its full instructions.",
+					execute: async ({ name }) => {
+						const skillName = String(name).trim();
+						const skill = this.#skills.find((s) => s.frontmatter.name === skillName);
+						if (!skill) {
+							throw new Error(`Skill '${skillName}' not found`);
+						}
+
+						const instruction = await loadSkillInstruction(skill.skillFile);
+						if (!instruction) {
+							throw new Error(`Failed to load skill '${skillName}'`);
+						}
+
+						return [
+							`<skill name="${skill.frontmatter.name}" location="${skill.skillFile}">`,
+							`References are relative to ${skill.skillDir}.`,
+							"",
+							instruction,
+							"</skill>",
+						].join("\n");
+					},
+					parameters: z.object({
+						name: z.string().min(1).describe("Skill name to load"),
+					}),
+				}),
+			},
+		];
 
 		const featureToolsOrErr = await this.#buildFeatureAITools(authContext);
 		if (featureToolsOrErr.isLeft()) {
 			throw featureToolsOrErr.value;
 		}
 
-		return [runCodeTool, skillLoaderTool, ...featureToolsOrErr.value];
+		const tools = [...builtInTools, ...featureToolsOrErr.value];
+		this.#assertUniqueToolAliases(tools);
+		return tools;
 	}
 
 	async #buildFeatureAITools(
 		authContext: AuthenticationContext,
-	): Promise<Either<AntboxError, FunctionTool[]>> {
+	): Promise<
+		Either<AntboxError, Array<{ tool: FunctionTool; name: string; allowlistNames: string[] }>>
+	> {
 		const aiToolsOrErr = await this.#featuresService.listAITools(authContext);
 		if (aiToolsOrErr.isLeft()) {
 			return left(aiToolsOrErr.value);
@@ -489,34 +553,73 @@ export class AgentsEngine {
 	#featureToFunctionTool(
 		authContext: AuthenticationContext,
 		feature: FeatureData,
-	): FunctionTool {
-		return new FunctionTool({
-			name: feature.uuid,
-			description: feature.description,
-			execute: async (params: Record<string, unknown>) => {
-				if (!this.#featureAIToolExecutor) {
-					throw new Error("Feature AI tool executor not available");
-				}
+	): { tool: FunctionTool; name: string; allowlistNames: string[] } {
+		const toolName = toSnakeCase(feature.uuid);
+		const parameterAliases = this.#featureParameterAliases(feature.parameters);
+		return {
+			name: toolName,
+			allowlistNames: [toolName, feature.uuid],
+			tool: new FunctionTool({
+				name: toolName,
+				description: feature.description,
+				execute: async (params: Record<string, unknown>) => {
+					if (!this.#featureAIToolExecutor) {
+						throw new Error("Feature AI tool executor not available");
+					}
 
-				const resultOrErr = await this.#featureAIToolExecutor.runAITool(
-					authContext,
-					feature.uuid,
-					params,
-				);
-				if (resultOrErr.isLeft()) {
-					throw new Error(resultOrErr.value.message);
-				}
+					const mappedParams = this.#mapFeatureParameters(parameterAliases, params);
+					const resultOrErr = await this.#featureAIToolExecutor.runAITool(
+						authContext,
+						feature.uuid,
+						mappedParams,
+					);
+					if (resultOrErr.isLeft()) {
+						throw new Error(resultOrErr.value.message);
+					}
 
-				return resultOrErr.value;
-			},
-			parameters: this.#featureParametersToSchema(feature.parameters),
-		});
+					return resultOrErr.value;
+				},
+				parameters: this.#featureParametersToSchema(parameterAliases),
+			}),
+		};
 	}
 
-	#featureParametersToSchema(parameters: FeatureParameter[]) {
+	#featureParameterAliases(parameters: FeatureParameter[]) {
+		const aliasEntries = parameters.map((parameter) => ({
+			parameter,
+			exposedName: toSnakeCase(parameter.name),
+		}));
+		const seenNames = new Set<string>();
+		for (const entry of aliasEntries) {
+			if (seenNames.has(entry.exposedName)) {
+				throw new Error(
+					`Feature parameter alias collision for '${entry.exposedName}' on parameter '${entry.parameter.name}'`,
+				);
+			}
+			seenNames.add(entry.exposedName);
+		}
+		return aliasEntries;
+	}
+
+	#mapFeatureParameters(
+		aliases: Array<{ parameter: FeatureParameter; exposedName: string }>,
+		params: Record<string, unknown>,
+	): Record<string, unknown> {
+		const mapped: Record<string, unknown> = {};
+		for (const alias of aliases) {
+			if (alias.exposedName in params) {
+				mapped[alias.parameter.name] = params[alias.exposedName];
+			}
+		}
+		return mapped;
+	}
+
+	#featureParametersToSchema(
+		aliases: Array<{ parameter: FeatureParameter; exposedName: string }>,
+	) {
 		const shape: Record<string, z.ZodTypeAny> = {};
 
-		for (const parameter of parameters) {
+		for (const { parameter, exposedName } of aliases) {
 			const description = parameter.description ?? parameter.name;
 			let schema: z.ZodTypeAny;
 
@@ -545,9 +648,9 @@ export class AgentsEngine {
 			}
 
 			if (parameter.required) {
-				shape[parameter.name] = schema.describe(description);
+				shape[exposedName] = schema.describe(description);
 			} else {
-				shape[parameter.name] = schema.optional().describe(description);
+				shape[exposedName] = schema.optional().describe(description);
 			}
 		}
 
@@ -572,29 +675,40 @@ export class AgentsEngine {
 	// PRIVATE: HELPERS
 	// ========================================================================
 
+	#assertUniqueToolAliases(tools: Array<{ name: string }>): void {
+		const seenNames = new Set<string>();
+		for (const tool of tools) {
+			if (seenNames.has(tool.name)) {
+				throw new Error(`Duplicate AI tool name '${tool.name}'`);
+			}
+			seenNames.add(tool.name);
+		}
+	}
+
 	#formatAvailableSkills(): string {
-		if (this.#skills.length === 0) {
-			return "- (no skills available)";
+		const visibleSkills = this.#skills;
+		if (visibleSkills.length === 0) {
+			return "";
 		}
 
-		return this.#skills.map((skill) => {
-			const frontmatter = skill.frontmatter;
-			const optional: string[] = [];
-			if (frontmatter.compatibility) {
-				optional.push(`compatibility: ${frontmatter.compatibility}`);
-			}
-			if (frontmatter.license) {
-				optional.push(`license: ${frontmatter.license}`);
-			}
-			if (frontmatter.metadata && Object.keys(frontmatter.metadata).length > 0) {
-				optional.push(`metadata: ${JSON.stringify(frontmatter.metadata)}`);
-			}
-			if (frontmatter.allowedTools && frontmatter.allowedTools.length > 0) {
-				optional.push(`allowed-tools: ${frontmatter.allowedTools.join(" ")}`);
-			}
-			const suffix = optional.length > 0 ? ` (${optional.join(", ")})` : "";
-			return `- ${frontmatter.name}: ${frontmatter.description}${suffix}`;
-		}).join("\n");
+		const lines = [
+			"The following skills provide specialized instructions for specific tasks.",
+			"Use the load_skill tool to load a skill when the task matches its description.",
+			"When a skill file references a relative path, resolve it against the skill directory (parent of SKILL.md).",
+			"",
+			"<available_skills>",
+		];
+
+		for (const skill of visibleSkills) {
+			lines.push("  <skill>");
+			lines.push(`    <name>${skill.frontmatter.name}</name>`);
+			lines.push(`    <description>${skill.frontmatter.description}</description>`);
+			lines.push(`    <location>${skill.skillFile}</location>`);
+			lines.push("  </skill>");
+		}
+
+		lines.push("</available_skills>");
+		return lines.join("\n");
 	}
 
 	async #runAndCollect(
@@ -644,7 +758,11 @@ export class AgentsEngine {
 	}
 
 	#buildInstruction(agentData: AgentData, additionalInstructions?: string): string {
-		let instruction = agentData.systemPrompt ?? "";
+		let instruction = resolveAgentSystemPrompt(agentData.systemPrompt);
+		const skillsPrompt = this.#formatAvailableSkills();
+		if (skillsPrompt.length > 0) {
+			instruction += `\n\n${skillsPrompt}`;
+		}
 		if (additionalInstructions) {
 			instruction += `\n\n**INSTRUCTIONS**\n\n${additionalInstructions}`;
 		}

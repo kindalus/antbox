@@ -12,7 +12,7 @@ SDKs follow a progressive loading strategy similar to skills:
 
 ## Code Execution Pattern
 
-You interact with the platform through the `runCode` tool, which executes JavaScript code with
+You interact with the platform through the `run_code` tool, which executes JavaScript code with
 access to SDK instances:
 
 ```javascript
@@ -28,7 +28,7 @@ When you need to interact with the platform:
 
 1. **Review available SDKs** from the list below
 2. **Load documentation** using `loadSdkDocumentation(sdkName)` if you need method details
-3. **Write and execute code** using the `runCode` tool
+3. **Write and execute code** using the `run_code` tool
 
 ## loadSdkDocumentation Tool
 

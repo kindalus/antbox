@@ -7,31 +7,20 @@ description: Guide to AI agents in Antbox
 
 Agents are tenant-scoped configuration records executed by `AgentsEngine`.
 
-Antbox supports two classes of agents:
-
-- `llm`: a single LLM agent with prompt and tool access.
-- workflow agents: orchestration over sub-agents (`sequential`, `parallel`, `loop`).
+Antbox agents are **LLM agents only**. Workflow/composition agent types are not supported.
 
 ## AgentData
 
 ```ts
-type AgentType = "llm" | "sequential" | "parallel" | "loop";
-
 interface AgentData {
 	uuid: string;
 	name: string;
 	description?: string;
-	type?: AgentType; // default: "llm"
 	exposedToUsers: boolean;
-
-	// llm-only
 	model?: string; // "default" or explicit provider model id
-	tools?: boolean | string[]; // true = all, false/undefined/[] = skillLoader only
-	systemPrompt?: string; // required for llm agents
-
-	// workflow-only
-	agents?: string[]; // required non-empty for workflow agents
-
+	tools?: boolean | string[]; // true = all, false/undefined/[] = load_skill only
+	systemPrompt?: string; // defaults to a generic Antbox assistant prompt when omitted
+	maxLlmCalls?: number;
 	createdTime: string;
 	modifiedTime: string;
 }
@@ -39,34 +28,28 @@ interface AgentData {
 
 Validation rules:
 
-- `llm` agents require `systemPrompt`.
-- workflow agents require non-empty `agents`.
-- workflow agents must not define `systemPrompt`, `model`, or `tools`.
-- agents default to `exposedToUsers: true` when omitted on create
-- `exposedToUsers: false` blocks direct `/chat` and `/answer`, but the agent can still be used
-  inside workflow agents
+- `systemPrompt` is optional; when omitted, Antbox supplies a generic assistant prompt.
+- agents default to `exposedToUsers: true` when omitted on create.
+- `exposedToUsers: false` blocks direct `/chat` and `/answer`.
 
-Tool rules for llm agents:
+Tool rules:
 
 - `tools: true` -> all tools
-- `tools: false` -> only `skillLoader`
-- omitted `tools` -> same as `[]`, only `skillLoader`
-- `tools: []` -> only `skillLoader`
-- `tools: ["runCode"]` -> listed tools plus `skillLoader`
+- `tools: false` -> only `load_skill`
+- omitted `tools` -> same as `[]`, only `load_skill`
+- `tools: []` -> only `load_skill`
+- tool names exposed to the model are snake_case
+- `run_code` remains available for advanced multi-step workflows
 
 ## Built-in agents
 
-Every tenant exposes three read-only built-ins:
+Every tenant exposes built-in agents such as:
 
 - `--rag-agent--`
-- `--semantic-searcher-agent--`
-- `--rag-summarizer-agent--`
+- `--aspect-field-extractor--`
+- `--code-writer--`
 
 Built-in agents can be listed and fetched, but cannot be updated or deleted.
-
-- `--rag-agent--` is exposed to users
-- `--semantic-searcher-agent--` is internal-only (`exposedToUsers: false`)
-- `--rag-summarizer-agent--` is internal-only (`exposedToUsers: false`)
 
 ## Endpoints
 
@@ -74,36 +57,22 @@ Built-in agents can be listed and fetched, but cannot be updated or deleted.
 - `GET /v2/agents` - list custom + built-in agents
 - `GET /v2/agents/{uuid}` - get one agent
 - `DELETE /v2/agents/{uuid}` - delete a custom agent
-- `POST /v2/agents/{uuid}/-/chat` - multi-turn chat for agents with `exposedToUsers: true`
-- `POST /v2/agents/{uuid}/-/answer` - single-turn answer for agents with `exposedToUsers: true`
+- `POST /v2/agents/{uuid}/-/chat` - interaction with caller-provided history
+- `POST /v2/agents/{uuid}/-/answer` - same interaction model, but ignores history
 
-## Create examples
-
-### LLM agent
+## Create example
 
 ```json
 {
 	"name": "Support Agent",
 	"description": "General support assistant",
-	"type": "llm",
 	"exposedToUsers": true,
 	"model": "default",
-	"tools": true,
-	"systemPrompt": "You are a helpful support assistant."
+	"tools": true
 }
 ```
 
-### Sequential workflow agent
-
-```json
-{
-	"name": "RAG Pipeline",
-	"description": "Search then summarize",
-	"type": "sequential",
-	"exposedToUsers": true,
-	"agents": ["--semantic-searcher-agent--", "--rag-summarizer-agent--"]
-}
-```
+If `systemPrompt` is omitted, Antbox uses a generic prompt tailored to Antbox agent capabilities.
 
 ## Chat and answer payloads
 
@@ -135,9 +104,13 @@ Built-in agents can be listed and fetched, but cannot be updated or deleted.
 
 ## Tools
 
-Current built-in function tool:
+Current built-in function tools include:
 
-- `runCode`
+- `run_code`
+- `find_nodes`
+- `get_node`
+- `semantic_search`
+- `load_skill`
 
-Skill tools are also available when configured for the tenant and included in the agent's `tools`
-allow-list. `skillLoader` is always available for llm agents.
+Feature-backed AI tools are also available when configured for the tenant and included in the
+agent's `tools` allow-list. `load_skill` is always available for agents.

@@ -197,7 +197,7 @@ async function readSkillsFromDirectory(dirPath: string): Promise<LoadedSkill[]> 
  * Discover documentation files (docs/*.md listed in docs/index.ts) as skills.
  *
  * This keeps skills aligned with the public documentation registry and allows
- * docs to be loaded through the skillLoader tool.
+ * docs to be loaded through the agent skill-loading flow.
  */
 export async function loadSkillsFromDocumentation(): Promise<LoadedSkill[]> {
 	const results: LoadedSkill[] = [];

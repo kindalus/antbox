@@ -2473,19 +2473,14 @@ components:
             description:
                type: string
                description: Optional description of the agent's purpose
-            type:
-               type: string
-               enum:
-                  ["llm", "sequential", "parallel", "loop"]
-               description: Agent execution type. Defaults to llm.
             exposedToUsers:
                type: boolean
-               description: Whether users can directly call this agent with chat or answer. Hidden agents can still be used internally by workflow agents.
+               description: Whether users can directly call this agent with chat or answer.
             model:
                type: string
                description: Optional model identifier (ADK format). Falls back to tenant default model.
             tools:
-               description: Tool access for llm agents. `true` grants all tools; `false`, omitted, or `[]` grants only `skillLoader`; arrays grant the listed tools plus `skillLoader`.
+               description: Tool access for agents. `true` grants all tools; `false`, omitted, or `[]` grants only `load_skill`; arrays grant the listed tools plus `load_skill`.
                oneOf:
                   - type: boolean
                   - type: array
@@ -2493,12 +2488,7 @@ components:
                        type: string
             systemPrompt:
                type: string
-               description: System prompt for llm agents.
-            agents:
-               type: array
-               description: Ordered list of sub-agent UUIDs for workflow agents.
-               items:
-                  type: string
+               description: Optional system prompt for the agent. Defaults to a generic Antbox assistant prompt when omitted.
             createdTime:
                type: string
                format: date-time
@@ -2512,11 +2502,6 @@ components:
          description: "Request body for creating an agent. Agents default to `exposedToUsers: true` when omitted."
          required:
             - name
-         anyOf:
-            - required:
-                 - systemPrompt
-            - required:
-                 - agents
          properties:
             name:
                type: string
@@ -2524,18 +2509,14 @@ components:
             description:
                type: string
                description: Optional description of the agent
-            type:
-               type: string
-               enum:
-                  ["llm", "sequential", "parallel", "loop"]
             exposedToUsers:
                type: boolean
                description: Whether users can directly call this agent with chat or answer.
             model:
                type: string
-               description: Optional model identifier for llm agents
+               description: Optional model identifier for agents
             tools:
-               description: Tool access for llm agents. `true` grants all tools; `false`, omitted, or `[]` grants only `skillLoader`; arrays grant the listed tools plus `skillLoader`.
+               description: Tool access for agents. `true` grants all tools; `false`, omitted, or `[]` grants only `load_skill`; arrays grant the listed tools plus `load_skill`.
                oneOf:
                   - type: boolean
                   - type: array
@@ -2543,12 +2524,7 @@ components:
                        type: string
             systemPrompt:
                type: string
-               description: Required for llm agents
-            agents:
-               type: array
-               description: Required (non-empty) for sequential/parallel/loop agents
-               items:
-                  type: string
+               description: Optional system prompt for the agent. Defaults to a generic Antbox assistant prompt when omitted.
       ApiKey:
          type: object
          description: API Key configuration data for programmatic access.

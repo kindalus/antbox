@@ -21,15 +21,9 @@ describe("builtin agents schema validation", () => {
 		expect(result.success).toBe(true);
 	});
 
-	it("RAG agent metadata describes an inline sequential workflow", () => {
-		expect(ragAgent.type).toBe("sequential");
+	it("RAG agent metadata stays LLM-compatible while remaining custom-run", () => {
 		expect(ragAgent.exposedToUsers).toBe(true);
-		expect(ragAgent.agents).toEqual([
-			"rag_inline_query_rewrite",
-			"rag_inline_keyword_fallback",
-			"rag_inline_summarizer",
-		]);
-		expect(ragAgent.systemPrompt).toBeUndefined();
+		expect(ragAgent.systemPrompt?.length ?? 0).toBeGreaterThan(0);
 		expect(ragAgent.model).toBeUndefined();
 		expect(ragAgent.tools).toBeUndefined();
 	});

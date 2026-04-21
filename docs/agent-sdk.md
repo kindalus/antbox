@@ -1,17 +1,17 @@
 ---
 name: agent-sdk
-description: Agent runCode SDK reference
+description: Agent run_code SDK reference
 ---
 
 # Agent SDK
 
-Antbox agents use the `runCode` tool to execute server-side JavaScript/TypeScript.
+Antbox agents use the `run_code` tool to execute server-side JavaScript/TypeScript.
 
 The code runs with bound SDK proxies and the current user authentication context.
 
 ## Execution contract
 
-`runCode` expects an ESM module that exports a default async function:
+`run_code` expects an ESM module that exports a default async function:
 
 ```javascript
 export default async function ({ nodes, aspects, custom }) {

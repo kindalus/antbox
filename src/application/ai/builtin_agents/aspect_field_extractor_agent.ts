@@ -77,7 +77,6 @@ export const ASPECT_FIELD_EXTRACTOR_AGENT: AgentData = {
 	uuid: ASPECT_FIELD_EXTRACTOR_AGENT_UUID,
 	name: "Aspect Field Extractor",
 	description: "Extracts aspect property values from document content using LLM analysis",
-	type: "llm",
 	exposedToUsers: false,
 	model: "default",
 	tools: false,

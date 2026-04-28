@@ -25,7 +25,13 @@ describe("builtin agents schema validation", () => {
 		expect(ragAgent.exposedToUsers).toBe(true);
 		expect(ragAgent.systemPrompt?.length ?? 0).toBeGreaterThan(0);
 		expect(ragAgent.systemPrompt).toContain("semantic_search");
+		expect(ragAgent.systemPrompt).toContain("load_skill");
 		expect(ragAgent.systemPrompt).toContain("Before answering");
+		expect(ragAgent.systemPrompt).toContain("only tools you may call");
+		expect(ragAgent.systemPrompt).toContain("Never call run_code");
+		expect(ragAgent.systemPrompt).toContain("at most three times");
+		expect(ragAgent.systemPrompt).toContain("could not find enough information");
+		expect(ragAgent.systemPrompt).toContain("exact counts, totals, aggregates");
 		expect(ragAgent.model).toBe("default");
 		expect(ragAgent.tools).toEqual(["semantic_search"]);
 	});

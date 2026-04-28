@@ -675,7 +675,9 @@ export class AgentsEngine {
 		const allTools = await this.#buildFunctionTools(authContext);
 		const selectedTools = selectAgentTools(allTools, agentData.tools);
 		const filteredTools = agentData.uuid === RAG_AGENT_UUID
-			? selectedTools.filter((tool) => tool.name === "semantic_search")
+			? selectedTools.filter((tool) =>
+				tool.name === "semantic_search" || matchesToolName(tool, DEFAULT_AGENT_TOOL_NAME)
+			)
 			: selectedTools;
 		return filteredTools.map((tool) => tool.tool);
 	}

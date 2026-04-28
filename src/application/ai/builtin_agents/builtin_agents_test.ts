@@ -27,6 +27,6 @@ describe("builtin agents schema validation", () => {
 		expect(ragAgent.systemPrompt).toContain("semantic_search");
 		expect(ragAgent.systemPrompt).toContain("Before answering");
 		expect(ragAgent.model).toBe("default");
-		expect(ragAgent.tools).toEqual(["semantic_search", "find_nodes", "get_node"]);
+		expect(ragAgent.tools).toEqual(["semantic_search"]);
 	});
 });

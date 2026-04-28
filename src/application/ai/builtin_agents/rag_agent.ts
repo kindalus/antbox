@@ -25,7 +25,7 @@ const ragAgent: AgentData = {
 		"Retrieval-augmented assistant for knowledge discovery and document analysis within Antbox ECM",
 	exposedToUsers: true,
 	model: "default",
-	tools: ["semantic_search", "find_nodes", "get_node"],
+	tools: ["semantic_search"],
 	systemPrompt: SYSTEM_PROMPT,
 	createdTime: "2024-01-01T00:00:00.000Z",
 	modifiedTime: "2024-01-01T00:00:00.000Z",

@@ -670,18 +670,13 @@ describe("AgentsEngine", () => {
 			expect(engine).toBeDefined();
 		});
 
-		it("builtin rag agent now uses standard retrieval tools", async () => {
+		it("builtin rag agent exposes only semantic_search", async () => {
 			const engine = new AgentsEngine(makeContext());
 			const result = await engine.listAvailableToolNames(mockAuthContext, ragAgent);
 
 			expect(result.isRight()).toBe(true);
 			if (result.isRight()) {
-				expect([...result.value].sort()).toEqual([
-					"find_nodes",
-					"get_node",
-					"load_skill",
-					"semantic_search",
-				]);
+				expect(result.value).toEqual(["semantic_search"]);
 			}
 		});
 

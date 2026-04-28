@@ -35,6 +35,7 @@ import { type LoadedSkill, loadSkillInstruction } from "./skills_loader.ts";
 import { RAGService } from "./rag_service.ts";
 import type { TenantLimitsEnforcer } from "application/metrics/tenant_limits_guard.ts";
 import { getCustomAgent } from "application/ai/custom_agents/index.ts";
+import { RAG_AGENT_UUID } from "application/ai/builtin_agents/rag_agent.ts";
 import type { FeaturesService } from "application/features/features_service.ts";
 import type { FeatureData, FeatureParameter } from "domain/configuration/feature_data.ts";
 import type { NodeFilters } from "domain/nodes/node_filter.ts";
@@ -672,7 +673,11 @@ export class AgentsEngine {
 		agentData: AgentData,
 	): Promise<FunctionTool[]> {
 		const allTools = await this.#buildFunctionTools(authContext);
-		return selectAgentTools(allTools, agentData.tools).map((tool) => tool.tool);
+		const selectedTools = selectAgentTools(allTools, agentData.tools);
+		const filteredTools = agentData.uuid === RAG_AGENT_UUID
+			? selectedTools.filter((tool) => tool.name === "semantic_search")
+			: selectedTools;
+		return filteredTools.map((tool) => tool.tool);
 	}
 
 	async #buildFunctionTools(

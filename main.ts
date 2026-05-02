@@ -1,5 +1,4 @@
 import { Command } from "commander";
-import { type Logger as AdkLogger, LogLevel, setLogger } from "@google/adk";
 import { printServerKeys } from "./src/print_server_keys.ts";
 import { setupTenants } from "setup/setup_tenants.ts";
 import { PORT } from "setup/server_defaults.ts";
@@ -7,7 +6,6 @@ import { ServerConfiguration } from "api/http_server_configuration.ts";
 import process from "node:process";
 import { loadConfiguration } from "setup/load_configuration.ts";
 import { startPathCacheCleanup } from "integration/webdav/webdav_path_cache.ts";
-import { Logger } from "shared/logger.ts";
 import { APP_VERSION } from "shared/app_metadata.ts";
 
 interface CommandOpts {
@@ -24,43 +22,6 @@ interface ListenEvent {
 
 export function getTenantSetupConfiguration(config: ServerConfiguration): ServerConfiguration {
 	return config;
-}
-
-export function createAdkLogger(): AdkLogger {
-	const logger = Logger.instance("ADK");
-
-	return {
-		log(level: LogLevel, ...args: unknown[]): void {
-			switch (level) {
-				case LogLevel.DEBUG:
-				case LogLevel.INFO:
-					logger.debug(...args);
-					break;
-				case LogLevel.WARN:
-					logger.warn(...args);
-					break;
-				case LogLevel.ERROR:
-					logger.error(...args);
-					break;
-			}
-		},
-		debug(...args: unknown[]): void {
-			logger.debug(...args);
-		},
-		info(...args: unknown[]): void {
-			logger.debug(...args);
-		},
-		warn(...args: unknown[]): void {
-			logger.warn(...args);
-		},
-		error(...args: unknown[]): void {
-			logger.error(...args);
-		},
-	};
-}
-
-export function configureAdkLogger(): void {
-	setLogger(createAdkLogger());
 }
 
 function toUrlHost(hostname: string): string {
@@ -141,8 +102,6 @@ if (import.meta.main) {
 		.option("--demo", "run with demo configuration")
 		.option("--sandbox", "run with sandbox configuration")
 		.action(async (opts: CommandOpts) => {
-			configureAdkLogger();
-
 			let configDir = opts.configDir;
 
 			if (opts.demo) {

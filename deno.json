@@ -21,9 +21,14 @@
 		"toml": "jsr:@std/toml@1.0.11",
 		"@std/yaml": "jsr:@std/yaml@1.0.8",
 
-		"@google/adk": "npm:@google/adk@latest",
 		"@googleapis/drive": "npm:@googleapis/drive@18.0.0",
 		"@google/genai": "npm:@google/genai@1.25.0",
+		"ai": "npm:ai@5",
+		"@ai-sdk/google": "npm:@ai-sdk/google@2",
+		"@ai-sdk/openai": "npm:@ai-sdk/openai@2",
+		"@ai-sdk/anthropic": "npm:@ai-sdk/anthropic@2",
+		"@ai-sdk/openai-compatible": "npm:@ai-sdk/openai-compatible@1",
+
 		"@oak/oak": "jsr:@oak/oak@17.1.6",
 		"commander": "npm:commander@14.0.1",
 		"crypto": "node:crypto",

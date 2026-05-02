@@ -188,7 +188,7 @@ async function setupTenant(
 	// Load skill metadata (tool-based loading at runtime)
 	const skills = cfg.ai?.enabled ? await loadSkills(BUILTIN_SKILLS_DIR, cfg.ai.skillsPath) : [];
 
-	// Create AgentsEngine (execution logic)
+	// Create AgentsEngine (Vercel AI SDK-backed execution logic).
 	const agentsEngine = new AgentsEngine({
 		agentsService,
 		featuresService,

@@ -10,6 +10,7 @@ export const AgentDataSchema = z.object({
 	exposedToUsers: z.boolean(),
 	model: z.string().optional(),
 	tools: z.union([z.boolean(), z.array(z.string())]).optional(),
+	skills: z.array(z.string()).optional(),
 	systemPrompt: z.string().trim().min(1, "systemPrompt must not be empty when provided")
 		.optional(),
 	maxLlmCalls: z.number().int().positive().optional(),

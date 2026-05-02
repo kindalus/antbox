@@ -10,7 +10,7 @@ import type { WorkflowsService } from "application/workflows/workflows_service.t
 import type { WorkflowInstancesService } from "application/workflows/workflow_instances_service.ts";
 import type { WorkflowInstancesEngine } from "application/workflows/workflow_instances_engine.ts";
 import type { AgentsService } from "application/ai/agents_service.ts";
-import type { AgentsEngine } from "application/ai/agents_engine.ts";
+import type { IAgentsEngine } from "application/ai/agents_engine_interface.ts";
 import type { FeaturesService } from "application/features/features_service.ts";
 import type { FeaturesEngine } from "application/features/features_engine.ts";
 import type { ConfigurationRepository } from "domain/configuration/configuration_repository.ts";
@@ -48,6 +48,6 @@ export interface AntboxTenant {
 
 	// Engines (execution logic)
 	featuresEngine: FeaturesEngine;
-	agentsEngine: AgentsEngine;
+	agentsEngine: IAgentsEngine;
 	workflowInstancesEngine: WorkflowInstancesEngine;
 }

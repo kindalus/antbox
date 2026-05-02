@@ -1,10 +1,12 @@
 import { describe, it } from "bdd";
 import { expect } from "expect";
+import type { LanguageModel } from "ai";
 import { AgentsEngine, type AgentsEngineContext } from "./agents_engine.ts";
 import { left, right } from "shared/either.ts";
 import { type AntboxError, AntboxError as AntboxErrorClass } from "shared/antbox_error.ts";
 import type { AgentData } from "domain/configuration/agent_data.ts";
 import type { AuthenticationContext } from "application/security/authentication_context.ts";
+import { customAgentRegistry } from "./custom_agents/index.ts";
 
 const mockAuthContext: AuthenticationContext = {
 	tenant: "test-tenant",
@@ -56,6 +58,78 @@ function makeContext(overrides: Partial<AgentsEngineContext> = {}): AgentsEngine
 		},
 		...overrides,
 	};
+}
+
+function makeLanguageModelResponse(content: unknown[]) {
+	return {
+		content,
+		finishReason: content.some((part) => (part as { type?: string }).type === "tool-call")
+			? "tool-calls"
+			: "stop",
+		usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+		warnings: [],
+	};
+}
+
+function makeToolThenTextModel(finalText: string) {
+	let calls = 0;
+	const toolCounts: Array<number | undefined> = [];
+	const prompts: unknown[] = [];
+	const model = {
+		specificationVersion: "v2" as const,
+		provider: "mock",
+		modelId: "mock",
+		supportedUrls: {},
+		doGenerate: async (options: { prompt?: unknown; tools?: unknown[] }) => {
+			calls++;
+			prompts.push(options.prompt);
+			toolCounts.push(options.tools?.length);
+			if (calls === 1) {
+				return makeLanguageModelResponse([{
+					type: "tool-call",
+					toolCallId: "call-1",
+					toolName: "semantic_search",
+					input: JSON.stringify({ query: "pagamento de impostos este mês" }),
+				}]);
+			}
+			return makeLanguageModelResponse([{ type: "text", text: finalText }]);
+		},
+		doStream: async () => {
+			throw new Error("streaming is not used by these tests");
+		},
+	} as unknown as LanguageModel;
+
+	return {
+		model,
+		getCalls: () => calls,
+		getToolCounts: () => [...toolCounts],
+		getPrompts: () => [...prompts],
+	};
+}
+
+function makeSemanticSearchContext(
+	model: LanguageModel,
+	agentOverrides: Partial<AgentData> = {},
+): AgentsEngineContext {
+	return makeContext({
+		agentsService: {
+			getAgent: async (_ctx: unknown, uuid: string) =>
+				right(makeAgent({ uuid, tools: ["semantic_search"], ...agentOverrides })),
+		} as unknown as import("./agents_service.ts").AgentsService,
+		nodeService: {
+			find: async () => right({ nodes: [{ uuid: "tax-doc" }] }),
+		} as unknown as import("application/nodes/node_service.ts").NodeService,
+		ragService: {
+			query: async () =>
+				right([{
+					uuid: "tax-doc",
+					title: "tax-payment.pdf",
+					content: "Pagamento ao Estado. Montante: 100 AOA.",
+					score: 0.9,
+				}]),
+		} as unknown as import("./rag_service.ts").RAGService,
+		resolveLanguageModel: () => model,
+	});
 }
 
 describe("AgentsEngine", () => {
@@ -110,8 +184,7 @@ describe("AgentsEngine", () => {
 				tenantLimitsGuard: {
 					ensureCanRunAgent: async () =>
 						left(new AntboxErrorClass("LimitExceeded", "tokens exhausted")),
-				} as unknown as import("application/metrics/tenant_limits_guard.ts")
-					.TenantLimitsEnforcer,
+				} as unknown as import("application/metrics/tenant_limits_guard.ts").TenantLimitsEnforcer,
 			}));
 			const result = await engine.chat(mockAuthContext, "test-agent", "hi");
 			expect(result.isLeft()).toBe(true);
@@ -257,6 +330,124 @@ describe("AgentsEngine", () => {
 			if (result.isLeft()) {
 				expect(result.value.errorCode).toBe("InvalidSession");
 			}
+		});
+	});
+
+	describe("tool finalization", () => {
+		it("chat continues after a tool response and ends with a model answer", async () => {
+			const mockModel = makeToolThenTextModel("Foram encontrados pagamentos de impostos.");
+			const engine = new AgentsEngine(makeSemanticSearchContext(mockModel.model));
+
+			const result = await engine.chat(
+				mockAuthContext,
+				"test-agent",
+				"pagamento de impostos este mês",
+			);
+
+			expect(result.isRight()).toBe(true);
+			if (result.isLeft()) throw result.value;
+
+			expect(result.value.map((message) => message.role)).toEqual([
+				"user",
+				"model",
+				"tool",
+				"model",
+			]);
+			expect(result.value.at(-1)?.parts[0].text).toBe(
+				"Foram encontrados pagamentos de impostos.",
+			);
+			expect(result.value.at(-1)?.role).toBe("model");
+			expect(mockModel.getCalls()).toBe(2);
+			expect(mockModel.getToolCounts()).toEqual([2, 2]);
+		});
+
+		it("chat appends a final model answer when maxLlmCalls stops after a tool response", async () => {
+			const mockModel = makeToolThenTextModel("Resposta final sintetizada dos resultados.");
+			const engine = new AgentsEngine(
+				makeSemanticSearchContext(mockModel.model, { maxLlmCalls: 1 }),
+			);
+
+			const result = await engine.chat(
+				mockAuthContext,
+				"test-agent",
+				"pagamento de impostos este mês",
+			);
+
+			expect(result.isRight()).toBe(true);
+			if (result.isLeft()) throw result.value;
+
+			expect(result.value.map((message) => message.role)).toEqual([
+				"user",
+				"model",
+				"tool",
+				"model",
+			]);
+			expect(result.value.at(-1)?.parts[0].text).toBe(
+				"Resposta final sintetizada dos resultados.",
+			);
+			expect(mockModel.getCalls()).toBe(2);
+			expect(mockModel.getToolCounts()).toEqual([2, undefined]);
+		});
+
+		it("chat guards custom agents from ending with a tool response", async () => {
+			const uuid = "custom-tool-agent";
+			customAgentRegistry.set(uuid, {
+				data: makeAgent({ uuid }),
+				create: () =>
+					({
+						run: async () => ({
+							text: "Custom final answer",
+							messages: [
+								{
+									role: "model",
+									parts: [{ toolCall: { id: "c1", name: "custom_tool", args: {} } }],
+								},
+								{
+									role: "tool",
+									parts: [{ toolResponse: { id: "c1", name: "custom_tool", text: "{}" } }],
+								},
+							],
+						}),
+					}) as unknown as import("./custom_agents/base_antbox_agent.ts").BaseAntboxAgent,
+			});
+
+			try {
+				const engine = new AgentsEngine(makeContext());
+				const result = await engine.chat(mockAuthContext, uuid, "hi");
+
+				expect(result.isRight()).toBe(true);
+				if (result.isLeft()) throw result.value;
+
+				expect(result.value.map((message) => message.role)).toEqual([
+					"user",
+					"model",
+					"tool",
+					"model",
+				]);
+				expect(result.value.at(-1)?.parts).toEqual([{ text: "Custom final answer" }]);
+			} finally {
+				customAgentRegistry.delete(uuid);
+			}
+		});
+
+		it("answer returns synthesized text after a tool response", async () => {
+			const mockModel = makeToolThenTextModel("Resposta direta baseada na pesquisa.");
+			const engine = new AgentsEngine(
+				makeSemanticSearchContext(mockModel.model, { maxLlmCalls: 1 }),
+			);
+
+			const result = await engine.answer(
+				mockAuthContext,
+				"test-agent",
+				"pagamento de impostos este mês",
+			);
+
+			expect(result.isRight()).toBe(true);
+			if (result.isLeft()) throw result.value;
+
+			expect(result.value.role).toBe("model");
+			expect(result.value.parts).toEqual([{ text: "Resposta direta baseada na pesquisa." }]);
+			expect(mockModel.getToolCounts()).toEqual([2, undefined]);
 		});
 	});
 

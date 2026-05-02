@@ -1,14 +1,17 @@
-import { generateText, type ModelMessage, NoSuchToolError, type Tool } from "ai";
+import {
+	generateText,
+	type LanguageModel,
+	type ModelMessage,
+	NoSuchToolError,
+	stepCountIs,
+	type Tool,
+} from "ai";
 import { type Either, left, right } from "shared/either.ts";
 import { AntboxError } from "shared/antbox_error.ts";
 import { Logger } from "shared/logger.ts";
 import type { AuthenticationContext } from "../security/authentication_context.ts";
 import type { AgentData } from "domain/configuration/agent_data.ts";
-import type {
-	ChatHistory,
-	ChatMessage,
-	TokenUsage,
-} from "domain/ai/chat_message.ts";
+import type { ChatHistory, ChatMessage, TokenUsage } from "domain/ai/chat_message.ts";
 import { AgentInteractionCompletedEvent } from "domain/ai/agent_interaction_completed_event.ts";
 import type { EventBus } from "shared/event_bus.ts";
 import { type AgentsService, resolveAgentSystemPrompt } from "./agents_service.ts";
@@ -20,7 +23,7 @@ import { type LoadedSkill } from "./skills_loader.ts";
 import type { RAGService } from "./rag_service.ts";
 import type { TenantLimitsEnforcer } from "application/metrics/tenant_limits_guard.ts";
 import { getCustomAgent } from "application/ai/custom_agents/index.ts";
-import { resolveModel, type ResolveModelOptions } from "./resolve_model.ts";
+import { resolveModel as defaultResolveModel, type ResolveModelOptions } from "./resolve_model.ts";
 import { buildToolSet } from "./build_tools.ts";
 import {
 	aisdkUsageToTokenUsage,
@@ -35,9 +38,21 @@ import type {
 	FeatureAIToolExecutor,
 	IAgentsEngineInternal,
 } from "./agents_engine_interface.ts";
-import { SessionStore, type SessionSnapshot } from "./session_store.ts";
+import { type SessionSnapshot, SessionStore } from "./session_store.ts";
 
 const AGENT_DEBUG_TRACE_ENV = "ANTBOX_AGENT_DEBUG_TRACE";
+const DEFAULT_MAX_LLM_CALLS = 6;
+const FINAL_ANSWER_INSTRUCTION = [
+	"Use the previous tool results to answer the user's request.",
+	"Do not call tools. Return only the final answer for the user.",
+].join(" ");
+const FALLBACK_FINAL_ANSWER = "I found tool results, but could not synthesize a final answer.";
+
+interface AgentRunOutput {
+	readonly text: string;
+	readonly usage?: TokenUsage;
+	readonly messages: ChatMessage[];
+}
 
 export interface AgentsEngineContext {
 	readonly agentsService: AgentsService;
@@ -51,6 +66,10 @@ export interface AgentsEngineContext {
 	readonly tenantLimitsGuard?: TenantLimitsEnforcer;
 	readonly modelOptions?: ResolveModelOptions;
 	readonly sessionStore?: SessionStore;
+	readonly resolveLanguageModel?: (
+		modelString: string,
+		options?: ResolveModelOptions,
+	) => LanguageModel;
 }
 
 function isAgentDebugTraceEnabled(): boolean {
@@ -63,6 +82,33 @@ function redactError(error: unknown): { name: string; message: string } {
 		return { name: error.name, message: error.message };
 	}
 	return { name: "UnknownError", message: String(error) };
+}
+
+function combineUsage(...usages: Array<TokenUsage | undefined>): TokenUsage | undefined {
+	const present = usages.filter((usage): usage is TokenUsage => usage !== undefined);
+	if (present.length === 0) return undefined;
+	return present.reduce<TokenUsage>(
+		(total, usage) => ({
+			promptTokens: total.promptTokens + usage.promptTokens,
+			completionTokens: total.completionTokens + usage.completionTokens,
+			totalTokens: total.totalTokens + usage.totalTokens,
+		}),
+		{ promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+	);
+}
+
+function endsWithToolMessage(messages: readonly ChatMessage[]): boolean {
+	return messages.at(-1)?.role === "tool";
+}
+
+function ensureTerminalModelMessage(result: AgentRunOutput): AgentRunOutput {
+	if (!endsWithToolMessage(result.messages)) return result;
+	const text = result.text.trim() || FALLBACK_FINAL_ANSWER;
+	return {
+		...result,
+		text,
+		messages: [...result.messages, { role: "model", parts: [{ text }] }],
+	};
 }
 
 /**
@@ -83,6 +129,10 @@ export class AgentsEngine implements IAgentsEngineInternal {
 	readonly #tenantLimitsGuard?: TenantLimitsEnforcer;
 	readonly #modelOptions?: ResolveModelOptions;
 	readonly #sessionStore: SessionStore;
+	readonly #resolveLanguageModel: (
+		modelString: string,
+		options?: ResolveModelOptions,
+	) => LanguageModel;
 	#featureAIToolExecutor?: FeatureAIToolExecutor;
 
 	constructor(ctx: AgentsEngineContext) {
@@ -97,6 +147,7 @@ export class AgentsEngine implements IAgentsEngineInternal {
 		this.#tenantLimitsGuard = ctx.tenantLimitsGuard;
 		this.#modelOptions = ctx.modelOptions;
 		this.#sessionStore = ctx.sessionStore ?? new SessionStore();
+		this.#resolveLanguageModel = ctx.resolveLanguageModel ?? defaultResolveModel;
 	}
 
 	setFeatureAIToolExecutor(executor: FeatureAIToolExecutor) {
@@ -287,7 +338,7 @@ export class AgentsEngine implements IAgentsEngineInternal {
 			interactionType: "chat" | "answer";
 			internal: boolean;
 		},
-	): Promise<Either<AntboxError, { text: string; usage?: TokenUsage; messages: ChatMessage[] }>> {
+	): Promise<Either<AntboxError, AgentRunOutput>> {
 		let session: SessionSnapshot | undefined;
 		let agentData: AgentData;
 
@@ -359,7 +410,7 @@ export class AgentsEngine implements IAgentsEngineInternal {
 				{ role: "user", content: text },
 			];
 
-			let result: { text: string; usage?: TokenUsage; messages: ChatMessage[] };
+			let result: AgentRunOutput;
 
 			if (customAgent) {
 				const created = customAgent.create({
@@ -394,6 +445,8 @@ export class AgentsEngine implements IAgentsEngineInternal {
 					session,
 				);
 			}
+
+			result = ensureTerminalModelMessage(result);
 
 			if (result.usage) {
 				this.#eventBus.publish(
@@ -431,7 +484,7 @@ export class AgentsEngine implements IAgentsEngineInternal {
 		userText: string,
 		debugLogger?: Logger,
 		session?: SessionSnapshot,
-	): Promise<{ text: string; usage?: TokenUsage; messages: ChatMessage[] }> {
+	): Promise<AgentRunOutput> {
 		let tools: Record<string, Tool>;
 		let toolNames: readonly string[];
 		if (session) {
@@ -458,7 +511,7 @@ export class AgentsEngine implements IAgentsEngineInternal {
 		const modelString = !agentData.model || agentData.model === "default"
 			? this.#defaultModel
 			: agentData.model;
-		const model = resolveModel(modelString, this.#modelOptions);
+		const model = this.#resolveLanguageModel(modelString, this.#modelOptions);
 
 		const instruction = this.#buildInstruction(
 			agentData,
@@ -483,9 +536,8 @@ export class AgentsEngine implements IAgentsEngineInternal {
 			);
 		}
 
-		const stopWhen = agentData.maxLlmCalls !== undefined && agentData.maxLlmCalls > 0
-			? ({ steps }: { steps: unknown[] }) => steps.length >= (agentData.maxLlmCalls ?? Infinity)
-			: undefined;
+		const maxLlmCalls = agentData.maxLlmCalls ?? DEFAULT_MAX_LLM_CALLS;
+		const stopWhen = stepCountIs(maxLlmCalls);
 
 		const result = await generateText({
 			model,
@@ -509,9 +561,22 @@ export class AgentsEngine implements IAgentsEngineInternal {
 				: undefined,
 		});
 
-		const finalText = result.text ?? "";
-		const usage = aisdkUsageToTokenUsage(result.totalUsage ?? result.usage);
+		let finalText = result.text ?? "";
+		let usage = aisdkUsageToTokenUsage(result.totalUsage ?? result.usage);
 		const stepMessages = stepsToChatMessages(result.steps ?? []);
+
+		if (endsWithToolMessage(stepMessages)) {
+			const synthesized = await this.#synthesizeFinalAnswer(
+				model,
+				instruction,
+				messages,
+				stepMessages,
+				debugLogger,
+			);
+			finalText = synthesized.text;
+			usage = combineUsage(usage, synthesized.usage);
+			stepMessages.push({ role: "model", parts: [{ text: finalText }] });
+		}
 
 		if (debugLogger) {
 			debugLogger.debug(
@@ -526,6 +591,48 @@ export class AgentsEngine implements IAgentsEngineInternal {
 		}
 
 		return { text: finalText, usage, messages: stepMessages };
+	}
+
+	async #synthesizeFinalAnswer(
+		model: LanguageModel,
+		instruction: string,
+		originalMessages: ModelMessage[],
+		generatedMessages: ChatMessage[],
+		debugLogger?: Logger,
+	): Promise<{ text: string; usage?: TokenUsage }> {
+		const synthesisMessages: ModelMessage[] = [
+			...originalMessages,
+			...chatHistoryToModelMessages(generatedMessages),
+			{ role: "user", content: FINAL_ANSWER_INSTRUCTION },
+		];
+
+		if (debugLogger) {
+			debugLogger.debug(
+				"agent_debug_trace_event",
+				JSON.stringify({ type: "agent_final_answer_synthesis_start" }),
+			);
+		}
+
+		const result = await generateText({
+			model,
+			system: instruction,
+			messages: synthesisMessages,
+		});
+		const text = (result.text ?? "").trim() || FALLBACK_FINAL_ANSWER;
+		const usage = aisdkUsageToTokenUsage(result.totalUsage ?? result.usage);
+
+		if (debugLogger) {
+			debugLogger.debug(
+				"agent_debug_trace_event",
+				JSON.stringify({
+					type: "agent_final_answer_synthesis_end",
+					textLength: text.length,
+					usage,
+				}),
+			);
+		}
+
+		return { text, usage };
 	}
 
 	#buildInstruction(

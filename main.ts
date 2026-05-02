@@ -7,6 +7,7 @@ import process from "node:process";
 import { loadConfiguration } from "setup/load_configuration.ts";
 import { startPathCacheCleanup } from "integration/webdav/webdav_path_cache.ts";
 import { APP_VERSION } from "shared/app_metadata.ts";
+import { Logger } from "shared/logger.ts";
 
 interface CommandOpts {
 	configDir?: string;
@@ -22,6 +23,16 @@ interface ListenEvent {
 
 export function getTenantSetupConfiguration(config: ServerConfiguration): ServerConfiguration {
 	return config;
+}
+
+export function createAdkLogger(): Pick<Logger, "info" | "debug" | "warn" | "error"> {
+	const logger = Logger.instance("ADK");
+	return {
+		info: (...args: unknown[]) => logger.debug(...args),
+		debug: (...args: unknown[]) => logger.debug(...args),
+		warn: (...args: unknown[]) => logger.warn(...args),
+		error: (...args: unknown[]) => logger.error(...args),
+	};
 }
 
 function toUrlHost(hostname: string): string {

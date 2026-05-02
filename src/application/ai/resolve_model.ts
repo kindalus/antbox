@@ -1,5 +1,5 @@
 import type { LanguageModel } from "ai";
-import { google } from "@ai-sdk/google";
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { openai } from "@ai-sdk/openai";
 import { anthropic } from "@ai-sdk/anthropic";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
@@ -7,6 +7,7 @@ import { AntboxError } from "shared/antbox_error.ts";
 
 export interface ResolveModelOptions {
 	readonly ollamaBaseUrl?: string;
+	readonly googleApiKey?: string;
 }
 
 export function resolveModel(
@@ -25,8 +26,17 @@ export function resolveModel(
 	const id = modelString.slice(slashIndex + 1);
 
 	switch (provider) {
-		case "google":
-			return google(id);
+		case "google": {
+			const apiKey = options.googleApiKey ?? Deno.env.get("GEMINI_API_KEY") ??
+				Deno.env.get("GOOGLE_API_KEY");
+			if (!apiKey) {
+				throw new AntboxError(
+					"MissingProviderApiKey",
+					"Google provider requires GEMINI_API_KEY (or GOOGLE_API_KEY) in the environment",
+				);
+			}
+			return createGoogleGenerativeAI({ apiKey })(id);
+		}
 		case "openai":
 			return openai(id);
 		case "anthropic":

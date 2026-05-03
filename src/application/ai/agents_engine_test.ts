@@ -110,6 +110,7 @@ function makeToolThenTextModel(finalText: string) {
 function makeSemanticSearchContext(
 	model: LanguageModel,
 	agentOverrides: Partial<AgentData> = {},
+	contextOverrides: Partial<AgentsEngineContext> = {},
 ): AgentsEngineContext {
 	return makeContext({
 		agentsService: {
@@ -129,6 +130,7 @@ function makeSemanticSearchContext(
 				}]),
 		} as unknown as import("./rag_service.ts").RAGService,
 		resolveLanguageModel: () => model,
+		...contextOverrides,
 	});
 }
 
@@ -359,6 +361,23 @@ describe("AgentsEngine", () => {
 			expect(result.value.at(-1)?.role).toBe("model");
 			expect(mockModel.getCalls()).toBe(2);
 			expect(mockModel.getToolCounts()).toEqual([2, 2]);
+		});
+
+		it("agent instruction ends with today's ISO date and weekday", async () => {
+			const mockModel = makeToolThenTextModel("Resposta baseada na data atual.");
+			const engine = new AgentsEngine(
+				makeSemanticSearchContext(mockModel.model, { systemPrompt: "Custom prompt." }, {
+					now: () => new Date(2026, 4, 2, 12),
+				}),
+			);
+
+			const result = await engine.chat(mockAuthContext, "test-agent", "este mês");
+
+			expect(result.isRight()).toBe(true);
+			if (result.isLeft()) throw result.value;
+
+			const firstPrompt = JSON.stringify(mockModel.getPrompts()[0]);
+			expect(firstPrompt).toContain("Custom prompt.\\n\\nToday's date: 2026-05-02 (Saturday).");
 		});
 
 		it("chat appends a final model answer when maxLlmCalls stops after a tool response", async () => {

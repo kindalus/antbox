@@ -70,6 +70,7 @@ export interface AgentsEngineContext {
 		modelString: string,
 		options?: ResolveModelOptions,
 	) => LanguageModel;
+	readonly now?: () => Date;
 }
 
 function isAgentDebugTraceEnabled(): boolean {
@@ -111,6 +112,18 @@ function ensureTerminalModelMessage(result: AgentRunOutput): AgentRunOutput {
 	};
 }
 
+function formatLocalIsoDate(date: Date): string {
+	const year = String(date.getFullYear()).padStart(4, "0");
+	const month = String(date.getMonth() + 1).padStart(2, "0");
+	const day = String(date.getDate()).padStart(2, "0");
+	return `${year}-${month}-${day}`;
+}
+
+function formatTodayInstruction(date = new Date()): string {
+	const weekday = new Intl.DateTimeFormat("en-US", { weekday: "long" }).format(date);
+	return `Today's date: ${formatLocalIsoDate(date)} (${weekday}).`;
+}
+
 /**
  * AgentsEngine — Vercel AI SDK-based agent execution engine.
  *
@@ -133,6 +146,7 @@ export class AgentsEngine implements IAgentsEngineInternal {
 		modelString: string,
 		options?: ResolveModelOptions,
 	) => LanguageModel;
+	readonly #now: () => Date;
 	#featureAIToolExecutor?: FeatureAIToolExecutor;
 
 	constructor(ctx: AgentsEngineContext) {
@@ -148,6 +162,7 @@ export class AgentsEngine implements IAgentsEngineInternal {
 		this.#modelOptions = ctx.modelOptions;
 		this.#sessionStore = ctx.sessionStore ?? new SessionStore();
 		this.#resolveLanguageModel = ctx.resolveLanguageModel ?? defaultResolveModel;
+		this.#now = ctx.now ?? (() => new Date());
 	}
 
 	setFeatureAIToolExecutor(executor: FeatureAIToolExecutor) {
@@ -652,6 +667,8 @@ export class AgentsEngine implements IAgentsEngineInternal {
 				instruction += `\n\n${skillsPrompt}`;
 			}
 		}
+
+		instruction += `\n\n${formatTodayInstruction(this.#now())}`;
 
 		return instruction;
 	}

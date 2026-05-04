@@ -66,7 +66,7 @@ export function runActionHandler(tenants: AntboxTenant[]): HttpHandler {
 				return await engine
 					.runAction(
 						getAuthenticationContext(req),
-						kebabToCamelCase(params.uuid),
+						params.uuid,
 						body.uuids,
 						parameters,
 					)

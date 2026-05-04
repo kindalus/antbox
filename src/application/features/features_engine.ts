@@ -5,7 +5,7 @@ import {
 	AUTO_TAG_FEATURE_UUID,
 	CALL_AGENT_FEATURE_UUID,
 } from "domain/configuration/builtin_features.ts";
-import type { FeatureParameter } from "domain/configuration/feature_data.ts";
+import type { FeatureData, FeatureParameter } from "domain/configuration/feature_data.ts";
 import { ASPECT_FIELD_EXTRACTOR_AGENT_UUID } from "application/ai/builtin_agents/aspect_field_extractor_agent.ts";
 import { EmbeddingCreatedEvent } from "domain/nodes/embedding_created_event.ts";
 import { EmbeddingUpdatedEvent } from "domain/nodes/embedding_updated_event.ts";
@@ -168,8 +168,10 @@ export class FeaturesEngine {
 		uuids: string[],
 		params?: Record<string, unknown>,
 	): Promise<Either<AntboxError, T>> {
-		// First check if the feature exists and is exposed as action
-		const featureOrErr = await this.#featuresService.getFeature(ctx, uuid);
+		// First check if the feature exists and is exposed as action.
+		// Builtin features use snake_case UUIDs; custom features use camelCase UUIDs.
+		// Try the provided UUID first, then fall back to camelCase only when it was not found.
+		const featureOrErr = await this.#getActionFeatureWithUuidFallback(ctx, uuid);
 		if (featureOrErr.isLeft()) {
 			return left(featureOrErr.value);
 		}
@@ -202,15 +204,37 @@ export class FeaturesEngine {
 
 		try {
 			// Track concurrent action executions
-			FeaturesEngine.#incRunnable([uuid, "action"]);
-			return await this.#run(ctx, uuid, { ...params, uuids: nodes });
+			FeaturesEngine.#incRunnable([feature.uuid, "action"]);
+			return await this.#run(ctx, feature.uuid, { ...params, uuids: nodes });
 		} catch (error) {
 			return left(
 				new UnknownError(`Action error: ${(error as Error).message}`),
 			);
 		} finally {
-			FeaturesEngine.#decRunnable([uuid, "action"]);
+			FeaturesEngine.#decRunnable([feature.uuid, "action"]);
 		}
+	}
+
+	async #getActionFeatureWithUuidFallback(
+		ctx: AuthenticationContext,
+		uuid: string,
+	): Promise<Either<AntboxError, FeatureData>> {
+		const featureOrErr = await this.#featuresService.getFeature(ctx, uuid);
+		if (featureOrErr.isRight()) {
+			return featureOrErr;
+		}
+
+		const camelCaseUuid = kebabToCamelCase(uuid);
+		if (camelCaseUuid === uuid || !this.#isFeatureNotFoundError(featureOrErr.value, uuid)) {
+			return featureOrErr;
+		}
+
+		return this.#featuresService.getFeature(ctx, camelCaseUuid);
+	}
+
+	#isFeatureNotFoundError(error: AntboxError, uuid: string): boolean {
+		return error instanceof BadRequestError &&
+			error.message === `features with uuid '${uuid}' not found`;
 	}
 
 	async runAITool<T>(
@@ -1287,13 +1311,18 @@ export class FeaturesEngine {
 					continue;
 				}
 
-				if (Object.keys(extractedValues).length === 0) {
-					continue;
-				}
-
+				const validPropertyNames = new Set(aspect.properties.map((property) => property.name));
 				const properties: Record<string, unknown> = {};
 				for (const [propName, propValue] of Object.entries(extractedValues)) {
+					if (!validPropertyNames.has(propName)) {
+						continue;
+					}
+
 					properties[`${aspectUuid}:${propName}`] = propValue;
+				}
+
+				if (Object.keys(properties).length === 0) {
+					continue;
 				}
 
 				const nodeOrErr = await this.#nodeService.get(ctx, uuid);

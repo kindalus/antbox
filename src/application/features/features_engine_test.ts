@@ -6,7 +6,10 @@ import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository.ts"
 import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider.ts";
 import { NullOCRProvider } from "adapters/ocr/null_ocr_provider.ts";
 import type { ChatMessage } from "domain/ai/chat_message.ts";
-import { CALL_AGENT_FEATURE_UUID } from "domain/configuration/builtin_features.ts";
+import {
+	AUTO_TAG_FEATURE_UUID,
+	CALL_AGENT_FEATURE_UUID,
+} from "domain/configuration/builtin_features.ts";
 import type { FeatureData } from "domain/configuration/feature_data.ts";
 import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
@@ -18,12 +21,15 @@ import type { AuthenticationContext } from "application/security/authentication_
 import { NodeService } from "application/nodes/node_service.ts";
 import { FeaturesEngine } from "./features_engine.ts";
 import { FeaturesService } from "./features_service.ts";
+import { AspectsService } from "application/aspects/aspects_service.ts";
+import { ASPECT_FIELD_EXTRACTOR_AGENT_UUID } from "application/ai/builtin_agents/aspect_field_extractor_agent.ts";
 import type { AgentAnswerExecutor } from "./features_engine.ts";
 
 interface Harness {
 	repository: InMemoryNodeRepository;
 	nodeService: NodeService;
 	featuresService: FeaturesService;
+	aspectsService: AspectsService;
 	engine: FeaturesEngine;
 }
 
@@ -62,15 +68,17 @@ function createHarness(useOCR = false, agentsEngine?: AgentAnswerExecutor): Harn
 		configRepo,
 	});
 	const featuresService = new FeaturesService({ configRepo });
+	const aspectsService = new AspectsService(configRepo);
 	const engine = new FeaturesEngine({
 		featuresService,
 		nodeService,
 		agentsEngine,
+		aspectsService,
 		ocrProvider: useOCR ? new NullOCRProvider() : undefined,
 		eventBus,
 	});
 
-	return { repository, nodeService, featuresService, engine };
+	return { repository, nodeService, featuresService, aspectsService, engine };
 }
 
 function createFeatureRun(
@@ -166,6 +174,24 @@ async function waitFor(condition: () => Promise<boolean>, timeoutMs = 1000): Pro
 	}
 
 	return false;
+}
+
+async function createInvoiceAspect(harness: Harness): Promise<void> {
+	const aspectOrErr = await harness.aspectsService.createAspect(adminCtx, {
+		uuid: "invoice-aspect",
+		title: "Invoice Aspect",
+		description: "Invoice fields",
+		filters: [],
+		properties: [
+			{ name: "invoice-number", title: "Invoice Number", type: "string" },
+			{ name: "total-amount", title: "Total Amount", type: "number" },
+		],
+	});
+
+	expect(aspectOrErr.isRight()).toBe(true);
+	if (aspectOrErr.isLeft()) {
+		throw aspectOrErr.value;
+	}
 }
 
 describe("FeaturesEngine", () => {
@@ -334,6 +360,199 @@ describe("FeaturesEngine", () => {
 		expect(agentsEngine.calls[0].text).toContain("[ metadata for node 0 ]");
 		expect(agentsEngine.calls[0].text).toContain("uuid: metadata-node");
 		expect(agentsEngine.calls[0].text).toContain("description: Metadata only node");
+	});
+
+	it("runAction resolves kebab-case action uuids to camelCase custom features when exact lookup fails", async () => {
+		const harness = createHarness();
+		const featureOrErr = await harness.featuresService.createFeature(adminCtx, {
+			uuid: "camelFeature",
+			title: "Camel Feature",
+			description: "Feature with camelCase uuid",
+			exposeAction: true,
+			runOnCreates: false,
+			runOnUpdates: false,
+			runOnDeletes: false,
+			runOnEmbeddingsCreated: false,
+			runOnEmbeddingsUpdated: false,
+			runManually: true,
+			filters: [],
+			exposeExtension: false,
+			exposeAITool: false,
+			runAs: undefined,
+			groupsAllowed: [],
+			parameters: defaultActionParameters,
+			returnType: "object",
+			returnDescription: "Returns args",
+			returnContentType: "application/json",
+			tags: [],
+			run: createFeatureRun({ runBody: "return { uuids: args.uuids };" }),
+		});
+		expect(featureOrErr.isRight()).toBe(true);
+
+		const result = await harness.engine.runAction<{ uuids: string[] }>(
+			adminCtx,
+			"camel-feature",
+			[],
+		);
+
+		expect(result.isRight()).toBe(true);
+		if (result.isRight()) {
+			expect(result.value.uuids).toEqual([]);
+		}
+	});
+
+	it("auto tag extracts declared aspect properties and ignores unknown fields", async () => {
+		const agentsEngine = new MockAgentsEngine();
+		agentsEngine.answerImpl = () =>
+			Promise.resolve(
+				right({
+					role: "model",
+					parts: [{
+						text: JSON.stringify({
+							"invoice-number": "INV-123",
+							"total-amount": 42,
+							"not-a-real-property": "ignored",
+						}),
+					}],
+				}),
+			);
+		const harness = createHarness(false, agentsEngine);
+		await createInvoiceAspect(harness);
+
+		await harness.nodeService.create(adminCtx, {
+			uuid: "invoice-node",
+			title: "Invoice Node",
+			mimetype: Nodes.FOLDER_MIMETYPE,
+			parent: Nodes.ROOT_FOLDER_UUID,
+		});
+		await harness.repository.upsertEmbedding(
+			"invoice-node",
+			[1],
+			"---\nuuid: invoice-node\ntitle: Invoice Node\n---\n\nInvoice INV-123 total 42",
+		);
+
+		const result = await harness.engine.runAction<void>(
+			adminCtx,
+			AUTO_TAG_FEATURE_UUID,
+			["invoice-node"],
+			{ aspects: ["invoice-aspect"] },
+		);
+
+		expect(result.isRight()).toBe(true);
+		expect(agentsEngine.calls).toHaveLength(1);
+		expect(agentsEngine.calls[0].agentUuid).toBe(ASPECT_FIELD_EXTRACTOR_AGENT_UUID);
+		expect(agentsEngine.calls[0].text).toContain("Invoice INV-123 total 42");
+		expect(agentsEngine.calls[0].text).toContain("invoice-number");
+
+		const nodeOrErr = await harness.nodeService.get(adminCtx, "invoice-node");
+		expect(nodeOrErr.isRight()).toBe(true);
+		if (nodeOrErr.isRight()) {
+			expect(nodeOrErr.value.aspects).toContain("invoice-aspect");
+			expect(nodeOrErr.value.properties?.["invoice-aspect:invoice-number"]).toBe("INV-123");
+			expect(nodeOrErr.value.properties?.["invoice-aspect:total-amount"]).toBe(42);
+			expect(nodeOrErr.value.properties?.["invoice-aspect:not-a-real-property"]).toBeUndefined();
+		}
+	});
+
+	it("auto tag skips nodes with no embedding content", async () => {
+		const agentsEngine = new MockAgentsEngine();
+		const harness = createHarness(false, agentsEngine);
+		await createInvoiceAspect(harness);
+
+		await harness.nodeService.create(adminCtx, {
+			uuid: "no-content-node",
+			title: "No Content Node",
+			mimetype: Nodes.FOLDER_MIMETYPE,
+			parent: Nodes.ROOT_FOLDER_UUID,
+		});
+
+		const result = await harness.engine.runAction<void>(
+			adminCtx,
+			AUTO_TAG_FEATURE_UUID,
+			["no-content-node"],
+			{ aspects: ["invoice-aspect"] },
+		);
+
+		expect(result.isRight()).toBe(true);
+		expect(agentsEngine.calls).toHaveLength(0);
+
+		const nodeOrErr = await harness.nodeService.get(adminCtx, "no-content-node");
+		expect(nodeOrErr.isRight()).toBe(true);
+		if (nodeOrErr.isRight()) {
+			expect(nodeOrErr.value.aspects ?? []).toEqual([]);
+			expect(nodeOrErr.value.properties ?? {}).toEqual({});
+		}
+	});
+
+	it("auto tag skips invalid agent JSON without updating the node", async () => {
+		const agentsEngine = new MockAgentsEngine();
+		agentsEngine.answerImpl = () =>
+			Promise.resolve(right({ role: "model", parts: [{ text: "not json" }] }));
+		const harness = createHarness(false, agentsEngine);
+		await createInvoiceAspect(harness);
+
+		await harness.nodeService.create(adminCtx, {
+			uuid: "invalid-json-node",
+			title: "Invalid JSON Node",
+			mimetype: Nodes.FOLDER_MIMETYPE,
+			parent: Nodes.ROOT_FOLDER_UUID,
+		});
+		await harness.repository.upsertEmbedding("invalid-json-node", [1], "Invoice content");
+
+		const result = await harness.engine.runAction<void>(
+			adminCtx,
+			AUTO_TAG_FEATURE_UUID,
+			["invalid-json-node"],
+			{ aspects: ["invoice-aspect"] },
+		);
+
+		expect(result.isRight()).toBe(true);
+		expect(agentsEngine.calls).toHaveLength(1);
+
+		const nodeOrErr = await harness.nodeService.get(adminCtx, "invalid-json-node");
+		expect(nodeOrErr.isRight()).toBe(true);
+		if (nodeOrErr.isRight()) {
+			expect(nodeOrErr.value.aspects ?? []).toEqual([]);
+			expect(nodeOrErr.value.properties ?? {}).toEqual({});
+		}
+	});
+
+	it("auto tag does not attach an aspect when only hallucinated fields are returned", async () => {
+		const agentsEngine = new MockAgentsEngine();
+		agentsEngine.answerImpl = () =>
+			Promise.resolve(
+				right({
+					role: "model",
+					parts: [{ text: JSON.stringify({ "not-a-real-property": "ignored" }) }],
+				}),
+			);
+		const harness = createHarness(false, agentsEngine);
+		await createInvoiceAspect(harness);
+
+		await harness.nodeService.create(adminCtx, {
+			uuid: "hallucinated-fields-node",
+			title: "Hallucinated Fields Node",
+			mimetype: Nodes.FOLDER_MIMETYPE,
+			parent: Nodes.ROOT_FOLDER_UUID,
+		});
+		await harness.repository.upsertEmbedding("hallucinated-fields-node", [1], "Invoice content");
+
+		const result = await harness.engine.runAction<void>(
+			adminCtx,
+			AUTO_TAG_FEATURE_UUID,
+			["hallucinated-fields-node"],
+			{ aspects: ["invoice-aspect"] },
+		);
+
+		expect(result.isRight()).toBe(true);
+		expect(agentsEngine.calls).toHaveLength(1);
+
+		const nodeOrErr = await harness.nodeService.get(adminCtx, "hallucinated-fields-node");
+		expect(nodeOrErr.isRight()).toBe(true);
+		if (nodeOrErr.isRight()) {
+			expect(nodeOrErr.value.aspects ?? []).toEqual([]);
+			expect(nodeOrErr.value.properties ?? {}).toEqual({});
+		}
 	});
 
 	it("runAction returns immediately when agent action runs in background", async () => {

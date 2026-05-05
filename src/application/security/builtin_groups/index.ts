@@ -1,6 +1,5 @@
 import { GroupData } from "domain/configuration/group_data.ts";
 import { Groups } from "domain/users_groups/groups.ts";
-import { Users } from "domain/users_groups/users.ts";
 
 export const ADMINS_GROUP: GroupData = {
 	uuid: Groups.ADMINS_GROUP_UUID,

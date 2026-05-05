@@ -65,6 +65,10 @@ export const DOCS: DocInfo[] = [
 		description: "Audit log and deleted-nodes queries",
 	},
 	{
+		uuid: "observability",
+		description: "OpenTelemetry and runtime observability",
+	},
+	{
 		uuid: "security-administration",
 		description: "Users, groups, and API keys administration",
 	},

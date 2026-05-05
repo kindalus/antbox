@@ -1,4 +1,4 @@
-import postgres from "npm:postgres";
+import postgres from "npm:postgres@3.4.8";
 
 import { NodeFactory } from "domain/node_factory.ts";
 import { Logger } from "shared/logger.ts";
@@ -477,7 +477,6 @@ export class PostgresNodeRepository implements NodeRepository {
 		paramIndex: number,
 		isPromoted: boolean,
 	): { clause: string; newParamIndex: number } {
-		const columnRef = isPromoted ? field : `body->>'${field}'`;
 		const jsonPath = field.split(".").map((p) => `'${p}'`).join("->");
 
 		switch (operator) {

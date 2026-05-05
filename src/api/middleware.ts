@@ -69,7 +69,8 @@ export const logMiddleware: HttpMiddleware = (next: HttpHandler) => async (req: 
 	try {
 		const start = Temporal.Now.instant();
 		const res = await next(req);
-		Logger.debug(`${req.method} ${req.url} ${res.status} ${Temporal.Now.instant().since(start)}`);
+		const path = new URL(req.url).pathname;
+		Logger.debug(`${req.method} ${path} ${res.status} ${Temporal.Now.instant().since(start)}`);
 
 		return res;
 	} catch (error) {

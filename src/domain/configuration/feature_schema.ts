@@ -44,7 +44,9 @@ export const FeatureDataSchema = z.object({
 	runAs: z.string().optional(),
 	groupsAllowed: z.array(z.string()).default([]),
 	parameters: z.array(FeatureParameterSchema).default([]),
-	returnType: z.enum(["string", "number", "boolean", "array", "object", "file", "void"]).default("void"),
+	returnType: z.enum(["string", "number", "boolean", "array", "object", "file", "void"]).default(
+		"void",
+	),
 	returnDescription: z.string().optional(),
 	returnContentType: z.string().optional(),
 	tags: z.array(z.string()).optional(),

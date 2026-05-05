@@ -67,7 +67,7 @@ export class S3StorageProvider implements StorageProvider {
 		return this.#s3
 			.delete(this.#getPath(uuid))
 			.then(() => right(undefined))
-			.catch((err) => {
+			.catch(() => {
 				return left(new NodeNotFoundError(uuid));
 			}) as Promise<Either<NodeNotFoundError, void>>;
 	}

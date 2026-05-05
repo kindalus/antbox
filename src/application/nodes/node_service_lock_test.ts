@@ -1,5 +1,5 @@
-import { describe, it } from "jsr:@std/testing/bdd";
-import { expect } from "jsr:@std/expect";
+import { describe, it } from "bdd";
+import { expect } from "expect";
 import { NodeService } from "./node_service.ts";
 import type { NodeServiceContext } from "./node_service_context.ts";
 import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository.ts";
@@ -10,7 +10,6 @@ import type { Event } from "shared/event.ts";
 import type { EventHandler } from "shared/event_handler.ts";
 import type { AuthenticationContext } from "../security/authentication_context.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
-import { Users } from "domain/users_groups/users.ts";
 import { Groups } from "domain/users_groups/groups.ts";
 
 // Mock EventBus implementation

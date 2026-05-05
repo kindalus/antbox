@@ -3,7 +3,7 @@ import { defaultMiddlewareChain } from "api/default_middleware_chain.ts";
 import { getAuthenticationContext } from "api/get_authentication_context.ts";
 import { getParams } from "api/get_params.ts";
 import { getTenant } from "api/get_tenant.ts";
-import { type HttpHandler, sendOK } from "api/handler.ts";
+import { type HttpHandler } from "api/handler.ts";
 import { processError } from "api/process_error.ts";
 import { processServiceResult } from "api/process_service_result.ts";
 

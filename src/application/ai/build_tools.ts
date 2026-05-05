@@ -1,4 +1,4 @@
-import { tool, type Tool } from "ai";
+import { type Tool, tool } from "ai";
 import { z } from "zod";
 import { type Either, left, right } from "shared/either.ts";
 import { AntboxError } from "shared/antbox_error.ts";
@@ -122,7 +122,7 @@ async function buildAllToolEntries(
 			aliases: [],
 			tool: tool({
 				description:
-					"Find nodes by plain-text search, or by structured filters as a JSON-encoded array of [field, operator, value] tuples (e.g. '[[\"title\",\"contains\",\"policy\"]]').",
+					'Find nodes by plain-text search, or by structured filters as a JSON-encoded array of [field, operator, value] tuples (e.g. \'[["title","contains","policy"]]\').',
 				inputSchema: z.object({
 					filters: z.string().min(1).describe(
 						"Plain-text search string, or a JSON-encoded array of [field, operator, value] tuples for structured filtering",

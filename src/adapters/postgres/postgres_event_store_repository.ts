@@ -1,4 +1,4 @@
-import postgres from "npm:postgres";
+import postgres from "npm:postgres@3.4.8";
 
 import type { AuditEvent } from "domain/audit/audit_event.ts";
 import type { EventStoreRepository } from "domain/audit/event_store_repository.ts";

@@ -23,6 +23,7 @@
 
 		"@googleapis/drive": "npm:@googleapis/drive@18.0.0",
 		"@google/genai": "npm:@google/genai@1.25.0",
+		"@opentelemetry/api": "npm:@opentelemetry/api@1.9.0",
 		"ai": "npm:ai@5",
 		"@ai-sdk/google": "npm:@ai-sdk/google@2",
 		"@ai-sdk/openai": "npm:@ai-sdk/openai@2",

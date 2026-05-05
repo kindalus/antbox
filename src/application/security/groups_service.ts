@@ -6,12 +6,7 @@ import type { AuthenticationContext } from "./authentication_context.ts";
 import type { ConfigurationRepository } from "domain/configuration/configuration_repository.ts";
 import type { GroupData } from "domain/configuration/group_data.ts";
 import { GroupDataSchema } from "domain/configuration/group_schema.ts";
-import {
-	ADMINS_GROUP,
-	ADMINS_GROUP_UUID,
-	ANONYMOUS_GROUP,
-	BUILTIN_GROUPS,
-} from "domain/configuration/builtin_groups.ts";
+import { ADMINS_GROUP_UUID, BUILTIN_GROUPS } from "domain/configuration/builtin_groups.ts";
 import { UuidGenerator } from "shared/uuid_generator.ts";
 
 /**

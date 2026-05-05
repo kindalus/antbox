@@ -4,6 +4,7 @@ import {
 	type ModelMessage,
 	NoSuchToolError,
 	stepCountIs,
+	type TelemetrySettings,
 	type Tool,
 } from "ai";
 import { type Either, left, right } from "shared/either.ts";
@@ -39,6 +40,9 @@ import type {
 	IAgentsEngineInternal,
 } from "./agents_engine_interface.ts";
 import { type SessionSnapshot, SessionStore } from "./session_store.ts";
+import { buildAITelemetrySettings } from "./ai_telemetry.ts";
+import { setTelemetryAttributes, withTelemetrySpan } from "shared/telemetry.ts";
+import type { Span } from "@opentelemetry/api";
 
 const AGENT_DEBUG_TRACE_ENV = "ANTBOX_AGENT_DEBUG_TRACE";
 const DEFAULT_MAX_LLM_CALLS = 6;
@@ -100,6 +104,14 @@ function combineUsage(...usages: Array<TokenUsage | undefined>): TokenUsage | un
 
 function endsWithToolMessage(messages: readonly ChatMessage[]): boolean {
 	return messages.at(-1)?.role === "tool";
+}
+
+function setTelemetryUsageAttributes(span: Span, usage?: TokenUsage): void {
+	setTelemetryAttributes(span, {
+		"gen_ai.usage.input_tokens": usage?.promptTokens,
+		"gen_ai.usage.output_tokens": usage?.completionTokens,
+		"gen_ai.usage.total_tokens": usage?.totalTokens,
+	});
 }
 
 function ensureTerminalModelMessage(result: AgentRunOutput): AgentRunOutput {
@@ -553,28 +565,55 @@ export class AgentsEngine implements IAgentsEngineInternal {
 
 		const maxLlmCalls = agentData.maxLlmCalls ?? DEFAULT_MAX_LLM_CALLS;
 		const stopWhen = stepCountIs(maxLlmCalls);
-
-		const result = await generateText({
-			model,
-			system: instruction,
-			messages,
-			tools: tools as Record<string, Tool>,
-			stopWhen,
-			onStepFinish: debugLogger
-				? (step) =>
-					debugLogger.debug(
-						"agent_debug_trace_event",
-						JSON.stringify({
-							type: "agent_run_event",
-							finishReason: step.finishReason,
-							textLength: step.text?.length ?? 0,
-							toolCallCount: step.toolCalls?.length ?? 0,
-							toolResponseCount: step.toolResults?.length ?? 0,
-							usage: aisdkUsageToTokenUsage(step.usage),
-						}),
-					)
-				: undefined,
+		const telemetry = buildAITelemetrySettings({
+			operation: "agent_run",
+			tenant: authContext.tenant,
+			agentUuid: agentData.uuid,
+			model: modelString,
+			interactionType,
 		});
+
+		const result = await withTelemetrySpan(
+			"antbox.ai.generate_text",
+			{
+				"antbox.tenant": authContext.tenant,
+				"antbox.agent.uuid": agentData.uuid,
+				"antbox.ai.interaction_type": interactionType,
+				"gen_ai.operation.name": "agent_run",
+				"gen_ai.request.model": modelString,
+			},
+			async (span) => {
+				const generated = await generateText({
+					model,
+					system: instruction,
+					messages,
+					tools: tools as Record<string, Tool>,
+					stopWhen,
+					experimental_telemetry: telemetry,
+					onStepFinish: debugLogger
+						? (step) =>
+							debugLogger.debug(
+								"agent_debug_trace_event",
+								JSON.stringify({
+									type: "agent_run_event",
+									finishReason: step.finishReason,
+									textLength: step.text?.length ?? 0,
+									toolCallCount: step.toolCalls?.length ?? 0,
+									toolResponseCount: step.toolResults?.length ?? 0,
+									usage: aisdkUsageToTokenUsage(step.usage),
+								}),
+							)
+						: undefined,
+				});
+				setTelemetryUsageAttributes(
+					span,
+					aisdkUsageToTokenUsage(
+						generated.totalUsage ?? generated.usage,
+					),
+				);
+				return generated;
+			},
+		);
 
 		let finalText = result.text ?? "";
 		let usage = aisdkUsageToTokenUsage(result.totalUsage ?? result.usage);
@@ -586,6 +625,13 @@ export class AgentsEngine implements IAgentsEngineInternal {
 				instruction,
 				messages,
 				stepMessages,
+				buildAITelemetrySettings({
+					operation: "agent_final_answer_synthesis",
+					tenant: authContext.tenant,
+					agentUuid: agentData.uuid,
+					model: modelString,
+					interactionType,
+				}),
 				debugLogger,
 			);
 			finalText = synthesized.text;
@@ -613,6 +659,7 @@ export class AgentsEngine implements IAgentsEngineInternal {
 		instruction: string,
 		originalMessages: ModelMessage[],
 		generatedMessages: ChatMessage[],
+		telemetry: TelemetrySettings,
 		debugLogger?: Logger,
 	): Promise<{ text: string; usage?: TokenUsage }> {
 		const synthesisMessages: ModelMessage[] = [
@@ -632,6 +679,7 @@ export class AgentsEngine implements IAgentsEngineInternal {
 			model,
 			system: instruction,
 			messages: synthesisMessages,
+			experimental_telemetry: telemetry,
 		});
 		const text = (result.text ?? "").trim() || FALLBACK_FINAL_ANSWER;
 		const usage = aisdkUsageToTokenUsage(result.totalUsage ?? result.usage);

@@ -130,6 +130,12 @@ ANTBOX_AGENT_DEBUG_TRACE=1 ANTBOX_LOG_LEVEL=debug ./start_server.sh --demo
 If `config.toml` defines `logLevel`, Antbox uses it when `ANTBOX_LOG_LEVEL` is not set in the shell
 environment.
 
+### OpenTelemetry
+
+The launcher includes Deno's `--unstable-otel` flag. Set `OTEL_DENO=true` and OTLP environment
+variables such as `OTEL_EXPORTER_OTLP_ENDPOINT` to export Deno runtime telemetry, Antbox HTTP route
+spans, and AI model telemetry. See `docs/observability.md` for details.
+
 ## Configuration
 
 Antbox is configured via a central configuration directory. By default, it uses

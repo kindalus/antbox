@@ -15,9 +15,11 @@ import type { StorageProvider } from "./storage_provider.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import { InMemoryConfigurationRepository } from "adapters/inmem/inmem_configuration_repository.ts";
 
+type MockNode = FileNode | FolderNode;
+
 // Mock implementations
 class MockNodeRepository {
-	private nodes: Map<string, any> = new Map();
+	private nodes: Map<string, MockNode> = new Map();
 
 	async getById(uuid: string) {
 		const node = this.nodes.get(uuid);
@@ -27,16 +29,16 @@ class MockNodeRepository {
 		return left(new NodeNotFoundError(`Node not found: ${uuid}`));
 	}
 
-	async update(node: any) {
+	async update(node: MockNode) {
 		this.nodes.set(node.uuid, node);
 		return right(undefined);
 	}
 
-	async delete(uuid: string) {
+	async delete(_uuid: string) {
 		return right(undefined);
 	}
 
-	async add(node: any) {
+	async add(_node: MockNode) {
 		return right(undefined);
 	}
 
@@ -48,7 +50,7 @@ class MockNodeRepository {
 		return { pageToken: 0, pageSize: 0, nodes: [] };
 	}
 
-	setNode(uuid: string, node: any) {
+	setNode(uuid: string, node: MockNode) {
 		this.nodes.set(uuid, node);
 	}
 }
@@ -471,8 +473,6 @@ describe("ParentFolderUpdateHandler", () => {
 			if (movedChildResult.isLeft()) {
 				throw new Error("Failed to create moved child file");
 			}
-
-			const movedChild = movedChildResult.value;
 
 			// Create move changes
 			const changes: NodeUpdateChanges = {

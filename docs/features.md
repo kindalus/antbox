@@ -115,7 +115,8 @@ UUID resolution rules:
 Validation rules:
 
 - a feature must be exposed as at least one of: action, extension, or AI tool
-- automatic triggers (`runOnCreates`, `runOnUpdates`, `runOnDeletes`, `runOnEmbeddingsCreated`, `runOnEmbeddingsUpdated`) are only valid for actions
+- automatic triggers (`runOnCreates`, `runOnUpdates`, `runOnDeletes`, `runOnEmbeddingsCreated`,
+  `runOnEmbeddingsUpdated`) are only valid for actions
 - parameter `name` must be camelCase: `/^[a-z][a-zA-Z0-9]*$/` (e.g. `uuids`, `agentUuid`, `runSync`)
 - runtime validates and coerces parameters from JSON, query params, and form data before executing
   feature code
@@ -163,7 +164,7 @@ curl -sS -X POST "$BASE_URL/v2/features/-/upload" \
 ## Actions
 
 - List actions: `GET /v2/actions`
-- Run action: `POST /v2/actions/{uuid}` with body `{ uuids: [...], parameters?: {...} }`
+- Run action: `POST /v2/actions/{uuid}/-/run` with body `{ uuids: [...], parameters?: {...} }`
 - Every action must declare a required `uuids` parameter as `array<string>` in `parameters`
 
 Automatic triggers (all require `exposeAction: true`):

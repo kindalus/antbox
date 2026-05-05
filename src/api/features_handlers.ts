@@ -5,6 +5,7 @@ import { getAuthenticationContext } from "api/get_authentication_context.ts";
 import { getParams } from "api/get_params.ts";
 import { getTenant } from "api/get_tenant.ts";
 import { getUploadFile, resolveUploadUuid } from "api/upload_utils.ts";
+import { ADMINS_GROUP_UUID } from "domain/configuration/builtin_groups.ts";
 import {
 	ACTION_UUIDS_PARAMETER_ERROR,
 	hasRequiredActionUuidsParameter,
@@ -14,7 +15,7 @@ import {
 	featureToFeatureData,
 	fileToUploadedFeature,
 } from "domain/features/feature.ts";
-import { type AntboxError, BadRequestError } from "shared/antbox_error.ts";
+import { type AntboxError, BadRequestError, ForbiddenError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
 import { type HttpHandler, sendBadRequest } from "api/handler.ts";
 import { processError } from "api/process_error.ts";
@@ -31,10 +32,15 @@ export function createOrReplaceHandler(tenants: AntboxTenant[]): HttpHandler {
 		async (req: Request): Promise<Response> => {
 			const tenant = getTenant(req, tenants);
 			const service = tenant.featuresService;
+			const authContext = getAuthenticationContext(req);
 
 			const unavailableResponse = checkServiceAvailability(service, "Feature service");
 			if (unavailableResponse) {
 				return Promise.resolve(unavailableResponse);
+			}
+
+			if (!authContext.principal.groups.includes(ADMINS_GROUP_UUID)) {
+				return processError(new ForbiddenError("Only admins can create features"));
 			}
 
 			const featureOrErr = await parseFeatureUpload(req);
@@ -43,7 +49,7 @@ export function createOrReplaceHandler(tenants: AntboxTenant[]): HttpHandler {
 			}
 
 			return service
-				.createFeature(getAuthenticationContext(req), featureOrErr.value)
+				.createFeature(authContext, featureOrErr.value)
 				.then(processServiceCreateResult)
 				.catch(processError);
 		},

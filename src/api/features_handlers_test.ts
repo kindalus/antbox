@@ -1,6 +1,7 @@
 import { describe, it } from "bdd";
 import { expect } from "expect";
 import {
+	createOrReplaceHandler,
 	exportFeatureHandler,
 	getFeatureHandler,
 	parseFeatureUpload,
@@ -95,6 +96,29 @@ const invalidActionFeatureModule = `export default {
 		return undefined;
 	},
 	};`;
+
+const sideEffectFeatureModule = `globalThis.__featureUploadExecuted = true;
+export default {
+	uuid: "sideEffectFeature",
+	title: "Side Effect Feature",
+	description: "Should not execute for unauthorized uploads",
+	exposeAction: false,
+	runOnCreates: false,
+	runOnUpdates: false,
+	runOnDeletes: false,
+	runOnEmbeddingsCreated: false,
+	runOnEmbeddingsUpdated: false,
+	runManually: true,
+	filters: [],
+	exposeExtension: true,
+	exposeAITool: false,
+	groupsAllowed: [],
+	parameters: [],
+	returnType: "void",
+	async run() {
+		return undefined;
+	},
+};`;
 
 function makeTenant(overrides: Partial<AntboxTenant> = {}): AntboxTenant {
 	return {
@@ -224,6 +248,47 @@ describe("features_handlers", () => {
 	});
 
 	describe("handlers", () => {
+		it("rejects unauthorized feature uploads before importing module code", async () => {
+			const globalWithMarker = globalThis as typeof globalThis & {
+				__featureUploadExecuted?: boolean;
+			};
+			delete globalWithMarker.__featureUploadExecuted;
+			let createCalled = false;
+
+			const handler = createOrReplaceHandler([
+				makeTenant({
+					featuresService: {
+						createFeature: async () => {
+							createCalled = true;
+							return left(new ForbiddenError("Only admins can create features"));
+						},
+					} as unknown as AntboxTenant["featuresService"],
+				}),
+			]);
+			const formData = new FormData();
+			formData.set(
+				"file",
+				new File([sideEffectFeatureModule], "side-effect.js", {
+					type: "application/javascript",
+				}),
+			);
+
+			try {
+				const response = await handler(
+					new Request("http://localhost/v2/features/-/upload", {
+						method: "POST",
+						body: formData,
+					}),
+				);
+
+				expect(response.status).toBe(403);
+				expect(createCalled).toBe(false);
+				expect(globalWithMarker.__featureUploadExecuted).toBeUndefined();
+			} finally {
+				delete globalWithMarker.__featureUploadExecuted;
+			}
+		});
+
 		it("returns forbidden when getFeature is unauthorized", async () => {
 			const handler = getFeatureHandler([
 				makeTenant({

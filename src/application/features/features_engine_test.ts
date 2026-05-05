@@ -738,6 +738,29 @@ describe("FeaturesEngine", () => {
 		await expect(response.text()).resolves.toBe("Parameter 'count' must be a number");
 	});
 
+	it("runExtension returns bad request for malformed JSON bodies", async () => {
+		const harness = createHarness();
+
+		const featureUuid = await createFeature(harness, {
+			exposeAction: false,
+			exposeExtension: true,
+			parameters: [],
+			returnType: "object",
+			run: createFeatureRun({ runBody: "return { ok: true };" }),
+		});
+
+		const request = new Request("http://localhost/v2/extensions/test", {
+			method: "POST",
+			headers: new Headers({ "content-type": "application/json" }),
+			body: "{",
+		});
+
+		const response = await harness.engine.runExtension(adminCtx, featureUuid, request);
+
+		expect(response.status).toBe(400);
+		await expect(response.text()).resolves.toBe("Invalid JSON body");
+	});
+
 	it("runExtension validates file parameter content type", async () => {
 		const harness = createHarness();
 
@@ -1032,6 +1055,82 @@ describe("FeaturesEngine", () => {
 		}, 1200);
 
 		expect(updated).toBe(true);
+	});
+
+	it("skips automatic actions while the same action is already over the depth limit", async () => {
+		const harness = createHarness();
+		const globalWithMarker = globalThis as typeof globalThis & {
+			__manualActionRuns?: number;
+			__automaticActionRuns?: number;
+			__releaseRunnableActions?: Promise<void>;
+		};
+		let releaseRunnableActions: (() => void) | undefined;
+		let pendingActions: Array<Promise<Either<AntboxError, unknown>>> = [];
+
+		delete globalWithMarker.__manualActionRuns;
+		delete globalWithMarker.__automaticActionRuns;
+		globalWithMarker.__releaseRunnableActions = new Promise((resolve) => {
+			releaseRunnableActions = resolve;
+		});
+
+		try {
+			await harness.nodeService.create(adminCtx, {
+				uuid: "manual-node",
+				title: "Manual Node",
+				mimetype: Nodes.FOLDER_MIMETYPE,
+				parent: Nodes.ROOT_FOLDER_UUID,
+			});
+			await harness.nodeService.create(adminCtx, {
+				uuid: "recursive-node",
+				title: "Recursive Node",
+				mimetype: Nodes.FOLDER_MIMETYPE,
+				parent: Nodes.ROOT_FOLDER_UUID,
+			});
+
+			const featureUuid = await createFeature(harness, {
+				runOnUpdates: true,
+				runManually: true,
+				run: createFeatureRun({
+					runBody: `
+						const uuid = Array.isArray(args.uuids) ? args.uuids[0] : undefined;
+						if (uuid === "manual-node") {
+							globalThis.__manualActionRuns = (globalThis.__manualActionRuns ?? 0) + 1;
+							await globalThis.__releaseRunnableActions;
+							return { mode: "manual" };
+						}
+
+						if (uuid === "recursive-node") {
+							globalThis.__automaticActionRuns = (globalThis.__automaticActionRuns ?? 0) + 1;
+							return { mode: "automatic" };
+						}
+
+						return { mode: "other" };
+					`,
+				}),
+			});
+
+			pendingActions = Array.from(
+				{ length: 4 },
+				() => harness.engine.runAction(adminCtx, featureUuid, ["manual-node"]),
+			);
+			const actionsAreRunning = await waitFor(async () => {
+				return (globalWithMarker.__manualActionRuns ?? 0) === 4;
+			}, 1200);
+			expect(actionsAreRunning).toBe(true);
+
+			await harness.nodeService.update(adminCtx, "recursive-node", {
+				description: "trigger-automatic-action",
+			});
+			await new Promise((resolve) => setTimeout(resolve, 150));
+
+			expect(globalWithMarker.__automaticActionRuns ?? 0).toBe(0);
+		} finally {
+			releaseRunnableActions?.();
+			await Promise.allSettled(pendingActions);
+			delete globalWithMarker.__manualActionRuns;
+			delete globalWithMarker.__automaticActionRuns;
+			delete globalWithMarker.__releaseRunnableActions;
+		}
 	});
 
 	it("does not run non-action features from folder onCreate hooks", async () => {

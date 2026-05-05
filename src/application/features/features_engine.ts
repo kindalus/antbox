@@ -74,7 +74,7 @@ export interface FeaturesEngineContext {
  * - Handling folder hooks
  */
 export class FeaturesEngine {
-	static #runnable: Map<RecordKey, RunnableRecord> = new Map();
+	static #runnable: Map<string, RunnableRecord> = new Map();
 
 	readonly #featuresService: FeaturesService;
 	readonly #nodeService: NodeService;
@@ -471,29 +471,36 @@ export class FeaturesEngine {
 
 	// ===== PRIVATE EXECUTION HELPERS =====
 
+	static #runnableKey([featureUuid, executionType]: RecordKey): string {
+		return `${featureUuid}\u0000${executionType}`;
+	}
+
 	static #decRunnable(key: RecordKey) {
+		const mapKey = this.#runnableKey(key);
 		const runnable = this.#getRunnable(key);
 		if (runnable && runnable.count > 1) {
-			this.#runnable.set(key, {
+			this.#runnable.set(mapKey, {
 				count: runnable.count - 1,
 				timestamp: Date.now(),
 			});
 		} else {
-			this.#runnable.delete(key);
+			this.#runnable.delete(mapKey);
 		}
 	}
 
 	static #getRunnable(key: RecordKey): RunnableRecord {
-		if (!this.#runnable.has(key)) {
-			this.#runnable.set(key, { count: 0, timestamp: Date.now() });
+		const mapKey = this.#runnableKey(key);
+		if (!this.#runnable.has(mapKey)) {
+			this.#runnable.set(mapKey, { count: 0, timestamp: Date.now() });
 		}
 
-		return this.#runnable.get(key)!;
+		return this.#runnable.get(mapKey)!;
 	}
 
 	static #incRunnable(key: RecordKey) {
+		const mapKey = this.#runnableKey(key);
 		const runnable = this.#getRunnable(key);
-		this.#runnable.set(key, {
+		this.#runnable.set(mapKey, {
 			count: (runnable?.count ?? 0) + 1,
 			timestamp: Date.now(),
 		});
@@ -519,15 +526,25 @@ export class FeaturesEngine {
 		const contentType = request.headers.get("content-type") || "";
 
 		if (contentType.includes("application/json")) {
-			const params = await request.json();
-			return right(params);
+			try {
+				const params = await request.json();
+				return right(params);
+			} catch {
+				return left(new BadRequestError("Invalid JSON body"));
+			}
 		}
 
 		if (
 			contentType.includes("application/x-www-form-urlencoded") ||
 			contentType.includes("multipart/form-data")
 		) {
-			const formData = await request.formData();
+			let formData: FormData;
+			try {
+				formData = await request.formData();
+			} catch {
+				return left(new BadRequestError("Invalid form body"));
+			}
+
 			const params: Record<string, unknown> = {};
 			formData.forEach((value, key) => {
 				params[key] = value;

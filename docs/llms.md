@@ -336,7 +336,7 @@ export default {
 
 ### Feature exposure routes
 
-- actions: `GET /v2/actions`, `POST /v2/actions/{uuid}`
+- actions: `GET /v2/actions`, `POST /v2/actions/{uuid}/-/run`
 - extensions: `GET /v2/extensions`, `GET|POST /v2/extensions/{uuid}`
 - AI tools: no dedicated public HTTP route; execution is engine-driven and exposed through
   `AgentsEngine`
@@ -732,7 +732,7 @@ FEATURE_UUID=$(curl -sS -X POST "$BASE_URL/v2/features/-/upload" \
 Run the action on one node:
 
 ```bash
-curl -sS -X POST "$BASE_URL/v2/actions/$FEATURE_UUID" \
+curl -sS -X POST "$BASE_URL/v2/actions/$FEATURE_UUID/-/run" \
   "${COMMON[@]}" "${JSON[@]}" \
   -d "{\"uuids\":[\"$FILE_UUID\"]}"
 ```

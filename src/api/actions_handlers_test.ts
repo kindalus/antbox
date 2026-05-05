@@ -56,7 +56,7 @@ describe("actions_handlers", () => {
 			} as unknown as AntboxTenant["featuresEngine"],
 		});
 
-		const request = new Request("http://localhost/v2/actions/auto_tag", {
+		const request = new Request("http://localhost/v2/actions/auto_tag/-/run", {
 			method: "POST",
 			headers: new Headers({
 				"content-type": "application/json",

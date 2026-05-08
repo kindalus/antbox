@@ -2368,7 +2368,7 @@ components:
                type: boolean
             defaultModel:
                type: string
-               description: "ADK model string, e.g. \"google/gemini-2.5-flash\""
+               description: "Provider model string, e.g. \"google/gemini-2.5-flash\", \"openai/gpt-4.1\", or \"anthropic/claude-sonnet-4\""
             embeddingProvider:
                $ref: "#/components/schemas/ModuleConfiguration"
             ocrProvider:
@@ -2507,7 +2507,7 @@ components:
                description: Whether users can directly call this agent with chat or answer.
             model:
                type: string
-               description: Optional model identifier (ADK format). Falls back to tenant default model.
+               description: Optional provider model identifier. Falls back to tenant default model.
             tools:
                description: Tool access for agents. `true` grants all tools; `false`, omitted, or `[]` grants only `load_skill`; arrays grant the listed tools plus `load_skill`.
                oneOf:

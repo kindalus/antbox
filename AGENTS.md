@@ -1,7 +1,6 @@
-# CLAUDE.md
+# AGENTS.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this
-repository.
+This file provides guidance to coding agents when working with code in this repository.
 
 ## Build & Development Commands
 
@@ -28,8 +27,8 @@ deno fmt                          # Format code (tabs, 100 char width)
 
 ## Architecture Overview
 
-Antbox is an Enterprise Content Management (ECM) / Digital Asset Management (DAM) platform built
-with Deno and TypeScript. It follows **Hexagonal Architecture (Ports & Adapters)** with strict layer
+Antbox is an open-source, API-first content platform for documents, workflows, and AI, built with
+Deno and TypeScript. It follows **Hexagonal Architecture (Ports & Adapters)** with strict layer
 separation:
 
 ### Layers

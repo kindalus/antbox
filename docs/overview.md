@@ -5,13 +5,13 @@ description: Executive overview of the Antbox platform
 
 # Antbox Overview
 
-Antbox is an enterprise content and digital asset platform built for organizations that need
-structured control over documents, files, metadata, and AI-enabled workflows without losing
-operational governance.
+Antbox is an open-source, API-first content platform for documents, workflows, and AI. It is built
+for organizations and product teams that need structured control over files, metadata, search, and
+AI-enabled workflows without losing operational governance.
 
 ## What It Is
 
-Antbox combines ECM/DAM capabilities with policy-driven automation, search, and AI orchestration in
+Antbox combines ECM/DAM primitives with policy-driven automation, search, and AI orchestration in
 one multi-tenant platform.
 
 At its core, Antbox manages content as nodes (files, folders, smart folders, and article content),

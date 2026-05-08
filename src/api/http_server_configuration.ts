@@ -79,7 +79,7 @@ export type ModuleConfiguration = [modulePath: string, ...params: string[]];
 
 export interface AIConfiguration {
 	enabled: boolean;
-	/** ADK model string, e.g. "google/gemini-2.5-flash" */
+	/** Provider model string, e.g. "google/gemini-2.5-flash" */
 	defaultModel: string;
 	/** Module configuration for EmbeddingsProvider adapter */
 	embeddingProvider?: ModuleConfiguration;

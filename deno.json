@@ -41,6 +41,9 @@
 		"zod": "npm:zod@4.3.6"
 	},
 	"tasks": {
+		"bundle:antbox": "deno bundle --config deno.json --format esm --platform deno --minify tools/utils_bundle.ts -o antbox.js",
+		"types:antbox": "deno run --allow-read --allow-write tools/generate_antbox_types.ts",
+		"build:antbox": "deno task bundle:antbox && deno task types:antbox",
 		"test": "deno test --allow-all  --unstable-raw-imports",
 		"test:pretty": "COLUMNS=300 deno test --allow-all  --unstable-raw-imports",
 		"test:full": "COLUMNS=300 deno test --allow-all  --unstable-raw-imports",

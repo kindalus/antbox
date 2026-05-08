@@ -1,16 +1,17 @@
 # Antbox
 
-**API-first Enterprise Content Management for TypeScript teams**
+**Open-source, API-first content platform for documents, workflows, and AI**
 
-Antbox is an open-source ECM/DAM platform built with Deno and TypeScript. It combines document
-management, workflow orchestration, AI-powered retrieval/agents, and multi-tenant isolation in a
-single API-first runtime.
+Antbox is an open-source, API-first content platform for managing documents, metadata, workflows,
+search, and AI-powered knowledge across tenant-isolated environments. Built with Deno and
+TypeScript, it combines ECM/DAM primitives, workflow orchestration, MCP access for LLM clients,
+custom server-side features, and pluggable infrastructure in a single runtime.
 
 ## Highlights
 
 - **Document Management** - Files, folders, smart folders, metadata, and permissions
 - **Search** - Structured filters, full-text search, and semantic search
-- **AI Agents + Skills** - ADK-based agents, built-in RAG agents, and custom skills
+- **AI Agents + Skills** - AI SDK-based agents, built-in RAG agents, and custom skills
 - **MCP Server** - JSON-RPC endpoint with tenant-aware tools/resources for LLM clients
 - **Custom Features** - Run JavaScript/TypeScript modules as actions/extensions/AI tools
 - **Workflows** - Workflow definitions + runtime instances with transitions
@@ -84,6 +85,10 @@ curl -sS -X POST "$BASE_URL/mcp" \
   -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25"}}'
 ```
 
+For a complete first workflow, see
+[`docs/tutorial-upload-to-search.md`](docs/tutorial-upload-to-search.md) or run
+`./examples/upload-to-search/upload-to-search.sh` after starting the demo server.
+
 ## Running the Server
 
 Use `start_server.sh`:
@@ -117,7 +122,7 @@ Antbox supports environment-variable-based logging and agent tracing:
   - global log verbosity
   - valid values: `trace`, `debug`, `info`, `warn`, `error`, `fatal`
 - `ANTBOX_AGENT_DEBUG_TRACE`
-  - enables extra debug logs for ADK agent runs when set to `1`, `true`, `yes`, or `on`
+  - enables extra debug logs for AI agent runs when set to `1`, `true`, `yes`, or `on`
   - includes the effective instruction, selected tools, tool calls/responses, finish reasons,
     provider errors, and final response summary
 
@@ -305,6 +310,10 @@ src/
   - `GET /v2/docs`
   - `GET /v2/docs/{uuid}`
 - Source files: `docs/*.md`
+- Start here:
+  - [Getting started](docs/getting-started.md)
+  - [Upload to search tutorial](docs/tutorial-upload-to-search.md)
+  - [Product strategy and API usability](docs/product-strategy-ux-analysis.md)
 
 ## Architecture
 

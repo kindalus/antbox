@@ -144,6 +144,8 @@ curl "http://localhost:7180/v2/nodes?parent=--root--" \
 
 ## Next Steps
 
+- Complete upload/search walkthrough: `docs/tutorial-upload-to-search.md`
+- Runnable upload/search example: `examples/upload-to-search/upload-to-search.sh`
 - Authentication details: `docs/authentication.md`
 - Nodes and aspects: `docs/nodes-and-aspects.md`
 - Features: `docs/features.md`

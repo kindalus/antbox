@@ -9,12 +9,21 @@ export const DOCS: DocInfo[] = [
 		description: "Getting started guide",
 	},
 	{
+		uuid: "tutorial-upload-to-search",
+		description:
+			"End-to-end tutorial for uploading, tagging, searching, and exporting a document",
+	},
+	{
 		uuid: "architecture",
 		description: "System architecture overview",
 	},
 	{
 		uuid: "overview",
 		description: "Executive overview of the Antbox platform",
+	},
+	{
+		uuid: "product-strategy-ux-analysis",
+		description: "Product strategy, positioning, roadmap, and API usability analysis",
 	},
 	{
 		uuid: "authentication",

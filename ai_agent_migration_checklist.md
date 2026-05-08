@@ -1,6 +1,6 @@
 # Antbox AI Agent Migration Checklist
 
-A tight execution checklist derived from `ai_gent_migration_plan.md`.
+A tight execution checklist derived from `ai_agent_migration_plan.md`.
 
 ## Pre-implementation decisions
 

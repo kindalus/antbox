@@ -22,6 +22,10 @@ node_modules
 bun.lock
 bun.lockb
 
+# Generated bundles
+/antbox.js
+/antbox.d.ts
+
 # Data directories
 data/
 greatness_awaits

@@ -139,14 +139,14 @@ agent's `tools` allow-list. `load_skill` is always available for agents.
 
 ## Debugging agent runs
 
-Antbox can emit detailed debug traces for ADK-based agent runs through environment variables.
+Antbox can emit detailed debug traces for AI agent runs through environment variables.
 
 ### Environment variables
 
 - `ANTBOX_AGENT_DEBUG_TRACE`
   - enables agent-run debug tracing when set to `1`, `true`, `yes`, or `on`
-  - logs the effective agent instruction, selected tools, important ADK events, tool calls, tool
-    responses, finish reasons, error codes/messages, and final text summary
+  - logs the effective agent instruction, selected tools, important model/tool events, tool calls,
+    tool responses, finish reasons, error codes/messages, and final text summary
 - `ANTBOX_LOG_LEVEL`
   - controls log verbosity globally
   - valid values: `trace`, `debug`, `info`, `warn`, `error`, `fatal`

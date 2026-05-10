@@ -145,6 +145,90 @@ describe("GroupsService", () => {
 			}
 		});
 
+		it("should use provided uuid when creating a group", async () => {
+			const configRepo = new InMemoryConfigurationRepository();
+			const service = new GroupsService(configRepo);
+
+			const result = await service.createGroup(adminCtx, {
+				uuid: "content-editors",
+				title: "Content Editors",
+				description: "Content editing team",
+			});
+
+			expect(result.isRight()).toBe(true);
+			if (result.isRight()) {
+				expect(result.value.uuid).toBe("content-editors");
+				expect(result.value.title).toBe("Content Editors");
+				expect(result.value.description).toBe("Content editing team");
+			}
+		});
+
+		it("should reject invalid provided uuid", async () => {
+			const configRepo = new InMemoryConfigurationRepository();
+			const service = new GroupsService(configRepo);
+
+			const result = await service.createGroup(adminCtx, {
+				uuid: "Invalid UUID",
+				title: "Invalid UUID Group",
+			});
+
+			expect(result.isLeft()).toBe(true);
+			if (result.isLeft()) {
+				expect(result.value.errorCode).toBe("ValidationError");
+			}
+		});
+
+		it("should reject null provided uuid", async () => {
+			const configRepo = new InMemoryConfigurationRepository();
+			const service = new GroupsService(configRepo);
+
+			const result = await service.createGroup(adminCtx, {
+				uuid: null as unknown as string,
+				title: "Null UUID Group",
+			});
+
+			expect(result.isLeft()).toBe(true);
+			if (result.isLeft()) {
+				expect(result.value.errorCode).toBe("ValidationError");
+			}
+		});
+
+		it("should reject duplicate provided uuid", async () => {
+			const configRepo = new InMemoryConfigurationRepository();
+			const service = new GroupsService(configRepo);
+
+			const firstResult = await service.createGroup(adminCtx, {
+				uuid: "duplicate-group",
+				title: "Duplicate Group",
+			});
+			expect(firstResult.isRight()).toBe(true);
+
+			const secondResult = await service.createGroup(adminCtx, {
+				uuid: "duplicate-group",
+				title: "Duplicate Group Two",
+			});
+
+			expect(secondResult.isLeft()).toBe(true);
+			if (secondResult.isLeft()) {
+				expect(secondResult.value.errorCode).toBe("BadRequestError");
+			}
+		});
+
+		it("should reject builtin group uuid", async () => {
+			const configRepo = new InMemoryConfigurationRepository();
+			const service = new GroupsService(configRepo);
+
+			const result = await service.createGroup(adminCtx, {
+				uuid: ADMINS_GROUP_UUID,
+				title: "Admins Copy",
+			});
+
+			expect(result.isLeft()).toBe(true);
+			if (result.isLeft()) {
+				expect(result.value.errorCode).toBe("BadRequestError");
+			}
+		});
+
 		it("should fail when user is not admin", async () => {
 			const configRepo = new InMemoryConfigurationRepository();
 			const service = new GroupsService(configRepo);

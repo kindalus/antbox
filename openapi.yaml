@@ -1165,6 +1165,10 @@ paths:
                      required:
                         - title
                      properties:
+                        uuid:
+                           type: string
+                           description: Optional group UUID. If omitted, the server generates one.
+                           pattern: "^([a-z][a-z0-9-]{3,}|--[a-z][a-z0-9-]+--)$"
                         title:
                            type: string
                         description:

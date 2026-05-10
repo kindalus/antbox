@@ -9,6 +9,12 @@ import { GroupDataSchema } from "domain/configuration/group_schema.ts";
 import { ADMINS_GROUP_UUID, BUILTIN_GROUPS } from "domain/configuration/builtin_groups.ts";
 import { UuidGenerator } from "shared/uuid_generator.ts";
 
+export interface CreateGroupData {
+	readonly uuid?: string;
+	readonly title: string;
+	readonly description?: string;
+}
+
 /**
  * GroupsService - Manages user groups in the configuration repository
  * Separated from content management (NodeService)
@@ -18,7 +24,7 @@ export class GroupsService {
 
 	async createGroup(
 		ctx: AuthenticationContext,
-		data: Omit<GroupData, "uuid" | "createdTime">,
+		data: CreateGroupData,
 	): Promise<Either<AntboxError, GroupData>> {
 		// Check admin permission
 		if (!this.#isAdmin(ctx)) {
@@ -27,7 +33,7 @@ export class GroupsService {
 
 		const now = new Date().toISOString();
 		const groupData: GroupData = {
-			uuid: UuidGenerator.generateKebabCase(),
+			uuid: data.uuid === undefined ? UuidGenerator.generateKebabCase() : data.uuid,
 			title: data.title,
 			description: data.description,
 			createdTime: now,
@@ -40,6 +46,11 @@ export class GroupsService {
 				new BadRequestError(`${e.path.join(".")}: ${e.message}`)
 			);
 			return left(ValidationError.from(...errors));
+		}
+
+		const duplicateOrErr = await this.#ensureGroupUuidIsAvailable(groupData.uuid);
+		if (duplicateOrErr.isLeft()) {
+			return left(duplicateOrErr.value);
 		}
 
 		return this.configRepo.save("groups", groupData);
@@ -88,6 +99,23 @@ export class GroupsService {
 		}
 
 		return this.configRepo.delete("groups", uuid);
+	}
+
+	async #ensureGroupUuidIsAvailable(uuid: string): Promise<Either<AntboxError, void>> {
+		if (BUILTIN_GROUPS.some((g) => g.uuid === uuid)) {
+			return left(new BadRequestError(`Group with uuid '${uuid}' already exists`));
+		}
+
+		const customGroupsOrErr = await this.configRepo.list("groups");
+		if (customGroupsOrErr.isLeft()) {
+			return left(customGroupsOrErr.value);
+		}
+
+		if (customGroupsOrErr.value.some((g) => g.uuid === uuid)) {
+			return left(new BadRequestError(`Group with uuid '${uuid}' already exists`));
+		}
+
+		return right(undefined);
 	}
 
 	#isAdmin(ctx: AuthenticationContext): boolean {

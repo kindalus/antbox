@@ -13,8 +13,17 @@ import type {
  * External setup: none.
  *
  * @example
- * const repo = new InMemoryConfigurationRepository();
+ * const repoOrErr = await buildInmemConfigurationRepository();
+ * if (repoOrErr.isRight()) {
+ *   const repo = repoOrErr.value;
+ * }
  */
+export default function buildInmemConfigurationRepository(): Promise<
+	Either<AntboxError, ConfigurationRepository>
+> {
+	return Promise.resolve(right(new InMemoryConfigurationRepository()));
+}
+
 export class InMemoryConfigurationRepository implements ConfigurationRepository {
 	private collections: {
 		groups: Map<string, CollectionMap["groups"]>;

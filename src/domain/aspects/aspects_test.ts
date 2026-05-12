@@ -179,6 +179,26 @@ describe("Aspects", () => {
 			);
 		});
 
+		it("should handle zero values for required number properties", () => {
+			const property: AspectProperty = {
+				name: "number-prop",
+				title: "Number Property",
+				type: "number",
+				required: true,
+			};
+
+			const aspect = createMockAspectData([property]);
+			const specification = Aspects.specificationFrom(aspect);
+			const propertyName = Aspects.propertyName(aspect, property);
+
+			const nodeWithZero = createMockAspectableNode({
+				[propertyName]: 0,
+			});
+			const result = specification.isSatisfiedBy(nodeWithZero);
+
+			expect(result.isRight(), (result.value as ValidationError).message).toBe(true);
+		});
+
 		it("should validate string property types", () => {
 			const property: AspectProperty = {
 				name: "string-prop",
@@ -428,6 +448,52 @@ describe("Aspects", () => {
 			const invalidResult = specification.isSatisfiedBy(nodeWithInvalidValue);
 			expect(invalidResult.isLeft()).toBe(true);
 			expect(invalidResult.value).toBeInstanceOf(ValidationError);
+		});
+
+		it("should validate validationList for number properties", () => {
+			const property: AspectProperty = {
+				name: "credit-limit",
+				title: "Credit Limit",
+				type: "number",
+				validationList: [0, 1250000, 2500000],
+			};
+
+			const aspect = createMockAspectData([property]);
+			const specification = Aspects.specificationFrom(aspect);
+			const propertyName = Aspects.propertyName(aspect, property);
+
+			const nodeWithZero = createMockAspectableNode({
+				[propertyName]: 0,
+			});
+			const zeroResult = specification.isSatisfiedBy(nodeWithZero);
+			expect(zeroResult.isRight(), (zeroResult.value as ValidationError)?.message)
+				.toBe(true);
+
+			const nodeWithValidValue = createMockAspectableNode({
+				[propertyName]: 1250000,
+			});
+			const validResult = specification.isSatisfiedBy(nodeWithValidValue);
+			expect(validResult.isRight(), (validResult.value as ValidationError)?.message)
+				.toBe(true);
+
+			const nodeWithInvalidValue = createMockAspectableNode({
+				[propertyName]: 999,
+			});
+			const invalidResult = specification.isSatisfiedBy(nodeWithInvalidValue);
+			expect(invalidResult.isLeft()).toBe(true);
+			expect(invalidResult.value).toBeInstanceOf(ValidationError);
+
+			const propertyExcludingZero: AspectProperty = {
+				...property,
+				validationList: [1250000, 2500000],
+			};
+			const aspectExcludingZero = createMockAspectData([propertyExcludingZero]);
+			const zeroExcludingSpecification = Aspects.specificationFrom(aspectExcludingZero);
+			const nodeWithExcludedZero = createMockAspectableNode({
+				[Aspects.propertyName(aspectExcludingZero, propertyExcludingZero)]: 0,
+			});
+			const excludedZeroResult = zeroExcludingSpecification.isSatisfiedBy(nodeWithExcludedZero);
+			expect(excludedZeroResult.isLeft()).toBe(true);
 		});
 
 		it("should validate validationList for array of strings", () => {

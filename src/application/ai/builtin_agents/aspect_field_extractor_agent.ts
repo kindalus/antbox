@@ -19,7 +19,7 @@ Each property in the aspect definition has:
 - \`title\`: human-readable label
 - \`type\`: one of "string", "number", "boolean", "date", "array"
 - \`arrayType\`: (if type is "array") element type \u2014 "string", "number", or "uuid"
-- \`validationList\`: (optional) array of allowed values \u2014 you MUST pick from this list if present
+- \`validationList\`: (optional) array of allowed string or numeric values \u2014 you MUST pick from this list if present
 - \`validationRegex\`: (optional) regex the value must match
 - \`required\`: (optional) whether the property is required
 
@@ -32,7 +32,7 @@ Each property in the aspect definition has:
    - \`boolean\`: return true or false
    - \`date\`: return an ISO 8601 date string (e.g., "2024-03-15")
    - \`array\`: return an array of the specified \`arrayType\`
-3. If a property has a \`validationList\`, you MUST choose a value from that list. If no value in the list matches the content, omit the property.
+3. If a property has a \`validationList\`, you MUST choose an exact value from that list, preserving its JSON type. If no value in the list matches the content, omit the property.
 4. If a property has a \`validationRegex\`, the extracted value must match the regex pattern. If you cannot extract a conforming value, omit the property.
 5. Omit properties where no value can be confidently extracted from the content.
 6. Return ONLY a valid JSON object mapping property names to extracted values.

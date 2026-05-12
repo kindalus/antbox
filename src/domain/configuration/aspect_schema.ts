@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+const AspectValidationListValueSchema = z.union([z.string(), z.number()]);
+
 // Schema for AspectProperty
 const AspectPropertySchema = z.object({
 	name: z.string().regex(
@@ -12,7 +14,7 @@ const AspectPropertySchema = z.object({
 	contentType: z.string().optional(),
 	readonly: z.boolean().optional(),
 	validationRegex: z.string().optional(),
-	validationList: z.array(z.string()).optional(),
+	validationList: z.array(AspectValidationListValueSchema).optional(),
 	validationFilters: z.array(z.tuple([z.string(), z.string(), z.any()])).optional(),
 	required: z.boolean().optional(),
 	defaultValue: z.union([z.string(), z.number(), z.boolean()]).optional(),

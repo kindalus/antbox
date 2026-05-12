@@ -88,7 +88,7 @@ export interface AspectProperty {
 	contentType?: string;
 	readonly?: boolean;
 	validationRegex?: string;
-	validationList?: string[];
+	validationList?: Array<string | number>;
 	validationFilters?: NodeFilters;
 	required?: boolean;
 	searchable?: boolean;

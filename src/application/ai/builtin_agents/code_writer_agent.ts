@@ -42,7 +42,7 @@ const SYSTEM_PROMPT = [
 	"| readonly           | boolean                                  | no       | Prevent user edits                            |",
 	"| searchable         | boolean                                  | no       | Index for full-text search                    |",
 	"| validationRegex    | string                                   | no       | Regex pattern the value must match            |",
-	"| validationList     | string[]                                 | no       | Allowed enum values                           |",
+	"| validationList     | Array<string \\| number>                 | no       | Allowed enum values                           |",
 	"| validationFilters  | NodeFilter[]                             | no       | Filters for uuid-type properties              |",
 	"| required           | boolean                                  | no       | Whether the property is mandatory             |",
 	"| defaultValue       | string or number or boolean              | no       | Default value                                 |",

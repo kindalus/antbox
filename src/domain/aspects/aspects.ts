@@ -57,7 +57,7 @@ export class Aspects {
 				return right(true);
 			}
 
-			if (!n.properties[propName] && n.properties[propName] !== false) {
+			if (Aspects.#isMissingValue(n.properties[propName])) {
 				return left(
 					ValidationError.from(new PropertyRequiredError(property.title)),
 				);
@@ -76,7 +76,7 @@ export class Aspects {
 			const ptype = property.type;
 			const atype = property.arrayType;
 
-			if (!value && value !== false) {
+			if (Aspects.#isMissingValue(value)) {
 				return right(true);
 			}
 
@@ -105,24 +105,20 @@ export class Aspects {
 		property: AspectProperty,
 	): Specification<AspectableNode> {
 		return specificationFn((n) => {
-			if (
-				!property.validationList ||
-				!(property.type === "string" ||
-					(property.type === "array" && property.arrayType === "string"))
-			) {
+			if (!property.validationList || !Aspects.#supportsValidationList(property)) {
 				return right(true);
 			}
 
 			const value = n.properties[propName];
-			if (!value) {
+			if (Aspects.#isMissingValue(value)) {
 				return right(true);
 			}
 
-			const list = property.validationList!;
+			const list = property.validationList;
 			const values = Array.isArray(value) ? value : [value];
 
 			for (const v of values) {
-				if (!list.includes(v)) {
+				if (!list.includes(v as string | number)) {
 					return left(
 						ValidationError.from(
 							new PropertyNotInListError(property.title, list, v),
@@ -149,7 +145,7 @@ export class Aspects {
 			}
 
 			const value = n.properties[propName];
-			if (!value) {
+			if (Aspects.#isMissingValue(value)) {
 				return right(true);
 			}
 
@@ -172,6 +168,15 @@ export class Aspects {
 
 			return right(true);
 		});
+	}
+
+	static #supportsValidationList(property: AspectProperty): boolean {
+		return property.type === "string" || property.type === "number" ||
+			(property.type === "array" && property.arrayType === "string");
+	}
+
+	static #isMissingValue(value: unknown): boolean {
+		return value === undefined || value === null || value === "";
 	}
 
 	private constructor() {}

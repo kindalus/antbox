@@ -184,7 +184,7 @@ interface AspectProperty {
 	searchable?: boolean;
 	required?: boolean;
 	validationRegex?: string;
-	validationList?: string[]; // allowed enum values
+	validationList?: Array<string | number>; // allowed enum values
 	validationFilters?: NodeFilters;
 	defaultValue?: string | number | boolean;
 }

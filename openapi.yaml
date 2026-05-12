@@ -2658,9 +2658,11 @@ components:
                description: Regex pattern for string validation
             validationList:
                type: array
-               description: List of allowed values (enum)
+               description: List of allowed string or numeric values (enum)
                items:
-                  type: string
+                  oneOf:
+                     - type: string
+                     - type: number
             validationFilters:
                $ref: "#/components/schemas/NodeFilters"
                description: For uuid type - filters to restrict valid reference targets

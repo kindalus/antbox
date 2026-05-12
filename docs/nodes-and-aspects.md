@@ -84,7 +84,7 @@ interface AspectProperty {
 	readonly?: boolean;
 	searchable?: boolean;
 	validationRegex?: string;
-	validationList?: string[];
+	validationList?: Array<string | number>;
 	validationFilters?: NodeFilters;
 	required?: boolean;
 	defaultValue?: string | number | boolean;

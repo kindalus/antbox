@@ -163,7 +163,8 @@ Minimal aspect file:
 ```
 
 The create response contains the resolved aspect UUID. Use that UUID in node `aspects` and
-`properties` keys.
+`properties` keys. `validationList` accepts string enum values for string fields and numeric enum
+values for number fields.
 
 ### Attribute an aspect to a node
 

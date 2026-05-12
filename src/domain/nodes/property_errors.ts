@@ -44,7 +44,7 @@ export class UnknownPropertyError extends AntboxError {
 export class PropertyNotInListError extends AntboxError {
 	static ERROR_CODE = "PropertyNotInListError";
 
-	constructor(property: string, list: string[], value: string) {
+	constructor(property: string, list: Array<string | number>, value: unknown) {
 		super(
 			PropertyNotInListError.ERROR_CODE,
 			`Property ${property} has value '${value}' which is not in the allowed list: [${

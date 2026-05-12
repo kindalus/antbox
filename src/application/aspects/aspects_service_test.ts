@@ -530,5 +530,30 @@ describe("AspectsService", () => {
 				expect(aspect.properties[2].arrayType).toBe("string");
 			}
 		});
+
+		it("should handle numeric validationList values for number properties", async () => {
+			const repo = new InMemoryConfigurationRepository();
+			const service = new AspectsService(repo);
+
+			const result = await service.createAspect(
+				adminCtx,
+				createAspectInput({
+					title: "Credit Limit Aspect",
+					properties: [
+						{
+							name: "credit-limit",
+							title: "Credit Limit",
+							type: "number",
+							validationList: [0, 1250000, 2500000],
+						},
+					],
+				}),
+			);
+
+			expect(result.isRight(), result.isLeft() ? result.value.message : undefined).toBe(true);
+			if (result.isRight()) {
+				expect(result.value.properties[0].validationList).toEqual([0, 1250000, 2500000]);
+			}
+		});
 	});
 });

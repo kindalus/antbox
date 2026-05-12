@@ -3,6 +3,8 @@ import type { NodeFilters } from "domain/nodes/node_filter.ts";
 /**
  * AspectProperty - Property definition for an aspect
  */
+export type AspectValidationListValue = string | number;
+
 export interface AspectProperty {
 	/**
 	 * Property name - kebab-case, regex /^[a-z][a-z0-9-]{2,}$/
@@ -15,7 +17,7 @@ export interface AspectProperty {
 	readonly?: boolean;
 	searchable?: boolean;
 	validationRegex?: string;
-	validationList?: string[];
+	validationList?: AspectValidationListValue[];
 	validationFilters?: NodeFilters;
 	required?: boolean;
 	defaultValue?: string | number | boolean;

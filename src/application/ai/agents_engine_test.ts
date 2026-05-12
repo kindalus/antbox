@@ -71,6 +71,19 @@ function makeLanguageModelResponse(content: unknown[]) {
 	};
 }
 
+function makeTextModel(finalText: string): LanguageModel {
+	return {
+		specificationVersion: "v2" as const,
+		provider: "mock",
+		modelId: "mock",
+		supportedUrls: {},
+		doGenerate: async () => makeLanguageModelResponse([{ type: "text", text: finalText }]),
+		doStream: async () => {
+			throw new Error("streaming is not used by these tests");
+		},
+	} as unknown as LanguageModel;
+}
+
 function makeToolThenTextModel(finalText: string) {
 	let calls = 0;
 	const toolCounts: Array<number | undefined> = [];
@@ -472,23 +485,33 @@ describe("AgentsEngine", () => {
 
 	describe("runInternal*", () => {
 		it("runInternalChat does NOT enforce exposedToUsers", async () => {
-			const engine = new AgentsEngine(makeContext());
-			// Resolves the agent then attempts to invoke generateText, which will fail
-			// with a different error class (model resolution/network). The point is
-			// that we get past the Forbidden gate.
+			const engine = new AgentsEngine(makeContext({
+				resolveLanguageModel: () => makeTextModel("Internal chat response"),
+			}));
+
 			const result = await engine.runInternalChat(mockAuthContext, "internal-only", "hi");
-			expect(result.isLeft()).toBe(true);
-			if (result.isLeft()) {
-				expect(result.value.errorCode).not.toBe("Forbidden");
+
+			expect(result.isRight()).toBe(true);
+			if (result.isRight()) {
+				expect(result.value.map((message) => message.role)).toEqual(["user", "model"]);
+				expect(result.value.at(-1)?.parts).toEqual([{ text: "Internal chat response" }]);
 			}
 		});
 
 		it("runInternalAnswer does NOT enforce exposedToUsers", async () => {
-			const engine = new AgentsEngine(makeContext());
+			const engine = new AgentsEngine(makeContext({
+				resolveLanguageModel: () => makeTextModel("Internal answer response"),
+			}));
+
 			const result = await engine.runInternalAnswer(mockAuthContext, "internal-only", "hi");
-			expect(result.isLeft()).toBe(true);
-			if (result.isLeft()) {
-				expect(result.value.errorCode).not.toBe("Forbidden");
+
+			expect(result.isRight()).toBe(true);
+			if (result.isRight()) {
+				expect(result.value).toEqual({
+					role: "model",
+					parts: [{ text: "Internal answer response" }],
+					usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
+				});
 			}
 		});
 

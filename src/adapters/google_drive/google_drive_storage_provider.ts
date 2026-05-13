@@ -1,16 +1,18 @@
 import { auth, drive, drive_v3 } from "@googleapis/drive";
 import { Logger } from "shared/logger.ts";
-import type { StorageProvider, WriteFileOpts } from "application/nodes/storage_provider.ts";
+import type {
+	MkFolderOpts,
+	StorageProvider,
+	WriteFileOpts,
+} from "application/nodes/storage_provider.ts";
 import { DuplicatedNodeError } from "domain/nodes/duplicated_node_error.ts";
-import { NodeCreatedEvent } from "domain/nodes/node_created_event.ts";
-import { NodeDeletedEvent } from "domain/nodes/node_deleted_event.ts";
 import { NodeFileNotFoundError } from "domain/nodes/node_file_not_found_error.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import { NodeUpdatedEvent } from "domain/nodes/node_updated_event.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import { Readable } from "node:stream";
 import type { ReadableStream as NodeReadableStream } from "node:stream/web";
-import { AntboxError, UnknownError } from "shared/antbox_error.ts";
+import { AntboxError, BadRequestError, UnknownError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
 import { type Event } from "shared/event.ts";
 import { type EventHandler } from "shared/event_handler.ts";
@@ -105,12 +107,43 @@ export class GoogleDriveStorageProvider implements StorageProvider {
 			return left(metadataOrError.value);
 		}
 
-		const { id: fileId, mimeType } = metadataOrError.value;
-		const deleteOrErr = mimeType === GOOGLE_DRIVE_FOLDER_MIMETYPE
-			? await this.#trashFolderTree(fileId, uuid)
-			: await this.#trashFile(fileId, uuid);
+		const { id: fileId } = metadataOrError.value;
 
-		return deleteOrErr as Either<NodeNotFoundError, void>;
+		return this.#trashFile(fileId, uuid) as Promise<Either<NodeNotFoundError, void>>;
+	}
+
+	async mkdir(uuid: string, opts?: MkFolderOpts): Promise<Either<AntboxError, void>> {
+		if (!opts) {
+			return left(new BadRequestError("Folder options are required"));
+		}
+
+		const existingFolderOrErr = await this.#getDriveFolderMetadata(uuid);
+		if (existingFolderOrErr.isRight()) {
+			return left(new DuplicatedNodeError(uuid));
+		}
+		if (!(existingFolderOrErr.value instanceof NodeNotFoundError)) {
+			return left(existingFolderOrErr.value);
+		}
+
+		let parentId = this.#sharedDriveId;
+		if (opts.parent !== Nodes.ROOT_FOLDER_UUID) {
+			const parentFolderOrErr = await this.#getDriveFolderMetadata(opts.parent);
+			if (parentFolderOrErr.isLeft()) {
+				return left(parentFolderOrErr.value);
+			}
+			parentId = parentFolderOrErr.value.id;
+		}
+
+		return this.#createGoogleDriveFolder(uuid, opts.title, parentId);
+	}
+
+	async rmdir(uuid: string): Promise<Either<AntboxError, void>> {
+		const folderOrErr = await this.#getDriveFolderMetadata(uuid);
+		if (folderOrErr.isLeft()) {
+			return left(folderOrErr.value);
+		}
+
+		return this.#trashFolderTree(folderOrErr.value.id, uuid);
 	}
 
 	async write(
@@ -215,54 +248,11 @@ export class GoogleDriveStorageProvider implements StorageProvider {
 			.catch((e: unknown) => Logger.error((e as Error).message));
 	}
 
-	async #handleNodeDeleted(evt: NodeDeletedEvent) {
-		if (!Nodes.isFolder(evt.payload)) {
-			return;
-		}
-
-		const idOrErr = await this.#getDriveMedata(evt.payload.uuid);
-		if (idOrErr.isLeft()) {
-			if (idOrErr.value instanceof NodeNotFoundError) {
-				Logger.debug(`Google Drive folder already absent: ${evt.payload.uuid}`);
-				return;
-			}
-
-			Logger.error(idOrErr.value.message);
-			return;
-		}
-
-		const trashOrErr = await this.#trashFolderTree(idOrErr.value.id, evt.payload.uuid);
-		if (trashOrErr.isLeft()) {
-			Logger.error(trashOrErr.value.message);
-		}
-	}
-
-	async #handleNodeCreated(evt: NodeCreatedEvent) {
-		if (!Nodes.isFolder(evt.payload)) {
-			return;
-		}
-
-		const node = evt.payload;
-
-		let parentId = this.#sharedDriveId;
-
-		if (evt.payload.parent !== Nodes.ROOT_FOLDER_UUID) {
-			const parentOrErr = await this.#getDriveMedata(evt.payload.parent);
-			if (parentOrErr.isLeft()) {
-				Logger.error(parentOrErr.value.message);
-				return;
-			}
-			parentId = parentOrErr.value.id;
-		}
-
-		return this.#createGoogleDriveFolder(node.uuid, node.title, parentId);
-	}
-
-	#createGoogleDriveFolder(
+	async #createGoogleDriveFolder(
 		uuid: string,
 		title: string,
 		parentId: string,
-	) {
+	): Promise<Either<AntboxError, void>> {
 		const requestBody = {
 			name: title,
 			parents: [parentId],
@@ -270,9 +260,27 @@ export class GoogleDriveStorageProvider implements StorageProvider {
 			mimeType: GOOGLE_DRIVE_FOLDER_MIMETYPE,
 		};
 
-		return this.#drive.files
-			.create({ requestBody, supportsAllDrives: true })
-			.catch((e: unknown) => Logger.error((e as Error).message));
+		try {
+			const response = await this.#drive.files.create({
+				requestBody,
+				supportsAllDrives: true,
+			});
+			if (response.status !== 200 && response.status !== 201) {
+				return left(
+					new UnknownError(
+						`Google Drive folder creation failed for '${uuid}': ${response.statusText}`,
+					),
+				);
+			}
+
+			return right(undefined);
+		} catch (error) {
+			return left(
+				new UnknownError(
+					`Google Drive folder creation failed for '${uuid}': ${(error as Error).message}`,
+				),
+			);
+		}
 	}
 
 	async read(uuid: string): Promise<Either<NodeNotFoundError, File>> {
@@ -326,15 +334,8 @@ export class GoogleDriveStorageProvider implements StorageProvider {
 	startListeners(
 		subscribe: (eventId: string, handler: EventHandler<Event>) => void,
 	): void {
-		subscribe(NodeDeletedEvent.EVENT_ID, {
-			handle: (evt: NodeDeletedEvent) => this.#handleNodeDeleted(evt),
-		});
 		subscribe(NodeUpdatedEvent.EVENT_ID, {
 			handle: (evt: NodeUpdatedEvent) => this.#handleNodeUpdated(evt),
-		});
-
-		subscribe(NodeCreatedEvent.EVENT_ID, {
-			handle: (evt: NodeCreatedEvent) => this.#handleNodeCreated(evt),
 		});
 	}
 
@@ -365,6 +366,44 @@ export class GoogleDriveStorageProvider implements StorageProvider {
 		const { id, mimeType, name, parents, trashed } = files[0];
 
 		return right({ id, mimeType, name, parents, trashed } as DriveMetada);
+	}
+
+	async #getDriveFolderMetadata(uuid: string): Promise<Either<AntboxError, DriveMetada>> {
+		const q =
+			`trashed=false and mimeType='${GOOGLE_DRIVE_FOLDER_MIMETYPE}' and appProperties has { key='uuid' and value='${uuid}' }`;
+
+		try {
+			const { data } = await this.#drive.files.list({
+				q,
+				corpora: "drive",
+				driveId: this.#sharedDriveId,
+				includeItemsFromAllDrives: true,
+				supportsAllDrives: true,
+				fields: "files(id,mimeType,name,parents,trashed)",
+			});
+
+			const files = (data.files ?? []).filter((file) => !file.trashed);
+
+			if (files.length === 0) {
+				return left(new NodeNotFoundError(uuid));
+			}
+
+			if (files.length > 1) {
+				return left(new DuplicatedNodeError(uuid));
+			}
+
+			const { id, mimeType, name, parents, trashed } = files[0];
+
+			return right({ id, mimeType, name, parents, trashed } as DriveMetada);
+		} catch (error) {
+			return left(
+				new UnknownError(
+					`Google Drive folder metadata lookup failed for '${uuid}': ${
+						(error as Error).message
+					}`,
+				),
+			);
+		}
 	}
 
 	async #trashFolderTree(folderId: string, uuid: string): Promise<Either<AntboxError, void>> {

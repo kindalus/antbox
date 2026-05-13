@@ -4,6 +4,7 @@ import { NodeService } from "./node_service.ts";
 import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider.ts";
 import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository.ts";
 import type { AuthenticationContext } from "../security/authentication_context.ts";
+import { DuplicatedNodeError } from "domain/nodes/duplicated_node_error.ts";
 import { FolderNode } from "domain/nodes/folder_node.ts";
 import type { FileLikeNode } from "domain/node_like.ts";
 import { BadRequestError, ForbiddenError } from "shared/antbox_error.ts";
@@ -14,7 +15,7 @@ import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus.ts";
 import type { NodeServiceContext } from "./node_service_context.ts";
 import type { AspectProperty } from "domain/configuration/aspect_data.ts";
 import { ADMINS_GROUP } from "application/security/builtin_groups/index.ts";
-import { Left, Right } from "shared/either.ts";
+import { Left, left, Right, right } from "shared/either.ts";
 import { InMemoryConfigurationRepository } from "adapters/inmem/inmem_configuration_repository.ts";
 import { TenantLimitsGuard } from "application/metrics/tenant_limits_guard.ts";
 import type { EventStoreRepository } from "domain/audit/event_store_repository.ts";
@@ -43,6 +44,43 @@ describe("NodeService.create", () => {
 		expect(nodeOrErr.right.title).toBe("Node 1");
 		expect(nodeOrErr.right.parent).toBe("--parent--");
 		expect(nodeOrErr.right.mimetype).toBe(Nodes.META_NODE_MIMETYPE);
+	});
+
+	it("should create folder storage for folder nodes", async () => {
+		const storage = new RecordingFolderStorageProvider();
+		const service = nodeService({ storage });
+
+		const nodeOrErr = await service.create(authCtx, {
+			uuid: "folder-storage-uuid",
+			title: "Folder Storage",
+			mimetype: Nodes.FOLDER_MIMETYPE,
+			parent: Nodes.ROOT_FOLDER_UUID,
+		});
+
+		expect(nodeOrErr.isRight(), errToMsg(nodeOrErr.value)).toBeTruthy();
+		expect(storage.created).toEqual([{
+			uuid: "folder-storage-uuid",
+			title: "Folder Storage",
+			parent: Nodes.ROOT_FOLDER_UUID,
+		}]);
+	});
+
+	it("should roll back folder metadata when folder storage creation fails", async () => {
+		const repository = new InMemoryNodeRepository();
+		const storage = new FailingMkdirStorageProvider();
+		const service = nodeService({ repository, storage });
+
+		const nodeOrErr = await service.create(authCtx, {
+			uuid: "folder-storage-uuid",
+			title: "Folder Storage",
+			mimetype: Nodes.FOLDER_MIMETYPE,
+			parent: Nodes.ROOT_FOLDER_UUID,
+		});
+
+		expect(nodeOrErr.isLeft()).toBeTruthy();
+		expect(nodeOrErr.value).toBeInstanceOf(DuplicatedNodeError);
+		const persistedOrErr = await repository.getById("folder-storage-uuid");
+		expect(persistedOrErr.isLeft()).toBeTruthy();
 	});
 
 	it("should return an error when properties are inconsistent with aspect specifications", async () => {
@@ -509,6 +547,28 @@ describe("NodeService.copy", () => {
 		expect(copiedFileOrErr.right.size).toBe(dummyFile.size);
 	});
 });
+
+class RecordingFolderStorageProvider extends InMemoryStorageProvider {
+	readonly created: Array<{ uuid: string; title: string; parent: string }> = [];
+
+	override mkdir(
+		uuid: string,
+		opts?: { title: string; parent: string },
+	): ReturnType<InMemoryStorageProvider["mkdir"]> {
+		this.created.push({
+			uuid,
+			title: opts?.title ?? "",
+			parent: opts?.parent ?? "",
+		});
+		return Promise.resolve(right(undefined));
+	}
+}
+
+class FailingMkdirStorageProvider extends InMemoryStorageProvider {
+	override mkdir(uuid: string): ReturnType<InMemoryStorageProvider["mkdir"]> {
+		return Promise.resolve(left(new DuplicatedNodeError(uuid)));
+	}
+}
 
 const authCtx: AuthenticationContext = {
 	mode: "Direct",

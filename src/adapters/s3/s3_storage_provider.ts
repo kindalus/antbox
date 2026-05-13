@@ -72,6 +72,14 @@ export class S3StorageProvider implements StorageProvider {
 			}) as Promise<Either<NodeNotFoundError, void>>;
 	}
 
+	mkdir(_uuid: string): Promise<Either<AntboxError, void>> {
+		return Promise.resolve(right(undefined));
+	}
+
+	rmdir(_uuid: string): Promise<Either<AntboxError, void>> {
+		return Promise.resolve(right(undefined));
+	}
+
 	async write(
 		uuid: string,
 		file: File,

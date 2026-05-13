@@ -80,6 +80,8 @@ describe("setupTenants", () => {
 				"export default function buildStorageProvider() {",
 				"\treturn Promise.resolve(right({",
 				"\t\tdelete: async () => right(undefined),",
+				"\t\tmkdir: async () => right(undefined),",
+				"\t\trmdir: async () => right(undefined),",
 				"\t\twrite: async () => right(undefined),",
 				'\t\tread: async () => right(new File([], "test.txt")),',
 				"\t\tstartListeners: (subscribe) => {",

@@ -79,8 +79,8 @@ describe("NodeService", () => {
 			expect(getChildOrErr.value).toBeInstanceOf(NodeNotFoundError);
 		});
 
-		it("should delete folder storage in depth-first order", async () => {
-			const storage = new RecordingDeleteStorageProvider();
+		it("should remove folder storage in depth-first order", async () => {
+			const storage = new RecordingFolderStorageProvider();
 			const service = nodeService({ storage });
 
 			const folder = await service.create(authCtx, {
@@ -210,10 +210,10 @@ describe("NodeService", () => {
 	});
 });
 
-class RecordingDeleteStorageProvider extends InMemoryStorageProvider {
+class RecordingFolderStorageProvider extends InMemoryStorageProvider {
 	readonly deleted: string[] = [];
 
-	override delete(uuid: string): ReturnType<InMemoryStorageProvider["delete"]> {
+	override rmdir(uuid: string): ReturnType<InMemoryStorageProvider["rmdir"]> {
 		this.deleted.push(uuid);
 		return Promise.resolve(right(undefined));
 	}

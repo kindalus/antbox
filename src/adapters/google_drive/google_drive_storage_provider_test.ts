@@ -2,8 +2,6 @@ import { describe, it } from "bdd";
 import { expect } from "expect";
 import { GoogleDriveStorageProvider } from "./google_drive_storage_provider.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
-import { NodeCreatedEvent } from "domain/nodes/node_created_event.ts";
-import { NodeDeletedEvent } from "domain/nodes/node_deleted_event.ts";
 
 function makeDrive(overrides: Record<string, unknown> = {}) {
 	const calls = {
@@ -176,25 +174,13 @@ describe("GoogleDriveStorageProvider", () => {
 	it("creates folder nodes directly under the Shared Drive root", async () => {
 		const { drive, calls } = makeDrive();
 		const provider = new GoogleDriveStorageProvider(drive, "shared-drive-123");
-		const subscriptions = new Map<string, { handle: (evt: unknown) => Promise<unknown> }>();
 
-		provider.startListeners((eventId, handler) => {
-			subscriptions.set(eventId, handler as never);
+		const result = await provider.mkdir("folder-001", {
+			title: "Folder",
+			parent: Nodes.ROOT_FOLDER_UUID,
 		});
 
-		await subscriptions.get(NodeCreatedEvent.EVENT_ID)?.handle(
-			new NodeCreatedEvent("user@example.com", "default", {
-				uuid: "folder-001",
-				fid: "folder-001",
-				title: "Folder",
-				mimetype: Nodes.FOLDER_MIMETYPE,
-				parent: Nodes.ROOT_FOLDER_UUID,
-				createdTime: new Date().toISOString(),
-				modifiedTime: new Date().toISOString(),
-				owner: "user@example.com",
-			}),
-		);
-
+		expect(result.isRight()).toBe(true);
 		expect(calls.create).toHaveLength(1);
 		expect(calls.create[0]).toMatchObject({
 			supportsAllDrives: true,
@@ -207,7 +193,87 @@ describe("GoogleDriveStorageProvider", () => {
 		});
 	});
 
-	it("recursively trashes Drive descendants when a folder node is deleted", async () => {
+	it("rejects mkdir when a Drive folder already exists for the uuid", async () => {
+		const { drive, calls } = makeDrive({
+			files: {
+				list: async (params: Record<string, unknown>) => {
+					calls.list.push(params);
+					return {
+						data: {
+							files: [{
+								id: "existing-drive-folder",
+								name: "Existing Folder",
+								mimeType: "application/vnd.google-apps.folder",
+								parents: ["shared-drive-123"],
+								trashed: false,
+							}],
+						},
+					};
+				},
+				create: async (params: Record<string, unknown>) => {
+					calls.create.push(params);
+					return { status: 200, data: { id: "ignored" } };
+				},
+			},
+		});
+		const provider = new GoogleDriveStorageProvider(drive, "shared-drive-123");
+
+		const result = await provider.mkdir("folder-001", {
+			title: "Folder",
+			parent: Nodes.ROOT_FOLDER_UUID,
+		});
+
+		expect(result.isLeft()).toBe(true);
+		if (result.isLeft()) {
+			expect(result.value.errorCode).toBe("DuplicatedNodeError");
+		}
+		expect(calls.create).toHaveLength(0);
+	});
+
+	it("rejects rmdir when more than one Drive folder matches the uuid", async () => {
+		const { drive, calls } = makeDrive({
+			files: {
+				list: async (params: Record<string, unknown>) => {
+					calls.list.push(params);
+					return {
+						data: {
+							files: [
+								{
+									id: "first-drive-folder",
+									name: "First Folder",
+									mimeType: "application/vnd.google-apps.folder",
+									parents: ["shared-drive-123"],
+									trashed: false,
+								},
+								{
+									id: "second-drive-folder",
+									name: "Second Folder",
+									mimeType: "application/vnd.google-apps.folder",
+									parents: ["shared-drive-123"],
+									trashed: false,
+								},
+							],
+						},
+					};
+				},
+				update: async (params: Record<string, unknown>) => {
+					calls.update.push(params);
+					return { status: 200, data: { id: params.fileId } };
+				},
+			},
+		});
+		const provider = new GoogleDriveStorageProvider(drive, "shared-drive-123");
+
+		const result = await provider.rmdir("folder-001");
+
+		expect(result.isLeft()).toBe(true);
+		if (result.isLeft()) {
+			expect(result.value.errorCode).toBe("DuplicatedNodeError");
+		}
+		expect(calls.update).toHaveLength(0);
+	});
+
+	it("recursively trashes Drive descendants when rmdir is called", async () => {
 		const { drive, calls } = makeDrive({
 			files: {
 				list: async (params: Record<string, unknown>) => {
@@ -274,25 +340,10 @@ describe("GoogleDriveStorageProvider", () => {
 			},
 		});
 		const provider = new GoogleDriveStorageProvider(drive, "shared-drive-123");
-		const subscriptions = new Map<string, { handle: (evt: unknown) => Promise<unknown> }>();
 
-		provider.startListeners((eventId, handler) => {
-			subscriptions.set(eventId, handler as never);
-		});
+		const result = await provider.rmdir("folder-001");
 
-		await subscriptions.get(NodeDeletedEvent.EVENT_ID)?.handle(
-			new NodeDeletedEvent("user@example.com", "default", {
-				uuid: "folder-001",
-				fid: "folder-001",
-				title: "Folder",
-				mimetype: Nodes.FOLDER_MIMETYPE,
-				parent: Nodes.ROOT_FOLDER_UUID,
-				createdTime: new Date().toISOString(),
-				modifiedTime: new Date().toISOString(),
-				owner: "user@example.com",
-			}),
-		);
-
+		expect(result.isRight()).toBe(true);
 		expect(calls.update.map((call) => call.fileId)).toEqual([
 			"grandchild-drive-file",
 			"child-drive-folder",
@@ -304,7 +355,7 @@ describe("GoogleDriveStorageProvider", () => {
 		})).toBe(true);
 	});
 
-	it("recursively trashes folder trees from direct delete", async () => {
+	it("recursively trashes folder trees from rmdir", async () => {
 		const { drive, calls } = makeDrive({
 			files: {
 				list: async (params: Record<string, unknown>) => {
@@ -349,7 +400,7 @@ describe("GoogleDriveStorageProvider", () => {
 		});
 		const provider = new GoogleDriveStorageProvider(drive, "shared-drive-123");
 
-		const result = await provider.delete("folder-001");
+		const result = await provider.rmdir("folder-001");
 
 		expect(result.isRight()).toBe(true);
 		expect(calls.update.map((call) => call.fileId)).toEqual([

@@ -73,6 +73,14 @@ class FlatFileStorageProvider implements StorageProvider {
 		}
 	}
 
+	mkdir(_uuid: string): Promise<Either<AntboxError, void>> {
+		return Promise.resolve(right(undefined));
+	}
+
+	rmdir(_uuid: string): Promise<Either<AntboxError, void>> {
+		return Promise.resolve(right(undefined));
+	}
+
 	async write(
 		uuid: string,
 		file: File,

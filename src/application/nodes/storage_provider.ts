@@ -1,5 +1,6 @@
 import type { DuplicatedNodeError } from "domain/nodes/duplicated_node_error.ts";
 import type { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
+import type { AntboxError } from "shared/antbox_error.ts";
 import { type Either } from "shared/either.ts";
 import { type Event } from "shared/event.ts";
 import { type EventHandler } from "shared/event_handler.ts";
@@ -10,8 +11,15 @@ export interface WriteFileOpts {
 	mimetype: string;
 }
 
+export interface MkFolderOpts {
+	title: string;
+	parent: string;
+}
+
 export interface StorageProvider {
 	delete(uuid: string): Promise<Either<NodeNotFoundError, void>>;
+	mkdir(uuid: string, opts?: MkFolderOpts): Promise<Either<AntboxError, void>>;
+	rmdir(uuid: string): Promise<Either<AntboxError, void>>;
 	write(
 		uuid: string,
 		file: File,

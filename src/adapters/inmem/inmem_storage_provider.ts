@@ -47,6 +47,14 @@ export class InMemoryStorageProvider implements StorageProvider {
 		return Promise.resolve(right(undefined));
 	}
 
+	mkdir(_uuid: string): Promise<Either<AntboxError, void>> {
+		return Promise.resolve(right(undefined));
+	}
+
+	rmdir(_uuid: string): Promise<Either<AntboxError, void>> {
+		return Promise.resolve(right(undefined));
+	}
+
 	write(uuid: string, file: File): Promise<Either<AntboxError, void>> {
 		this.fs[uuid] = file;
 

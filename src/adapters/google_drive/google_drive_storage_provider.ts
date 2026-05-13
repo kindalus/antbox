@@ -15,6 +15,8 @@ import { type Either, left, right } from "shared/either.ts";
 import { type Event } from "shared/event.ts";
 import { type EventHandler } from "shared/event_handler.ts";
 
+const GOOGLE_DRIVE_FOLDER_MIMETYPE = "application/vnd.google-apps.folder";
+
 /**
  * Builds a Google Drive-backed StorageProvider using a service account key.
  *
@@ -103,9 +105,12 @@ export class GoogleDriveStorageProvider implements StorageProvider {
 			return left(metadataOrError.value);
 		}
 
-		const { id: fileId } = metadataOrError.value;
+		const { id: fileId, mimeType } = metadataOrError.value;
+		const deleteOrErr = mimeType === GOOGLE_DRIVE_FOLDER_MIMETYPE
+			? await this.#trashFolderTree(fileId, uuid)
+			: await this.#trashFile(fileId, uuid);
 
-		return this.#trashFile(fileId, uuid) as Promise<Either<NodeNotFoundError, void>>;
+		return deleteOrErr as Either<NodeNotFoundError, void>;
 	}
 
 	async write(
@@ -217,17 +222,19 @@ export class GoogleDriveStorageProvider implements StorageProvider {
 
 		const idOrErr = await this.#getDriveMedata(evt.payload.uuid);
 		if (idOrErr.isLeft()) {
-			Logger.error(idOrErr.value);
+			if (idOrErr.value instanceof NodeNotFoundError) {
+				Logger.debug(`Google Drive folder already absent: ${evt.payload.uuid}`);
+				return;
+			}
+
+			Logger.error(idOrErr.value.message);
 			return;
 		}
 
-		this.#drive.files
-			.update({
-				fileId: idOrErr.value.id,
-				requestBody: { trashed: true },
-				supportsAllDrives: true,
-			})
-			.catch((e: unknown) => Logger.error((e as Error).message));
+		const trashOrErr = await this.#trashFolderTree(idOrErr.value.id, evt.payload.uuid);
+		if (trashOrErr.isLeft()) {
+			Logger.error(trashOrErr.value.message);
+		}
 	}
 
 	async #handleNodeCreated(evt: NodeCreatedEvent) {
@@ -260,7 +267,7 @@ export class GoogleDriveStorageProvider implements StorageProvider {
 			name: title,
 			parents: [parentId],
 			appProperties: { uuid },
-			mimeType: "application/vnd.google-apps.folder",
+			mimeType: GOOGLE_DRIVE_FOLDER_MIMETYPE,
 		};
 
 		return this.#drive.files
@@ -358,6 +365,65 @@ export class GoogleDriveStorageProvider implements StorageProvider {
 		const { id, mimeType, name, parents, trashed } = files[0];
 
 		return right({ id, mimeType, name, parents, trashed } as DriveMetada);
+	}
+
+	async #trashFolderTree(folderId: string, uuid: string): Promise<Either<AntboxError, void>> {
+		const childrenOrErr = await this.#listDriveChildren(folderId);
+		if (childrenOrErr.isLeft()) {
+			return left(childrenOrErr.value);
+		}
+
+		for (const child of childrenOrErr.value) {
+			const childTrashOrErr = child.mimeType === GOOGLE_DRIVE_FOLDER_MIMETYPE
+				? await this.#trashFolderTree(child.id, child.name ?? child.id)
+				: await this.#trashFile(child.id, child.name ?? child.id);
+
+			if (childTrashOrErr.isLeft()) {
+				return left(childTrashOrErr.value);
+			}
+		}
+
+		return this.#trashFile(folderId, uuid);
+	}
+
+	async #listDriveChildren(parentId: string): Promise<Either<AntboxError, DriveMetada[]>> {
+		try {
+			const files: DriveMetada[] = [];
+			let pageToken: string | undefined;
+
+			do {
+				const { data } = await this.#drive.files.list({
+					q: `trashed=false and '${parentId}' in parents`,
+					corpora: "drive",
+					driveId: this.#sharedDriveId,
+					includeItemsFromAllDrives: true,
+					supportsAllDrives: true,
+					fields: "nextPageToken,files(id,mimeType,name,parents,trashed)",
+					pageToken,
+				});
+
+				files.push(
+					...(data.files ?? [])
+						.filter((file) => !file.trashed && file.id)
+						.map(({ id, mimeType, name, parents, trashed }) => ({
+							id: id!,
+							mimeType: mimeType ?? "",
+							name: name ?? id!,
+							parents: parents ?? [],
+							trashed,
+						})),
+				);
+				pageToken = data.nextPageToken ?? undefined;
+			} while (pageToken);
+
+			return right(files);
+		} catch (error) {
+			return left(
+				new UnknownError(
+					`Google Drive child listing failed for '${parentId}': ${(error as Error).message}`,
+				),
+			);
+		}
 	}
 
 	async #trashFile(fileId: string, uuid: string): Promise<Either<AntboxError, void>> {

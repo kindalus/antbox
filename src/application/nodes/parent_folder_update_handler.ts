@@ -101,8 +101,8 @@ export class ParentFolderUpdateHandler
 		// Save the updated parent to repository
 		const saveResult = await this.context.repository.update(parent);
 		if (saveResult.isLeft()) {
-			Logger.error(
-				`ParentFolderUpdateHandler: Failed to save updated parent folder: ${saveResult.value.message}`,
+			Logger.debug(
+				`ParentFolderUpdateHandler: Parent folder disappeared before save: ${parentUuid}`,
 			);
 			return;
 		}

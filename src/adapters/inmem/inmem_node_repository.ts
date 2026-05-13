@@ -87,10 +87,14 @@ export class InMemoryNodeRepository implements NodeRepository {
 
 	update(node: NodeLike): Promise<Either<NodeNotFoundError, void>> {
 		const existing = this.#data[node.uuid];
+		if (!existing) {
+			return Promise.resolve(left(new NodeNotFoundError(node.uuid)));
+		}
+
 		this.#data[node.uuid] = {
 			node,
-			embedding: existing?.embedding,
-			contentMd: existing?.contentMd,
+			embedding: existing.embedding,
+			contentMd: existing.contentMd,
 		};
 		return Promise.resolve(right(undefined));
 	}

@@ -22,6 +22,7 @@ import { NodeUpdateChanges, NodeUpdatedEvent } from "domain/nodes/node_updated_e
 import type { AuthenticationContext } from "../security/authentication_context.ts";
 
 import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
+import { NodeFileNotFoundError } from "domain/nodes/node_file_not_found_error.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import type { NodeProperties } from "domain/nodes/node_properties.ts";
 import type { NodeFilterResult } from "domain/nodes/node_repository.ts";
@@ -284,7 +285,7 @@ export class NodeService {
 	async delete(
 		ctx: AuthenticationContext,
 		uuid: string,
-	): Promise<Either<NodeNotFoundError, void>> {
+	): Promise<Either<AntboxError, void>> {
 		const nodeOrErr = await this.#getFromRepository(uuid);
 		if (nodeOrErr.isLeft()) {
 			return left(nodeOrErr.value);
@@ -337,21 +338,26 @@ export class NodeService {
 			return v;
 		}
 
-		const children = await this.context.repository.filter([[
-			"parent",
-			"==",
-			uuid,
-		]]);
-		const batch = children.nodes.map((n) => this.delete(ctx, n.uuid));
-		const batchResult = await Promise.allSettled(batch);
+		const children = await this.#listDirectChildren(uuid);
 
-		const rejected = batchResult.filter((r) => r.status === "rejected");
-		if (rejected.length > 0) {
-			return left(
-				new UnknownError(
-					`Error deleting children: ${rejected.map((r) => r.reason)}`,
-				),
-			);
+		for (const child of children) {
+			try {
+				const childDeleteOrErr = await this.delete(ctx, child.uuid);
+				if (childDeleteOrErr.isLeft()) {
+					return left(childDeleteOrErr.value);
+				}
+			} catch (error) {
+				return left(
+					new UnknownError(
+						`Error deleting child ${child.uuid}: ${(error as Error).message}`,
+					),
+				);
+			}
+		}
+
+		const storageDeleteOrErr = await this.#deleteFolderStorageIfPresent(uuid);
+		if (storageDeleteOrErr.isLeft()) {
+			return left(storageDeleteOrErr.value);
 		}
 
 		const v = await this.context.repository.delete(uuid);
@@ -366,6 +372,41 @@ export class NodeService {
 		}
 
 		return v;
+	}
+
+	async #deleteFolderStorageIfPresent(uuid: string): Promise<Either<AntboxError, void>> {
+		const deleteOrErr = await this.context.storage.delete(uuid);
+		if (deleteOrErr.isRight()) {
+			return right(undefined);
+		}
+
+		const error = deleteOrErr.value as AntboxError;
+		if (error instanceof NodeNotFoundError || error instanceof NodeFileNotFoundError) {
+			return right(undefined);
+		}
+
+		return left(error);
+	}
+
+	async #listDirectChildren(uuid: string): Promise<NodeLike[]> {
+		const pageSize = 500;
+		let pageToken = 1;
+		const children: NodeLike[] = [];
+
+		while (true) {
+			const page = await this.context.repository.filter(
+				[["parent", "==", uuid]],
+				pageSize,
+				pageToken,
+			);
+			children.push(...page.nodes);
+
+			if (page.nodes.length < pageSize) {
+				return children;
+			}
+
+			pageToken += 1;
+		}
 	}
 
 	async duplicate(

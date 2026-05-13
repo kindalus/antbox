@@ -3,6 +3,7 @@ import { expect } from "expect";
 import { GoogleDriveStorageProvider } from "./google_drive_storage_provider.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import { NodeCreatedEvent } from "domain/nodes/node_created_event.ts";
+import { NodeDeletedEvent } from "domain/nodes/node_deleted_event.ts";
 
 function makeDrive(overrides: Record<string, unknown> = {}) {
 	const calls = {
@@ -204,6 +205,157 @@ describe("GoogleDriveStorageProvider", () => {
 				mimeType: "application/vnd.google-apps.folder",
 			},
 		});
+	});
+
+	it("recursively trashes Drive descendants when a folder node is deleted", async () => {
+		const { drive, calls } = makeDrive({
+			files: {
+				list: async (params: Record<string, unknown>) => {
+					calls.list.push(params);
+					const q = params.q as string;
+
+					if (q.includes("appProperties") && q.includes("folder-001")) {
+						return {
+							data: {
+								files: [{
+									id: "root-drive-folder",
+									name: "Folder",
+									mimeType: "application/vnd.google-apps.folder",
+									parents: ["shared-drive-123"],
+									trashed: false,
+								}],
+							},
+						};
+					}
+
+					if (q.includes("'root-drive-folder' in parents")) {
+						return {
+							data: {
+								files: [
+									{
+										id: "child-drive-folder",
+										name: "Child Folder",
+										mimeType: "application/vnd.google-apps.folder",
+										parents: ["root-drive-folder"],
+										trashed: false,
+									},
+									{
+										id: "child-drive-file",
+										name: "Child File",
+										mimeType: "text/plain",
+										parents: ["root-drive-folder"],
+										trashed: false,
+									},
+								],
+							},
+						};
+					}
+
+					if (q.includes("'child-drive-folder' in parents")) {
+						return {
+							data: {
+								files: [{
+									id: "grandchild-drive-file",
+									name: "Grandchild File",
+									mimeType: "text/plain",
+									parents: ["child-drive-folder"],
+									trashed: false,
+								}],
+							},
+						};
+					}
+
+					return { data: { files: [] } };
+				},
+				update: async (params: Record<string, unknown>) => {
+					calls.update.push(params);
+					return { status: 200, data: { id: params.fileId } };
+				},
+			},
+		});
+		const provider = new GoogleDriveStorageProvider(drive, "shared-drive-123");
+		const subscriptions = new Map<string, { handle: (evt: unknown) => Promise<unknown> }>();
+
+		provider.startListeners((eventId, handler) => {
+			subscriptions.set(eventId, handler as never);
+		});
+
+		await subscriptions.get(NodeDeletedEvent.EVENT_ID)?.handle(
+			new NodeDeletedEvent("user@example.com", "default", {
+				uuid: "folder-001",
+				fid: "folder-001",
+				title: "Folder",
+				mimetype: Nodes.FOLDER_MIMETYPE,
+				parent: Nodes.ROOT_FOLDER_UUID,
+				createdTime: new Date().toISOString(),
+				modifiedTime: new Date().toISOString(),
+				owner: "user@example.com",
+			}),
+		);
+
+		expect(calls.update.map((call) => call.fileId)).toEqual([
+			"grandchild-drive-file",
+			"child-drive-folder",
+			"child-drive-file",
+			"root-drive-folder",
+		]);
+		expect(calls.update.every((call) => {
+			return (call.requestBody as Record<string, unknown>)?.trashed === true;
+		})).toBe(true);
+	});
+
+	it("recursively trashes folder trees from direct delete", async () => {
+		const { drive, calls } = makeDrive({
+			files: {
+				list: async (params: Record<string, unknown>) => {
+					calls.list.push(params);
+					const q = params.q as string;
+
+					if (q.includes("appProperties") && q.includes("folder-001")) {
+						return {
+							data: {
+								files: [{
+									id: "root-drive-folder",
+									name: "Folder",
+									mimeType: "application/vnd.google-apps.folder",
+									parents: ["shared-drive-123"],
+									trashed: false,
+								}],
+							},
+						};
+					}
+
+					if (q.includes("'root-drive-folder' in parents")) {
+						return {
+							data: {
+								files: [{
+									id: "child-drive-file",
+									name: "Child File",
+									mimeType: "text/plain",
+									parents: ["root-drive-folder"],
+									trashed: false,
+								}],
+							},
+						};
+					}
+
+					return { data: { files: [] } };
+				},
+				update: async (params: Record<string, unknown>) => {
+					calls.update.push(params);
+					return { status: 200, data: { id: params.fileId } };
+				},
+			},
+		});
+		const provider = new GoogleDriveStorageProvider(drive, "shared-drive-123");
+
+		const result = await provider.delete("folder-001");
+
+		expect(result.isRight()).toBe(true);
+		expect(calls.update.map((call) => call.fileId)).toEqual([
+			"child-drive-file",
+			"root-drive-folder",
+		]);
 	});
 
 	it("trashes files instead of permanently deleting them", async () => {

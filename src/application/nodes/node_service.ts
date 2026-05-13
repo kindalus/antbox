@@ -43,6 +43,15 @@ import type { NodeServiceContext } from "./node_service_context.ts";
 
 import { ParentFolderUpdateHandler } from "./parent_folder_update_handler.ts";
 
+interface NodeUpdateOptions {
+	forceEvent?: boolean;
+}
+
+interface CalculatedNodeUpdateChanges {
+	changed: Omit<NodeUpdateChanges, "uuid">;
+	requested: Omit<NodeUpdateChanges, "uuid">;
+}
+
 // TODO: Implements throwing events
 
 /**
@@ -659,17 +668,14 @@ export class NodeService {
 		ctx: AuthenticationContext,
 		uuid: string,
 		metadata: Partial<NodeMetadata>,
+		options: NodeUpdateOptions = {},
 	): Promise<Either<NodeNotFoundError, void>> {
 		let nodeOrErr = await this.#getBuiltinNodeOrFromRepository(uuid);
 		if (nodeOrErr.isLeft()) {
 			return left(nodeOrErr.value);
 		}
 
-		const oldValues: Partial<NodeMetadata> = {};
-		for (const key in metadata) {
-			// deno-lint-ignore no-explicit-any
-			(oldValues as any)[key] = (nodeOrErr.value as any)[key];
-		}
+		const currentMetadata = nodeOrErr.value.metadata;
 
 		// Get current parent for permission check
 		const currentParentOrErr = await this.#getBuiltinFolderOrFromRepository(
@@ -712,7 +718,7 @@ export class NodeService {
 		if (Nodes.isFileLike(nodeOrErr.value)) {
 			const newNodeOrErr = NodeFactory.from({
 				...nodeOrErr.value.metadata,
-				size: metadata.size,
+				...(metadata.size !== undefined ? { size: metadata.size } : {}),
 			});
 			if (newNodeOrErr.isLeft()) {
 				return left(newNodeOrErr.value);
@@ -737,6 +743,20 @@ export class NodeService {
 			delete safeMetadata.workflowInstanceUuid;
 			delete safeMetadata.workflowState;
 		}
+
+		const comparisonMetadata = this.#metadataForUpdateComparison(safeMetadata);
+		const changesOrErr = this.#calculateUpdateChanges(currentMetadata, comparisonMetadata);
+		if (changesOrErr.isLeft()) {
+			return left(changesOrErr.value);
+		}
+
+		const updateChanges = changesOrErr.value;
+		const hasChangedValues = Object.keys(updateChanges.changed.newValues).length > 0;
+		if (!hasChangedValues && !options.forceEvent) {
+			return right(undefined);
+		}
+
+		const eventValues = hasChangedValues ? updateChanges.changed : updateChanges.requested;
 
 		const voidOrErr = nodeOrErr.value.update(safeMetadata);
 		if (voidOrErr.isLeft()) {
@@ -815,8 +835,8 @@ export class NodeService {
 			// Create NodeUpdateChanges with old and new values
 			const changes: NodeUpdateChanges = {
 				uuid: nodeOrErr.value.uuid,
-				oldValues,
-				newValues: safeMetadata,
+				oldValues: eventValues.oldValues,
+				newValues: eventValues.newValues,
 			};
 
 			// Publish NodeUpdatedEvent
@@ -829,6 +849,112 @@ export class NodeService {
 		}
 
 		return updateResult;
+	}
+
+	#metadataForUpdateComparison(metadata: Partial<NodeMetadata>): Partial<NodeMetadata> {
+		const comparable: Partial<NodeMetadata> = { ...metadata };
+		delete comparable.modifiedTime;
+		delete comparable.fulltext;
+
+		for (const key of Object.keys(comparable) as (keyof NodeMetadata)[]) {
+			if (key !== "properties" && comparable[key] === undefined) {
+				delete comparable[key];
+			}
+		}
+
+		return comparable;
+	}
+
+	#calculateUpdateChanges(
+		currentMetadata: NodeMetadata,
+		metadata: Partial<NodeMetadata>,
+	): Either<ValidationError, CalculatedNodeUpdateChanges> {
+		const previewOrErr = NodeFactory.from<NodeLike>(currentMetadata);
+		if (previewOrErr.isLeft()) {
+			return left(previewOrErr.value);
+		}
+
+		const updatePreviewOrErr = previewOrErr.value.update(metadata);
+		if (updatePreviewOrErr.isLeft()) {
+			return left(updatePreviewOrErr.value);
+		}
+
+		const previewMetadata = previewOrErr.value.metadata;
+		const changedOldValues: Partial<NodeMetadata> = {};
+		const changedNewValues: Partial<NodeMetadata> = {};
+		const requestedOldValues: Partial<NodeMetadata> = {};
+		const requestedNewValues: Partial<NodeMetadata> = {};
+
+		for (const key of Object.keys(metadata) as (keyof NodeMetadata)[]) {
+			const currentValue = currentMetadata[key];
+			const previewValue = previewMetadata[key];
+
+			this.#assignMetadataValue(requestedOldValues, key, currentValue);
+			this.#assignMetadataValue(requestedNewValues, key, previewValue);
+
+			if (this.#metadataValuesEqual(currentValue, previewValue)) {
+				continue;
+			}
+
+			this.#assignMetadataValue(changedOldValues, key, currentValue);
+			this.#assignMetadataValue(changedNewValues, key, previewValue);
+		}
+
+		return right({
+			changed: {
+				oldValues: changedOldValues,
+				newValues: changedNewValues,
+			},
+			requested: {
+				oldValues: requestedOldValues,
+				newValues: requestedNewValues,
+			},
+		});
+	}
+
+	#assignMetadataValue(
+		metadata: Partial<NodeMetadata>,
+		key: keyof NodeMetadata,
+		value: unknown,
+	): void {
+		(metadata as Record<string, unknown>)[key] = value;
+	}
+
+	#metadataValuesEqual(a: unknown, b: unknown): boolean {
+		if (Object.is(a, b)) {
+			return true;
+		}
+
+		if (Array.isArray(a) || Array.isArray(b)) {
+			if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) {
+				return false;
+			}
+
+			return a.every((item, index) => this.#metadataValuesEqual(item, b[index]));
+		}
+
+		if (this.#isComparableObject(a) || this.#isComparableObject(b)) {
+			if (!this.#isComparableObject(a) || !this.#isComparableObject(b)) {
+				return false;
+			}
+
+			const aEntries = Object.entries(a).filter(([, value]) => value !== undefined);
+			const bEntries = Object.entries(b).filter(([, value]) => value !== undefined);
+			if (aEntries.length !== bEntries.length) {
+				return false;
+			}
+
+			const bValues = Object.fromEntries(bEntries);
+			return aEntries.every(([key, value]) => {
+				return Object.hasOwn(bValues, key) && this.#metadataValuesEqual(value, bValues[key]);
+			});
+		}
+
+		return false;
+	}
+
+	#isComparableObject(value: unknown): value is Record<string, unknown> {
+		return value !== null && typeof value === "object" && !Array.isArray(value);
 	}
 
 	async updateFile(
@@ -883,7 +1009,7 @@ export class NodeService {
 			}
 		}
 
-		return this.update(ctx, uuid, updateMetadata);
+		return this.update(ctx, uuid, updateMetadata, { forceEvent: true });
 	}
 
 	async lock(

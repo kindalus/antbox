@@ -4,6 +4,7 @@ import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import { BadRequestError, ForbiddenError } from "shared/antbox_error.ts";
 import type { AuthenticationContext } from "../security/authentication_context.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
+import { NodeUpdatedEvent } from "domain/nodes/node_updated_event.ts";
 import type { FileNode } from "domain/nodes/file_node.ts";
 import type { AspectProperty } from "domain/configuration/aspect_data.ts";
 import { ValidationError } from "shared/validation_error.ts";
@@ -43,6 +44,106 @@ describe("NodeService", () => {
 				.toBeTruthy();
 			expect(updatedNodeOrErr.right.title).toBe("Updated Title");
 			expect(updatedNodeOrErr.right.description).toBe("Updated Description");
+		});
+
+		it("should not publish update events when requested metadata is unchanged", async () => {
+			const bus = new InMemoryEventBus();
+			const events: NodeUpdatedEvent[] = [];
+			bus.subscribe(NodeUpdatedEvent.EVENT_ID, {
+				handle: (event) => events.push(event as NodeUpdatedEvent),
+			});
+			const service = nodeService({ bus });
+			const nodeOrErr = await service.create(authCtx, {
+				title: "Stable Title",
+				mimetype: Nodes.FOLDER_MIMETYPE,
+				parent: Nodes.ROOT_FOLDER_UUID,
+			});
+			expect(nodeOrErr.isRight(), errToMsg(nodeOrErr.value)).toBeTruthy();
+			await flushEventBus();
+			events.length = 0;
+
+			const originalNodeOrErr = await service.get(authCtx, nodeOrErr.right.uuid);
+			expect(originalNodeOrErr.isRight(), errToMsg(originalNodeOrErr.value)).toBeTruthy();
+
+			const updateOrErr = await service.update(authCtx, nodeOrErr.right.uuid, {
+				title: "Stable Title",
+			});
+
+			expect(updateOrErr.isRight(), errToMsg(updateOrErr.value)).toBeTruthy();
+			await flushEventBus();
+
+			const updatedNodeOrErr = await service.get(authCtx, nodeOrErr.right.uuid);
+			expect(updatedNodeOrErr.isRight(), errToMsg(updatedNodeOrErr.value)).toBeTruthy();
+			expect(updatedNodeOrErr.right.modifiedTime).toBe(originalNodeOrErr.right.modifiedTime);
+			expect(events).toHaveLength(0);
+		});
+
+		it("should include only changed fields in update events", async () => {
+			const bus = new InMemoryEventBus();
+			const events: NodeUpdatedEvent[] = [];
+			bus.subscribe(NodeUpdatedEvent.EVENT_ID, {
+				handle: (event) => events.push(event as NodeUpdatedEvent),
+			});
+			const service = nodeService({ bus });
+			const nodeOrErr = await service.create(authCtx, {
+				title: "Stable Title",
+				description: "Old Description",
+				mimetype: Nodes.FOLDER_MIMETYPE,
+				parent: Nodes.ROOT_FOLDER_UUID,
+			});
+			expect(nodeOrErr.isRight(), errToMsg(nodeOrErr.value)).toBeTruthy();
+			await flushEventBus();
+			events.length = 0;
+
+			const updateOrErr = await service.update(authCtx, nodeOrErr.right.uuid, {
+				title: "Stable Title",
+				description: "New Description",
+			});
+
+			expect(updateOrErr.isRight(), errToMsg(updateOrErr.value)).toBeTruthy();
+			await flushEventBus();
+
+			expect(events).toHaveLength(1);
+			expect(events[0].payload.oldValues).toEqual({ description: "Old Description" });
+			expect(events[0].payload.newValues).toEqual({ description: "New Description" });
+		});
+
+		it("should not publish update events when requested aspect properties are unchanged", async () => {
+			const configRepo = new InMemoryConfigurationRepository();
+			const bus = new InMemoryEventBus();
+			const events: NodeUpdatedEvent[] = [];
+			bus.subscribe(NodeUpdatedEvent.EVENT_ID, {
+				handle: (event) => events.push(event as NodeUpdatedEvent),
+			});
+			const service = nodeService({ bus, configRepo });
+			await createAspect(configRepo, "interaction", "Interaction", [
+				{ name: "kind", title: "Kind", type: "string" },
+			]);
+			const nodeOrErr = await service.create(authCtx, {
+				title: "Interaction Node",
+				mimetype: Nodes.FOLDER_MIMETYPE,
+				parent: Nodes.ROOT_FOLDER_UUID,
+				aspects: ["interaction"],
+				properties: { "interaction:kind": "Visita" },
+			});
+			expect(nodeOrErr.isRight(), errToMsg(nodeOrErr.value)).toBeTruthy();
+			await flushEventBus();
+			events.length = 0;
+
+			const originalNodeOrErr = await service.get(authCtx, nodeOrErr.right.uuid);
+			expect(originalNodeOrErr.isRight(), errToMsg(originalNodeOrErr.value)).toBeTruthy();
+
+			const updateOrErr = await service.update(authCtx, nodeOrErr.right.uuid, {
+				properties: { "interaction:kind": "Visita" },
+			});
+
+			expect(updateOrErr.isRight(), errToMsg(updateOrErr.value)).toBeTruthy();
+			await flushEventBus();
+
+			const updatedNodeOrErr = await service.get(authCtx, nodeOrErr.right.uuid);
+			expect(updatedNodeOrErr.isRight(), errToMsg(updatedNodeOrErr.value)).toBeTruthy();
+			expect(updatedNodeOrErr.right.modifiedTime).toBe(originalNodeOrErr.right.modifiedTime);
+			expect(events).toHaveLength(0);
 		});
 
 		it("should return error if node is not found", async () => {
@@ -606,6 +707,47 @@ describe("NodeService", () => {
 			// This is verified through the EmbeddingService tests
 		});
 
+		it("should publish update events when file content changes without size changes", async () => {
+			const bus = new InMemoryEventBus();
+			const events: NodeUpdatedEvent[] = [];
+			bus.subscribe(NodeUpdatedEvent.EVENT_ID, {
+				handle: (event) => events.push(event as NodeUpdatedEvent),
+			});
+			const service = nodeService({ bus });
+			const parent = await service.create(authCtx, {
+				title: "Parent Folder",
+				mimetype: Nodes.FOLDER_MIMETYPE,
+				parent: Nodes.ROOT_FOLDER_UUID,
+			});
+
+			const file = new File(["aaaa"], "file.txt", {
+				type: "text/plain",
+			});
+			const nodeOrErr = await service.createFile(authCtx, file, {
+				parent: parent.right.uuid,
+			});
+			expect(nodeOrErr.isRight(), errToMsg(nodeOrErr.value)).toBeTruthy();
+			await flushEventBus();
+			events.length = 0;
+
+			const updatedFile = new File(["bbbb"], "file.txt", {
+				type: "text/plain",
+			});
+			const updateOrErr = await service.updateFile(
+				authCtx,
+				nodeOrErr.right.uuid,
+				updatedFile,
+			);
+
+			expect(updateOrErr.isRight(), errToMsg(updateOrErr.value)).toBeTruthy();
+			await flushEventBus();
+
+			expect(events).toHaveLength(1);
+			expect(events[0].payload.uuid).toBe(nodeOrErr.right.uuid);
+			expect(events[0].payload.oldValues).toEqual({ size: 4 });
+			expect(events[0].payload.newValues).toEqual({ size: 4 });
+		});
+
 		it("should delete embeddings when file is updated to zero size", async () => {
 			const service = nodeService();
 			const parent = await service.create(authCtx, {
@@ -1082,6 +1224,8 @@ const createAspect = async (
 		modifiedTime: now,
 	});
 };
+
+const flushEventBus = () => new Promise((resolve) => setTimeout(resolve, 20));
 
 const nodeService = (opts: Partial<NodeServiceContext> = {}) =>
 	new NodeService({

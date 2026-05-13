@@ -1000,6 +1000,54 @@ describe("FeaturesEngine", () => {
 		expect(updated).toBe(true);
 	});
 
+	it("does not re-trigger automatic onUpdate actions for no-op self updates", async () => {
+		const harness = createHarness();
+		const globalWithMarker = globalThis as typeof globalThis & {
+			__noopSelfUpdateRuns?: number;
+		};
+
+		delete globalWithMarker.__noopSelfUpdateRuns;
+
+		try {
+			await harness.nodeService.create(adminCtx, {
+				uuid: "noop-self-update-node",
+				title: "Stable Interaction Title",
+				mimetype: Nodes.FOLDER_MIMETYPE,
+				parent: Nodes.ROOT_FOLDER_UUID,
+			});
+
+			await createFeature(harness, {
+				filters: [["uuid", "==", "noop-self-update-node"]],
+				runOnUpdates: true,
+				runManually: false,
+				run: createFeatureRun({
+					runBody: `
+						globalThis.__noopSelfUpdateRuns = (globalThis.__noopSelfUpdateRuns ?? 0) + 1;
+						const uuid = Array.isArray(args.uuids) ? args.uuids[0] : undefined;
+						if (uuid) {
+							await ctx.nodeService.update(uuid, { title: "Stable Interaction Title" });
+						}
+						return { done: true };
+					`,
+				}),
+			});
+
+			await harness.nodeService.update(adminCtx, "noop-self-update-node", {
+				description: "trigger automatic update",
+			});
+
+			const ranOnce = await waitFor(async () => {
+				return (globalWithMarker.__noopSelfUpdateRuns ?? 0) >= 1;
+			}, 1200);
+			expect(ranOnce).toBe(true);
+
+			await new Promise((resolve) => setTimeout(resolve, 200));
+			expect(globalWithMarker.__noopSelfUpdateRuns).toBe(1);
+		} finally {
+			delete globalWithMarker.__noopSelfUpdateRuns;
+		}
+	});
+
 	it("runs automatic onDelete actions through the action pipeline", async () => {
 		const harness = createHarness();
 

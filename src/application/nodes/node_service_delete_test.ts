@@ -7,7 +7,7 @@ import { InMemoryConfigurationRepository } from "adapters/inmem/inmem_configurat
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import type { AuthenticationContext } from "../security/authentication_context.ts";
 import { Groups } from "domain/users_groups/groups.ts";
-import { ForbiddenError } from "shared/antbox_error.ts";
+import { ForbiddenError, UnknownError } from "shared/antbox_error.ts";
 import type { NodeServiceContext } from "./node_service_context.ts";
 import { FileNode } from "domain/nodes/file_node.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
@@ -77,6 +77,52 @@ describe("NodeService", () => {
 			const getChildOrErr = await service.get(authCtx, child.right.uuid);
 			expect(getChildOrErr.isLeft()).toBeTruthy();
 			expect(getChildOrErr.value).toBeInstanceOf(NodeNotFoundError);
+		});
+
+		it("should delete file metadata if storage file is already missing", async () => {
+			const storage = new InMemoryStorageProvider();
+			const service = nodeService({ storage });
+
+			const folder = await service.create(authCtx, {
+				title: "Parent folder",
+				mimetype: Nodes.FOLDER_MIMETYPE,
+				parent: Nodes.ROOT_FOLDER_UUID,
+			});
+			expect(folder.isRight(), errToMsg(folder.value)).toBeTruthy();
+
+			const file = await service.createFile(
+				authCtx,
+				new File(["content"], "orphaned-storage.txt", { type: "text/plain" }),
+				{ title: "orphaned-storage.txt", parent: folder.right.uuid },
+			);
+			expect(file.isRight(), errToMsg(file.value)).toBeTruthy();
+			delete storage.fs[file.right.uuid];
+
+			const deleteOrErr = await service.delete(authCtx, file.right.uuid);
+
+			expect(deleteOrErr.isRight(), errToMsg(deleteOrErr.value)).toBeTruthy();
+			const getFileOrErr = await service.get(authCtx, file.right.uuid);
+			expect(getFileOrErr.isLeft()).toBeTruthy();
+			expect(getFileOrErr.value).toBeInstanceOf(NodeNotFoundError);
+		});
+
+		it("should delete folder metadata if folder storage is already missing", async () => {
+			const storage = new MissingFolderStorageProvider();
+			const service = nodeService({ storage });
+
+			const folder = await service.create(authCtx, {
+				title: "Folder without storage",
+				mimetype: Nodes.FOLDER_MIMETYPE,
+				parent: Nodes.ROOT_FOLDER_UUID,
+			});
+			expect(folder.isRight(), errToMsg(folder.value)).toBeTruthy();
+
+			const deleteOrErr = await service.delete(authCtx, folder.right.uuid);
+
+			expect(deleteOrErr.isRight(), errToMsg(deleteOrErr.value)).toBeTruthy();
+			const getFolderOrErr = await service.get(authCtx, folder.right.uuid);
+			expect(getFolderOrErr.isLeft()).toBeTruthy();
+			expect(getFolderOrErr.value).toBeInstanceOf(NodeNotFoundError);
 		});
 
 		it("should remove folder storage in depth-first order", async () => {
@@ -210,6 +256,12 @@ describe("NodeService", () => {
 	});
 });
 
+class MissingFolderStorageProvider extends InMemoryStorageProvider {
+	override rmdir(uuid: string): ReturnType<InMemoryStorageProvider["rmdir"]> {
+		return Promise.resolve(left<NodeNotFoundError, void>(new NodeNotFoundError(uuid)));
+	}
+}
+
 class RecordingFolderStorageProvider extends InMemoryStorageProvider {
 	readonly deleted: string[] = [];
 
@@ -224,7 +276,7 @@ class FailingDeleteStorageProvider extends InMemoryStorageProvider {
 
 	override delete(uuid: string): ReturnType<InMemoryStorageProvider["delete"]> {
 		if (uuid === this.failUuid) {
-			return Promise.resolve(left<NodeNotFoundError, void>(new NodeNotFoundError(uuid)));
+			return Promise.resolve(left(new UnknownError(`Failed to delete ${uuid}`)));
 		}
 
 		return super.delete(uuid);

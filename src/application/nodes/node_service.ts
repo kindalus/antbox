@@ -22,6 +22,7 @@ import { NodeUpdateChanges, NodeUpdatedEvent } from "domain/nodes/node_updated_e
 import type { AuthenticationContext } from "../security/authentication_context.ts";
 
 import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
+import { NodeFileNotFoundError } from "domain/nodes/node_file_not_found_error.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import type { NodeProperties } from "domain/nodes/node_properties.ts";
 import type { NodeFilterResult } from "domain/nodes/node_repository.ts";
@@ -330,7 +331,7 @@ export class NodeService {
 
 		if (Nodes.isFileLike(nodeOrErr.value)) {
 			const voidOrErr = await this.context.storage.delete(uuid);
-			if (voidOrErr.isLeft()) {
+			if (voidOrErr.isLeft() && !this.#isStorageNotFound(voidOrErr.value)) {
 				return left(voidOrErr.value);
 			}
 		}
@@ -366,7 +367,7 @@ export class NodeService {
 		}
 
 		const storageDeleteOrErr = await this.context.storage.rmdir(uuid);
-		if (storageDeleteOrErr.isLeft()) {
+		if (storageDeleteOrErr.isLeft() && !this.#isStorageNotFound(storageDeleteOrErr.value)) {
 			return left(storageDeleteOrErr.value);
 		}
 
@@ -382,6 +383,10 @@ export class NodeService {
 		}
 
 		return v;
+	}
+
+	#isStorageNotFound(error: unknown): boolean {
+		return error instanceof NodeNotFoundError || error instanceof NodeFileNotFoundError;
 	}
 
 	async #listDirectChildren(uuid: string): Promise<NodeLike[]> {

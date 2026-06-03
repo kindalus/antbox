@@ -2622,14 +2622,16 @@ components:
          properties:
             name:
                type: string
-               description: Property identifier (must match /^[a-zA-Z_][_a-zA-Z0-9_]{2,}$/)
+               description: Property identifier in kebab-case (must match /^[a-z][a-z0-9-]{2,}$/)
+               pattern: "^[a-z][a-z0-9-]{2,}$"
+               example: numero-factura
             title:
                type: string
                description: Display label for the property
             type:
                type: string
                enum:
-                  ["uuid", "string", "number", "boolean", "object", "array", "file"]
+                  ["uuid", "string", "number", "boolean", "object", "array", "date"]
                description: Data type of the property
             arrayType:
                type: string
@@ -2655,10 +2657,10 @@ components:
                   - type: boolean
             validationRegex:
                type: string
-               description: Regex pattern for string validation
+               description: Regex pattern for string or array<string> validation
             validationList:
                type: array
-               description: List of allowed string or numeric values (enum)
+               description: List of allowed values for string, number, or array<string> properties
                items:
                   oneOf:
                      - type: string

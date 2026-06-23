@@ -444,6 +444,27 @@ describe("NodeService.duplicate", () => {
 		expect(duplicatedFileOrErr.right.size).toBe(dummyFile.size);
 	});
 
+	it("should duplicate a file when uuid is in fid format", async () => {
+		const service = nodeService();
+		const parent = await service.create(authCtx, {
+			title: "Folder",
+			mimetype: Nodes.FOLDER_MIMETYPE,
+			parent: Nodes.ROOT_FOLDER_UUID,
+		});
+		const node = await service.createFile(authCtx, dummyFile, {
+			fid: "duplicate-source-file",
+			parent: parent.right.uuid,
+		});
+
+		const duplicateOrErr = await service.duplicate(authCtx, Nodes.fidToUuid(node.right.fid));
+
+		expect(duplicateOrErr.isRight(), errToMsg(duplicateOrErr.value)).toBeTruthy();
+		const duplicatedFileOrErr = await service.export(authCtx, duplicateOrErr.right.uuid);
+		expect(duplicatedFileOrErr.isRight(), errToMsg(duplicatedFileOrErr.value))
+			.toBeTruthy();
+		expect(duplicatedFileOrErr.right.size).toBe(dummyFile.size);
+	});
+
 	it("should return a error if node to duplicate is a folder node", async () => {
 		const service = nodeService();
 		const parent = await service.create(authCtx, {
@@ -542,6 +563,36 @@ describe("NodeService.copy", () => {
 		);
 		const copiedFileOrErr = await service.export(authCtx, copyOrErr.right.uuid);
 
+		expect(copiedFileOrErr.isRight(), errToMsg(copiedFileOrErr.value))
+			.toBeTruthy();
+		expect(copiedFileOrErr.right.size).toBe(dummyFile.size);
+	});
+
+	it("should copy a file when uuid is in fid format", async () => {
+		const service = nodeService();
+		const parent1 = await service.create(authCtx, {
+			title: "Parent Folder 1",
+			mimetype: Nodes.FOLDER_MIMETYPE,
+			parent: Nodes.ROOT_FOLDER_UUID,
+		});
+		const parent2 = await service.create(authCtx, {
+			title: "Parent Folder 2",
+			mimetype: Nodes.FOLDER_MIMETYPE,
+			parent: Nodes.ROOT_FOLDER_UUID,
+		});
+		const node = await service.createFile(authCtx, dummyFile, {
+			fid: "copy-source-file",
+			parent: parent1.right.uuid,
+		});
+
+		const copyOrErr = await service.copy(
+			authCtx,
+			Nodes.fidToUuid(node.right.fid),
+			parent2.right.uuid,
+		);
+
+		expect(copyOrErr.isRight(), errToMsg(copyOrErr.value)).toBeTruthy();
+		const copiedFileOrErr = await service.export(authCtx, copyOrErr.right.uuid);
 		expect(copiedFileOrErr.isRight(), errToMsg(copiedFileOrErr.value))
 			.toBeTruthy();
 		expect(copiedFileOrErr.right.size).toBe(dummyFile.size);

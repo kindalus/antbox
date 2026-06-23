@@ -115,7 +115,7 @@ export class NodeService {
 			return this.create(ctx, metadata) as Promise<Either<AntboxError, Node>>;
 		}
 
-		const fileOrErr = await this.context.storage.read(uuid);
+		const fileOrErr = await this.context.storage.read(node.uuid);
 		if (fileOrErr.isLeft()) {
 			return left(fileOrErr.value);
 		}
@@ -438,7 +438,7 @@ export class NodeService {
 			return this.create(ctx, metadata) as Promise<Either<NodeNotFoundError, Node>>;
 		}
 
-		const fileOrErr = await this.context.storage.read(uuid);
+		const fileOrErr = await this.context.storage.read(node.uuid);
 		if (fileOrErr.isLeft()) {
 			return left(fileOrErr.value);
 		}
@@ -475,7 +475,7 @@ export class NodeService {
 			return left(allowedOrErr.value);
 		}
 
-		const fileOrErr = await this.context.storage.read(uuid);
+		const fileOrErr = await this.context.storage.read(nodeOrErr.value.uuid);
 		if (fileOrErr.isLeft()) {
 			return left(fileOrErr.value);
 		}

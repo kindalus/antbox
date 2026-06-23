@@ -147,6 +147,28 @@ describe("NodeService", () => {
 			expect(fileOrErr.right.type).toEqual(file.type);
 		});
 
+		it("should export a file when uuid is in fid format", async () => {
+			const service = nodeService();
+			await service.create(authCtx, {
+				uuid: "parent-uuid",
+				title: "Documents",
+				mimetype: Nodes.FOLDER_MIMETYPE,
+				parent: Nodes.ROOT_FOLDER_UUID,
+			});
+
+			await service.createFile(authCtx, file, {
+				uuid: "file-uuid",
+				fid: "file-fid",
+				parent: "parent-uuid",
+			});
+
+			const fileOrErr = await service.export(authCtx, Nodes.fidToUuid("file-fid"));
+
+			expect(fileOrErr.isRight(), errToMsg(fileOrErr.value)).toBeTruthy();
+			expect(fileOrErr.right.size).toEqual(file.size);
+			expect(fileOrErr.right.type).toEqual(file.type);
+		});
+
 		it("should return error if file is not found", async () => {
 			const service = nodeService();
 			const fileOrErr = await service.export(authCtx, "not-found");

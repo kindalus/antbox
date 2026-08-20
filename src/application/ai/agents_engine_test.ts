@@ -12,7 +12,10 @@ import { AgentsEngine, type AgentsEngineContext } from "./agents_engine.ts";
 import { left, right } from "shared/either.ts";
 import { type AntboxError, AntboxError as AntboxErrorClass } from "shared/antbox_error.ts";
 import type { AgentData } from "domain/configuration/agent_data.ts";
+import type { FeatureData } from "domain/configuration/feature_data.ts";
 import type { AuthenticationContext } from "application/security/authentication_context.ts";
+import { FeaturesEngine } from "application/features/features_engine.ts";
+import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus.ts";
 import { customAgentRegistry } from "./custom_agents/index.ts";
 
 const mockAuthContext: AuthenticationContext = {
@@ -417,6 +420,79 @@ describe("AgentsEngine", () => {
 			expect(result.value.at(-1)?.role).toBe("model");
 			expect(mockModel.getCalls()).toBe(2);
 			expect(mockModel.getToolCounts()).toEqual([2, 2]);
+		});
+
+		it("executes a feature-backed AI tool through the complete Pi loop", async () => {
+			const feature: FeatureData = {
+				uuid: "calculateTotal",
+				title: "Calculate total",
+				description: "Double an item count",
+				exposeAction: false,
+				runOnCreates: false,
+				runOnUpdates: false,
+				runOnDeletes: false,
+				runOnEmbeddingsCreated: false,
+				runOnEmbeddingsUpdated: false,
+				runManually: false,
+				filters: [],
+				exposeExtension: false,
+				exposeAITool: true,
+				groupsAllowed: [],
+				parameters: [{ name: "itemCount", type: "number", required: true }],
+				returnType: "object",
+				run: "async function(_ctx, args) { return { total: args.itemCount * 2 }; }",
+				createdTime: "2026-01-01T00:00:00.000Z",
+				modifiedTime: "2026-01-01T00:00:00.000Z",
+			};
+			let requestedFeatureUuid: string | undefined;
+			const featuresService = {
+				listAITools: () => Promise.resolve(right([feature])),
+				getFeature: (_ctx: AuthenticationContext, uuid: string) => {
+					requestedFeatureUuid = uuid;
+					return Promise.resolve(right(feature));
+				},
+			} as unknown as import("application/features/features_service.ts").FeaturesService;
+			const modelRuntime = makeRuntime([
+				(context) => {
+					expect(context.tools?.map((tool) => tool.name)).toContain("calculate_total");
+					return withUsage(fauxAssistantMessage(
+						fauxToolCall("calculate_total", { item_count: 4 }, { id: "feature-call" }),
+						{ stopReason: "toolUse" },
+					));
+				},
+				(context) => {
+					const toolResult = context.messages.find((message) => message.role === "toolResult");
+					expect(toolResult?.toolName).toBe("calculate_total");
+					expect(toolResult?.content).toEqual([{ type: "text", text: '{"total":8}' }]);
+					return withUsage(fauxAssistantMessage("The total is 8."));
+				},
+			]);
+			const engine = new AgentsEngine(makeContext({
+				agentsService: {
+					getAgent: () => Promise.resolve(right(makeAgent({ tools: ["calculateTotal"] }))),
+				} as unknown as import("./agents_service.ts").AgentsService,
+				featuresService,
+				modelRuntime,
+			}));
+			const featuresEngine = new FeaturesEngine({
+				featuresService,
+				nodeService: {} as import("application/nodes/node_service.ts").NodeService,
+				eventBus: new InMemoryEventBus(),
+			});
+			engine.setFeatureAIToolExecutor(featuresEngine);
+
+			const result = await engine.chat(mockAuthContext, "test-agent", "Double four");
+
+			expect(result.isRight()).toBe(true);
+			if (result.isLeft()) throw result.value;
+			expect(result.value.map((message) => message.role)).toEqual([
+				"user",
+				"model",
+				"tool",
+				"model",
+			]);
+			expect(result.value.at(-1)?.parts).toEqual([{ text: "The total is 8." }]);
+			expect(requestedFeatureUuid).toBe("calculateTotal");
 		});
 
 		it("agent instruction ends with today's ISO date and weekday", async () => {

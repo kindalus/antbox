@@ -638,6 +638,59 @@ describe("FeaturesEngine", () => {
 		}
 	});
 
+	it("runAITool executes a custom feature with validated parameters", async () => {
+		const harness = createHarness();
+		const featureUuid = await createFeature(harness, {
+			exposeAction: false,
+			exposeAITool: true,
+			parameters: [
+				{ name: "itemCount", type: "number", required: true },
+				{ name: "label", type: "string", required: true },
+			],
+			run: createFeatureRun({
+				runBody:
+					"return { total: args.itemCount * 2, label: args.label, principal: ctx.authenticationContext.principal.email };",
+			}),
+		});
+
+		const result = await harness.engine.runAITool<{
+			total: number;
+			label: string;
+			principal: string;
+		}>(adminCtx, featureUuid, { itemCount: 4, label: "invoice" });
+
+		expect(result.isRight()).toBe(true);
+		if (result.isRight()) {
+			expect(result.value).toEqual({
+				total: 8,
+				label: "invoice",
+				principal: Users.ROOT_USER_EMAIL,
+			});
+		}
+
+		const invalid = await harness.engine.runAITool(adminCtx, featureUuid, {
+			itemCount: "four",
+			label: "invoice",
+		});
+		expect(invalid.isLeft()).toBe(true);
+	});
+
+	it("runAITool rejects a feature not exposed as an AI tool", async () => {
+		const harness = createHarness();
+		const featureUuid = await createFeature(harness, {
+			exposeAction: true,
+			exposeAITool: false,
+		});
+
+		const result = await harness.engine.runAITool(adminCtx, featureUuid, {});
+
+		expect(result.isLeft()).toBe(true);
+		if (result.isLeft()) {
+			expect(result.value).toBeInstanceOf(BadRequestError);
+			expect(result.value.message).toContain("not exposed as AI tool");
+		}
+	});
+
 	it("runExtension executes extension features and returns JSON payload", async () => {
 		const harness = createHarness();
 

@@ -18,7 +18,7 @@ function makeSnapshot(id: string) {
 		userEmail: "u@x",
 		agentUuid: "a-1",
 		agentData: baseAgent,
-		tools: {},
+		tools: [],
 		toolNames: ["load_skill"] as readonly string[],
 	};
 }

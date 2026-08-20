@@ -1,14 +1,11 @@
 import type {
-	AssistantContent,
-	AssistantModelMessage,
-	ModelMessage,
-	StepResult,
-	ToolCallPart,
-	ToolModelMessage,
-	ToolResultPart,
-	ToolSet,
-	UserModelMessage,
-} from "ai";
+	Api,
+	AssistantMessage,
+	Message,
+	Model,
+	ToolResultMessage,
+	Usage,
+} from "@earendil-works/pi-ai";
 import { type Either, left, right } from "shared/either.ts";
 import { AntboxError } from "shared/antbox_error.ts";
 import type {
@@ -18,157 +15,180 @@ import type {
 	TokenUsage,
 } from "domain/ai/chat_message.ts";
 
-export function chatHistoryToModelMessages(history: ChatHistory): ModelMessage[] {
-	const messages: ModelMessage[] = [];
-	for (const message of history) {
-		const converted = chatMessageToModelMessage(message);
-		if (converted) messages.push(converted);
+const ZERO_COST = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 };
+
+export function chatHistoryToPiMessages(
+	history: ChatHistory,
+	model: Model<Api>,
+	timestamp = Date.now(),
+): Message[] {
+	const messages: Message[] = [];
+	let pendingCalls: Array<{ id: string; name: string }> = [];
+
+	for (let messageIndex = 0; messageIndex < history.length; messageIndex++) {
+		const message = history[messageIndex];
+		switch (message.role) {
+			case "user": {
+				const content = collectText(message.parts);
+				if (content) messages.push({ role: "user", content, timestamp });
+				pendingCalls = [];
+				break;
+			}
+			case "model": {
+				const text = collectText(message.parts);
+				const calls = message.parts.flatMap((part, partIndex) => {
+					if (!part.toolCall) return [];
+					return [{
+						type: "toolCall" as const,
+						id: part.toolCall.id ?? syntheticToolCallId(messageIndex, partIndex),
+						name: part.toolCall.name,
+						arguments: part.toolCall.args,
+					}];
+				});
+				if (!text && calls.length === 0) break;
+				pendingCalls = calls.map((call) => ({ id: call.id, name: call.name }));
+				messages.push({
+					role: "assistant",
+					content: [
+						...(text ? [{ type: "text" as const, text }] : []),
+						...calls,
+					],
+					api: model.api,
+					provider: model.provider,
+					model: model.id,
+					usage: tokenUsageToPiUsage(message.usage),
+					stopReason: calls.length > 0 ? "toolUse" : "stop",
+					timestamp,
+				});
+				break;
+			}
+			case "tool": {
+				const responses = message.parts.flatMap((part) =>
+					part.toolResponse ? [part.toolResponse] : []
+				);
+				for (let responseIndex = 0; responseIndex < responses.length; responseIndex++) {
+					const response = responses[responseIndex];
+					const paired = response.id
+						? pendingCalls.find((call) => call.id === response.id) ??
+							pendingCalls[responseIndex]
+						: pendingCalls[responseIndex];
+					messages.push({
+						role: "toolResult",
+						toolCallId: paired?.id ?? response.id ??
+							syntheticToolCallId(messageIndex - 1, responseIndex),
+						toolName: response.name,
+						content: [{ type: "text", text: response.text }],
+						details: response.text,
+						isError: false,
+						timestamp,
+					});
+				}
+				pendingCalls = [];
+				break;
+			}
+		}
 	}
+
 	return messages;
 }
 
-function chatMessageToModelMessage(message: ChatMessage): ModelMessage | undefined {
-	switch (message.role) {
-		case "user": {
-			const content = collectText(message.parts);
-			if (!content.length) return undefined;
-			return { role: "user", content } satisfies UserModelMessage;
+export function piMessagesToChatMessages(messages: readonly Message[]): ChatMessage[] {
+	const output: ChatMessage[] = [];
+	for (const message of messages) {
+		if (message.role === "user") continue;
+		if (message.role === "assistant") {
+			const parts: ChatMessagePart[] = [];
+			for (const content of message.content) {
+				if (content.type === "text" && content.text) parts.push({ text: content.text });
+				if (content.type === "toolCall") {
+					parts.push({
+						toolCall: {
+							id: content.id,
+							name: content.name,
+							args: content.arguments,
+						},
+					});
+				}
+			}
+			if (parts.length > 0) output.push({ role: "model", parts });
+			continue;
 		}
-		case "model": {
-			const text = collectText(message.parts);
-			const toolCalls = collectToolCalls(message.parts);
-			if (!text.length && toolCalls.length === 0) return undefined;
 
-			const content: AssistantContent = toolCalls.length === 0 ? text : [
-				...(text.length ? [{ type: "text" as const, text }] : []),
-				...toolCalls,
-			];
-			return { role: "assistant", content } satisfies AssistantModelMessage;
-		}
-		case "tool": {
-			const results = collectToolResults(message.parts);
-			if (results.length === 0) return undefined;
-			return { role: "tool", content: results } satisfies ToolModelMessage;
-		}
+		appendToolResult(output, message);
 	}
+	return output;
+}
+
+export function piUsageToTokenUsage(usage: Usage | undefined): TokenUsage | undefined {
+	if (!usage) return undefined;
+	return {
+		promptTokens: usage.input + usage.cacheRead + usage.cacheWrite,
+		completionTokens: usage.output,
+		totalTokens: usage.totalTokens,
+	};
+}
+
+export function piMessagesUsage(messages: readonly Message[]): TokenUsage | undefined {
+	const usages = messages
+		.filter((message): message is AssistantMessage => message.role === "assistant")
+		.map((message) => piUsageToTokenUsage(message.usage))
+		.filter((usage): usage is TokenUsage => usage !== undefined);
+	if (usages.length === 0) return undefined;
+	return usages.reduce<TokenUsage>(
+		(total, usage) => ({
+			promptTokens: total.promptTokens + usage.promptTokens,
+			completionTokens: total.completionTokens + usage.completionTokens,
+			totalTokens: total.totalTokens + usage.totalTokens,
+		}),
+		{ promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+	);
+}
+
+function appendToolResult(output: ChatMessage[], message: ToolResultMessage): void {
+	const part: ChatMessagePart = {
+		toolResponse: {
+			id: message.toolCallId,
+			name: message.toolName,
+			text: message.content
+				.filter((content) => content.type === "text")
+				.map((content) => content.text)
+				.join(""),
+		},
+	};
+	const last = output.at(-1);
+	if (last?.role === "tool") last.parts.push(part);
+	else output.push({ role: "tool", parts: [part] });
 }
 
 function collectText(parts: ChatMessagePart[]): string {
 	return parts.map((part) => part.text ?? "").join("").trim();
 }
 
-function collectToolCalls(parts: ChatMessagePart[]): ToolCallPart[] {
-	const out: ToolCallPart[] = [];
-	for (const part of parts) {
-		if (!part.toolCall) continue;
-		out.push({
-			type: "tool-call",
-			toolCallId: part.toolCall.id ?? cryptoRandomId(),
-			toolName: part.toolCall.name,
-			input: part.toolCall.args,
-		});
-	}
-	return out;
+function syntheticToolCallId(messageIndex: number, partIndex: number): string {
+	return `antbox-tool-${messageIndex}-${partIndex}`;
 }
 
-function collectToolResults(parts: ChatMessagePart[]): ToolResultPart[] {
-	const out: ToolResultPart[] = [];
-	for (const part of parts) {
-		if (!part.toolResponse) continue;
-		out.push({
-			type: "tool-result",
-			toolCallId: part.toolResponse.id ?? cryptoRandomId(),
-			toolName: part.toolResponse.name,
-			output: { type: "text", value: part.toolResponse.text },
-		});
-	}
-	return out;
-}
-
-function cryptoRandomId(): string {
-	return crypto.randomUUID();
-}
-
-export function stepsToChatMessages(steps: StepResult<ToolSet>[]): ChatMessage[] {
-	const messages: ChatMessage[] = [];
-
-	for (const step of steps) {
-		const modelParts: ChatMessagePart[] = [];
-		const toolParts: ChatMessagePart[] = [];
-
-		if (step.text && step.text.length > 0) {
-			modelParts.push({ text: step.text });
-		}
-
-		for (const call of step.toolCalls ?? []) {
-			modelParts.push({
-				toolCall: {
-					id: call.toolCallId,
-					name: call.toolName,
-					args: (call.input ?? {}) as Record<string, unknown>,
-				},
-			});
-		}
-
-		for (const result of step.toolResults ?? []) {
-			toolParts.push({
-				toolResponse: {
-					id: result.toolCallId,
-					name: result.toolName,
-					text: stringifyToolOutput(result.output),
-				},
-			});
-		}
-
-		if (modelParts.length > 0) {
-			messages.push({ role: "model", parts: modelParts });
-		}
-		if (toolParts.length > 0) {
-			messages.push({ role: "tool", parts: toolParts });
-		}
-	}
-
-	return messages;
-}
-
-function stringifyToolOutput(value: unknown): string {
-	if (typeof value === "string") return value;
-	try {
-		return JSON.stringify(value);
-	} catch {
-		return String(value);
-	}
-}
-
-export function aisdkUsageToTokenUsage(
-	usage:
-		| { inputTokens?: number; outputTokens?: number; totalTokens?: number }
-		| undefined,
-): TokenUsage | undefined {
-	if (!usage) return undefined;
+function tokenUsageToPiUsage(usage?: TokenUsage): Usage {
 	return {
-		promptTokens: usage.inputTokens ?? 0,
-		completionTokens: usage.outputTokens ?? 0,
-		totalTokens: usage.totalTokens ??
-			((usage.inputTokens ?? 0) + (usage.outputTokens ?? 0)),
+		input: usage?.promptTokens ?? 0,
+		output: usage?.completionTokens ?? 0,
+		cacheRead: 0,
+		cacheWrite: 0,
+		totalTokens: usage?.totalTokens ?? 0,
+		cost: ZERO_COST,
 	};
 }
 
 /**
- * Validate that tool calls and tool responses are properly paired in chat history.
- * Each model message containing toolCall parts must be followed by a tool message
- * whose toolResponse parts cover every toolCall id, in order.
+ * Validate that tool calls and responses are paired. Calls without public IDs
+ * are paired by position because the domain contract permits optional IDs.
  */
 export function validateChatHistory(history: ChatHistory): Either<AntboxError, void> {
 	for (let i = 0; i < history.length; i++) {
 		const message = history[i];
 		if (message.role !== "model") continue;
-
-		const toolCallIds = message.parts
-			.map((part) => part.toolCall?.id)
-			.filter((id): id is string => typeof id === "string");
-
-		if (toolCallIds.length === 0) continue;
+		const calls = message.parts.flatMap((part) => part.toolCall ? [part.toolCall] : []);
+		if (calls.length === 0) continue;
 
 		const next = history[i + 1];
 		if (!next || next.role !== "tool") {
@@ -179,19 +199,17 @@ export function validateChatHistory(history: ChatHistory): Either<AntboxError, v
 				),
 			);
 		}
-
-		const responseIds = new Set(
-			next.parts
-				.map((part) => part.toolResponse?.id)
-				.filter((id): id is string => typeof id === "string"),
-		);
-
-		for (const id of toolCallIds) {
-			if (!responseIds.has(id)) {
+		const responses = next.parts.flatMap((part) => part.toolResponse ? [part.toolResponse] : []);
+		for (let callIndex = 0; callIndex < calls.length; callIndex++) {
+			const call = calls[callIndex];
+			const paired = call.id
+				? responses.find((response) => response.id === call.id)
+				: responses[callIndex];
+			if (!paired || paired.name !== call.name) {
 				return left(
 					new AntboxError(
 						"InvalidChatHistory",
-						`Tool call id '${id}' at history index ${i} has no matching response`,
+						`Tool call '${call.name}' at history index ${i} has no matching response`,
 					),
 				);
 			}
@@ -199,10 +217,8 @@ export function validateChatHistory(history: ChatHistory): Either<AntboxError, v
 	}
 
 	for (let i = 0; i < history.length; i++) {
-		const message = history[i];
-		if (message.role !== "tool") continue;
-		const prev = history[i - 1];
-		if (!prev || prev.role !== "model") {
+		if (history[i].role !== "tool") continue;
+		if (history[i - 1]?.role !== "model") {
 			return left(
 				new AntboxError(
 					"InvalidChatHistory",
@@ -211,6 +227,5 @@ export function validateChatHistory(history: ChatHistory): Either<AntboxError, v
 			);
 		}
 	}
-
 	return right(undefined);
 }

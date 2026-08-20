@@ -11,7 +11,7 @@ custom server-side features, and pluggable infrastructure in a single runtime.
 
 - **Document Management** - Files, folders, smart folders, metadata, and permissions
 - **Search** - Structured filters, full-text search, and semantic search
-- **AI Agents + Skills** - AI SDK-based agents, built-in RAG agents, and custom skills
+- **AI Agents + Skills** - Pi-powered agents, built-in RAG agents, and custom skills
 - **MCP Server** - JSON-RPC endpoint with tenant-aware tools/resources for LLM clients
 - **Custom Features** - Run JavaScript/TypeScript modules as actions/extensions/AI tools
 - **Workflows** - Workflow definitions + runtime instances with transitions
@@ -123,8 +123,8 @@ Antbox supports environment-variable-based logging and agent tracing:
   - valid values: `trace`, `debug`, `info`, `warn`, `error`, `fatal`
 - `ANTBOX_AGENT_DEBUG_TRACE`
   - enables extra debug logs for AI agent runs when set to `1`, `true`, `yes`, or `on`
-  - includes the effective instruction, selected tools, tool calls/responses, finish reasons,
-    provider errors, and final response summary
+  - includes selected tool names, lifecycle events, finish reasons, provider errors, token usage,
+    and response-size summaries without logging prompts or tool payloads
 
 Example:
 

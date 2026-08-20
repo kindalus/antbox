@@ -1,4 +1,4 @@
-import type { Tool } from "ai";
+import type { AgentTool } from "@earendil-works/pi-agent-core";
 import type { AgentData } from "domain/configuration/agent_data.ts";
 
 const DEFAULT_TTL_MS = 30 * 60 * 1000; // 30 minutes sliding
@@ -11,7 +11,7 @@ export interface SessionSnapshot {
 	readonly userEmail: string;
 	readonly agentUuid: string;
 	readonly agentData: AgentData;
-	readonly tools: Record<string, Tool>;
+	readonly tools: AgentTool[];
 	readonly toolNames: readonly string[];
 	readonly createdAt: number;
 	readonly expiresAt: number;

@@ -1,6 +1,13 @@
 import { describe, it } from "bdd";
 import { expect } from "expect";
-import type { LanguageModel } from "ai";
+import {
+	type Context,
+	fauxAssistantMessage,
+	fauxProvider,
+	fauxToolCall,
+	type SimpleStreamOptions,
+} from "@earendil-works/pi-ai";
+import type { AgentModelRuntime } from "./resolve_model.ts";
 import { AgentsEngine, type AgentsEngineContext } from "./agents_engine.ts";
 import { left, right } from "shared/either.ts";
 import { type AntboxError, AntboxError as AntboxErrorClass } from "shared/antbox_error.ts";
@@ -60,68 +67,76 @@ function makeContext(overrides: Partial<AgentsEngineContext> = {}): AgentsEngine
 	};
 }
 
-function makeLanguageModelResponse(content: unknown[]) {
+const testUsage = {
+	input: 1,
+	output: 1,
+	cacheRead: 0,
+	cacheWrite: 0,
+	totalTokens: 2,
+	cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+};
+
+function withUsage<T extends ReturnType<typeof fauxAssistantMessage>>(message: T): T {
+	return { ...message, usage: testUsage };
+}
+
+function makeRuntime(
+	responses: Parameters<ReturnType<typeof fauxProvider>["setResponses"]>[0],
+): AgentModelRuntime {
+	const faux = fauxProvider({ provider: "mock" });
+	faux.setResponses(responses);
 	return {
-		content,
-		finishReason: content.some((part) => (part as { type?: string }).type === "tool-call")
-			? "tool-calls"
-			: "stop",
-		usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
-		warnings: [],
+		streamFn: (model, context, options) => faux.provider.streamSimple(model, context, options),
+		resolveModel: () => faux.getModel(),
+		listModels: () => faux.models,
+		getApiKey: () => Promise.resolve("test-key"),
+		isConfigured: () => Promise.resolve(true),
 	};
 }
 
-function makeTextModel(finalText: string): LanguageModel {
-	return {
-		specificationVersion: "v2" as const,
-		provider: "mock",
-		modelId: "mock",
-		supportedUrls: {},
-		doGenerate: async () => makeLanguageModelResponse([{ type: "text", text: finalText }]),
-		doStream: async () => {
-			throw new Error("streaming is not used by these tests");
-		},
-	} as unknown as LanguageModel;
+function makeTextRuntime(finalText: string): AgentModelRuntime {
+	return makeRuntime([withUsage(fauxAssistantMessage(finalText))]);
 }
 
-function makeToolThenTextModel(finalText: string) {
+function makeToolThenTextRuntime(finalText: string) {
 	let calls = 0;
-	const toolCounts: Array<number | undefined> = [];
-	const prompts: unknown[] = [];
-	const model = {
-		specificationVersion: "v2" as const,
-		provider: "mock",
-		modelId: "mock",
-		supportedUrls: {},
-		doGenerate: async (options: { prompt?: unknown; tools?: unknown[] }) => {
+	const toolCounts: number[] = [];
+	const contexts: Context[] = [];
+	const optionsSeen: Array<SimpleStreamOptions | undefined> = [];
+	const runtime = makeRuntime([
+		(context, options) => {
 			calls++;
-			prompts.push(options.prompt);
-			toolCounts.push(options.tools?.length);
-			if (calls === 1) {
-				return makeLanguageModelResponse([{
-					type: "tool-call",
-					toolCallId: "call-1",
-					toolName: "semantic_search",
-					input: JSON.stringify({ query: "pagamento de impostos este mês" }),
-				}]);
-			}
-			return makeLanguageModelResponse([{ type: "text", text: finalText }]);
+			contexts.push(context);
+			optionsSeen.push(options);
+			toolCounts.push(context.tools?.length ?? 0);
+			return withUsage(fauxAssistantMessage(
+				fauxToolCall(
+					"semantic_search",
+					{ query: "pagamento de impostos este mês" },
+					{ id: "call-1" },
+				),
+				{ stopReason: "toolUse" },
+			));
 		},
-		doStream: async () => {
-			throw new Error("streaming is not used by these tests");
+		(context, options) => {
+			calls++;
+			contexts.push(context);
+			optionsSeen.push(options);
+			toolCounts.push(context.tools?.length ?? 0);
+			return withUsage(fauxAssistantMessage(finalText));
 		},
-	} as unknown as LanguageModel;
-
+	]);
 	return {
-		model,
+		runtime,
 		getCalls: () => calls,
 		getToolCounts: () => [...toolCounts],
-		getPrompts: () => [...prompts],
+		getContexts: () => [...contexts],
+		getOptions: () => [...optionsSeen],
 	};
 }
 
 function makeSemanticSearchContext(
-	model: LanguageModel,
+	modelRuntime: AgentModelRuntime,
 	agentOverrides: Partial<AgentData> = {},
 	contextOverrides: Partial<AgentsEngineContext> = {},
 ): AgentsEngineContext {
@@ -142,7 +157,7 @@ function makeSemanticSearchContext(
 					score: 0.9,
 				}]),
 		} as unknown as import("./rag_service.ts").RAGService,
-		resolveLanguageModel: () => model,
+		modelRuntime,
 		...contextOverrides,
 	});
 }
@@ -192,6 +207,19 @@ describe("AgentsEngine", () => {
 			if (result.isLeft()) {
 				expect(result.value.errorCode).toBe("InvalidChatHistory");
 			}
+		});
+
+		it("converts Pi provider errors to an Antbox error", async () => {
+			const runtime = makeRuntime([
+				fauxAssistantMessage("", {
+					stopReason: "error",
+					errorMessage: "provider unavailable",
+				}),
+			]);
+			const engine = new AgentsEngine(makeContext({ modelRuntime: runtime }));
+			const result = await engine.answer(mockAuthContext, "test-agent", "hi");
+			expect(result.isLeft()).toBe(true);
+			if (result.isLeft()) expect(result.value.errorCode).toBe("AgentAnswerError");
 		});
 
 		it("propagates tenant limit errors", async () => {
@@ -310,6 +338,21 @@ describe("AgentsEngine", () => {
 			}
 		});
 
+		it("rejects chat when sessionId belongs to another user", async () => {
+			const engine = new AgentsEngine(makeContext());
+			const opened = await engine.openChatSession(mockAuthContext, "test-agent");
+			if (opened.isLeft()) throw new Error("setup failed");
+			const otherUser = {
+				...mockAuthContext,
+				principal: { email: "other@example.com", groups: [] },
+			};
+			const result = await engine.chat(otherUser, "test-agent", "hi", {
+				sessionId: opened.value.sessionId,
+			});
+			expect(result.isLeft()).toBe(true);
+			if (result.isLeft()) expect(result.value.errorCode).toBe("InvalidSession");
+		});
+
 		it("rejects chat with stale tool name in history when using session", async () => {
 			const engine = new AgentsEngine(makeContext());
 			const opened = await engine.openChatSession(mockAuthContext, "test-agent");
@@ -350,8 +393,8 @@ describe("AgentsEngine", () => {
 
 	describe("tool finalization", () => {
 		it("chat continues after a tool response and ends with a model answer", async () => {
-			const mockModel = makeToolThenTextModel("Foram encontrados pagamentos de impostos.");
-			const engine = new AgentsEngine(makeSemanticSearchContext(mockModel.model));
+			const mockModel = makeToolThenTextRuntime("Foram encontrados pagamentos de impostos.");
+			const engine = new AgentsEngine(makeSemanticSearchContext(mockModel.runtime));
 
 			const result = await engine.chat(
 				mockAuthContext,
@@ -377,9 +420,9 @@ describe("AgentsEngine", () => {
 		});
 
 		it("agent instruction ends with today's ISO date and weekday", async () => {
-			const mockModel = makeToolThenTextModel("Resposta baseada na data atual.");
+			const mockModel = makeToolThenTextRuntime("Resposta baseada na data atual.");
 			const engine = new AgentsEngine(
-				makeSemanticSearchContext(mockModel.model, { systemPrompt: "Custom prompt." }, {
+				makeSemanticSearchContext(mockModel.runtime, { systemPrompt: "Custom prompt." }, {
 					now: () => new Date(2026, 4, 2, 12),
 				}),
 			);
@@ -389,14 +432,26 @@ describe("AgentsEngine", () => {
 			expect(result.isRight()).toBe(true);
 			if (result.isLeft()) throw result.value;
 
-			const firstPrompt = JSON.stringify(mockModel.getPrompts()[0]);
-			expect(firstPrompt).toContain("Custom prompt.\\n\\nToday's date: 2026-05-02 (Saturday).");
+			const firstPrompt = mockModel.getContexts()[0].systemPrompt;
+			expect(firstPrompt).toContain("Custom prompt.\n\nToday's date: 2026-05-02 (Saturday).");
+		});
+
+		it("forwards temperature and maxTokens to Pi", async () => {
+			const mockModel = makeToolThenTextRuntime("Configured response.");
+			const engine = new AgentsEngine(makeSemanticSearchContext(mockModel.runtime));
+			const result = await engine.answer(mockAuthContext, "test-agent", "query", {
+				temperature: 0.25,
+				maxTokens: 321,
+			});
+			expect(result.isRight()).toBe(true);
+			expect(mockModel.getOptions()[0]?.temperature).toBe(0.25);
+			expect(mockModel.getOptions()[0]?.maxTokens).toBe(321);
 		});
 
 		it("chat appends a final model answer when maxLlmCalls stops after a tool response", async () => {
-			const mockModel = makeToolThenTextModel("Resposta final sintetizada dos resultados.");
+			const mockModel = makeToolThenTextRuntime("Resposta final sintetizada dos resultados.");
 			const engine = new AgentsEngine(
-				makeSemanticSearchContext(mockModel.model, { maxLlmCalls: 1 }),
+				makeSemanticSearchContext(mockModel.runtime, { maxLlmCalls: 1 }),
 			);
 
 			const result = await engine.chat(
@@ -418,7 +473,7 @@ describe("AgentsEngine", () => {
 				"Resposta final sintetizada dos resultados.",
 			);
 			expect(mockModel.getCalls()).toBe(2);
-			expect(mockModel.getToolCounts()).toEqual([2, undefined]);
+			expect(mockModel.getToolCounts()).toEqual([2, 0]);
 		});
 
 		it("chat guards custom agents from ending with a tool response", async () => {
@@ -463,9 +518,9 @@ describe("AgentsEngine", () => {
 		});
 
 		it("answer returns synthesized text after a tool response", async () => {
-			const mockModel = makeToolThenTextModel("Resposta direta baseada na pesquisa.");
+			const mockModel = makeToolThenTextRuntime("Resposta direta baseada na pesquisa.");
 			const engine = new AgentsEngine(
-				makeSemanticSearchContext(mockModel.model, { maxLlmCalls: 1 }),
+				makeSemanticSearchContext(mockModel.runtime, { maxLlmCalls: 1 }),
 			);
 
 			const result = await engine.answer(
@@ -479,14 +534,33 @@ describe("AgentsEngine", () => {
 
 			expect(result.value.role).toBe("model");
 			expect(result.value.parts).toEqual([{ text: "Resposta direta baseada na pesquisa." }]);
-			expect(mockModel.getToolCounts()).toEqual([2, undefined]);
+			expect(mockModel.getToolCounts()).toEqual([2, 0]);
+		});
+	});
+
+	describe("usage events", () => {
+		it("publishes one completed event with Pi token usage", async () => {
+			const events: unknown[] = [];
+			const engine = new AgentsEngine(makeContext({
+				modelRuntime: makeTextRuntime("Usage response"),
+				eventBus: {
+					publish: (event) => events.push(event),
+					subscribe: () => {},
+					unsubscribe: () => {},
+				},
+			}));
+			const result = await engine.answer(mockAuthContext, "test-agent", "hi");
+			expect(result.isRight()).toBe(true);
+			expect(events.length).toBe(1);
+			const event = events[0] as { payload?: { usage?: { totalTokens?: number } } };
+			expect(event.payload?.usage?.totalTokens).toBeGreaterThan(0);
 		});
 	});
 
 	describe("runInternal*", () => {
 		it("runInternalChat does NOT enforce exposedToUsers", async () => {
 			const engine = new AgentsEngine(makeContext({
-				resolveLanguageModel: () => makeTextModel("Internal chat response"),
+				modelRuntime: makeTextRuntime("Internal chat response"),
 			}));
 
 			const result = await engine.runInternalChat(mockAuthContext, "internal-only", "hi");
@@ -500,18 +574,16 @@ describe("AgentsEngine", () => {
 
 		it("runInternalAnswer does NOT enforce exposedToUsers", async () => {
 			const engine = new AgentsEngine(makeContext({
-				resolveLanguageModel: () => makeTextModel("Internal answer response"),
+				modelRuntime: makeTextRuntime("Internal answer response"),
 			}));
 
 			const result = await engine.runInternalAnswer(mockAuthContext, "internal-only", "hi");
 
 			expect(result.isRight()).toBe(true);
 			if (result.isRight()) {
-				expect(result.value).toEqual({
-					role: "model",
-					parts: [{ text: "Internal answer response" }],
-					usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
-				});
+				expect(result.value.role).toBe("model");
+				expect(result.value.parts).toEqual([{ text: "Internal answer response" }]);
+				expect(result.value.usage?.totalTokens).toBeGreaterThan(0);
 			}
 		});
 

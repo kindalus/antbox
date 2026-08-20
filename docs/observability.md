@@ -37,7 +37,7 @@ HTTP spans include:
 - `antbox.tenant`
 - `antbox.route.name` when Oak provides a route name
 
-AI spans and AI SDK telemetry include:
+AI spans emitted around Pi runtime calls include:
 
 - `antbox.tenant`
 - `antbox.agent.uuid`
@@ -46,8 +46,9 @@ AI spans and AI SDK telemetry include:
 - `gen_ai.request.model`
 - token usage attributes where available
 
-AI SDK input and output recording is disabled (`recordInputs: false`, `recordOutputs: false`) to
-avoid exporting user prompts, retrieved documents, tool outputs, or model responses.
+Antbox records only operation metadata and token counts around Pi calls. User prompts, retrieved
+documents, tool arguments/results, thinking blocks, API keys, and model responses are not added to
+span attributes.
 
 ## Sensitive data handling
 

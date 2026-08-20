@@ -1,4 +1,4 @@
-import type { ModelMessage } from "ai";
+import type { Message } from "@earendil-works/pi-ai";
 import type { NodeServiceProxy } from "application/nodes/node_service_proxy.ts";
 import type { AuthenticationContext } from "application/security/authentication_context.ts";
 import type { ChatMessage, TokenUsage } from "domain/ai/chat_message.ts";
@@ -8,7 +8,7 @@ export interface AntboxAgentSdk {
 }
 
 export interface AntboxAgentRunInput {
-	readonly messages: ModelMessage[];
+	readonly messages: Message[];
 	readonly userText: string;
 	readonly additionalInstructions?: string;
 	readonly signal?: AbortSignal;

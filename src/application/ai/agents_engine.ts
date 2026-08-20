@@ -1,12 +1,11 @@
 import {
-	generateText,
-	type LanguageModel,
-	type ModelMessage,
-	NoSuchToolError,
-	stepCountIs,
-	type TelemetrySettings,
-	type Tool,
-} from "ai";
+	Agent,
+	type AgentEvent,
+	type AgentMessage,
+	type AgentTool,
+	type StreamFn,
+} from "@earendil-works/pi-agent-core";
+import type { Api, AssistantMessage, Message, Model } from "@earendil-works/pi-ai";
 import { type Either, left, right } from "shared/either.ts";
 import { AntboxError } from "shared/antbox_error.ts";
 import { Logger } from "shared/logger.ts";
@@ -24,12 +23,16 @@ import { type LoadedSkill } from "./skills_loader.ts";
 import type { RAGService } from "./rag_service.ts";
 import type { TenantLimitsEnforcer } from "application/metrics/tenant_limits_guard.ts";
 import { getCustomAgent } from "application/ai/custom_agents/index.ts";
-import { resolveModel as defaultResolveModel, type ResolveModelOptions } from "./resolve_model.ts";
+import {
+	type AgentModelRuntime,
+	createModelRuntime,
+	type ResolveModelOptions,
+} from "./resolve_model.ts";
 import { buildToolSet } from "./build_tools.ts";
 import {
-	aisdkUsageToTokenUsage,
-	chatHistoryToModelMessages,
-	stepsToChatMessages,
+	chatHistoryToPiMessages,
+	piMessagesToChatMessages,
+	piMessagesUsage,
 	validateChatHistory,
 } from "./messages.ts";
 import type {
@@ -40,7 +43,6 @@ import type {
 	IAgentsEngineInternal,
 } from "./agents_engine_interface.ts";
 import { type SessionSnapshot, SessionStore } from "./session_store.ts";
-import { buildAITelemetrySettings } from "./ai_telemetry.ts";
 import { setTelemetryAttributes, withTelemetrySpan } from "shared/telemetry.ts";
 import type { Span } from "@opentelemetry/api";
 
@@ -69,11 +71,8 @@ export interface AgentsEngineContext {
 	readonly eventBus: EventBus;
 	readonly tenantLimitsGuard?: TenantLimitsEnforcer;
 	readonly modelOptions?: ResolveModelOptions;
+	readonly modelRuntime?: AgentModelRuntime;
 	readonly sessionStore?: SessionStore;
-	readonly resolveLanguageModel?: (
-		modelString: string,
-		options?: ResolveModelOptions,
-	) => LanguageModel;
 	readonly now?: () => Date;
 }
 
@@ -114,8 +113,44 @@ function setTelemetryUsageAttributes(span: Span, usage?: TokenUsage): void {
 	});
 }
 
+function lastAssistant(messages: readonly AgentMessage[]): AssistantMessage | undefined {
+	for (let index = messages.length - 1; index >= 0; index--) {
+		const message = messages[index] as Message;
+		if (message.role === "assistant") return message;
+	}
+	return undefined;
+}
+
+function assistantText(message: AssistantMessage | undefined): string {
+	return message?.content
+		.filter((content) => content.type === "text")
+		.map((content) => content.text)
+		.join("") ?? "";
+}
+
+function summarizeAgentEvent(event: AgentEvent): Record<string, unknown> {
+	switch (event.type) {
+		case "turn_end": {
+			const message = event.message as Message;
+			return {
+				piEvent: event.type,
+				stopReason: message.role === "assistant" ? message.stopReason : undefined,
+				toolResultCount: event.toolResults.length,
+			};
+		}
+		case "tool_execution_start":
+			return { piEvent: event.type, toolName: event.toolName };
+		case "tool_execution_end":
+			return { piEvent: event.type, toolName: event.toolName, isError: event.isError };
+		case "agent_end":
+			return { piEvent: event.type, messageCount: event.messages.length };
+		default:
+			return { piEvent: event.type };
+	}
+}
+
 function ensureTerminalModelMessage(result: AgentRunOutput): AgentRunOutput {
-	if (!endsWithToolMessage(result.messages)) return result;
+	if (result.messages.at(-1)?.role === "model") return result;
 	const text = result.text.trim() || FALLBACK_FINAL_ANSWER;
 	return {
 		...result,
@@ -136,11 +171,20 @@ function formatTodayInstruction(date = new Date()): string {
 	return `Today's date: ${formatLocalIsoDate(date)} (${weekday}).`;
 }
 
+function escapeXml(value: string): string {
+	return value
+		.replaceAll("&", "&amp;")
+		.replaceAll("<", "&lt;")
+		.replaceAll(">", "&gt;")
+		.replaceAll('"', "&quot;")
+		.replaceAll("'", "&apos;");
+}
+
 /**
- * AgentsEngine — Vercel AI SDK-based agent execution engine.
+ * AgentsEngine — Pi-based agent execution engine.
  *
- * Stateless: each call resolves an AgentData snapshot, builds tools, replays history
- * as ModelMessage[], and runs `generateText` with multi-step tool use.
+ * Stateless: each call resolves an AgentData snapshot, builds tools, replays history,
+ * and creates an ephemeral Pi Agent for multi-turn tool use.
  */
 export class AgentsEngine implements IAgentsEngineInternal {
 	readonly #agentsService: AgentsService;
@@ -152,12 +196,8 @@ export class AgentsEngine implements IAgentsEngineInternal {
 	readonly #ragService?: RAGService;
 	readonly #eventBus: EventBus;
 	readonly #tenantLimitsGuard?: TenantLimitsEnforcer;
-	readonly #modelOptions?: ResolveModelOptions;
+	readonly #modelRuntime: AgentModelRuntime;
 	readonly #sessionStore: SessionStore;
-	readonly #resolveLanguageModel: (
-		modelString: string,
-		options?: ResolveModelOptions,
-	) => LanguageModel;
 	readonly #now: () => Date;
 	#featureAIToolExecutor?: FeatureAIToolExecutor;
 
@@ -171,9 +211,8 @@ export class AgentsEngine implements IAgentsEngineInternal {
 		this.#ragService = ctx.ragService;
 		this.#eventBus = ctx.eventBus;
 		this.#tenantLimitsGuard = ctx.tenantLimitsGuard;
-		this.#modelOptions = ctx.modelOptions;
+		this.#modelRuntime = ctx.modelRuntime ?? createModelRuntime(ctx.modelOptions);
 		this.#sessionStore = ctx.sessionStore ?? new SessionStore();
-		this.#resolveLanguageModel = ctx.resolveLanguageModel ?? defaultResolveModel;
 		this.#now = ctx.now ?? (() => new Date());
 	}
 
@@ -312,6 +351,8 @@ export class AgentsEngine implements IAgentsEngineInternal {
 		const interactionOrErr = await this.#runInteraction(authContext, agentUuid, text, {
 			history: options?.history,
 			instructions: options?.instructions,
+			temperature: options?.temperature,
+			maxTokens: options?.maxTokens,
 			sessionId: options?.sessionId,
 			interactionType: "chat",
 			internal,
@@ -341,6 +382,8 @@ export class AgentsEngine implements IAgentsEngineInternal {
 		const interactionOrErr = await this.#runInteraction(authContext, agentUuid, text, {
 			history: [],
 			instructions: options?.instructions,
+			temperature: options?.temperature,
+			maxTokens: options?.maxTokens,
 			sessionId: options?.sessionId,
 			interactionType: "answer",
 			internal,
@@ -361,6 +404,8 @@ export class AgentsEngine implements IAgentsEngineInternal {
 		options: {
 			history?: ChatHistory;
 			instructions?: string;
+			temperature?: number;
+			maxTokens?: number;
 			sessionId?: string;
 			interactionType: "chat" | "answer";
 			internal: boolean;
@@ -379,11 +424,15 @@ export class AgentsEngine implements IAgentsEngineInternal {
 					),
 				);
 			}
-			if (session.tenant !== authContext.tenant || session.agentUuid !== agentUuid) {
+			if (
+				session.tenant !== authContext.tenant ||
+				session.agentUuid !== agentUuid ||
+				session.userEmail !== authContext.principal.email
+			) {
 				return left(
 					new AntboxError(
 						"InvalidSession",
-						`Session '${options.sessionId}' does not match tenant/agent`,
+						`Session '${options.sessionId}' does not match tenant/agent/user`,
 					),
 				);
 			}
@@ -431,12 +480,10 @@ export class AgentsEngine implements IAgentsEngineInternal {
 			: undefined;
 
 		try {
+			const modelString = this.#resolveModelString(agentData);
+			const model = this.#modelRuntime.resolveModel(modelString);
+			const historyMessages = chatHistoryToPiMessages(history, model);
 			const customAgent = getCustomAgent(agentUuid);
-			const messages: ModelMessage[] = [
-				...chatHistoryToModelMessages(history),
-				{ role: "user", content: text },
-			];
-
 			let result: AgentRunOutput;
 
 			if (customAgent) {
@@ -448,26 +495,26 @@ export class AgentsEngine implements IAgentsEngineInternal {
 					defaultModel: this.#defaultModel,
 					additionalInstructions: options.instructions,
 				});
-				const out = await (created as unknown as {
-					run: (input: {
-						messages: ModelMessage[];
-						userText: string;
-						additionalInstructions?: string;
-					}) => Promise<{ text: string; usage?: TokenUsage; messages: ChatMessage[] }>;
-				}).run({
-					messages,
+				result = await created.run({
+					messages: [
+						...historyMessages,
+						{ role: "user", content: text, timestamp: Date.now() },
+					],
 					userText: text,
 					additionalInstructions: options.instructions,
 				});
-				result = out;
 			} else {
 				result = await this.#runLlmAgent(
 					agentData,
 					authContext,
-					messages,
+					modelString,
+					model,
+					historyMessages,
 					options.instructions,
 					options.interactionType,
 					text,
+					options.temperature,
+					options.maxTokens,
 					debugLogger,
 					session,
 				);
@@ -505,14 +552,18 @@ export class AgentsEngine implements IAgentsEngineInternal {
 	async #runLlmAgent(
 		agentData: AgentData,
 		authContext: AuthenticationContext,
-		messages: ModelMessage[],
+		modelString: string,
+		model: Model<Api>,
+		historyMessages: Message[],
 		additionalInstructions: string | undefined,
 		interactionType: "chat" | "answer",
 		userText: string,
+		temperature?: number,
+		maxTokens?: number,
 		debugLogger?: Logger,
 		session?: SessionSnapshot,
 	): Promise<AgentRunOutput> {
-		let tools: Record<string, Tool>;
+		let tools: AgentTool[];
 		let toolNames: readonly string[];
 		if (session) {
 			tools = session.tools;
@@ -535,45 +586,47 @@ export class AgentsEngine implements IAgentsEngineInternal {
 			toolNames = builtOrErr.value.toolNames;
 		}
 
-		const modelString = !agentData.model || agentData.model === "default"
-			? this.#defaultModel
-			: agentData.model;
-		const model = this.#resolveLanguageModel(modelString, this.#modelOptions);
-
-		const instruction = this.#buildInstruction(
-			agentData,
-			toolNames,
-			additionalInstructions,
-		);
-
-		if (debugLogger) {
-			debugLogger.debug(
-				"agent_debug_trace_start",
-				JSON.stringify({
-					type: "agent_run_start",
-					agentUuid: agentData.uuid,
-					agentName: agentData.name,
-					model: modelString,
-					interactionType,
-					toolNames,
-					userText,
-					additionalInstructions,
-					instructionLength: instruction.length,
-				}),
+		if (!await this.#modelRuntime.isConfigured(model.provider)) {
+			throw new AntboxError(
+				"MissingProviderApiKey",
+				`Provider '${model.provider}' is not configured`,
 			);
 		}
 
-		const maxLlmCalls = agentData.maxLlmCalls ?? DEFAULT_MAX_LLM_CALLS;
-		const stopWhen = stepCountIs(maxLlmCalls);
-		const telemetry = buildAITelemetrySettings({
-			operation: "agent_run",
-			tenant: authContext.tenant,
-			agentUuid: agentData.uuid,
-			model: modelString,
-			interactionType,
-		});
+		const instruction = this.#buildInstruction(agentData, toolNames, additionalInstructions);
+		debugLogger?.debug(
+			"agent_debug_trace_start",
+			JSON.stringify({
+				type: "agent_run_start",
+				agentUuid: agentData.uuid,
+				agentName: agentData.name,
+				model: modelString,
+				interactionType,
+				toolNames,
+				instructionLength: instruction.length,
+			}),
+		);
 
-		const result = await withTelemetrySpan(
+		let llmCalls = 0;
+		const streamFn = this.#streamWithOptions(temperature, maxTokens);
+		const agent = new Agent({
+			streamFn,
+			getApiKey: (provider) => this.#modelRuntime.getApiKey(provider),
+			shouldStopAfterTurn: () =>
+				++llmCalls >=
+					(agentData.maxLlmCalls ?? DEFAULT_MAX_LLM_CALLS),
+			initialState: {
+				systemPrompt: instruction,
+				model,
+				thinkingLevel: "off",
+				tools,
+				messages: historyMessages,
+			},
+		});
+		this.#subscribeDebugTrace(agent, debugLogger, "agent_run_event");
+
+		const initialMessageCount = historyMessages.length;
+		const generated = await withTelemetrySpan(
 			"antbox.ai.generate_text",
 			{
 				"antbox.tenant": authContext.tenant,
@@ -583,119 +636,137 @@ export class AgentsEngine implements IAgentsEngineInternal {
 				"gen_ai.request.model": modelString,
 			},
 			async (span) => {
-				const generated = await generateText({
-					model,
-					system: instruction,
-					messages,
-					tools: tools as Record<string, Tool>,
-					stopWhen,
-					experimental_telemetry: telemetry,
-					onStepFinish: debugLogger
-						? (step) =>
-							debugLogger.debug(
-								"agent_debug_trace_event",
-								JSON.stringify({
-									type: "agent_run_event",
-									finishReason: step.finishReason,
-									textLength: step.text?.length ?? 0,
-									toolCallCount: step.toolCalls?.length ?? 0,
-									toolResponseCount: step.toolResults?.length ?? 0,
-									usage: aisdkUsageToTokenUsage(step.usage),
-								}),
-							)
-						: undefined,
-				});
-				setTelemetryUsageAttributes(
-					span,
-					aisdkUsageToTokenUsage(
-						generated.totalUsage ?? generated.usage,
-					),
-				);
-				return generated;
+				await agent.prompt(userText);
+				this.#assertAgentSucceeded(agent);
+				const newMessages = agent.state.messages.slice(initialMessageCount + 1) as Message[];
+				setTelemetryUsageAttributes(span, piMessagesUsage(newMessages));
+				return newMessages;
 			},
 		);
 
-		let finalText = result.text ?? "";
-		let usage = aisdkUsageToTokenUsage(result.totalUsage ?? result.usage);
-		const stepMessages = stepsToChatMessages(result.steps ?? []);
+		let usage = piMessagesUsage(generated);
+		const outputMessages = piMessagesToChatMessages(generated);
+		let finalText = assistantText(lastAssistant(generated));
 
-		if (endsWithToolMessage(stepMessages)) {
+		if (endsWithToolMessage(outputMessages)) {
 			const synthesized = await this.#synthesizeFinalAnswer(
+				authContext,
+				agentData,
+				interactionType,
+				modelString,
 				model,
 				instruction,
-				messages,
-				stepMessages,
-				buildAITelemetrySettings({
-					operation: "agent_final_answer_synthesis",
-					tenant: authContext.tenant,
-					agentUuid: agentData.uuid,
-					model: modelString,
-					interactionType,
-				}),
+				agent.state.messages,
+				streamFn,
 				debugLogger,
 			);
 			finalText = synthesized.text;
 			usage = combineUsage(usage, synthesized.usage);
-			stepMessages.push({ role: "model", parts: [{ text: finalText }] });
+			outputMessages.push({ role: "model", parts: [{ text: finalText }] });
 		}
 
-		if (debugLogger) {
-			debugLogger.debug(
-				"agent_debug_trace_end",
-				JSON.stringify({
-					type: "agent_run_end",
-					finalTextLength: finalText.length,
-					messageCount: stepMessages.length,
-					usage,
-				}),
-			);
-		}
-
-		return { text: finalText, usage, messages: stepMessages };
+		debugLogger?.debug(
+			"agent_debug_trace_end",
+			JSON.stringify({
+				type: "agent_run_end",
+				llmCalls,
+				finalTextLength: finalText.length,
+				messageCount: outputMessages.length,
+				usage,
+			}),
+		);
+		return { text: finalText, usage, messages: outputMessages };
 	}
 
 	async #synthesizeFinalAnswer(
-		model: LanguageModel,
+		authContext: AuthenticationContext,
+		agentData: AgentData,
+		interactionType: "chat" | "answer",
+		modelString: string,
+		model: Model<Api>,
 		instruction: string,
-		originalMessages: ModelMessage[],
-		generatedMessages: ChatMessage[],
-		telemetry: TelemetrySettings,
+		messages: AgentMessage[],
+		streamFn: StreamFn,
 		debugLogger?: Logger,
 	): Promise<{ text: string; usage?: TokenUsage }> {
-		const synthesisMessages: ModelMessage[] = [
-			...originalMessages,
-			...chatHistoryToModelMessages(generatedMessages),
-			{ role: "user", content: FINAL_ANSWER_INSTRUCTION },
-		];
-
-		if (debugLogger) {
-			debugLogger.debug(
-				"agent_debug_trace_event",
-				JSON.stringify({ type: "agent_final_answer_synthesis_start" }),
-			);
-		}
-
-		const result = await generateText({
-			model,
-			system: instruction,
-			messages: synthesisMessages,
-			experimental_telemetry: telemetry,
+		debugLogger?.debug(
+			"agent_debug_trace_event",
+			JSON.stringify({ type: "agent_final_answer_synthesis_start" }),
+		);
+		const agent = new Agent({
+			streamFn,
+			getApiKey: (provider) => this.#modelRuntime.getApiKey(provider),
+			initialState: {
+				systemPrompt: instruction,
+				model,
+				thinkingLevel: "off",
+				tools: [],
+				messages,
+			},
 		});
-		const text = (result.text ?? "").trim() || FALLBACK_FINAL_ANSWER;
-		const usage = aisdkUsageToTokenUsage(result.totalUsage ?? result.usage);
-
-		if (debugLogger) {
-			debugLogger.debug(
-				"agent_debug_trace_event",
-				JSON.stringify({
-					type: "agent_final_answer_synthesis_end",
-					textLength: text.length,
-					usage,
-				}),
-			);
-		}
-
+		this.#subscribeDebugTrace(agent, debugLogger, "agent_final_answer_synthesis_event");
+		const initialMessageCount = messages.length;
+		const generated = await withTelemetrySpan(
+			"antbox.ai.generate_text",
+			{
+				"antbox.tenant": authContext.tenant,
+				"antbox.agent.uuid": agentData.uuid,
+				"antbox.ai.interaction_type": interactionType,
+				"gen_ai.operation.name": "agent_final_answer_synthesis",
+				"gen_ai.request.model": modelString,
+			},
+			async (span) => {
+				await agent.prompt(FINAL_ANSWER_INSTRUCTION);
+				this.#assertAgentSucceeded(agent);
+				const newMessages = agent.state.messages.slice(initialMessageCount + 1) as Message[];
+				setTelemetryUsageAttributes(span, piMessagesUsage(newMessages));
+				return newMessages;
+			},
+		);
+		const text = assistantText(lastAssistant(generated)).trim() || FALLBACK_FINAL_ANSWER;
+		const usage = piMessagesUsage(generated);
+		debugLogger?.debug(
+			"agent_debug_trace_event",
+			JSON.stringify({
+				type: "agent_final_answer_synthesis_end",
+				textLength: text.length,
+				usage,
+			}),
+		);
 		return { text, usage };
+	}
+
+	#streamWithOptions(temperature?: number, maxTokens?: number): StreamFn {
+		return (model, context, options) =>
+			this.#modelRuntime.streamFn(model, context, {
+				...options,
+				temperature: temperature ?? options?.temperature,
+				maxTokens: maxTokens ?? options?.maxTokens,
+			});
+	}
+
+	#assertAgentSucceeded(agent: Agent): void {
+		if (agent.state.errorMessage) throw new Error(agent.state.errorMessage);
+		const final = lastAssistant(agent.state.messages);
+		if (final?.stopReason === "error" || final?.stopReason === "aborted") {
+			throw new Error(final.errorMessage ?? `Provider stopped with '${final.stopReason}'`);
+		}
+	}
+
+	#subscribeDebugTrace(agent: Agent, logger: Logger | undefined, eventType: string): void {
+		if (!logger) return;
+		agent.subscribe((event) => {
+			logger.debug(
+				"agent_debug_trace_event",
+				JSON.stringify({ type: eventType, ...summarizeAgentEvent(event) }),
+			);
+		});
+	}
+
+	#resolveModelString(agentData: AgentData): string {
+		return !agentData.model || agentData.model === "default"
+			? this.#defaultModel
+			: agentData.model;
 	}
 
 	#buildInstruction(
@@ -738,9 +809,9 @@ export class AgentsEngine implements IAgentsEngineInternal {
 
 		for (const skill of skills) {
 			lines.push("  <skill>");
-			lines.push(`    <name>${skill.frontmatter.name}</name>`);
-			lines.push(`    <description>${skill.frontmatter.description}</description>`);
-			lines.push(`    <location>${skill.skillFile}</location>`);
+			lines.push(`    <name>${escapeXml(skill.frontmatter.name)}</name>`);
+			lines.push(`    <description>${escapeXml(skill.frontmatter.description)}</description>`);
+			lines.push(`    <location>${escapeXml(skill.skillFile)}</location>`);
 			lines.push("  </skill>");
 		}
 
@@ -748,6 +819,3 @@ export class AgentsEngine implements IAgentsEngineInternal {
 		return lines.join("\n");
 	}
 }
-
-// Re-export error type so consumers don't need to know about NoSuchToolError specifically
-export { NoSuchToolError };

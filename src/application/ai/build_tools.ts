@@ -1,5 +1,5 @@
-import { type Tool, tool } from "ai";
-import { z } from "zod";
+import type { AgentTool, AgentToolResult } from "@earendil-works/pi-agent-core";
+import { type TSchema, Type } from "@earendil-works/pi-ai";
 import { type Either, left, right } from "shared/either.ts";
 import { AntboxError } from "shared/antbox_error.ts";
 import type { AuthenticationContext } from "../security/authentication_context.ts";
@@ -18,24 +18,18 @@ import type { FeatureAIToolExecutor } from "./agents_engine_interface.ts";
 
 const DEFAULT_TOOL_NAME = "load_skill";
 
+type AnyAgentTool = AgentTool<TSchema, unknown>;
+
 /**
- * Parse a `filters` argument from `find_nodes`. Gemini's function-declaration schema
- * cannot represent the original `string | Filter[] | Filter[][]` union (rejects
- * `items.items` and `items` on non-array union members), so we accept a single
- * string and parse it: JSON-encoded array → structured filters; otherwise → plain
- * text search.
+ * Parse a `filters` argument from `find_nodes`. Provider function schemas cannot
+ * reliably represent the original string/tuple unions, so structured filters use JSON.
  */
 function parseFindFilters(input: string): NodeFilters | string {
 	const trimmed = input.trim();
-	if (!(trimmed.startsWith("[") && trimmed.endsWith("]"))) {
-		return input;
-	}
+	if (!(trimmed.startsWith("[") && trimmed.endsWith("]"))) return input;
 	try {
 		const parsed = JSON.parse(trimmed);
-		if (Array.isArray(parsed) && parsed.length > 0) {
-			return parsed as NodeFilters;
-		}
-		return input;
+		return Array.isArray(parsed) && parsed.length > 0 ? parsed as NodeFilters : input;
 	} catch {
 		return input;
 	}
@@ -51,8 +45,8 @@ export interface BuildToolSetContext {
 }
 
 export interface BuiltToolSet {
-	tools: Record<string, Tool>;
-	toolNames: string[];
+	readonly tools: AnyAgentTool[];
+	readonly toolNames: string[];
 }
 
 export async function buildToolSet(
@@ -60,151 +54,181 @@ export async function buildToolSet(
 	agentData: AgentData,
 	authContext: AuthenticationContext,
 ): Promise<Either<AntboxError, BuiltToolSet>> {
-	const allEntries = await buildAllToolEntries(ctx, authContext);
+	const allEntries = await buildAllToolEntries(ctx, agentData, authContext);
 	if (allEntries.isLeft()) return left(allEntries.value);
 
 	const selected = selectEntries(allEntries.value, agentData.tools);
-	const toolMap: Record<string, Tool> = {};
-	for (const entry of selected) {
-		toolMap[entry.name] = entry.tool;
-	}
-	return right({ tools: toolMap, toolNames: selected.map((entry) => entry.name) });
+	return right({
+		tools: selected.map((entry) => entry.tool),
+		toolNames: selected.map((entry) => entry.name),
+	});
 }
 
 interface ToolEntry {
 	readonly name: string;
 	readonly aliases: readonly string[];
-	readonly tool: Tool;
+	readonly tool: AnyAgentTool;
 }
 
 function selectEntries(all: ToolEntry[], tools: AgentData["tools"]): ToolEntry[] {
 	if (tools === true) return all;
-
 	const isDefault = (entry: ToolEntry) => entry.name === DEFAULT_TOOL_NAME;
-
-	if (tools === false || tools === undefined || tools.length === 0) {
-		return all.filter(isDefault);
-	}
+	if (tools === false || tools === undefined || tools.length === 0) return all.filter(isDefault);
 
 	const allowed = new Set(tools);
-	return all.filter((entry) => {
-		if (isDefault(entry)) return true;
-		if (allowed.has(entry.name)) return true;
-		return entry.aliases.some((alias) => allowed.has(alias));
-	});
+	return all.filter((entry) =>
+		isDefault(entry) || allowed.has(entry.name) ||
+		entry.aliases.some((alias) => allowed.has(alias))
+	);
 }
 
 async function buildAllToolEntries(
 	ctx: BuildToolSetContext,
+	agentData: AgentData,
 	authContext: AuthenticationContext,
 ): Promise<Either<AntboxError, ToolEntry[]>> {
 	const nodeProxy = new NodeServiceProxy(ctx.nodeService, ctx.ragService, authContext);
 	const aspectProxy = new AspectServiceProxy(ctx.aspectsService, authContext);
-	const runCodeFn = createRunCodeTool(nodeProxy, aspectProxy, {});
+	const runCode = createRunCodeTool(nodeProxy, aspectProxy, {});
 
 	const builtIn: ToolEntry[] = [
 		{
 			name: "run_code",
 			aliases: [],
-			tool: tool({
+			tool: {
+				name: "run_code",
+				label: "Run code",
 				description:
 					"Execute JavaScript/TypeScript code for advanced multi-step workflows involving nodes and aspects.",
-				inputSchema: z.object({
-					code: z.string().describe(
-						"ESM JavaScript/TypeScript module code with a default export function",
-					),
+				parameters: Type.Object({
+					code: Type.String({
+						minLength: 1,
+						description:
+							"ESM JavaScript/TypeScript module code with a default export function",
+					}),
 				}),
-				execute: ({ code }: { code: string }) => runCodeFn(code),
-			}),
+				executionMode: "sequential",
+				execute: async (_id, params) => {
+					const { code } = params as { code: string };
+					return textToolResult(await runCode(code));
+				},
+			},
 		},
 		{
 			name: "find_nodes",
 			aliases: [],
-			tool: tool({
+			tool: {
+				name: "find_nodes",
+				label: "Find nodes",
 				description:
 					'Find nodes by plain-text search, or by structured filters as a JSON-encoded array of [field, operator, value] tuples (e.g. \'[["title","contains","policy"]]\').',
-				inputSchema: z.object({
-					filters: z.string().min(1).describe(
-						"Plain-text search string, or a JSON-encoded array of [field, operator, value] tuples for structured filtering",
-					),
-					page_size: z.number().int().min(1).max(200).optional(),
-					page_token: z.number().int().min(1).optional(),
+				parameters: Type.Object({
+					filters: Type.String({
+						minLength: 1,
+						description: "Plain-text search string, or a JSON-encoded array of filter tuples",
+					}),
+					page_size: Type.Optional(Type.Integer({ minimum: 1, maximum: 200 })),
+					page_token: Type.Optional(Type.Integer({ minimum: 1 })),
 				}),
-				execute: async ({ filters, page_size, page_token }) => {
+				execute: async (_id, params) => {
+					const { filters, page_size, page_token } = params as {
+						filters: string;
+						page_size?: number;
+						page_token?: number;
+					};
 					const result = await nodeProxy.find(
 						parseFindFilters(filters),
 						page_size,
 						page_token,
 					);
 					if (result.isLeft()) throw new Error(result.value.message);
-					return result.value;
+					return jsonToolResult(result.value);
 				},
-			}),
+			},
 		},
 		{
 			name: "get_node",
 			aliases: [],
-			tool: tool({
+			tool: {
+				name: "get_node",
+				label: "Get node",
 				description: "Get a single node by UUID.",
-				inputSchema: z.object({ uuid: z.string().min(1) }),
-				execute: async ({ uuid }) => {
+				parameters: Type.Object({ uuid: Type.String({ minLength: 1 }) }),
+				execute: async (_id, params) => {
+					const { uuid } = params as { uuid: string };
 					const result = await nodeProxy.get(uuid);
 					if (result.isLeft()) throw new Error(result.value.message);
-					return result.value;
+					return jsonToolResult(result.value);
 				},
-			}),
+			},
 		},
 		{
 			name: "semantic_search",
 			aliases: [],
-			tool: tool({
+			tool: {
+				name: "semantic_search",
+				label: "Semantic search",
 				description: "Run semantic search over indexed node content.",
-				inputSchema: z.object({ query: z.string().min(1) }),
-				execute: async ({ query }) => {
+				parameters: Type.Object({ query: Type.String({ minLength: 1 }) }),
+				execute: async (_id, params) => {
+					const { query } = params as { query: string };
 					const result = await nodeProxy.semanticQuery(query);
 					if (result.isLeft()) {
 						throw new Error(
 							result.value instanceof Error ? result.value.message : String(result.value),
 						);
 					}
-					return Array.isArray(result.value) ? { results: result.value } : result.value;
+					const value = Array.isArray(result.value) ? { results: result.value } : result.value;
+					return jsonToolResult(value);
 				},
-			}),
+			},
 		},
 		{
 			name: DEFAULT_TOOL_NAME,
 			aliases: [],
-			tool: tool({
+			tool: {
+				name: DEFAULT_TOOL_NAME,
+				label: "Load skill",
 				description: "Load a discovered skill by name to get its full instructions.",
-				inputSchema: z.object({
-					name: z.string().min(1).describe("Skill name to load"),
+				parameters: Type.Object({
+					name: Type.String({ minLength: 1, description: "Skill name to load" }),
 				}),
-				execute: async ({ name }) => {
-					const skillName = String(name).trim();
-					const skill = ctx.skills.find((s) => s.frontmatter.name === skillName);
+				execute: async (_id, params) => {
+					const { name } = params as { name: string };
+					const skillName = name.trim();
+					const skill = ctx.skills.find((candidate) =>
+						candidate.frontmatter.name === skillName &&
+						isSkillAllowed(agentData.skills, candidate)
+					);
 					if (!skill) throw new Error(`Skill '${skillName}' not found`);
 
 					const instruction = await loadSkillInstruction(skill.skillFile);
 					if (!instruction) throw new Error(`Failed to load skill '${skillName}'`);
-
-					return [
+					const text = [
 						`<skill name="${skill.frontmatter.name}" location="${skill.skillFile}">`,
 						`References are relative to ${skill.skillDir}.`,
 						"",
 						instruction,
 						"</skill>",
 					].join("\n");
+					return { content: [{ type: "text", text }], details: { skillDir: skill.skillDir } };
 				},
-			}),
+			},
 		},
 	];
 
 	const featureToolsOrErr = await buildFeatureAITools(ctx, authContext);
 	if (featureToolsOrErr.isLeft()) return left(featureToolsOrErr.value);
-
 	const all = [...builtIn, ...featureToolsOrErr.value];
 	assertUniqueAliases(all);
 	return right(all);
+}
+
+function isSkillAllowed(
+	allowList: readonly string[] | undefined,
+	skill: LoadedSkill,
+): boolean {
+	return !allowList || allowList.length === 0 || allowList.includes(skill.frontmatter.name);
 }
 
 async function buildFeatureAITools(
@@ -213,10 +237,7 @@ async function buildFeatureAITools(
 ): Promise<Either<AntboxError, ToolEntry[]>> {
 	const aiToolsOrErr = await ctx.featuresService.listAITools(authContext);
 	if (aiToolsOrErr.isLeft()) return left(aiToolsOrErr.value);
-
-	return right(
-		aiToolsOrErr.value.map((feature) => featureToToolEntry(ctx, authContext, feature)),
-	);
+	return right(aiToolsOrErr.value.map((feature) => featureToToolEntry(ctx, authContext, feature)));
 }
 
 function featureToToolEntry(
@@ -227,39 +248,40 @@ function featureToToolEntry(
 	const toolName = toSnakeCase(feature.uuid);
 	const aliases = toolName === feature.uuid ? [] : [feature.uuid];
 	const aliasEntries = featureParameterAliases(feature.parameters);
-	const inputSchema = featureParametersToSchema(aliasEntries);
-
 	return {
 		name: toolName,
 		aliases,
-		tool: tool({
+		tool: {
+			name: toolName,
+			label: feature.title || feature.uuid,
 			description: feature.description,
-			inputSchema,
-			execute: async (params: Record<string, unknown>) => {
+			parameters: featureParametersToSchema(aliasEntries),
+			executionMode: "sequential",
+			execute: async (_id, params) => {
 				if (!ctx.featureAIToolExecutor) {
 					throw new Error("Feature AI tool executor not available");
 				}
-				const mapped = mapFeatureParameters(aliasEntries, params);
-				const resultOrErr = await ctx.featureAIToolExecutor.runAITool(
+				const mapped = mapFeatureParameters(aliasEntries, params as Record<string, unknown>);
+				const result = await ctx.featureAIToolExecutor.runAITool(
 					authContext,
 					feature.uuid,
 					mapped,
 				);
-				if (resultOrErr.isLeft()) throw new Error(resultOrErr.value.message);
-				const value = resultOrErr.value;
-				return Array.isArray(value) ? { results: value } : value;
+				if (result.isLeft()) throw new Error(result.value.message);
+				const value = Array.isArray(result.value) ? { results: result.value } : result.value;
+				return jsonToolResult(value);
 			},
-		}),
+		},
 	};
 }
 
 function featureParameterAliases(parameters: FeatureParameter[]) {
-	const aliasEntries = parameters.map((parameter) => ({
+	const aliases = parameters.map((parameter) => ({
 		parameter,
 		exposedName: toSnakeCase(parameter.name),
 	}));
 	const seen = new Set<string>();
-	for (const entry of aliasEntries) {
+	for (const entry of aliases) {
 		if (seen.has(entry.exposedName)) {
 			throw new AntboxError(
 				"FeatureParameterAliasCollision",
@@ -268,7 +290,7 @@ function featureParameterAliases(parameters: FeatureParameter[]) {
 		}
 		seen.add(entry.exposedName);
 	}
-	return aliasEntries;
+	return aliases;
 }
 
 function mapFeatureParameters(
@@ -277,62 +299,71 @@ function mapFeatureParameters(
 ): Record<string, unknown> {
 	const mapped: Record<string, unknown> = {};
 	for (const alias of aliases) {
-		if (alias.exposedName in params) {
-			mapped[alias.parameter.name] = params[alias.exposedName];
-		}
+		if (alias.exposedName in params) mapped[alias.parameter.name] = params[alias.exposedName];
 	}
 	return mapped;
 }
 
 function featureParametersToSchema(
 	aliases: Array<{ parameter: FeatureParameter; exposedName: string }>,
-) {
-	const shape: Record<string, z.ZodTypeAny> = {};
+): TSchema {
+	const properties: Record<string, TSchema> = {};
 	for (const { parameter, exposedName } of aliases) {
 		const description = parameter.description ?? parameter.name;
-		let schema: z.ZodTypeAny;
-		switch (parameter.type) {
-			case "string":
-				schema = z.string();
-				break;
-			case "date":
-				schema = z.string().describe(`${description} (ISO-8601 date string)`);
-				break;
-			case "number":
-				schema = z.number();
-				break;
-			case "boolean":
-				schema = z.boolean();
-				break;
-			case "object":
-				schema = z.record(z.string(), z.unknown());
-				break;
-			case "file":
-				schema = z.instanceof(File);
-				break;
-			case "array":
-				schema = z.array(featureArrayItemSchema(parameter.arrayType));
-				break;
-		}
-
-		shape[exposedName] = parameter.required
-			? schema.describe(description)
-			: schema.optional().describe(description);
+		let schema = featureParameterSchema(parameter, description);
+		if (!parameter.required) schema = Type.Optional(schema);
+		properties[exposedName] = schema;
 	}
-	return z.object(shape);
+	return Type.Object(properties);
 }
 
-function featureArrayItemSchema(arrayType: FeatureParameter["arrayType"]): z.ZodTypeAny {
+function featureParameterSchema(parameter: FeatureParameter, description: string): TSchema {
+	switch (parameter.type) {
+		case "string":
+			return Type.String({ description });
+		case "date":
+			return Type.String({ description: `${description} (ISO-8601 date string)` });
+		case "number":
+			return Type.Number({ description });
+		case "boolean":
+			return Type.Boolean({ description });
+		case "object":
+			return Type.Record(Type.String(), Type.Unknown(), { description });
+		case "file":
+			return Type.Any({ description });
+		case "array":
+			return Type.Array(featureArrayItemSchema(parameter.arrayType), { description });
+	}
+}
+
+function featureArrayItemSchema(arrayType: FeatureParameter["arrayType"]): TSchema {
 	switch (arrayType) {
 		case "number":
-			return z.number();
+			return Type.Number();
 		case "file":
-			return z.instanceof(File);
+			return Type.Any();
 		case "object":
-			return z.record(z.string(), z.unknown());
+			return Type.Record(Type.String(), Type.Unknown());
 		case "string":
 		case undefined:
-			return z.string();
+			return Type.String();
+	}
+}
+
+function textToolResult(text: string): AgentToolResult<unknown> {
+	return { content: [{ type: "text", text }], details: text };
+}
+
+function jsonToolResult(value: unknown): AgentToolResult<unknown> {
+	return { content: [{ type: "text", text: stringify(value) }], details: value };
+}
+
+function stringify(value: unknown): string {
+	if (typeof value === "string") return value;
+	try {
+		return JSON.stringify(value) ?? String(value);
+	} catch {
+		return String(value);
 	}
 }
 
@@ -348,8 +379,7 @@ function toSnakeCase(value: string): string {
 function assertUniqueAliases(entries: ToolEntry[]): void {
 	const seen = new Map<string, string>();
 	for (const entry of entries) {
-		const aliases = new Set([entry.name, ...entry.aliases]);
-		for (const alias of aliases) {
+		for (const alias of new Set([entry.name, ...entry.aliases])) {
 			const owner = seen.get(alias);
 			if (owner !== undefined && owner !== entry.name) {
 				throw new AntboxError(

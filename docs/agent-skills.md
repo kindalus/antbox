@@ -5,8 +5,9 @@ description: How agent skills work
 
 # Agent Skills
 
-Antbox uses a Pi-style metadata-first skill integration. Skills are discovered at startup, listed in
-agent context as lightweight metadata, and loaded on demand only when needed.
+Antbox integrates skills with `pi-agent-core` using metadata-first progressive disclosure. Skills
+are discovered at startup, listed in agent context as lightweight metadata, and loaded on demand
+only when needed.
 
 ## Current implementation
 
@@ -15,6 +16,10 @@ Skills are integrated with these components:
 - `src/application/ai/skills_loader.ts`
 - `src/setup/setup_tenants.ts`
 - `src/application/ai/agents_engine.ts`
+
+The full `pi-coding-agent` resource loader is not embedded in the Deno server. Antbox remains the
+host responsible for discovery and supplies `load_skill` as a Pi `AgentTool`, preserving tenant and
+agent allow-lists without exposing a general filesystem read tool.
 
 At runtime:
 
@@ -75,7 +80,7 @@ Agents receive a `load_skill` function tool with this behavior:
 
 - `name`: `load_skill`
 - `parameter`: `name` (skill name)
-- loads only previously discovered skills
+- loads only previously discovered skills allowed by `AgentData.skills`
 - returns the full skill body plus relative-path guidance
 
 Important:

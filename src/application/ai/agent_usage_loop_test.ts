@@ -30,8 +30,10 @@ describe("agent usage deduction loop", () => {
 			tokens: 1,
 		});
 
+		const now = new Date();
+
 		// First check: nothing recorded yet, allowed.
-		const before = await guard.ensureCanRunAgent(new Date("2026-05-15T12:00:00Z"));
+		const before = await guard.ensureCanRunAgent(now);
 		expect(before.isRight()).toBe(true);
 
 		// Engine publishes a completed-event with a usage that exceeds the cap.
@@ -47,7 +49,7 @@ describe("agent usage deduction loop", () => {
 		await new Promise((resolve) => queueMicrotask(() => resolve(undefined)));
 		await new Promise((resolve) => queueMicrotask(() => resolve(undefined)));
 
-		const after = await guard.ensureCanRunAgent(new Date("2026-05-15T12:01:00Z"));
+		const after = await guard.ensureCanRunAgent(now);
 		expect(after.isLeft()).toBe(true);
 		if (after.isLeft()) {
 			expect(after.value.errorCode).toBe("ForbiddenError");

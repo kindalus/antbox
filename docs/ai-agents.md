@@ -5,9 +5,12 @@ description: Guide to AI agents in Antbox
 
 # AI Agents
 
-Agents are tenant-scoped configuration records executed by `AgentsEngine`.
+Agents are tenant-scoped configuration records executed by `AgentsEngine` on
+`@earendil-works/pi-agent-core` and `@earendil-works/pi-ai`.
 
-Antbox agents are **LLM agents only**. Workflow/composition agent types are not supported.
+Antbox agents are **LLM agents only**. Workflow/composition agent types are not supported. Each
+interaction uses an ephemeral Pi Agent; Antbox remains responsible for public history, sessions,
+authorization, skills, usage limits, and audit events.
 
 ## AgentData
 
@@ -19,6 +22,7 @@ interface AgentData {
 	exposedToUsers: boolean;
 	model?: string; // "default" or explicit provider model id
 	tools?: boolean | string[]; // true = all, false/undefined/[] = load_skill only
+	skills?: string[]; // optional allow-list of discovered skill names
 	systemPrompt?: string; // defaults to a generic Antbox assistant prompt when omitted
 	maxLlmCalls?: number;
 	createdTime: string;
@@ -31,6 +35,16 @@ Validation rules:
 - `systemPrompt` is optional; when omitted, Antbox supplies a generic assistant prompt.
 - agents default to `exposedToUsers: true` when omitted on create.
 - `exposedToUsers: false` blocks direct `/chat` and `/answer`.
+
+Model providers:
+
+- `google`, using `GEMINI_API_KEY` with `GOOGLE_API_KEY` as a compatibility fallback
+- `openai`, using `OPENAI_API_KEY`
+- `anthropic`, using `ANTHROPIC_API_KEY` or the other auth env vars supported by Pi
+- `ollama`, using `OLLAMA_BASE_URL` or `http://localhost:11434/v1`
+
+Providers enumerate model metadata and resolve credentials. The Pi runtime owns inference, retries,
+message conversion, and tool lifecycle. Model identifiers retain the `<provider>/<model>` format.
 
 Tool rules:
 
@@ -108,9 +122,14 @@ agent capabilities. Built-in/system agent UUIDs cannot be replaced.
 }
 ```
 
-Chat history can include intermediate tool interaction turns. Antbox now preserves and replays model
+Chat history can include intermediate tool interaction turns. Antbox preserves and replays model
 tool calls and tool responses across `/chat` requests so the next request can continue with that
-context.
+context. `temperature` and `maxTokens` are forwarded to Pi. The `files` option remains reserved and
+is currently ignored because these endpoints accept JSON rather than multipart content.
+
+`maxLlmCalls` limits model turns in the main Pi loop. If that limit is reached immediately after a
+tool result, Antbox performs one final call without tools so successful chat responses still end in
+a `model` message.
 
 `POST /v2/agents/{uuid}/-/answer`
 
@@ -145,8 +164,9 @@ Antbox can emit detailed debug traces for AI agent runs through environment vari
 
 - `ANTBOX_AGENT_DEBUG_TRACE`
   - enables agent-run debug tracing when set to `1`, `true`, `yes`, or `on`
-  - logs the effective agent instruction, selected tools, important model/tool events, tool calls,
-    tool responses, finish reasons, error codes/messages, and final text summary
+  - logs selected tool names, Pi lifecycle events, finish reasons, error summaries, token usage, and
+    response-size summaries
+  - does not log prompts, additional instructions, tool arguments/results, API keys, or responses
 - `ANTBOX_LOG_LEVEL`
   - controls log verbosity globally
   - valid values: `trace`, `debug`, `info`, `warn`, `error`, `fatal`

@@ -2673,14 +2673,16 @@ components:
          properties:
             files:
                type: array
-               description: Optional files to include as multimodal context.
+               description: Reserved for future multimodal transport; currently ignored by the JSON endpoint.
                items:
                   type: string
                   format: binary
             temperature:
                type: number
+               description: Sampling temperature forwarded to the Pi model provider.
             maxTokens:
                type: integer
+               description: Maximum output tokens forwarded to the Pi model provider.
             instructions:
                type: string
       Aspect:
@@ -2747,14 +2749,16 @@ components:
                         format: date-time
             files:
                type: array
-               description: Optional files to include as multimodal context.
+               description: Reserved for future multimodal transport; currently ignored by the JSON endpoint.
                items:
                   type: string
                   format: binary
             temperature:
                type: number
+               description: Sampling temperature forwarded to the Pi model provider.
             maxTokens:
                type: integer
+               description: Maximum output tokens forwarded to the Pi model provider.
             instructions:
                type: string
       ToolCall:

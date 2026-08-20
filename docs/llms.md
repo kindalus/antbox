@@ -64,6 +64,15 @@ Module configuration format is always:
 
 - `["module-path.ts", "arg1", "arg2", ...]`
 
+Agent execution uses Pi core. Supported model prefixes and credentials are:
+
+- `google/*`: `GEMINI_API_KEY`, falling back to `GOOGLE_API_KEY`
+- `openai/*`: `OPENAI_API_KEY`
+- `anthropic/*`: `ANTHROPIC_API_KEY`
+- `ollama/*`: keyless local endpoint selected by `OLLAMA_BASE_URL`
+
+Providers enumerate model metadata and supply credentials; Pi owns the request and tool loop.
+
 ## 3. Authentication and Tenancy
 
 ### Root login

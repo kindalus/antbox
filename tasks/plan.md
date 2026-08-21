@@ -1,326 +1,161 @@
-# Plano de implementação: migrar o runtime de agentes para Pi
+# Plano de implementação: simplificar `application/features`
 
 ## Estado
 
-Implementado e verificado. Este documento regista a migração executada.
+Implementado e verificado.
 
 ## Objetivo
 
-Substituir o loop de agentes e os adapters de modelos do Vercel AI SDK pelo runtime do Pi, sem
-alterar os endpoints públicos, o formato de `ChatHistory`, as regras de autorização, os nomes das
-ferramentas ou o modelo de skills do Antbox.
-
-## Constatações verificadas
-
-- O runtime atual depende diretamente de `ai@5` e dos adapters `@ai-sdk/google`, `@ai-sdk/openai`,
-  `@ai-sdk/anthropic` e `@ai-sdk/openai-compatible`.
-- O acoplamento está concentrado em `agents_engine.ts`, `build_tools.ts`, `messages.ts`,
-  `resolve_model.ts`, `session_store.ts`, `ai_telemetry.ts` e nos respetivos testes.
-- `@earendil-works/pi-agent-core` e `@earendil-works/pi-ai` executam em Deno 2.7.14. Um spike
-  temporário completou um ciclo `user -> assistant/toolCall -> toolResult -> assistant`.
-- Um segundo spike, com modelo determinístico falso, integrou o `skills_loader.ts` atual com um
-  `Agent` Pi. O runtime descobriu `sdk-consumer`, recebeu os metadados em `<available_skills>`,
-  chamou `load_skill`, carregou o `SKILL.md` completo e produziu a resposta final após dois pedidos
-  ao modelo.
-- O suporte nativo de descoberta de skills está em `pi-coding-agent`, não em `pi-agent-core`. O core
-  executa normalmente uma tool de carregamento fornecida pelo host, que é o desenho já usado pelo
-  Antbox.
-- `@earendil-works/pi-coding-agent` completo não executa no Deno atual. O import falhou dentro de
-  `undici@8.9.0` com `webidl.util.markAsUncloneable is not a function`.
-- Os pacotes Pi declaram oficialmente Node `>=22.19.0`; Deno não consta como runtime suportado. Por
-  isso, a compatibilidade Deno precisa de um teste permanente e de um gate no build.
-- O conjunto focado de testes de agentes tem uma falha anterior à migração em
-  `agent_usage_loop_test.ts`. A falha reproduz-se isoladamente e precisa de ser estabilizada antes
-  do cutover.
-- `temperature`, `maxTokens` e `files` constam do contrato, mas o engine atual não os encaminha ao
-  Vercel AI SDK. A migração pode ligar `temperature` e `maxTokens`; `files` exige uma correção de
-  transporte HTTP separada.
-
-## Decisões de arquitetura
+Reduzir a complexidade de `src/application/features` sem alterar os contratos HTTP, a interface
+pública de `FeaturesEngine`, a execução de código customizado, ACLs, `runAs`, eventos ou isolamento
+por tenant.
 
-### 1. Usar o núcleo do Pi, não o coding harness completo
-
-Dependências novas, inicialmente fixadas em `0.84.1`:
-
-- `@earendil-works/pi-agent-core`
-- `@earendil-works/pi-ai`
-- `@earendil-works/pi-telemetry`, fixada diretamente para evitar drift transitivo
-
-Não adicionar `@earendil-works/pi-coding-agent` ao servidor. O Antbox não precisa do TUI, das
-ferramentas de filesystem, de extensões, de descoberta de `.pi`, de sessões JSONL ou de comandos do
-coding agent. Além do peso desnecessário, o pacote completo falhou no spike com Deno.
+## Diagnóstico
 
-O carregamento de skills do Antbox será mantido como integração do host com o core Pi. É o mesmo
-modelo de progressive disclosure documentado pelo Pi: metadados no prompt e conteúdo completo
-carregado por uma tool apenas quando necessário. A diferença intencional é usar `load_skill`, que é
-restrita à allow-list do tenant, em vez da tool genérica `read` do coding agent.
+- `features_engine.ts` tem 1642 linhas e acumula seis responsabilidades:
+  - orquestração de actions, AI tools e extensions;
+  - coerção e validação de parâmetros;
+  - dispatch de ferramentas internas;
+  - execução das features built-in `call_agent` e `auto_tag`;
+  - resposta HTTP de extensions;
+  - triggers automáticos e hooks de pastas.
+- A interface externa do engine é pequena e útil: `runAction`, `runAITool` e `runExtension`. O
+  refactor deve manter este seam.
+- `FeaturesService` tem três métodos públicos sem consumidores, `getAction`, `getAITool` e
+  `getExtension`. Eles não aparecem no SDK gerado nem na documentação. São wrappers de `getFeature`
+  e repetem validações já feitas pelo engine.
+- A validação Zod de feature está duplicada entre create e update.
+- O controlo de profundidade usa estado estático global, inclui timestamp sem leitor e inclui um
+  tipo de execução que só recebe o valor `action`. O estado global mistura instâncias de tenants.
+- Os handlers de create, update, delete e embeddings repetem a construção dos mesmos contextos.
+- Os três handlers de folder hooks repetem lookup da pasta, validação, parsing e execução.
+- Os testes cobrem bem o seam público, mas faltam casos positivos para folder hooks e triggers de
+  embeddings. Esses caminhos serão caracterizados antes de serem unificados.
 
-### 2. Manter Antbox como dono dos contratos e do estado
+## Decisão de desenho
 
-O Pi substitui:
+Manter `FeaturesEngine` como módulo profundo com três operações externas. Separar apenas capacidades
+internas que escondem lógica substancial atrás de uma única função:
 
-- o loop `generateText`;
-- a execução iterativa de tool calls;
-- os adapters de Google, OpenAI, Anthropic e OpenAI-compatible;
-- os tipos internos de mensagens e tools ligados ao Vercel AI SDK.
+1. `feature_parameters.ts`: valida e converte parâmetros.
+2. `system_ai_tools.ts`: executa ferramentas internas permitidas.
+3. `builtin_feature_executor.ts`: executa comportamentos built-in que dependem de agentes e
+   aspectos.
+4. `feature_extension.ts`: adapta Request/Response HTTP ao executor comum.
 
-O Antbox continua dono de:
+O engine continua dono da autorização, do `RunContext`, da execução de código customizado e da
+subscrição de eventos. Isso evita criar classes, factories ou interfaces públicas novas.
 
-- `IAgentsEngine` e dos endpoints `/chat` e `/answer`;
-- `ChatMessage` e `ChatHistory` públicos;
-- `AgentData`, limites mensais e eventos de uso;
-- autorização por tenant e utilizador;
-- descoberta de skills e a ferramenta restrita `load_skill`;
-- snapshots de tools em `SessionStore`.
+Foram rejeitadas duas alternativas:
 
-Cada interação cria um `Agent` efémero do Pi com histórico convertido, modelo, prompt e tools
-específicos daquele pedido. Não serão gravadas sessões Pi no disco.
+- Dividir o engine por action, AI tool e extension duplicaria autorização e execução comum.
+- Criar uma classe para cada helper trocaria um ficheiro grande por vários módulos rasos.
 
-### 3. Manter providers como catálogo de modelos e fonte de credenciais
+## Contratos preservados
 
-Cada `AgentsEngine` recebe um registo Pi com apenas os providers já suportados pelo Antbox:
-
-- `google`
-- `openai`
-- `anthropic`
-- `ollama`
-
-Na arquitetura Antbox, a responsabilidade visível desses providers fica limitada a:
+- `FeaturesEngine.runAction`, `runAITool` e `runExtension`.
+- `FeaturesService` CRUD e listagens usadas por handlers, agentes e engine.
+- `Either<AntboxError, T>` e os códigos HTTP atuais.
+- Nomes kebab-case/camelCase de actions e nomes `Service:method` das AI tools.
+- Validação, defaults e coerção dos parâmetros.
+- `runAs`, ACLs, filtros e `NodeServiceProxy`.
+- Features built-in, triggers automáticos e folder hooks.
+- Registo de handlers no `EventBus` durante a construção do engine.
 
-- enumerar os modelos disponíveis e respetivos metadados;
-- disponibilizar a API key ou credencial do provider ao `Agent` através de `getApiKey`;
-- informar se o provider está configurado.
+## Etapas
 
-O loop, mensagens, tools, retries e lifecycle pertencem ao runtime Pi. O dispatch HTTP fica
-encapsulado em `pi-ai`, porque o contrato oficial `Provider` do Pi ainda contém `streamSimple`, mas
-não será tratado como lógica de negócio dos providers Antbox. Não serão adotados login OAuth,
-credential store persistente ou ficheiros globais de autenticação do coding agent.
-
-A migração não expõe automaticamente todos os providers do catálogo Pi. Isso seria uma expansão de
-produto, não uma troca de runtime.
-
-Compatibilidade a preservar:
-
-- identificadores no formato `<provider>/<model>`;
-- `GEMINI_API_KEY` e fallback para `GOOGLE_API_KEY`;
-- `OPENAI_API_KEY`;
-- `ANTHROPIC_API_KEY`;
-- `OLLAMA_BASE_URL`, com default `http://localhost:11434/v1`;
-- modelos explícitos em `AgentData.model` e fallback para `defaultModel`.
+### 1. Simplificar `FeaturesService`
 
-Modelos conhecidos usam metadados do catálogo Pi. Para IDs não presentes no catálogo, o resolver
-cria uma definição conservadora para o provider suportado, mantendo o comportamento atual de aceitar
-IDs configurados sem uma allow-list fechada.
+- Substituir a interface vazia `CreateFeatureData` por um type alias.
+- Centralizar a conversão de erros do `FeatureDataSchema`.
+- Remover `getAction`, `getAITool` e `getExtension`, depois de repetir a pesquisa de consumidores e
+  confirmar que não fazem parte do SDK gerado.
+- Manter CRUD, export e listagens sem mudança observável.
 
-### 4. Adaptar tools diretamente para `AgentTool`
+Checkpoint:
 
-`buildToolSet` passa a devolver `AgentTool[]` com schemas TypeBox. Mantêm-se os nomes e aliases:
+- Testes de `FeaturesService`.
+- Suite completa, lint e type-check.
+- Autoreview de correção, simplicidade, arquitetura, segurança e desempenho.
 
-- `run_code`
-- `find_nodes`
-- `get_node`
-- `semantic_search`
-- `load_skill`
-- feature tools convertidas para snake_case
+### 2. Isolar validação de parâmetros
 
-Resultados estruturados serão serializados como JSON no bloco de texto enviado ao modelo e podem
-permanecer em `details` para diagnóstico. Uma tool sinaliza erro lançando uma exceção, como exige o
-Pi. Os proxies Antbox continuam a aplicar ACLs e o contexto do utilizador.
+- Mover coerção e validação para `feature_parameters.ts`.
+- Expor uma única função interna.
+- Manter os testes através de `runAITool` e `runExtension`, sem testar métodos privados.
 
-### 5. Traduzir mensagens apenas na fronteira
+Checkpoint: mesmos gates e autoreview.
 
-`messages.ts` será o único tradutor entre o domínio Antbox e as mensagens Pi:
+### 3. Isolar ferramentas internas de AI
 
-- `user` -> `UserMessage`
-- `model` -> `AssistantMessage`
-- `tool` -> `ToolResultMessage`
+- Mover o switch `NodeService:*`, `OcrModel:*`, `Templates:*` e `Docs:*` para `system_ai_tools.ts`.
+- Eliminar o `any` do dispatcher se isso não aumentar a interface.
+- Manter nomes, defaults, erros e ACLs.
 
-Na saída:
+Checkpoint: mesmos gates e autoreview.
 
-- blocos `thinking` não entram na API pública;
-- texto e tool calls preservam a ordem;
-- tool results preservam IDs, nomes e texto;
-- erros de tool continuam no histórico como respostas de tool;
-- usage Pi é agregado no `TokenUsage` Antbox.
+### 4. Isolar execução das features built-in
 
-Cache read e cache write contam como tokens de prompt para que `totalTokens` permaneça coerente e os
-limites não subestimem consumo.
+- Mover `call_agent`, construção do prompt e `auto_tag` para `builtin_feature_executor.ts`.
+- Reexportar `AgentAnswerExecutor` por `features_engine.ts` para não quebrar imports atuais.
+- Manter execução síncrona e background, parsing do agente e atualização de aspectos.
 
-### 6. Preservar o limite de chamadas e a resposta terminal
+Checkpoint: mesmos gates e autoreview.
 
-`maxLlmCalls` contará respostas do modelo no loop principal. O hook `shouldStopAfterTurn` interrompe
-o Pi quando atingir o limite. Se o último turno terminar em tool results, o engine executa uma única
-chamada Pi sem tools para sintetizar a resposta final, preservando o comportamento atual.
+### 5. Caracterizar e simplificar eventos
 
-A resposta pública de `/chat` termina sempre num `model`; `/answer` devolve apenas essa resposta.
+- Adicionar testes positivos para folder hooks e triggers de embeddings.
+- Trocar o mapa estático de profundidade por estado da instância, indexado apenas por UUID.
+- Remover timestamp e tipo de execução sem uso.
+- Unificar construção de contextos automáticos.
+- Unificar o pipeline dos triggers automáticos.
+- Unificar o pipeline dos folder hooks.
 
-### 7. Manter telemetria sem conteúdo sensível
+Checkpoint após os testes de caracterização e outro após o refactor, ambos com suite, lint,
+type-check e autoreview.
 
-Preservar os spans e atributos Antbox:
+### 6. Isolar o adapter HTTP de extensions
 
-- `antbox.tenant`
-- `antbox.agent.uuid`
-- `antbox.ai.interaction_type`
-- `gen_ai.operation.name`
-- `gen_ai.request.model`
-- usage de tokens
+- Mover parsing de Request, mapeamento de erros e serialização de Response para
+  `feature_extension.ts`.
+- Corrigir os nomes privados `respondeWithFile` e `respondeWithJson` ao removê-los do engine.
+- Preservar status, content types, ficheiros, JSON, void e parâmetros kebab-case.
 
-Prompts, documentos, argumentos de tools, tool results e respostas não serão adicionados a spans. O
-helper Vercel `ai_telemetry.ts` será removido depois de os spans equivalentes estarem cobertos pelo
-engine Pi.
+Checkpoint: mesmos gates e autoreview.
 
-## Fluxo proposto
+### 7. Revisão final
 
-```text
-HTTP /chat ou /answer
-  -> AgentsEngine valida agente, exposição, tenant, limites e histórico
-  -> provider enumera/resolve o modelo e fornece a API key ao Agent
-  -> buildToolSet cria AgentTool[] vinculadas ao AuthenticationContext
-  -> messages.ts converte ChatHistory para mensagens Pi
-  -> Agent do pi-agent-core executa modelo e tools
-  -> messages.ts converte novas mensagens para ChatHistory
-  -> AgentsEngine agrega usage e publica AgentInteractionCompletedEvent
-  -> resposta pública mantém o formato atual
-```
+- Rever os módulos resultantes e eliminar apenas indirection que não tenha ganho profundidade.
+- Procurar código morto, imports órfãos e duplicação residual.
+- Executar format, lint, type-check, suite completa, `build:antbox`, bundle e smoke de runtime.
+- Rever o diff integral e confirmar que não houve mudança de contrato.
 
-## Contrato de compatibilidade
+## Estratégia de autoreview
 
-### Deve permanecer igual
+Após cada etapa significativa:
 
-- Paths, métodos HTTP e formatos de resposta.
-- Semântica de `chat` com histórico e `answer` sem histórico.
-- Guardas `exposedToUsers` e métodos internos.
-- `Either<AntboxError, ...>` na fronteira do engine.
-- Nomes, allow-list e aliases de tools.
-- `load_skill` sempre disponível.
-- Descoberta, allow-list e carregamento on-demand de skills pelo Antbox.
-- Prompt do agente, skills disponíveis e instrução de data.
-- Snapshot de agente/tools durante uma chat session.
-- Evento de uso e enforcement de limites.
-
-### Mudanças deliberadas
-
-- `temperature` e `maxTokens` passam a ser enviados ao provider Pi.
-- Respostas do provider com `stopReason: error` ou `aborted` tornam-se erros Antbox explícitos.
-- Tool arguments passam pela validação TypeBox do Pi antes da execução.
-- O check de chat session passa também a validar o utilizador, além de tenant e agente.
-
-### Fora do escopo
-
-- Adotar o TUI, extensions, prompts ou SessionManager do Pi.
-- Persistir sessões em JSONL.
-- Expor tools de filesystem ou shell do Pi.
-- Adicionar providers além dos quatro já suportados.
-- Corrigir o transporte de `files` no endpoint JSON.
-- Alterar endpoints ou criar streaming HTTP.
-- Alterar o formato público de `ChatMessage` para expor thinking ou metadata do provider.
-
-## Estratégia de implementação
-
-A migração será feita na mesma branch em incrementos verificáveis. O Vercel AI SDK permanece até o
-engine Pi passar os testes de contrato. Depois do cutover, as dependências e adapters Vercel são
-removidos no mesmo trabalho. Não haverá uma opção pública para escolher entre runtimes.
-
-### Fase 0: estabilizar a linha de base
-
-1. Diagnosticar e corrigir a falha preexistente de accounting em `agent_usage_loop_test.ts`.
-2. Registar o resultado dos testes focados antes de alterar o runtime.
-
-Checkpoint: testes focados de agentes verdes.
-
-### Fase 1: provar a fundação Pi em Deno
-
-3. Fixar versões exatas e alinhadas de `pi-agent-core`, `pi-ai` e `pi-telemetry` no `deno.json` e
-   lockfile.
-4. Adicionar um teste Deno com modelo falso que descubra uma skill Antbox, chame `load_skill` e
-   termine depois de consumir o conteúdo do `SKILL.md`.
-5. Validar `deno check` e `deno task build:antbox` cedo.
-
-Checkpoint: Pi core funciona em testes e no bundle Deno sem importar o coding-agent completo.
-
-### Fase 2: adapters Antbox para Pi
-
-6. Adaptar os providers de Google, OpenAI, Anthropic e Ollama para enumerarem modelos e fornecerem
-   credenciais ao runtime Pi.
-7. Reescrever a conversão de mensagens e usage.
-8. Reescrever `buildToolSet` para `AgentTool[]` e ajustar snapshots de sessão.
-
-Checkpoint: resolver, mensagens e tools passam em testes unitários sem mudar o engine público.
-
-### Fase 3: cutover do engine
-
-9. Trocar `generateText` pelo `Agent` de `pi-agent-core`.
-10. Implementar contagem de turnos, síntese terminal, options, erros, debug trace e usage.
-11. Ajustar o seam de custom agents para tipos Pi.
-12. Revalidar sessões seladas, tenant, utilizador e tool snapshots.
-
-Checkpoint: todos os testes de contrato do `AgentsEngine` passam usando apenas o loop Pi.
-
-### Fase 4: remover Vercel e documentar
-
-13. Remover imports, helpers e dependências Vercel sem uso.
-14. Atualizar documentação de agentes, modelos e observabilidade.
-15. Confirmar que `openapi.yaml` não precisa de mudança estrutural. Atualizar apenas descrições que
-    estejam incorretas sobre options agora funcionais.
-
-Checkpoint: nenhuma referência runtime a `ai` ou `@ai-sdk/*`; bundle e documentação coerentes.
-
-### Fase 5: verificação final
-
-16. Executar format, lint, testes focados, suite completa e bundle.
-17. Fazer smoke tests opcionais com credenciais reais para Google, OpenAI, Anthropic e Ollama.
-18. Rever segurança, multi-tenancy, accounting e diferenças de comportamento.
-
-## Rollback
-
-- Manter o cutover e a remoção de dependências em commits separados e atómicos.
-- Se o Pi falhar no build Deno ou nos testes de contrato, parar antes do cutover.
-- Depois do cutover, rollback é feito revertendo os commits do engine e das dependências. Não há
-  migração de dados nem alteração do contrato HTTP.
+1. Rever primeiro os testes e o comportamento que protegem.
+2. Rever o diff nos cinco eixos: correção, simplicidade, arquitetura, segurança e desempenho.
+3. Corrigir findings obrigatórios antes de avançar.
+4. Reverter a etapa se apenas deslocar complexidade ou aumentar o número de conceitos.
+5. Registar no relatório final os findings corrigidos e os adiados.
 
 ## Riscos e mitigação
 
-| Risco                                             | Impacto | Mitigação                                                        |
-| ------------------------------------------------- | ------- | ---------------------------------------------------------------- |
-| Pi declara suporte a Node, não Deno               | Alto    | Teste Deno permanente e bundle como gate antes do cutover        |
-| `pi-coding-agent` completo falha em Deno          | Alto    | Usar apenas `pi-agent-core` e `pi-ai`                            |
-| Core Pi não descobre skills sozinho               | Alto    | Manter loader, prompt e `load_skill` Antbox; teste end-to-end    |
-| Drift entre versões Pi transitivas                | Alto    | Fixar core, AI e telemetry em versões compatíveis                |
-| Diferenças no formato de mensagens/tool calls     | Alto    | Tradutor isolado e testes de round-trip com vários tool calls    |
-| Loop termina após tool result                     | Alto    | Limite explícito e síntese final sem tools                       |
-| Usage Pi inclui cache tokens                      | Médio   | Regra de agregação documentada e testes do evento de limites     |
-| Modelo configurado não está no catálogo Pi        | Médio   | Definição conservadora para IDs de providers suportados          |
-| Ollama tem compatibilidade variável               | Médio   | Provider `openai-completions`, flags conservadoras e smoke test  |
-| Tool calls paralelas alteram efeitos              | Médio   | Marcar tools mutáveis como sequenciais quando necessário         |
-| Session snapshot reutilizado por outro utilizador | Alto    | Validar `userEmail` no acesso à session                          |
-| Pi ganha acesso indevido ao host                  | Alto    | Não carregar coding tools, extensions, `.pi` ou recursos globais |
-| Teste de accounting já falha                      | Médio   | Estabilizar antes da migração e manter como gate                 |
+| Risco                                     | Impacto | Mitigação                                                             |
+| ----------------------------------------- | ------- | --------------------------------------------------------------------- |
+| Alterar execução dinâmica ao mover código | Alto    | Mover sem reescrever e testar pelo seam público                       |
+| Quebrar eventos assíncronos               | Alto    | Testes de caracterização antes da unificação                          |
+| Alterar ACLs ou `runAs`                   | Alto    | Manter autorização no engine e executar suite completa                |
+| Misturar profundidade entre tenants       | Alto    | Estado de recursão por instância, sem estado estático                 |
+| Criar módulos rasos                       | Médio   | Uma função externa por capacidade; reverter se não reduzir conceitos  |
+| Remover método usado fora do repo         | Médio   | Confirmar ausência no SDK/documentação; remoção explícita neste plano |
 
-## Impacto em autenticação, multi-tenancy e eventos
+## Fora do escopo
 
-- Autenticação: tools continuam fechadas sobre `AuthenticationContext`; chat sessions passam a
-  verificar também o principal.
-- Multi-tenancy: cada tenant mantém o seu `AgentsEngine`, registo de providers, skills, serviços e
-  snapshots. Nenhum estado de conversa Pi é partilhado ou persistido globalmente.
-- Event bus: `AgentInteractionCompletedEvent` mantém o mesmo payload e continua a alimentar audit e
-  limites. A origem do usage muda para mensagens Pi.
-
-## Decisões aplicadas
-
-1. O runtime usa `pi-agent-core` + `pi-ai` e mantém o loader de skills Antbox.
-2. `temperature` e `maxTokens` são encaminhados ao provider Pi.
-3. Chat sessions validam tenant, agente e utilizador.
-
-## Fontes oficiais consultadas
-
-- Pi SDK: https://github.com/earendil-works/pi-mono/blob/main/packages/coding-agent/docs/sdk.md
-- Skills Pi:
-  https://github.com/earendil-works/pi-mono/blob/main/packages/coding-agent/docs/skills.md
-- Tipos e loop do agente:
-  https://github.com/earendil-works/pi-mono/blob/main/packages/agent/src/types.ts
-- Sessões e mensagens Pi:
-  https://github.com/earendil-works/pi-mono/blob/main/packages/coding-agent/docs/session-format.md
-- Providers customizados:
-  https://github.com/earendil-works/pi-mono/blob/main/packages/coding-agent/docs/custom-provider.md
-- Modelos customizados:
-  https://github.com/earendil-works/pi-mono/blob/main/packages/coding-agent/docs/models.md
+- Alterar endpoints ou OpenAPI.
+- Alterar `FeatureData` persistido.
+- Adicionar sandbox para código dinâmico.
+- Rever a política privilegiada de `runAs` e features automáticas.
+- Adicionar novas tools ou features built-in.
+- Mudar o comportamento fire-and-forget do event bus.

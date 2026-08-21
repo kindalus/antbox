@@ -15,7 +15,7 @@ export interface FeaturesServiceContext {
 	configRepo: ConfigurationRepository;
 }
 
-export interface CreateFeatureData extends Omit<FeatureData, "createdTime" | "modifiedTime"> {}
+export type CreateFeatureData = Omit<FeatureData, "createdTime" | "modifiedTime">;
 
 /**
  * FeaturesService - Manages feature configurations (CRUD operations only)
@@ -57,16 +57,7 @@ export class FeaturesService {
 			modifiedTime: now,
 		};
 
-		// Validate with Zod schema
-		const validation = FeatureDataSchema.safeParse(featureData);
-		if (!validation.success) {
-			const errors = validation.error.issues.map((e) =>
-				new BadRequestError(`${e.path.join(".")}: ${e.message}`)
-			);
-			return left(ValidationError.from(...errors));
-		}
-
-		return this.#configRepo.save("features", validation.data as FeatureData);
+		return this.#saveValidated(featureData);
 	}
 
 	async getFeature(
@@ -183,16 +174,7 @@ export class FeaturesService {
 			modifiedTime: new Date().toISOString(),
 		};
 
-		// Validate with Zod schema
-		const validation = FeatureDataSchema.safeParse(updatedData);
-		if (!validation.success) {
-			const errors = validation.error.issues.map((e) =>
-				new BadRequestError(`${e.path.join(".")}: ${e.message}`)
-			);
-			return left(ValidationError.from(...errors));
-		}
-
-		return this.#configRepo.save("features", validation.data as FeatureData);
+		return this.#saveValidated(updatedData);
 	}
 
 	async deleteFeature(
@@ -247,57 +229,6 @@ export class FeaturesService {
 		return right(featuresOrErr.value.filter((f) => f.exposeExtension));
 	}
 
-	async getAction(
-		ctx: AuthenticationContext,
-		uuid: string,
-	): Promise<Either<AntboxError, FeatureData>> {
-		const featureOrErr = await this.getFeature(ctx, uuid);
-		if (featureOrErr.isLeft()) {
-			return left(featureOrErr.value);
-		}
-
-		const feature = featureOrErr.value;
-		if (!feature.exposeAction) {
-			return left(new BadRequestError("Feature is not exposed as action"));
-		}
-
-		return right(feature);
-	}
-
-	async getAITool(
-		ctx: AuthenticationContext,
-		uuid: string,
-	): Promise<Either<AntboxError, FeatureData>> {
-		const featureOrErr = await this.getFeature(ctx, uuid);
-		if (featureOrErr.isLeft()) {
-			return left(featureOrErr.value);
-		}
-
-		const feature = featureOrErr.value;
-		if (!feature.exposeAITool) {
-			return left(new BadRequestError("Feature is not exposed as AI tool"));
-		}
-
-		return right(feature);
-	}
-
-	async getExtension(
-		ctx: AuthenticationContext,
-		uuid: string,
-	): Promise<Either<AntboxError, FeatureData>> {
-		const featureOrErr = await this.getFeature(ctx, uuid);
-		if (featureOrErr.isLeft()) {
-			return left(featureOrErr.value);
-		}
-
-		const feature = featureOrErr.value;
-		if (!feature.exposeExtension) {
-			return left(new BadRequestError("Feature is not exposed as extension"));
-		}
-
-		return right(feature);
-	}
-
 	#isAdmin(ctx: AuthenticationContext): boolean {
 		return ctx.principal.groups.includes(ADMINS_GROUP_UUID);
 	}
@@ -312,6 +243,18 @@ export class FeaturesService {
 		}
 
 		return feature.groupsAllowed.some((group) => ctx.principal.groups.includes(group));
+	}
+
+	async #saveValidated(feature: FeatureData): Promise<Either<AntboxError, FeatureData>> {
+		const validation = FeatureDataSchema.safeParse(feature);
+		if (!validation.success) {
+			const errors = validation.error.issues.map((issue) =>
+				new BadRequestError(`${issue.path.join(".")}: ${issue.message}`)
+			);
+			return left(ValidationError.from(...errors));
+		}
+
+		return this.#configRepo.save("features", validation.data as FeatureData);
 	}
 
 	async #normalizeAndPersist(rawFeature: FeatureData): Promise<Either<AntboxError, FeatureData>> {

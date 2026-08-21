@@ -11,6 +11,8 @@ import {
 	CALL_AGENT_FEATURE_UUID,
 } from "domain/configuration/builtin_features.ts";
 import type { FeatureData } from "domain/configuration/feature_data.ts";
+import { EmbeddingCreatedEvent } from "domain/nodes/embedding_created_event.ts";
+import { EmbeddingUpdatedEvent } from "domain/nodes/embedding_updated_event.ts";
 import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import { Groups } from "domain/users_groups/groups.ts";
@@ -27,6 +29,7 @@ import type { AgentAnswerExecutor } from "./features_engine.ts";
 
 interface Harness {
 	repository: InMemoryNodeRepository;
+	eventBus: InMemoryEventBus;
 	nodeService: NodeService;
 	featuresService: FeaturesService;
 	aspectsService: AspectsService;
@@ -78,7 +81,7 @@ function createHarness(useOCR = false, agentsEngine?: AgentAnswerExecutor): Harn
 		eventBus,
 	});
 
-	return { repository, nodeService, featuresService, aspectsService, engine };
+	return { repository, eventBus, nodeService, featuresService, aspectsService, engine };
 }
 
 function createFeatureRun(
@@ -675,6 +678,23 @@ describe("FeaturesEngine", () => {
 		expect(invalid.isLeft()).toBe(true);
 	});
 
+	it("runAITool converts non-Error throws to UnknownError", async () => {
+		const harness = createHarness();
+		const featureUuid = await createFeature(harness, {
+			exposeAction: false,
+			exposeAITool: true,
+			run: createFeatureRun({ runBody: 'throw "feature failed";' }),
+		});
+
+		const result = await harness.engine.runAITool(adminCtx, featureUuid, {});
+
+		expect(result.isLeft()).toBe(true);
+		if (result.isLeft()) {
+			expect(result.value.errorCode).toBe("UnknownError");
+			expect(result.value.message).toBe("feature failed");
+		}
+	});
+
 	it("runAITool rejects a feature not exposed as an AI tool", async () => {
 		const harness = createHarness();
 		const featureUuid = await createFeature(harness, {
@@ -721,6 +741,48 @@ describe("FeaturesEngine", () => {
 
 		const payload = await response.json() as { ok: boolean; value: string };
 		expect(payload).toEqual({ ok: true, value: "hello" });
+	});
+
+	it("runExtension serializes file, text, and void results", async () => {
+		const harness = createHarness();
+		const request = () => new Request("http://localhost/v2/extensions/test", { method: "GET" });
+
+		const fileUuid = await createFeature(harness, {
+			exposeAction: false,
+			exposeExtension: true,
+			returnType: "file",
+			run: createFeatureRun({
+				runBody: 'return new File(["report body"], "report.txt", { type: "text/plain" });',
+			}),
+		});
+		const fileResponse = await harness.engine.runExtension(adminCtx, fileUuid, request());
+		expect(fileResponse.status).toBe(200);
+		expect(fileResponse.headers.get("Content-Type")).toBe("text/plain");
+		expect(fileResponse.headers.get("Content-Disposition")).toBe(
+			'attachment; filename="report.txt"',
+		);
+		await expect(fileResponse.text()).resolves.toBe("report body");
+
+		const textUuid = await createFeature(harness, {
+			exposeAction: false,
+			exposeExtension: true,
+			returnType: "string",
+			returnContentType: "text/custom",
+			run: createFeatureRun({ runBody: 'return "custom text";' }),
+		});
+		const textResponse = await harness.engine.runExtension(adminCtx, textUuid, request());
+		expect(textResponse.headers.get("Content-Type")).toBe("text/custom");
+		await expect(textResponse.text()).resolves.toBe("custom text");
+
+		const voidUuid = await createFeature(harness, {
+			exposeAction: false,
+			exposeExtension: true,
+			returnType: "void",
+			run: createFeatureRun({ runBody: "return undefined;" }),
+		});
+		const voidResponse = await harness.engine.runExtension(adminCtx, voidUuid, request());
+		expect(voidResponse.status).toBe(200);
+		await expect(voidResponse.text()).resolves.toBe("OK");
 	});
 
 	it("runExtension coerces and validates typed parameters", async () => {
@@ -1158,8 +1220,125 @@ describe("FeaturesEngine", () => {
 		expect(updated).toBe(true);
 	});
 
-	it("skips automatic actions while the same action is already over the depth limit", async () => {
+	it("runs folder create, update, and delete hooks", async () => {
 		const harness = createHarness();
+
+		await harness.nodeService.create(adminCtx, {
+			uuid: "folder-hook-target",
+			title: "Folder Hook Target",
+			mimetype: Nodes.FOLDER_MIMETYPE,
+			parent: Nodes.ROOT_FOLDER_UUID,
+		});
+
+		const featureUuid = await createFeature(harness, {
+			parameters: [
+				...defaultActionParameters,
+				{ name: "hook", type: "string", required: true },
+			],
+			run: createFeatureRun({
+				runBody: `
+					await ctx.nodeService.update("folder-hook-target", {
+						description: args.hook + ":" + args.uuids[0],
+					});
+					return { done: true };
+				`,
+			}),
+		});
+
+		await harness.nodeService.create(adminCtx, {
+			uuid: "hook-parent",
+			title: "Hook Parent",
+			mimetype: Nodes.FOLDER_MIMETYPE,
+			parent: Nodes.ROOT_FOLDER_UUID,
+			onCreate: [`${featureUuid} hook=create`],
+			onUpdate: [`${featureUuid} hook=update`],
+			onDelete: [`${featureUuid} hook=delete`],
+		});
+
+		await harness.nodeService.createFile(
+			adminCtx,
+			new File(["hook body"], "hooked.txt", { type: "text/plain" }),
+			{
+				uuid: "hooked-node",
+				title: "hooked.txt",
+				mimetype: "text/plain",
+				parent: "hook-parent",
+			},
+		);
+
+		const hookRan = (hook: string) =>
+			waitFor(async () => {
+				const targetOrErr = await harness.nodeService.get(adminCtx, "folder-hook-target");
+				return targetOrErr.isRight() &&
+					targetOrErr.value.description === `${hook}:hooked-node`;
+			});
+
+		expect(await hookRan("create")).toBe(true);
+
+		await harness.nodeService.update(adminCtx, "hooked-node", { description: "updated" });
+		expect(await hookRan("update")).toBe(true);
+
+		await harness.nodeService.delete(adminCtx, "hooked-node");
+		expect(await hookRan("delete")).toBe(true);
+	});
+
+	it("runs embedding created and updated triggers", async () => {
+		const harness = createHarness();
+
+		for (const uuid of ["embedding-source", "embedding-trigger-target"]) {
+			await harness.nodeService.create(adminCtx, {
+				uuid,
+				title: uuid,
+				mimetype: Nodes.FOLDER_MIMETYPE,
+				parent: Nodes.ROOT_FOLDER_UUID,
+			});
+		}
+
+		for (
+			const [trigger, overrides] of [
+				["created", { runOnEmbeddingsCreated: true }],
+				["updated", { runOnEmbeddingsUpdated: true }],
+			] as const
+		) {
+			await createFeature(harness, {
+				...overrides,
+				runManually: false,
+				run: createFeatureRun({
+					runBody: `
+						await ctx.nodeService.update("embedding-trigger-target", {
+							description: "${trigger}:" + args.uuids[0],
+						});
+						return { done: true };
+					`,
+				}),
+			});
+		}
+
+		harness.eventBus.publish(
+			new EmbeddingCreatedEvent("admin@example.com", adminCtx.tenant, "embedding-source"),
+		);
+		const createdRan = await waitFor(async () => {
+			const targetOrErr = await harness.nodeService.get(adminCtx, "embedding-trigger-target");
+			return targetOrErr.isRight() &&
+				targetOrErr.value.description === "created:embedding-source";
+		});
+		expect(createdRan).toBe(true);
+
+		harness.eventBus.publish(
+			new EmbeddingUpdatedEvent("admin@example.com", adminCtx.tenant, "embedding-source"),
+		);
+		const updatedRan = await waitFor(async () => {
+			const targetOrErr = await harness.nodeService.get(adminCtx, "embedding-trigger-target");
+			return targetOrErr.isRight() &&
+				targetOrErr.value.description === "updated:embedding-source";
+		});
+		expect(updatedRan).toBe(true);
+	});
+
+	it("limits automatic action depth per engine instance", async () => {
+		const harness = createHarness();
+		const isolatedHarness = createHarness();
+		const isolatedCtx = { ...adminCtx, tenant: "isolated" };
 		const globalWithMarker = globalThis as typeof globalThis & {
 			__manualActionRuns?: number;
 			__automaticActionRuns?: number;
@@ -1181,34 +1360,59 @@ describe("FeaturesEngine", () => {
 				mimetype: Nodes.FOLDER_MIMETYPE,
 				parent: Nodes.ROOT_FOLDER_UUID,
 			});
-			await harness.nodeService.create(adminCtx, {
-				uuid: "recursive-node",
-				title: "Recursive Node",
-				mimetype: Nodes.FOLDER_MIMETYPE,
-				parent: Nodes.ROOT_FOLDER_UUID,
-			});
 
-			const featureUuid = await createFeature(harness, {
-				runOnUpdates: true,
-				runManually: true,
-				run: createFeatureRun({
-					runBody: `
-						const uuid = Array.isArray(args.uuids) ? args.uuids[0] : undefined;
-						if (uuid === "manual-node") {
-							globalThis.__manualActionRuns = (globalThis.__manualActionRuns ?? 0) + 1;
-							await globalThis.__releaseRunnableActions;
-							return { mode: "manual" };
-						}
+			for (
+				const [targetHarness, ctx] of [
+					[harness, adminCtx],
+					[isolatedHarness, isolatedCtx],
+				] as const
+			) {
+				await targetHarness.nodeService.create(ctx, {
+					uuid: "recursive-node",
+					title: "Recursive Node",
+					mimetype: Nodes.FOLDER_MIMETYPE,
+					parent: Nodes.ROOT_FOLDER_UUID,
+				});
+			}
 
-						if (uuid === "recursive-node") {
-							globalThis.__automaticActionRuns = (globalThis.__automaticActionRuns ?? 0) + 1;
-							return { mode: "automatic" };
-						}
+			const featureUuid = "depthIsolationFeature";
+			const featureInput = {
+				...createFeatureInput({
+					runOnUpdates: true,
+					runManually: true,
+					run: createFeatureRun({
+						runBody: `
+							const uuid = Array.isArray(args.uuids) ? args.uuids[0] : undefined;
+							if (uuid === "manual-node") {
+								globalThis.__manualActionRuns = (globalThis.__manualActionRuns ?? 0) + 1;
+								await globalThis.__releaseRunnableActions;
+								return { mode: "manual" };
+							}
 
-						return { mode: "other" };
-					`,
+							if (uuid === "recursive-node") {
+								globalThis.__automaticActionRuns = (globalThis.__automaticActionRuns ?? 0) + 1;
+								return { mode: "automatic" };
+							}
+
+							return { mode: "other" };
+						`,
+					}),
 				}),
-			});
+				uuid: featureUuid,
+			};
+
+			for (
+				const [targetHarness, ctx] of [
+					[harness, adminCtx],
+					[isolatedHarness, isolatedCtx],
+				] as const
+			) {
+				const createdOrErr = await targetHarness.featuresService.createFeature(
+					ctx,
+					featureInput,
+				);
+				expect(createdOrErr.isRight()).toBe(true);
+			}
 
 			pendingActions = Array.from(
 				{ length: 4 },
@@ -1220,11 +1424,18 @@ describe("FeaturesEngine", () => {
 			expect(actionsAreRunning).toBe(true);
 
 			await harness.nodeService.update(adminCtx, "recursive-node", {
-				description: "trigger-automatic-action",
+				description: "same-engine-trigger",
 			});
 			await new Promise((resolve) => setTimeout(resolve, 150));
-
 			expect(globalWithMarker.__automaticActionRuns ?? 0).toBe(0);
+
+			await isolatedHarness.nodeService.update(isolatedCtx, "recursive-node", {
+				description: "isolated-engine-trigger",
+			});
+			const isolatedActionRan = await waitFor(async () => {
+				return (globalWithMarker.__automaticActionRuns ?? 0) === 1;
+			});
+			expect(isolatedActionRan).toBe(true);
 		} finally {
 			releaseRunnableActions?.();
 			await Promise.allSettled(pendingActions);

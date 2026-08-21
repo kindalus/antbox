@@ -288,6 +288,7 @@ describe("NodeService", () => {
 				expect(
 					regularUserResult.value.nodes.some((n) => n.uuid === "private-semantic-file"),
 				).toBe(false);
+				expect(regularUserResult.value.scores?.["private-semantic-file"]).toBeUndefined();
 			}
 		});
 	});

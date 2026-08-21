@@ -172,6 +172,19 @@ describe("NodeService read contracts", () => {
 		]);
 	});
 
+	it("accepts the root folder in fid form", async () => {
+		const { service } = createHarness();
+		await createFolder(service, "root-child", "Root child");
+
+		const result = await service.list(
+			adminCtx,
+			Nodes.fidToUuid(Nodes.ROOT_FOLDER_UUID),
+		);
+
+		expect(result.isRight()).toBe(true);
+		expect(result.right.map((node) => node.uuid)).toContain("root-child");
+	});
+
 	it("parses structured string filters", async () => {
 		const { service } = createHarness();
 		await createFolder(service, "parent", "Parent");

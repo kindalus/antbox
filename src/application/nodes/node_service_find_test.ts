@@ -191,8 +191,6 @@ describe("NodeService", () => {
 			expect(listOrErr.right.length).toBe(7);
 		});
 
-		// Removed tests for system folders - configuration items are no longer stored as nodes
-
 		it("should not show nodes that the user cannot read", async () => {
 			const listOrErr = await service.list(anonymousCtx, "vetify-logotipo-uuid");
 			expect(listOrErr.isRight(), errToMsg(listOrErr.value)).toBeTruthy();

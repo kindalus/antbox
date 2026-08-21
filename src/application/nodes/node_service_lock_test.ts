@@ -112,6 +112,24 @@ describe("NodeService - Lock/Unlock", () => {
 			expect(lockedNode.unlockAuthorizedGroups).toEqual(["editors", "managers"]);
 		});
 
+		it("does not mutate the authorized groups supplied by the caller", async () => {
+			const service = new NodeService(createContext());
+			const authCtx = createAuthContext("user@example.com");
+			const parent = await createTestFolder(service, authCtx);
+			const node = await service.create(authCtx, {
+				title: "Test Node",
+				mimetype: Nodes.META_NODE_MIMETYPE,
+				parent,
+			});
+			const groups: string[] = [];
+
+			await service.lock(authCtx, node.right.uuid, groups);
+
+			expect(groups).toEqual([]);
+			const lockedNode = await service.get(authCtx, node.right.uuid);
+			expect(lockedNode.right.unlockAuthorizedGroups).toEqual(authCtx.principal.groups);
+		});
+
 		it("should not allow locking an already locked node", async () => {
 			const context = createContext();
 			const service = new NodeService(context);

@@ -20,6 +20,7 @@ type MockNode = FileNode | FolderNode;
 // Mock implementations
 class MockNodeRepository {
 	private nodes: Map<string, MockNode> = new Map();
+	readonly updatedUuids: string[] = [];
 
 	async getById(uuid: string) {
 		const node = this.nodes.get(uuid);
@@ -30,6 +31,7 @@ class MockNodeRepository {
 	}
 
 	async update(node: MockNode) {
+		this.updatedUuids.push(node.uuid);
 		this.nodes.set(node.uuid, node);
 		return right(undefined);
 	}
@@ -137,6 +139,7 @@ describe("ParentFolderUpdateHandler", () => {
 
 		it("should not update root folder", async () => {
 			const mockContext = createMockContext();
+			const mockRepo = mockContext.repository as unknown as MockNodeRepository;
 			const handler = new ParentFolderUpdateHandler(mockContext);
 
 			// Create a child file with root folder as parent
@@ -157,18 +160,15 @@ describe("ParentFolderUpdateHandler", () => {
 			// Create event
 			const event = new NodeCreatedEvent("test@example.com", "test-tenant", childFile);
 
-			// Handle the event - should not throw or try to update root folder
 			handler.handle(event);
-
-			// Wait a bit for async operation to complete
 			await new Promise((resolve) => setTimeout(resolve, 10));
 
-			// Test passes if no errors are thrown
-			expect(true).toBe(true);
+			expect(mockRepo.updatedUuids).toEqual([]);
 		});
 
 		it("should handle parent not found gracefully", async () => {
 			const mockContext = createMockContext();
+			const mockRepo = mockContext.repository as unknown as MockNodeRepository;
 			const handler = new ParentFolderUpdateHandler(mockContext);
 
 			// Create a child file with non-existent parent
@@ -189,22 +189,21 @@ describe("ParentFolderUpdateHandler", () => {
 			// Create event
 			const event = new NodeCreatedEvent("test@example.com", "test-tenant", childFile);
 
-			// Handle the event - should not throw
 			handler.handle(event);
-
-			// Wait a bit for async operation to complete
 			await new Promise((resolve) => setTimeout(resolve, 10));
 
-			// Test passes if no errors are thrown
-			expect(true).toBe(true);
+			expect(mockRepo.updatedUuids).toEqual([]);
 		});
 
 		it("should handle repository update failure gracefully", async () => {
 			const mockContext = createMockContext();
 			const mockRepo = mockContext.repository as unknown as MockNodeRepository;
 
-			// Mock update to fail
-			mockRepo.update = async () => left(new NodeNotFoundError("Update failed"));
+			let updateAttempted = false;
+			mockRepo.update = async () => {
+				updateAttempted = true;
+				return left(new NodeNotFoundError("Update failed"));
+			};
 
 			const handler = new ParentFolderUpdateHandler(mockContext);
 
@@ -242,14 +241,10 @@ describe("ParentFolderUpdateHandler", () => {
 			// Create event
 			const event = new NodeCreatedEvent("test@example.com", "test-tenant", childFile);
 
-			// Handle the event - should not throw
 			handler.handle(event);
-
-			// Wait a bit for async operation to complete
 			await new Promise((resolve) => setTimeout(resolve, 10));
 
-			// Test passes if no errors are thrown
-			expect(true).toBe(true);
+			expect(updateAttempted).toBe(true);
 		});
 	});
 

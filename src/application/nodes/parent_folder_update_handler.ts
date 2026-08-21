@@ -2,13 +2,13 @@ import { Logger } from "shared/logger.ts";
 import type { EventHandler } from "shared/event_handler.ts";
 import type { NodeCreatedEvent } from "domain/nodes/node_created_event.ts";
 import type { NodeDeletedEvent } from "domain/nodes/node_deleted_event.ts";
-import type { NodeUpdatedEvent } from "domain/nodes/node_updated_event.ts";
+import { NodeUpdatedEvent } from "domain/nodes/node_updated_event.ts";
 import type { NodeServiceContext } from "./node_service_context.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 
 /**
  * Event handler that updates parent folder modification times when nodes are created, updated, or deleted.
- * This ensures that parent folders reflect changes to their contents through their lastModified time.
+ * This ensures that parent folders reflect changes to their contents through modifiedTime.
  * For move operations, both the old and new parent folders are updated.
  */
 export class ParentFolderUpdateHandler
@@ -22,7 +22,7 @@ export class ParentFolderUpdateHandler
 				error,
 			);
 
-		if (event.eventId === "NodeUpdatedEvent") {
+		if (event.eventId === NodeUpdatedEvent.EVENT_ID) {
 			this.handleNodeUpdated(event as NodeUpdatedEvent).catch(errorHandler);
 		} else {
 			this.handleNodeCreatedOrDeleted(event as NodeCreatedEvent | NodeDeletedEvent).catch(
@@ -36,7 +36,7 @@ export class ParentFolderUpdateHandler
 	): Promise<void> {
 		const node = event.payload;
 		const parentUuid = node.parent;
-		await this.updateParentFolder(parentUuid, event.eventId);
+		await this.updateParentFolder(parentUuid);
 	}
 
 	private async handleNodeUpdated(event: NodeUpdatedEvent): Promise<void> {
@@ -47,10 +47,10 @@ export class ParentFolderUpdateHandler
 			newValues.parent !== undefined && oldValues.parent !== newValues.parent
 		) {
 			// Update old parent folder
-			await this.updateParentFolder(oldValues.parent!, event.eventId, "old parent");
+			await this.updateParentFolder(oldValues.parent!);
 
 			// Update new parent folder
-			await this.updateParentFolder(newValues.parent, event.eventId, "new parent");
+			await this.updateParentFolder(newValues.parent);
 		} else {
 			// For any other update, update the current parent folder
 			// Any change to a child node should be reflected in the parent's modification time
@@ -61,15 +61,11 @@ export class ParentFolderUpdateHandler
 				return;
 			}
 
-			await this.updateParentFolder(updatedNode.value.parent, event.eventId);
+			await this.updateParentFolder(updatedNode.value.parent);
 		}
 	}
 
-	private async updateParentFolder(
-		parentUuid: string,
-		_eventType: string,
-		_context = "",
-	): Promise<void> {
+	private async updateParentFolder(parentUuid: string): Promise<void> {
 		// Don't update the root folder as it's a built-in folder
 		if (parentUuid === Nodes.ROOT_FOLDER_UUID) {
 			return;

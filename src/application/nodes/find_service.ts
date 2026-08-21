@@ -1,83 +1,23 @@
-import { FolderNode } from "domain/nodes/folder_node.ts";
 import type { NodeFilters, NodeFilters1D, NodeFilters2D } from "domain/nodes/node_filter.ts";
 import { isNodeFilters2D } from "domain/nodes/node_filter.ts";
 import type { NodeFilterResult } from "domain/nodes/node_repository.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import { NodesFilters } from "domain/nodes_filters.ts";
-import { Groups } from "domain/users_groups/groups.ts";
-import { Users } from "domain/users_groups/users.ts";
 import { AntboxError } from "shared/antbox_error.ts";
 import { Either, right } from "shared/either.ts";
 import { Logger } from "shared/logger.ts";
 import type { AuthenticationContext } from "../security/authentication_context.ts";
 import type { AuthorizationService } from "../security/authorization_service.ts";
 import type { NodeServiceContext } from "./node_service_context.ts";
+import { createRootFolder } from "./root_folder.ts";
 
-/**
- * Service responsible for finding nodes in the repository.
- *
- * This service centralizes all node finding logic including:
- * - String parsing and content search
- * - Semantic search using vector embeddings
- * - Permission resolution
- * - Special filter resolution (@ filters)
- * - Repository querying with pagination
- */
+/** Finds nodes while applying permissions, dynamic filters, and semantic ranking. */
 export class FindService {
 	constructor(
 		private readonly context: NodeServiceContext,
 		private readonly authorizationService: AuthorizationService,
 	) {}
 
-	/**
-	 * Finds nodes based on filters, with support for semantic search and permission checks.
-	 *
-	 * This is a complex method that performs multiple stages of processing:
-	 *
-	 * 1. **String Parsing Stage**: If filters are provided as a string:
-	 *    - Checks if string starts with "?" for semantic search
-	 *    - Otherwise attempts to parse it as structured filters
-	 *    - Falls back to fulltext search if parsing fails
-	 *
-	 * 2. **Semantic Search Stage**: Detects semantic search (string starting with "?")
-	 *    - Uses vector embeddings to find semantically similar content
-	 *    - Replaces query with UUID-based filter from results
-	 *    - Preserves relevance scores for ranking
-	 *
-	 * 3. **Permission Resolution Stage**: Transforms filters to respect permissions
-	 *    - Adds permission constraints based on user's authentication context
-	 *    - Ensures users only see nodes they have "Read" access to
-	 *    - Expands filters to include permission checks
-	 *
-	 * 4. **Special Filter Resolution Stage**: Resolves special "@" filters
-	 *    - Processes dynamic filters like "@me" (current user)
-	 *    - Handles async resolution of filter values
-	 *    - Filters out any failed resolutions
-	 *
-	 * 5. **Repository Query Stage**: Executes the processed filters
-	 *    - Applies pagination (pageSize, pageToken)
-	 *    - Returns matching nodes with metadata
-	 *    - Attaches semantic search scores if applicable
-	 *
-	 * @param ctx - Authentication context for permission checks
-	 * @param filters - NodeFilters (structured) or string (for parsing/fulltext/semantic search)
-	 * @param pageSize - Number of results per page (default: 20)
-	 * @param pageToken - Page number for pagination (default: 1)
-	 * @returns Either an error or the filtered node results with pagination info
-	 *
-	 * @example
-	 * ```typescript
-	 * // Structured filter
-	 * const result = await findService.find(ctx, [["mimetype", "==", "image/png"]], 10, 1);
-	 *
-	 * // String fulltext search
-	 * const result = await findService.find(ctx, "meeting notes", 20, 1);
-	 *
-	 * // Semantic search (starts with ?)
-	 * const result = await findService.find(ctx, "?what is the meaning of life", 50, 1);
-	 *
-	 * ```
-	 */
 	async find(
 		ctx: AuthenticationContext,
 		filters: NodeFilters | string,
@@ -89,9 +29,7 @@ export class FindService {
 			NodeFilterResult & { scores?: Record<string, number> }
 		>
 	> {
-		// Stage 1: Handle string-based filters
 		if (typeof filters === "string") {
-			// Check if this is a semantic search query (starts with ?)
 			if (filters.startsWith("?")) {
 				const semanticQuery = filters.substring(1).trim();
 				return this.#performSemanticSearch(ctx, semanticQuery, pageSize, pageToken);
@@ -107,29 +45,9 @@ export class FindService {
 			return this.find(ctx, [["fulltext", "match", filters]], pageSize, pageToken);
 		}
 
-		// Normalize filters to 2D array format
-		filters = isNodeFilters2D(filters) ? filters : [filters];
-
-		// Stage 2: Add permission constraints to filters
-		const stage1 = filters.reduce(
-			this.authorizationService.toFiltersWithPermissionsResolved(ctx, "Read"),
-			[],
-		);
-
-		// Stage 3: Resolve special "@" filters (async operations)
-		const batch = stage1.map((f) => this.#toFiltersWithAtResolved(f));
-		const stage2 = await Promise.allSettled(batch);
-		const stage3 = stage2.filter((r) => r.status === "fulfilled").map((r) => r.value);
-		const processedFilters = stage3.filter((f) => f.length);
-
-		// Stage 4: Execute repository query with processed filters
-		const r = await this.context.repository.filter(
-			processedFilters,
-			pageSize,
-			pageToken,
-		);
-
-		return right(r);
+		const normalizedFilters = isNodeFilters2D(filters) ? filters : [filters];
+		const processedFilters = await this.#resolveFilters(ctx, normalizedFilters);
+		return right(await this.context.repository.filter(processedFilters, pageSize, pageToken));
 	}
 
 	/**
@@ -193,20 +111,7 @@ export class FindService {
 				});
 			}
 
-			// Use the UUIDs from semantic search as a filter
-			const filters: NodeFilters2D = [[["uuid", "in", uuids]]];
-
-			// Apply permission filters and execute query
-			const stage1 = filters.reduce(
-				this.authorizationService.toFiltersWithPermissionsResolved(ctx, "Read"),
-				[],
-			);
-
-			const batch = stage1.map((f) => this.#toFiltersWithAtResolved(f));
-			const stage2 = await Promise.allSettled(batch);
-			const stage3 = stage2.filter((r) => r.status === "fulfilled").map((r) => r.value);
-			const processedFilters = stage3.filter((f) => f.length);
-
+			const processedFilters = await this.#resolveFilters(ctx, [[["uuid", "in", uuids]]]);
 			const r = await this.context.repository.filter(
 				processedFilters,
 				Number.MAX_SAFE_INTEGER,
@@ -217,14 +122,16 @@ export class FindService {
 			r.nodes.sort((a, b) => (scores[b.uuid] ?? 0) - (scores[a.uuid] ?? 0));
 
 			const firstIndex = (pageToken - 1) * pageSize;
-			const lastIndex = firstIndex + pageSize;
-			const nodes = r.nodes.slice(firstIndex, lastIndex);
+			const nodes = r.nodes.slice(firstIndex, firstIndex + pageSize);
+			const pageScores = Object.fromEntries(
+				nodes.map((node) => [node.uuid, scores[node.uuid]]),
+			);
 
 			return right({
 				nodes,
 				pageSize,
 				pageToken,
-				scores,
+				scores: pageScores,
 			});
 		} catch (error) {
 			Logger.error("Semantic search failed:", error);
@@ -233,10 +140,24 @@ export class FindService {
 		}
 	}
 
-	/**
-	 * Resolves special "@" filters in the filter set.
-	 * "@" filters are placeholders that get replaced with actual parent UUIDs.
-	 */
+	async #resolveFilters(
+		ctx: AuthenticationContext,
+		filters: NodeFilters2D,
+	): Promise<NodeFilters2D> {
+		const permissionFilters = filters.reduce(
+			this.authorizationService.toFiltersWithPermissionsResolved(ctx, "Read"),
+			[],
+		);
+		const settled = await Promise.allSettled(
+			permissionFilters.map((filter) => this.#toFiltersWithAtResolved(filter)),
+		);
+
+		return settled
+			.filter((result) => result.status === "fulfilled")
+			.map((result) => result.value)
+			.filter((filter) => filter.length);
+	}
+
 	async #toFiltersWithAtResolved(f: NodeFilters1D): Promise<NodeFilters1D> {
 		if (!f.some((f) => f[0].startsWith("@"))) {
 			return f;
@@ -262,28 +183,10 @@ export class FindService {
 			at.push(["uuid", parentFilter[1], parentFilter[2]]);
 		}
 
-		// Since the root folder is not stored in the repository, we need to handle it separately
+		// The root folder is not stored in the repository.
 		const spec = NodesFilters.nodeSpecificationFrom(at);
-		const rootFolder = FolderNode.create({
-			uuid: Nodes.ROOT_FOLDER_UUID,
-			fid: Nodes.ROOT_FOLDER_UUID,
-			title: "Root",
-			parent: Nodes.ROOT_FOLDER_UUID,
-			owner: Users.ROOT_USER_EMAIL,
-			group: Groups.ADMINS_GROUP_UUID,
-			filters: [["mimetype", "in", [
-				Nodes.FOLDER_MIMETYPE,
-				Nodes.SMART_FOLDER_MIMETYPE,
-			]]],
-			permissions: {
-				group: ["Read", "Write", "Export"],
-				authenticated: ["Read"],
-				anonymous: [],
-				advanced: {},
-			},
-		}).right;
-
-		const sysFolders = spec.isSatisfiedBy(rootFolder).isRight() ? [rootFolder] : [];
+		const root = createRootFolder();
+		const sysFolders = spec.isSatisfiedBy(root).isRight() ? [root] : [];
 
 		const result = await this.context.repository.filter(
 			at,

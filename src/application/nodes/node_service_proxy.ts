@@ -80,17 +80,15 @@ export class NodeServiceProxy {
 			return left(res.value);
 		}
 
-		let uuids = res.value.map((v) => v.uuid);
+		const uuids = res.value.map((result) => result.uuid);
 		const valid = await this.#nodeService.find(this.#ctx, [["uuid", "in", uuids]]);
 
 		if (valid.isLeft()) {
 			return left(valid.value);
 		}
 
-		uuids = valid.value.nodes.map((v) => v.uuid);
-		const result = res.value.filter((v) => uuids.includes(v.uuid));
-
-		return right(result);
+		const permittedUuids = new Set(valid.value.nodes.map((node) => node.uuid));
+		return right(res.value.filter((result) => permittedUuids.has(result.uuid)));
 	}
 
 	get(uuid: string) {

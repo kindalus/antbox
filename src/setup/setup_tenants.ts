@@ -55,15 +55,17 @@ const BUILTIN_SKILLS_DIR = fromFileUrl(
  * @example
  * const tenants = await setupTenants(config);
  */
-export function setupTenants(
+export async function setupTenants(
 	cfg: ServerConfiguration,
 ): Promise<AntboxTenant[]> {
 	const adminTenantName = cfg.adminTenantName === undefined
 		? cfg.tenants.find((tenant) => tenant.name === "default")?.name ?? cfg.tenants[0]?.name
 		: cfg.adminTenantName;
-	return Promise.all(
-		cfg.tenants.map((tenantCfg) => setupTenant(cfg, tenantCfg, adminTenantName)),
-	);
+	const tenants: AntboxTenant[] = [];
+	for (const tenantCfg of cfg.tenants) {
+		tenants.push(await setupTenant(cfg, tenantCfg, adminTenantName));
+	}
+	return tenants;
 }
 
 async function setupTenant(

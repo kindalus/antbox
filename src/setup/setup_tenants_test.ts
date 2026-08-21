@@ -123,6 +123,29 @@ describe("setupTenants", () => {
 		};
 	}
 
+	it("sets up multiple tenants that share adapter modules", async () => {
+		const { jwksPath } = await createJwksFile();
+		const { modulePath, relativeModulePath } = await createConfigRepositoryModule();
+
+		try {
+			const config: ServerConfiguration = {
+				rootPasswd: "global-root",
+				key: "c2VydmVyLXNlY3JldA==",
+				jwks: jwksPath,
+				tenants: [
+					createTenantConfig("tenant-a", relativeModulePath),
+					createTenantConfig("tenant-b", relativeModulePath),
+				],
+			};
+
+			const tenants = await setupTenants(config);
+			expect(tenants.map(({ name }) => name)).toEqual(["tenant-a", "tenant-b"]);
+		} finally {
+			await Deno.remove(modulePath);
+			await Deno.remove(jwksPath);
+		}
+	});
+
 	it("inherits global rootPasswd, key, and jwks when tenant values are absent", async () => {
 		const { jwksPath, privateKey } = await createJwksFile();
 		const { modulePath, relativeModulePath } = await createConfigRepositoryModule();

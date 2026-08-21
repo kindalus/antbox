@@ -11,6 +11,7 @@ import type { EventHandler } from "shared/event_handler.ts";
 import type { AuthenticationContext } from "../security/authentication_context.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import { Groups } from "domain/users_groups/groups.ts";
+import { Users } from "domain/users_groups/users.ts";
 
 // Mock EventBus implementation
 class MockEventBus implements EventBus {
@@ -331,6 +332,97 @@ describe("NodeService - Lock/Unlock", () => {
 			});
 
 			expect(updateOrErr.isRight()).toBe(true);
+		});
+	});
+
+	describe("recursive folder locks", () => {
+		async function createTree(service: NodeService, authCtx: AuthenticationContext) {
+			const parentUuid = await createTestFolder(service, authCtx);
+			const childFolder = await service.create(authCtx, {
+				uuid: "child-folder",
+				title: "Child Folder",
+				mimetype: Nodes.FOLDER_MIMETYPE,
+				parent: parentUuid,
+				filters: [],
+			});
+			const grandchild = await service.create(authCtx, {
+				uuid: "grandchild-node",
+				title: "Grandchild",
+				mimetype: Nodes.META_NODE_MIMETYPE,
+				parent: childFolder.right.uuid,
+			});
+			return {
+				parentUuid,
+				childFolderUuid: childFolder.right.uuid,
+				grandchildUuid: grandchild.right.uuid,
+			};
+		}
+
+		it("locks all descendants with the lock system user", async () => {
+			const service = new NodeService(createContext());
+			const authCtx = createAuthContext("owner@example.com");
+			const tree = await createTree(service, authCtx);
+
+			const result = await service.lock(authCtx, tree.parentUuid);
+
+			expect(result.isRight()).toBe(true);
+			const child = await service.get(authCtx, tree.childFolderUuid);
+			const grandchild = await service.get(authCtx, tree.grandchildUuid);
+			expect(child.right.locked).toBe(true);
+			expect(child.right.lockedBy).toBe(Users.LOCK_SYSTEM_USER_EMAIL);
+			expect(grandchild.right.locked).toBe(true);
+			expect(grandchild.right.lockedBy).toBe(Users.LOCK_SYSTEM_USER_EMAIL);
+		});
+
+		it("rejects direct unlock of a descendant locked by the system", async () => {
+			const service = new NodeService(createContext());
+			const authCtx = createAuthContext("owner@example.com");
+			const tree = await createTree(service, authCtx);
+			await service.lock(authCtx, tree.parentUuid);
+
+			const result = await service.unlock(authCtx, tree.childFolderUuid);
+
+			expect(result.isLeft()).toBe(true);
+			if (result.isLeft()) {
+				expect(result.value.message).toContain("Unlock the parent folder instead");
+			}
+		});
+
+		it("unlocks descendants when their parent folder is unlocked", async () => {
+			const service = new NodeService(createContext());
+			const authCtx = createAuthContext("owner@example.com");
+			const tree = await createTree(service, authCtx);
+			await service.lock(authCtx, tree.parentUuid);
+
+			const result = await service.unlock(authCtx, tree.parentUuid);
+
+			expect(result.isRight()).toBe(true);
+			const child = await service.get(authCtx, tree.childFolderUuid);
+			const grandchild = await service.get(authCtx, tree.grandchildUuid);
+			expect(child.right.locked).toBe(false);
+			expect(grandchild.right.locked).toBe(false);
+		});
+
+		it("preserves an independently locked child when unlocking the parent", async () => {
+			const service = new NodeService(createContext());
+			const parentCtx = createAuthContext("parent-owner@example.com");
+			const childCtx = createAuthContext("child-owner@example.com");
+			const parentUuid = await createTestFolder(service, parentCtx);
+			const child = await service.create(parentCtx, {
+				uuid: "independently-locked-child",
+				title: "Independent child",
+				mimetype: Nodes.META_NODE_MIMETYPE,
+				parent: parentUuid,
+			});
+			await service.lock(childCtx, child.right.uuid);
+			await service.lock(parentCtx, parentUuid);
+
+			const result = await service.unlock(parentCtx, parentUuid);
+
+			expect(result.isRight()).toBe(true);
+			const persistedChild = await service.get(parentCtx, child.right.uuid);
+			expect(persistedChild.right.locked).toBe(true);
+			expect(persistedChild.right.lockedBy).toBe("child-owner@example.com");
 		});
 	});
 });

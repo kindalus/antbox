@@ -127,6 +127,12 @@ export class NodeService {
 		ctx: AuthenticationContext,
 		metadata: Partial<NodeMetadata>,
 	): Promise<Either<AntboxError, NodeLike>> {
+		metadata = { ...metadata };
+		if (ctx.principal.email !== Users.WORKFLOW_INSTANCE_USER_EMAIL) {
+			delete metadata.workflowInstanceUuid;
+			delete metadata.workflowState;
+		}
+
 		const uuid = metadata.uuid ?? UuidGenerator.generate();
 
 		if (!metadata.parent) {
@@ -663,27 +669,27 @@ export class NodeService {
 	}
 
 	async breadcrumbs(
-		_ctx: AuthenticationContext,
+		ctx: AuthenticationContext,
 		uuid: string,
 	): Promise<Either<AntboxError, Array<{ uuid: string; title: string }>>> {
-		const nodeOrErr = await this.#getBuiltinNodeOrFromRepository(uuid);
+		const nodeOrErr = await this.get(ctx, uuid);
 		if (nodeOrErr.isLeft()) {
 			return left(nodeOrErr.value);
 		}
 
 		const breadcrumbs: Array<{ uuid: string; title: string }> = [{
-			uuid: nodeOrErr.value.uuid!,
-			title: nodeOrErr.value.title!,
+			uuid: nodeOrErr.value.uuid,
+			title: nodeOrErr.value.title,
 		}];
 
 		let currentUuid = nodeOrErr.value.parent;
 
 		// Traverse up the folder hierarchy
 		while (currentUuid && currentUuid !== Nodes.ROOT_FOLDER_UUID) {
-			const currentNodeOrErr = await this.#getBuiltinFolderOrFromRepository(currentUuid);
+			const currentNodeOrErr = await this.get(ctx, currentUuid);
 
 			if (currentNodeOrErr.isLeft()) {
-				break;
+				return left(currentNodeOrErr.value);
 			}
 
 			const currentNode = currentNodeOrErr.value;

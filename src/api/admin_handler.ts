@@ -57,6 +57,7 @@ export function adminReloadHandler(
 export function adminTenantsGetHandler(
 	tenants: AntboxTenant[],
 	configDir?: string,
+	dataDir?: string,
 ): HttpHandler {
 	return defaultMiddlewareChain(tenants, async (req: Request): Promise<Response> => {
 		if (!getTenant(req, tenants).isAdminTenant) {
@@ -68,7 +69,7 @@ export function adminTenantsGetHandler(
 			return sendForbidden();
 		}
 
-		const config = await loadConfiguration(configDir);
+		const config = await loadConfiguration(configDir, dataDir);
 		return sendOK(config.tenants);
 	});
 }
@@ -77,6 +78,7 @@ export function adminTenantsUpdateHandler(
 	tenants: AntboxTenant[],
 	reload: () => Promise<void>,
 	configDir?: string,
+	dataDir?: string,
 ): HttpHandler {
 	return defaultMiddlewareChain(tenants, async (req: Request): Promise<Response> => {
 		if (!getTenant(req, tenants).isAdminTenant) {
@@ -100,7 +102,7 @@ export function adminTenantsUpdateHandler(
 			return sendBadRequest({ errors: validation.error.flatten() });
 		}
 
-		const oldConfig = await loadConfiguration(configDir);
+		const oldConfig = await loadConfiguration(configDir, dataDir);
 		for (const tenant of validation.data) {
 			const effectiveKey = tenant.key ?? oldConfig.key;
 			if (!effectiveKey?.trim()) {

@@ -208,7 +208,7 @@ export class AgentsService {
 			return left(ValidationError.from(...errors));
 		}
 
-		return this.#configRepo.save("agents", updatedData);
+		return this.#configRepo.save("agents", validation.data as AgentData);
 	}
 
 	async deleteAgent(
@@ -242,10 +242,10 @@ export class AgentsService {
 	}
 
 	#normalizeAgent(agent: AgentData): AgentData {
-		return {
+		return AgentDataSchema.parse({
 			...agent,
 			exposedToUsers: agent.exposedToUsers ?? true,
 			systemPrompt: resolveAgentSystemPrompt(agent.systemPrompt),
-		};
+		}) as AgentData;
 	}
 }

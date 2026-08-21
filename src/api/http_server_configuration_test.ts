@@ -56,6 +56,22 @@ describe("TenantConfigurationSchema", () => {
 		}
 	});
 
+	it("normalizes legacy model strings and accepts explicit thinking levels", () => {
+		const legacy = TenantConfigurationSchema.parse({
+			...makeTenantConfig(),
+			ai: { enabled: true, defaultModel: "google/gemini-2.5-flash" },
+			limits: { storage: 25, tokens: 1 },
+		});
+		expect(legacy.ai?.defaultModel).toEqual(["google/gemini-2.5-flash"]);
+
+		const explicit = TenantConfigurationSchema.parse({
+			...makeTenantConfig(),
+			ai: { enabled: true, defaultModel: ["google/gemini-2.5-flash", "medium"] },
+			limits: { storage: 25, tokens: 1 },
+		});
+		expect(explicit.ai?.defaultModel).toEqual(["google/gemini-2.5-flash", "medium"]);
+	});
+
 	it("accepts positive integer token limit when AI is enabled", () => {
 		const result = TenantConfigurationSchema.safeParse({
 			...makeTenantConfig(),

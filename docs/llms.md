@@ -47,14 +47,15 @@ port = 7180
 [[tenants]]
 name = "default"
 rootPasswd = "change-me"
-storage = ["flat_file/flat_file_storage_provider.ts", "./storage"]
-repository = ["sqlite/sqlite_node_repository.ts", "./data/tenant.db"]
-configurationRepository = ["sqlite/sqlite_configuration_repository.ts", "./data/tenant.db"]
-eventStoreRepository = ["sqlite/sqlite_event_store_repository.ts", "./data/tenant.db"]
+storage = ["flat_file/flat_file_storage_provider.ts", "default/storage"]
+repository = ["sqlite/sqlite_node_repository.ts", "default/repository"]
+configurationRepository = ["sqlite/sqlite_configuration_repository.ts", "default/config"]
+eventStoreRepository = ["sqlite/sqlite_event_store_repository.ts", "default/events"]
 
 [tenants.ai]
 enabled = true
-defaultModel = "google/gemini-2.5-flash"
+defaultModel = ["google/gemini-2.5-flash"]
+sessionsPath = "default/ai-sessions"
 embeddingProvider = ["embeddings/deterministic_embeddings_provider.ts", "1536"]
 ocrProvider = ["ocr/null_ocr_provider.ts"]
 skillsPath = "./skills"
@@ -64,14 +65,9 @@ Module configuration format is always:
 
 - `["module-path.ts", "arg1", "arg2", ...]`
 
-Agent execution uses Pi core. Supported model prefixes and credentials are:
-
-- `google/*`: `GEMINI_API_KEY`, falling back to `GOOGLE_API_KEY`
-- `openai/*`: `OPENAI_API_KEY`
-- `anthropic/*`: `ANTHROPIC_API_KEY`
-- `ollama/*`: keyless local endpoint selected by `OLLAMA_BASE_URL`
-
-Providers enumerate model metadata and supply credentials; Pi owns the request and tool loop.
+Agent execution uses Pi `AgentSession`. `defaultModel` contains a Pi model name and an optional
+thinking level. Omission means `off`; for example, `["google/gemini-2.5-flash", "medium"]`. Pi's
+`ModelRuntime` owns provider catalogs, environment-based credentials, requests, and tool loops.
 
 ## 3. Authentication and Tenancy
 

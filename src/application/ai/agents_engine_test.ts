@@ -1,10 +1,13 @@
 import { describe, it } from "bdd";
+import { Agent } from "@earendil-works/pi-agent-core";
+import type { SessionManager } from "@earendil-works/pi-coding-agent";
 import { expect } from "expect";
 import {
 	type Context,
 	fauxAssistantMessage,
 	fauxProvider,
 	fauxToolCall,
+	type Message,
 	type SimpleStreamOptions,
 } from "@earendil-works/pi-ai";
 import type { AgentModelRuntime } from "./resolve_model.ts";
@@ -17,6 +20,11 @@ import type { AuthenticationContext } from "application/security/authentication_
 import { FeaturesEngine } from "application/features/features_engine.ts";
 import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus.ts";
 import { customAgentRegistry } from "./custom_agents/index.ts";
+import type {
+	AgentSessionRunner,
+	PiAgentSessionRunInput,
+	PiAgentSessionRunOutput,
+} from "./pi_agent_session.ts";
 
 const mockAuthContext: AuthenticationContext = {
 	tenant: "test-tenant",
@@ -30,7 +38,7 @@ function makeAgent(overrides: Partial<AgentData> = {}): AgentData {
 		name: "Test Agent",
 		description: "A test agent",
 		exposedToUsers: true,
-		model: "default",
+		model: ["default"],
 		systemPrompt: "You are helpful.",
 		createdTime: new Date().toISOString(),
 		modifiedTime: new Date().toISOString(),
@@ -38,7 +46,41 @@ function makeAgent(overrides: Partial<AgentData> = {}): AgentData {
 	};
 }
 
+class CoreTestSessionRunner implements AgentSessionRunner {
+	constructor(readonly runtime: AgentModelRuntime) {}
+
+	createPersistentManager(): Promise<SessionManager> {
+		throw new Error("Not used by these tests");
+	}
+
+	openPersistentManager(): Promise<SessionManager> {
+		throw new Error("Not used by these tests");
+	}
+
+	createInMemoryManager(): Promise<SessionManager> {
+		return Promise.resolve({} as SessionManager);
+	}
+
+	async run(input: PiAgentSessionRunInput): Promise<PiAgentSessionRunOutput> {
+		const agent = new Agent({
+			streamFn: this.runtime.streamFn,
+			getApiKey: (provider) => this.runtime.getApiKey(provider),
+			initialState: {
+				systemPrompt: input.systemPrompt,
+				model: input.model,
+				thinkingLevel: input.thinkingLevel,
+				tools: [...input.tools],
+				messages: [...(input.initialMessages ?? [])],
+			},
+		});
+		const initialCount = agent.state.messages.length;
+		await agent.prompt(input.userText);
+		return { messages: agent.state.messages.slice(initialCount + 1) as Message[] };
+	}
+}
+
 function makeContext(overrides: Partial<AgentsEngineContext> = {}): AgentsEngineContext {
+	const modelRuntime = overrides.modelRuntime ?? makeTextRuntime("Default response");
 	return {
 		agentsService: {
 			getAgent: async (_ctx: unknown, uuid: string) => {
@@ -59,7 +101,9 @@ function makeContext(overrides: Partial<AgentsEngineContext> = {}): AgentsEngine
 		nodeService: {} as unknown as import("application/nodes/node_service.ts").NodeService,
 		aspectsService:
 			{} as unknown as import("application/aspects/aspects_service.ts").AspectsService,
-		defaultModel: "google/gemini-2.5-flash",
+		defaultModel: ["google/gemini-2.5-flash"],
+		modelRuntime,
+		sessionRunner: overrides.sessionRunner ?? new CoreTestSessionRunner(modelRuntime),
 		skills: [],
 		eventBus: {
 			publish: () => {},
@@ -176,21 +220,21 @@ describe("AgentsEngine", () => {
 			}
 		});
 
-		it("returns Forbidden when agent is not exposed to users", async () => {
+		it("returns ForbiddenError when agent is not exposed to users", async () => {
 			const engine = new AgentsEngine(makeContext());
 			const result = await engine.chat(mockAuthContext, "internal-only", "hi");
 			expect(result.isLeft()).toBe(true);
 			if (result.isLeft()) {
-				expect(result.value.errorCode).toBe("Forbidden");
+				expect(result.value.errorCode).toBe("ForbiddenError");
 			}
 		});
 
-		it("returns Forbidden from answer when agent is not exposed to users", async () => {
+		it("returns ForbiddenError from answer when agent is not exposed to users", async () => {
 			const engine = new AgentsEngine(makeContext());
 			const result = await engine.answer(mockAuthContext, "internal-only", "hi");
 			expect(result.isLeft()).toBe(true);
 			if (result.isLeft()) {
-				expect(result.value.errorCode).toBe("Forbidden");
+				expect(result.value.errorCode).toBe("ForbiddenError");
 			}
 		});
 
@@ -292,104 +336,6 @@ describe("AgentsEngine", () => {
 			expect(result.isRight()).toBe(true);
 			if (result.isRight()) {
 				expect(result.value).toEqual(["load_skill"]);
-			}
-		});
-	});
-
-	describe("openChatSession", () => {
-		it("returns a sessionId and the tool snapshot", async () => {
-			const engine = new AgentsEngine(makeContext());
-			const result = await engine.openChatSession(mockAuthContext, "test-agent");
-			expect(result.isRight()).toBe(true);
-			if (result.isRight()) {
-				expect(typeof result.value.sessionId).toBe("string");
-				expect(result.value.toolNames).toEqual(["load_skill"]);
-				expect(result.value.expiresAt).toBeGreaterThan(Date.now());
-			}
-		});
-
-		it("rejects opening a session for an internal-only agent", async () => {
-			const engine = new AgentsEngine(makeContext());
-			const result = await engine.openChatSession(mockAuthContext, "internal-only");
-			expect(result.isLeft()).toBe(true);
-			if (result.isLeft()) {
-				expect(result.value.errorCode).toBe("Forbidden");
-			}
-		});
-
-		it("rejects chat with an unknown sessionId", async () => {
-			const engine = new AgentsEngine(makeContext());
-			const result = await engine.chat(mockAuthContext, "test-agent", "hi", {
-				sessionId: "does-not-exist",
-			});
-			expect(result.isLeft()).toBe(true);
-			if (result.isLeft()) {
-				expect(result.value.errorCode).toBe("InvalidSession");
-			}
-		});
-
-		it("rejects chat when sessionId tenant/agent does not match", async () => {
-			const engine = new AgentsEngine(makeContext());
-			const opened = await engine.openChatSession(mockAuthContext, "test-agent");
-			if (opened.isLeft()) throw new Error("setup failed");
-			const result = await engine.chat(mockAuthContext, "different-agent", "hi", {
-				sessionId: opened.value.sessionId,
-			});
-			expect(result.isLeft()).toBe(true);
-			if (result.isLeft()) {
-				expect(result.value.errorCode).toBe("InvalidSession");
-			}
-		});
-
-		it("rejects chat when sessionId belongs to another user", async () => {
-			const engine = new AgentsEngine(makeContext());
-			const opened = await engine.openChatSession(mockAuthContext, "test-agent");
-			if (opened.isLeft()) throw new Error("setup failed");
-			const otherUser = {
-				...mockAuthContext,
-				principal: { email: "other@example.com", groups: [] },
-			};
-			const result = await engine.chat(otherUser, "test-agent", "hi", {
-				sessionId: opened.value.sessionId,
-			});
-			expect(result.isLeft()).toBe(true);
-			if (result.isLeft()) expect(result.value.errorCode).toBe("InvalidSession");
-		});
-
-		it("rejects chat with stale tool name in history when using session", async () => {
-			const engine = new AgentsEngine(makeContext());
-			const opened = await engine.openChatSession(mockAuthContext, "test-agent");
-			if (opened.isLeft()) throw new Error("setup failed");
-			const result = await engine.chat(mockAuthContext, "test-agent", "hi", {
-				sessionId: opened.value.sessionId,
-				history: [
-					{
-						role: "model",
-						parts: [{ toolCall: { id: "c1", name: "vanished_tool", args: {} } }],
-					},
-					{
-						role: "tool",
-						parts: [{ toolResponse: { id: "c1", name: "vanished_tool", text: "{}" } }],
-					},
-				],
-			});
-			expect(result.isLeft()).toBe(true);
-			if (result.isLeft()) {
-				expect(result.value.errorCode).toBe("StaleHistoryTool");
-			}
-		});
-
-		it("closeChatSession invalidates the session", async () => {
-			const engine = new AgentsEngine(makeContext());
-			const opened = await engine.openChatSession(mockAuthContext, "test-agent");
-			if (opened.isLeft()) throw new Error("setup failed");
-			expect(engine.closeChatSession(opened.value.sessionId)).toBe(true);
-			const result = await engine.chat(mockAuthContext, "test-agent", "hi", {
-				sessionId: opened.value.sessionId,
-			});
-			expect(result.isLeft()).toBe(true);
-			if (result.isLeft()) {
-				expect(result.value.errorCode).toBe("InvalidSession");
 			}
 		});
 	});
@@ -512,46 +458,6 @@ describe("AgentsEngine", () => {
 			expect(firstPrompt).toContain("Custom prompt.\n\nToday's date: 2026-05-02 (Saturday).");
 		});
 
-		it("forwards temperature and maxTokens to Pi", async () => {
-			const mockModel = makeToolThenTextRuntime("Configured response.");
-			const engine = new AgentsEngine(makeSemanticSearchContext(mockModel.runtime));
-			const result = await engine.answer(mockAuthContext, "test-agent", "query", {
-				temperature: 0.25,
-				maxTokens: 321,
-			});
-			expect(result.isRight()).toBe(true);
-			expect(mockModel.getOptions()[0]?.temperature).toBe(0.25);
-			expect(mockModel.getOptions()[0]?.maxTokens).toBe(321);
-		});
-
-		it("chat appends a final model answer when maxLlmCalls stops after a tool response", async () => {
-			const mockModel = makeToolThenTextRuntime("Resposta final sintetizada dos resultados.");
-			const engine = new AgentsEngine(
-				makeSemanticSearchContext(mockModel.runtime, { maxLlmCalls: 1 }),
-			);
-
-			const result = await engine.chat(
-				mockAuthContext,
-				"test-agent",
-				"pagamento de impostos este mês",
-			);
-
-			expect(result.isRight()).toBe(true);
-			if (result.isLeft()) throw result.value;
-
-			expect(result.value.map((message) => message.role)).toEqual([
-				"user",
-				"model",
-				"tool",
-				"model",
-			]);
-			expect(result.value.at(-1)?.parts[0].text).toBe(
-				"Resposta final sintetizada dos resultados.",
-			);
-			expect(mockModel.getCalls()).toBe(2);
-			expect(mockModel.getToolCounts()).toEqual([2, 0]);
-		});
-
 		it("chat guards custom agents from ending with a tool response", async () => {
 			const uuid = "custom-tool-agent";
 			customAgentRegistry.set(uuid, {
@@ -591,26 +497,6 @@ describe("AgentsEngine", () => {
 			} finally {
 				customAgentRegistry.delete(uuid);
 			}
-		});
-
-		it("answer returns synthesized text after a tool response", async () => {
-			const mockModel = makeToolThenTextRuntime("Resposta direta baseada na pesquisa.");
-			const engine = new AgentsEngine(
-				makeSemanticSearchContext(mockModel.runtime, { maxLlmCalls: 1 }),
-			);
-
-			const result = await engine.answer(
-				mockAuthContext,
-				"test-agent",
-				"pagamento de impostos este mês",
-			);
-
-			expect(result.isRight()).toBe(true);
-			if (result.isLeft()) throw result.value;
-
-			expect(result.value.role).toBe("model");
-			expect(result.value.parts).toEqual([{ text: "Resposta direta baseada na pesquisa." }]);
-			expect(mockModel.getToolCounts()).toEqual([2, 0]);
 		});
 	});
 

@@ -136,6 +136,69 @@ export function chatHandler(tenants: AntboxTenant[]): HttpHandler {
 	);
 }
 
+export function createAgentSessionHandler(tenants: AntboxTenant[]): HttpHandler {
+	return defaultMiddlewareChain(
+		tenants,
+		async (req: Request): Promise<Response> => {
+			const tenant = getTenant(req, tenants);
+			const unavailableResponse = checkServiceAvailability(tenant.agentsEngine, "Agents engine");
+			if (unavailableResponse) return unavailableResponse;
+			const { uuid } = getParams(req);
+			if (!uuid) return sendBadRequest({ error: "{ uuid } not given" });
+			const input = await req.json();
+			if (typeof input?.text !== "string" || !input.text.trim()) {
+				return sendBadRequest({ error: "{ text } not given" });
+			}
+			return tenant.agentsEngine
+				.createChatSession(getAuthenticationContext(req), uuid, input.text)
+				.then(processServiceResult)
+				.catch(processError);
+		},
+	);
+}
+
+export function continueAgentSessionHandler(tenants: AntboxTenant[]): HttpHandler {
+	return defaultMiddlewareChain(
+		tenants,
+		async (req: Request): Promise<Response> => {
+			const tenant = getTenant(req, tenants);
+			const unavailableResponse = checkServiceAvailability(tenant.agentsEngine, "Agents engine");
+			if (unavailableResponse) return unavailableResponse;
+			const { uuid, sessionId } = getParams(req);
+			if (!uuid || !sessionId) {
+				return sendBadRequest({ error: "{ uuid, sessionId } not given" });
+			}
+			const input = await req.json();
+			if (typeof input?.text !== "string" || !input.text.trim()) {
+				return sendBadRequest({ error: "{ text } not given" });
+			}
+			return tenant.agentsEngine
+				.continueChatSession(getAuthenticationContext(req), uuid, sessionId, input.text)
+				.then(processServiceResult)
+				.catch(processError);
+		},
+	);
+}
+
+export function deleteAgentSessionHandler(tenants: AntboxTenant[]): HttpHandler {
+	return defaultMiddlewareChain(
+		tenants,
+		(req: Request): Promise<Response> => {
+			const tenant = getTenant(req, tenants);
+			const unavailableResponse = checkServiceAvailability(tenant.agentsEngine, "Agents engine");
+			if (unavailableResponse) return Promise.resolve(unavailableResponse);
+			const { uuid, sessionId } = getParams(req);
+			if (!uuid || !sessionId) {
+				return Promise.resolve(sendBadRequest({ error: "{ uuid, sessionId } not given" }));
+			}
+			return tenant.agentsEngine
+				.deleteChatSession(getAuthenticationContext(req), uuid, sessionId)
+				.then(processServiceResult)
+				.catch(processError);
+		},
+	);
+}
+
 export function answerHandler(tenants: AntboxTenant[]): HttpHandler {
 	return defaultMiddlewareChain(
 		tenants,

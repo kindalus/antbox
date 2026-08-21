@@ -53,6 +53,7 @@ export default function setupOakServer(
 	tenants: AntboxTenant[],
 	reload: () => Promise<void>,
 	configDir?: string,
+	dataDir?: string,
 ): startHttpServer {
 	const app = new Application();
 
@@ -84,7 +85,7 @@ export default function setupOakServer(
 	const notifications = notificationsRouter(tenants);
 	const userPreferences = userPreferencesRouter(tenants);
 	const heartbeat = heartbeatRouter();
-	const admin = adminRouter(tenants, reload, configDir);
+	const admin = adminRouter(tenants, reload, configDir, dataDir);
 	const metrics = metricsRouter(tenants);
 
 	const v2 = new Router({ prefix: "/v2" });

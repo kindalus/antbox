@@ -97,20 +97,21 @@ Use `start_server.sh`:
 ./start_server.sh [OPTIONS]
 ```
 
-| Option                 | Description                                              |
-| ---------------------- | -------------------------------------------------------- |
-| `--demo`               | Demo config directory (`.config/demo/`)                  |
-| `--sandbox`            | Sandbox config directory (`.config/sandbox/`)            |
-| `-c, --config-dir DIR` | Custom config directory (default `$HOME/.config/antbox`) |
-| `--keys`               | Generate and print crypto keys, then exit                |
-| `-h, --help`           | Show help                                                |
+| Option                 | Description                                                 |
+| ---------------------- | ----------------------------------------------------------- |
+| `--demo`               | Demo config directory (`.config/demo/`)                     |
+| `--sandbox`            | Sandbox config directory (`.config/sandbox/`)               |
+| `-c, --config-dir DIR` | Custom config directory (default `$HOME/.config/antbox`)    |
+| `-d, --data-dir DIR`   | Custom data directory (default `$HOME/.local/share/antbox`) |
+| `--keys`               | Generate and print crypto keys, then exit                   |
+| `-h, --help`           | Show help                                                   |
 
 Examples:
 
 ```bash
 ./start_server.sh --demo
 ./start_server.sh --sandbox
-./start_server.sh -c /etc/antbox
+./start_server.sh -c /etc/antbox -d /var/lib/antbox
 ./start_server.sh --keys
 ```
 
@@ -153,7 +154,9 @@ When you start Antbox for the first time, it will automatically:
 3. Create `tenants.d/tenant.toml.sample`.
 4. Generate cryptographic keys (`antbox.key`, `antbox.jwks`, and `antbox-private.jwk`).
 
-You can override the configuration directory using the `-c, --config-dir` CLI flag.
+You can override the configuration directory using `-c, --config-dir`. Persistent adapter data is
+stored under `$HOME/.local/share/antbox` by default and can be overridden with `-d, --data-dir`.
+Antbox creates only the data subdirectories that configured adapters actually use.
 
 Each tenant defines these core adapters:
 
@@ -179,10 +182,10 @@ rootPasswd = "demo"
 
 [[tenants]]
 name = "demo"
-storage = ["flat_file/flat_file_storage_provider.ts", "./data/storage"]
-repository = ["sqlite/sqlite_node_repository.ts", "./data/repository"]
-configurationRepository = ["sqlite/sqlite_configuration_repository.ts", "./data/config"]
-eventStoreRepository = ["sqlite/sqlite_event_store_repository.ts", "./data/events"]
+storage = ["flat_file/flat_file_storage_provider.ts", "demo/storage"]
+repository = ["sqlite/sqlite_node_repository.ts", "demo/repository"]
+configurationRepository = ["sqlite/sqlite_configuration_repository.ts", "demo/config"]
+eventStoreRepository = ["sqlite/sqlite_event_store_repository.ts", "demo/events"]
 
 [tenants.limits]
 storage = "pay-as-you-go"
@@ -190,7 +193,7 @@ tokens = 0
 
 [tenants.ai]
 enabled = false
-defaultModel = "google/gemini-2.5-flash"
+defaultModel = ["google/gemini-2.5-flash"]
 ```
 
 Tenants can also be stored individually in `<config-dir>/tenants.d/<name>.toml`. These files contain
@@ -198,18 +201,19 @@ one tenant without the `tenants` prefix:
 
 ```toml
 name = "company-a"
-storage = ["flat_file/flat_file_storage_provider.ts", "./data/company-a/storage"]
-repository = ["sqlite/sqlite_node_repository.ts", "./data/company-a/repository"]
-configurationRepository = ["sqlite/sqlite_configuration_repository.ts", "./data/company-a/config"]
-eventStoreRepository = ["sqlite/sqlite_event_store_repository.ts", "./data/company-a/events"]
+storage = ["flat_file/flat_file_storage_provider.ts", "company-a/storage"]
+repository = ["sqlite/sqlite_node_repository.ts", "company-a/repository"]
+configurationRepository = ["sqlite/sqlite_configuration_repository.ts", "company-a/config"]
+eventStoreRepository = ["sqlite/sqlite_event_store_repository.ts", "company-a/events"]
 
 [limits]
 storage = "pay-as-you-go"
 tokens = 0
 ```
 
-Only regular `.toml` files are loaded. The filename must match `name`; relative paths still resolve
-from the main configuration directory. A tenant file overrides an inline tenant with the same name.
+Only regular `.toml` files are loaded. The filename must match `name`. Relative flat-file, SQLite,
+and session paths resolve from `dataDir`; keys, JWKS, skills, S3 configuration, and Google
+credentials resolve from `configDir`. A tenant file overrides an inline tenant with the same name.
 Tenant names may contain lowercase letters, numbers, and internal hyphens only.
 
 ## API Overview

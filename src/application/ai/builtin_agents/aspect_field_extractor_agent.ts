@@ -78,7 +78,7 @@ export const ASPECT_FIELD_EXTRACTOR_AGENT: AgentData = {
 	name: "Aspect Field Extractor",
 	description: "Extracts aspect property values from document content using LLM analysis",
 	exposedToUsers: false,
-	model: "default",
+	model: ["default"],
 	tools: false,
 	systemPrompt: SYSTEM_PROMPT,
 	createdTime: "2024-01-01T00:00:00.000Z",

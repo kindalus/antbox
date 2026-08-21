@@ -23,6 +23,9 @@ import { WorkflowInstancesService } from "application/workflows/workflow_instanc
 import { WorkflowInstancesEngine } from "application/workflows/workflow_instances_engine.ts";
 import { AgentsService } from "application/ai/agents_service.ts";
 import { AgentsEngine } from "application/ai/agents_engine.ts";
+import { createModelRuntime } from "application/ai/resolve_model.ts";
+import { PiAgentSessionRunner } from "application/ai/pi_agent_session.ts";
+import { SessionWorkspaceStore } from "application/ai/session_workspace.ts";
 import { NotificationsService } from "application/notifications/notifications_service.ts";
 import { UserPreferencesService } from "application/preferences/user_preferences_service.ts";
 import { ExternalLoginService } from "application/security/external_login_service.ts";
@@ -197,13 +200,22 @@ async function setupTenant(
 	const skills = cfg.ai?.enabled ? await loadSkills(BUILTIN_SKILLS_DIR, cfg.ai.skillsPath) : [];
 
 	// Create AgentsEngine (Pi-backed execution logic).
+	const modelRuntime = await createModelRuntime(cfg.ai?.modelsPath);
+	if (!modelRuntime.codingRuntime) throw new Error("Pi coding runtime is unavailable");
+	const sessionWorkspace = cfg.ai?.enabled && cfg.ai.sessionsPath
+		? new SessionWorkspaceStore(cfg.ai.sessionsPath)
+		: undefined;
+	await sessionWorkspace?.sweepExpired();
 	const agentsEngine = new AgentsEngine({
 		agentsService,
 		featuresService,
 		ragService,
 		nodeService,
 		aspectsService,
-		defaultModel: cfg.ai?.defaultModel ?? "google/gemini-2.5-flash",
+		defaultModel: cfg.ai?.defaultModel ?? ["google/gemini-2.5-flash"],
+		modelRuntime,
+		sessionRunner: new PiAgentSessionRunner(modelRuntime.codingRuntime),
+		sessionWorkspace,
 		skills,
 		eventBus,
 		tenantLimitsGuard,

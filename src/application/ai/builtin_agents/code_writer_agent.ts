@@ -322,7 +322,7 @@ export const CODE_WRITER_AGENT: AgentData = {
 	description:
 		"Generates ready-to-use code for Antbox aspects (JSON) and features (JavaScript actions, extensions, AI tools)",
 	exposedToUsers: true,
-	model: "default",
+	model: ["default"],
 	tools: false,
 	systemPrompt: SYSTEM_PROMPT,
 	createdTime: "2024-01-01T00:00:00.000Z",

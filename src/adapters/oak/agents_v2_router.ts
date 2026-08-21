@@ -3,8 +3,11 @@ import type { AntboxTenant } from "api/antbox_tenant.ts";
 import {
 	answerHandler,
 	chatHandler,
+	continueAgentSessionHandler,
+	createAgentSessionHandler,
 	createOrReplaceAgentHandler,
 	deleteAgentHandler,
+	deleteAgentSessionHandler,
 	getAgentHandler,
 	listAgentsHandler,
 } from "api/agents_handlers.ts";
@@ -34,6 +37,15 @@ export default function (tenants: AntboxTenant[]): Router {
 	// Execution operations
 	router.post("/:uuid/-/chat", adapt(chatHandler(tenants)));
 	router.post("/:uuid/-/answer", adapt(answerHandler(tenants)));
+	router.post("/:uuid/-/sessions", adapt(createAgentSessionHandler(tenants)));
+	router.post(
+		"/:uuid/-/sessions/:sessionId/messages",
+		adapt(continueAgentSessionHandler(tenants)),
+	);
+	router.delete(
+		"/:uuid/-/sessions/:sessionId",
+		adapt(deleteAgentSessionHandler(tenants)),
+	);
 
 	return router;
 }

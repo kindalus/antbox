@@ -32,7 +32,7 @@ describe("builtin agents schema validation", () => {
 		expect(ragAgent.systemPrompt).toContain("at most three times");
 		expect(ragAgent.systemPrompt).toContain("could not find enough information");
 		expect(ragAgent.systemPrompt).toContain("exact counts, totals, aggregates");
-		expect(ragAgent.model).toBe("default");
+		expect(ragAgent.model).toEqual(["default"]);
 		expect(ragAgent.tools).toEqual(["semantic_search"]);
 	});
 });

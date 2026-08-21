@@ -11,6 +11,7 @@ import { Logger } from "shared/logger.ts";
 
 interface CommandOpts {
 	configDir?: string;
+	dataDir?: string;
 	keys?: boolean;
 	demo?: boolean;
 	sandbox?: boolean;
@@ -54,7 +55,11 @@ function toUrlHost(hostname: string): string {
  * @example
  * await startServer(config);
  */
-async function startServer(config: ServerConfiguration, configDir?: string) {
+async function startServer(
+	config: ServerConfiguration,
+	configDir?: string,
+	dataDir?: string,
+) {
 	let tenants;
 	try {
 		tenants = await setupTenants(getTenantSetupConfiguration(config));
@@ -64,7 +69,7 @@ async function startServer(config: ServerConfiguration, configDir?: string) {
 	}
 
 	const reloadFn = async () => {
-		const newConfig = await loadConfiguration(configDir);
+		const newConfig = await loadConfiguration(configDir, dataDir);
 		const newTenants = await setupTenants(getTenantSetupConfiguration(newConfig));
 		tenants.splice(0, tenants.length, ...newTenants);
 	};
@@ -77,7 +82,7 @@ async function startServer(config: ServerConfiguration, configDir?: string) {
 	let startServerFn;
 	try {
 		const setupServer = await import(`./src/${serverLocation}`);
-		startServerFn = setupServer.default(tenants, reloadFn, configDir);
+		startServerFn = setupServer.default(tenants, reloadFn, configDir, dataDir);
 	} catch (error) {
 		console.error(`Failed to load server engine module: ${serverLocation}`);
 		console.error(error);
@@ -109,16 +114,23 @@ if (import.meta.main) {
 			"-c, --config-dir <dir>",
 			"configuration directory path",
 		)
+		.option(
+			"-d, --data-dir <dir>",
+			"data directory path",
+		)
 		.option("--keys", "print crypto keys and exit")
 		.option("--demo", "run with demo configuration")
 		.option("--sandbox", "run with sandbox configuration")
 		.action(async (opts: CommandOpts) => {
 			let configDir = opts.configDir;
+			let dataDir = opts.dataDir;
 
 			if (opts.demo) {
 				configDir = "./.config/demo";
+				dataDir ??= configDir;
 			} else if (opts.sandbox) {
 				configDir = "./.config/sandbox";
+				dataDir ??= configDir;
 			}
 
 			if (opts.keys) {
@@ -126,8 +138,8 @@ if (import.meta.main) {
 				Deno.exit(0);
 			}
 
-			const config = await loadConfiguration(configDir);
-			await startServer(config, configDir);
+			const config = await loadConfiguration(configDir, dataDir);
+			await startServer(config, configDir, dataDir);
 		})
 		.parse(process.argv);
 }

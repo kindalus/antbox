@@ -15,8 +15,10 @@ import {
 	sendBadRequest,
 	sendConflict,
 	sendForbidden,
+	sendGatewayTimeout,
 	sendInternalServerError,
 	sendNotFound,
+	sendServiceUnavailable,
 	sendUnauthorized,
 } from "./handler.ts";
 
@@ -27,14 +29,18 @@ export function processError({ errorCode, message }: AntboxError): Response {
 		case NodeNotFoundError.ERROR_CODE:
 		case FolderNotFoundError.ERROR_CODE:
 		case NotFoundError.ERROR_CODE:
+		case "InvalidSession":
+		case "SessionExpired":
 			return sendNotFound(body);
 
 		case BadRequestError.ERROR_CODE:
 		case ValidationError.ERROR_CODE:
+		case "PersistentSessionUnsupported":
 			return sendBadRequest(body);
 
 		case UserExistsError.ERROR_CODE:
 		case DuplicatedNodeError.ERROR_CODE:
+		case "StaleSession":
 			return sendConflict(body);
 
 		case ForbiddenError.ERROR_CODE:
@@ -42,6 +48,12 @@ export function processError({ errorCode, message }: AntboxError): Response {
 
 		case UnauthorizedError.ERROR_CODE:
 			return sendUnauthorized(body);
+
+		case "SessionsUnavailable":
+			return sendServiceUnavailable(body);
+
+		case "AgentTimeout":
+			return sendGatewayTimeout(body);
 
 		default:
 			Logger.error(errorCode, body);

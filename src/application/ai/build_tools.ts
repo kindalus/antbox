@@ -15,6 +15,7 @@ import { AspectServiceProxy } from "../aspects/aspect_service_proxy.ts";
 import { createRunCodeTool } from "./builtin_tools/run_code.ts";
 import { type LoadedSkill, loadSkillInstruction } from "./skills_loader.ts";
 import type { FeatureAIToolExecutor } from "./agents_engine_interface.ts";
+import type { FeatureVersion } from "./session_workspace.ts";
 
 const DEFAULT_TOOL_NAME = "load_skill";
 
@@ -47,20 +48,28 @@ export interface BuildToolSetContext {
 export interface BuiltToolSet {
 	readonly tools: AnyAgentTool[];
 	readonly toolNames: string[];
+	readonly featureVersions: FeatureVersion[];
 }
 
 export async function buildToolSet(
 	ctx: BuildToolSetContext,
 	agentData: AgentData,
 	authContext: AuthenticationContext,
+	sealedToolNames?: readonly string[],
 ): Promise<Either<AntboxError, BuiltToolSet>> {
 	const allEntries = await buildAllToolEntries(ctx, agentData, authContext);
 	if (allEntries.isLeft()) return left(allEntries.value);
 
-	const selected = selectEntries(allEntries.value, agentData.tools);
+	const selected = sealedToolNames
+		? selectSealedEntries(allEntries.value, sealedToolNames)
+		: selectEntries(allEntries.value, agentData.tools);
+	if (selected instanceof AntboxError) return left(selected);
 	return right({
 		tools: selected.map((entry) => entry.tool),
 		toolNames: selected.map((entry) => entry.name),
+		featureVersions: selected.flatMap((entry) =>
+			entry.featureVersion ? [entry.featureVersion] : []
+		),
 	});
 }
 
@@ -68,6 +77,21 @@ interface ToolEntry {
 	readonly name: string;
 	readonly aliases: readonly string[];
 	readonly tool: AnyAgentTool;
+	readonly featureVersion?: FeatureVersion;
+}
+
+function selectSealedEntries(
+	all: ToolEntry[],
+	names: readonly string[],
+): ToolEntry[] | AntboxError {
+	const byName = new Map(all.map((entry) => [entry.name, entry]));
+	const selected: ToolEntry[] = [];
+	for (const name of names) {
+		const entry = byName.get(name);
+		if (!entry) return new AntboxError("StaleSession", `Session tool '${name}' is unavailable`);
+		selected.push(entry);
+	}
+	return selected;
 }
 
 function selectEntries(all: ToolEntry[], tools: AgentData["tools"]): ToolEntry[] {
@@ -251,6 +275,7 @@ function featureToToolEntry(
 	return {
 		name: toolName,
 		aliases,
+		featureVersion: { uuid: feature.uuid, modifiedTime: feature.modifiedTime },
 		tool: {
 			name: toolName,
 			label: feature.title || feature.uuid,

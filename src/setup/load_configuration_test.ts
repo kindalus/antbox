@@ -10,7 +10,7 @@ function tenant(name: string, storagePath?: string): TenantConfiguration {
 	return {
 		name,
 		storage: storagePath
-			? ["inmem/inmem_storage_provider.ts", storagePath]
+			? ["flat_file/flat_file_storage_provider.ts", storagePath]
 			: ["inmem/inmem_storage_provider.ts"],
 		repository: ["inmem/inmem_node_repository.ts"],
 		configurationRepository: ["inmem/inmem_configuration_repository.ts"],
@@ -37,10 +37,27 @@ async function withConfigDir(
 }
 
 describe("loadConfiguration", () => {
+	it("generates default tenant paths under dataDir", async () => {
+		const dir = await Deno.makeTempDir({ prefix: "antbox-default-config-test-" });
+		const dataDir = join(dir, "runtime-data");
+		try {
+			const config = await loadConfiguration(join(dir, "config"), dataDir);
+			const tenant = config.tenants[0];
+			expect(tenant.storage[1]).toBe(join(dataDir, "default/storage"));
+			expect(tenant.repository[1]).toBe(join(dataDir, "default/repository"));
+			expect(tenant.configurationRepository[1]).toBe(join(dataDir, "default/config"));
+			expect(tenant.eventStoreRepository[1]).toBe(join(dataDir, "default/events"));
+			await expect(Deno.stat(dataDir)).rejects.toThrow();
+		} finally {
+			await Deno.remove(dir, { recursive: true });
+		}
+	});
+
 	it("does not create an unused data directory", async () => {
 		await withConfigDir({ tenants: [tenant("default")] }, async (dir) => {
-			await loadConfiguration(dir);
-			await expect(Deno.stat(join(dir, "data"))).rejects.toThrow();
+			const dataDir = join(dir, "runtime-data");
+			await loadConfiguration(dir, dataDir);
+			await expect(Deno.stat(dataDir)).rejects.toThrow();
 		});
 	});
 
@@ -64,7 +81,8 @@ describe("loadConfiguration", () => {
 				);
 				await Deno.writeTextFile(join(tenantsDir, "ignored.txt"), "not toml");
 
-				const config = await loadConfiguration(dir);
+				const dataDir = join(dir, "runtime-data");
+				const config = await loadConfiguration(dir, dataDir);
 
 				expect(config.tenants.map(({ name }) => name)).toEqual([
 					"default",
@@ -72,11 +90,30 @@ describe("loadConfiguration", () => {
 					"alpha",
 					"beta",
 				]);
-				expect(config.tenants[0].storage[1]).toBe(join(dir, "external-storage"));
+				expect(config.tenants[0].storage[1]).toBe(join(dataDir, "external-storage"));
 				expect(config.adminTenantName).toBe("default");
 				expect(await Deno.stat(join(tenantsDir, TENANT_SAMPLE_FILE))).toBeDefined();
 			},
 		);
+	});
+
+	it("resolves the default and configured session paths against dataDir", async () => {
+		const base = tenant("default");
+		base.ai = { enabled: true, defaultModel: ["google/gemini-2.5-flash"] };
+		base.limits.tokens = 1;
+		const custom = tenant("custom");
+		custom.ai = {
+			enabled: true,
+			defaultModel: ["google/gemini-2.5-flash", "medium"],
+			sessionsPath: "sessions/custom",
+		};
+		custom.limits.tokens = 1;
+		await withConfigDir({ tenants: [base, custom] }, async (dir) => {
+			const dataDir = join(dir, "runtime-data");
+			const config = await loadConfiguration(dir, dataDir);
+			expect(config.tenants[0].ai?.sessionsPath).toBe(join(dataDir, "default/ai-sessions"));
+			expect(config.tenants[1].ai?.sessionsPath).toBe(join(dataDir, "sessions/custom"));
+		});
 	});
 
 	it("uses a tenant named default as admin even when it is not first", async () => {
@@ -105,6 +142,17 @@ describe("loadConfiguration", () => {
 			const config = await loadConfiguration(dir);
 			expect(config.adminTenantName).toBeNull();
 		});
+	});
+
+	it("rejects traversing data paths", async () => {
+		await withConfigDir(
+			{ tenants: [tenant("default", "../outside")] },
+			async (dir) => {
+				await expect(loadConfiguration(dir, join(dir, "runtime-data"))).rejects.toThrow(
+					"must not contain '..'",
+				);
+			},
+		);
 	});
 
 	it("rejects tenant files whose names do not match their tenant", async () => {

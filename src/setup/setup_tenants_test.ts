@@ -7,6 +7,9 @@ import type { AuthenticationContext } from "application/security/authentication_
 import { ADMINS_GROUP_UUID } from "domain/configuration/builtin_groups.ts";
 import type { ServerConfiguration, TenantConfiguration } from "api/http_server_configuration.ts";
 import { setupTenants } from "./setup_tenants.ts";
+import { loadPiCodingAgent } from "application/ai/pi_coding_agent.ts";
+
+await loadPiCodingAgent();
 
 describe("setupTenants", () => {
 	function createAdminContext(tenant: string): AuthenticationContext {
@@ -255,7 +258,7 @@ describe("setupTenants", () => {
 					...createTenantConfig("tenant-invalid-ai-enabled", relativeModulePath),
 					ai: {
 						enabled: true,
-						defaultModel: "google/gemini-2.5-flash",
+						defaultModel: ["google/gemini-2.5-flash"],
 					},
 					limits: {
 						storage: 10,

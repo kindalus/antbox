@@ -74,10 +74,10 @@ O sample omite `[ai]` quando AI estiver desactivada:
 
 ```toml
 name = "tenant"
-storage = ["flat_file/flat_file_storage_provider.ts", "./data/tenant/storage"]
-repository = ["sqlite/sqlite_node_repository.ts", "./data/tenant/repository"]
-configurationRepository = ["sqlite/sqlite_configuration_repository.ts", "./data/tenant/configuration"]
-eventStoreRepository = ["sqlite/sqlite_event_store_repository.ts", "./data/tenant/events"]
+storage = ["flat_file/flat_file_storage_provider.ts", "tenant/storage"]
+repository = ["sqlite/sqlite_node_repository.ts", "tenant/repository"]
+configurationRepository = ["sqlite/sqlite_configuration_repository.ts", "tenant/configuration"]
+eventStoreRepository = ["sqlite/sqlite_event_store_repository.ts", "tenant/events"]
 
 [limits]
 storage = "pay-as-you-go"

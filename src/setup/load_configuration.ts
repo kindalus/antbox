@@ -3,7 +3,12 @@ import { ServerConfiguration } from "api/http_server_configuration.ts";
 import { fileExistsSync } from "shared/os_helpers.ts";
 import { PORT } from "./server_defaults.ts";
 import { readTenantConfigurationState } from "./tenant_configuration_files.ts";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
+import {
+	getDefaultDataDir,
+	resolveConfigPath,
+	resolveTenantConfigurationPaths,
+} from "./configuration_paths.ts";
 import { exportJWK, generateKeyPair } from "jose";
 import { encodeBase64 } from "jsr:@std/encoding@1.0.10/base64";
 
@@ -31,8 +36,10 @@ export function getDefaultConfigDir(): string {
  */
 export async function loadConfiguration(
 	configDir?: string,
+	dataDir?: string,
 ): Promise<ServerConfiguration> {
 	const dir = configDir || getDefaultConfigDir();
+	const dataRoot = resolve(dataDir || getDefaultDataDir());
 
 	if (!fileExistsSync(dir)) {
 		Deno.mkdirSync(dir, { recursive: true });
@@ -50,10 +57,10 @@ jwks = "antbox.jwks"
 
 [[tenants]]
 name = "default"
-storage = ["flat_file/flat_file_storage_provider.ts", "./data/storage"]
-repository = ["sqlite/sqlite_node_repository.ts", "./data/repository"]
-configurationRepository = ["sqlite/sqlite_configuration_repository.ts", "./data/config"]
-eventStoreRepository = ["sqlite/sqlite_event_store_repository.ts", "./data/events"]
+storage = ["flat_file/flat_file_storage_provider.ts", "default/storage"]
+repository = ["sqlite/sqlite_node_repository.ts", "default/repository"]
+configurationRepository = ["sqlite/sqlite_configuration_repository.ts", "default/config"]
+eventStoreRepository = ["sqlite/sqlite_event_store_repository.ts", "default/events"]
 
 [tenants.limits]
 storage = "pay-as-you-go"
@@ -96,40 +103,17 @@ tokens = 0
 		Deno.env.set("ANTBOX_LOG_LEVEL", config.logLevel);
 	}
 
-	// Make base paths absolute based on configDir if they aren't already
-	if (config.key && !config.key.startsWith("/")) {
-		config.key = join(dir, config.key);
-	} else if (!config.key) {
-		config.key = keyPath;
-	}
+	if (config.key) config.key = resolveConfigPath(dir, config.key);
+	else config.key = keyPath;
 
-	if (config.jwks && !config.jwks.startsWith("/") && !config.jwks.startsWith("http")) {
-		config.jwks = join(dir, config.jwks);
+	if (config.jwks && !config.jwks.startsWith("http://") && !config.jwks.startsWith("https://")) {
+		config.jwks = resolveConfigPath(dir, config.jwks);
 	} else if (!config.jwks) {
 		config.jwks = jwksPath;
 	}
 
-	const resolveModuleParams = (modConfig: [string, ...string[]] | undefined) => {
-		if (!modConfig) return;
-		for (let i = 1; i < modConfig.length; i++) {
-			if (modConfig[i].startsWith("./") || modConfig[i].startsWith("../")) {
-				modConfig[i] = join(dir, modConfig[i]);
-			}
-		}
-	};
-
 	for (const tenant of config.tenants) {
-		if (tenant.key && !tenant.key.startsWith("/")) {
-			tenant.key = join(dir, tenant.key);
-		}
-		if (tenant.jwks && !tenant.jwks.startsWith("/") && !tenant.jwks.startsWith("http")) {
-			tenant.jwks = join(dir, tenant.jwks);
-		}
-
-		resolveModuleParams(tenant.storage);
-		resolveModuleParams(tenant.repository);
-		resolveModuleParams(tenant.configurationRepository);
-		resolveModuleParams(tenant.eventStoreRepository);
+		resolveTenantConfigurationPaths(tenant, dir, dataRoot);
 	}
 
 	return config;

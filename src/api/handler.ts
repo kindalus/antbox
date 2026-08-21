@@ -12,6 +12,7 @@ const enum STATUS_CODE {
 	UnprocessableEntity = 422,
 	InternalServerError = 500,
 	ServiceUnavailable = 503,
+	GatewayTimeout = 504,
 }
 
 export function sendCreated<T>(body?: T) {
@@ -48,6 +49,10 @@ export function sendConflict<T>(body?: T) {
 
 export function sendServiceUnavailable<T>(body?: T) {
 	return sendResponse(STATUS_CODE.ServiceUnavailable, body);
+}
+
+export function sendGatewayTimeout<T>(body?: T) {
+	return sendResponse(STATUS_CODE.GatewayTimeout, body);
 }
 
 export function sendUnprocessableEntity<T>(body?: T) {

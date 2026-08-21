@@ -209,7 +209,7 @@ describe("AgentsService", () => {
 				name: "Original Agent",
 				description: "Original description",
 				exposedToUsers: false,
-				model: "default",
+				model: ["default"],
 				tools: ["run_code"],
 				systemPrompt: "Original instructions",
 				createdTime,

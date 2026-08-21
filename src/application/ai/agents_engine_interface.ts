@@ -7,25 +7,18 @@ import type { ChatHistory, ChatMessage, TokenUsage } from "domain/ai/chat_messag
 export interface ChatOptions {
 	readonly history?: ChatHistory;
 	readonly files?: File[];
-	readonly temperature?: number;
-	readonly maxTokens?: number;
 	readonly instructions?: string;
-	/** When provided, reuses the sealed tool snapshot opened via openChatSession. */
-	readonly sessionId?: string;
 }
 
 export interface AnswerOptions {
 	readonly files?: File[];
-	readonly temperature?: number;
-	readonly maxTokens?: number;
 	readonly instructions?: string;
-	readonly sessionId?: string;
 }
 
-export interface ChatSessionHandle {
+export interface ChatSessionResult {
 	readonly sessionId: string;
-	readonly toolNames: readonly string[];
 	readonly expiresAt: number;
+	readonly message: ChatMessage;
 }
 
 export interface FeatureAIToolExecutor {
@@ -58,18 +51,24 @@ export interface IAgentsEngine {
 
 	setFeatureAIToolExecutor(executor: FeatureAIToolExecutor): void;
 
-	/**
-	 * Open a sealed chat session: builds the tool snapshot once and caches it
-	 * for subsequent chat/answer calls that pass the returned sessionId.
-	 * Subsequent turns within the same session use the cached tool set even if
-	 * features are added/removed or the agent definition is updated mid-conversation.
-	 */
-	openChatSession(
+	createChatSession(
 		authContext: AuthenticationContext,
 		agentUuid: string,
-	): Promise<Either<AntboxError, ChatSessionHandle>>;
+		text: string,
+	): Promise<Either<AntboxError, ChatSessionResult>>;
 
-	closeChatSession(sessionId: string): boolean;
+	continueChatSession(
+		authContext: AuthenticationContext,
+		agentUuid: string,
+		sessionId: string,
+		text: string,
+	): Promise<Either<AntboxError, ChatSessionResult>>;
+
+	deleteChatSession(
+		authContext: AuthenticationContext,
+		agentUuid: string,
+		sessionId: string,
+	): Promise<Either<AntboxError, void>>;
 }
 
 /**

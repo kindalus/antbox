@@ -5,12 +5,13 @@ description: Guide to AI agents in Antbox
 
 # AI Agents
 
-Agents are tenant-scoped configuration records executed by `AgentsEngine` on
-`@earendil-works/pi-agent-core` and `@earendil-works/pi-ai`.
+Agents are tenant-scoped configuration records executed through Pi `AgentSession` and
+`ModelRuntime`.
 
-Antbox agents are **LLM agents only**. Workflow/composition agent types are not supported. Each
-interaction uses an ephemeral Pi Agent; Antbox remains responsible for public history, sessions,
-authorization, skills, usage limits, and audit events.
+Antbox agents are **LLM agents only**. Workflow/composition agent types are not supported. Pi owns
+model resolution, provider authentication, tool loops, conversation JSONL, and thinking levels.
+Antbox owns tenant authorization, immutable session snapshots, skills, usage limits, and audit
+events.
 
 ## AgentData
 
@@ -20,11 +21,10 @@ interface AgentData {
 	name: string;
 	description?: string;
 	exposedToUsers: boolean;
-	model?: string; // "default" or explicit provider model id
+	model?: [string] | [string, ThinkingLevel]; // ["default"] or explicit Pi model
 	tools?: boolean | string[]; // true = all, false/undefined/[] = load_skill only
 	skills?: string[]; // optional allow-list of discovered skill names
 	systemPrompt?: string; // defaults to a generic Antbox assistant prompt when omitted
-	maxLlmCalls?: number;
 	createdTime: string;
 	modifiedTime: string;
 }
@@ -36,15 +36,11 @@ Validation rules:
 - agents default to `exposedToUsers: true` when omitted on create.
 - `exposedToUsers: false` blocks direct `/chat` and `/answer`.
 
-Model providers:
-
-- `google`, using `GEMINI_API_KEY` with `GOOGLE_API_KEY` as a compatibility fallback
-- `openai`, using `OPENAI_API_KEY`
-- `anthropic`, using `ANTHROPIC_API_KEY` or the other auth env vars supported by Pi
-- `ollama`, using `OLLAMA_BASE_URL` or `http://localhost:11434/v1`
-
-Providers enumerate model metadata and resolve credentials. The Pi runtime owns inference, retries,
-message conversion, and tool lifecycle. Model identifiers retain the `<provider>/<model>` format.
+Model names retain Pi's `<provider>/<model>` format. The optional second tuple value is one of
+`off`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max`; omission means `off`. Pi's
+`ModelRuntime` owns built-in provider catalogs and environment-based credentials. Antbox does not
+register Google, OpenAI, or Anthropic providers itself. Set `ai.modelsPath` to a Pi-compatible
+`models.json` when a tenant needs custom providers such as Ollama, vLLM, or LM Studio.
 
 Tool rules:
 
@@ -73,6 +69,9 @@ Built-in agents can be listed and fetched, but cannot be updated or deleted.
 - `DELETE /v2/agents/{uuid}` - delete a custom agent
 - `POST /v2/agents/{uuid}/-/chat` - interaction with caller-provided history
 - `POST /v2/agents/{uuid}/-/answer` - same interaction model, but ignores history
+- `POST /v2/agents/{uuid}/-/sessions` - create a persisted session with its first message
+- `POST /v2/agents/{uuid}/-/sessions/{sessionId}/messages` - continue a persisted session
+- `DELETE /v2/agents/{uuid}/-/sessions/{sessionId}` - delete a persisted session
 
 ## Create or replace example
 
@@ -83,7 +82,7 @@ Create a new agent:
 	"name": "Support Agent",
 	"description": "General support assistant",
 	"exposedToUsers": true,
-	"model": "default",
+	"model": ["default"],
 	"tools": true
 }
 ```
@@ -96,7 +95,7 @@ Replace an existing custom agent by UUID:
 	"name": "Support Agent",
 	"description": "General support assistant",
 	"exposedToUsers": true,
-	"model": "default",
+	"model": ["default"],
 	"tools": true
 }
 ```
@@ -115,33 +114,33 @@ agent capabilities. Built-in/system agent UUIDs cannot be replaced.
 	"text": "Find documents about invoice approval.",
 	"options": {
 		"history": [],
-		"temperature": 0.3,
-		"maxTokens": 1024,
 		"instructions": "Reply with concise bullet points"
 	}
 }
 ```
 
-Chat history can include intermediate tool interaction turns. Antbox preserves and replays model
-tool calls and tool responses across `/chat` requests so the next request can continue with that
-context. `temperature` and `maxTokens` are forwarded to Pi. The `files` option remains reserved and
-is currently ignored because these endpoints accept JSON rather than multipart content.
-
-`maxLlmCalls` limits model turns in the main Pi loop. If that limit is reached immediately after a
-tool result, Antbox performs one final call without tools so successful chat responses still end in
-a `model` message.
+Chat history can include intermediate tool interaction turns. The legacy `/chat` endpoint still
+accepts caller-provided history. The `files` option remains reserved and is currently ignored
+because these endpoints accept JSON rather than multipart content.
 
 `POST /v2/agents/{uuid}/-/answer`
 
 ```json
 {
-	"text": "Summarize this topic",
-	"options": {
-		"temperature": 0.2,
-		"maxTokens": 512
-	}
+	"text": "Summarize this topic"
 }
 ```
+
+Persisted sessions store Pi JSONL under the tenant's `sessionsPath`, which defaults to
+`<dataDir>/<tenant>/ai-sessions`. Create one with:
+
+```json
+{ "text": "Find the current contract" }
+```
+
+The response contains `sessionId`, `expiresAt`, and the final model `message`. Send later questions
+to the session messages endpoint without resending history. Sessions expire 24 hours after creation,
+use a fixed agent/tool/skill snapshot, and abort an individual run after five minutes.
 
 ## Tools
 

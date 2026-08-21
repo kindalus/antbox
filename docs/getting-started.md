@@ -27,9 +27,9 @@ When you start Antbox for the first time, it automatically creates this director
 cryptographic keys (`antbox.key`, `antbox.jwks`, and `antbox-private.jwk`), creates a default
 `config.toml` file, and creates `tenants.d/tenant.toml.sample`.
 
-You can override the configuration directory using the `--config-dir` (or `-c`) flag. You can also
-pass `--demo` or `--sandbox`, which map to `./.config/demo` and `./.config/sandbox` directories
-relative to the execution path.
+You can override the configuration directory using `--config-dir` (`-c`). Persistent data defaults
+to `$HOME/.local/share/antbox` and can be overridden with `--data-dir` (`-d`). The `--demo` and
+`--sandbox` modes isolate both configuration and data under their project directories.
 
 Minimal example (`config.toml`):
 
@@ -45,7 +45,7 @@ name = "local"
 # Required for every tenant
 repository = ["inmem/inmem_node_repository.ts"]
 storage = ["inmem/inmem_storage_provider.ts"]
-configurationRepository = ["sqlite/sqlite_configuration_repository.ts", "./data/config"]
+configurationRepository = ["sqlite/sqlite_configuration_repository.ts", "local/config"]
 eventStoreRepository = ["inmem/inmem_event_store_repository.ts"]
 
 [tenants.limits]
@@ -62,8 +62,9 @@ Notes:
   per tenant.
 - If `key` and `jwks` are not provided anywhere, the server will default to loading them from the
   configuration directory or generate them if they don't exist.
-- Module paths that start with `./` or `../` are automatically resolved relative to the
-  configuration directory.
+- Relative flat-file and SQLite paths resolve against `dataDir`; absolute paths are preserved.
+- Relative data paths containing a `..` segment are rejected.
+- Relative keys, JWKS, skills, S3 configuration, and Google credentials resolve against `configDir`.
 - When AI is disabled, `limits.tokens` must be `0`.
 - When AI is enabled, `limits.tokens` must be greater than `0` or `"pay-as-you-go"`.
 
@@ -73,7 +74,7 @@ For larger installations, place one tenant in each `<config-dir>/tenants.d/<name
 name = "company-a"
 repository = ["inmem/inmem_node_repository.ts"]
 storage = ["inmem/inmem_storage_provider.ts"]
-configurationRepository = ["sqlite/sqlite_configuration_repository.ts", "./data/company-a/config"]
+configurationRepository = ["sqlite/sqlite_configuration_repository.ts", "company-a/config"]
 eventStoreRepository = ["inmem/inmem_event_store_repository.ts"]
 
 [limits]
@@ -83,21 +84,22 @@ tokens = 0
 
 The file contains a tenant directly, so its tables are `[limits]` and `[ai]`, not `[tenants.limits]`
 and `[tenants.ai]`. Antbox reads only regular `.toml` files. The filename must match `name`, and
-tenant files override inline tenants with the same name. Relative paths remain relative to the main
-configuration directory.
+tenant files override inline tenants with the same name. Path resolution follows the same
+`dataDir`/`configDir` rules as inline tenants.
 
 ## Start the Server
 
 Recommended (uses required Deno flags):
 
 ```bash
-./start_server.sh --config-dir /path/to/your/config
+./start_server.sh --config-dir /path/to/your/config --data-dir /path/to/your/data
 ```
 
 Or run directly:
 
 ```bash
-deno run -A --unstable-raw-imports main.ts --config-dir /path/to/your/config
+deno run -A --unstable-raw-imports main.ts \
+  --config-dir /path/to/your/config --data-dir /path/to/your/data
 ```
 
 You should see:

@@ -446,7 +446,7 @@ paths:
                         value:
                            name: Support Agent
                            description: General support assistant
-                           model: default
+                           model: [default]
                            tools:
                               - find_nodes
                               - get_node
@@ -457,11 +457,10 @@ paths:
                            uuid: contract-assistant
                            name: Contract Assistant
                            description: Helps with contract repository tasks
-                           model: default
+                           model: [default]
                            tools:
                               - run_code
                            systemPrompt: You are a contract operations assistant for Antbox.
-                           maxLlmCalls: 8
          responses:
             "200":
                description: Agent replaced successfully
@@ -567,6 +566,67 @@ paths:
                   application/json:
                      schema:
                         $ref: "#/components/schemas/ChatHistory"
+            default:
+               $ref: "#/components/responses/Error"
+   "/agents/{uuid}/-/sessions":
+      post:
+         tags:
+            - agents
+         summary: Create a persisted agent session and send its first message
+         operationId: createAgentSession
+         parameters:
+            - $ref: "#/components/parameters/UUID"
+         requestBody:
+            required: true
+            content:
+               application/json:
+                  schema:
+                     $ref: "#/components/schemas/AgentSessionMessageRequest"
+         responses:
+            "200":
+               description: Persisted session created
+               content:
+                  application/json:
+                     schema:
+                        $ref: "#/components/schemas/AgentSessionResult"
+            default:
+               $ref: "#/components/responses/Error"
+   "/agents/{uuid}/-/sessions/{sessionId}/messages":
+      post:
+         tags:
+            - agents
+         summary: Continue a persisted agent session
+         operationId: continueAgentSession
+         parameters:
+            - $ref: "#/components/parameters/UUID"
+            - $ref: "#/components/parameters/SessionId"
+         requestBody:
+            required: true
+            content:
+               application/json:
+                  schema:
+                     $ref: "#/components/schemas/AgentSessionMessageRequest"
+         responses:
+            "200":
+               description: Agent response
+               content:
+                  application/json:
+                     schema:
+                        $ref: "#/components/schemas/AgentSessionResult"
+            default:
+               $ref: "#/components/responses/Error"
+   "/agents/{uuid}/-/sessions/{sessionId}":
+      delete:
+         tags:
+            - agents
+         summary: Delete a persisted agent session
+         operationId: deleteAgentSession
+         parameters:
+            - $ref: "#/components/parameters/UUID"
+            - $ref: "#/components/parameters/SessionId"
+         responses:
+            "200":
+               description: Session deleted or already absent
             default:
                $ref: "#/components/responses/Error"
    /api-keys:
@@ -2371,15 +2431,20 @@ components:
             enabled:
                type: boolean
             defaultModel:
-               type: string
-               description: "Provider model string, e.g. \"google/gemini-2.5-flash\", \"openai/gpt-4.1\", or \"anthropic/claude-sonnet-4\""
+               $ref: "#/components/schemas/ModelSelection"
             embeddingProvider:
                $ref: "#/components/schemas/ModuleConfiguration"
             ocrProvider:
                $ref: "#/components/schemas/ModuleConfiguration"
             skillsPath:
                type: string
-               description: Path to extra skills directory
+               description: Path to extra skills directory, resolved against configDir.
+            modelsPath:
+               type: string
+               description: Optional Pi models.json for custom providers and models, resolved against configDir.
+            sessionsPath:
+               type: string
+               description: Persisted sessions directory, resolved against dataDir. Defaults to `<tenant>/ai-sessions`.
       TenantLimits:
          type: object
          required:
@@ -2489,6 +2554,17 @@ components:
                   - type: string
                     enum:
                        - pay-as-you-go
+      ModelSelection:
+         description: Pi model selection. A missing thinking level means `off`. Legacy strings remain accepted during migration.
+         oneOf:
+            - type: string
+              deprecated: true
+            - type: array
+              minItems: 1
+              maxItems: 2
+              items:
+                 type: string
+              example: [google/gemini-flash-latest, medium]
       Agent:
          type: object
          description: AI Agent configuration data.
@@ -2512,8 +2588,8 @@ components:
                type: boolean
                description: Whether users can directly call this agent with chat or answer.
             model:
-               type: string
-               description: Optional provider model identifier. Falls back to tenant default model.
+               $ref: "#/components/schemas/ModelSelection"
+               description: Optional Pi model and thinking level. Falls back to the tenant default model.
             tools:
                description: Tool access for agents. `true` grants all tools; `false`, omitted, or `[]` grants only `load_skill`; arrays grant the listed tools plus `load_skill`.
                oneOf:
@@ -2524,10 +2600,6 @@ components:
             systemPrompt:
                type: string
                description: Optional system prompt for the agent. Defaults to a generic Antbox assistant prompt when omitted.
-            maxLlmCalls:
-               type: integer
-               minimum: 1
-               description: Optional limit for agent LLM call iterations.
             createdTime:
                type: string
                format: date-time
@@ -2555,8 +2627,8 @@ components:
                type: boolean
                description: Whether users can directly call this agent with chat or answer.
             model:
-               type: string
-               description: Optional model identifier for agents
+               $ref: "#/components/schemas/ModelSelection"
+               description: Optional Pi model and thinking level for the agent
             tools:
                description: Tool access for agents. `true` grants all tools; `false`, omitted, or `[]` grants only `load_skill`; arrays grant the listed tools plus `load_skill`.
                oneOf:
@@ -2567,10 +2639,6 @@ components:
             systemPrompt:
                type: string
                description: Optional system prompt for the agent. Defaults to a generic Antbox assistant prompt when omitted.
-            maxLlmCalls:
-               type: integer
-               minimum: 1
-               description: Optional limit for agent LLM call iterations.
       ApiKey:
          type: object
          description: API Key configuration data for programmatic access.
@@ -2679,12 +2747,6 @@ components:
                items:
                   type: string
                   format: binary
-            temperature:
-               type: number
-               description: Sampling temperature forwarded to the Pi model provider.
-            maxTokens:
-               type: integer
-               description: Maximum output tokens forwarded to the Pi model provider.
             instructions:
                type: string
       Aspect:
@@ -2755,12 +2817,6 @@ components:
                items:
                   type: string
                   format: binary
-            temperature:
-               type: number
-               description: Sampling temperature forwarded to the Pi model provider.
-            maxTokens:
-               type: integer
-               description: Maximum output tokens forwarded to the Pi model provider.
             instructions:
                type: string
       ToolCall:
@@ -2815,6 +2871,30 @@ components:
          type: array
          items:
             $ref: "#/components/schemas/ChatMessage"
+      AgentSessionMessageRequest:
+         type: object
+         required:
+            - text
+         properties:
+            text:
+               type: string
+               minLength: 1
+      AgentSessionResult:
+         type: object
+         required:
+            - sessionId
+            - expiresAt
+            - message
+         properties:
+            sessionId:
+               type: string
+               format: uuid
+            expiresAt:
+               type: integer
+               format: int64
+               description: Session expiry as Unix time in milliseconds.
+            message:
+               $ref: "#/components/schemas/ChatMessage"
       DocInfo:
          type: object
          required:
@@ -4046,6 +4126,13 @@ components:
          required: true
          schema:
             type: string
+      SessionId:
+         name: sessionId
+         in: path
+         required: true
+         schema:
+            type: string
+            format: uuid
    responses:
       Error:
          description: Error

@@ -5,6 +5,7 @@
 
 # Default values
 CONFIG_DIR=""
+DATA_DIR=""
 KEYS_FLAG=""
 DEMO_FLAG=""
 SANDBOX_FLAG=""
@@ -19,6 +20,11 @@ while [[ $# -gt 0 ]]; do
       ;;
     -c|--config-dir)
       CONFIG_DIR="--config-dir $2"
+      shift
+      shift
+      ;;
+    -d|--data-dir)
+      DATA_DIR="--data-dir $2"
       shift
       shift
       ;;
@@ -38,6 +44,7 @@ while [[ $# -gt 0 ]]; do
       echo "Options:"
       echo "  --keys                  Print crypto keys and exit"
       echo "  -c, --config-dir DIR    Override default server configuration directory [$HOME/.config/antbox]"
+      echo "  -d, --data-dir DIR      Override default data directory [$HOME/.local/share/antbox]"
       echo "  --demo                  Run with demo configuration"
       echo "  --sandbox               Run with sandbox configuration"
       echo "  -h, --help              Show this help message"
@@ -46,7 +53,7 @@ while [[ $# -gt 0 ]]; do
       echo "  $0                                # Run with default configuration"
       echo "  $0 --demo                         # Run demo server"
       echo "  $0 --sandbox                      # Run sandbox server"
-      echo "  $0 -c /etc/antbox                 # Run with custom configuration directory"
+      echo "  $0 -c /etc/antbox -d /var/lib/antbox  # Run with custom directories"
       echo "  $0 --keys                         # Print crypto keys"
       exit 0
       ;;
@@ -68,6 +75,10 @@ fi
 
 if [[ -n "$CONFIG_DIR" ]]; then
   DENO_CMD="$DENO_CMD $CONFIG_DIR"
+fi
+
+if [[ -n "$DATA_DIR" ]]; then
+  DENO_CMD="$DENO_CMD $DATA_DIR"
 fi
 
 if [[ -n "$DEMO_FLAG" ]]; then

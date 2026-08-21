@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { type ModelSelection, ModelSelectionSchema } from "domain/ai/model_selection.ts";
 import type { TenantLimits } from "domain/metrics/tenant_limits.ts";
 
 export const ModuleConfigurationSchema = z.tuple([z.string()]).rest(z.string());
@@ -25,10 +26,12 @@ export const TenantLimitsSchema = z.object({
 
 export const AIConfigurationSchema = z.object({
 	enabled: z.boolean(),
-	defaultModel: z.string().min(1),
+	defaultModel: ModelSelectionSchema,
 	embeddingProvider: ModuleConfigurationSchema.optional(),
 	ocrProvider: ModuleConfigurationSchema.optional(),
 	skillsPath: z.string().optional(),
+	modelsPath: z.string().trim().min(1).optional(),
+	sessionsPath: z.string().trim().min(1).optional(),
 });
 
 const OptionalNonEmptyStringSchema = z.string().trim().min(1).optional();
@@ -100,14 +103,18 @@ export type ModuleConfiguration = [modulePath: string, ...params: string[]];
 
 export interface AIConfiguration {
 	enabled: boolean;
-	/** Provider model string, e.g. "google/gemini-2.5-flash" */
-	defaultModel: string;
+	/** Pi model selection, e.g. ["google/gemini-2.5-flash", "medium"] */
+	defaultModel: ModelSelection;
 	/** Module configuration for EmbeddingsProvider adapter */
 	embeddingProvider?: ModuleConfiguration;
 	/** Module configuration for OCRProvider adapter */
 	ocrProvider?: ModuleConfiguration;
 	/** Path to extra skills directory (in addition to builtin skills) */
 	skillsPath?: string;
+	/** Optional Pi models.json for custom providers and models. */
+	modelsPath?: string;
+	/** Directory for persisted Pi sessions; relative paths resolve against dataDir. */
+	sessionsPath?: string;
 }
 
 export interface TenantConfiguration {

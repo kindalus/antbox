@@ -1,3 +1,4 @@
+import { ModelSelectionSchema } from "domain/ai/model_selection.ts";
 import { z } from "zod";
 
 export const AgentDataSchema = z.object({
@@ -8,12 +9,11 @@ export const AgentDataSchema = z.object({
 	name: z.string().min(1, "Agent name is required"),
 	description: z.string().optional(),
 	exposedToUsers: z.boolean(),
-	model: z.string().optional(),
+	model: ModelSelectionSchema.optional(),
 	tools: z.union([z.boolean(), z.array(z.string())]).optional(),
 	skills: z.array(z.string()).optional(),
 	systemPrompt: z.string().trim().min(1, "systemPrompt must not be empty when provided")
 		.optional(),
-	maxLlmCalls: z.number().int().positive().optional(),
 	createdTime: z.string(),
 	modifiedTime: z.string(),
 });

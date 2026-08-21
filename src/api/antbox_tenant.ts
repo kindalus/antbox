@@ -21,6 +21,7 @@ import type { TenantLimits } from "domain/metrics/tenant_limits.ts";
 
 export interface AntboxTenant {
 	name: string;
+	isAdminTenant?: boolean;
 	rootPasswd: string;
 	symmetricKey: string;
 	limits: TenantLimits;

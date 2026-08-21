@@ -1,7 +1,10 @@
 import { describe, it } from "bdd";
 import { expect } from "expect";
 
-import { TenantConfigurationSchema } from "./http_server_configuration.ts";
+import {
+	TenantConfigurationSchema,
+	TenantsConfigurationSchema,
+} from "./http_server_configuration.ts";
 
 describe("TenantConfigurationSchema", () => {
 	function makeTenantConfig() {
@@ -115,6 +118,20 @@ describe("TenantConfigurationSchema", () => {
 			...makeTenantConfig(),
 			jwks: "",
 		});
+
+		expect(result.success).toBe(false);
+	});
+
+	it("rejects tenant names that cannot be used as filenames", () => {
+		for (const name of ["Empresa A", "../tenant", "tenant_name", "-tenant"]) {
+			const result = TenantConfigurationSchema.safeParse({ ...makeTenantConfig(), name });
+			expect(result.success).toBe(false);
+		}
+	});
+
+	it("rejects duplicate tenant names", () => {
+		const tenant = makeTenantConfig();
+		const result = TenantsConfigurationSchema.safeParse([tenant, tenant]);
 
 		expect(result.success).toBe(false);
 	});

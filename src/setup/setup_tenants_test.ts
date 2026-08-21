@@ -136,6 +136,7 @@ describe("setupTenants", () => {
 			};
 
 			const [tenant] = await setupTenants(config);
+			expect(tenant.isAdminTenant).toBe(true);
 			expect(tenant.rootPasswd).toBe("global-root");
 			expect(tenant.symmetricKey).toBe("c2VydmVyLXNlY3JldA==");
 			expect(tenant.limits).toEqual({ storage: 10, tokens: 0 });

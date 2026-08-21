@@ -209,7 +209,7 @@ paths:
             - admin
          summary: Get server runtime info
          operationId: getAdminRuntime
-         description: Returns Deno version, memory usage, OS uptime and tenant list. Root-only. Only available on the default tenant.
+         description: Returns Deno version, memory usage, OS uptime and tenant list. Root-only. Only available on the administrative tenant.
          security:
             - bearerAuth: []
             - cookieAuth: []
@@ -238,7 +238,7 @@ paths:
                      schema:
                         $ref: "#/components/schemas/AntboxError"
             "404":
-               description: Not found - admin endpoints are only available on the default tenant
+               description: Not found - admin endpoints are only available on the administrative tenant
                content:
                   application/json:
                      schema:
@@ -251,7 +251,7 @@ paths:
             - admin
          summary: Reload server configuration
          operationId: adminReload
-         description: Triggers an in-process reload of all tenant configurations. Root-only. Only available on the default tenant.
+         description: Triggers an in-process reload of all tenant configurations. Root-only. Only available on the administrative tenant.
          security:
             - bearerAuth: []
             - cookieAuth: []
@@ -272,7 +272,7 @@ paths:
                      schema:
                         $ref: "#/components/schemas/AntboxError"
             "404":
-               description: Not found - admin endpoints are only available on the default tenant
+               description: Not found - admin endpoints are only available on the administrative tenant
                content:
                   application/json:
                      schema:
@@ -285,7 +285,7 @@ paths:
             - admin
          summary: Get tenant configurations
          operationId: getAdminTenants
-         description: Returns the current TenantConfiguration array as stored in config.toml. Root-only.
+         description: Returns the effective TenantConfiguration array merged from config.toml and tenants.d. Root-only.
          security:
             - bearerAuth: []
             - cookieAuth: []
@@ -305,7 +305,7 @@ paths:
                      schema:
                         $ref: "#/components/schemas/AntboxError"
             "404":
-               description: Not found - admin endpoints are only available on the default tenant
+               description: Not found - admin endpoints are only available on the administrative tenant
                content:
                   application/json:
                      schema:
@@ -317,7 +317,7 @@ paths:
             - admin
          summary: Replace tenant configurations
          operationId: updateAdminTenants
-         description: Replaces the full tenant list in config.toml and triggers an in-process reload. Root-only.
+         description: Replaces the full effective tenant list, updates each existing tenant at its source, creates new tenants in tenants.d, and triggers an in-process reload. Root-only.
          security:
             - bearerAuth: []
             - cookieAuth: []
@@ -353,7 +353,7 @@ paths:
                      schema:
                         $ref: "#/components/schemas/AntboxError"
             "404":
-               description: Not found - admin endpoints are only available on the default tenant
+               description: Not found - admin endpoints are only available on the administrative tenant
                content:
                   application/json:
                      schema:
@@ -2414,7 +2414,9 @@ components:
          properties:
             name:
                type: string
-               description: Tenant identifier
+               maxLength: 63
+               pattern: "^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$"
+               description: Lowercase tenant identifier; also used as the tenant filename
             rootPasswd:
                type: string
                description: Optional tenant-level root password override

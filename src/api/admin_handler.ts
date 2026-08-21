@@ -17,7 +17,7 @@ import { TenantsConfigurationSchema } from "api/http_server_configuration.ts";
 
 export function adminRuntimeHandler(tenants: AntboxTenant[]): HttpHandler {
 	return defaultMiddlewareChain(tenants, (req: Request): Promise<Response> => {
-		if (getTenant(req, tenants) !== tenants[0]) {
+		if (!getTenant(req, tenants).isAdminTenant) {
 			return Promise.resolve(sendNotFound());
 		}
 
@@ -40,7 +40,7 @@ export function adminReloadHandler(
 	reload: () => Promise<void>,
 ): HttpHandler {
 	return defaultMiddlewareChain(tenants, async (req: Request): Promise<Response> => {
-		if (getTenant(req, tenants) !== tenants[0]) {
+		if (!getTenant(req, tenants).isAdminTenant) {
 			return sendNotFound();
 		}
 
@@ -59,7 +59,7 @@ export function adminTenantsGetHandler(
 	configDir?: string,
 ): HttpHandler {
 	return defaultMiddlewareChain(tenants, async (req: Request): Promise<Response> => {
-		if (getTenant(req, tenants) !== tenants[0]) {
+		if (!getTenant(req, tenants).isAdminTenant) {
 			return sendNotFound();
 		}
 
@@ -79,7 +79,7 @@ export function adminTenantsUpdateHandler(
 	configDir?: string,
 ): HttpHandler {
 	return defaultMiddlewareChain(tenants, async (req: Request): Promise<Response> => {
-		if (getTenant(req, tenants) !== tenants[0]) {
+		if (!getTenant(req, tenants).isAdminTenant) {
 			return sendNotFound();
 		}
 
@@ -117,12 +117,9 @@ export function adminTenantsUpdateHandler(
 			}
 		}
 
-		await saveTenantConfiguration(configDir, validation.data);
-
 		try {
-			await reload();
+			await saveTenantConfiguration(configDir, validation.data, reload);
 		} catch (err) {
-			await saveTenantConfiguration(configDir, oldConfig.tenants);
 			return sendInternalServerError({ error: String(err) });
 		}
 

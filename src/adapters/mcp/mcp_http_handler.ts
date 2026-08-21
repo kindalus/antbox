@@ -101,11 +101,12 @@ function resolveRequestedTenantName(req: Request): string | undefined {
 
 function resolveTenant(req: Request, tenants: AntboxTenant[]): AntboxTenant | undefined {
 	const requestedTenant = resolveRequestedTenantName(req);
-	if (!requestedTenant || requestedTenant === "default") {
-		return tenants[0];
-	}
+	if (!requestedTenant) return tenants[0];
 
-	return tenants.find((tenant) => tenant.name === requestedTenant);
+	const namedTenant = tenants.find((tenant) => tenant.name === requestedTenant);
+	if (namedTenant) return namedTenant;
+
+	return requestedTenant === "default" ? tenants[0] : undefined;
 }
 
 function buildApiKeyAuthContext(tenantName: string, group: string): AuthenticationContext {

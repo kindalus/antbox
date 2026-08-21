@@ -58,12 +58,18 @@ const BUILTIN_SKILLS_DIR = fromFileUrl(
 export function setupTenants(
 	cfg: ServerConfiguration,
 ): Promise<AntboxTenant[]> {
-	return Promise.all(cfg.tenants.map((tenantCfg) => setupTenant(cfg, tenantCfg)));
+	const adminTenantName = cfg.adminTenantName === undefined
+		? cfg.tenants.find((tenant) => tenant.name === "default")?.name ?? cfg.tenants[0]?.name
+		: cfg.adminTenantName;
+	return Promise.all(
+		cfg.tenants.map((tenantCfg) => setupTenant(cfg, tenantCfg, adminTenantName)),
+	);
 }
 
 async function setupTenant(
 	serverCfg: ServerConfiguration,
 	cfg: TenantConfiguration,
+	adminTenantName: string | null | undefined,
 ): Promise<AntboxTenant> {
 	validateTenantLimits(cfg);
 
@@ -246,6 +252,7 @@ async function setupTenant(
 
 	return {
 		name: cfg.name,
+		isAdminTenant: cfg.name === adminTenantName,
 		rootPasswd: passwd,
 		symmetricKey,
 		limits: cfg.limits,

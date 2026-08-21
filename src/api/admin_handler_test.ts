@@ -1,6 +1,8 @@
 import { describe, it } from "bdd";
 import { expect } from "expect";
 import { SignJWT } from "jose";
+import { join } from "node:path";
+import { stringify } from "toml";
 
 import type { AntboxTenant } from "./antbox_tenant.ts";
 import { adminTenantsUpdateHandler } from "./admin_handler.ts";
@@ -8,6 +10,55 @@ import { adminTenantsUpdateHandler } from "./admin_handler.ts";
 const TEST_SYMMETRIC_KEY = "test-symmetric-key";
 
 describe("adminTenantsUpdateHandler", () => {
+	it("creates a tenant file and reloads the server", async () => {
+		const configDir = await Deno.makeTempDir({ prefix: "admin-handler-test-" });
+		try {
+			await Deno.writeTextFile(
+				join(configDir, "config.toml"),
+				stringify({
+					engine: "oak",
+					key: "antbox.key",
+					jwks: "antbox.jwks",
+					tenants: [tenantConfig("default")],
+				}),
+			);
+			let reloaded = false;
+			const handler = adminTenantsUpdateHandler(
+				[createAdminTenant()],
+				() => {
+					reloaded = true;
+					return Promise.resolve();
+				},
+				configDir,
+			);
+
+			const response = await handler(
+				await createAdminRequest(JSON.stringify([
+					tenantConfig("default"),
+					tenantConfig("company"),
+				])),
+			);
+
+			expect(response.status).toBe(200);
+			expect(reloaded).toBe(true);
+			expect(await Deno.readTextFile(join(configDir, "tenants.d", "company.toml")))
+				.toContain('name = "company"');
+		} finally {
+			await Deno.remove(configDir, { recursive: true });
+		}
+	});
+
+	it("returns 404 when the selected tenant is not administrative", async () => {
+		const handler = adminTenantsUpdateHandler(
+			[createAdminTenant(false)],
+			() => Promise.resolve(),
+		);
+
+		const response = await handler(await createAdminRequest("{}"));
+
+		expect(response.status).toBe(404);
+	});
+
 	it("returns 400 for invalid JSON bodies", async () => {
 		let reloaded = false;
 		const handler = adminTenantsUpdateHandler(
@@ -85,9 +136,21 @@ describe("adminTenantsUpdateHandler", () => {
 	});
 });
 
-function createAdminTenant(): AntboxTenant {
+function tenantConfig(name: string) {
+	return {
+		name,
+		storage: ["inmem/inmem_storage_provider.ts"],
+		repository: ["inmem/inmem_node_repository.ts"],
+		configurationRepository: ["inmem/inmem_configuration_repository.ts"],
+		eventStoreRepository: ["inmem/inmem_event_store_repository.ts"],
+		limits: { storage: 10, tokens: 0 },
+	};
+}
+
+function createAdminTenant(isAdminTenant = true): AntboxTenant {
 	return {
 		name: "default",
+		isAdminTenant,
 		rootPasswd: "demo",
 		symmetricKey: TEST_SYMMETRIC_KEY,
 		apiKeysService: {},

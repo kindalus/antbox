@@ -24,8 +24,8 @@ Antbox uses a central configuration directory. By default, it manages its config
 `$HOME/.config/antbox` (or `%USERPROFILE%\.config\antbox` on Windows).
 
 When you start Antbox for the first time, it automatically creates this directory, generates
-cryptographic keys (`antbox.key`, `antbox.jwks`, and `antbox-private.jwk`), and creates a default
-`config.toml` file.
+cryptographic keys (`antbox.key`, `antbox.jwks`, and `antbox-private.jwk`), creates a default
+`config.toml` file, and creates `tenants.d/tenant.toml.sample`.
 
 You can override the configuration directory using the `--config-dir` (or `-c`) flag. You can also
 pass `--demo` or `--sandbox`, which map to `./.config/demo` and `./.config/sandbox` directories
@@ -66,6 +66,25 @@ Notes:
   configuration directory.
 - When AI is disabled, `limits.tokens` must be `0`.
 - When AI is enabled, `limits.tokens` must be greater than `0` or `"pay-as-you-go"`.
+
+For larger installations, place one tenant in each `<config-dir>/tenants.d/<name>.toml` file:
+
+```toml
+name = "company-a"
+repository = ["inmem/inmem_node_repository.ts"]
+storage = ["inmem/inmem_storage_provider.ts"]
+configurationRepository = ["sqlite/sqlite_configuration_repository.ts", "./data/company-a/config"]
+eventStoreRepository = ["inmem/inmem_event_store_repository.ts"]
+
+[limits]
+storage = "pay-as-you-go"
+tokens = 0
+```
+
+The file contains a tenant directly, so its tables are `[limits]` and `[ai]`, not `[tenants.limits]`
+and `[tenants.ai]`. Antbox reads only regular `.toml` files. The filename must match `name`, and
+tenant files override inline tenants with the same name. Relative paths remain relative to the main
+configuration directory.
 
 ## Start the Server
 

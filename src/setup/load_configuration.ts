@@ -2,7 +2,7 @@ import { Logger } from "shared/logger.ts";
 import { ServerConfiguration } from "api/http_server_configuration.ts";
 import { fileExistsSync } from "shared/os_helpers.ts";
 import { PORT } from "./server_defaults.ts";
-import { parse } from "toml";
+import { readTenantConfigurationState } from "./tenant_configuration_files.ts";
 import { join } from "node:path";
 import { exportJWK, generateKeyPair } from "jose";
 import { encodeBase64 } from "jsr:@std/encoding@1.0.10/base64";
@@ -88,8 +88,12 @@ tokens = 0
 		Logger.info(`Generated new JWKS at: ${jwksPath}`);
 	}
 
-	const configText = await Deno.readTextFile(configPath);
-	const config = parse(configText) as unknown as ServerConfiguration;
+	const state = await readTenantConfigurationState(dir);
+	const config = {
+		...state.rawConfig,
+		tenants: structuredClone(state.effectiveTenants),
+		adminTenantName: state.adminTenantName,
+	} as unknown as ServerConfiguration;
 
 	if (!config.port) config.port = PORT;
 

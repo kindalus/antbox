@@ -3,6 +3,11 @@ import type { TenantLimits } from "domain/metrics/tenant_limits.ts";
 
 export const ModuleConfigurationSchema = z.tuple([z.string()]).rest(z.string());
 
+export const TenantNameSchema = z.string().regex(
+	/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/,
+	"must contain only lowercase letters, numbers, and internal hyphens",
+);
+
 export const StorageLimitSchema = z.union([
 	z.number().nonnegative(),
 	z.literal("pay-as-you-go"),
@@ -29,7 +34,7 @@ export const AIConfigurationSchema = z.object({
 const OptionalNonEmptyStringSchema = z.string().trim().min(1).optional();
 
 export const TenantConfigurationSchema = z.object({
-	name: z.string().min(1),
+	name: TenantNameSchema,
 	rootPasswd: z.string().optional(),
 	key: OptionalNonEmptyStringSchema,
 	jwks: OptionalNonEmptyStringSchema,
@@ -63,7 +68,21 @@ export const TenantConfigurationSchema = z.object({
 	}
 });
 
-export const TenantsConfigurationSchema = z.array(TenantConfigurationSchema).min(1);
+export const TenantsConfigurationSchema = z.array(TenantConfigurationSchema).min(1).superRefine(
+	(tenants, ctx) => {
+		const names = new Set<string>();
+		for (const [index, tenant] of tenants.entries()) {
+			if (names.has(tenant.name)) {
+				ctx.addIssue({
+					code: z.ZodIssueCode.custom,
+					path: [index, "name"],
+					message: `duplicate tenant name: ${tenant.name}`,
+				});
+			}
+			names.add(tenant.name);
+		}
+	},
+);
 
 export interface ServerConfiguration {
 	port?: number;
@@ -73,6 +92,8 @@ export interface ServerConfiguration {
 	key?: string;
 	jwks?: string;
 	tenants: TenantConfiguration[];
+	/** Derived at load time; not read from config.toml. Null means no administrative tenant. */
+	adminTenantName?: string | null;
 }
 
 export type ModuleConfiguration = [modulePath: string, ...params: string[]];

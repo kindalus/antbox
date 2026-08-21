@@ -26,9 +26,11 @@ export function resolveTenant(req: Request, tenants: AntboxTenant[]): AntboxTena
 	const requested = paramTenant?.length ? paramTenant : headerTenant;
 
 	if (!requested) return tenants[0];
-	if (requested === "default" || requested === tenants[0].name) return tenants[0];
 
-	return tenants.find((t) => t.name === requested);
+	const namedTenant = tenants.find((tenant) => tenant.name === requested);
+	if (namedTenant) return namedTenant;
+
+	return requested === "default" ? tenants[0] : undefined;
 }
 
 export function getTenant(req: Request, tenants: AntboxTenant[]) {

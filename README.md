@@ -150,7 +150,8 @@ When you start Antbox for the first time, it will automatically:
 
 1. Create this directory if it doesn't exist.
 2. Generate a default `config.toml` file inside it.
-3. Generate cryptographic keys (`antbox.key`, `antbox.jwks`, and `antbox-private.jwk`).
+3. Create `tenants.d/tenant.toml.sample`.
+4. Generate cryptographic keys (`antbox.key`, `antbox.jwks`, and `antbox-private.jwk`).
 
 You can override the configuration directory using the `-c, --config-dir` CLI flag.
 
@@ -191,6 +192,25 @@ tokens = 0
 enabled = false
 defaultModel = "google/gemini-2.5-flash"
 ```
+
+Tenants can also be stored individually in `<config-dir>/tenants.d/<name>.toml`. These files contain
+one tenant without the `tenants` prefix:
+
+```toml
+name = "company-a"
+storage = ["flat_file/flat_file_storage_provider.ts", "./data/company-a/storage"]
+repository = ["sqlite/sqlite_node_repository.ts", "./data/company-a/repository"]
+configurationRepository = ["sqlite/sqlite_configuration_repository.ts", "./data/company-a/config"]
+eventStoreRepository = ["sqlite/sqlite_event_store_repository.ts", "./data/company-a/events"]
+
+[limits]
+storage = "pay-as-you-go"
+tokens = 0
+```
+
+Only regular `.toml` files are loaded. The filename must match `name`; relative paths still resolve
+from the main configuration directory. A tenant file overrides an inline tenant with the same name.
+Tenant names may contain lowercase letters, numbers, and internal hyphens only.
 
 ## API Overview
 

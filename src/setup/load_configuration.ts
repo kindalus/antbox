@@ -39,11 +39,6 @@ export async function loadConfiguration(
 		Logger.info(`Created configuration directory: ${dir}`);
 	}
 
-	const dataDir = join(dir, "data");
-	if (!fileExistsSync(dataDir)) {
-		Deno.mkdirSync(dataDir, { recursive: true });
-	}
-
 	const configPath = join(dir, "config.toml");
 	if (!fileExistsSync(configPath)) {
 		const defaultConfig = `engine = "oak"

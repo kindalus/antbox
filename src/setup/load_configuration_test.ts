@@ -37,6 +37,13 @@ async function withConfigDir(
 }
 
 describe("loadConfiguration", () => {
+	it("does not create an unused data directory", async () => {
+		await withConfigDir({ tenants: [tenant("default")] }, async (dir) => {
+			await loadConfiguration(dir);
+			await expect(Deno.stat(join(dir, "data"))).rejects.toThrow();
+		});
+	});
+
 	it("merges tenant files in canonical order and lets files override inline tenants", async () => {
 		await withConfigDir(
 			{ engine: "oak", tenants: [tenant("default"), tenant("zeta")] },

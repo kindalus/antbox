@@ -47,16 +47,16 @@ const adminCtx: AuthenticationContext = {
 
 class MockAgentsEngine implements AgentAnswerExecutor {
 	calls: Array<{ authCtx: AuthenticationContext; agentUuid: string; text: string }> = [];
-	answerImpl: (
+	internalAnswerImpl: (
 		authCtx: AuthenticationContext,
 		agentUuid: string,
 		text: string,
 	) => Promise<Either<AntboxError, ChatMessage>> = (_authCtx, _agentUuid, _text) =>
 		Promise.resolve(right({ role: "model", parts: [{ text: "ok" }] }));
 
-	answer(authCtx: AuthenticationContext, agentUuid: string, text: string) {
+	runInternalAnswer(authCtx: AuthenticationContext, agentUuid: string, text: string) {
 		this.calls.push({ authCtx, agentUuid, text });
-		return this.answerImpl(authCtx, agentUuid, text);
+		return this.internalAnswerImpl(authCtx, agentUuid, text);
 	}
 }
 
@@ -406,7 +406,7 @@ describe("FeaturesEngine", () => {
 
 	it("auto tag extracts declared aspect properties and ignores unknown fields", async () => {
 		const agentsEngine = new MockAgentsEngine();
-		agentsEngine.answerImpl = () =>
+		agentsEngine.internalAnswerImpl = () =>
 			Promise.resolve(
 				right({
 					role: "model",
@@ -489,7 +489,7 @@ describe("FeaturesEngine", () => {
 
 	it("auto tag skips invalid agent JSON without updating the node", async () => {
 		const agentsEngine = new MockAgentsEngine();
-		agentsEngine.answerImpl = () =>
+		agentsEngine.internalAnswerImpl = () =>
 			Promise.resolve(right({ role: "model", parts: [{ text: "not json" }] }));
 		const harness = createHarness(false, agentsEngine);
 		await createInvoiceAspect(harness);
@@ -522,7 +522,7 @@ describe("FeaturesEngine", () => {
 
 	it("auto tag does not attach an aspect when only hallucinated fields are returned", async () => {
 		const agentsEngine = new MockAgentsEngine();
-		agentsEngine.answerImpl = () =>
+		agentsEngine.internalAnswerImpl = () =>
 			Promise.resolve(
 				right({
 					role: "model",
@@ -564,7 +564,7 @@ describe("FeaturesEngine", () => {
 		const pendingAnswer = new Promise<Either<AntboxError, ChatMessage>>((resolve) => {
 			resolveAnswer = () => resolve(right({ role: "model", parts: [{ text: "done" }] }));
 		});
-		agentsEngine.answerImpl = () => pendingAnswer;
+		agentsEngine.internalAnswerImpl = () => pendingAnswer;
 		const harness = createHarness(false, agentsEngine);
 
 		await harness.nodeService.create(adminCtx, {

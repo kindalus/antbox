@@ -2,7 +2,7 @@ import { describe, it } from "bdd";
 import { expect } from "expect";
 import { parse as parseYaml } from "@std/yaml";
 import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
-import { toEmbeddingMarkdown, toYamlMetadata } from "./node_markdown.ts";
+import { embeddingMarkdownBody, toEmbeddingMarkdown, toYamlMetadata } from "./node_markdown.ts";
 
 const metadata: NodeMetadata = {
 	uuid: "node-1",
@@ -50,5 +50,17 @@ describe("node markdown", () => {
 		const result = toEmbeddingMarkdown(metadata, "  First line\nSecond line  \n");
 
 		expect(result).toBe(`---\n${yaml}\n---\n\nFirst line\nSecond line`);
+	});
+
+	it("extracts the stored body without truncating body delimiters", () => {
+		const markdown = toEmbeddingMarkdown(metadata, "First section\n\n---\n\nSecond section");
+
+		expect(embeddingMarkdownBody(markdown)).toBe(
+			"First section\n\n---\n\nSecond section",
+		);
+	});
+
+	it("returns an empty body for metadata-only markdown", () => {
+		expect(embeddingMarkdownBody(toEmbeddingMarkdown(metadata))).toBe("");
 	});
 });

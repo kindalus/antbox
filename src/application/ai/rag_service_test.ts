@@ -50,11 +50,13 @@ class CapturingEventBus implements EventBus {
 class MockNodeService {
 	private files = new Map<string, File>();
 	private nodes = new Map<string, Node>();
+	readonly exportCalls: string[] = [];
 
 	async export(
 		_ctx: unknown,
 		uuid: string,
 	): Promise<import("shared/either.ts").Either<AntboxError, File>> {
+		this.exportCalls.push(uuid);
 		const file = this.files.get(uuid);
 		if (!file) {
 			return left({ errorCode: "NotFound", message: `File not found: ${uuid}` } as AntboxError);
@@ -90,6 +92,14 @@ class CountingOCRProvider {
 	ocr(_file: File): Promise<import("shared/either.ts").Either<AntboxError, string>> {
 		this.calls += 1;
 		return Promise.resolve(right("counted"));
+	}
+}
+
+class FailingOCRProvider {
+	ocr(_file: File): Promise<import("shared/either.ts").Either<AntboxError, string>> {
+		return Promise.resolve(
+			left({ errorCode: "OCRFailed", message: "OCR failed" } as AntboxError),
+		);
 	}
 }
 
@@ -295,35 +305,143 @@ describe("RAGService", () => {
 	});
 
 	describe("indexing — NodeUpdated", () => {
-		it("updates embedding when node is updated", async () => {
+		it("reuses stored file content for metadata-only updates", async () => {
 			const mockNodeService = new MockNodeService();
 			const bus = new CapturingEventBus();
 			const repository = new InMemoryNodeRepository();
 			buildService(mockNodeService, bus, repository);
 
-			const node = makeFileNode("update-file", "text/plain", 50);
+			const node = makeFileNode("metadata-update", "text/plain", 50);
 			await repository.add(node);
-			mockNodeService.setFile("update-file", "Initial content", "text/plain");
+			await repository.upsertEmbedding(
+				"metadata-update",
+				new Array(128).fill(0),
+				"---\nuuid: metadata-update\ndescription: Old\n---\n\nStored content",
+			);
+			expect(node.update({ description: "New description" }).isRight()).toBe(true);
 			mockNodeService.setNode(node);
 
-			await bus.fire(NodeCreatedEvent.EVENT_ID, new NodeCreatedEvent("u", "t", node));
-
-			// Update
-			mockNodeService.setFile("update-file", "Updated content", "text/plain");
 			await bus.fire(
 				NodeUpdatedEvent.EVENT_ID,
 				new NodeUpdatedEvent("u", "t", {
-					uuid: "update-file",
-					oldValues: {},
-					newValues: { title: "update-file.txt" },
+					uuid: "metadata-update",
+					oldValues: { description: "Old" },
+					newValues: { description: "New description" },
 				}),
 			);
 
-			const search = await repository.vectorSearch(new Array(128).fill(0), 10);
-			expect(search.isRight()).toBe(true);
-			if (search.isRight()) {
-				expect(search.value.nodes.some((n) => n.node.uuid === "update-file")).toBe(true);
+			const contents = await repository.getEmbeddingContents(["metadata-update"]);
+			expect(contents.isRight()).toBe(true);
+			if (contents.isRight()) {
+				expect(contents.value["metadata-update"]).toContain("description: New description");
+				expect(contents.value["metadata-update"]).toContain("Stored content");
 			}
+			expect(mockNodeService.exportCalls).toEqual([]);
+		});
+
+		it("extracts new content when the file size is updated", async () => {
+			const mockNodeService = new MockNodeService();
+			const bus = new CapturingEventBus();
+			const repository = new InMemoryNodeRepository();
+			buildService(mockNodeService, bus, repository);
+
+			const node = makeFileNode("content-update", "text/plain", 60);
+			await repository.add(node);
+			await repository.upsertEmbedding(
+				"content-update",
+				new Array(128).fill(0),
+				"---\nuuid: content-update\n---\n\nOld content",
+			);
+			mockNodeService.setNode(node);
+			mockNodeService.setFile("content-update", "New content", "text/plain");
+
+			await bus.fire(
+				NodeUpdatedEvent.EVENT_ID,
+				new NodeUpdatedEvent("u", "t", {
+					uuid: "content-update",
+					oldValues: { size: 50 },
+					newValues: { size: 60 },
+				}),
+			);
+
+			const contents = await repository.getEmbeddingContents(["content-update"]);
+			expect(contents.isRight()).toBe(true);
+			if (contents.isRight()) {
+				expect(contents.value["content-update"]).toContain("New content");
+				expect(contents.value["content-update"]).not.toContain("Old content");
+			}
+			expect(mockNodeService.exportCalls).toEqual(["content-update"]);
+		});
+
+		it("preserves stored content when exporting an updated file fails", async () => {
+			const mockNodeService = new MockNodeService();
+			const bus = new CapturingEventBus();
+			const repository = new InMemoryNodeRepository();
+			buildService(mockNodeService, bus, repository);
+
+			const node = makeFileNode("failed-export", "text/plain", 60);
+			await repository.add(node);
+			await repository.upsertEmbedding(
+				"failed-export",
+				new Array(128).fill(0),
+				"---\nuuid: failed-export\n---\n\nPreviously extracted content",
+			);
+			mockNodeService.setNode(node);
+
+			await bus.fire(
+				NodeUpdatedEvent.EVENT_ID,
+				new NodeUpdatedEvent("u", "t", {
+					uuid: "failed-export",
+					oldValues: { size: 50 },
+					newValues: { size: 60 },
+				}),
+			);
+
+			const contents = await repository.getEmbeddingContents(["failed-export"]);
+			expect(contents.isRight()).toBe(true);
+			if (contents.isRight()) {
+				expect(contents.value["failed-export"]).toContain("Previously extracted content");
+			}
+			expect(mockNodeService.exportCalls).toEqual(["failed-export"]);
+		});
+
+		it("preserves stored content when OCR of an updated file fails", async () => {
+			const mockNodeService = new MockNodeService();
+			const bus = new CapturingEventBus();
+			const repository = new InMemoryNodeRepository();
+			new RAGService(
+				bus,
+				repository,
+				mockNodeService as unknown as NodeService,
+				new DeterministicEmbeddingsProvider(128),
+				new FailingOCRProvider(),
+			);
+
+			const node = makeFileNode("failed-ocr", "application/pdf", 60);
+			await repository.add(node);
+			await repository.upsertEmbedding(
+				"failed-ocr",
+				new Array(128).fill(0),
+				"---\nuuid: failed-ocr\n---\n\nPreviously OCRed content",
+			);
+			mockNodeService.setNode(node);
+			mockNodeService.setFile("failed-ocr", "unreadable", "application/pdf");
+
+			await bus.fire(
+				NodeUpdatedEvent.EVENT_ID,
+				new NodeUpdatedEvent("u", "t", {
+					uuid: "failed-ocr",
+					oldValues: { size: 50 },
+					newValues: { size: 60 },
+				}),
+			);
+
+			const contents = await repository.getEmbeddingContents(["failed-ocr"]);
+			expect(contents.isRight()).toBe(true);
+			if (contents.isRight()) {
+				expect(contents.value["failed-ocr"]).toContain("Previously OCRed content");
+			}
+			expect(mockNodeService.exportCalls).toEqual(["failed-ocr"]);
 		});
 	});
 

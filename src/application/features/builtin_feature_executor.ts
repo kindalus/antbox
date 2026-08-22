@@ -14,7 +14,7 @@ import type { NodeService } from "../nodes/node_service.ts";
 import type { AuthenticationContext } from "../security/authentication_context.ts";
 
 export interface AgentAnswerExecutor {
-	answer(
+	runInternalAnswer(
 		authContext: AuthenticationContext,
 		agentUuid: string,
 		text: string,
@@ -74,7 +74,7 @@ async function runCallAgentFeature(
 	}
 
 	if (!runSync) {
-		void dependencies.agentsEngine.answer(ctx, agentUuid.trim(), finalPrompt.value)
+		void dependencies.agentsEngine.runInternalAnswer(ctx, agentUuid.trim(), finalPrompt.value)
 			.then((result) => {
 				if (result.isLeft()) {
 					Logger.error(
@@ -92,7 +92,7 @@ async function runCallAgentFeature(
 		return right({ status: "started" });
 	}
 
-	const answerOrErr = await dependencies.agentsEngine.answer(
+	const answerOrErr = await dependencies.agentsEngine.runInternalAnswer(
 		ctx,
 		agentUuid.trim(),
 		finalPrompt.value,
@@ -214,7 +214,7 @@ async function runAutoTagFeature(
 				})
 			}`;
 
-			const answerOrErr = await dependencies.agentsEngine.answer(
+			const answerOrErr = await dependencies.agentsEngine.runInternalAnswer(
 				ctx,
 				ASPECT_FIELD_EXTRACTOR_AGENT_UUID,
 				prompt,

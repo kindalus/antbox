@@ -16,7 +16,7 @@ import { EmbeddingsGeneratedEvent } from "domain/ai/embeddings_generated_event.t
 import { Nodes } from "domain/nodes/nodes.ts";
 import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { createElevatedContext } from "application/security/elevated_context.ts";
-import { toEmbeddingMarkdown } from "application/nodes/node_markdown.ts";
+import { embeddingMarkdownBody, toEmbeddingMarkdown } from "application/nodes/node_markdown.ts";
 
 /** Default number of top results to retrieve */
 export const RAG_TOP_K = 5;
@@ -159,7 +159,8 @@ export class RAGService {
 
 		let success: boolean;
 		if (Nodes.isFile(node)) {
-			success = await this.#indexFile(node, event.tenant);
+			const contentChanged = Object.hasOwn(event.payload.newValues, "size");
+			success = await this.#indexFile(node, event.tenant, contentChanged);
 		} else {
 			success = await this.#indexNodeMetadata(node, event.tenant);
 		}
@@ -175,13 +176,33 @@ export class RAGService {
 		await this.#deleteEmbedding(event.payload.uuid);
 	}
 
-	async #indexFile(node: NodeMetadata, tenant: string): Promise<boolean> {
-		let bodyContent = "";
+	async #indexFile(
+		node: NodeMetadata,
+		tenant: string,
+		contentChanged = true,
+	): Promise<boolean> {
+		const contentsOrErr = await this.#repository.getEmbeddingContents([node.uuid]);
+		const previousMarkdown = contentsOrErr.isRight() ? contentsOrErr.value[node.uuid] : undefined;
+		const previousBody = previousMarkdown === undefined
+			? undefined
+			: embeddingMarkdownBody(previousMarkdown);
 
-		if ((node.size ?? 0) > 0) {
+		if (contentsOrErr.isLeft()) {
+			Logger.warn(`RAGService: failed to get stored content for ${node.uuid}`);
+			if (!contentChanged) {
+				return false;
+			}
+		}
+
+		let bodyContent = previousBody ?? "";
+		const needsExtraction = previousBody === undefined || contentChanged;
+
+		if (needsExtraction && (node.size ?? 0) > 0) {
 			const fileOrErr = await this.#nodeService.export(createElevatedContext(tenant), node.uuid);
 			if (fileOrErr.isLeft()) {
-				Logger.warn(`RAGService: failed to export file ${node.uuid}, indexing metadata only`);
+				Logger.warn(
+					`RAGService: failed to export file ${node.uuid}, using stored content if available`,
+				);
 			} else {
 				const textOrErr = await this.#ocrProvider.ocr(fileOrErr.value);
 				if (textOrErr.isLeft()) {
@@ -190,6 +211,8 @@ export class RAGService {
 					bodyContent = textOrErr.value;
 				}
 			}
+		} else if (contentChanged) {
+			bodyContent = "";
 		}
 
 		const markdown = toEmbeddingMarkdown(node, bodyContent);

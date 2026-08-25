@@ -1046,11 +1046,12 @@ paths:
                            $ref: "#/components/schemas/Feature"
             default:
                $ref: "#/components/responses/Error"
-   "/extensions/{uuid}/-/exec":
+   "/extensions/{uuid}":
       get:
          tags:
             - extensions
          summary: Run an extension (GET)
+         description: A native Response returned by the extension controls the status, headers, and body. Other values use the configured returnType serialization.
          operationId: runExtensionGet
          parameters:
             - $ref: "#/components/parameters/UUID"
@@ -1068,12 +1069,19 @@ paths:
                      schema:
                         type: string
                         format: binary
+            "400":
+               description: Invalid parameters or an extension-defined bad request response
+            "404":
+               description: Extension not found or an extension-defined not found response
+            "409":
+               description: Extension-defined conflict response
             default:
-               $ref: "#/components/responses/Error"
+               description: Extension-defined response or runtime error; body and content type may vary
       post:
          tags:
             - extensions
          summary: Run an extension (POST)
+         description: A native Response returned by the extension controls the status, headers, and body. Other values use the configured returnType serialization.
          operationId: runExtension
          parameters:
             - $ref: "#/components/parameters/UUID"
@@ -1105,8 +1113,14 @@ paths:
                      schema:
                         type: string
                         format: binary
+            "400":
+               description: Invalid parameters or an extension-defined bad request response
+            "404":
+               description: Extension not found or an extension-defined not found response
+            "409":
+               description: Extension-defined conflict response
             default:
-               $ref: "#/components/responses/Error"
+               description: Extension-defined response or runtime error; body and content type may vary
    /features:
       get:
          tags:
@@ -2972,7 +2986,7 @@ components:
                   $ref: "#/components/schemas/NodeFilter"
             runAs:
                type: string
-               description: User email or "system" to run as
+               description: Group UUID to run the feature as. Replaces caller groups while preserving caller identity.
             groupsAllowed:
                type: array
                description: Groups allowed to run this feature. Non-admin users only see features they can run.
@@ -3559,6 +3573,7 @@ components:
                type: boolean
             runAs:
                type: string
+               description: Group UUID to run the feature as. Replaces caller groups while preserving caller identity.
             parameters:
                type: array
                items:

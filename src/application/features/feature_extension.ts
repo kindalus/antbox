@@ -10,7 +10,10 @@ interface FeatureExtensionContext {
 		ctx: AuthenticationContext,
 		uuid: string,
 	): Promise<Either<AntboxError, FeatureData>>;
-	execute(params: Record<string, unknown>): Promise<Either<AntboxError, unknown>>;
+	execute(
+		params: Record<string, unknown>,
+		requestUrl: Readonly<URL>,
+	): Promise<Either<AntboxError, unknown>>;
 }
 
 export async function runFeatureExtension(
@@ -39,7 +42,7 @@ export async function runFeatureExtension(
 	const params = Object.fromEntries(
 		Object.entries(paramsOrErr.value).map(([key, value]) => [kebabToCamelCase(key), value]),
 	);
-	const resultOrErr = await dependencies.execute(params);
+	const resultOrErr = await dependencies.execute(params, safeRequestUrl(request));
 	if (resultOrErr.isLeft()) {
 		return new Response(resultOrErr.value.message, { status: errorStatus(resultOrErr.value) });
 	}
@@ -89,7 +92,20 @@ async function extractParameters(
 	return left(new BadRequestError(`Unsupported content type: ${contentType}`));
 }
 
+function safeRequestUrl(request: Request): Readonly<URL> {
+	const url = new URL(request.url);
+	url.username = "";
+	url.password = "";
+	url.search = "";
+	url.hash = "";
+	return url;
+}
+
 function extensionResponse(feature: FeatureData, value: unknown): Response {
+	if (value instanceof Response) {
+		return value;
+	}
+
 	if (!value || feature.returnType === "void") {
 		return new Response("OK", { status: 200 });
 	}

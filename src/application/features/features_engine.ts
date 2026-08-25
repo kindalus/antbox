@@ -228,7 +228,7 @@ export class FeaturesEngine {
 		return runFeatureExtension(ctx, uuid, request, {
 			getFeature: (authContext, featureUuid) =>
 				this.#featuresService.getFeature(authContext, featureUuid),
-			execute: (params) => this.#run(ctx, uuid, params),
+			execute: (params, requestUrl) => this.#run(ctx, uuid, params, requestUrl),
 		});
 	}
 
@@ -357,6 +357,7 @@ export class FeaturesEngine {
 		ctx: AuthenticationContext,
 		uuid: string,
 		params: Record<string, unknown>,
+		requestUrl?: Readonly<URL>,
 	): Promise<Either<AntboxError, T>> {
 		const featureOrErr = await this.#getFeatureAsRunnableFeature(ctx, uuid);
 
@@ -375,14 +376,14 @@ export class FeaturesEngine {
 			return left(new ForbiddenError());
 		}
 
-		// Create authentication context with runAs group if specified
+		// Run the feature with exactly the configured group, while preserving identity.
 		let authContext = ctx;
-		if (feature.runAs && !ctx.principal.groups.includes(feature.runAs)) {
+		if (feature.runAs) {
 			authContext = {
 				...ctx,
 				principal: {
 					...ctx.principal,
-					groups: [...ctx.principal.groups, feature.runAs],
+					groups: [feature.runAs],
 				},
 			};
 		}
@@ -391,6 +392,7 @@ export class FeaturesEngine {
 			authenticationContext: authContext,
 			nodeService: new NodeServiceProxy(this.#nodeService, this.#ragService, authContext),
 			logger: Logger.instance(`feature=${feature.uuid}`, `tenant=${authContext.tenant}`),
+			...(requestUrl ? { requestUrl } : {}),
 		};
 
 		const validatedParamsOrErr = validateFeatureParameters(feature.parameters, params);

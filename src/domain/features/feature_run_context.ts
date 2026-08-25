@@ -6,4 +6,6 @@ export interface RunContext {
 	authenticationContext: AuthenticationContext;
 	nodeService: NodeServiceProxy;
 	logger: Logger;
+	/** Present only for HTTP extensions; query parameters and credentials are omitted. */
+	requestUrl?: Readonly<URL>;
 }

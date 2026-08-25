@@ -743,6 +743,94 @@ describe("FeaturesEngine", () => {
 		expect(payload).toEqual({ ok: true, value: "hello" });
 	});
 
+	it("runExtension exposes the actual sanitized request URL", async () => {
+		const harness = createHarness();
+		const featureUuid = await createFeature(harness, {
+			exposeAction: false,
+			exposeExtension: true,
+			returnType: "object",
+			run: createFeatureRun({
+				runBody: `return {
+					href: ctx.requestUrl?.href,
+					origin: ctx.requestUrl?.origin,
+					pathname: ctx.requestUrl?.pathname,
+					search: ctx.requestUrl?.search,
+				};`,
+			}),
+		});
+		const request = new Request(
+			"https://vpim.example/api/extensions/product-detail?api_key=secret&sku=ABC",
+			{
+				headers: {
+					forwarded: "host=attacker.example;proto=http",
+					"x-forwarded-host": "attacker.example",
+					"x-forwarded-prefix": "/attacker",
+				},
+			},
+		);
+
+		const response = await harness.engine.runExtension(adminCtx, featureUuid, request);
+
+		expect(response.status).toBe(200);
+		expect(await response.json()).toEqual({
+			href: "https://vpim.example/api/extensions/product-detail",
+			origin: "https://vpim.example",
+			pathname: "/api/extensions/product-detail",
+			search: "",
+		});
+	});
+
+	it("runExtension passes through a native Response from feature code", async () => {
+		const harness = createHarness();
+		const featureUuid = await createFeature(harness, {
+			exposeAction: false,
+			exposeExtension: true,
+			returnType: "object",
+			run: createFeatureRun({
+				runBody: `return Response.json(
+					{ ok: false, error: "SKU conflict" },
+					{ status: 409, headers: { "x-conflict": "sku" } },
+				);`,
+			}),
+		});
+
+		const response = await harness.engine.runExtension(
+			adminCtx,
+			featureUuid,
+			new Request("https://vpim.example/api/extensions/product-detail"),
+		);
+
+		expect(response.status).toBe(409);
+		expect(response.headers.get("x-conflict")).toBe("sku");
+		expect(await response.json()).toEqual({ ok: false, error: "SKU conflict" });
+	});
+
+	it("does not expose requestUrl to actions or AI tools", async () => {
+		const harness = createHarness();
+		const featureUuid = await createFeature(harness, {
+			exposeAction: true,
+			exposeAITool: true,
+			parameters: defaultActionParameters,
+			run: createFeatureRun({
+				runBody: "return { hasRequestUrl: ctx.requestUrl !== undefined };",
+			}),
+		});
+
+		const actionResult = await harness.engine.runAction<{ hasRequestUrl: boolean }>(
+			adminCtx,
+			featureUuid,
+			[],
+		);
+		const aiToolResult = await harness.engine.runAITool<{ hasRequestUrl: boolean }>(
+			adminCtx,
+			featureUuid,
+			{ uuids: [] },
+		);
+
+		expect(actionResult.isRight() && actionResult.value.hasRequestUrl).toBe(false);
+		expect(aiToolResult.isRight() && aiToolResult.value.hasRequestUrl).toBe(false);
+	});
+
 	it("runExtension serializes file, text, and void results", async () => {
 		const harness = createHarness();
 		const request = () => new Request("http://localhost/v2/extensions/test", { method: "GET" });
@@ -1021,8 +1109,11 @@ describe("FeaturesEngine", () => {
 				runOnCreates: true,
 				runManually: false,
 				runBody: `
-					if (!ctx.authenticationContext.principal.groups.includes("--reviewers--")) {
-						throw new Error("missing runAs group");
+					if (JSON.stringify(ctx.authenticationContext.principal.groups) !== '["--reviewers--"]') {
+						throw new Error("runAs must replace the caller groups");
+					}
+					if (ctx.authenticationContext.principal.email !== "root@antbox.io") {
+						throw new Error("runAs must preserve the caller identity");
 					}
 
 					if (Array.isArray(args.uuids) && args.uuids.length > 0) {

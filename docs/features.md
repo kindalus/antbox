@@ -31,6 +31,8 @@ interface FeatureData {
 	filters: NodeFilter[];
 	exposeExtension: boolean;
 	exposeAITool: boolean;
+	// Optional group UUID used as the complete execution principal group set.
+	// The caller identity/email is preserved.
 	runAs?: string;
 	groupsAllowed: string[];
 	parameters: FeatureParameter[];
@@ -88,6 +90,13 @@ export default {
 - `ctx.authenticationContext`
 - `ctx.nodeService` (NodeServiceProxy)
 - `ctx.logger` (`Logger` instance scoped to the feature/tenant)
+- `ctx.requestUrl` (`Readonly<URL>`, HTTP extensions only)
+
+`ctx.requestUrl` comes from the URL received by the HTTP adapter. Antbox does not use `Forwarded` or
+`X-Forwarded-*` to build it. It contains the actual `origin` and `pathname`, including any mounted
+prefix visible to Antbox. Antbox removes user info, query parameters, and fragments before running
+the extension, so credentials and extension arguments are not copied into the context. Actions,
+automatic triggers, and AI tools do not receive `requestUrl`.
 
 Example:
 
@@ -105,6 +114,10 @@ POST to `/v2/features/-/upload` with `multipart/form-data` and a file in the `fi
 Note: create/update/delete operations require admin privileges. `groupsAllowed` defines who may run
 a feature. Non-admin list/detail visibility follows the same rule: if a user cannot run a feature,
 it is not shown to them. Exporting a feature module is admin-only.
+
+When `runAs` is set, the feature runs with exactly that group in its authentication context; caller
+groups are replaced, while the caller identity/email is preserved. This affects authorization and
+the group selected for nodes created without an explicit `group`.
 
 UUID resolution rules:
 
@@ -183,6 +196,40 @@ Automatic triggers (all require `exposeAction: true`):
 Extension parameters are taken from query params (GET) or request body (POST JSON or form data).
 Declared parameter types are validated at runtime, with string coercion for numbers, booleans,
 dates, arrays, and JSON objects where possible.
+
+An extension can use `ctx.requestUrl` to preserve the origin and API prefix used to invoke it:
+
+```js
+async run(ctx, args) {
+	const prefix = ctx.requestUrl.pathname.replace(/\/extensions\/[^/]+$/, "");
+	const pathname = `${prefix}/nodes/${encodeURIComponent(args.uuid)}/-/export`;
+	return { exportUrl: new URL(pathname, ctx.requestUrl.origin).href };
+}
+```
+
+The value is a dedicated URL copy without query parameters. Changing it cannot change the request.
+Do not reconstruct public URLs from `Forwarded` or `X-Forwarded-*` headers inside an extension.
+
+Extensions may return a native `Response` to control the HTTP status, headers, and body. Antbox
+passes that response through without applying `returnType` serialization:
+
+```js
+async run(ctx, args) {
+	const product = await ctx.nodeService.get(args.sku);
+	if (product.isLeft()) {
+		return Response.json(
+			{ ok: false, error: "Product not found" },
+			{ status: 404 },
+		);
+	}
+
+	return Response.json({ ok: true, product: product.value });
+}
+```
+
+This supports statuses such as `400`, `404`, and `409`. Existing extensions can continue returning
+ordinary values; Antbox still serializes those values according to `returnType` and
+`returnContentType`.
 
 ## AI Tools
 

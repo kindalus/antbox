@@ -113,32 +113,20 @@ function isAuthenticatedAllowedTo(
  *
  * Advanced permissions allow fine-grained control where specific groups
  * can have different permission sets on the same folder.
- *
- * Note: There's a potential bug in the forEach loop - it doesn't properly
- * return true when a match is found. Consider refactoring to use .some()
  */
 function isGroupAllowedTo(
 	ctx: AuthenticationContext,
 	folder: FolderNode,
 	permission: Permission,
 ): boolean {
-	if (!ctx.principal.groups.includes(folder.group)) {
-		return false;
-	}
-
-	if (folder.permissions.group.includes(permission)) {
+	if (
+		ctx.principal.groups.includes(folder.group) &&
+		folder.permissions.group.includes(permission)
+	) {
 		return true;
 	}
 
-	Object.entries(folder.permissions.advanced ?? []).forEach(
-		([group, permissions]) => {
-			if (
-				permissions.includes(permission) && ctx.principal.groups.includes(group)
-			) {
-				return true;
-			}
-		},
+	return ctx.principal.groups.some((group) =>
+		folder.permissions.advanced?.[group]?.includes(permission)
 	);
-
-	return false;
 }

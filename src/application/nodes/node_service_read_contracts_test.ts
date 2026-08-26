@@ -172,6 +172,36 @@ describe("NodeService read contracts", () => {
 		]);
 	});
 
+	it("lists a folder granted through an advanced group permission", async () => {
+		const { service } = createHarness();
+		await service.create(adminCtx, {
+			uuid: "advanced-parent",
+			title: "Advanced parent",
+			parent: Nodes.ROOT_FOLDER_UUID,
+			mimetype: Nodes.FOLDER_MIMETYPE,
+			group: "owners",
+			permissions: {
+				group: ["Read", "Write", "Export"],
+				authenticated: [],
+				anonymous: [],
+				advanced: { readers: ["Read"] },
+			},
+		});
+		await service.create(adminCtx, {
+			uuid: "advanced-child",
+			title: "Advanced child",
+			parent: "advanced-parent",
+			mimetype: Nodes.FOLDER_MIMETYPE,
+		});
+
+		const result = await service.list(readerCtx, "advanced-parent");
+
+		expect(result.isRight()).toBe(true);
+		if (result.isRight()) {
+			expect(result.value.map((node) => node.uuid)).toEqual(["advanced-child"]);
+		}
+	});
+
 	it("accepts the root folder in fid form", async () => {
 		const { service } = createHarness();
 		await createFolder(service, "root-child", "Root child");

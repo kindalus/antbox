@@ -154,23 +154,16 @@ export class AuthorizationService {
 		folder: FolderNode,
 		permission: Permission,
 	): boolean {
-		if (!ctx.principal.groups.includes(folder.group)) {
-			return false;
-		}
-
-		if (folder.permissions.group.includes(permission)) {
+		if (
+			ctx.principal.groups.includes(folder.group) &&
+			folder.permissions.group.includes(permission)
+		) {
 			return true;
 		}
 
-		for (const [group, permissions] of Object.entries(folder.permissions.advanced ?? {})) {
-			if (
-				permissions.includes(permission) && ctx.principal.groups.includes(group)
-			) {
-				return true;
-			}
-		}
-
-		return false;
+		return ctx.principal.groups.some((group) =>
+			folder.permissions.advanced?.[group]?.includes(permission)
+		);
 	}
 
 	/**

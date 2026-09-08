@@ -31,10 +31,14 @@ If `uuid` is omitted in the JSON payload, the server derives it from the uploade
 	"uuid": "news-2026-03-01",
 	"title": "Release Notes",
 	"description": "Platform updates",
-	"parent": "--root--",
+	"parent": "articles",
 	"articleAuthor": "editor@example.com",
 	"articleBodyContentType": "markdown",
+	"aspects": ["announcement"],
 	"properties": {
+		"announcement:title": "Release Notes"
+	},
+	"articleProperties": {
 		"pt": {
 			"articleTitle": "Notas de lancamento",
 			"articleFid": "notas-de-lancamento",
@@ -50,6 +54,21 @@ If `uuid` is omitted in the JSON payload, the server derives it from the uploade
 	}
 }
 ```
+
+`articleProperties` contains localized article fields. `properties` contains only aspect properties,
+using the same `<aspect-uuid>:<property-name>` keys as the nodes API. `aspects` lists the applied
+aspect UUIDs. Aspect definitions and their `filters` are validated before the article is stored.
+
+On create, `articleProperties`, `articleAuthor`, and `parent` are required. On replacement, omitted
+fields preserve their current values. Supplying `aspects: []` removes every aspect and its
+properties. The service generates missing `articleFid` values and derives `title` from the localized
+article title when needed.
+
+## Generic nodes API
+
+Articles can also be created through `POST /v2/nodes`. This path uses the persisted node contract:
+`articleProperties` and `articleAuthor` must be supplied, and each locale must include a non-empty
+`articleFid`. It does not generate `articleFid` or derive the node `title`.
 
 ## Body content type
 

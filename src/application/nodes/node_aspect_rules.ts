@@ -9,7 +9,7 @@ import type { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import type { NodeProperties } from "domain/nodes/node_properties.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import { NodesFilters } from "domain/nodes_filters.ts";
-import type { AntboxError } from "shared/antbox_error.ts";
+import { type AntboxError, BadRequestError } from "shared/antbox_error.ts";
 import type { Either } from "shared/either.ts";
 import { left, right } from "shared/either.ts";
 import { Logger } from "shared/logger.ts";
@@ -66,10 +66,16 @@ export class NodeAspectRules {
 		}
 
 		node.update({ properties: acceptedProperties });
-		const errors = validators
+		const errors: AntboxError[] = validators
 			.map((validator) => validator.isSatisfiedBy(node))
 			.filter((result) => result.isLeft())
 			.flatMap((result) => result.value.errors);
+
+		for (const aspect of aspects) {
+			if (NodesFilters.satisfiedBy(aspect.filters, node).isLeft()) {
+				errors.push(new BadRequestError(`Aspect '${aspect.uuid}' does not apply to node`));
+			}
+		}
 
 		return errors.length ? left(ValidationError.from(...errors)) : right(undefined);
 	}

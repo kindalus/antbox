@@ -48,7 +48,12 @@ export class ArticleService {
 			return left(new BadRequestError("Article UUID is required"));
 		}
 
-		if (!metadata.properties || Object.keys(metadata.properties).length === 0) {
+		const nodeOrErr = await this.get(ctx, metadata.uuid);
+		if (nodeOrErr.isRight()) {
+			return this.#update(ctx, metadata.uuid, metadata);
+		}
+
+		if (!metadata.articleProperties || Object.keys(metadata.articleProperties).length === 0) {
 			return left(new BadRequestError("Article properties are required"));
 		}
 
@@ -56,12 +61,7 @@ export class ArticleService {
 			return left(new BadRequestError("articleAuthor is required"));
 		}
 
-		const nodeOrErr = await this.get(ctx, metadata.uuid);
-		if (nodeOrErr.isLeft()) {
-			return this.#create(ctx, metadata as RawArticleDTO);
-		}
-
-		return this.#update(ctx, metadata.uuid, metadata as RawArticleDTO);
+		return this.#create(ctx, metadata as RawArticleDTO);
 	}
 
 	async #create(
@@ -69,7 +69,7 @@ export class ArticleService {
 		metadata: RawArticleDTO,
 	): Promise<Either<AntboxError, RawArticleDTO>> {
 		// Generate articleFid for each locale if not provided
-		const articleProperties = this.#ensureArticleFids(metadata.properties);
+		const articleProperties = this.#ensureArticleFids(metadata.articleProperties);
 
 		// Get title from first available locale (pt -> en -> first available)
 		const props = selectLocalizedProperties(articleProperties, "pt");
@@ -84,6 +84,8 @@ export class ArticleService {
 			articleProperties,
 			articleAuthor: metadata.articleAuthor,
 			articleBodyContentType: metadata.articleBodyContentType,
+			aspects: metadata.aspects,
+			properties: metadata.properties,
 		});
 
 		if (nodeOrErr.isLeft()) {
@@ -97,7 +99,7 @@ export class ArticleService {
 			return left(createOrErr.value);
 		}
 
-		return right(toRawArticleDTO(article));
+		return this.get(ctx, article.uuid);
 	}
 
 	async #update(
@@ -114,9 +116,9 @@ export class ArticleService {
 		const existing = existingOrErr.value;
 
 		// Merge the properties
-		const articleProperties = metadata.properties
-			? this.#ensureArticleFids(metadata.properties)
-			: existing.properties;
+		const articleProperties = metadata.articleProperties
+			? this.#ensureArticleFids(metadata.articleProperties)
+			: existing.articleProperties;
 		const articleAuthor = metadata.articleAuthor || existing.articleAuthor;
 		const articleBodyContentType = metadata.articleBodyContentType ??
 			existing.articleBodyContentType;
@@ -131,6 +133,8 @@ export class ArticleService {
 			articleProperties,
 			articleAuthor,
 			articleBodyContentType,
+			aspects: metadata.aspects,
+			properties: metadata.properties,
 		});
 
 		if (updateOrErr.isLeft()) {

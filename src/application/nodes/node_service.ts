@@ -682,7 +682,9 @@ export class NodeService {
 			}
 		}
 
-		if (Nodes.isFileLike(nodeOrErr.value)) {
+		// Validate aspectable updates on a detached candidate so rejected changes are not persisted
+		// by repositories that return live object references.
+		if (Nodes.hasAspects(nodeOrErr.value)) {
 			const newNodeOrErr = NodeFactory.from({
 				...nodeOrErr.value.metadata,
 				...(metadata.size !== undefined ? { size: metadata.size } : {}),

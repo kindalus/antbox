@@ -811,6 +811,12 @@ paths:
             - articles
          summary: Create or replace an article
          operationId: createOrReplaceArticle
+         description: |
+            Upload article metadata as JSON in the multipart `file` field. Localized fields use
+            `articleProperties`; `properties` is reserved for aspect properties and `aspects`
+            lists their UUIDs. Creates require `parent`, non-empty `articleProperties`, and
+            `articleAuthor`; `uuid` is read from the JSON or derived from the file name. Updates
+            require `uuid`; omitted fields are preserved.
          requestBody:
             required: true
             content:
@@ -821,7 +827,7 @@ paths:
                         file:
                            type: string
                            format: binary
-                           description: A JSON file containing the article's metadata with internationalized fields.
+                           description: A JSON file matching the article upsert contract described above.
          responses:
             "200":
                description: Article created or replaced successfully
@@ -2863,7 +2869,7 @@ components:
                description: Optional description of the aspect's purpose
             filters:
                $ref: "#/components/schemas/NodeFilters"
-               description: Optional filters to restrict which nodes can have this aspect
+               description: Filters enforced whenever a node is created or updated with this aspect
             properties:
                type: array
                description: Schema definition for the aspect's properties
@@ -3312,6 +3318,41 @@ components:
                   format: uuid
                description: UUIDs of groups authorized to unlock this node
                default: []
+      ArticleNode:
+         type: object
+         allOf:
+            - $ref: "#/components/schemas/BaseNode"
+         required:
+            - articleProperties
+            - articleAuthor
+            - articleBodyContentType
+            - aspects
+            - properties
+         properties:
+            articleProperties:
+               $ref: "#/components/schemas/ArticlePropertiesMap"
+            articleAuthor:
+               type: string
+            articleBodyContentType:
+               $ref: "#/components/schemas/ArticleBodyContentType"
+            aspects:
+               type: array
+               items:
+                  type: string
+                  format: uuid
+            properties:
+               type: object
+               additionalProperties: true
+               description: Aspect properties keyed as `<aspect-uuid>:<property-name>`.
+            tags:
+               type: array
+               items:
+                  type: string
+            related:
+               type: array
+               items:
+                  type: string
+                  format: uuid
       FileNode:
          type: object
          allOf:
@@ -3559,6 +3600,7 @@ components:
       NodeLike:
          description: Union of all node types (content layer only, not configuration records)
          oneOf:
+            - $ref: "#/components/schemas/ArticleNode"
             - $ref: "#/components/schemas/FileNode"
             - $ref: "#/components/schemas/FolderNode"
             - $ref: "#/components/schemas/MetaNode"
@@ -3610,6 +3652,15 @@ components:
             properties:
                type: object
                additionalProperties: true
+               description: Aspect properties keyed as `<aspect-uuid>:<property-name>`.
+            articleProperties:
+               $ref: "#/components/schemas/ArticlePropertiesMap"
+               description: Localized article fields. Required and non-empty for article nodes.
+            articleAuthor:
+               type: string
+               description: Required author for article nodes.
+            articleBodyContentType:
+               $ref: "#/components/schemas/ArticleBodyContentType"
             fulltext:
                type: string
             filters:
@@ -3952,7 +4003,8 @@ components:
                description: Article body content
       ArticlePropertiesMap:
          type: object
-         description: A map of locale codes to ArticleProperties
+         minProperties: 1
+         description: A non-empty map of locale codes to ArticleProperties
          additionalProperties:
             $ref: "#/components/schemas/ArticleProperties"
          example:
@@ -3971,9 +4023,11 @@ components:
          required:
             - uuid
             - title
-            - properties
+            - articleProperties
             - articleAuthor
             - articleBodyContentType
+            - aspects
+            - properties
             - parent
             - createdTime
             - modifiedTime
@@ -3989,14 +4043,23 @@ components:
             description:
                type: string
                description: Optional description
-            properties:
+            articleProperties:
                $ref: "#/components/schemas/ArticlePropertiesMap"
-               description: Article properties organized by locale
+               description: Article fields organized by locale
             articleAuthor:
                type: string
                description: Article author (not localized)
             articleBodyContentType:
                $ref: "#/components/schemas/ArticleBodyContentType"
+            aspects:
+               type: array
+               items:
+                  type: string
+                  format: uuid
+            properties:
+               type: object
+               additionalProperties: true
+               description: Aspect properties keyed as `<aspect-uuid>:<property-name>`.
             parent:
                type: string
                format: uuid
@@ -4024,6 +4087,8 @@ components:
             - articleBody
             - articleAuthor
             - articleBodyContentType
+            - aspects
+            - properties
             - parent
             - createdTime
             - modifiedTime
@@ -4056,6 +4121,15 @@ components:
                description: Article author (not localized)
             articleBodyContentType:
                $ref: "#/components/schemas/ArticleBodyContentType"
+            aspects:
+               type: array
+               items:
+                  type: string
+                  format: uuid
+            properties:
+               type: object
+               additionalProperties: true
+               description: Aspect properties keyed as `<aspect-uuid>:<property-name>`.
             parent:
                type: string
                format: uuid

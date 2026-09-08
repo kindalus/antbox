@@ -4,14 +4,17 @@ import type {
 	ArticleProperties,
 	ArticlePropertiesMap,
 } from "domain/articles/article_properties.ts";
+import type { NodeProperties } from "domain/nodes/node_properties.ts";
 
 export interface RawArticleDTO {
 	uuid: string;
 	title: string;
 	description?: string;
-	properties: ArticlePropertiesMap;
+	articleProperties: ArticlePropertiesMap;
 	articleAuthor: string;
 	articleBodyContentType: ArticleBodyContentType;
+	aspects: string[];
+	properties: NodeProperties;
 	parent: string;
 	createdTime: string;
 	modifiedTime: string;
@@ -28,6 +31,8 @@ export interface LocalizedArticleDTO {
 	articleBody: string;
 	articleAuthor: string;
 	articleBodyContentType: ArticleBodyContentType;
+	aspects: string[];
+	properties: NodeProperties;
 	parent: string;
 	createdTime: string;
 	modifiedTime: string;
@@ -39,9 +44,11 @@ export function toRawArticleDTO(node: ArticleNode): RawArticleDTO {
 		uuid: node.uuid,
 		title: node.title,
 		description: node.description,
-		properties: node.articleProperties,
+		articleProperties: node.articleProperties,
 		articleAuthor: node.articleAuthor,
 		articleBodyContentType: node.articleBodyContentType,
+		aspects: node.aspects,
+		properties: node.properties,
 		parent: node.parent,
 		createdTime: node.createdTime,
 		modifiedTime: node.modifiedTime,
@@ -66,6 +73,8 @@ export function toLocalizedArticleDTO(
 		articleBody: props.articleBody,
 		articleAuthor: node.articleAuthor,
 		articleBodyContentType: node.articleBodyContentType,
+		aspects: node.aspects,
+		properties: node.properties,
 		parent: node.parent,
 		createdTime: node.createdTime,
 		modifiedTime: node.modifiedTime,

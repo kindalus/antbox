@@ -174,6 +174,101 @@ describe("NodeService.create", () => {
 			.toBeUndefined();
 	});
 
+	it("should apply aspect rules when creating articles", async () => {
+		const configRepo = new InMemoryConfigurationRepository();
+		const service = nodeService({ configRepo });
+		const now = new Date().toISOString();
+		await service.create(authCtx, {
+			uuid: "announcements",
+			title: "Announcements",
+			mimetype: Nodes.FOLDER_MIMETYPE,
+			parent: Nodes.ROOT_FOLDER_UUID,
+			filters: [
+				["mimetype", "==", Nodes.ARTICLE_MIMETYPE],
+				["aspects", "contains", "announcement"],
+			],
+		});
+		await configRepo.save("aspects", {
+			uuid: "announcement",
+			title: "Announcement",
+			filters: [
+				["mimetype", "==", Nodes.ARTICLE_MIMETYPE],
+				["parent", "==", "announcements"],
+			],
+			properties: [{
+				name: "title",
+				title: "Announcement title",
+				type: "string",
+				defaultValue: "Default announcement",
+			}],
+			createdTime: now,
+			modifiedTime: now,
+		});
+
+		const result = await service.create(authCtx, {
+			uuid: "announcement-article",
+			title: "Announcement article",
+			mimetype: Nodes.ARTICLE_MIMETYPE,
+			parent: "announcements",
+			aspects: ["announcement"],
+			articleAuthor: "editor@example.com",
+			articleProperties: {
+				pt: {
+					articleTitle: "Announcement",
+					articleFid: "announcement",
+					articleResume: "Summary",
+					articleBody: "Body",
+				},
+			},
+		});
+
+		expect(result.isRight(), errToMsg(result.value)).toBeTruthy();
+		expect(result.right.properties?.["announcement:title"]).toBe("Default announcement");
+	});
+
+	it("should reject nodes that do not satisfy their aspect filters", async () => {
+		const configRepo = new InMemoryConfigurationRepository();
+		const service = nodeService({ configRepo });
+		const now = new Date().toISOString();
+		await service.create(authCtx, {
+			uuid: "other-articles",
+			title: "Other articles",
+			mimetype: Nodes.FOLDER_MIMETYPE,
+			parent: Nodes.ROOT_FOLDER_UUID,
+			filters: [["mimetype", "==", Nodes.ARTICLE_MIMETYPE]],
+		});
+		await configRepo.save("aspects", {
+			uuid: "announcement",
+			title: "Announcement",
+			filters: [["parent", "==", "announcements"]],
+			properties: [],
+			createdTime: now,
+			modifiedTime: now,
+		});
+
+		const result = await service.create(authCtx, {
+			title: "Wrong parent article",
+			mimetype: Nodes.ARTICLE_MIMETYPE,
+			parent: "other-articles",
+			aspects: ["announcement"],
+			articleAuthor: "editor@example.com",
+			articleProperties: {
+				pt: {
+					articleTitle: "Announcement",
+					articleFid: "announcement",
+					articleResume: "Summary",
+					articleBody: "Body",
+				},
+			},
+		});
+
+		expect(result.isLeft()).toBeTruthy();
+		expect(result.value).toBeInstanceOf(ValidationError);
+		expect((result.value as ValidationError).message).toContain(
+			"Aspect 'announcement' does not apply to node",
+		);
+	});
+
 	it("should return an error if a provided aspect does not exist", async () => {
 		const service = nodeService();
 

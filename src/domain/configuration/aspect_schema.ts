@@ -1,6 +1,27 @@
 import { z } from "zod";
 
 const AspectValidationListValueSchema = z.union([z.string(), z.number()]);
+const FilterOperatorSchema = z.enum([
+	"==",
+	"<=",
+	">=",
+	"<",
+	">",
+	"!=",
+	"in",
+	"not-in",
+	"match",
+	"contains",
+	"contains-all",
+	"contains-any",
+	"not-contains",
+	"contains-none",
+]);
+const NodeFilterSchema = z.tuple([z.string().min(1), FilterOperatorSchema, z.unknown()]);
+const NodeFiltersSchema = z.union([
+	z.array(NodeFilterSchema),
+	z.array(z.array(NodeFilterSchema)),
+]);
 
 // Schema for AspectProperty
 const AspectPropertySchema = z.object({
@@ -15,7 +36,7 @@ const AspectPropertySchema = z.object({
 	readonly: z.boolean().optional(),
 	validationRegex: z.string().optional(),
 	validationList: z.array(AspectValidationListValueSchema).optional(),
-	validationFilters: z.array(z.tuple([z.string(), z.string(), z.any()])).optional(),
+	validationFilters: NodeFiltersSchema.optional(),
 	required: z.boolean().optional(),
 	defaultValue: z.union([z.string(), z.number(), z.boolean()]).optional(),
 });
@@ -28,7 +49,7 @@ export const AspectDataSchema = z.object({
 	),
 	title: z.string().min(3, "Aspect title must be at least 3 characters"),
 	description: z.string().optional(),
-	filters: z.array(z.tuple([z.string(), z.string(), z.any()])),
+	filters: NodeFiltersSchema,
 	properties: z.array(AspectPropertySchema),
 	createdTime: z.string(),
 	modifiedTime: z.string(),

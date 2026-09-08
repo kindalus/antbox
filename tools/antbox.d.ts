@@ -559,12 +559,16 @@ export interface RawArticleDTO {
 	title: string;
 	/** Optional description */
 	description?: string;
-	/** Article properties organized by locale */
-	properties: ArticlePropertiesMap;
+	/** Article fields organized by locale */
+	articleProperties: ArticlePropertiesMap;
 	/** Article author (not localized) */
 	articleAuthor: string;
 	/** Format used by every localized article body */
 	articleBodyContentType: ArticleBodyContentType;
+	/** Aspect UUIDs attached to the article */
+	aspects: string[];
+	/** Aspect properties keyed as `<aspect-uuid>:<property-name>` */
+	properties: NodeProperties;
 	/** Parent folder UUID */
 	parent: string;
 	/** Creation timestamp */
@@ -594,6 +598,10 @@ export interface LocalizedArticleDTO {
 	articleAuthor: string;
 	/** Format used by every localized article body */
 	articleBodyContentType: ArticleBodyContentType;
+	/** Aspect UUIDs attached to the article */
+	aspects: string[];
+	/** Aspect properties keyed as `<aspect-uuid>:<property-name>` */
+	properties: NodeProperties;
 	/** Parent folder UUID */
 	parent: string;
 	/** Creation timestamp */

@@ -272,6 +272,40 @@ describe("NodeService", () => {
 			expect(updateOrErr.value).toBeInstanceOf(ValidationError);
 		});
 
+		it("should reject updates that violate aspect filters without mutating the node", async () => {
+			const configRepo = new InMemoryConfigurationRepository();
+			const service = nodeService({ configRepo });
+			const now = new Date().toISOString();
+			await configRepo.save("aspects", {
+				uuid: "fixed-title",
+				title: "Fixed title",
+				filters: [["title", "==", "Allowed title"]],
+				properties: [],
+				createdTime: now,
+				modifiedTime: now,
+			});
+			const parent = await service.create(authCtx, {
+				title: "Parent folder",
+				mimetype: Nodes.FOLDER_MIMETYPE,
+				parent: Nodes.ROOT_FOLDER_UUID,
+			});
+			const node = await service.create(authCtx, {
+				title: "Allowed title",
+				mimetype: Nodes.META_NODE_MIMETYPE,
+				parent: parent.right.uuid,
+				aspects: ["fixed-title"],
+			});
+
+			const update = await service.update(authCtx, node.right.uuid, {
+				title: "Rejected title",
+			});
+			const persisted = await service.get(authCtx, node.right.uuid);
+
+			expect(update.isLeft()).toBeTruthy();
+			expect(update.value).toBeInstanceOf(ValidationError);
+			expect(persisted.right.title).toBe("Allowed title");
+		});
+
 		it("should return an error if edition turns node unacceptable to parent restrictions", async () => {
 			const configRepo = new InMemoryConfigurationRepository();
 			const service = nodeService({ configRepo });

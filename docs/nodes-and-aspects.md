@@ -50,6 +50,11 @@ All node types share these fields:
 - `articleProperties` (localized properties)
 - `articleAuthor`
 - `articleBodyContentType` (`markdown`, `html`, or `text`; defaults to `text`)
+- `aspects` and namespaced `properties`, with the same rules as other aspectable nodes
+
+Generic article creation requires a non-empty `articleProperties` map, `articleAuthor`, and a node
+`title`. Unlike `POST /v2/articles`, `POST /v2/nodes` does not generate `articleFid` values or
+derive `title` from `articleTitle`.
 
 ## Aspects
 
@@ -66,7 +71,7 @@ interface AspectData {
 	uuid: string; // generated on create
 	title: string;
 	description?: string;
-	filters: NodeFilters; // optional constraints
+	filters: NodeFilters; // enforced constraints for nodes using the aspect
 	properties: AspectProperty[];
 	createdTime: string;
 	modifiedTime: string;
@@ -79,7 +84,7 @@ interface AspectData {
 interface AspectProperty {
 	name: string; // kebab-case, /^[a-z][a-z0-9-]{2,}$/
 	title: string;
-	type: "uuid" | "string" | "number" | "boolean" | "object" | "array" | "file";
+	type: "uuid" | "string" | "number" | "boolean" | "object" | "array" | "date" | "file";
 	arrayType?: "string" | "number" | "uuid";
 	contentType?: string;
 	readonly?: boolean;
@@ -108,7 +113,9 @@ interface AspectProperty {
 
 ### Applying Aspects to a Node
 
-Set `aspects` and `properties` using the key format `aspectUuid:propertyName`:
+Set `aspects` and `properties` using the key format `aspectUuid:propertyName`. The node must satisfy
+`AspectData.filters`; creation or update returns a validation error otherwise. Empty filters accept
+all nodes.
 
 ```json
 {

@@ -25,7 +25,7 @@ describe("ArticleService", () => {
 				description: "The description",
 				parent: "--parent--",
 				articleAuthor: "test@example.com",
-				properties: {
+				articleProperties: {
 					en: {
 						articleTitle: "JavaScript",
 						articleFid: "javascript-fid",
@@ -48,7 +48,7 @@ describe("ArticleService", () => {
 			await service.createOrReplace(adminAuthContext, {
 				...articleDummy,
 				articleBodyContentType: "markdown",
-				properties: {
+				articleProperties: {
 					en: {
 						articleTitle: "JavaScript",
 						articleFid: "js-fid",
@@ -62,7 +62,7 @@ describe("ArticleService", () => {
 				...articleDummy,
 				title: "Now python",
 				description: "New Desc",
-				properties: {
+				articleProperties: {
 					en: {
 						articleTitle: "Python",
 						articleFid: "python-fid",
@@ -78,6 +78,54 @@ describe("ArticleService", () => {
 			expect(articleOrErr.right.articleBodyContentType).toBe("markdown");
 		});
 
+		it("creates articles with aspects and preserves them when omitted on update", async () => {
+			const configRepo = new InMemoryConfigurationRepository();
+			const now = new Date().toISOString();
+			await configRepo.save("aspects", {
+				uuid: "announcement",
+				title: "Announcement",
+				filters: [["parent", "==", "--parent--"]],
+				properties: [{
+					name: "title",
+					title: "Announcement title",
+					type: "string",
+					required: true,
+				}],
+				createdTime: now,
+				modifiedTime: now,
+			});
+			const service = createService(configRepo);
+
+			const created = await service.createOrReplace(adminAuthContext, {
+				...articleDummy,
+				aspects: ["announcement"],
+				properties: { "announcement:title": "Launch" },
+				articleProperties: {
+					pt: {
+						articleTitle: "Launch",
+						articleFid: "launch",
+						articleResume: "Summary",
+						articleBody: "Body",
+					},
+				},
+			});
+			const updated = await service.createOrReplace(adminAuthContext, {
+				uuid: articleDummy.uuid,
+				title: "Updated title",
+			});
+
+			expect(created.isRight(), errMsg(created.value)).toBeTruthy();
+			expect(updated.isRight(), errMsg(updated.value)).toBeTruthy();
+			expect(updated.right.aspects).toEqual(["announcement"]);
+			expect(updated.right.properties).toEqual({ "announcement:title": "Launch" });
+			expect(updated.right.articleProperties.pt.articleFid).toBe("launch");
+			expect(updated.right.articleAuthor).toBe(articleDummy.articleAuthor);
+
+			const localized = await service.getLocalized(adminAuthContext, articleDummy.uuid, "pt");
+			expect(localized.right.aspects).toEqual(["announcement"]);
+			expect(localized.right.properties).toEqual({ "announcement:title": "Launch" });
+		});
+
 		it("createOrReplace should return error if uuid not provided", async () => {
 			const service = createService();
 
@@ -86,7 +134,7 @@ describe("ArticleService", () => {
 				title: "Title",
 				parent: "--parent--",
 				articleAuthor: "test@example.com",
-				properties: {
+				articleProperties: {
 					en: {
 						articleTitle: "Title",
 						articleFid: "title-fid",
@@ -100,7 +148,7 @@ describe("ArticleService", () => {
 			expect(articleOrErr.value).toBeInstanceOf(BadRequestError);
 		});
 
-		it("createOrReplace should return error if properties are missing", async () => {
+		it("createOrReplace should return error if articleProperties are missing", async () => {
 			const service = createService();
 
 			const articleOrErr = await service.createOrReplace(adminAuthContext, {
@@ -108,7 +156,7 @@ describe("ArticleService", () => {
 				title: "Title",
 				parent: "--parent--",
 				articleAuthor: "test@example.com",
-				properties: {},
+				articleProperties: {},
 			});
 
 			expect(articleOrErr.isLeft(), errMsg(articleOrErr.value)).toBeTruthy();
@@ -121,7 +169,7 @@ describe("ArticleService", () => {
 			const articleOrErr = await service.createOrReplace(adminAuthContext, {
 				...articleDummy,
 				articleBodyContentType: "pdf" as never,
-				properties: {
+				articleProperties: {
 					en: {
 						articleTitle: "Title",
 						articleFid: "title-fid",
@@ -145,7 +193,7 @@ describe("ArticleService", () => {
 				description: "The description",
 				parent: "--parent--",
 				articleAuthor: "test@example.com",
-				properties: {
+				articleProperties: {
 					en: {
 						articleTitle: "JavaScript",
 						articleFid: "js-fid",
@@ -169,7 +217,7 @@ describe("ArticleService", () => {
 			expect(htmlOrErr.value).toBeInstanceOf(NodeNotFoundError);
 		});
 
-		it("get should return article with properties", async () => {
+		it("get should return article with articleProperties", async () => {
 			const service = createService();
 
 			await service.createOrReplace(adminAuthContext, {
@@ -178,7 +226,7 @@ describe("ArticleService", () => {
 				description: "Description",
 				parent: "--parent--",
 				articleAuthor: "test@example.com",
-				properties: {
+				articleProperties: {
 					en: {
 						articleTitle: "Article Title (EN)",
 						articleFid: "en-fid",
@@ -191,7 +239,7 @@ describe("ArticleService", () => {
 			const articleOrErr = await service.get(adminAuthContext, "--unique--");
 
 			expect(articleOrErr.isRight(), errMsg(articleOrErr.value)).toBeTruthy();
-			expect(articleOrErr.right.properties.en.articleTitle).toBe("Article Title (EN)");
+			expect(articleOrErr.right.articleProperties.en.articleTitle).toBe("Article Title (EN)");
 		});
 
 		it("get should return article data", async () => {
@@ -199,7 +247,7 @@ describe("ArticleService", () => {
 
 			await service.createOrReplace(adminAuthContext, {
 				...articleDummy,
-				properties: {
+				articleProperties: {
 					en: {
 						articleTitle: "Title",
 						articleFid: "fid",
@@ -225,7 +273,7 @@ describe("ArticleService", () => {
 				parent: "--parent--",
 				articleAuthor: "test@example.com",
 				articleBodyContentType: "markdown",
-				properties: {
+				articleProperties: {
 					en: {
 						articleTitle: "Hello World",
 						articleFid: "hello-fid",
@@ -243,7 +291,7 @@ describe("ArticleService", () => {
 			);
 
 			expect(articleOrErr.isRight(), errMsg(articleOrErr.value)).toBeTruthy();
-			expect(articleOrErr.right.properties.en.articleBody).toContain("Hello World");
+			expect(articleOrErr.right.articleProperties.en.articleBody).toContain("Hello World");
 			expect(articleOrErr.right.articleBodyContentType).toBe("markdown");
 			expect(localizedOrErr.isRight(), errMsg(localizedOrErr.value)).toBeTruthy();
 			expect(localizedOrErr.right.articleBodyContentType).toBe("markdown");
@@ -258,7 +306,7 @@ describe("ArticleService", () => {
 				description: "A plain text article",
 				parent: "--parent--",
 				articleAuthor: "test@example.com",
-				properties: {
+				articleProperties: {
 					en: {
 						articleTitle: "Text Article",
 						articleFid: "text-fid",
@@ -271,9 +319,9 @@ describe("ArticleService", () => {
 			const articleOrErr = await service.get(adminAuthContext, "--text-export--");
 
 			expect(articleOrErr.isRight(), errMsg(articleOrErr.value)).toBeTruthy();
-			expect(articleOrErr.right.properties.en.articleBody).toContain("First paragraph");
-			expect(articleOrErr.right.properties.en.articleBody).toContain("Second paragraph");
-			expect(articleOrErr.right.properties.en.articleBody).toContain("Third paragraph");
+			expect(articleOrErr.right.articleProperties.en.articleBody).toContain("First paragraph");
+			expect(articleOrErr.right.articleProperties.en.articleBody).toContain("Second paragraph");
+			expect(articleOrErr.right.articleProperties.en.articleBody).toContain("Third paragraph");
 		});
 	});
 
@@ -283,7 +331,7 @@ describe("ArticleService", () => {
 			await service.createOrReplace(adminAuthContext, {
 				...articleDummy,
 				articleBodyContentType: "markdown",
-				properties: {
+				articleProperties: {
 					pt: {
 						articleTitle: "Título",
 						articleFid: "titulo",
@@ -313,7 +361,7 @@ describe("ArticleService", () => {
 			await service.createOrReplace(adminAuthContext, {
 				...articleDummy,
 				articleBodyContentType: "html",
-				properties: {
+				articleProperties: {
 					pt: {
 						articleTitle: "Título",
 						articleFid: "titulo",
@@ -339,7 +387,7 @@ describe("ArticleService", () => {
 			const service = createService();
 			await service.createOrReplace(adminAuthContext, {
 				...articleDummy,
-				properties: {
+				articleProperties: {
 					pt: {
 						articleTitle: "Título",
 						articleFid: "titulo",
@@ -366,7 +414,7 @@ describe("ArticleService", () => {
 			await service.createOrReplace(adminAuthContext, {
 				...articleDummy,
 				articleBodyContentType: "html",
-				properties: {
+				articleProperties: {
 					pt: {
 						articleTitle: "Título",
 						articleFid: "titulo",
@@ -391,7 +439,7 @@ describe("ArticleService", () => {
 			const service = createService();
 			await service.createOrReplace(adminAuthContext, {
 				...articleDummy,
-				properties: {
+				articleProperties: {
 					pt: {
 						articleTitle: "Título",
 						articleFid: "titulo",
@@ -419,7 +467,7 @@ describe("ArticleService", () => {
 
 			await service.createOrReplace(adminAuthContext, {
 				...articleDummy,
-				properties: {
+				articleProperties: {
 					en: {
 						articleTitle: "Title",
 						articleFid: "fid",
@@ -441,7 +489,7 @@ describe("ArticleService", () => {
 
 			await service.createOrReplace(adminAuthContext, {
 				...articleDummy,
-				properties: {
+				articleProperties: {
 					en: {
 						articleTitle: "Title",
 						articleFid: "fid",
@@ -467,7 +515,7 @@ describe("ArticleService", () => {
 				description: "The description",
 				parent: "--parent--",
 				articleAuthor: "test@example.com",
-				properties: {
+				articleProperties: {
 					en: {
 						articleTitle: "JavaScript",
 						articleFid: "js-fid",
@@ -483,7 +531,7 @@ describe("ArticleService", () => {
 				description: "The description",
 				parent: "--parent--",
 				articleAuthor: "test@example.com",
-				properties: {
+				articleProperties: {
 					en: {
 						articleTitle: "Python",
 						articleFid: "py-fid",
@@ -516,7 +564,9 @@ describe("ArticleService", () => {
 		articleAuthor: "test@example.com",
 	};
 
-	function createService() {
+	function createService(
+		configRepo = new InMemoryConfigurationRepository(),
+	) {
 		const parentNode: FolderNode = FolderNode.create({
 			uuid: "--parent--",
 			title: "Parent",
@@ -638,7 +688,7 @@ describe("ArticleService", () => {
 			repository,
 			storage,
 			bus: eventBus,
-			configRepo: new InMemoryConfigurationRepository(),
+			configRepo,
 		});
 
 		return new ArticleService(nodeService);

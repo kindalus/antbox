@@ -106,6 +106,36 @@ describe("AspectsService", () => {
 			}
 		});
 
+		it("should accept grouped aspect filters", async () => {
+			const service = new AspectsService(new InMemoryConfigurationRepository());
+			const result = await service.createAspect(
+				adminCtx,
+				createAspectInput({
+					filters: [
+						[["mimetype", "==", "text/plain"]],
+						[["mimetype", "==", "text/markdown"]],
+					],
+				}),
+			);
+
+			expect(result.isRight()).toBe(true);
+		});
+
+		it("should reject invalid aspect filter operators", async () => {
+			const service = new AspectsService(new InMemoryConfigurationRepository());
+			const result = await service.createAspect(
+				adminCtx,
+				createAspectInput({
+					filters: [["mimetype", "invalid", "text/plain"]] as never,
+				}),
+			);
+
+			expect(result.isLeft()).toBe(true);
+			if (result.isLeft()) {
+				expect(result.value.errorCode).toBe("ValidationError");
+			}
+		});
+
 		it("should reject creation as non-admin", async () => {
 			const repo = new InMemoryConfigurationRepository();
 			const service = new AspectsService(repo);

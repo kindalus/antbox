@@ -2,7 +2,8 @@ import { FileNode } from "./file_node.ts";
 import { FolderNode } from "./folder_node.ts";
 import { MetaNode } from "./meta_node.ts";
 import { SmartFolderNode } from "./smart_folder_node.ts";
-import type { NodeLike } from "domain/node_like.ts";
+import type { AspectableNode, NodeLike } from "domain/node_like.ts";
+import type { ArticleNode } from "domain/articles/article_node.ts";
 import { NodeMetadata } from "./node_metadata.ts";
 
 export class Nodes {
@@ -42,7 +43,7 @@ export class Nodes {
 		return node.mimetype === Nodes.META_NODE_MIMETYPE;
 	}
 
-	static isArticle(node: NodeLike | NodeMetadata): node is FileNode {
+	static isArticle(node: NodeLike | NodeMetadata): node is ArticleNode {
 		return node.mimetype === Nodes.ARTICLE_MIMETYPE;
 	}
 
@@ -57,8 +58,9 @@ export class Nodes {
 		return !node.mimetype.startsWith("application/vnd.antbox");
 	}
 
-	static hasAspects(node: NodeLike | NodeMetadata): node is FileNode | FolderNode | MetaNode {
-		return Nodes.isMetaNode(node) || Nodes.isFile(node) || Nodes.isFolder(node);
+	static hasAspects(node: NodeLike | NodeMetadata): node is AspectableNode {
+		return Nodes.isArticle(node) || Nodes.isMetaNode(node) || Nodes.isFile(node) ||
+			Nodes.isFolder(node);
 	}
 
 	static isFileLike(

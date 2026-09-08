@@ -133,6 +133,10 @@ export class ArticleNode extends WithAspectMixin(Node) {
 				),
 			);
 		} else {
+			if (Object.keys(this._articleProperties).length === 0) {
+				errors.push(new PropertyRequiredError("ArticleNode.articleProperties"));
+			}
+
 			// Validate each locale's properties
 			for (const [locale, localizedProps] of Object.entries(this._articleProperties)) {
 				if (typeof localizedProps !== "object") {

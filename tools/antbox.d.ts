@@ -318,6 +318,11 @@ export interface NodeMetadata {
 	// Workflow related properties
 	workflowInstanceUuid?: string;
 	workflowState?: string;
+
+	// Article properties
+	articleProperties?: ArticlePropertiesMap;
+	articleAuthor?: string;
+	articleBodyContentType?: ArticleBodyContentType;
 }
 
 // ============================================================================
@@ -531,6 +536,8 @@ export interface WorkflowTransitionHistory {
 // Article Types (internationalized content)
 // ============================================================================
 
+export type ArticleBodyContentType = "markdown" | "html" | "text";
+
 export interface ArticleProperties {
 	/** Article title */
 	articleTitle: string;
@@ -556,6 +563,8 @@ export interface RawArticleDTO {
 	properties: ArticlePropertiesMap;
 	/** Article author (not localized) */
 	articleAuthor: string;
+	/** Format used by every localized article body */
+	articleBodyContentType: ArticleBodyContentType;
 	/** Parent folder UUID */
 	parent: string;
 	/** Creation timestamp */
@@ -583,6 +592,8 @@ export interface LocalizedArticleDTO {
 	articleBody: string;
 	/** Article author (not localized) */
 	articleAuthor: string;
+	/** Format used by every localized article body */
+	articleBodyContentType: ArticleBodyContentType;
 	/** Parent folder UUID */
 	parent: string;
 	/** Creation timestamp */

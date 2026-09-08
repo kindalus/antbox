@@ -9,13 +9,33 @@ import {
 import type { AuthenticationContext } from "../security/authentication_context.ts";
 import type { NodeService } from "../nodes/node_service.ts";
 import { ArticleNode } from "domain/articles/article_node.ts";
-import { type ArticlePropertiesMap } from "domain/articles/article_properties.ts";
+import {
+	ARTICLE_BODY_CONTENT_TYPES,
+	type ArticleBodyContentType,
+	type ArticlePropertiesMap,
+} from "domain/articles/article_properties.ts";
 import type { NodeLike } from "domain/node_like.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import { type AntboxError, BadRequestError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
 import { FidGenerator } from "shared/fid_generator.ts";
+import DOMPurify from "dompurify";
+import { JSDOM } from "jsdom";
+import { marked } from "marked";
+
+export type ArticleRenderFormat = ArticleBodyContentType;
+
+export interface RenderedArticle {
+	content: string;
+	contentType:
+		| "text/html; charset=utf-8"
+		| "text/markdown; charset=utf-8"
+		| "text/plain; charset=utf-8";
+}
+
+const window = new JSDOM("").window;
+const purify = DOMPurify(window);
 
 export class ArticleService {
 	constructor(private readonly nodeService: NodeService) {}
@@ -63,6 +83,7 @@ export class ArticleService {
 			owner: ctx.principal.email,
 			articleProperties,
 			articleAuthor: metadata.articleAuthor,
+			articleBodyContentType: metadata.articleBodyContentType,
 		});
 
 		if (nodeOrErr.isLeft()) {
@@ -97,6 +118,8 @@ export class ArticleService {
 			? this.#ensureArticleFids(metadata.properties)
 			: existing.properties;
 		const articleAuthor = metadata.articleAuthor || existing.articleAuthor;
+		const articleBodyContentType = metadata.articleBodyContentType ??
+			existing.articleBodyContentType;
 
 		const title = metadata.title ||
 			selectLocalizedProperties(articleProperties, "pt").articleTitle;
@@ -107,6 +130,7 @@ export class ArticleService {
 			parent: metadata.parent,
 			articleProperties,
 			articleAuthor,
+			articleBodyContentType,
 		});
 
 		if (updateOrErr.isLeft()) {
@@ -208,6 +232,42 @@ export class ArticleService {
 		);
 	}
 
+	async render(
+		ctx: AuthenticationContext,
+		uuid: string,
+		locale: string,
+		format: string,
+	): Promise<Either<AntboxError, RenderedArticle>> {
+		const articleOrErr = await this.getLocalized(ctx, uuid, locale);
+		if (articleOrErr.isLeft()) {
+			return left(articleOrErr.value);
+		}
+
+		return renderArticleBody(
+			articleOrErr.value.articleBody,
+			articleOrErr.value.articleBodyContentType,
+			format,
+		);
+	}
+
+	async renderByFid(
+		ctx: AuthenticationContext,
+		fid: string,
+		locale: string,
+		format: string,
+	): Promise<Either<AntboxError, RenderedArticle>> {
+		const articleOrErr = await this.getLocalizedByFid(ctx, fid, locale);
+		if (articleOrErr.isLeft()) {
+			return left(articleOrErr.value);
+		}
+
+		return renderArticleBody(
+			articleOrErr.value.articleBody,
+			articleOrErr.value.articleBodyContentType,
+			format,
+		);
+	}
+
 	async list(ctx: AuthenticationContext): Promise<RawArticleDTO[]> {
 		const nodesOrErrs = await this.nodeService.find(
 			ctx,
@@ -255,4 +315,61 @@ export class ArticleService {
 
 		return result;
 	}
+}
+
+function renderArticleBody(
+	body: string,
+	sourceFormat: ArticleBodyContentType,
+	requestedFormat: string,
+): Either<BadRequestError, RenderedArticle> {
+	if (!ARTICLE_BODY_CONTENT_TYPES.includes(requestedFormat as ArticleRenderFormat)) {
+		return left(new BadRequestError(`Unsupported article render format '${requestedFormat}'`));
+	}
+
+	const format = requestedFormat as ArticleRenderFormat;
+	if (format === "markdown") {
+		if (sourceFormat === "html") {
+			return left(new BadRequestError("HTML articles cannot be rendered as Markdown"));
+		}
+		return right({ content: body, contentType: "text/markdown; charset=utf-8" });
+	}
+
+	if (format === "text") {
+		const content = sourceFormat === "text" ? body : htmlToText(toHtml(body, sourceFormat));
+		return right({ content, contentType: "text/plain; charset=utf-8" });
+	}
+
+	return right({
+		content: sanitizeHtml(toHtml(body, sourceFormat)),
+		contentType: "text/html; charset=utf-8",
+	});
+}
+
+function toHtml(body: string, sourceFormat: ArticleBodyContentType): string {
+	if (sourceFormat === "html") {
+		return body;
+	}
+	if (sourceFormat === "markdown") {
+		return marked.parse(body, { async: false });
+	}
+	return `<pre>${escapeHtml(body)}</pre>`;
+}
+
+function sanitizeHtml(html: string): string {
+	return purify.sanitize(html, { USE_PROFILES: { html: true } });
+}
+
+function htmlToText(html: string): string {
+	const container = window.document.createElement("div");
+	container.innerHTML = sanitizeHtml(html);
+	return container.textContent ?? "";
+}
+
+function escapeHtml(text: string): string {
+	return text
+		.replaceAll("&", "&amp;")
+		.replaceAll("<", "&lt;")
+		.replaceAll(">", "&gt;")
+		.replaceAll('"', "&quot;")
+		.replaceAll("'", "&#39;");
 }

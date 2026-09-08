@@ -49,6 +49,7 @@ All node types share these fields:
 
 - `articleProperties` (localized properties)
 - `articleAuthor`
+- `articleBodyContentType` (`markdown`, `html`, or `text`; defaults to `text`)
 
 ## Aspects
 

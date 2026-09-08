@@ -885,6 +885,43 @@ paths:
                         $ref: "#/components/schemas/LocalizedArticleDTO"
             default:
                $ref: "#/components/responses/Error"
+   "/articles/{uuid}/-/render":
+      get:
+         tags:
+            - articles
+         summary: Render an article
+         operationId: renderArticle
+         description: Renders a localized article as sanitized HTML, Markdown, or plain text.
+         parameters:
+            - $ref: "#/components/parameters/UUID"
+            - name: locale
+              in: query
+              required: false
+              schema:
+                 type: string
+                 default: pt
+            - name: format
+              in: query
+              required: false
+              schema:
+                 type: string
+                 enum: [html, markdown, text]
+                 default: html
+         responses:
+            "200":
+               description: Rendered article body
+               content:
+                  text/html:
+                     schema:
+                        type: string
+                  text/markdown:
+                     schema:
+                        type: string
+                  text/plain:
+                     schema:
+                        type: string
+            default:
+               $ref: "#/components/responses/Error"
    "/articles/-/fid/{fid}":
       get:
          tags:
@@ -913,6 +950,47 @@ paths:
                   application/json:
                      schema:
                         $ref: "#/components/schemas/LocalizedArticleDTO"
+            default:
+               $ref: "#/components/responses/Error"
+   "/articles/-/fid/{fid}/render":
+      get:
+         tags:
+            - articles
+         summary: Render an article by localized FID
+         operationId: renderArticleByFid
+         description: Finds an article by its localized FID and renders its body as sanitized HTML, Markdown, or plain text.
+         parameters:
+            - name: fid
+              in: path
+              required: true
+              schema:
+                 type: string
+            - name: locale
+              in: query
+              required: false
+              schema:
+                 type: string
+                 default: pt
+            - name: format
+              in: query
+              required: false
+              schema:
+                 type: string
+                 enum: [html, markdown, text]
+                 default: html
+         responses:
+            "200":
+               description: Rendered article body
+               content:
+                  text/html:
+                     schema:
+                        type: string
+                  text/markdown:
+                     schema:
+                        type: string
+                  text/plain:
+                     schema:
+                        type: string
             default:
                $ref: "#/components/responses/Error"
    "/audit/{uuid}":
@@ -3847,6 +3925,11 @@ components:
             message:
                type: string
                description: Optional message describing the transition
+      ArticleBodyContentType:
+         type: string
+         enum: [markdown, html, text]
+         default: text
+         description: Format used by every localized body in the article.
       ArticleProperties:
          type: object
          required:
@@ -3890,6 +3973,7 @@ components:
             - title
             - properties
             - articleAuthor
+            - articleBodyContentType
             - parent
             - createdTime
             - modifiedTime
@@ -3911,6 +3995,8 @@ components:
             articleAuthor:
                type: string
                description: Article author (not localized)
+            articleBodyContentType:
+               $ref: "#/components/schemas/ArticleBodyContentType"
             parent:
                type: string
                format: uuid
@@ -3937,6 +4023,7 @@ components:
             - articleResume
             - articleBody
             - articleAuthor
+            - articleBodyContentType
             - parent
             - createdTime
             - modifiedTime
@@ -3967,6 +4054,8 @@ components:
             articleAuthor:
                type: string
                description: Article author (not localized)
+            articleBodyContentType:
+               $ref: "#/components/schemas/ArticleBodyContentType"
             parent:
                type: string
                format: uuid

@@ -1,5 +1,6 @@
 import type { ArticleNode } from "domain/articles/article_node.ts";
 import type {
+	ArticleBodyContentType,
 	ArticleProperties,
 	ArticlePropertiesMap,
 } from "domain/articles/article_properties.ts";
@@ -10,6 +11,7 @@ export interface RawArticleDTO {
 	description?: string;
 	properties: ArticlePropertiesMap;
 	articleAuthor: string;
+	articleBodyContentType: ArticleBodyContentType;
 	parent: string;
 	createdTime: string;
 	modifiedTime: string;
@@ -25,6 +27,7 @@ export interface LocalizedArticleDTO {
 	articleResume: string;
 	articleBody: string;
 	articleAuthor: string;
+	articleBodyContentType: ArticleBodyContentType;
 	parent: string;
 	createdTime: string;
 	modifiedTime: string;
@@ -38,6 +41,7 @@ export function toRawArticleDTO(node: ArticleNode): RawArticleDTO {
 		description: node.description,
 		properties: node.articleProperties,
 		articleAuthor: node.articleAuthor,
+		articleBodyContentType: node.articleBodyContentType,
 		parent: node.parent,
 		createdTime: node.createdTime,
 		modifiedTime: node.modifiedTime,
@@ -61,6 +65,7 @@ export function toLocalizedArticleDTO(
 		articleResume: props.articleResume,
 		articleBody: props.articleBody,
 		articleAuthor: node.articleAuthor,
+		articleBodyContentType: node.articleBodyContentType,
 		parent: node.parent,
 		createdTime: node.createdTime,
 		modifiedTime: node.modifiedTime,

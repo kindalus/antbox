@@ -404,7 +404,7 @@ export const webdavPathCache = new WebDAVPathCache();
  * startPathCacheCleanup(60000); // Cleanup every minute
  * ```
  */
-export function startPathCacheCleanup(intervalMs = 60000): number {
+export function startPathCacheCleanup(intervalMs = 60000): ReturnType<typeof setInterval> {
 	return setInterval(() => {
 		const evicted = webdavPathCache.evictExpired();
 		if (evicted > 0) {

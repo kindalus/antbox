@@ -39,6 +39,7 @@ describe("ArticleService", () => {
 			expect(articleOrErr.right.title).toBe("javascript");
 			expect(articleOrErr.right.parent).toBe("--parent--");
 			expect(articleOrErr.right.description).toBe("The description");
+			expect(articleOrErr.right.articleBodyContentType).toBe("text");
 		});
 
 		it("createOrReplace should replace existing article", async () => {
@@ -46,12 +47,13 @@ describe("ArticleService", () => {
 
 			await service.createOrReplace(adminAuthContext, {
 				...articleDummy,
+				articleBodyContentType: "markdown",
 				properties: {
 					en: {
 						articleTitle: "JavaScript",
 						articleFid: "js-fid",
 						articleResume: "Resume",
-						articleBody: "<p>Content</p>",
+						articleBody: "# Content",
 					},
 				},
 			});
@@ -73,6 +75,7 @@ describe("ArticleService", () => {
 			expect(articleOrErr.isRight(), errMsg(articleOrErr.value)).toBeTruthy();
 			expect(articleOrErr.right.title).toBe("Now python");
 			expect(articleOrErr.right.description).toBe("New Desc");
+			expect(articleOrErr.right.articleBodyContentType).toBe("markdown");
 		});
 
 		it("createOrReplace should return error if uuid not provided", async () => {
@@ -110,6 +113,25 @@ describe("ArticleService", () => {
 
 			expect(articleOrErr.isLeft(), errMsg(articleOrErr.value)).toBeTruthy();
 			expect(articleOrErr.value).toBeInstanceOf(BadRequestError);
+		});
+
+		it("createOrReplace should reject an unsupported body content type", async () => {
+			const service = createService();
+
+			const articleOrErr = await service.createOrReplace(adminAuthContext, {
+				...articleDummy,
+				articleBodyContentType: "pdf" as never,
+				properties: {
+					en: {
+						articleTitle: "Title",
+						articleFid: "title-fid",
+						articleResume: "Resume",
+						articleBody: "Body",
+					},
+				},
+			});
+
+			expect(articleOrErr.isLeft(), errMsg(articleOrErr.value)).toBeTruthy();
 		});
 	});
 
@@ -202,6 +224,7 @@ describe("ArticleService", () => {
 				description: "A markdown article",
 				parent: "--parent--",
 				articleAuthor: "test@example.com",
+				articleBodyContentType: "markdown",
 				properties: {
 					en: {
 						articleTitle: "Hello World",
@@ -213,9 +236,17 @@ describe("ArticleService", () => {
 			});
 
 			const articleOrErr = await service.get(adminAuthContext, "--markdown-export--");
+			const localizedOrErr = await service.getLocalized(
+				adminAuthContext,
+				"--markdown-export--",
+				"en",
+			);
 
 			expect(articleOrErr.isRight(), errMsg(articleOrErr.value)).toBeTruthy();
 			expect(articleOrErr.right.properties.en.articleBody).toContain("Hello World");
+			expect(articleOrErr.right.articleBodyContentType).toBe("markdown");
+			expect(localizedOrErr.isRight(), errMsg(localizedOrErr.value)).toBeTruthy();
+			expect(localizedOrErr.right.articleBodyContentType).toBe("markdown");
 		});
 
 		it("get should return article with plain text content", async () => {
@@ -243,6 +274,142 @@ describe("ArticleService", () => {
 			expect(articleOrErr.right.properties.en.articleBody).toContain("First paragraph");
 			expect(articleOrErr.right.properties.en.articleBody).toContain("Second paragraph");
 			expect(articleOrErr.right.properties.en.articleBody).toContain("Third paragraph");
+		});
+	});
+
+	describe("render", () => {
+		it("renders markdown as sanitized HTML", async () => {
+			const service = createService();
+			await service.createOrReplace(adminAuthContext, {
+				...articleDummy,
+				articleBodyContentType: "markdown",
+				properties: {
+					pt: {
+						articleTitle: "Título",
+						articleFid: "titulo",
+						articleResume: "Resumo",
+						articleBody:
+							"# Olá\n\n<script>alert('xss')</script>\n\n<img src=x onerror=alert(1)>",
+					},
+				},
+			});
+
+			const renderedOrErr = await service.render(
+				adminAuthContext,
+				articleDummy.uuid,
+				"pt",
+				"html",
+			);
+
+			expect(renderedOrErr.isRight(), errMsg(renderedOrErr.value)).toBeTruthy();
+			expect(renderedOrErr.right.contentType).toBe("text/html; charset=utf-8");
+			expect(renderedOrErr.right.content).toContain("<h1>Olá</h1>");
+			expect(renderedOrErr.right.content).not.toContain("<script>");
+			expect(renderedOrErr.right.content).not.toContain("onerror");
+		});
+
+		it("renders an HTML article as plain text", async () => {
+			const service = createService();
+			await service.createOrReplace(adminAuthContext, {
+				...articleDummy,
+				articleBodyContentType: "html",
+				properties: {
+					pt: {
+						articleTitle: "Título",
+						articleFid: "titulo",
+						articleResume: "Resumo",
+						articleBody: '<p>Olá <strong>mundo</strong></p><img src="x" onerror="alert(1)">',
+					},
+				},
+			});
+
+			const renderedOrErr = await service.renderByFid(
+				adminAuthContext,
+				"titulo",
+				"pt",
+				"text",
+			);
+
+			expect(renderedOrErr.isRight(), errMsg(renderedOrErr.value)).toBeTruthy();
+			expect(renderedOrErr.right.contentType).toBe("text/plain; charset=utf-8");
+			expect(renderedOrErr.right.content).toBe("Olá mundo");
+		});
+
+		it("returns a text article as Markdown", async () => {
+			const service = createService();
+			await service.createOrReplace(adminAuthContext, {
+				...articleDummy,
+				properties: {
+					pt: {
+						articleTitle: "Título",
+						articleFid: "titulo",
+						articleResume: "Resumo",
+						articleBody: "Olá mundo",
+					},
+				},
+			});
+
+			const renderedOrErr = await service.render(
+				adminAuthContext,
+				articleDummy.uuid,
+				"pt",
+				"markdown",
+			);
+
+			expect(renderedOrErr.isRight(), errMsg(renderedOrErr.value)).toBeTruthy();
+			expect(renderedOrErr.right.contentType).toBe("text/markdown; charset=utf-8");
+			expect(renderedOrErr.right.content).toBe("Olá mundo");
+		});
+
+		it("rejects rendering HTML as Markdown", async () => {
+			const service = createService();
+			await service.createOrReplace(adminAuthContext, {
+				...articleDummy,
+				articleBodyContentType: "html",
+				properties: {
+					pt: {
+						articleTitle: "Título",
+						articleFid: "titulo",
+						articleResume: "Resumo",
+						articleBody: "<p>Olá</p>",
+					},
+				},
+			});
+
+			const renderedOrErr = await service.render(
+				adminAuthContext,
+				articleDummy.uuid,
+				"pt",
+				"markdown",
+			);
+
+			expect(renderedOrErr.isLeft()).toBeTruthy();
+			expect(renderedOrErr.value).toBeInstanceOf(BadRequestError);
+		});
+
+		it("rejects an unsupported output format", async () => {
+			const service = createService();
+			await service.createOrReplace(adminAuthContext, {
+				...articleDummy,
+				properties: {
+					pt: {
+						articleTitle: "Título",
+						articleFid: "titulo",
+						articleResume: "Resumo",
+						articleBody: "Olá",
+					},
+				},
+			});
+
+			const renderedOrErr = await service.render(
+				adminAuthContext,
+				articleDummy.uuid,
+				"pt",
+				"pdf",
+			);
+
+			expect(renderedOrErr.isLeft()).toBeTruthy();
+			expect(renderedOrErr.value).toBeInstanceOf(BadRequestError);
 		});
 	});
 

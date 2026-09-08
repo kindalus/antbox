@@ -1,4 +1,7 @@
 import { Logger } from "shared/logger.ts";
+import type { AntboxError } from "shared/antbox_error.ts";
+import type { Either } from "shared/either.ts";
+import type { RenderedArticle } from "application/articles/article_service.ts";
 import type { AntboxTenant } from "api/antbox_tenant.ts";
 import { defaultMiddlewareChain } from "api/default_middleware_chain.ts";
 import { getAuthenticationContext } from "api/get_authentication_context.ts";
@@ -59,6 +62,27 @@ export function getLocalizedHandler(tenants: AntboxTenant[]): HttpHandler {
 	);
 }
 
+export function renderHandler(tenants: AntboxTenant[]): HttpHandler {
+	return defaultMiddlewareChain(
+		tenants,
+		(req: Request): Promise<Response> => {
+			const service = getTenant(req, tenants).articleService;
+			const params = getParams(req);
+			if (!params.uuid) {
+				return Promise.resolve(new Response("{ uuid } not given", { status: 400 }));
+			}
+
+			const url = new URL(req.url);
+			const locale = url.searchParams.get("locale") || "pt";
+			const format = url.searchParams.get("format") || "html";
+
+			return service.render(getAuthenticationContext(req), params.uuid, locale, format)
+				.then(processRenderedArticle)
+				.catch(processError);
+		},
+	);
+}
+
 export function getLocalizedByFidHandler(tenants: AntboxTenant[]): HttpHandler {
 	return defaultMiddlewareChain(
 		tenants,
@@ -76,6 +100,27 @@ export function getLocalizedByFidHandler(tenants: AntboxTenant[]): HttpHandler {
 
 			return service.getLocalizedByFid(getAuthenticationContext(req), params.fid, locale)
 				.then(processServiceResult)
+				.catch(processError);
+		},
+	);
+}
+
+export function renderByFidHandler(tenants: AntboxTenant[]): HttpHandler {
+	return defaultMiddlewareChain(
+		tenants,
+		(req: Request): Promise<Response> => {
+			const service = getTenant(req, tenants).articleService;
+			const params = getParams(req);
+			if (!params.fid) {
+				return Promise.resolve(new Response("{ fid } not given", { status: 400 }));
+			}
+
+			const url = new URL(req.url);
+			const locale = url.searchParams.get("locale") || "pt";
+			const format = url.searchParams.get("format") || "html";
+
+			return service.renderByFid(getAuthenticationContext(req), params.fid, locale, format)
+				.then(processRenderedArticle)
 				.catch(processError);
 		},
 	);
@@ -99,6 +144,22 @@ export function deleteHandler(tenants: AntboxTenant[]): HttpHandler {
 				.catch(processError);
 		},
 	);
+}
+
+function processRenderedArticle(
+	resultOrErr: Either<AntboxError, RenderedArticle>,
+): Response {
+	if (resultOrErr.isLeft()) {
+		return processError(resultOrErr.value);
+	}
+
+	return new Response(resultOrErr.value.content, {
+		status: 200,
+		headers: {
+			"Content-Type": resultOrErr.value.contentType,
+			"X-Content-Type-Options": "nosniff",
+		},
+	});
 }
 
 export function createOrReplaceHandler(tenants: AntboxTenant[]): HttpHandler {

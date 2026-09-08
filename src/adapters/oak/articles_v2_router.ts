@@ -7,6 +7,8 @@ import {
 	getLocalizedByFidHandler,
 	getLocalizedHandler,
 	listHandler,
+	renderByFidHandler,
+	renderHandler,
 } from "api/articles_handlers.ts";
 import { adapt } from "./adapt.ts";
 
@@ -29,7 +31,9 @@ export default function (tenants: AntboxTenant[]) {
 	articlesRouter.post("/", adapt(createOrReplaceHandler(tenants)));
 	articlesRouter.get("/:uuid", adapt(getHandler(tenants)));
 	articlesRouter.get("/:uuid/-/localized", adapt(getLocalizedHandler(tenants)));
+	articlesRouter.get("/:uuid/-/render", adapt(renderHandler(tenants)));
 	articlesRouter.get("/-/fid/:fid", adapt(getLocalizedByFidHandler(tenants)));
+	articlesRouter.get("/-/fid/:fid/render", adapt(renderByFidHandler(tenants)));
 	articlesRouter.delete("/:uuid", adapt(deleteHandler(tenants)));
 
 	return articlesRouter;

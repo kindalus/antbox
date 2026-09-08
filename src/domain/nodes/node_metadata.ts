@@ -1,7 +1,10 @@
 import { type Permissions } from "domain/nodes/node.ts";
 import { type NodeFilters } from "domain/nodes/node_filter.ts";
 import { type NodeProperties } from "domain/nodes/node_properties.ts";
-import { type ArticlePropertiesMap } from "../articles/article_properties.ts";
+import {
+	type ArticleBodyContentType,
+	type ArticlePropertiesMap,
+} from "../articles/article_properties.ts";
 
 /**
  * NodeMetadata - Represents the metadata for a node in the system.
@@ -110,4 +113,6 @@ export interface NodeMetadata {
 	articleProperties?: ArticlePropertiesMap;
 	/** Author of the article */
 	articleAuthor?: string;
+	/** Format used by every localized article body */
+	articleBodyContentType?: ArticleBodyContentType;
 }

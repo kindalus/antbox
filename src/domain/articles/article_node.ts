@@ -7,7 +7,12 @@ import { type Either, left, right } from "shared/either.ts";
 import { ValidationError } from "shared/validation_error.ts";
 import { z } from "zod";
 import { toPropertyError, uuid } from "../validation_schemas.ts";
-import { type ArticleProperties, type ArticlePropertiesMap } from "./article_properties.ts";
+import {
+	ARTICLE_BODY_CONTENT_TYPES,
+	type ArticleBodyContentType,
+	type ArticleProperties,
+	type ArticlePropertiesMap,
+} from "./article_properties.ts";
 import { Nodes } from "../nodes/nodes.ts";
 
 const ArticleNodeValidationSchema = z.object({
@@ -16,6 +21,7 @@ const ArticleNodeValidationSchema = z.object({
 		Nodes.ARTICLE_MIMETYPE,
 		"ArticleNode.mimetype must be application/vnd.antbox.article",
 	),
+	articleBodyContentType: z.enum(ARTICLE_BODY_CONTENT_TYPES),
 });
 
 export class ArticleNode extends WithAspectMixin(Node) {
@@ -32,6 +38,7 @@ export class ArticleNode extends WithAspectMixin(Node) {
 
 	private _articleProperties: ArticlePropertiesMap;
 	private _articleAuthor: string;
+	private _articleBodyContentType: ArticleBodyContentType;
 
 	private constructor(
 		metadata: Partial<NodeMetadata>,
@@ -44,6 +51,7 @@ export class ArticleNode extends WithAspectMixin(Node) {
 
 		this._articleProperties = metadata.articleProperties || {};
 		this._articleAuthor = metadata.articleAuthor || "";
+		this._articleBodyContentType = metadata.articleBodyContentType ?? "text";
 
 		this._validateArticleNode();
 	}
@@ -68,6 +76,10 @@ export class ArticleNode extends WithAspectMixin(Node) {
 			this._articleAuthor = metadata.articleAuthor;
 		}
 
+		if (metadata.articleBodyContentType !== undefined) {
+			this._articleBodyContentType = metadata.articleBodyContentType;
+		}
+
 		try {
 			this._validateArticleNode();
 		} catch (e) {
@@ -85,11 +97,16 @@ export class ArticleNode extends WithAspectMixin(Node) {
 		return this._articleAuthor;
 	}
 
+	get articleBodyContentType(): ArticleBodyContentType {
+		return this._articleBodyContentType;
+	}
+
 	override get metadata(): NodeMetadata {
 		return {
 			...super.metadata,
 			articleProperties: this._articleProperties,
 			articleAuthor: this._articleAuthor,
+			articleBodyContentType: this._articleBodyContentType,
 		};
 	}
 

@@ -610,6 +610,7 @@ describe("mcp_server", () => {
 		const names = result.resources.map((resource) => resource.name).sort();
 
 		expect(names).toEqual([
+			"features",
 			"llms",
 			"node-querying",
 			"nodes-and-aspects",
@@ -645,12 +646,12 @@ describe("mcp_server", () => {
 		expect(result.cacheScope).toBe("private");
 	});
 
-	it("reads documentation resources with public cache hints", async () => {
+	it("reads feature documentation anonymously with public cache hints", async () => {
 		const fixture = await createFixture();
 
 		const response = await processMcpRequest(
-			modernRequest(43, "resources/read", { uri: "antbox://docs/overview" }),
-			fixture.memberContext,
+			modernRequest(43, "resources/read", { uri: "antbox://docs/features" }),
+			fixture.anonymousContext,
 		);
 
 		expect(response?.error).toBeUndefined();
@@ -658,6 +659,9 @@ describe("mcp_server", () => {
 			contents: Array<{ text: string }>;
 		};
 		expect(result.contents).toHaveLength(1);
+		expect(result.contents[0].text).toContain("## Actions");
+		expect(result.contents[0].text).toContain("## Extensions");
+		expect(result.contents[0].text).toContain("## AI Tools");
 		expect(result.resultType).toBe("complete");
 		expect(result.ttlMs).toBe(300000);
 		expect(result.cacheScope).toBe("public");

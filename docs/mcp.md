@@ -141,13 +141,15 @@ All tool calls use existing Antbox authorization checks.
 
 ## Resources
 
-Listed resources:
+The following documentation resources are available anonymously:
 
-- `antbox://docs/llms`
-- `antbox://docs/webdav`
-- `antbox://docs/node-querying`
-- `antbox://docs/nodes-and-aspects`
-- `antbox://docs/overview`
+- `antbox://docs/llms` — platform context for LLMs
+- `antbox://docs/webdav` — WebDAV usage and protocol details
+- `antbox://docs/node-querying` — node search and filtering
+- `antbox://docs/nodes-and-aspects` — node and aspect data model
+- `antbox://docs/overview` — platform overview
+- `antbox://docs/features` — feature modules, actions, HTTP extensions, automatic triggers, and AI
+  tools
 
 Resource template:
 

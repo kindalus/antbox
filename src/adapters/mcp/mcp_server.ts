@@ -58,6 +58,7 @@ const MCP_DOC_RESOURCE_UUIDS = new Set<string>([
 	"node-querying",
 	"nodes-and-aspects",
 	"overview",
+	"features",
 ]);
 
 const jsonRpcIdSchema = z.union([z.string(), z.number()]);

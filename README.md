@@ -12,7 +12,7 @@ custom server-side features, and pluggable infrastructure in a single runtime.
 - **Document Management** - Files, folders, smart folders, metadata, and permissions
 - **Search** - Structured filters, full-text search, and semantic search
 - **AI Agents + Skills** - Pi-powered agents, built-in RAG agents, and custom skills
-- **MCP Server** - JSON-RPC endpoint with tenant-aware tools/resources for LLM clients
+- **MCP Server** - modern MCP 2026-07-28 endpoint with tenant-aware tools/resources for LLM clients
 - **Custom Features** - Run JavaScript/TypeScript modules as actions/extensions/AI tools
 - **Workflows** - Workflow definitions + runtime instances with transitions
 - **Multi-Tenant** - Tenant-level isolation for repositories, storage, and keys
@@ -75,14 +75,14 @@ curl -sS -X POST "$BASE_URL/v2/nodes/-/find" \
   -H "Content-Type: application/json" \
   -d '{"filters":"?contract approval policy","pageSize":10,"pageToken":1}'
 
-# MCP handshake
-MCP_TOKEN="<api-key-secret>"
-
+# MCP discovery (protocol 2026-07-28)
 curl -sS -X POST "$BASE_URL/mcp" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "MCP-Protocol-Version: 2026-07-28" \
+  -H "Mcp-Method: server/discover" \
   -H "X-Tenant: $TENANT" \
-  -H "Authorization: Bearer $MCP_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25"}}'
+  -d '{"jsonrpc":"2.0","id":1,"method":"server/discover","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{},"io.modelcontextprotocol/clientInfo":{"name":"curl","version":"1.0.0"}}}}'
 ```
 
 For a complete first workflow, see
@@ -216,6 +216,18 @@ and session paths resolve from `dataDir`; keys, JWKS, skills, S3 configuration, 
 credentials resolve from `configDir`. A tenant file overrides an inline tenant with the same name.
 Tenant names may contain lowercase letters, numbers, and internal hyphens only.
 
+### MCP endpoint settings
+
+Two optional top-level keys configure the MCP endpoint:
+
+```toml
+# Browser Origin allowlist for /mcp; requests without Origin are always accepted (default: [])
+mcpAllowedOrigins = ["https://app.example.com"]
+
+# Maximum /mcp request body size in bytes (default: 1048576); larger requests get HTTP 413 before parsing
+mcpMaxRequestBodyBytes = 1048576
+```
+
 ## API Overview
 
 Base path: `/v2`
@@ -231,10 +243,13 @@ Full contract: `openapi.yaml`
 | API key header | `Authorization: ApiKey <secret>` |
 | API key query  | `?api_key=<secret>`              |
 
-MCP endpoint (`/mcp`) accepts optional `Authorization: Bearer <token>`. Current implementation uses
-this bearer token as an API key secret. A valid bearer token exposes tools and resources; an invalid
-bearer token is rejected; no bearer token exposes resources only. OAuth discovery/challenge flow for
-MCP is not implemented yet.
+The MCP endpoint (`/mcp`) implements the exclusive MCP `2026-07-28` protocol revision. Every request
+carries `MCP-Protocol-Version`, `Mcp-Method`, a conditionally required `Mcp-Name` for `tools/call`
+and `resources/read`, and `params._meta` with the protocol version and client capabilities, and
+capabilities are computed per request. It accepts optional `Authorization: Bearer <token>`, where
+the token is an Antbox API key secret. A valid bearer token exposes tools and resources; an invalid
+bearer token is rejected with HTTP 401; no bearer token exposes resources only. See
+[`docs/mcp.md`](docs/mcp.md) for methods, headers, errors, and examples.
 
 Optional tenant selection:
 
@@ -336,6 +351,7 @@ src/
 - Source files: `docs/*.md`
 - Start here:
   - [Getting started](docs/getting-started.md)
+  - [MCP endpoint](docs/mcp.md)
   - [Upload to search tutorial](docs/tutorial-upload-to-search.md)
   - [Product strategy and API usability](docs/product-strategy-ux-analysis.md)
 

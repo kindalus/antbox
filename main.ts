@@ -82,7 +82,10 @@ async function startServer(
 	let startServerFn;
 	try {
 		const setupServer = await import(`./src/${serverLocation}`);
-		startServerFn = setupServer.default(tenants, reloadFn, configDir, dataDir);
+		startServerFn = setupServer.default(tenants, reloadFn, configDir, dataDir, {
+			allowedOrigins: config.mcpAllowedOrigins,
+			maxRequestBodyBytes: config.mcpMaxRequestBodyBytes,
+		});
 	} catch (error) {
 		console.error(`Failed to load server engine module: ${serverLocation}`);
 		console.error(error);

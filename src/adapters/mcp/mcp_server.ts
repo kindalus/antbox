@@ -15,10 +15,25 @@ const JSON_RPC_ERROR = {
 	METHOD_NOT_FOUND: -32601,
 	INVALID_PARAMS: -32602,
 	INTERNAL_ERROR: -32603,
-	UNAUTHORIZED: -32001,
-	FORBIDDEN: -32003,
-	NOT_FOUND: -32004,
+	UNSUPPORTED_PROTOCOL_VERSION: -32022,
 } as const;
+
+export const MCP_PROTOCOL_VERSION = "2026-07-28";
+
+/**
+ * Machine-readable marker for `_meta` metadata failures. The transport maps these
+ * `-32602` responses to HTTP 400, while tool/resource argument `-32602` errors keep
+ * their JSON-only 200 semantics.
+ */
+export const INVALID_REQUEST_METADATA_ERROR_CODE = "InvalidRequestMetadata";
+
+const SERVER_INFO = { name: APP_NAME, version: APP_VERSION } as const;
+
+// MCP cache hints. Resource reads choose the scope by URI class, never by client input.
+const DISCOVER_CACHE = { ttlMs: 0, cacheScope: "private" } as const;
+const LIST_CACHE = { ttlMs: 300000, cacheScope: "private" } as const;
+const DOC_READ_CACHE = { ttlMs: 300000, cacheScope: "public" } as const;
+const NODE_READ_CACHE = { ttlMs: 0, cacheScope: "private" } as const;
 
 const FILTER_OPERATORS = [
 	"==",
@@ -54,8 +69,35 @@ const jsonRpcRequestSchema = z.object({
 	params: z.unknown().optional(),
 });
 
-const initializeParamsSchema = z.object({
-	protocolVersion: z.string().optional(),
+const LOGGING_LEVELS = [
+	"debug",
+	"info",
+	"notice",
+	"warning",
+	"error",
+	"critical",
+	"alert",
+	"emergency",
+] as const;
+
+// W3C Trace Context: version-traceId-spanId-flags, all lower-case hex.
+const W3C_TRACEPARENT_REGEX = /^[\da-f]{2}-[\da-f]{32}-[\da-f]{16}-[\da-f]{2}$/;
+
+const requestMetaSchema = z.object({
+	"io.modelcontextprotocol/protocolVersion": z.string().min(1),
+	"io.modelcontextprotocol/clientCapabilities": z.record(z.string(), z.unknown()),
+	"io.modelcontextprotocol/clientInfo": z.object({
+		name: z.string().min(1),
+		version: z.string().min(1),
+	}).passthrough().optional(),
+	"io.modelcontextprotocol/logLevel": z.enum(LOGGING_LEVELS).optional(),
+	traceparent: z.string().regex(W3C_TRACEPARENT_REGEX).optional(),
+	tracestate: z.string().optional(),
+	baggage: z.string().optional(),
+}).passthrough();
+
+const requestParamsSchema = z.object({
+	_meta: requestMetaSchema,
 }).passthrough();
 
 const nodeFilterSchema = z.tuple([
@@ -155,8 +197,6 @@ export interface McpRequestContext {
 	nodeService: NodeService;
 }
 
-export const MCP_PROTOCOL_VERSION = "2025-11-25";
-
 export function createJsonRpcErrorResponse(
 	id: JsonRpcResponseId,
 	code: number,
@@ -174,11 +214,17 @@ export function createJsonRpcErrorResponse(
 	};
 }
 
-function createJsonRpcResultResponse(id: JsonRpcResponseId, result: unknown): JsonRpcResponse {
+function createResultResponse(id: JsonRpcResponseId, result: object): JsonRpcResponse {
 	return {
 		jsonrpc: JSON_RPC_VERSION,
 		id,
-		result,
+		result: {
+			...result,
+			resultType: "complete",
+			_meta: {
+				"io.modelcontextprotocol/serverInfo": SERVER_INFO,
+			},
+		},
 	};
 }
 
@@ -212,39 +258,15 @@ function normalizeError(error: unknown): { errorCode: string; message: string } 
 function mcpErrorFromAntboxError(error: unknown): JsonRpcError {
 	const normalized = normalizeError(error);
 
-	if (normalized.errorCode === ValidationError.ERROR_CODE) {
-		return {
-			code: JSON_RPC_ERROR.INVALID_PARAMS,
-			message: normalized.message,
-			data: normalized,
-		};
-	}
-
-	if (normalized.errorCode === UnauthorizedError.ERROR_CODE) {
-		return {
-			code: JSON_RPC_ERROR.UNAUTHORIZED,
-			message: normalized.message,
-			data: normalized,
-		};
-	}
-
-	if (normalized.errorCode === ForbiddenError.ERROR_CODE) {
-		return {
-			code: JSON_RPC_ERROR.FORBIDDEN,
-			message: normalized.message,
-			data: normalized,
-		};
-	}
-
-	if (normalized.errorCode.endsWith("NotFoundError")) {
-		return {
-			code: JSON_RPC_ERROR.NOT_FOUND,
-			message: normalized.message,
-			data: normalized,
-		};
-	}
-
-	if (normalized.errorCode.endsWith("BadRequestError")) {
+	// Modern MCP removed the -32002/-32003/-32004 codes. Authorization failures on a
+	// resource are indistinguishable from a missing resource to avoid leaking existence.
+	if (
+		normalized.errorCode === ValidationError.ERROR_CODE ||
+		normalized.errorCode === UnauthorizedError.ERROR_CODE ||
+		normalized.errorCode === ForbiddenError.ERROR_CODE ||
+		normalized.errorCode.endsWith("NotFoundError") ||
+		normalized.errorCode.endsWith("BadRequestError")
+	) {
 		return {
 			code: JSON_RPC_ERROR.INVALID_PARAMS,
 			message: normalized.message,
@@ -306,7 +328,7 @@ async function readDocResource(
 ): Promise<JsonRpcError | { uri: string; mimeType: string; text: string }> {
 	if (!MCP_DOC_RESOURCE_UUIDS.has(docUuid)) {
 		return {
-			code: JSON_RPC_ERROR.NOT_FOUND,
+			code: JSON_RPC_ERROR.INVALID_PARAMS,
 			message: `Resource not found: antbox://docs/${docUuid}`,
 			data: {
 				errorCode: "ResourceNotFound",
@@ -318,7 +340,7 @@ async function readDocResource(
 	const listedDoc = DOCS.find((doc) => doc.uuid === docUuid);
 	if (!listedDoc) {
 		return {
-			code: JSON_RPC_ERROR.NOT_FOUND,
+			code: JSON_RPC_ERROR.INVALID_PARAMS,
 			message: `Resource not found: antbox://docs/${docUuid}`,
 			data: {
 				errorCode: "ResourceNotFound",
@@ -330,7 +352,7 @@ async function readDocResource(
 	const doc = await loadDoc(docUuid);
 	if (!doc) {
 		return {
-			code: JSON_RPC_ERROR.NOT_FOUND,
+			code: JSON_RPC_ERROR.INVALID_PARAMS,
 			message: `Resource not found: antbox://docs/${docUuid}`,
 			data: {
 				errorCode: "ResourceNotFound",
@@ -545,48 +567,54 @@ export async function processMcpRequest(
 	let status = "ok";
 
 	try {
-		switch (request.method) {
-			case "initialize": {
-				const params = initializeParamsSchema.safeParse(request.params ?? {});
-				if (!params.success) {
-					return createJsonRpcErrorResponse(
-						requestId,
-						JSON_RPC_ERROR.INVALID_PARAMS,
-						"Invalid initialize params",
-						params.error.flatten(),
-					);
-				}
+		const requestParams = requestParamsSchema.safeParse(request.params ?? {});
+		if (!requestParams.success) {
+			status = "invalid_metadata";
+			return createJsonRpcErrorResponse(
+				requestId,
+				JSON_RPC_ERROR.INVALID_PARAMS,
+				"Invalid MCP request metadata",
+				{ errorCode: INVALID_REQUEST_METADATA_ERROR_CODE, ...requestParams.error.flatten() },
+			);
+		}
 
-				return createJsonRpcResultResponse(requestId, {
-					protocolVersion: MCP_PROTOCOL_VERSION,
+		const requestedVersion = requestParams.data._meta[
+			"io.modelcontextprotocol/protocolVersion"
+		];
+		if (requestedVersion !== MCP_PROTOCOL_VERSION) {
+			status = "unsupported_protocol_version";
+			return createJsonRpcErrorResponse(
+				requestId,
+				JSON_RPC_ERROR.UNSUPPORTED_PROTOCOL_VERSION,
+				`Unsupported protocol version: ${requestedVersion}`,
+				{ supported: [MCP_PROTOCOL_VERSION], requested: requestedVersion },
+			);
+		}
+
+		// The approved surface accepts no notifications; id-less messages are still
+		// validated above, then rejected rather than silently accepted.
+		if (request.id === undefined) {
+			status = "notification_not_supported";
+			return createJsonRpcErrorResponse(
+				requestId,
+				JSON_RPC_ERROR.METHOD_NOT_FOUND,
+				`Method not found: ${request.method}`,
+			);
+		}
+
+		switch (request.method) {
+			case "server/discover":
+				return createResultResponse(requestId, {
+					supportedVersions: [MCP_PROTOCOL_VERSION],
 					capabilities: {
-						...(context.toolsEnabled
-							? {
-								tools: {
-									listChanged: false,
-								},
-							}
-							: {}),
-						resources: {
-							listChanged: false,
-							subscribe: false,
-						},
-					},
-					serverInfo: {
-						name: APP_NAME,
-						version: APP_VERSION,
+						...(context.toolsEnabled ? { tools: {} } : {}),
+						resources: {},
 					},
 					instructions: context.toolsEnabled
 						? "Use Authorization: Bearer <access_token> on every request for tools and resources. X-Tenant is optional."
 						: "Authorization: Bearer <access_token> is optional. Without it, MCP exposes resources only and does not expose tools. X-Tenant is optional.",
+					...DISCOVER_CACHE,
 				});
-			}
-
-			case "notifications/initialized":
-				return null;
-
-			case "ping":
-				return createJsonRpcResultResponse(requestId, {});
 
 			case "tools/list":
 				if (!context.toolsEnabled) {
@@ -598,12 +626,13 @@ export async function processMcpRequest(
 					);
 				}
 
-				return createJsonRpcResultResponse(requestId, {
+				return createResultResponse(requestId, {
 					tools: mcpTools.map((tool) => ({
 						name: tool.name,
 						description: tool.description,
 						inputSchema: tool.inputSchema,
 					})),
+					...LIST_CACHE,
 				});
 
 			case "tools/call": {
@@ -627,27 +656,31 @@ export async function processMcpRequest(
 
 				const tool = mcpToolsByName.get(params.data.name);
 				if (!tool) {
-					return createJsonRpcResultResponse(
+					return createJsonRpcErrorResponse(
 						requestId,
-						toolErrorResult({
+						JSON_RPC_ERROR.INVALID_PARAMS,
+						`Invalid params: unknown tool '${params.data.name}'`,
+						{
 							errorCode: "ToolNotFound",
 							message: `Tool '${params.data.name}' not found`,
-						}),
+						},
 					);
 				}
 
 				const toolResult = await tool.execute(params.data.arguments ?? {}, context);
-				return createJsonRpcResultResponse(requestId, toolResult);
+				return createResultResponse(requestId, toolResult);
 			}
 
 			case "resources/list":
-				return createJsonRpcResultResponse(requestId, {
+				return createResultResponse(requestId, {
 					resources: mcpResources,
+					...LIST_CACHE,
 				});
 
 			case "resources/templates/list":
-				return createJsonRpcResultResponse(requestId, {
+				return createResultResponse(requestId, {
 					resourceTemplates: mcpResourceTemplates,
+					...LIST_CACHE,
 				});
 
 			case "resources/read": {
@@ -683,16 +716,13 @@ export async function processMcpRequest(
 					);
 				}
 
-				return createJsonRpcResultResponse(requestId, {
+				return createResultResponse(requestId, {
 					contents: [contentOrErr],
+					...(parsedUri.kind === "doc" ? DOC_READ_CACHE : NODE_READ_CACHE),
 				});
 			}
 
 			default:
-				if (request.id === undefined) {
-					return null;
-				}
-
 				status = "method_not_found";
 				return createJsonRpcErrorResponse(
 					requestId,

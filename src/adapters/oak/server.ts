@@ -25,6 +25,7 @@ import adminRouter from "adapters/oak/admin_v2_router.ts";
 import metricsRouter from "adapters/oak/metrics_router.ts";
 
 import type { AntboxTenant } from "api/antbox_tenant.ts";
+import type { McpHttpOptions } from "api/http_server_configuration.ts";
 import { Application, type Context, Router } from "@oak/oak";
 import type { HttpServerOpts, startHttpServer } from "api/http_server.ts";
 import { setServerHeader } from "shared/app_metadata.ts";
@@ -54,6 +55,7 @@ export default function setupOakServer(
 	reload: () => Promise<void>,
 	configDir?: string,
 	dataDir?: string,
+	mcpOptions?: McpHttpOptions,
 ): startHttpServer {
 	const app = new Application();
 
@@ -77,7 +79,7 @@ export default function setupOakServer(
 	const extensions = extensionsRouter(tenants);
 	const templates = templatesRouter(tenants);
 	const docs = docsRouter(tenants);
-	const mcp = mcpRouter(tenants);
+	const mcp = mcpRouter(tenants, mcpOptions);
 	const login = loginRouter(tenants);
 	const workflows = workflowsRouter(tenants);
 	const articles = articlesRouter(tenants);

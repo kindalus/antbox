@@ -89,17 +89,51 @@ paths:
       post:
          tags:
             - mcp
-         summary: MCP JSON-RPC endpoint
+         summary: MCP 2026-07-28 JSON-RPC endpoint
          operationId: mcpPost
          description: >-
-            Model Context Protocol endpoint over JSON-RPC 2.0. Authorization:
-            Bearer <token> is optional. When present and valid, the bearer
-            token is treated as an Antbox API key secret and MCP exposes both
-            tools and resources. When present but invalid, the request is
-            rejected. When absent, MCP exposes resources only and does not
-            expose tools. Tenant selection may be provided via X-Tenant header
-            or x-tenant query parameter. If omitted, the first configured
-            tenant is used.
+            Model Context Protocol (MCP) 2026-07-28 Streamable HTTP endpoint over
+            JSON-RPC 2.0. Every message is a separate HTTP POST and every request
+            declares its own protocol metadata, so there is no handshake and no
+            protocol-level session. Responses are always `application/json`; this
+            server never returns SSE streams and advertises no list-change
+            subscriptions.
+
+            Authorization: Bearer <token> is optional. When present and valid, the
+            bearer token is treated as an Antbox API key secret and MCP exposes both
+            tools and resources. When present but invalid, the request is rejected
+            with 401. When absent, MCP exposes resources only and does not expose
+            tools. Self-reported client metadata is never used for authentication or
+            tenant routing. Tenant selection may be provided via X-Tenant header or
+            x-tenant query parameter; if omitted, the first configured tenant is
+            used, and an unknown tenant selection is rejected with 400.
+
+            Each POST must carry `Accept: application/json, text/event-stream`,
+            `Content-Type: application/json`, `MCP-Protocol-Version`, and
+            `Mcp-Method`; `Mcp-Name` is additionally required for `tools/call` and
+            `resources/read`. `MCP-Protocol-Version` must match
+            `params._meta.io.modelcontextprotocol/protocolVersion`, and `Mcp-Method`
+            and `Mcp-Name` must match the body's `method` and `params.name` (or
+            `params.uri`) after Base64 sentinel decoding. Only `2026-07-28` is
+            supported; `server/discover` reports the supported versions and the
+            per-request capabilities. Requests without an Origin header are accepted;
+            a present Origin must match the server-side allowlist or the request is
+            rejected with 403. A body exceeding the configured request-body limit is
+            rejected with 413 before JSON parsing. JSON-RPC response envelopes sent
+            by clients are rejected.
+
+            The `Accept` requirement is an HTTP-level requirement of this transport;
+            concrete `server/discover` request:
+
+            ```
+            POST /mcp HTTP/1.1
+            Accept: application/json, text/event-stream
+            Content-Type: application/json
+            MCP-Protocol-Version: 2026-07-28
+            Mcp-Method: server/discover
+
+            {"jsonrpc":"2.0","id":"discover-1","method":"server/discover","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{}}}}
+            ```
          security:
             - {}
             - mcpBearerAuth: []
@@ -109,49 +143,197 @@ paths:
               required: false
               schema:
                  type: string
-              description: Exact configured tenant name.
+              description: Exact configured tenant name. Takes precedence over the x-tenant query parameter.
             - in: query
               name: x-tenant
               required: false
               schema:
                  type: string
-              description: Exact configured tenant name. Used if X-Tenant header is absent.
+              description: Exact configured tenant name. Used if the X-Tenant header is absent.
             - in: header
               name: MCP-Protocol-Version
+              required: true
+              schema:
+                 type: string
+                 enum:
+                    - "2026-07-28"
+              description: >-
+                 Protocol version for this request; must equal
+                 params._meta.io.modelcontextprotocol/protocolVersion. Any other
+                 value is rejected with 400 and JSON-RPC error -32022, whose data
+                 lists the supported versions.
+            - in: header
+              name: Mcp-Method
+              required: true
+              schema:
+                 type: string
+                 example: tools/call
+              description: Must match the body's method field; a mismatch is rejected with 400 and JSON-RPC error -32020.
+            - in: header
+              name: Mcp-Name
               required: false
               schema:
                  type: string
-                 example: "2025-11-25"
-              description: Optional MCP protocol version header. If sent, it must match the server version.
+              description: >-
+                 Required for tools/call (params.name) and resources/read
+                 (params.uri); must match the body value after decoding. When the
+                 value cannot be represented as a plain ASCII header value, clients
+                 encode the UTF-8 source value as `=?base64?{Base64EncodedValue}?=`;
+                 the `=?base64?` prefix and `?=` suffix are case-sensitive and must
+                 appear exactly as written, and servers decode before comparing. A
+                 plain ASCII value that itself matches the sentinel pattern (starts
+                 with `=?base64?` and ends with `?=`) must also be Base64-encoded:
+                 the source value `=?base64?literal?=` is sent as
+                 `=?base64?PT9iYXNlNjQ/bGl0ZXJhbD89?=`. Missing or mismatched values
+                 are rejected with 400 and JSON-RPC error -32020.
+            - in: header
+              name: Origin
+              required: false
+              schema:
+                 type: string
+              description: >-
+                 Optional for non-browser clients. When present it must match the
+                 server-side origin allowlist, otherwise the request fails with 403.
          requestBody:
             required: true
             content:
                application/json:
                   schema:
                      type: object
-                     description: JSON-RPC 2.0 request envelope
+                     required:
+                        - jsonrpc
+                        - method
+                        - params
+                     description: >-
+                        JSON-RPC 2.0 request or notification envelope. `jsonrpc`,
+                        `method`, and `params._meta` are required; JSON-RPC response
+                        envelopes (which carry `result` or `error` and no `method`)
+                        are therefore not accepted. Every request and notification
+                        must include
+                        params._meta.io.modelcontextprotocol/protocolVersion and
+                        params._meta.io.modelcontextprotocol/clientCapabilities;
+                        io.modelcontextprotocol/clientInfo, logLevel, and trace
+                        context are accepted but never used for auth or routing.
+                        Missing or invalid metadata is rejected with 400 and JSON-RPC
+                        error -32602.
+                     properties:
+                        jsonrpc:
+                           type: string
+                           enum:
+                              - "2.0"
+                        id:
+                           type:
+                              - string
+                              - number
+                           description: >-
+                              Request identifier; omitted for notifications. MCP 2026-07-28
+                              defines RequestId as string | number, so fractional numeric
+                              identifiers are valid.
+                        method:
+                           type: string
+                           example: server/discover
+                        params:
+                           type: object
+                           required:
+                              - _meta
+                           properties:
+                              name:
+                                 type: string
+                                 description: Tool name for tools/call; must match the Mcp-Name header.
+                              uri:
+                                 type: string
+                                 description: Resource URI for resources/read; must match the Mcp-Name header.
+                              _meta:
+                                 type: object
+                                 required:
+                                    - io.modelcontextprotocol/protocolVersion
+                                    - io.modelcontextprotocol/clientCapabilities
+                                 properties:
+                                    io.modelcontextprotocol/protocolVersion:
+                                       type: string
+                                       enum:
+                                          - "2026-07-28"
+                                    io.modelcontextprotocol/clientCapabilities:
+                                       type: object
+                                    io.modelcontextprotocol/clientInfo:
+                                       type: object
+                                       required:
+                                          - name
+                                          - version
+                                       properties:
+                                          name:
+                                             type: string
+                                          version:
+                                             type: string
+                                    io.modelcontextprotocol/logLevel:
+                                       type: string
+                                       enum:
+                                          - debug
+                                          - info
+                                          - notice
+                                          - warning
+                                          - error
+                                          - critical
+                                          - alert
+                                          - emergency
+                     example:
+                        jsonrpc: "2.0"
+                        id: discover-1
+                        method: server/discover
+                        params:
+                           _meta:
+                              io.modelcontextprotocol/protocolVersion: "2026-07-28"
+                              io.modelcontextprotocol/clientInfo:
+                                 name: ExampleClient
+                                 version: 1.0.0
+                              io.modelcontextprotocol/clientCapabilities: {}
          responses:
             "200":
-               description: JSON-RPC success or error response
+               description: >-
+                  JSON-RPC 2.0 response with Content-Type application/json.
+                  Successful results carry resultType "complete" and
+                  _meta.io.modelcontextprotocol/serverInfo; cacheable results also
+                  carry ttlMs and cacheScope.
                content:
                   application/json:
                      schema:
                         type: object
                         description: JSON-RPC 2.0 response envelope
             "202":
-               description: Accepted notification or client response with no body returned
+               description: >-
+                  Accepted notification with no body. Returned only for accepted
+                  notifications, never for JSON-RPC requests or JSON-RPC response
+                  envelopes sent by clients.
             "400":
-               description: Invalid JSON-RPC request, unsupported protocol version, or invalid tenant selection
+               description: >-
+                  Malformed JSON, invalid request body metadata (-32602), header
+                  mismatch or missing required header (-32020), unsupported protocol
+                  version (-32022), missing required client capability (-32021), or
+                  invalid tenant selection.
                content:
                   application/json:
                      schema:
                         type: object
+                        description: JSON-RPC 2.0 error response
             "401":
-               description: Missing or invalid bearer token
+               description: >-
+                  Invalid presented bearer credential, or authentication supplied via
+                  query parameters, which MCP does not accept. A request with no
+                  bearer token is accepted in anonymous resources-only mode.
                content:
                   application/json:
                      schema:
                         type: object
+            "403":
+               description: Origin header present but not in the server-side allowlist
+            "404":
+               description: Unknown method; JSON-RPC error -32601
+               content:
+                  application/json:
+                     schema:
+                        type: object
+            "413":
+               description: Request body exceeds the configured request-body limit; rejected before JSON parsing
    /metrics/storage:
       get:
          tags:

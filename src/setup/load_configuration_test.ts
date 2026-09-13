@@ -3,6 +3,7 @@ import { expect } from "expect";
 import { join } from "node:path";
 import { stringify } from "toml";
 import type { TenantConfiguration } from "api/http_server_configuration.ts";
+import { DEFAULT_MCP_MAX_REQUEST_BODY_BYTES } from "api/http_server_configuration.ts";
 import { loadConfiguration } from "./load_configuration.ts";
 import { TENANT_SAMPLE_FILE } from "./tenant_configuration_files.ts";
 
@@ -189,5 +190,49 @@ describe("loadConfiguration", () => {
 		await withConfigDir({}, async (dir) => {
 			await expect(loadConfiguration(dir)).rejects.toThrow("at least one tenant is required");
 		});
+	});
+
+	it("defaults the MCP HTTP security settings", async () => {
+		await withConfigDir({ tenants: [tenant("default")] }, async (dir) => {
+			const config = await loadConfiguration(dir);
+			expect(config.mcpAllowedOrigins).toEqual([]);
+			expect(config.mcpMaxRequestBodyBytes).toBe(DEFAULT_MCP_MAX_REQUEST_BODY_BYTES);
+			expect(DEFAULT_MCP_MAX_REQUEST_BODY_BYTES).toBe(1048576);
+		});
+	});
+
+	it("honors explicit MCP HTTP security settings", async () => {
+		await withConfigDir({
+			mcpAllowedOrigins: ["https://app.example"],
+			mcpMaxRequestBodyBytes: 2048,
+			tenants: [tenant("default")],
+		}, async (dir) => {
+			const config = await loadConfiguration(dir);
+			expect(config.mcpAllowedOrigins).toEqual(["https://app.example"]);
+			expect(config.mcpMaxRequestBodyBytes).toBe(2048);
+		});
+	});
+
+	it("rejects invalid MCP HTTP security settings", async () => {
+		await withConfigDir(
+			{ mcpMaxRequestBodyBytes: 0, tenants: [tenant("default")] },
+			async (dir) => {
+				await expect(loadConfiguration(dir)).rejects.toThrow("mcpMaxRequestBodyBytes");
+			},
+		);
+
+		await withConfigDir(
+			{ mcpMaxRequestBodyBytes: 1.5, tenants: [tenant("default")] },
+			async (dir) => {
+				await expect(loadConfiguration(dir)).rejects.toThrow("mcpMaxRequestBodyBytes");
+			},
+		);
+
+		await withConfigDir(
+			{ mcpAllowedOrigins: [""], tenants: [tenant("default")] },
+			async (dir) => {
+				await expect(loadConfiguration(dir)).rejects.toThrow("mcpAllowedOrigins");
+			},
+		);
 	});
 });

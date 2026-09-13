@@ -1,5 +1,9 @@
 import { Logger } from "shared/logger.ts";
-import { ServerConfiguration } from "api/http_server_configuration.ts";
+import {
+	DEFAULT_MCP_MAX_REQUEST_BODY_BYTES,
+	McpHttpConfigurationSchema,
+	ServerConfiguration,
+} from "api/http_server_configuration.ts";
 import { fileExistsSync } from "shared/os_helpers.ts";
 import { PORT } from "./server_defaults.ts";
 import { readTenantConfigurationState } from "./tenant_configuration_files.ts";
@@ -54,6 +58,8 @@ logLevel = "info"
 rootPasswd = "demo"
 key = "antbox.key"
 jwks = "antbox.jwks"
+mcpAllowedOrigins = []
+mcpMaxRequestBodyBytes = ${DEFAULT_MCP_MAX_REQUEST_BODY_BYTES}
 
 [[tenants]]
 name = "default"
@@ -91,8 +97,22 @@ tokens = 0
 	}
 
 	const state = await readTenantConfigurationState(dir);
+	const mcpValidation = McpHttpConfigurationSchema.safeParse(state.rawConfig);
+	if (!mcpValidation.success) {
+		const details = mcpValidation.error.issues.map((issue) => {
+			const field = issue.path.length ? `${issue.path.join(".")}: ` : "";
+			return `${field}${issue.message}`;
+		}).join("; ");
+		const error = new Error(`Invalid configuration at ${state.configPath}: ${details}`);
+		Logger.error(error.message);
+		throw error;
+	}
+
 	const config = {
 		...state.rawConfig,
+		mcpAllowedOrigins: mcpValidation.data.mcpAllowedOrigins ?? [],
+		mcpMaxRequestBodyBytes: mcpValidation.data.mcpMaxRequestBodyBytes ??
+			DEFAULT_MCP_MAX_REQUEST_BODY_BYTES,
 		tenants: structuredClone(state.effectiveTenants),
 		adminTenantName: state.adminTenantName,
 	} as unknown as ServerConfiguration;

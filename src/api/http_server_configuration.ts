@@ -36,6 +36,25 @@ export const AIConfigurationSchema = z.object({
 
 const OptionalNonEmptyStringSchema = z.string().trim().min(1).optional();
 
+export const DEFAULT_MCP_MAX_REQUEST_BODY_BYTES = 1048576;
+
+export const McpAllowedOriginsSchema = z.array(z.string().trim().min(1));
+
+export const McpMaxRequestBodyBytesSchema = z.number().int().positive();
+
+export const McpHttpConfigurationSchema = z.object({
+	mcpAllowedOrigins: McpAllowedOriginsSchema.optional(),
+	mcpMaxRequestBodyBytes: McpMaxRequestBodyBytesSchema.optional(),
+});
+
+/** Resolved MCP HTTP boundary settings. */
+export interface McpHttpOptions {
+	/** Exact Origin allowlist. Empty means browser requests are rejected. */
+	allowedOrigins?: string[];
+	/** Maximum accepted request body size in bytes. */
+	maxRequestBodyBytes?: number;
+}
+
 export const TenantConfigurationSchema = z.object({
 	name: TenantNameSchema,
 	rootPasswd: z.string().optional(),
@@ -95,6 +114,10 @@ export interface ServerConfiguration {
 	key?: string;
 	jwks?: string;
 	tenants: TenantConfiguration[];
+	/** Exact Origin allowlist for the MCP endpoint. Defaults to no allowed origins. */
+	mcpAllowedOrigins?: string[];
+	/** Maximum accepted MCP request body size in bytes. Defaults to 1048576. */
+	mcpMaxRequestBodyBytes?: number;
 	/** Derived at load time; not read from config.toml. Null means no administrative tenant. */
 	adminTenantName?: string | null;
 }

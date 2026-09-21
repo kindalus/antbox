@@ -1,6 +1,6 @@
 ---
 name: features
-description: Available features documentation
+description: Feature modules, actions, HTTP extensions, automatic triggers, and AI tools
 ---
 
 # Features

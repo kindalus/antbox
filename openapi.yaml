@@ -1822,6 +1822,11 @@ paths:
          tags:
             - nodes
          summary: Update a node
+         description: >-
+            Changing a folder group requires root or an --admins-- member and an existing group
+            in the tenant, including built-in groups. Existing parent Write, lock, and workflow
+            checks still apply. Owner, permissions, and descendant groups are not changed.
+            Sending the current group is a no-op.
          operationId: updateNode
          parameters:
             - $ref: "#/components/parameters/UUID"
@@ -3849,7 +3854,8 @@ components:
                type: object
             group:
                type: string
-               format: uuid
+               minLength: 1
+               description: Folder group UUID. Mutable only by root or admins; the target group must exist in the tenant. Not recursive.
             groups:
                type: array
                items:

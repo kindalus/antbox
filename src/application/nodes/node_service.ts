@@ -25,6 +25,8 @@ import { type Either, left, right } from "shared/either.ts";
 import { FidGenerator } from "shared/fid_generator.ts";
 import { UuidGenerator } from "shared/uuid_generator.ts";
 import { AuthorizationService } from "../security/authorization_service.ts";
+import { GroupsService } from "../security/groups_service.ts";
+import { z } from "zod";
 import { FindService } from "./find_service.ts";
 import type { NodeServiceContext } from "./node_service_context.ts";
 
@@ -679,6 +681,30 @@ export class NodeService {
 						"Cannot modify node involved in a workflow instance. Use workflow transitions to modify.",
 					),
 				);
+			}
+		}
+
+		if (
+			Nodes.isFolder(nodeOrErr.value) && metadata.group !== undefined &&
+			metadata.group !== currentMetadata.group
+		) {
+			if (
+				ctx.principal.email !== Users.ROOT_USER_EMAIL &&
+				!ctx.principal.groups.includes(Groups.ADMINS_GROUP_UUID)
+			) {
+				return left(new ForbiddenError("Only root or admins can change a folder group"));
+			}
+
+			const groupOrErr = z.string().min(1).safeParse(metadata.group);
+			if (!groupOrErr.success) {
+				return left(new BadRequestError("group must be a non-empty string"));
+			}
+			const group = await new GroupsService(this.context.configRepo).getGroup(
+				ctx,
+				groupOrErr.data,
+			);
+			if (group.isLeft()) {
+				return left(group.value);
 			}
 		}
 

@@ -137,7 +137,7 @@ describe("FolderNode", () => {
 			expect(folderNode.modifiedTime !== initialModifiedTime).toBe(true);
 		});
 
-		it("should not update group", () => {
+		it("should update group", () => {
 			const createResult = FolderNode.create({
 				title: "Valid Folder",
 				parent: Nodes.ROOT_FOLDER_UUID,
@@ -148,7 +148,7 @@ describe("FolderNode", () => {
 
 			const updateResult = folderNode.update({ group: "group-2" });
 			expect(updateResult.isRight()).toBeTruthy();
-			expect(folderNode.group).toBe("group-1");
+			expect(folderNode.group).toBe("group-2");
 		});
 	});
 

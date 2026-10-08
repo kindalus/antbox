@@ -92,6 +92,7 @@ export function FolderMixin<TBase extends Constructor>(Base: TBase) {
 		}
 
 		update(metadata: NodeMetadata): Either<ValidationError, void> {
+			this._group = metadata.group ?? this._group;
 			this._onCreate = metadata.onCreate ?? this._onCreate;
 			this._onUpdate = metadata.onUpdate ?? this._onUpdate;
 			this._onDelete = metadata.onDelete ?? this._onDelete;

@@ -56,6 +56,40 @@ Generic article creation requires a non-empty `articleProperties` map, `articleA
 `title`. Unlike `POST /v2/articles`, `POST /v2/nodes` does not generate `articleFid` values or
 derive `title` from `articleTitle`.
 
+### Downloading Multiple Files
+
+`POST /v2/nodes/-/export-all` accepts JSON `{"uuids":["file-1","file-2"]}` and returns an
+`application/zip` attachment named `antbox-export.zip` with `Cache-Control: no-store`. The
+corresponding service/proxy method is `exportAll(uuids)` (with an authentication context for
+`NodeService`). UUIDs and FID-form identifiers are accepted. Duplicate files are exported once, with
+first-occurrence order preserved.
+
+```bash
+curl --fail-with-body "$BASE_URL/v2/nodes/-/export-all" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Tenant: $TENANT" \
+  -H "Content-Type: application/json" \
+  -d '{"uuids":["file-1","file-2"]}' \
+  -o antbox-export.zip
+```
+
+- Limits: **100 distinct identifiers** and **100 MiB** of total file content. Metadata is checked
+  before reading; actual exported sizes are also checked, including native Google Drive exports.
+- Only file nodes are accepted; folders, smart folders, articles, and meta nodes are rejected.
+- Each file requires **Read** and **Export** permissions on its parent. All files are checked before
+  storage reads, and permissions are rechecked when reading. Anonymous access works only if both
+  permissions are explicitly allowed.
+- The ZIP is flat. Filenames come from node titles, with path separators, control characters,
+  traversal prefixes, and unsafe platform characters sanitized. Collisions are case-insensitive and
+  resolved with suffixes such as `report (2).pdf`.
+- Downloads are all-or-nothing: invalid input/non-file/size limits return `400`; missing nodes
+  return `404`; permission failures return `401` (anonymous) or `403`; unexpected storage/ZIP
+  failures return `500`. No partial ZIP is returned.
+- The ZIP is built in memory using uncompressed entries. The memory peak is higher than the content
+  limit because buffers and the response coexist. Nothing is written to disk or persisted as a node,
+  and originals are never deleted. Memory can be reclaimed after the response is sent or cancelled;
+  the server cannot confirm that a browser saved the download.
+
 ## Aspects
 
 Aspects are **configuration records**, not nodes. They define reusable metadata schemas that can be

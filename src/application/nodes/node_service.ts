@@ -35,6 +35,7 @@ import { NodeLocking } from "./node_locking.ts";
 import { NodeLookup } from "./node_lookup.ts";
 import { ParentFolderUpdateHandler } from "./parent_folder_update_handler.ts";
 import { calculateNodeUpdateChanges } from "./node_update_changes.ts";
+import { exportAllFiles } from "./node_export_all.ts";
 
 interface NodeUpdateOptions {
 	forceEvent?: boolean;
@@ -412,6 +413,41 @@ export class NodeService {
 		return right(
 			new File([fileOrErr.value], nodeOrErr.value.title, { type }),
 		);
+	}
+
+	/** Exports up to 100 readable/exportable files as a ZIP, without persisting the archive. */
+	exportAll(
+		ctx: AuthenticationContext,
+		uuids: string[],
+	): Promise<Either<AntboxError, File>> {
+		return exportAllFiles(uuids, {
+			prepareFile: (uuid) => this.#prepareFileExport(ctx, uuid),
+			readFile: async (uuid) => {
+				// Recheck Read, type, and Export when reading, in case metadata changed after preflight.
+				const node = await this.#prepareFileExport(ctx, uuid);
+				if (node.isLeft()) return left(node.value);
+				return this.export(ctx, node.value.uuid);
+			},
+		});
+	}
+
+	async #prepareFileExport(
+		ctx: AuthenticationContext,
+		uuid: string,
+	): Promise<Either<AntboxError, NodeMetadata>> {
+		const node = await this.get(ctx, uuid);
+		if (node.isLeft()) return left(node.value);
+		if (!Nodes.isFile(node.value)) {
+			return left(new BadRequestError(`Node '${uuid}' is not a file`));
+		}
+		const parent = await this.nodeLookup.getFolder(node.value.parent);
+		if (parent.isLeft()) {
+			return left(
+				new UnknownError(`Parent folder not found for node uuid='${node.value.uuid}'`),
+			);
+		}
+		const allowed = this.authorizationService.isPrincipalAllowedTo(ctx, parent.value, "Export");
+		return allowed.isLeft() ? left(allowed.value) : right(node.value);
 	}
 
 	async evaluate(

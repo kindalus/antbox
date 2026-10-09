@@ -8,6 +8,7 @@ import {
 	deleteHandler,
 	duplicateHandler,
 	evaluateHandler,
+	exportAllHandler,
 	exportHandler,
 	findHandler,
 	getHandler,
@@ -38,6 +39,7 @@ export default function (tenants: AntboxTenant[]): Router {
 	router.get("/", adapt(listHandler(tenants)));
 	router.post("/", adapt(createHandler(tenants)));
 	router.post("/-/upload", adapt(createFileHandler(tenants)));
+	router.post("/-/export-all", adapt(exportAllHandler(tenants)));
 
 	router.get("/:uuid", adapt(getHandler(tenants)));
 	router.patch("/:uuid", adapt(updateHandler(tenants)));

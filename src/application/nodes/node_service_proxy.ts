@@ -58,6 +58,10 @@ export class NodeServiceProxy {
 		return this.#nodeService.export(this.#ctx, uuid);
 	}
 
+	exportAll(uuids: string[]) {
+		return this.#nodeService.exportAll(this.#ctx, uuids);
+	}
+
 	evaluate(uuid: string) {
 		return this.#nodeService.evaluate(this.#ctx, uuid);
 	}

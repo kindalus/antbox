@@ -513,7 +513,7 @@ export default async function ({ nodes, aspects, custom }) {
 
 `nodes` SDK methods:
 
-- `copy`, `create`, `createFile`, `delete`, `duplicate`, `export`, `evaluate`
+- `copy`, `create`, `createFile`, `delete`, `duplicate`, `export`, `exportAll`, `evaluate`
 - `find`, `get`, `list`, `breadcrumbs`
 - `update`, `updateFile`, `lock`, `unlock`
 

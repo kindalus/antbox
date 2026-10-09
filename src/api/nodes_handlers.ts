@@ -1,4 +1,6 @@
 import { NodeMetadata } from "domain/nodes/node_metadata.ts";
+import { ExportAllRequestSchema } from "application/nodes/node_export_all.ts";
+import { AntboxError, BadRequestError, UnknownError } from "shared/antbox_error.ts";
 import { type AntboxTenant } from "./antbox_tenant.ts";
 import { defaultMiddlewareChain } from "./default_middleware_chain.ts";
 import { getAuthenticationContext } from "./get_authentication_context.ts";
@@ -261,6 +263,52 @@ export function exportHandler(tenants: AntboxTenant[]): HttpHandler {
 				.catch(processError);
 		},
 	);
+}
+
+export function exportAllHandler(tenants: AntboxTenant[]): HttpHandler {
+	return defaultMiddlewareChain(tenants, async (req: Request): Promise<Response> => {
+		if (
+			req.headers.get("content-type")?.split(";")[0].trim().toLowerCase() !== "application/json"
+		) {
+			return processError(new BadRequestError("Content-Type must be application/json"));
+		}
+
+		let body: unknown;
+		try {
+			body = await req.json();
+		} catch {
+			return processError(new BadRequestError("Invalid JSON body"));
+		}
+		const validation = ExportAllRequestSchema.safeParse(body);
+		if (!validation.success) {
+			return processError(
+				new BadRequestError(
+					validation.error.issues.map((issue) => issue.message).join("; "),
+				),
+			);
+		}
+
+		try {
+			const service = getTenant(req, tenants).nodeService;
+			const result = await service.exportAll(
+				getAuthenticationContext(req),
+				validation.data.uuids,
+			);
+			if (result.isLeft()) return processError(result.value);
+			return new Response(result.value, {
+				headers: {
+					"Content-Type": "application/zip",
+					"Content-Disposition": 'attachment; filename="antbox-export.zip"',
+					"Content-Length": String(result.value.size),
+					"Cache-Control": "no-store",
+				},
+			});
+		} catch (error) {
+			return processError(
+				error instanceof AntboxError ? error : new UnknownError("Failed to export files"),
+			);
+		}
+	});
 }
 
 export function breadcrumbsHandler(tenants: AntboxTenant[]): HttpHandler {

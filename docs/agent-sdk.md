@@ -37,6 +37,7 @@ The function receives:
 - `delete(uuid)`
 - `duplicate(uuid)`
 - `export(uuid)`
+- `exportAll(uuids)` — returns a ZIP `File` (100 distinct identifiers / 100 MiB limit)
 - `evaluate(uuid)`
 - `find(filters, pageSize?, pageToken?)`
 - `get(uuid)`

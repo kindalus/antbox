@@ -1,5 +1,5 @@
 import type { AntboxError } from "shared/antbox_error.ts";
-import { BadRequestError, ForbiddenError } from "shared/antbox_error.ts";
+import { BadRequestError, ForbiddenError, NotFoundError } from "shared/antbox_error.ts";
 import { Logger } from "shared/logger.ts";
 import { type Either, left, right } from "shared/either.ts";
 import type { AuthenticationContext } from "../security/authentication_context.ts";
@@ -42,7 +42,7 @@ export class WorkflowInstancesService {
 			if (!this.#hasPermission(ctx, builtinInstance.participants)) {
 				return left(new ForbiddenError("Not authorized to view this workflow instance"));
 			}
-			return right(builtinInstance);
+			return right(structuredClone(builtinInstance));
 		}
 
 		const instanceOrErr = await this.#configRepo.get("workflowInstances", uuid);
@@ -55,7 +55,7 @@ export class WorkflowInstancesService {
 			return left(new ForbiddenError("Not authorized to view this workflow instance"));
 		}
 
-		// Best-effort backfill for instances created before snapshots existed
+		// Return a snapshot for legacy instances; state changes persist it under the engine lock.
 		let instance = instanceOrErr.value;
 		if (!instance.workflowDefinition) {
 			const workflowDefOrErr = await this.#workflowsService.getWorkflow(
@@ -80,8 +80,6 @@ export class WorkflowInstancesService {
 						: workflowDefOrErr.value.participants,
 				};
 
-				// Ignore backfill failures; the instance is still returned
-				await this.#configRepo.save("workflowInstances", backfilledInstance);
 				instance = backfilledInstance;
 			}
 		}
@@ -105,7 +103,7 @@ export class WorkflowInstancesService {
 
 		if (running.length === 0) {
 			return left(
-				new BadRequestError(`No running workflow instance found for node ${nodeUuid}`),
+				new NotFoundError(`No running workflow instance found for node ${nodeUuid}`),
 			);
 		}
 
@@ -136,7 +134,10 @@ export class WorkflowInstancesService {
 		}
 
 		// Combine builtin instances with custom instances
-		const allInstances = [...BUILTIN_WORKFLOW_INSTANCES, ...customInstancesOrErr.value];
+		const allInstances = [
+			...structuredClone(BUILTIN_WORKFLOW_INSTANCES),
+			...customInstancesOrErr.value,
+		];
 
 		// Filter by permission - only return instances user can access
 		const accessibleInstances = allInstances.filter((i) =>
@@ -163,6 +164,11 @@ export class WorkflowInstancesService {
 		// Cannot delete builtin instances (currently none, but future-proof)
 		if (BUILTIN_WORKFLOW_INSTANCES.some((i) => i.uuid === uuid)) {
 			return left(new BadRequestError("Cannot delete builtin workflow instances"));
+		}
+		const instance = await this.#configRepo.get("workflowInstances", uuid);
+		if (instance.isLeft()) return left(instance.value);
+		if (instance.value.running) {
+			return left(new BadRequestError("Cancel or complete the workflow before deleting it"));
 		}
 
 		return this.#configRepo.delete("workflowInstances", uuid);

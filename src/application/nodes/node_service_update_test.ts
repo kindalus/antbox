@@ -50,7 +50,9 @@ describe("NodeService", () => {
 			const bus = new InMemoryEventBus();
 			const events: NodeUpdatedEvent[] = [];
 			bus.subscribe(NodeUpdatedEvent.EVENT_ID, {
-				handle: (event) => events.push(event as NodeUpdatedEvent),
+				handle: (event) => {
+					events.push(event as NodeUpdatedEvent);
+				},
 			});
 			const service = nodeService({ bus });
 			const nodeOrErr = await service.create(authCtx, {
@@ -82,7 +84,9 @@ describe("NodeService", () => {
 			const bus = new InMemoryEventBus();
 			const events: NodeUpdatedEvent[] = [];
 			bus.subscribe(NodeUpdatedEvent.EVENT_ID, {
-				handle: (event) => events.push(event as NodeUpdatedEvent),
+				handle: (event) => {
+					events.push(event as NodeUpdatedEvent);
+				},
 			});
 			const service = nodeService({ bus });
 			const nodeOrErr = await service.create(authCtx, {
@@ -113,7 +117,9 @@ describe("NodeService", () => {
 			const bus = new InMemoryEventBus();
 			const events: NodeUpdatedEvent[] = [];
 			bus.subscribe(NodeUpdatedEvent.EVENT_ID, {
-				handle: (event) => events.push(event as NodeUpdatedEvent),
+				handle: (event) => {
+					events.push(event as NodeUpdatedEvent);
+				},
 			});
 			const service = nodeService({ bus, configRepo });
 			await createAspect(configRepo, "interaction", "Interaction", [
@@ -745,7 +751,9 @@ describe("NodeService", () => {
 			const bus = new InMemoryEventBus();
 			const events: NodeUpdatedEvent[] = [];
 			bus.subscribe(NodeUpdatedEvent.EVENT_ID, {
-				handle: (event) => events.push(event as NodeUpdatedEvent),
+				handle: (event) => {
+					events.push(event as NodeUpdatedEvent);
+				},
 			});
 			const service = nodeService({ bus });
 			const parent = await service.create(authCtx, {

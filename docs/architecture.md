@@ -46,16 +46,50 @@ configuration.
 
 ## Ports and Adapters
 
-The application layer defines ports (interfaces) such as `StorageProvider`, `NodeRepository`,
+The domain and application layers define ports such as `StorageProvider`, `NodeRepository`,
 `EmbeddingsProvider`, `OCRProvider`, and AI model abstractions. Adapters implement these ports and
 are loaded dynamically from module paths configured in `config.toml`.
 
 ## Execution Engines
 
-Two execution engines orchestrate dynamic behavior:
+Execution engines orchestrate dynamic behavior:
 
 - **FeaturesEngine**: Runs actions, extensions, and AI tools (feature modules).
 - **AgentsEngine**: Runs chat/answer flows and tool-calling with configured AI models.
+- **WorkflowInstancesEngine**: Applies workflow transitions and controls edits to workflow-owned
+  nodes. Workflow services store definitions and instance state.
 
 This setup makes it easy to swap adapters (storage, repositories, AI models) without changing core
 business logic.
+
+## Consistency boundaries
+
+Node metadata, file content, configuration, and audit events use separate repositories. They do not
+share a transaction. Workflow operations attempt to restore instance state when a node write fails;
+see [workflow recovery behavior](./workflows.md#access-and-behavior). Local queues serialize
+workflow operations and finite storage-quota writes within one server process. They do not
+coordinate multiple server processes.
+
+Configuration saves, administrative configuration reads, and manual reloads share a queue for each
+configuration directory. Saves hold that queue through reload or rollback, so a failed update cannot
+erase a later successful update. This queue coordinates one process; direct file edits and other
+server processes need external coordination.
+
+HTTP requests keep the tenant service instances selected at authentication, even when configuration
+reload replaces the tenant registry. Requests already in progress finish against those instances.
+Successful reloads do not yet drain and close replaced providers; repeated reloads can retain their
+connections. Provider draining needs a separate lifecycle change.
+
+Parent-folder event handling uses `NodeRepository.touch(uuid)` to update only `modifiedTime`. Custom
+node adapters must implement this operation without replacing metadata read earlier, and must return
+an error for a missing node. A read followed by `update(node)` can overwrite a concurrent rename or
+permission change.
+
+In-memory node and configuration repositories copy values on writes and reads. Built-in
+configuration records also return detached copies. Changing a returned object does not change
+persisted records or another tenant's built-in configuration; changes must go through the service's
+write operations.
+
+Feature code and AI code tools still execute without a dedicated sandbox. Automatic features and
+`runAs` also need a stricter privilege model. Treat code and feature configuration as trusted
+administrative inputs until those boundaries are implemented.

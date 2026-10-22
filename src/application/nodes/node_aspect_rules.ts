@@ -15,6 +15,9 @@ import { left, right } from "shared/either.ts";
 import { Logger } from "shared/logger.ts";
 import { type Specification, specificationFn } from "shared/specification.ts";
 import { ValidationError } from "shared/validation_error.ts";
+import { uuid } from "domain/validation_schemas.ts";
+import { PropertyTypeError } from "domain/nodes/property_errors.ts";
+import { z } from "zod";
 
 type GetNode = (uuid: string) => Promise<Either<NodeNotFoundError, NodeLike>>;
 
@@ -58,8 +61,8 @@ export class NodeAspectRules {
 				property.type === "uuid" || property.arrayType === "uuid"
 			);
 			const uuidValidators = uuidProperties.map((property) => {
-				const value = (acceptedProperties[`${aspect.uuid}:${property.name}`] ??
-					property.defaultValue) as string | string[] | undefined;
+				const value = acceptedProperties[`${aspect.uuid}:${property.name}`] ??
+					property.defaultValue;
 				return this.#validateUUIDProperty(property, value);
 			});
 			validators.push(...(await Promise.all(uuidValidators)));
@@ -124,7 +127,9 @@ export class NodeAspectRules {
 		return aspectsOrErr.value
 			.flatMap((aspect) => this.#propertiesWithQualifiedNames(aspect))
 			.filter((property) => property.searchable)
-			.map((property) => node.properties[property.name] as string);
+			.map((property) => node.properties[property.name])
+			.filter((value) => value !== undefined && value !== null)
+			.map((value) => typeof value === "object" ? JSON.stringify(value) : String(value));
 	}
 
 	async #getAspects(node: AspectableNode): Promise<Either<ValidationError, AspectData[]>> {
@@ -148,7 +153,7 @@ export class NodeAspectRules {
 
 	async #validateUUIDProperty(
 		property: AspectProperty,
-		values: string | string[] | undefined,
+		values: unknown,
 	): Promise<Specification<NodeLike>> {
 		if (property.type !== "uuid" && property.arrayType !== "uuid") {
 			Logger.warn(
@@ -157,12 +162,27 @@ export class NodeAspectRules {
 			return specificationFn(() => right(true));
 		}
 
-		if (!values?.length) {
+		if (values === undefined || values === null || values === "") {
 			return specificationFn(() => right(true));
+		}
+		const schema = property.type === "uuid" ? uuid() : z.array(uuid());
+		const parsed = schema.safeParse(values);
+		if (!parsed.success) {
+			return specificationFn(() =>
+				left(ValidationError.from(
+					new PropertyTypeError(
+						property.title,
+						property.type === "uuid" ? "uuid" : "uuid[]",
+						typeof values,
+					),
+				))
+			);
 		}
 
 		const nodesOrErrs = await Promise.all(
-			(Array.isArray(values) ? values : [values]).map((uuid) => this.getNode(uuid)),
+			(Array.isArray(parsed.data) ? parsed.data : [parsed.data]).map((uuid) =>
+				this.getNode(uuid)
+			),
 		);
 		const missing = nodesOrErrs.filter((result) => result.isLeft());
 		if (missing.length) {

@@ -1,19 +1,21 @@
 import { type AntboxTenant } from "./antbox_tenant.ts";
 import { defaultMiddlewareChain } from "./default_middleware_chain.ts";
+import { getAuthenticationContext } from "./get_authentication_context.ts";
 import { getQuery } from "./get_query.ts";
 import { getTenant } from "./get_tenant.ts";
-import { type HttpHandler, sendBadRequest } from "./handler.ts";
+import { type HttpHandler, sendBadRequest, sendForbidden } from "./handler.ts";
 import { processServiceResult } from "./process_service_result.ts";
 import { checkServiceAvailability } from "./service_availability.ts";
+import { Groups } from "domain/users_groups/groups.ts";
 
 export function getStorageUsageHandler(tenants: AntboxTenant[]): HttpHandler {
 	return defaultMiddlewareChain(
 		tenants,
 		async (req: Request): Promise<Response> => {
+			if (!getAuthenticationContext(req).principal.groups.includes(Groups.ADMINS_GROUP_UUID)) {
+				return sendForbidden();
+			}
 			const tenant = getTenant(req, tenants);
-
-			// Optional: Protect via admin/system user check if needed.
-			// Assuming general access or managed by an API key.
 
 			const service = tenant.metricsService;
 			const unavailable = checkServiceAvailability(service, "metricsService");
@@ -31,6 +33,9 @@ export function getTokenUsageHandler(tenants: AntboxTenant[]): HttpHandler {
 	return defaultMiddlewareChain(
 		tenants,
 		async (req: Request): Promise<Response> => {
+			if (!getAuthenticationContext(req).principal.groups.includes(Groups.ADMINS_GROUP_UUID)) {
+				return sendForbidden();
+			}
 			const tenant = getTenant(req, tenants);
 			const query = getQuery(req);
 

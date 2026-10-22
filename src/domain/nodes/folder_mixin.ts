@@ -2,7 +2,7 @@ import { Either } from "shared/either.ts";
 import { ValidationError } from "shared/validation_error.ts";
 import { Constructor } from "domain/nodes/mixins.ts";
 import { Permissions } from "domain/nodes/node.ts";
-import { NodeFilters } from "domain/nodes/node_filter.ts";
+import { NodeFilters, NodeFiltersSchema } from "domain/nodes/node_filter.ts";
 import { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import { NodesFilters } from "../nodes_filters.ts";
@@ -19,7 +19,7 @@ const FolderValidationSchema = z.object({
 		anonymous: PermissionSchema,
 		advanced: z.record(z.string(), PermissionSchema).optional(),
 	}),
-	filters: z.array(z.any()),
+	filters: NodeFiltersSchema,
 	onCreate: z.array(z.string()).optional(),
 	onUpdate: z.array(z.string()).optional(),
 	onDelete: z.array(z.string()).optional(),
@@ -131,7 +131,8 @@ export function FolderMixin<TBase extends Constructor>(Base: TBase) {
 function resolveFilters(filters: NodeFilters | string | undefined): NodeFilters {
 	if (typeof filters === "string") {
 		const filtersOrErr = NodesFilters.parse(filters);
-		return filtersOrErr.isRight() ? filtersOrErr.value : [];
+		if (filtersOrErr.isLeft()) throw ValidationError.from(filtersOrErr.value);
+		return filtersOrErr.value;
 	}
 
 	return filters ?? [];

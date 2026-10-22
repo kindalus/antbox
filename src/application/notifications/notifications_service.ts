@@ -1,5 +1,6 @@
 import type { AntboxError } from "shared/antbox_error.ts";
-import { BadRequestError, ForbiddenError } from "shared/antbox_error.ts";
+import { BadRequestError, ForbiddenError, UnauthorizedError } from "shared/antbox_error.ts";
+import { Users } from "domain/users_groups/users.ts";
 import { type Either, left, right } from "shared/either.ts";
 import { ValidationError } from "shared/validation_error.ts";
 import type { AuthenticationContext } from "application/security/authentication_context.ts";
@@ -72,6 +73,7 @@ export class NotificationsService {
 	async list(
 		ctx: AuthenticationContext,
 	): Promise<Either<AntboxError, NotificationData[]>> {
+		if (ctx.principal.email === Users.ANONYMOUS_USER_EMAIL) return left(new UnauthorizedError());
 		const notificationsOrErr = await this.configRepo.list("notifications");
 		if (notificationsOrErr.isLeft()) {
 			return notificationsOrErr;
@@ -102,6 +104,7 @@ export class NotificationsService {
 		ctx: AuthenticationContext,
 		uuids: string[],
 	): Promise<Either<AntboxError, void>> {
+		if (ctx.principal.email === Users.ANONYMOUS_USER_EMAIL) return left(new UnauthorizedError());
 		if (!uuids || uuids.length === 0) {
 			return left(new BadRequestError("At least one notification UUID is required"));
 		}
@@ -144,6 +147,7 @@ export class NotificationsService {
 	async clearAll(
 		ctx: AuthenticationContext,
 	): Promise<Either<AntboxError, void>> {
+		if (ctx.principal.email === Users.ANONYMOUS_USER_EMAIL) return left(new UnauthorizedError());
 		const notificationsOrErr = await this.configRepo.list("notifications");
 		if (notificationsOrErr.isLeft()) {
 			return left(notificationsOrErr.value);
@@ -168,10 +172,13 @@ export class NotificationsService {
 	}
 
 	#createNotification(
-		_ctx: AuthenticationContext,
+		ctx: AuthenticationContext,
 		payload: CreateNotificationPayload,
 		priority: NotificationPriority,
 	): Promise<Either<AntboxError, NotificationData>> {
+		if (ctx.principal.email === Users.ANONYMOUS_USER_EMAIL) {
+			return Promise.resolve(left(new UnauthorizedError()));
+		}
 		// Validate that at least one target is provided
 		if (!payload.targetUser && !payload.targetGroup) {
 			return Promise.resolve(

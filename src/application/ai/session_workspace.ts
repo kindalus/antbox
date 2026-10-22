@@ -30,6 +30,7 @@ const SessionManifestSchema = z.object({
 	sessionId: z.string().regex(SESSION_ID_PATTERN),
 	tenant: z.string().min(1),
 	userEmail: z.string().min(1),
+	apiKeyUuid: z.string().min(1).optional(),
 	agentUuid: z.string().min(1),
 	createdAt: z.number().int().nonnegative(),
 	expiresAt: z.number().int().positive(),
@@ -44,12 +45,16 @@ export interface FeatureVersion {
 	readonly modifiedTime: string;
 }
 
-export interface SessionManifest {
-	readonly version: 1;
-	readonly sessionId: string;
+export interface SessionOwner {
 	readonly tenant: string;
 	readonly userEmail: string;
+	readonly apiKeyUuid?: string;
 	readonly agentUuid: string;
+}
+
+export interface SessionManifest extends SessionOwner {
+	readonly version: 1;
+	readonly sessionId: string;
 	readonly createdAt: number;
 	readonly expiresAt: number;
 	readonly agentData: AgentData;
@@ -61,6 +66,7 @@ export interface SessionManifest {
 export interface CreateSessionWorkspaceInput {
 	readonly tenant: string;
 	readonly userEmail: string;
+	readonly apiKeyUuid?: string;
 	readonly agentData: AgentData;
 	readonly toolNames: readonly string[];
 	readonly featureVersions: readonly FeatureVersion[];
@@ -87,6 +93,7 @@ export class SessionWorkspaceStore {
 			sessionId,
 			tenant: input.tenant,
 			userEmail: input.userEmail,
+			...(input.apiKeyUuid === undefined ? {} : { apiKeyUuid: input.apiKeyUuid }),
 			agentUuid: input.agentData.uuid,
 			createdAt,
 			expiresAt: createdAt + SESSION_TTL_MS,
@@ -120,13 +127,14 @@ export class SessionWorkspaceStore {
 
 	async open(
 		sessionId: string,
-		identity: { tenant: string; userEmail: string; agentUuid: string },
+		identity: SessionOwner,
 	): Promise<SessionWorkspace> {
 		const dir = this.sessionDir(sessionId);
 		const manifest = await readManifest(dir);
 		if (
 			manifest.tenant !== identity.tenant ||
 			manifest.userEmail !== identity.userEmail ||
+			manifest.apiKeyUuid !== identity.apiKeyUuid ||
 			manifest.agentUuid !== identity.agentUuid
 		) {
 			throw new Error("Session not found");
@@ -144,7 +152,7 @@ export class SessionWorkspaceStore {
 
 	async delete(
 		sessionId: string,
-		identity: { tenant: string; userEmail: string; agentUuid: string },
+		identity: SessionOwner,
 	): Promise<void> {
 		try {
 			await this.open(sessionId, identity);

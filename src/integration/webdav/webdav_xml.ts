@@ -2,6 +2,11 @@ import { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import { generateETag } from "./webdav_etag.ts";
 
+export function escapeXml(value: string): string {
+	return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+		.replace(/"/g, "&quot;").replace(/'/g, "&apos;");
+}
+
 function nodeToLockToken(node: NodeMetadata): string {
 	const lockedBy = node.lockedBy ?? "";
 	const ownerHash = lockedBy.length ? btoa(lockedBy).substring(0, 16) : "";
@@ -42,9 +47,9 @@ function nodeToPropfindXml(node: NodeMetadata, basePath: string, first = false):
               <D:locktype><D:write/></D:locktype>
               <D:lockscope><D:exclusive/></D:lockscope>
               <D:depth>0</D:depth>
-              <D:owner>${node.lockedBy ?? ""}</D:owner>
+              <D:owner>${escapeXml(node.lockedBy ?? "")}</D:owner>
               <D:timeout>Second-3600</D:timeout>
-              <D:locktoken><D:href>${nodeToLockToken(node)}</D:href></D:locktoken>
+              <D:locktoken><D:href>${escapeXml(nodeToLockToken(node))}</D:href></D:locktoken>
             </D:activelock>
           </D:lockdiscovery>`
 		: "<D:lockdiscovery/>";
@@ -63,14 +68,13 @@ function nodeToPropfindXml(node: NodeMetadata, basePath: string, first = false):
 
 	const resourceType = isFolder ? "<D:collection/>" : "";
 
-	if (first) {
-		basePath = basePath.split("/").filter((v) => v?.length > 0).slice(0, -1).join("/");
-		basePath = "/".concat(basePath);
-	}
+	const href = first
+		? (isFolder && !basePath.endsWith("/") ? `${basePath}/` : basePath)
+		: safeEncodeHref(node, basePath);
 
 	return `
     <D:response>
-      <D:href>${safeEncodeHref(node, basePath)}</D:href>
+      <D:href>${escapeXml(href)}</D:href>
       <D:propstat>
         <D:prop>
           <D:creationdate>${creationDate}</D:creationdate>

@@ -12,8 +12,8 @@ import type { AntboxTenant } from "./antbox_tenant.ts";
 import { getTenant } from "./get_tenant.ts";
 import { Users } from "domain/users_groups/users.ts";
 import { loadConfiguration } from "setup/load_configuration.ts";
-import { saveTenantConfiguration } from "setup/save_configuration.ts";
-import { TenantsConfigurationSchema } from "api/http_server_configuration.ts";
+import { saveTenantConfiguration, withTenantConfigurationLock } from "setup/save_configuration.ts";
+import { RootPasswordSchema, TenantsConfigurationSchema } from "api/http_server_configuration.ts";
 
 export function adminRuntimeHandler(tenants: AntboxTenant[]): HttpHandler {
 	return defaultMiddlewareChain(tenants, (req: Request): Promise<Response> => {
@@ -38,6 +38,7 @@ export function adminRuntimeHandler(tenants: AntboxTenant[]): HttpHandler {
 export function adminReloadHandler(
 	tenants: AntboxTenant[],
 	reload: () => Promise<void>,
+	configDir?: string,
 ): HttpHandler {
 	return defaultMiddlewareChain(tenants, async (req: Request): Promise<Response> => {
 		if (!getTenant(req, tenants).isAdminTenant) {
@@ -49,7 +50,7 @@ export function adminReloadHandler(
 			return sendForbidden();
 		}
 
-		await reload();
+		await withTenantConfigurationLock(configDir, reload);
 		return sendOK({ reloaded: true });
 	});
 }
@@ -69,7 +70,10 @@ export function adminTenantsGetHandler(
 			return sendForbidden();
 		}
 
-		const config = await loadConfiguration(configDir, dataDir);
+		const config = await withTenantConfigurationLock(
+			configDir,
+			() => loadConfiguration(configDir, dataDir),
+		);
 		return sendOK(config.tenants);
 	});
 }
@@ -102,8 +106,17 @@ export function adminTenantsUpdateHandler(
 			return sendBadRequest({ errors: validation.error.flatten() });
 		}
 
-		const oldConfig = await loadConfiguration(configDir, dataDir);
+		const oldConfig = await withTenantConfigurationLock(
+			configDir,
+			() => loadConfiguration(configDir, dataDir),
+		);
 		for (const tenant of validation.data) {
+			if (!RootPasswordSchema.safeParse(tenant.rootPasswd ?? oldConfig.rootPasswd).success) {
+				return sendBadRequest({
+					error: `Tenant ${tenant.name}: rootPasswd is required and must not be blank`,
+				});
+			}
+
 			const effectiveKey = tenant.key ?? oldConfig.key;
 			if (!effectiveKey?.trim()) {
 				return sendBadRequest({

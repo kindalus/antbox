@@ -1,7 +1,7 @@
 import { NodeService } from "application/nodes/node_service.ts";
 import { AuthenticationContext } from "application/security/authentication_context.ts";
-import { Either, left, right } from "shared/either.ts";
-import { AntboxError } from "shared/antbox_error.ts";
+import { Either, left } from "shared/either.ts";
+import { AntboxError, BadRequestError } from "shared/antbox_error.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import { webdavPathCache } from "./webdav_path_cache.ts";
 import { NodeMetadata } from "domain/nodes/node_metadata.ts";
@@ -23,83 +23,52 @@ export async function resolvePath(
 	path: string,
 	tenantName?: string,
 ): Promise<Either<AntboxError, NodeMetadata>> {
-	// Normalize path
 	const normalizedPath = path === "" ? "/" : path;
+	let segments: string[];
+	try {
+		segments = normalizedPath.split("/").filter(Boolean).map(unescapePath);
+	} catch {
+		return left(new BadRequestError("Invalid percent encoding in WebDAV path"));
+	}
 
-	// Try cache first if tenant name provided
 	if (tenantName) {
 		const cached = webdavPathCache.get(tenantName, authContext.principal.email, normalizedPath);
-
 		if (cached) {
-			// Verify user still has access (security check)
-			const verifyResult = await service.get(authContext, cached.uuid);
-
-			if (verifyResult.isRight()) {
-				return right(cached);
+			const current = await service.get(authContext, cached.uuid);
+			if (current.isRight()) {
+				const breadcrumbs = await service.breadcrumbs(authContext, cached.uuid);
+				if (
+					breadcrumbs.isRight() &&
+					pathsMatch(segments, breadcrumbs.value.slice(1).map((node) => node.title))
+				) {
+					return current;
+				}
 			}
-			// Access denied or node deleted - invalidate cache
 			webdavPathCache.invalidatePath(tenantName, normalizedPath);
 		}
 	}
 
-	// Cache miss or no tenant - resolve from database
-	if (normalizedPath === "/") {
-		const rootResult = await service.get(authContext, Nodes.ROOT_FOLDER_UUID);
-		if (rootResult.isRight() && tenantName) {
-			webdavPathCache.set(tenantName, authContext.principal.email, "/", rootResult.value);
+	let current = await service.get(authContext, Nodes.ROOT_FOLDER_UUID);
+	for (const title of segments) {
+		if (current.isLeft()) return current;
+		if (!Nodes.isFolder(current.value)) {
+			return left(new NodeNotFoundError(`Node not found for path: ${normalizedPath}`));
 		}
-		return rootResult;
-	}
-
-	const segments = normalizedPath.split("/")
-		.filter((s) => s.length > 0)
-		.map(unescapePath);
-
-	const targetTitle = segments[segments.length - 1];
-	const parentPathSegments = segments.slice(0, -1);
-
-	const findResultOrErr = await service.find(authContext, [[
-		"title",
-		"==",
-		targetTitle,
-	]]);
-
-	if (findResultOrErr.isLeft()) {
-		return left(findResultOrErr.value);
-	}
-
-	const nodes = findResultOrErr.value.nodes;
-
-	if (nodes.length === 0) {
-		return left(new NodeNotFoundError(`Node not found for path: ${normalizedPath}`));
-	}
-
-	const paths = await Promise.all(
-		nodes.map((n) => service.breadcrumbs(authContext, n.uuid)),
-	);
-
-	for (let i = 0; i < paths.length; i++) {
-		const pathResult = paths[i];
-		if (pathResult.isLeft()) continue;
-
-		const pathB = pathResult.value.map((b) => b.title).slice(1, -1);
-
-		if (pathsMatch(parentPathSegments, pathB)) {
-			const node = nodes[i];
-			// Cache the result if tenant name provided
-			if (tenantName) {
-				webdavPathCache.set(
-					tenantName,
-					authContext.principal.email,
-					normalizedPath,
-					node.metadata,
-				);
-			}
-			return right(node.metadata);
+		const found = await service.find(authContext, [
+			["parent", "==", current.value.uuid],
+			["title", "==", title],
+		], 1);
+		if (found.isLeft()) return left(found.value);
+		if (!found.value.nodes.length) {
+			return left(new NodeNotFoundError(`Node not found for path: ${normalizedPath}`));
 		}
+		current = await service.get(authContext, found.value.nodes[0].uuid);
 	}
 
-	return left(new NodeNotFoundError(`Node not found for path: ${normalizedPath}`));
+	if (current.isRight() && tenantName) {
+		webdavPathCache.set(tenantName, authContext.principal.email, normalizedPath, current.value);
+	}
+	return current;
 }
 
 export function getMimetype(filename: string): string {

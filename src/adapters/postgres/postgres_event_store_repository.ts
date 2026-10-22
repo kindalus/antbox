@@ -12,13 +12,29 @@ export class PostgresEventStoreError extends AntboxError {
 	}
 }
 
+export default async function buildPostgresEventStoreRepository(
+	connectionString?: string,
+): Promise<Either<AntboxError, EventStoreRepository>> {
+	try {
+		const repository = new PostgresEventStoreRepository(connectionString);
+		const initialized = await repository.initialize();
+		if (initialized.isLeft()) {
+			await repository.close();
+			return left(initialized.value);
+		}
+		return right(repository);
+	} catch (error) {
+		return left(new PostgresEventStoreError((error as Error).message));
+	}
+}
+
 /**
  * Postgres-backed EventStoreRepository.
  *
  * @remarks
  * External setup:
- * - Provision a Postgres database and ensure the `uuid-ossp` extension is available.
- * - Grant the configured user permission to create extensions and tables.
+ * - Provision a Postgres database.
+ * - Grant the configured user permission to create tables.
  * - Set `DATABASE_URL` or pass a connection string.
  *
  * @example
@@ -40,7 +56,7 @@ export class PostgresEventStoreRepository implements EventStoreRepository {
 
 	async initialize(): Promise<Either<AntboxError, void>> {
 		try {
-			await this.#sql`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`;
+			await this.#sql`SELECT 1`;
 			return right(undefined);
 		} catch (err) {
 			const error = err as Error;
@@ -63,22 +79,26 @@ export class PostgresEventStoreRepository implements EventStoreRepository {
 			return;
 		}
 
-		await this.#sql.unsafe(`
-			CREATE TABLE IF NOT EXISTS ${tableName} (
-				stream_id TEXT NOT NULL,
-				sequence INTEGER NOT NULL,
-				event_type TEXT NOT NULL,
-				user_email TEXT NOT NULL,
-				payload JSONB NOT NULL,
-				created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-				PRIMARY KEY (stream_id, sequence)
-			)
-		`);
+		await this.#sql.begin(async (sql) => {
+			await sql.unsafe("SELECT pg_advisory_xact_lock(hashtext($1), 0)", [tableName]);
+			if (this.#existingTables.has(tableName)) return;
+			await sql.unsafe(`
+				CREATE TABLE IF NOT EXISTS ${tableName} (
+					stream_id TEXT NOT NULL,
+					sequence INTEGER NOT NULL,
+					event_type TEXT NOT NULL,
+					user_email TEXT NOT NULL,
+					payload JSONB NOT NULL,
+					created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+					PRIMARY KEY (stream_id, sequence)
+				)
+			`);
 
-		await this.#sql.unsafe(`
-			CREATE INDEX IF NOT EXISTS idx_${tableName}_stream
-			ON ${tableName}(stream_id, sequence)
-		`);
+			await sql.unsafe(`
+				CREATE INDEX IF NOT EXISTS idx_${tableName}_stream
+				ON ${tableName}(stream_id, sequence)
+			`);
+		});
 
 		this.#existingTables.add(tableName);
 	}
@@ -92,28 +112,33 @@ export class PostgresEventStoreRepository implements EventStoreRepository {
 			await this.#ensureTable(mimetype);
 			const tableName = this.#getTableName(mimetype);
 
-			// Get next sequence number
-			const seqResult = await this.#sql.unsafe<{ next_seq: number }[]>(
-				`SELECT COALESCE(MAX(sequence), -1) + 1 as next_seq
-				 FROM ${tableName}
-				 WHERE stream_id = $1`,
-				[streamId],
-			);
-
-			const sequence = seqResult[0]?.next_seq ?? 0;
-
-			await this.#sql.unsafe(
-				`INSERT INTO ${tableName} (stream_id, sequence, event_type, user_email, payload, created_at)
-				 VALUES ($1, $2, $3, $4, $5, $6)`,
-				[
+			await this.#sql.begin(async (sql) => {
+				await sql.unsafe("SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))", [
+					tableName,
 					streamId,
-					sequence,
-					event.eventType,
-					event.userEmail,
-					JSON.stringify(event),
-					event.occurredOn,
-				],
-			);
+				]);
+				const seqResult = await sql.unsafe<{ next_seq: number }[]>(
+					`SELECT COALESCE(MAX(sequence), -1) + 1 as next_seq
+					 FROM ${tableName}
+					 WHERE stream_id = $1`,
+					[streamId],
+				);
+
+				const sequence = seqResult[0]?.next_seq ?? 0;
+
+				await sql.unsafe(
+					`INSERT INTO ${tableName} (stream_id, sequence, event_type, user_email, payload, created_at)
+					 VALUES ($1, $2, $3, $4, $5::text::jsonb, $6)`,
+					[
+						streamId,
+						sequence,
+						event.eventType,
+						event.userEmail,
+						JSON.stringify(event),
+						event.occurredOn,
+					],
+				);
+			});
 
 			return right(undefined);
 		} catch (err) {

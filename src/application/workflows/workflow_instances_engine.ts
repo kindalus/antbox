@@ -1,5 +1,10 @@
 import type { AntboxError } from "shared/antbox_error.ts";
-import { BadRequestError, ForbiddenError } from "shared/antbox_error.ts";
+import {
+	BadRequestError,
+	ForbiddenError,
+	NotFoundError,
+	UnknownError,
+} from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
 import type { AuthenticationContext } from "../security/authentication_context.ts";
 import type { ConfigurationRepository } from "domain/configuration/configuration_repository.ts";
@@ -16,9 +21,25 @@ import type { WorkflowsService } from "./workflows_service.ts";
 import type { WorkflowInstancesService } from "./workflow_instances_service.ts";
 import type { NodeLike } from "domain/node_like.ts";
 import { NodesFilters } from "domain/nodes_filters.ts";
+import { Nodes } from "domain/nodes/nodes.ts";
 import { Users } from "domain/users_groups/users.ts";
 import { Groups } from "domain/users_groups/groups.ts";
 import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
+import { z } from "zod";
+
+const WorkflowNodeUpdateSchema = z.record(z.string(), z.unknown());
+const WORKFLOW_CONTENT_FIELDS = [
+	"title",
+	"fid",
+	"description",
+	"tags",
+	"aspects",
+	"properties",
+	"related",
+	"articleProperties",
+	"articleAuthor",
+	"articleBodyContentType",
+] as const satisfies readonly (keyof NodeMetadata)[];
 
 export interface WorkflowInstancesEngineContext {
 	configRepo: ConfigurationRepository;
@@ -44,6 +65,7 @@ export class WorkflowInstancesEngine {
 	readonly #workflowsService: WorkflowsService;
 	readonly #workflowInstancesService: WorkflowInstancesService;
 	readonly #featuresEngine: FeaturesEngine;
+	readonly #nodeLocks = new Map<string, Promise<void>>();
 
 	constructor(ctx: WorkflowInstancesEngineContext) {
 		this.#configRepo = ctx.configRepo;
@@ -59,6 +81,26 @@ export class WorkflowInstancesEngine {
 		workflowDefinitionUuid: string,
 		participantsOverride?: string[],
 	): Promise<Either<AntboxError, WorkflowInstanceData>> {
+		const node = await this.#nodeService.get(authCtx, nodeUuid);
+		if (node.isLeft()) return left(node.value);
+		return this.#withNodeLock(
+			node.value.uuid,
+			() =>
+				this.#startWorkflow(
+					authCtx,
+					node.value.uuid,
+					workflowDefinitionUuid,
+					participantsOverride,
+				),
+		);
+	}
+
+	async #startWorkflow(
+		authCtx: AuthenticationContext,
+		nodeUuid: string,
+		workflowDefinitionUuid: string,
+		participantsOverride?: string[],
+	): Promise<Either<AntboxError, WorkflowInstanceData>> {
 		// Check if node already has a workflow instance
 		const existingInstanceOrErr = await this.#workflowInstancesService
 			.getWorkflowInstanceByNodeUuid(authCtx, nodeUuid);
@@ -68,6 +110,9 @@ export class WorkflowInstancesEngine {
 					`Node ${nodeUuid} already has a workflow instance`,
 				),
 			);
+		}
+		if (!(existingInstanceOrErr.value instanceof NotFoundError)) {
+			return left(existingInstanceOrErr.value);
 		}
 
 		// Get the node that will be attached to the workflow
@@ -100,6 +145,9 @@ export class WorkflowInstancesEngine {
 		}
 
 		// Check if node is locked
+		if (node.workflowInstanceUuid) {
+			return left(new BadRequestError(`Node ${node.uuid} already has a workflow instance`));
+		}
 		if (node.locked) {
 			return left(new BadRequestError(`The node ${node.uuid} is locked`));
 		}
@@ -155,7 +203,7 @@ export class WorkflowInstancesEngine {
 		const lockOrErr = await this.#nodeService.lock(
 			authCtx,
 			nodeUuid,
-			[], // No unlock groups - only workflow can unlock
+			[Groups.ADMINS_GROUP_UUID],
 		);
 
 		if (lockOrErr.isLeft()) {
@@ -193,6 +241,19 @@ export class WorkflowInstancesEngine {
 		signal: string,
 		message?: string,
 	): Promise<Either<AntboxError, WorkflowInstanceData>> {
+		return this.#withInstanceLock(
+			authCtx,
+			instanceUuid,
+			() => this.#transition(authCtx, instanceUuid, signal, message),
+		);
+	}
+
+	async #transition(
+		authCtx: AuthenticationContext,
+		instanceUuid: string,
+		signal: string,
+		message?: string,
+	): Promise<Either<AntboxError, WorkflowInstanceData>> {
 		// Get workflow instance
 		const instanceOrErr = await this.#workflowInstancesService.getWorkflowInstance(
 			authCtx,
@@ -211,6 +272,9 @@ export class WorkflowInstancesEngine {
 		// Check if instance is cancelled
 		if (instance.cancelled) {
 			return left(new BadRequestError("Cannot transition a cancelled workflow instance"));
+		}
+		if (!instance.running) {
+			return left(new BadRequestError("Cannot transition a completed workflow instance"));
 		}
 
 		// Resolve workflow definition snapshot
@@ -246,7 +310,7 @@ export class WorkflowInstancesEngine {
 			};
 		}
 
-		const nodeUuid = instance.nodeUuid;
+		let nodeUuid = instance.nodeUuid;
 
 		// Get the node
 		const nodeOrErr = await this.#nodeService.get(authCtx, nodeUuid);
@@ -304,6 +368,11 @@ export class WorkflowInstancesEngine {
 			);
 		}
 
+		const canonical = await this.#canonicalizeInstanceNode(authCtx, instance);
+		if (canonical.isLeft()) return left(canonical.value);
+		instance = canonical.value;
+		nodeUuid = instance.nodeUuid;
+
 		// Execute actions in order: onExit → transition actions → onEnter
 		const onExitActions = currentState.onExit ?? [];
 		const transitionActions = transition.actions ?? [];
@@ -337,48 +406,21 @@ export class WorkflowInstancesEngine {
 			modifiedTime: new Date().toISOString(),
 		};
 
-		// Save updated instance
-		const updateOrErr = await this.#configRepo.save("workflowInstances", updatedInstance);
-		if (updateOrErr.isLeft()) {
-			return left(updateOrErr.value);
-		}
-
-		// Check if we reached a final state
-		if (!updatedInstance.running) {
-			// Unlock the node
-			const unlockOrErr = await this.#nodeService.unlock(authCtx, nodeUuid);
-			if (unlockOrErr.isLeft()) {
-				return left(unlockOrErr.value);
-			}
-
-			const nodeUpdateOrErr = await this.#nodeService.update(
-				this.#workflowInstanceCtx(authCtx),
-				nodeUuid,
-				{
-					workflowState: null as unknown as string,
-					workflowInstanceUuid: null as unknown as string,
-				},
-			);
-			if (nodeUpdateOrErr.isLeft()) {
-				return left(nodeUpdateOrErr.value);
-			}
-		} else {
-			const nodeUpdateOrErr = await this.#nodeService.update(
-				this.#workflowInstanceCtx(authCtx),
-				nodeUuid,
-				{
-					workflowState: updatedInstance.currentStateName,
-				},
-			);
-			if (nodeUpdateOrErr.isLeft()) {
-				return left(nodeUpdateOrErr.value);
-			}
-		}
-
-		return right(updatedInstance);
+		return this.#persistInstanceChange(authCtx, instance, updatedInstance);
 	}
 
 	async cancelWorkflow(
+		authCtx: AuthenticationContext,
+		instanceUuid: string,
+	): Promise<Either<AntboxError, WorkflowInstanceData>> {
+		return this.#withInstanceLock(
+			authCtx,
+			instanceUuid,
+			() => this.#cancelWorkflow(authCtx, instanceUuid),
+		);
+	}
+
+	async #cancelWorkflow(
 		authCtx: AuthenticationContext,
 		instanceUuid: string,
 	): Promise<Either<AntboxError, WorkflowInstanceData>> {
@@ -390,8 +432,7 @@ export class WorkflowInstancesEngine {
 		if (instanceOrErr.isLeft()) {
 			return left(instanceOrErr.value);
 		}
-		const instance = instanceOrErr.value;
-		const nodeUuid = instance.nodeUuid;
+		let instance = instanceOrErr.value;
 
 		// Check if user is allowed to cancel this instance
 		// Only the owner or admins can cancel
@@ -411,6 +452,10 @@ export class WorkflowInstancesEngine {
 			return left(new BadRequestError("Workflow instance is not running"));
 		}
 
+		const canonical = await this.#canonicalizeInstanceNode(authCtx, instance);
+		if (canonical.isLeft()) return left(canonical.value);
+		instance = canonical.value;
+
 		// Create updated instance with cancelled status (immutable update)
 		const updatedInstance: WorkflowInstanceData = {
 			...instance,
@@ -419,31 +464,7 @@ export class WorkflowInstancesEngine {
 			modifiedTime: new Date().toISOString(),
 		};
 
-		// Save updated instance
-		const updateOrErr = await this.#configRepo.save("workflowInstances", updatedInstance);
-		if (updateOrErr.isLeft()) {
-			return left(updateOrErr.value);
-		}
-
-		// Unlock the node
-		const unlockOrErr = await this.#nodeService.unlock(authCtx, nodeUuid);
-		if (unlockOrErr.isLeft()) {
-			return left(unlockOrErr.value);
-		}
-
-		const nodeUpdateOrErr = await this.#nodeService.update(
-			this.#workflowInstanceCtx(authCtx),
-			nodeUuid,
-			{
-				workflowState: null as unknown as string,
-				workflowInstanceUuid: null as unknown as string,
-			},
-		);
-		if (nodeUpdateOrErr.isLeft()) {
-			return left(nodeUpdateOrErr.value);
-		}
-
-		return right(updatedInstance);
+		return this.#persistInstanceChange(authCtx, instance, updatedInstance);
 	}
 
 	async findActiveInstances(
@@ -473,6 +494,18 @@ export class WorkflowInstancesEngine {
 		instanceUuid: string,
 		metadata: Partial<NodeMetadata>,
 	): Promise<Either<AntboxError, void>> {
+		return this.#withInstanceLock(
+			authCtx,
+			instanceUuid,
+			() => this.#updateNode(authCtx, instanceUuid, metadata),
+		);
+	}
+
+	async #updateNode(
+		authCtx: AuthenticationContext,
+		instanceUuid: string,
+		metadata: Partial<NodeMetadata>,
+	): Promise<Either<AntboxError, void>> {
 		// Get workflow instance
 		const instanceOrErr = await this.#workflowInstancesService.getWorkflowInstance(
 			authCtx,
@@ -482,7 +515,6 @@ export class WorkflowInstancesEngine {
 			return left(instanceOrErr.value);
 		}
 		const instance = instanceOrErr.value;
-		const nodeUuid = instance.nodeUuid;
 
 		// Check if user is allowed to access this instance
 		if (!this.#hasPermission(authCtx, instance.participants)) {
@@ -535,16 +567,37 @@ export class WorkflowInstancesEngine {
 
 		// Create workflow-instance context
 		const workflowInstanceCtx = this.#workflowInstanceCtx(authCtx);
+		const parsed = WorkflowNodeUpdateSchema.safeParse(metadata);
+		if (!parsed.success) return left(new BadRequestError("Node metadata must be an object"));
+		const contentMetadata = Object.fromEntries(
+			WORKFLOW_CONTENT_FIELDS.filter((field) => Object.hasOwn(parsed.data, field))
+				.map((field) => [field, parsed.data[field]]),
+		) as Partial<NodeMetadata>;
+
+		const canonical = await this.#canonicalizeInstanceNode(authCtx, instance);
+		if (canonical.isLeft()) return left(canonical.value);
 
 		// Call node service with workflow-instance credentials
 		return await this.#nodeService.update(
 			workflowInstanceCtx,
-			nodeUuid,
-			metadata,
+			canonical.value.nodeUuid,
+			contentMetadata,
 		);
 	}
 
 	async updateNodeFile(
+		authCtx: AuthenticationContext,
+		instanceUuid: string,
+		file: File,
+	): Promise<Either<AntboxError, void>> {
+		return this.#withInstanceLock(
+			authCtx,
+			instanceUuid,
+			() => this.#updateNodeFile(authCtx, instanceUuid, file),
+		);
+	}
+
+	async #updateNodeFile(
 		authCtx: AuthenticationContext,
 		instanceUuid: string,
 		file: File,
@@ -624,6 +677,99 @@ export class WorkflowInstancesEngine {
 	// PRIVATE HELPER METHODS
 	// ============================================================================
 
+	async #canonicalizeInstanceNode(
+		ctx: AuthenticationContext,
+		instance: WorkflowInstanceData,
+	): Promise<Either<AntboxError, WorkflowInstanceData>> {
+		if (!Nodes.isFid(instance.nodeUuid)) return right(instance);
+		const node = await this.#nodeService.get(this.#workflowInstanceCtx(ctx), instance.nodeUuid);
+		if (node.isLeft()) return left(node.value);
+		// Preserve the reference before an authorized node edit or action can change its FID.
+		return this.#configRepo.save("workflowInstances", { ...instance, nodeUuid: node.value.uuid });
+	}
+
+	async #persistInstanceChange(
+		ctx: AuthenticationContext,
+		previous: WorkflowInstanceData,
+		updated: WorkflowInstanceData,
+	): Promise<Either<AntboxError, WorkflowInstanceData>> {
+		const saved = await this.#configRepo.save("workflowInstances", updated);
+		if (saved.isLeft()) return left(saved.value);
+
+		const nodeUpdate = updated.running
+			? await this.#nodeService.update(this.#workflowInstanceCtx(ctx), updated.nodeUuid, {
+				workflowState: updated.currentStateName,
+			})
+			: await this.#releaseNode(ctx, updated);
+		if (nodeUpdate.isRight()) return right(updated);
+
+		// Keep the instance runnable so a transient node write failure can be retried or cancelled.
+		const restored = await this.#configRepo.save("workflowInstances", previous);
+		if (restored.isLeft()) {
+			return left(
+				new UnknownError(
+					`Workflow ${updated.uuid} could not update its node or restore its previous state: ${restored.value.message}`,
+				),
+			);
+		}
+		return left(nodeUpdate.value);
+	}
+
+	async #releaseNode(
+		ctx: AuthenticationContext,
+		instance: WorkflowInstanceData,
+	): Promise<Either<AntboxError, void>> {
+		const workflowCtx = this.#workflowInstanceCtx(ctx);
+		const node = await this.#nodeService.get(workflowCtx, instance.nodeUuid);
+		if (node.isLeft()) return left(node.value);
+		if (
+			node.value.workflowInstanceUuid && node.value.workflowInstanceUuid !== instance.uuid
+		) {
+			return left(new BadRequestError("Node belongs to another workflow instance"));
+		}
+		if (node.value.locked) {
+			const unlocked = await this.#nodeService.unlock(workflowCtx, instance.nodeUuid);
+			if (unlocked.isLeft()) return unlocked;
+		}
+		return this.#nodeService.update(workflowCtx, instance.nodeUuid, {
+			workflowState: null as unknown as string,
+			workflowInstanceUuid: null as unknown as string,
+		});
+	}
+
+	async #withInstanceLock<T>(
+		ctx: AuthenticationContext,
+		uuid: string,
+		operation: () => Promise<Either<AntboxError, T>>,
+	): Promise<Either<AntboxError, T>> {
+		const instance = await this.#configRepo.get("workflowInstances", uuid);
+		if (instance.isLeft()) return left(instance.value);
+		let nodeUuid = instance.value.nodeUuid;
+		if (Nodes.isFid(nodeUuid)) {
+			const node = await this.#nodeService.get(ctx, nodeUuid);
+			if (node.isLeft()) return left(node.value);
+			nodeUuid = node.value.uuid;
+		}
+		return this.#withNodeLock(nodeUuid, operation);
+	}
+
+	async #withNodeLock<T>(nodeUuid: string, operation: () => Promise<T>): Promise<T> {
+		const previous = this.#nodeLocks.get(nodeUuid) ?? Promise.resolve();
+		let release = () => {};
+		const turn = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		const queued = previous.then(() => turn);
+		this.#nodeLocks.set(nodeUuid, queued);
+		await previous;
+		try {
+			return await operation();
+		} finally {
+			release();
+			if (this.#nodeLocks.get(nodeUuid) === queued) this.#nodeLocks.delete(nodeUuid);
+		}
+	}
+
 	#isAdmin(ctx: AuthenticationContext): boolean {
 		return ctx.principal.groups.includes(ADMINS_GROUP_UUID);
 	}
@@ -683,6 +829,10 @@ export class WorkflowInstancesEngine {
 					"Cannot override participants for a public workflow definition",
 				),
 			);
+		}
+
+		if (participantsOverride.length === 0) {
+			return left(new BadRequestError("Cannot make a restricted workflow public"));
 		}
 
 		const invalidParticipants = participantsOverride.filter((participant) =>

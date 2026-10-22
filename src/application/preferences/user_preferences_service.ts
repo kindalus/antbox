@@ -2,7 +2,13 @@ import type { AuthenticationContext } from "application/security/authentication_
 import type { ConfigurationRepository } from "domain/configuration/configuration_repository.ts";
 import type { UserPreferencesData } from "domain/configuration/user_preferences_data.ts";
 import { UserPreferencesDataSchema } from "domain/configuration/user_preferences_schema.ts";
-import { type AntboxError, BadRequestError, NotFoundError } from "shared/antbox_error.ts";
+import {
+	type AntboxError,
+	BadRequestError,
+	NotFoundError,
+	UnauthorizedError,
+} from "shared/antbox_error.ts";
+import { Users } from "domain/users_groups/users.ts";
 import { type Either, left, right } from "shared/either.ts";
 import { ValidationError } from "shared/validation_error.ts";
 
@@ -21,6 +27,7 @@ export class UserPreferencesService {
 		ctx: AuthenticationContext,
 		data: CreateUserPreferencesData,
 	): Promise<Either<AntboxError, UserPreferencesData>> {
+		if (ctx.principal.email === Users.ANONYMOUS_USER_EMAIL) return left(new UnauthorizedError());
 		const email = ctx.principal.email;
 		const existingOrErr = await this.configRepo.get("userPreferences", email);
 		if (existingOrErr.isRight()) {
@@ -43,6 +50,7 @@ export class UserPreferencesService {
 	async getUserPreferences(
 		ctx: AuthenticationContext,
 	): Promise<Either<AntboxError, UserPreferencesData>> {
+		if (ctx.principal.email === Users.ANONYMOUS_USER_EMAIL) return left(new UnauthorizedError());
 		const email = ctx.principal.email;
 		const existingOrErr = await this.configRepo.get("userPreferences", email);
 		if (existingOrErr.isLeft()) {
@@ -56,6 +64,7 @@ export class UserPreferencesService {
 		ctx: AuthenticationContext,
 		data: UpdateUserPreferencesData,
 	): Promise<Either<AntboxError, UserPreferencesData>> {
+		if (ctx.principal.email === Users.ANONYMOUS_USER_EMAIL) return left(new UnauthorizedError());
 		const currentOrErr = await this.getUserPreferences(ctx);
 		if (currentOrErr.isLeft()) {
 			return currentOrErr;
@@ -80,6 +89,7 @@ export class UserPreferencesService {
 	async deleteUserPreferences(
 		ctx: AuthenticationContext,
 	): Promise<Either<AntboxError, void>> {
+		if (ctx.principal.email === Users.ANONYMOUS_USER_EMAIL) return left(new UnauthorizedError());
 		const email = ctx.principal.email;
 		const existingOrErr = await this.configRepo.get("userPreferences", email);
 		if (existingOrErr.isLeft()) {
@@ -93,6 +103,7 @@ export class UserPreferencesService {
 		ctx: AuthenticationContext,
 		key: string,
 	): Promise<Either<AntboxError, unknown>> {
+		if (ctx.principal.email === Users.ANONYMOUS_USER_EMAIL) return left(new UnauthorizedError());
 		const email = ctx.principal.email;
 		const existingOrErr = await this.configRepo.get("userPreferences", email);
 		if (existingOrErr.isLeft()) {

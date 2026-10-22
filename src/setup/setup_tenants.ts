@@ -2,13 +2,17 @@ import { Logger } from "shared/logger.ts";
 import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus.ts";
 
 import type { AntboxTenant } from "api/antbox_tenant.ts";
-import type { ServerConfiguration, TenantConfiguration } from "api/http_server_configuration.ts";
+import type {
+	ModuleConfiguration,
+	ServerConfiguration,
+	TenantConfiguration,
+} from "api/http_server_configuration.ts";
 import { NodeService } from "application/nodes/node_service.ts";
 import type { StorageProvider } from "application/nodes/storage_provider.ts";
 import type { NodeRepository } from "domain/nodes/node_repository.ts";
 import type { EventStoreRepository } from "domain/audit/event_store_repository.ts";
 import type { ConfigurationRepository } from "domain/configuration/configuration_repository.ts";
-import { ROOT_PASSWD } from "./server_defaults.ts";
+import { RootPasswordSchema } from "api/http_server_configuration.ts";
 import { providerFrom } from "adapters/module_configuration_parser.ts";
 import { FeaturesService } from "application/features/features_service.ts";
 import { FeaturesEngine } from "application/features/features_engine.ts";
@@ -65,29 +69,55 @@ export async function setupTenants(
 		? cfg.tenants.find((tenant) => tenant.name === "default")?.name ?? cfg.tenants[0]?.name
 		: cfg.adminTenantName;
 	const tenants: AntboxTenant[] = [];
-	for (const tenantCfg of cfg.tenants) {
-		tenants.push(await setupTenant(cfg, tenantCfg, adminTenantName));
+	const providers = new Set<unknown>();
+	const loadProvider = async <T>(configuration?: ModuleConfiguration): Promise<T | undefined> => {
+		const provider = await providerFrom<T>(configuration);
+		if (provider) providers.add(provider);
+		return provider;
+	};
+	try {
+		for (const tenantCfg of cfg.tenants) {
+			tenants.push(await setupTenant(cfg, tenantCfg, adminTenantName, loadProvider));
+		}
+		return tenants;
+	} catch (error) {
+		for (const provider of [...providers].reverse()) {
+			if (
+				!provider || typeof provider !== "object" || !("close" in provider) ||
+				typeof provider.close !== "function"
+			) continue;
+			try {
+				await provider.close();
+			} catch (closeError) {
+				Logger.error("Error closing provider after failed tenant setup:", closeError);
+			}
+		}
+		throw error;
 	}
-	return tenants;
 }
 
 async function setupTenant(
 	serverCfg: ServerConfiguration,
 	cfg: TenantConfiguration,
 	adminTenantName: string | null | undefined,
+	loadProvider: typeof providerFrom,
 ): Promise<AntboxTenant> {
 	validateTenantLimits(cfg);
 
-	const passwd = cfg.rootPasswd ?? serverCfg.rootPasswd ?? ROOT_PASSWD;
+	const password = RootPasswordSchema.safeParse(cfg.rootPasswd ?? serverCfg.rootPasswd);
+	if (!password.success) {
+		throw new Error(`Tenant ${cfg.name}: rootPasswd is required and must not be blank`);
+	}
+	const passwd = password.data;
 	const symmetricKey = await loadSymmetricKey(cfg.key ?? serverCfg.key);
 
 	const externalJwks = await loadJwks(cfg.jwks ?? serverCfg.jwks);
-	const nodeRepository = await providerFrom<NodeRepository>(cfg.repository);
-	const storage = await providerFrom<StorageProvider>(cfg.storage);
-	const eventStoreRepository = await providerFrom<EventStoreRepository>(
+	const nodeRepository = await loadProvider<NodeRepository>(cfg.repository);
+	const storage = await loadProvider<StorageProvider>(cfg.storage);
+	const eventStoreRepository = await loadProvider<EventStoreRepository>(
 		cfg.eventStoreRepository,
 	);
-	const configRepo = await providerFrom<ConfigurationRepository>(
+	const configRepo = await loadProvider<ConfigurationRepository>(
 		cfg.configurationRepository,
 	);
 
@@ -125,18 +155,17 @@ async function setupTenant(
 
 	if (cfg.ai?.enabled) {
 		if (!cfg.ai.defaultModel) {
-			Logger.error(`Tenant ${cfg.name}: AI is enabled but defaultModel is not configured`);
-			Deno.exit(1);
+			throw new Error(`Tenant ${cfg.name}: AI is enabled but defaultModel is not configured`);
 		}
 
 		// Load embeddings provider
 		embeddingsProvider = cfg.ai.embeddingProvider
-			? await providerFrom<EmbeddingsProvider>(cfg.ai.embeddingProvider)
+			? await loadProvider<EmbeddingsProvider>(cfg.ai.embeddingProvider)
 			: undefined;
 
 		// Load OCR provider (fall back to null provider if not configured)
 		ocrProvider = cfg.ai.ocrProvider
-			? await providerFrom<OCRProvider>(cfg.ai.ocrProvider)
+			? await loadProvider<OCRProvider>(cfg.ai.ocrProvider)
 			: new NullOCRProvider();
 
 		// Check if repository supports embeddings
@@ -350,7 +379,7 @@ async function loadJwks(
 		Logger.error(
 			`JWKS loading failed: ${error instanceof Error ? error.message : "Unknown error"}`,
 		);
-		Deno.exit(-1);
+		throw error;
 	}
 }
 
@@ -374,6 +403,6 @@ async function loadSymmetricKey(keyPath?: string): Promise<string> {
 				error instanceof Error ? error.message : "Unknown error"
 			}`,
 		);
-		Deno.exit(-1);
+		throw error;
 	}
 }

@@ -19,6 +19,52 @@ function exposedFeature(returnType: FeatureData["returnType"]): FeatureData {
 }
 
 describe("runFeatureExtension", () => {
+	it("rejects JSON bodies that are not parameter objects before execution", async () => {
+		for (const body of [null, [], "text", 42, true]) {
+			let executed = false;
+			const response = await runFeatureExtension(
+				ctx,
+				"productDetail",
+				new Request("https://vpim.example/api/extensions/product-detail", {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify(body),
+				}),
+				{
+					getFeature: () => Promise.resolve(right(exposedFeature("object"))),
+					execute: () => {
+						executed = true;
+						return Promise.resolve(right({ ok: true }));
+					},
+				},
+			);
+			expect(response.status).toBe(400);
+			expect(executed).toBe(false);
+		}
+	});
+
+	it("preserves false, zero, and empty string results", async () => {
+		for (
+			const [returnType, value] of [
+				["boolean", false],
+				["number", 0],
+				["string", ""],
+			] as const
+		) {
+			const response = await runFeatureExtension(
+				ctx,
+				"productDetail",
+				new Request("https://vpim.example/api/extensions/product-detail"),
+				{
+					getFeature: () => Promise.resolve(right(exposedFeature(returnType))),
+					execute: () => Promise.resolve(right(value)),
+				},
+			);
+			expect(response.status).toBe(200);
+			expect(await response.text()).toBe(String(value));
+		}
+	});
+
 	it("passes a native Response through unchanged", async () => {
 		const nativeResponse = Response.json(
 			{ ok: false, error: "Product not found" },

@@ -57,7 +57,7 @@ export function toRawArticleDTO(node: ArticleNode): RawArticleDTO {
 }
 
 export function toLocalizedArticleDTO(
-	node: ArticleNode,
+	node: RawArticleDTO,
 	locale: string,
 ): LocalizedArticleDTO {
 	const localizedProps = node.articleProperties;
@@ -86,15 +86,15 @@ export function selectLocalizedProperties(
 	localeMap: ArticlePropertiesMap,
 	locale: string,
 ): ArticleProperties {
-	if (localeMap[locale]) {
+	if (Object.hasOwn(localeMap, locale)) {
 		return localeMap[locale];
 	}
 
-	if (localeMap["pt"]) {
+	if (Object.hasOwn(localeMap, "pt")) {
 		return localeMap["pt"];
 	}
 
-	if (localeMap["en"]) {
+	if (Object.hasOwn(localeMap, "en")) {
 		return localeMap["en"];
 	}
 

@@ -6,8 +6,11 @@ import { AntboxError } from "shared/antbox_error.ts";
 import type { AntboxTenant } from "./antbox_tenant.ts";
 import type { IAgentsEngine } from "application/ai/agents_engine_interface.ts";
 import {
+	answerHandler,
+	chatHandler,
 	continueAgentSessionHandler,
 	createAgentSessionHandler,
+	createOrReplaceAgentHandler,
 	deleteAgentSessionHandler,
 } from "./agents_handlers.ts";
 
@@ -35,6 +38,7 @@ async function request(
 		.setProtectedHeader({ alg: "HS256" })
 		.setIssuedAt()
 		.setIssuer("urn:antbox")
+		.setAudience("default")
 		.setExpirationTime("1h")
 		.sign(new TextEncoder().encode(KEY));
 	return new Request("http://localhost/v2/agents/test-agent/-/sessions", {
@@ -124,5 +128,174 @@ describe("agent session handlers", () => {
 			),
 		);
 		expect(response.status).toBe(200);
+	});
+});
+
+describe("agent request validation", () => {
+	it("passes valid agent metadata to the configuration service", async () => {
+		let observed: unknown;
+		const target = {
+			name: "default",
+			agentsService: {
+				createOrReplaceAgent: (_ctx: unknown, metadata: unknown) => {
+					observed = metadata;
+					return Promise.resolve(right({ created: true, agent: metadata }));
+				},
+			},
+		} as unknown as AntboxTenant;
+		for (
+			const metadata of [
+				{ name: "Support", uuid: 42 },
+				{ name: "Support", systemPrompt: {} },
+				{ name: "Support", tools: "all" },
+			]
+		) {
+			expect(
+				(await createOrReplaceAgentHandler([target])(
+					new Request("http://localhost/agents", {
+						method: "POST",
+						body: JSON.stringify(metadata),
+						headers: { "Content-Type": "application/json" },
+					}),
+				)).status,
+			).toBe(400);
+		}
+		expect(observed).toBeUndefined();
+		const response = await createOrReplaceAgentHandler([target])(
+			new Request("http://localhost/agents", {
+				method: "POST",
+				body: JSON.stringify({ name: "Support", exposedToUsers: false, systemPrompt: "" }),
+				headers: { "Content-Type": "application/json" },
+			}),
+		);
+		expect(response.status).toBe(201);
+		expect(observed).toEqual({ name: "Support", exposedToUsers: false, systemPrompt: "" });
+	});
+
+	it("rejects malformed and non-object JSON before invoking AI services", async () => {
+		let calls = 0;
+		const call = () => {
+			calls++;
+			return Promise.resolve(right({}));
+		};
+		const target = {
+			name: "default",
+			agentsService: { createOrReplaceAgent: call },
+			agentsEngine: {
+				chat: call,
+				answer: call,
+				createChatSession: call,
+				continueChatSession: call,
+			},
+		} as unknown as AntboxTenant;
+		for (
+			const factory of [
+				createOrReplaceAgentHandler,
+				chatHandler,
+				answerHandler,
+				createAgentSessionHandler,
+				continueAgentSessionHandler,
+			]
+		) {
+			for (const body of ["{", "null", "[]", '"text"', "42"]) {
+				expect(
+					(await factory([target])(
+						new Request("http://localhost/agents", {
+							method: "POST",
+							body,
+							headers: {
+								"Content-Type": "application/json",
+								"x-params": JSON.stringify({ uuid: "test-agent", sessionId: SESSION_ID }),
+							},
+						}),
+					)).status,
+				).toBe(400);
+			}
+		}
+		expect(calls).toBe(0);
+	});
+
+	it("rejects invalid prompts, options and chat history before model execution", async () => {
+		let calls = 0;
+		const call = () => {
+			calls++;
+			return Promise.resolve(right<AntboxError, []>([]));
+		};
+		const target = tenant({
+			chat: call,
+			answer: () => {
+				calls++;
+				return Promise.resolve(right({ role: "model", parts: [] }));
+			},
+		});
+		for (const factory of [chatHandler, answerHandler]) {
+			for (
+				const input of [
+					{ text: 42 },
+					{ text: {} },
+					{ text: " \n " },
+					{ text: "hello", options: null },
+					{ text: "hello", options: [] },
+					{ text: "hello", options: { instructions: {} } },
+				]
+			) {
+				expect(
+					(await factory([target])(await request("POST", { uuid: "test-agent" }, input)))
+						.status,
+				).toBe(400);
+			}
+		}
+		for (
+			const history of [
+				"text",
+				[null],
+				[{ role: "model" }],
+				[{ role: "model", parts: [null] }],
+				[{ role: "user", parts: [{ text: {} }] }],
+			]
+		) {
+			expect(
+				(await chatHandler([target])(
+					await request("POST", { uuid: "test-agent" }, {
+						text: "hello",
+						options: { history },
+					}),
+				)).status,
+			).toBe(400);
+		}
+		expect(calls).toBe(0);
+	});
+
+	it("preserves prompt content and valid history and instructions", async () => {
+		const history = [{ role: "user" as const, parts: [{ text: "previous" }] }];
+		const target = tenant({
+			chat: (_ctx, uuid, text, options) => {
+				expect(uuid).toBe("test-agent");
+				expect(text).toBe("  hello  ");
+				expect(options).toEqual({ history, instructions: "Be concise" });
+				return Promise.resolve(right([]));
+			},
+			answer: (_ctx, _uuid, text, options) => {
+				expect(text).toBe("hello");
+				expect(options).toEqual({ instructions: "Be concise" });
+				return Promise.resolve(right({ role: "model", parts: [{ text: "answer" }] }));
+			},
+		});
+		expect(
+			(await chatHandler([target])(
+				await request("POST", { uuid: "test-agent" }, {
+					text: "  hello  ",
+					options: { history, instructions: "Be concise" },
+				}),
+			)).status,
+		).toBe(200);
+		expect(
+			(await answerHandler([target])(
+				await request("POST", { uuid: "test-agent" }, {
+					text: "hello",
+					options: { instructions: "Be concise" },
+				}),
+			)).status,
+		).toBe(200);
 	});
 });

@@ -26,13 +26,9 @@ export class FolderNode extends FolderMixin(WithAspectMixin(Node)) {
 	override update(
 		metadata: Partial<NodeMetadata>,
 	): Either<ValidationError, void> {
-		const result = super.update(metadata);
-
-		if (result.isLeft()) {
-			return result;
-		}
-
 		try {
+			const result = super.update(metadata);
+			if (result.isLeft()) return result;
 			this._validateFolderNode();
 		} catch (e) {
 			return left(e as ValidationError);

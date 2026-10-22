@@ -67,5 +67,10 @@ The create response includes the generated `secret`. Store it securely; it is th
 
 ## Access model
 
-- users/groups/API keys create/update/delete operations are admin-only.
-- non-admin users can only read what their specific service rules allow.
+- Creating and deleting users, groups, and API keys requires admin access.
+- Users can update their own profile. Only admins can change `group`, `groups`, or `active`.
+- Non-admin users can only read what their specific service rules allow.
+
+Notifications and user preferences require authentication for every operation. Anonymous requests
+return `401`; they cannot create notifications or read and modify a shared anonymous preferences
+record. Authenticated callers retain access to their own preferences.

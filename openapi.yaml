@@ -46,13 +46,13 @@ tags:
    - name: nodes
      description: Operations related to nodes (files, folders, etc.)
    - name: notifications
-     description: Operations related to user and group notifications
+     description: Authenticated operations related to user and group notifications. Anonymous requests return 401.
    - name: templates
      description: Operations related to templates
    - name: users
      description: Operations related to users
    - name: user-preferences
-     description: Operations related to private user preferences for the authenticated user
+     description: Operations related to private user preferences for the authenticated user. Anonymous requests return 401.
    - name: workflows
      description: Operations related to workflow instances
 paths:
@@ -340,7 +340,12 @@ paths:
             - metrics
          summary: Get tenant storage usage
          operationId: getStorageUsage
-         description: Returns the tenant's current storage usage in gigabytes and configured storage limit in gigabytes.
+         security:
+            - bearerAuth: []
+            - cookieAuth: []
+            - apiKeyHeader: []
+            - apiKeyQuery: []
+         description: Returns the tenant's current storage usage in gigabytes and configured storage limit in gigabytes. Requires the tenant root user or membership in the admins group.
          responses:
             "200":
                description: Tenant storage usage
@@ -348,6 +353,8 @@ paths:
                   application/json:
                      schema:
                         $ref: "#/components/schemas/StorageUsageMetrics"
+            "403":
+               description: Administrator access required
             default:
                $ref: "#/components/responses/Error"
    /metrics/tokens:
@@ -356,7 +363,12 @@ paths:
             - metrics
          summary: Get monthly tenant token usage
          operationId: getTokenUsage
-         description: Returns the tenant's AI token usage for the requested month together with the configured monthly token limit in millions.
+         security:
+            - bearerAuth: []
+            - cookieAuth: []
+            - apiKeyHeader: []
+            - apiKeyQuery: []
+         description: Returns the tenant's AI token usage for the requested month together with the configured monthly token limit in millions. Requires the tenant root user or membership in the admins group.
          parameters:
             - in: query
               name: year
@@ -377,6 +389,8 @@ paths:
                   application/json:
                      schema:
                         $ref: "#/components/schemas/TokenUsageMetrics"
+            "403":
+               description: Administrator access required
             "400":
                description: Invalid year or month parameters
                content:
@@ -756,6 +770,12 @@ paths:
             - agents
          summary: Create a persisted agent session and send its first message
          operationId: createAgentSession
+         security:
+            - bearerAuth: []
+            - cookieAuth: []
+            - apiKeyHeader: []
+            - apiKeyQuery: []
+         description: Requires an authenticated user or API key. The session belongs to that user or individual API key within this tenant.
          parameters:
             - $ref: "#/components/parameters/UUID"
          requestBody:
@@ -771,6 +791,8 @@ paths:
                   application/json:
                      schema:
                         $ref: "#/components/schemas/AgentSessionResult"
+            "401":
+               description: Authentication required
             default:
                $ref: "#/components/responses/Error"
    "/agents/{uuid}/-/sessions/{sessionId}/messages":
@@ -779,6 +801,12 @@ paths:
             - agents
          summary: Continue a persisted agent session
          operationId: continueAgentSession
+         security:
+            - bearerAuth: []
+            - cookieAuth: []
+            - apiKeyHeader: []
+            - apiKeyQuery: []
+         description: Requires the same authenticated user or individual API key that created the session, within the same tenant and agent.
          parameters:
             - $ref: "#/components/parameters/UUID"
             - $ref: "#/components/parameters/SessionId"
@@ -795,6 +823,10 @@ paths:
                   application/json:
                      schema:
                         $ref: "#/components/schemas/AgentSessionResult"
+            "401":
+               description: Authentication required
+            "404":
+               description: Session absent, expired, or owned by another identity
             default:
                $ref: "#/components/responses/Error"
    "/agents/{uuid}/-/sessions/{sessionId}":
@@ -803,12 +835,20 @@ paths:
             - agents
          summary: Delete a persisted agent session
          operationId: deleteAgentSession
+         security:
+            - bearerAuth: []
+            - cookieAuth: []
+            - apiKeyHeader: []
+            - apiKeyQuery: []
+         description: Deletes only sessions owned by the authenticated user or individual API key. Other identities' sessions are treated as absent.
          parameters:
             - $ref: "#/components/parameters/UUID"
             - $ref: "#/components/parameters/SessionId"
          responses:
             "200":
                description: Session deleted or already absent
+            "401":
+               description: Authentication required
             default:
                $ref: "#/components/responses/Error"
    /api-keys:
@@ -1593,12 +1633,12 @@ paths:
             - login
          summary: External user challenge
          operationId: challengeExternalUser
-         description: Validates an external bearer JWT against the tenant JWKS and checks whether a local Antbox user exists for the token email or phone claims.
+         description: Validates an external bearer JWT against the tenant JWKS and resolves an active local user from its email or phone claims. Tokens require exp. Invalid tokens, inactive or builtin users, and ambiguous phone matches return 401; missing identity claims return 400.
          security:
             - bearerAuth: []
          responses:
             "204":
-               description: Matching local user exists
+               description: Valid token and matching active local user
             "404":
                description: No matching local user exists
                content:
@@ -1613,7 +1653,7 @@ paths:
             - login
          summary: External user login
          operationId: loginExternalUser
-         description: Validates an external bearer JWT against the tenant JWKS, resolves the local Antbox user by email or phone, and returns the user profile for downstream JWT minting.
+         description: Validates an external bearer JWT against the tenant JWKS, resolves an active local Antbox user by email or phone, and returns the user profile. Subsequent JWTs must remain signed by a key trusted through that tenant's JWKS.
          security:
             - bearerAuth: []
          responses:
@@ -1746,19 +1786,29 @@ paths:
             - nodes
          summary: Find nodes
          operationId: findNodes
+         description: Page size must be between 1 and 200. Page tokens are positive safe integers. Semantic searches using the question-mark prefix are limited to a result window of 10000, so pageSize multiplied by pageToken must not exceed 10000.
          requestBody:
             required: true
             content:
                application/json:
                   schema:
                      type: object
+                     required: [filters]
                      properties:
                         filters:
-                           $ref: "#/components/schemas/NodeFilters"
+                           oneOf:
+                              - $ref: "#/components/schemas/NodeFilters"
+                              - type: string
                         pageSize:
                            type: integer
+                           minimum: 1
+                           maximum: 200
+                           default: 20
                         pageToken:
                            type: integer
+                           minimum: 1
+                           maximum: 9007199254740991
+                           default: 1
          responses:
             "200":
                description: A list of nodes
@@ -1827,6 +1877,7 @@ paths:
             in the tenant, including built-in groups. Existing parent Write, lock, and workflow
             checks still apply. Owner, permissions, and descendant groups are not changed.
             Sending the current group is a no-op.
+            Supplying folder permissions also requires existing Write access to that folder itself.
          operationId: updateNode
          parameters:
             - $ref: "#/components/parameters/UUID"
@@ -2029,6 +2080,7 @@ paths:
          tags:
             - nodes
          summary: Export a node
+         description: Returns original content with nosniff, no-store, and a restrictive CSP sandbox for browser document views. Scripts, forms, and external resources in uploaded documents are disabled.
          operationId: exportNode
          parameters:
             - $ref: "#/components/parameters/UUID"
@@ -2047,7 +2099,7 @@ paths:
          tags:
             - nodes
          summary: Lock a node
-         description: Lock a node to prevent modifications by unauthorized users
+         description: Lock a node to prevent modifications by unauthorized users. Folder locks also lock unlocked descendants, preserving independent and workflow-owned locks. Workflow-bound nodes require cancellation or completion before direct lock or unlock operations. Unlock the destination folder before adding, uploading, copying, or moving children into it, including as the lock owner.
          operationId: lockNode
          parameters:
             - $ref: "#/components/parameters/UUID"
@@ -2101,6 +2153,11 @@ paths:
             - notifications
          summary: List notifications for current user
          operationId: listNotifications
+         security:
+            - bearerAuth: []
+            - cookieAuth: []
+            - apiKeyHeader: []
+            - apiKeyQuery: []
          description: Returns all notifications accessible by the current user, including those targeting the user directly or any groups they belong to.
          responses:
             "200":
@@ -2119,6 +2176,11 @@ paths:
             - notifications
          summary: Send a critical notification
          operationId: sendCriticalNotification
+         security:
+            - bearerAuth: []
+            - cookieAuth: []
+            - apiKeyHeader: []
+            - apiKeyQuery: []
          description: Creates a CRITICAL priority notification. Must target at least one of targetUser or targetGroup.
          requestBody:
             required: true
@@ -2141,6 +2203,11 @@ paths:
             - notifications
          summary: Send an info notification
          operationId: sendInfoNotification
+         security:
+            - bearerAuth: []
+            - cookieAuth: []
+            - apiKeyHeader: []
+            - apiKeyQuery: []
          description: Creates an INFO priority notification. Must target at least one of targetUser or targetGroup.
          requestBody:
             required: true
@@ -2163,6 +2230,11 @@ paths:
             - notifications
          summary: Send an insight notification
          operationId: sendInsightNotification
+         security:
+            - bearerAuth: []
+            - cookieAuth: []
+            - apiKeyHeader: []
+            - apiKeyQuery: []
          description: Creates an INSIGHT priority notification. Must target at least one of targetUser or targetGroup.
          requestBody:
             required: true
@@ -2185,6 +2257,11 @@ paths:
             - notifications
          summary: Delete notifications
          operationId: deleteNotifications
+         security:
+            - bearerAuth: []
+            - cookieAuth: []
+            - apiKeyHeader: []
+            - apiKeyQuery: []
          description: Deletes notifications by UUIDs. User can only delete notifications targeting them directly or groups they belong to.
          requestBody:
             required: true
@@ -2218,6 +2295,11 @@ paths:
             - notifications
          summary: Clear all notifications for current user
          operationId: clearAllNotifications
+         security:
+            - bearerAuth: []
+            - cookieAuth: []
+            - apiKeyHeader: []
+            - apiKeyQuery: []
          description: Removes all notifications that target the current user directly. Group-targeted notifications are not affected and must be deleted individually using the delete endpoint.
          responses:
             "200":
@@ -2374,6 +2456,11 @@ paths:
             - user-preferences
          summary: Get current user preferences
          operationId: getUserPreferences
+         security:
+            - bearerAuth: []
+            - cookieAuth: []
+            - apiKeyHeader: []
+            - apiKeyQuery: []
          responses:
             "200":
                description: User preferences for the authenticated user
@@ -2388,6 +2475,11 @@ paths:
             - user-preferences
          summary: Create current user preferences
          operationId: createUserPreferences
+         security:
+            - bearerAuth: []
+            - cookieAuth: []
+            - apiKeyHeader: []
+            - apiKeyQuery: []
          requestBody:
             required: true
             content:
@@ -2408,6 +2500,11 @@ paths:
             - user-preferences
          summary: Update current user preferences
          operationId: updateUserPreferences
+         security:
+            - bearerAuth: []
+            - cookieAuth: []
+            - apiKeyHeader: []
+            - apiKeyQuery: []
          requestBody:
             required: true
             content:
@@ -2428,6 +2525,11 @@ paths:
             - user-preferences
          summary: Delete current user preferences
          operationId: deleteUserPreferences
+         security:
+            - bearerAuth: []
+            - cookieAuth: []
+            - apiKeyHeader: []
+            - apiKeyQuery: []
          responses:
             "200":
                description: User preferences deleted
@@ -2439,6 +2541,11 @@ paths:
             - user-preferences
          summary: Get a single current user preference
          operationId: getUserPreference
+         security:
+            - bearerAuth: []
+            - cookieAuth: []
+            - apiKeyHeader: []
+            - apiKeyQuery: []
          parameters:
             - name: key
               in: path
@@ -2519,7 +2626,7 @@ paths:
                            description: Identifier of the workflow definition to use
                         participants:
                            type: array
-                           description: Optional narrowing override for the pool of groups allowed to view and interact with this workflow instance. If not specified, uses the workflow definition's participants. Overrides must be a subset of the workflow definition participants.
+                           description: Optional narrowing override for the pool of groups allowed to view and interact with this workflow instance. If not specified, uses the workflow definition's participants. Overrides must be a non-empty subset for restricted workflows. Public workflows only accept an empty override.
                            items:
                               type: string
          responses:
@@ -2599,7 +2706,7 @@ paths:
          tags:
             - workflows
          summary: Update a node involved in a workflow instance
-         description: "{uuid} is the workflow instance UUID. Update node metadata for a node that is part of an active workflow. Only users in groups allowed to modify in the current state can perform updates."
+         description: "{uuid} is the workflow instance UUID. Update content metadata for a node in an active workflow. Only users in groups allowed to modify in the current state can perform updates. Accepted fields are title, fid, description, tags, aspects, properties, related, articleProperties, articleAuthor, and articleBodyContentType. Other fields are ignored. Workflow state, locks, parent, and permissions cannot be changed through this operation."
          operationId: updateWorkflowNode
          parameters:
             - $ref: "#/components/parameters/UUID"
@@ -2856,7 +2963,9 @@ components:
                description: Lowercase tenant identifier; also used as the tenant filename
             rootPasswd:
                type: string
-               description: Optional tenant-level root password override
+               minLength: 1
+               pattern: "\\S"
+               description: Tenant-level root password override. Must be nonblank; when omitted, a nonblank global rootPasswd is required.
             key:
                type: string
                description: Path to symmetric key file
@@ -2895,6 +3004,7 @@ components:
                        - pay-as-you-go
       TokenUsageMetrics:
          type: object
+         description: Recorded agent and embedding usage. The current token quota is enforced against agent-call usage only; node-query semantic-search embeddings are not yet included in these metrics.
          required:
             - year
             - month
@@ -3171,18 +3281,8 @@ components:
          type: object
          properties:
             history:
-               type: array
+               $ref: "#/components/schemas/ChatHistory"
                description: Previous conversation messages.
-               items:
-                  type: object
-                  properties:
-                     role:
-                        type: string
-                     text:
-                        type: string
-                     timestamp:
-                        type: string
-                        format: date-time
             files:
                type: array
                description: Reserved for future multimodal transport; currently ignored by the JSON endpoint.
@@ -3579,14 +3679,17 @@ components:
                $ref: "#/components/schemas/Permissions"
             locked:
                type: boolean
+               readOnly: true
                description: Indicates if the node is locked
                default: false
             lockedBy:
                type: string
                format: email
+               readOnly: true
                description: Email of the user who locked the node
             unlockAuthorizedGroups:
                type: array
+               readOnly: true
                items:
                   type: string
                   format: uuid
@@ -3634,6 +3737,9 @@ components:
          properties:
             size:
                type: integer
+               minimum: 0
+               readOnly: true
+               description: File size in bytes, measured from uploaded content.
             aspects:
                type: array
                items:
@@ -3897,6 +4003,9 @@ components:
                type: string
             size:
                type: integer
+               minimum: 0
+               readOnly: true
+               description: File size in bytes, measured from uploaded content.
             parent:
                type: string
                format: uuid

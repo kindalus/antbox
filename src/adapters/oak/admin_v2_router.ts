@@ -16,7 +16,7 @@ export default function (
 ): Router {
 	const router = new Router({ prefix: "/admin" });
 	router.get("/runtime", adapt(adminRuntimeHandler(tenants)));
-	router.post("/reload", adapt(adminReloadHandler(tenants, reload)));
+	router.post("/reload", adapt(adminReloadHandler(tenants, reload, configDir)));
 	router.get("/tenants", adapt(adminTenantsGetHandler(tenants, configDir, dataDir)));
 	router.put(
 		"/tenants",

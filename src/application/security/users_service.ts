@@ -1,5 +1,10 @@
 import type { AntboxError } from "shared/antbox_error.ts";
-import { BadRequestError, ForbiddenError, NotFoundError } from "shared/antbox_error.ts";
+import {
+	BadRequestError,
+	ForbiddenError,
+	NotFoundError,
+	UnauthorizedError,
+} from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
 import { ValidationError } from "shared/validation_error.ts";
 import type { AuthenticationContext } from "./authentication_context.ts";
@@ -34,6 +39,9 @@ export class UsersService {
 
 		if (!metadata.email) {
 			return left(new BadRequestError("Email is required"));
+		}
+		if (BUILTIN_USERS.some((user) => user.email === metadata.email)) {
+			return left(new BadRequestError("Cannot create builtin users"));
 		}
 
 		// Check if user already exists
@@ -78,7 +86,7 @@ export class UsersService {
 			if (email === ROOT_USER_EMAIL && !this.#isAdmin(ctx)) {
 				return left(new ForbiddenError("Only admins can access root user"));
 			}
-			return right(builtinUser);
+			return right(structuredClone(builtinUser));
 		}
 
 		const userOrErr = await this.configRepo.get("users", email);
@@ -109,7 +117,7 @@ export class UsersService {
 		}
 
 		// Combine builtin users with custom users, sorted by title
-		const allUsers = [...BUILTIN_USERS, ...customUsersOrErr.value];
+		const allUsers = [...structuredClone(BUILTIN_USERS), ...customUsersOrErr.value];
 		allUsers.sort((a, b) => a.title.localeCompare(b.title));
 
 		return right(allUsers);
@@ -133,6 +141,13 @@ export class UsersService {
 		// Users can update their own data, admins can update any user
 		if (ctx.principal.email !== email && !this.#isAdmin(ctx)) {
 			return left(new ForbiddenError("You can only update your own user data"));
+		}
+		if (
+			!this.#isAdmin(ctx) &&
+			(metadata?.group !== undefined || metadata?.groups !== undefined ||
+				metadata?.active !== undefined)
+		) {
+			return left(new ForbiddenError("Only admins can change user groups or account status"));
 		}
 
 		const updatedData: UserData = {
@@ -179,24 +194,32 @@ export class UsersService {
 		if (lookup.email) {
 			const builtinUser = BUILTIN_USERS.find((user) => user.email === lookup.email);
 			if (builtinUser) {
-				return right(builtinUser);
+				return left(new UnauthorizedError());
 			}
 
 			const userOrErr = await this.configRepo.get("users", lookup.email);
 			if (userOrErr.isRight()) {
-				return userOrErr;
+				return userOrErr.value.active ? userOrErr : left(new UnauthorizedError());
 			}
 		}
 
-		if (lookup.phone) {
+		if (!lookup.email && lookup.phone) {
 			const customUsersOrErr = await this.configRepo.list("users");
 			if (customUsersOrErr.isLeft()) {
 				return left(customUsersOrErr.value);
 			}
 
-			const allUsers = [...BUILTIN_USERS, ...customUsersOrErr.value];
-			const user = allUsers.find((candidate) => candidate.phone === lookup.phone);
-			if (user) {
+			const users = customUsersOrErr.value.filter((candidate) =>
+				candidate.phone === lookup.phone
+			);
+			if (users.length > 0) {
+				const user = users[0];
+				if (
+					users.length !== 1 || !user.active ||
+					BUILTIN_USERS.some((builtin) => builtin.email === user.email)
+				) {
+					return left(new UnauthorizedError());
+				}
 				return right(user);
 			}
 		}

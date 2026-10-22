@@ -46,6 +46,22 @@ describe("FileNode", () => {
 		});
 	});
 
+	it("rejects invalid file sizes when creating and updating", () => {
+		const metadata = {
+			title: "Valid file",
+			mimetype: "text/plain",
+			owner: "user@example.com",
+			size: 8,
+		};
+		for (const size of [-1, Number.NaN, Infinity, 1.5]) {
+			const invalid = FileNode.create({ ...metadata, size });
+			expect(invalid.value).toBeInstanceOf(ValidationError);
+			const file = FileNode.create(metadata).right;
+			expect(file.update({ size }).value).toBeInstanceOf(ValidationError);
+			expect(file.size).toBe(8);
+		}
+	});
+
 	describe("update", () => {
 		it("should modify the title, fid, description and parent ", async () => {
 			const createResult = FileNode.create({

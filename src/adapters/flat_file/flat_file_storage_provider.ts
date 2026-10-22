@@ -86,21 +86,25 @@ class FlatFileStorageProvider implements StorageProvider {
 		file: File,
 		_opts?: never,
 	): Promise<Either<AntboxError, void>> {
-		const folderPath = this.#buildFileFolderPath(uuid);
-		const filePath = this.#buildFilePath(uuid);
-		const mimetypePath = this.#buildMimetypePath(uuid);
-
-		if (!fileExistsSync(folderPath)) {
-			Deno.mkdirSync(folderPath, { recursive: true });
-		}
-
+		let temporaryPath: string | undefined;
 		try {
+			const folderPath = this.#buildFileFolderPath(uuid);
+			const filePath = this.#buildFilePath(uuid);
+			const mimetypePath = this.#buildMimetypePath(uuid);
+			Deno.mkdirSync(folderPath, { recursive: true });
+
 			const buffer = new Uint8Array(await file.arrayBuffer());
-			await Deno.writeFile(filePath, buffer, {});
+			temporaryPath = await Deno.makeTempFile({ dir: folderPath, prefix: ".content-" });
+			await Deno.writeFile(temporaryPath, buffer);
+			await Deno.rename(temporaryPath, filePath);
+			temporaryPath = undefined;
+			// Content is committed here; a sidecar failure cannot roll it back.
 			await Deno.writeTextFile(mimetypePath, file.type ?? "");
 			return right(undefined);
 		} catch (e) {
 			return left(error(uuid, (e as Error).message));
+		} finally {
+			if (temporaryPath) await Deno.remove(temporaryPath).catch(() => undefined);
 		}
 	}
 

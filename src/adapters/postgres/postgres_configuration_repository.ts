@@ -14,13 +14,29 @@ export class PostgresConfigurationError extends AntboxError {
 	}
 }
 
+export default async function buildPostgresConfigurationRepository(
+	connectionString?: string,
+): Promise<Either<AntboxError, ConfigurationRepository>> {
+	try {
+		const repository = new PostgresConfigurationRepository(connectionString);
+		const initialized = await repository.initialize();
+		if (initialized.isLeft()) {
+			await repository.close();
+			return left(initialized.value);
+		}
+		return right(repository);
+	} catch (error) {
+		return left(new PostgresConfigurationError((error as Error).message));
+	}
+}
+
 /**
  * Postgres-backed ConfigurationRepository.
  *
  * @remarks
  * External setup:
- * - Provision a Postgres database and ensure the `uuid-ossp` extension is available.
- * - Grant the configured user permission to create extensions and tables.
+ * - Provision a Postgres database.
+ * - Grant the configured user permission to create tables.
  * - Set `DATABASE_URL` or pass a connection string.
  *
  * @example
@@ -42,7 +58,7 @@ export class PostgresConfigurationRepository implements ConfigurationRepository 
 
 	async initialize(): Promise<Either<AntboxError, void>> {
 		try {
-			await this.#sql`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`;
+			await this.#sql`SELECT 1`;
 			return right(undefined);
 		} catch (err) {
 			const error = err as Error;
@@ -65,12 +81,16 @@ export class PostgresConfigurationRepository implements ConfigurationRepository 
 			return;
 		}
 
-		await this.#sql.unsafe(`
-			CREATE TABLE IF NOT EXISTS ${tableName} (
-				uuid TEXT PRIMARY KEY,
-				body JSONB NOT NULL
-			)
-		`);
+		await this.#sql.begin(async (sql) => {
+			await sql.unsafe("SELECT pg_advisory_xact_lock(hashtext($1), 0)", [tableName]);
+			if (this.#existingTables.has(tableName)) return;
+			await sql.unsafe(`
+				CREATE TABLE IF NOT EXISTS ${tableName} (
+					uuid TEXT PRIMARY KEY,
+					body JSONB NOT NULL
+				)
+			`);
+		});
 
 		this.#existingTables.add(tableName);
 	}
@@ -96,7 +116,7 @@ export class PostgresConfigurationRepository implements ConfigurationRepository 
 
 			await this.#sql.unsafe(
 				`INSERT INTO ${tableName} (uuid, body)
-				 VALUES ($1, $2)
+				 VALUES ($1, $2::text::jsonb)
 				 ON CONFLICT (uuid) DO UPDATE SET body = EXCLUDED.body`,
 				[key, JSON.stringify(data)],
 			);

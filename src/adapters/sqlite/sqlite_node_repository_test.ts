@@ -4,6 +4,41 @@ import { FileNode } from "domain/nodes/file_node.ts";
 import { SqliteNodeRepository } from "./sqlite_node_repository.ts";
 
 describe("SqliteNodeRepository", () => {
+	it("treats filter fields as data, including quotes in property names", async () => {
+		const repo = new SqliteNodeRepository();
+		try {
+			await repo.add(
+				FileNode.create({
+					uuid: "quoted_property",
+					title: "Invoice.pdf",
+					mimetype: "application/pdf",
+					owner: "tester@antbox.io",
+					properties: { "finance:owner's-code": ["paid", "approved"] },
+				}).right,
+			);
+
+			const injected = await repo.filter([[
+				"title') OR 1=1 OR json_extract(body, '$.absent",
+				"==",
+				"missing",
+			]]);
+			expect(injected.nodes).toHaveLength(0);
+
+			const matching = await repo.filter([
+				["finance:owner's-code", "contains-all", ["paid", "approved"]],
+				["title", "==", "Invoice.pdf"],
+			]);
+			expect(matching.nodes.map((node) => node.uuid)).toEqual(["quoted_property"]);
+
+			const missing = await repo.filter([
+				["finance:owner's-code", "contains-any", ["missing", "absent"]],
+			]);
+			expect(missing.nodes).toHaveLength(0);
+		} finally {
+			repo.close();
+		}
+	});
+
 	describe("array contains filters", () => {
 		it("matches string values inside aspects arrays", async () => {
 			const repo = new SqliteNodeRepository();

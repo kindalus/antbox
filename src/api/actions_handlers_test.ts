@@ -35,6 +35,59 @@ function makeTenant(overrides: Partial<AntboxTenant> = {}): AntboxTenant {
 }
 
 describe("actions_handlers", () => {
+	it("preserves falsy JSON action results and empty void responses", async () => {
+		for (const value of [false, 0, "", null, undefined]) {
+			const tenant = makeTenant({
+				featuresEngine: {
+					runAction: () => Promise.resolve(right(value)),
+				} as unknown as AntboxTenant["featuresEngine"],
+			});
+			const response = await runActionHandler([tenant])(
+				new Request("http://localhost/v2/actions/example/-/run", {
+					method: "POST",
+					headers: { "x-params": JSON.stringify({ uuid: "example" }) },
+					body: JSON.stringify({ uuids: [] }),
+				}),
+			);
+			expect(response.status).toBe(200);
+			expect(await response.text()).toBe(value === undefined ? "" : JSON.stringify(value));
+			expect(response.headers.get("Content-Type")).toBe(
+				value === undefined ? null : "application/json",
+			);
+		}
+	});
+
+	it("rejects invalid node identifiers and parameter records before executing an action", async () => {
+		let calls = 0;
+		const tenant = makeTenant({
+			featuresEngine: {
+				runAction: () => {
+					calls++;
+					return Promise.resolve(right(undefined));
+				},
+			} as unknown as AntboxTenant["featuresEngine"],
+		});
+		for (
+			const body of [
+				{ uuids: [5] },
+				{ uuids: [{}] },
+				{ uuids: [""] },
+				{ uuids: [], parameters: [] },
+				{ uuids: [], parameters: "text" },
+			]
+		) {
+			const response = await runActionHandler([tenant])(
+				new Request("http://localhost/v2/actions/example/-/run", {
+					method: "POST",
+					headers: { "x-params": JSON.stringify({ uuid: "example" }) },
+					body: JSON.stringify(body),
+				}),
+			);
+			expect(response.status).toBe(400);
+		}
+		expect(calls).toBe(0);
+	});
+
 	it("passes action UUIDs through unchanged", async () => {
 		let observedUuid: string | undefined;
 		let observedUuids: string[] | undefined;

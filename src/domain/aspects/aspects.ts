@@ -6,6 +6,8 @@ import type { FileNode } from "domain/nodes/file_node.ts";
 import type { MetaNode } from "domain/nodes/meta_node.ts";
 import type { FolderNode } from "domain/nodes/folder_node.ts";
 import { andSpecification, type Specification, specificationFn } from "shared/specification.ts";
+import { uuid } from "domain/validation_schemas.ts";
+import { z } from "zod";
 import {
 	PropertyDoesNotMatchRegexError,
 	PropertyNotInListError,
@@ -70,11 +72,26 @@ export class Aspects {
 		propName: string,
 		property: AspectProperty,
 	): Specification<AspectableNode> {
+		const item = property.arrayType === "uuid"
+			? uuid()
+			: property.arrayType === "string"
+			? z.string()
+			: property.arrayType === "number"
+			? z.number()
+			: z.unknown();
+		const schema = property.type === "uuid"
+			? uuid()
+			: property.type === "array"
+			? z.array(item)
+			: property.type === "date"
+			? z.union([z.iso.date(), z.iso.datetime({ offset: true, local: true })])
+			: property.type === "object"
+			? z.record(z.string(), z.json())
+			: undefined;
 		return specificationFn((n) => {
 			const value = n.properties[propName];
 			const vtype = typeof value;
 			const ptype = property.type;
-			const atype = property.arrayType;
 
 			if (Aspects.#isMissingValue(value)) {
 				return right(true);
@@ -88,10 +105,14 @@ export class Aspects {
 				);
 			}
 
-			if (ptype === "array" && atype === "string" && Array.isArray(value)) {
-				return value.every((v) => typeof v === "string") ? right(true) : left(
+			if (schema) {
+				return schema.safeParse(value).success ? right(true) : left(
 					ValidationError.from(
-						new PropertyTypeError(property.title, property.type, "string[]"),
+						new PropertyTypeError(
+							property.title,
+							ptype === "array" ? `${property.arrayType ?? "unknown"}[]` : ptype,
+							vtype,
+						),
 					),
 				);
 			}
@@ -118,6 +139,8 @@ export class Aspects {
 			const values = Array.isArray(value) ? value : [value];
 
 			for (const v of values) {
+				// Type validation reports incompatible values without invoking user-defined coercion.
+				if (typeof v !== "string" && typeof v !== "number") continue;
 				if (!list.includes(v as string | number)) {
 					return left(
 						ValidationError.from(
@@ -153,6 +176,7 @@ export class Aspects {
 			const values = Array.isArray(value) ? value : [value];
 
 			for (const v of values) {
+				if (typeof v !== "string") continue;
 				if (!regex.test(v)) {
 					return left(
 						ValidationError.from(

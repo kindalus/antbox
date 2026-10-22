@@ -1,28 +1,7 @@
 import { z } from "zod";
+import { NodeFiltersSchema } from "domain/nodes/node_filter.ts";
 
 const AspectValidationListValueSchema = z.union([z.string(), z.number()]);
-const FilterOperatorSchema = z.enum([
-	"==",
-	"<=",
-	">=",
-	"<",
-	">",
-	"!=",
-	"in",
-	"not-in",
-	"match",
-	"contains",
-	"contains-all",
-	"contains-any",
-	"not-contains",
-	"contains-none",
-]);
-const NodeFilterSchema = z.tuple([z.string().min(1), FilterOperatorSchema, z.unknown()]);
-const NodeFiltersSchema = z.union([
-	z.array(NodeFilterSchema),
-	z.array(z.array(NodeFilterSchema)),
-]);
-
 // Schema for AspectProperty
 const AspectPropertySchema = z.object({
 	name: z.string().regex(
@@ -34,6 +13,7 @@ const AspectPropertySchema = z.object({
 	arrayType: z.enum(["string", "number", "uuid"]).optional(),
 	contentType: z.string().optional(),
 	readonly: z.boolean().optional(),
+	searchable: z.boolean().optional(),
 	validationRegex: z.string().optional(),
 	validationList: z.array(AspectValidationListValueSchema).optional(),
 	validationFilters: NodeFiltersSchema.optional(),

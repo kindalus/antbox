@@ -128,13 +128,13 @@ export class AgentsService {
 	): Promise<Either<AntboxError, AgentData>> {
 		const customAgent = getCustomAgent(uuid);
 		if (customAgent) {
-			return right(customAgent.data);
+			return right(structuredClone(customAgent.data));
 		}
 
 		// Check builtin agents first
 		const builtinAgent = BUILTIN_AGENTS.find((a) => a.uuid === uuid);
 		if (builtinAgent) {
-			return right(builtinAgent);
+			return right(structuredClone(builtinAgent));
 		}
 
 		const agentOrErr = await this.#configRepo.get("agents", uuid);
@@ -156,8 +156,8 @@ export class AgentsService {
 
 		// Combine builtin agents with custom agents
 		const allAgents = [
-			...customAgents,
-			...BUILTIN_AGENTS,
+			...structuredClone(customAgents),
+			...structuredClone(BUILTIN_AGENTS),
 			...customAgentsOrErr.value.map((agent) => this.#normalizeAgent(agent)),
 		];
 

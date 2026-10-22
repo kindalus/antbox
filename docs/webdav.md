@@ -28,7 +28,7 @@ Example:
 Important:
 
 - Include the tenant in the path (`/webdav/<tenant-name>/`).
-- If you only use `/webdav`, most clients will not resolve the repository root correctly.
+- Requests without a known tenant in this exact path return `400 Bad Request`.
 
 ### Credentials (recommended)
 
@@ -72,11 +72,19 @@ Do not use your email as WebDAV username. Antbox WebDAV accepts `key` or `jwt` o
 - Copy, move, and delete nodes
 - Lock and unlock resources (client dependent)
 
+File GET and HEAD responses keep the original bytes and MIME type. They include `nosniff` and a
+[CSP sandbox](https://www.w3.org/TR/CSP3/#directive-sandbox) so browser views cannot run scripts,
+submit forms, or load external resources from uploaded documents. Native WebDAV file transfers are
+unchanged.
+
 ## Common issues
 
 - `401 Unauthorized`: wrong credentials, missing auth, or wrong username prefix.
 - `403 Forbidden`: your group lacks required permissions on the target folder.
-- `404` / `NodeNotFoundError`: wrong tenant path in URL.
+- `400 Bad Request`: unknown tenant, conflicting tenant selectors, or invalid destination URL.
+- `404` / `NodeNotFoundError`: the requested path does not exist.
+- `409 Conflict`: a COPY or MOVE destination already exists; replacement is not supported.
+- `412 Precondition Failed`: a destination exists and the request specified `Overwrite: F`.
 - `423 Locked`: resource locked by another user.
 - `400 Invalid file name`: uploads like `._*` are rejected.
 
@@ -109,5 +117,15 @@ API key mode (`key`) is usually better for persistent desktop mounts.
 - WebDAV Basic auth is translated internally as:
   - `key:<secret>` -> `Authorization: ApiKey <secret>`
   - `jwt:<token>` -> `Authorization: Bearer <token>`
-- Tenant resolution follows server rules (`x-tenant` query, then `X-Tenant` header, then default).
+- The tenant in the URL selects both authentication and content storage. An `x-tenant` query or
+  `X-Tenant` header must agree with that tenant; conflicting selectors return `400`.
+- COPY and MOVE accept an absolute URL or an absolute path in `Destination`. It must remain within
+  the same origin and tenant. Behind a reverse proxy, an absolute URL must match the effective
+  request origin; an absolute path such as `/webdav/demo/Folder/file.txt` avoids that mismatch.
+- COPY requires Read and Export on the source file and Write on the destination folder. MOVE also
+  checks Write on the destination. Moving a folder inside itself is rejected.
+- Existing COPY/MOVE destinations are preserved: `Overwrite: F` returns `412`; the default or `T`
+  returns `409` because replacing an existing destination is not implemented.
+- Lock timeouts and conditional `If` headers are not fully implemented. Locks follow Antbox's
+  owner/group authorization model, and an advertised timeout does not expire a lock automatically.
 - `OPTIONS /webdav/*` is explicitly supported for capability negotiation.

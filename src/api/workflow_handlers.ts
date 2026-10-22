@@ -6,6 +6,20 @@ import { getTenant } from "./get_tenant.ts";
 import { type HttpHandler, sendBadRequest } from "./handler.ts";
 import { processError } from "./process_error.ts";
 import { processServiceResult } from "./process_service_result.ts";
+import { parseJsonBody } from "./parse_json_body.ts";
+import { getUploadFile, getUploadFormData } from "./upload_utils.ts";
+import { z } from "zod";
+
+const startSchema = z.object({
+	nodeUuid: z.string({ error: "{ nodeUuid } not given" }).min(1, "{ nodeUuid } not given"),
+	workflowDefinitionUuid: z.string({ error: "{ workflowDefinitionUuid } not given" }).min(1),
+	participants: z.array(z.string().min(1)).optional(),
+});
+const transitionSchema = z.object({
+	signal: z.string({ error: "{ signal } not given" }).min(1, "{ signal } not given"),
+	message: z.string().optional(),
+});
+const metadataSchema = z.looseObject({});
 
 // ============================================================================
 // WORKFLOW INSTANCE HANDLERS
@@ -18,27 +32,17 @@ export function startWorkflowHandler(tenants: AntboxTenant[]): HttpHandler {
 			const tenant = getTenant(req, tenants);
 			const engine = tenant.workflowInstancesEngine;
 
-			try {
-				const body = await req.json();
-				if (!body?.nodeUuid) {
-					return sendBadRequest({ error: "{ nodeUuid } not given" });
-				}
-				if (!body?.workflowDefinitionUuid) {
-					return sendBadRequest({ error: "{ workflowDefinitionUuid } not given" });
-				}
-
-				return await engine
-					.startWorkflow(
-						getAuthenticationContext(req),
-						body.nodeUuid,
-						body.workflowDefinitionUuid,
-						body.participants,
-					)
-					.then(processServiceResult)
-					.catch(processError);
-			} catch (_error) {
-				return sendBadRequest({ error: "Invalid JSON body" });
-			}
+			const body = await parseJsonBody(req, startSchema);
+			if (body.isLeft()) return sendBadRequest({ error: body.value.message });
+			return engine
+				.startWorkflow(
+					getAuthenticationContext(req),
+					body.value.nodeUuid,
+					body.value.workflowDefinitionUuid,
+					body.value.participants,
+				)
+				.then(processServiceResult)
+				.catch(processError);
 		},
 	);
 }
@@ -55,24 +59,17 @@ export function transitionWorkflowHandler(tenants: AntboxTenant[]): HttpHandler 
 				return sendBadRequest({ error: "{ uuid } not given" });
 			}
 
-			try {
-				const body = await req.json();
-				if (!body?.signal) {
-					return sendBadRequest({ error: "{ signal } not given" });
-				}
-
-				return await engine
-					.transition(
-						getAuthenticationContext(req),
-						params.uuid,
-						body.signal,
-						body.message,
-					)
-					.then(processServiceResult)
-					.catch(processError);
-			} catch (_error) {
-				return sendBadRequest({ error: "Invalid JSON body" });
-			}
+			const body = await parseJsonBody(req, transitionSchema);
+			if (body.isLeft()) return sendBadRequest({ error: body.value.message });
+			return engine
+				.transition(
+					getAuthenticationContext(req),
+					params.uuid,
+					body.value.signal,
+					body.value.message,
+				)
+				.then(processServiceResult)
+				.catch(processError);
 		},
 	);
 }
@@ -146,16 +143,12 @@ export function createOrReplaceWorkflowDefinitionHandler(tenants: AntboxTenant[]
 			const tenant = getTenant(req, tenants);
 			const service = tenant.workflowsService;
 
-			try {
-				const metadata = await req.json();
-
-				return await service
-					.createOrReplaceWorkflow(getAuthenticationContext(req), metadata)
-					.then(processServiceResult)
-					.catch(processError);
-			} catch (_error) {
-				return sendBadRequest({ error: "Invalid JSON body" });
-			}
+			const metadata = await parseJsonBody(req, metadataSchema);
+			if (metadata.isLeft()) return sendBadRequest({ error: metadata.value.message });
+			return service
+				.createOrReplaceWorkflow(getAuthenticationContext(req), metadata.value)
+				.then(processServiceResult)
+				.catch(processError);
 		},
 	);
 }
@@ -251,16 +244,12 @@ export function updateWorkflowNodeHandler(tenants: AntboxTenant[]): HttpHandler 
 				return sendBadRequest({ error: "{ uuid } not given" });
 			}
 
-			try {
-				const metadata = await req.json();
-
-				return await engine
-					.updateNode(getAuthenticationContext(req), params.uuid, metadata)
-					.then(processServiceResult)
-					.catch(processError);
-			} catch (_error) {
-				return sendBadRequest({ error: "Invalid JSON body" });
-			}
+			const metadata = await parseJsonBody(req, metadataSchema);
+			if (metadata.isLeft()) return sendBadRequest({ error: metadata.value.message });
+			return engine
+				.updateNode(getAuthenticationContext(req), params.uuid, metadata.value)
+				.then(processServiceResult)
+				.catch(processError);
 		},
 	);
 }
@@ -277,21 +266,14 @@ export function updateWorkflowNodeFileHandler(tenants: AntboxTenant[]): HttpHand
 				return sendBadRequest({ error: "{ uuid } not given" });
 			}
 
-			try {
-				const formData = await req.formData();
-				const file = formData.get("file") as File;
-
-				if (!file) {
-					return sendBadRequest({ error: "{ file } not given in form data" });
-				}
-
-				return await engine
-					.updateNodeFile(getAuthenticationContext(req), params.uuid, file)
-					.then(processServiceResult)
-					.catch(processError);
-			} catch (_error) {
-				return sendBadRequest({ error: "Invalid multipart/form-data body" });
-			}
+			const form = await getUploadFormData(req);
+			if (form.isLeft()) return sendBadRequest({ error: form.value.message });
+			const file = getUploadFile(form.value);
+			if (file.isLeft()) return sendBadRequest({ error: file.value.message });
+			return engine
+				.updateNodeFile(getAuthenticationContext(req), params.uuid, file.value)
+				.then(processServiceResult)
+				.catch(processError);
 		},
 	);
 }

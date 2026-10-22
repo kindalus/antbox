@@ -30,6 +30,14 @@ describe("UsersService", () => {
 	};
 
 	describe("createUser", () => {
+		it("rejects reserved builtin email addresses", async () => {
+			const service = new UsersService(new InMemoryConfigurationRepository());
+			for (const user of BUILTIN_USERS) {
+				const result = await service.createUser(adminCtx, user);
+				expect(result.isLeft()).toBe(true);
+			}
+		});
+
 		it("should create user successfully as admin", async () => {
 			const repo = new InMemoryConfigurationRepository();
 			const service = new UsersService(repo);
@@ -297,6 +305,50 @@ describe("UsersService", () => {
 	});
 
 	describe("findUserForAuthentication", () => {
+		it("rejects inactive users by email and phone", async () => {
+			const service = new UsersService(new InMemoryConfigurationRepository());
+			await service.createUser(adminCtx, {
+				email: "disabled@example.com",
+				title: "Disabled User",
+				group: "users",
+				phone: "+1234567890",
+				active: false,
+			});
+
+			for (const lookup of [{ email: "disabled@example.com" }, { phone: "+1234567890" }]) {
+				const result = await service.findUserForAuthentication(lookup);
+				expect(result.isLeft()).toBe(true);
+				if (result.isLeft()) expect(result.value.errorCode).toBe("UnauthorizedError");
+			}
+		});
+
+		it("rejects external authentication as builtin system users", async () => {
+			const repo = new InMemoryConfigurationRepository();
+			const service = new UsersService(repo);
+			for (const user of BUILTIN_USERS) {
+				// Even a pre-existing configuration record must not shadow a system identity.
+				await repo.save("users", { ...user, phone: "+1234567890" });
+				const result = await service.findUserForAuthentication({ email: user.email });
+				expect(result.isLeft()).toBe(true);
+				const phoneResult = await service.findUserForAuthentication({ phone: "+1234567890" });
+				expect(phoneResult.isLeft()).toBe(true);
+			}
+		});
+
+		it("rejects ambiguous phone identities", async () => {
+			const service = new UsersService(new InMemoryConfigurationRepository());
+			for (const email of ["first@example.com", "second@example.com"]) {
+				await service.createUser(adminCtx, {
+					email,
+					title: "Test User",
+					group: "users",
+					phone: "+1234567890",
+				});
+			}
+			const result = await service.findUserForAuthentication({ phone: "+1234567890" });
+			expect(result.isLeft()).toBe(true);
+		});
+
 		it("finds a user by email", async () => {
 			const repo = new InMemoryConfigurationRepository();
 			const service = new UsersService(repo);
@@ -413,6 +465,34 @@ describe("UsersService", () => {
 	});
 
 	describe("updateUser", () => {
+		it("rejects self-service privilege and account-status changes without saving", async () => {
+			const service = new UsersService(new InMemoryConfigurationRepository());
+			const created = await service.createUser(adminCtx, {
+				email: nonAdminCtx.principal.email,
+				title: "Test User",
+				group: "regular-users",
+			});
+			expect(created.isRight()).toBe(true);
+
+			for (
+				const update of [
+					{ group: ADMINS_GROUP_UUID },
+					{ groups: [ADMINS_GROUP_UUID] },
+					{ active: false },
+				]
+			) {
+				const result = await service.updateUser(
+					nonAdminCtx,
+					nonAdminCtx.principal.email,
+					update,
+				);
+				expect(result.isLeft()).toBe(true);
+				if (result.isLeft()) expect(result.value.errorCode).toBe("ForbiddenError");
+			}
+			const user = await service.getUser(adminCtx, nonAdminCtx.principal.email);
+			expect(user).toEqual(created);
+		});
+
 		it("should update user successfully as admin", async () => {
 			const repo = new InMemoryConfigurationRepository();
 			const service = new UsersService(repo);

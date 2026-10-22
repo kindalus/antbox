@@ -156,10 +156,9 @@ export class FeaturesEngine {
 		nodes: NodeMetadata[],
 		params?: Record<string, unknown>,
 	): Promise<Either<AntboxError, T>> {
+		const specification = NodesFilters.nodeSpecificationFrom(feature.filters || []);
 		const uuids = nodes
-			.filter((node) =>
-				NodesFilters.satisfiedBy(feature.filters || [], node as NodeLike).isRight()
-			)
+			.filter((node) => specification.isSatisfiedBy(node as NodeLike).isRight())
 			.map((node) => node.uuid!);
 
 		try {

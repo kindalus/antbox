@@ -4,6 +4,9 @@ import { type AntboxError, BadRequestError, ForbiddenError } from "shared/antbox
 import { type Either, left, right } from "shared/either.ts";
 import { kebabToCamelCase } from "shared/string_utils.ts";
 import { ValidationError } from "shared/validation_error.ts";
+import { z } from "zod";
+
+const ExtensionParametersSchema = z.record(z.string(), z.unknown());
 
 interface FeatureExtensionContext {
 	getFeature(
@@ -72,7 +75,10 @@ async function extractParameters(
 	const contentType = request.headers.get("content-type") || "";
 	if (contentType.includes("application/json")) {
 		try {
-			return right(await request.json());
+			const parsed = ExtensionParametersSchema.safeParse(await request.json());
+			return parsed.success
+				? right(parsed.data)
+				: left(new BadRequestError("JSON body must be an object"));
 		} catch {
 			return left(new BadRequestError("Invalid JSON body"));
 		}
@@ -106,7 +112,7 @@ function extensionResponse(feature: FeatureData, value: unknown): Response {
 		return value;
 	}
 
-	if (!value || feature.returnType === "void") {
+	if (value === undefined || value === null || feature.returnType === "void") {
 		return new Response("OK", { status: 200 });
 	}
 

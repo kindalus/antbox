@@ -75,9 +75,11 @@ describe("delete", () => {
 		expect(readForDelete.value).toBeInstanceOf(AntboxError);
 	});
 
-	test("should not delete", async () => {
+	test("keeps missing files absent when deletion is idempotent or reports not found", async () => {
 		const deleteResult = await storage.delete("unkwown");
-		expect(deleteResult.isLeft()).toBeTruthy();
-		expect(deleteResult.value).toBeInstanceOf(AntboxError);
+		if (deleteResult.isLeft()) expect(deleteResult.value).toBeInstanceOf(AntboxError);
+		const readResult = await storage.read("unkwown");
+		expect(readResult.isLeft()).toBeTruthy();
+		expect(readResult.value).toBeInstanceOf(AntboxError);
 	});
 });

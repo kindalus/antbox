@@ -1,8 +1,8 @@
 import { NodeFactory } from "domain/node_factory.ts";
+import { toPropertyError } from "domain/validation_schemas.ts";
 import type { AspectableNode, NodeLike } from "domain/node_like.ts";
 import { FolderNotFoundError } from "domain/nodes/folder_not_found_error.ts";
 
-import { Node } from "domain/nodes/node.ts";
 import { NodeCreatedEvent } from "domain/nodes/node_created_event.ts";
 import { NodeDeletedEvent } from "domain/nodes/node_deleted_event.ts";
 import type { NodeFilters } from "domain/nodes/node_filter.ts";
@@ -24,6 +24,7 @@ import { AntboxError, BadRequestError, ForbiddenError, UnknownError } from "shar
 import { type Either, left, right } from "shared/either.ts";
 import { FidGenerator } from "shared/fid_generator.ts";
 import { UuidGenerator } from "shared/uuid_generator.ts";
+import { ValidationError } from "shared/validation_error.ts";
 import { AuthorizationService } from "../security/authorization_service.ts";
 import { GroupsService } from "../security/groups_service.ts";
 import { z } from "zod";
@@ -41,6 +42,24 @@ interface NodeUpdateOptions {
 	forceEvent?: boolean;
 }
 
+// Check input shapes before derived values and property merges; models enforce domain rules.
+const NodeMetadataInputSchema = z.object({
+	uuid: z.string().nullish(),
+	title: z.string().nullish(),
+	fid: z.string().nullish(),
+	description: z.string().nullish(),
+	mimetype: z.string().nullish(),
+	parent: z.string().nullish(),
+	owner: z.string().nullish(),
+	createdTime: z.string().nullish(),
+	modifiedTime: z.string().nullish(),
+	fulltext: z.string().nullish(),
+	tags: z.array(z.string()).nullish(),
+	aspects: z.array(z.string()).nullish(),
+	related: z.array(z.string()).nullish(),
+	properties: z.record(z.string(), z.unknown()).nullish(),
+});
+
 /** Coordinates node persistence, storage, authorization, validation, and events. */
 export class NodeService {
 	private readonly parentFolderUpdateHandler: ParentFolderUpdateHandler;
@@ -49,6 +68,7 @@ export class NodeService {
 	private readonly nodeAspectRules: NodeAspectRules;
 	private readonly nodeLocking: NodeLocking;
 	private readonly nodeLookup: NodeLookup;
+	#storageWrites: Promise<void> = Promise.resolve();
 
 	constructor(private readonly context: NodeServiceContext) {
 		this.authorizationService = new AuthorizationService();
@@ -75,15 +95,21 @@ export class NodeService {
 		ctx: AuthenticationContext,
 		uuid: string,
 		parent: string,
-	): Promise<Either<AntboxError, Node>> {
-		return this.#copyNode(ctx, uuid, parent);
+		title?: string,
+	): Promise<Either<AntboxError, NodeMetadata>> {
+		return this.#copyNode(ctx, uuid, parent, title);
 	}
 
 	async #createNodeInRepository(
 		ctx: AuthenticationContext,
 		metadata: Partial<NodeMetadata>,
 	): Promise<Either<AntboxError, NodeLike>> {
+		const validationError = this.#validateMetadata(metadata);
+		if (validationError) return left(validationError);
 		metadata = { ...metadata };
+		delete metadata.locked;
+		delete metadata.lockedBy;
+		delete metadata.unlockAuthorizedGroups;
 		if (ctx.principal.email !== Users.WORKFLOW_INSTANCE_USER_EMAIL) {
 			delete metadata.workflowInstanceUuid;
 			delete metadata.workflowState;
@@ -107,6 +133,7 @@ export class NodeService {
 		const nodeOrErr = NodeFactory.from({
 			...metadata,
 			uuid,
+			parent: parentOrErr.value.uuid,
 			fid: metadata.fid ?? FidGenerator.generate(metadata.title ?? ""),
 			owner: metadata.owner ?? ctx.principal.email,
 			group: group === Groups.ANONYMOUS_GROUP_UUID ? parentOrErr.value.group : group,
@@ -123,6 +150,11 @@ export class NodeService {
 		);
 		if (allowedOrErr.isLeft()) {
 			return left(allowedOrErr.value);
+		}
+		if (parentOrErr.value.locked) {
+			return left(
+				new BadRequestError("Cannot add nodes to a locked folder. Unlock the folder first."),
+			);
 		}
 
 		if (Nodes.isFolder(nodeOrErr.value) && !metadata.permissions) {
@@ -160,6 +192,8 @@ export class NodeService {
 		ctx: AuthenticationContext,
 		metadata: Partial<NodeMetadata>,
 	): Promise<Either<AntboxError, NodeMetadata>> {
+		metadata = { ...metadata };
+		delete metadata.size;
 		const nodeOrErr = await this.#createNodeInRepository(ctx, metadata);
 
 		if (nodeOrErr.isLeft()) {
@@ -189,6 +223,16 @@ export class NodeService {
 		file: File,
 		metadata: Partial<NodeMetadata>,
 	): Promise<Either<AntboxError, NodeMetadata>> {
+		return this.#withStorageLimitLock(() => this.#createFile(ctx, file, metadata));
+	}
+
+	async #createFile(
+		ctx: AuthenticationContext,
+		file: File,
+		metadata: Partial<NodeMetadata>,
+	): Promise<Either<AntboxError, NodeMetadata>> {
+		const validationError = this.#validateMetadata(metadata);
+		if (validationError) return left(validationError);
 		const fileType = file.type === "text/javascript" ? "application/javascript" : file.type;
 		const requestedType = metadata.mimetype === "text/javascript"
 			? "application/javascript"
@@ -201,6 +245,10 @@ export class NodeService {
 			mimetype: fileType || requestedType,
 			size: file.size,
 		};
+
+		if (fileMetadata.mimetype?.startsWith("application/vnd.antbox")) {
+			return left(new BadRequestError("File uploads cannot use reserved node mimetypes"));
+		}
 
 		const limitsOrErr = await this.context.tenantLimitsGuard?.ensureCanCreateFile(file.size) ??
 			right(undefined);
@@ -220,7 +268,7 @@ export class NodeService {
 			mimetype: nodeOrErr.value.mimetype,
 		});
 		if (voidOrErr.isLeft()) {
-			this.context.repository.delete(nodeOrErr.value.uuid);
+			await this.context.repository.delete(nodeOrErr.value.uuid);
 			return left(voidOrErr.value);
 		}
 
@@ -233,10 +281,10 @@ export class NodeService {
 		}
 
 		// Publish NodeCreatedEvent
-		const evt = new NodeCreatedEvent(ctx.principal.email, ctx.tenant, nodeOrErr.value);
+		const evt = new NodeCreatedEvent(ctx.principal.email, ctx.tenant, nodeOrErr.value.metadata);
 		this.context.bus.publish(evt);
 
-		return nodeOrErr;
+		return right(nodeOrErr.value.metadata);
 	}
 
 	async delete(
@@ -247,6 +295,8 @@ export class NodeService {
 		if (nodeOrErr.isLeft()) {
 			return left(nodeOrErr.value);
 		}
+
+		uuid = nodeOrErr.value.uuid;
 
 		// Prevent deletion of nodes involved in a workflow
 		if (nodeOrErr.value.metadata.workflowInstanceUuid) {
@@ -274,6 +324,9 @@ export class NodeService {
 		if (allowedOrErr.isLeft()) {
 			return left(allowedOrErr.value);
 		}
+
+		const lockCheckOrErr = this.nodeLocking.checkModification(ctx, nodeOrErr.value);
+		if (lockCheckOrErr.isLeft()) return left(lockCheckOrErr.value);
 
 		if (Nodes.isFileLike(nodeOrErr.value)) {
 			const voidOrErr = await this.context.storage.delete(uuid);
@@ -338,16 +391,17 @@ export class NodeService {
 	async duplicate(
 		ctx: AuthenticationContext,
 		uuid: string,
-	): Promise<Either<NodeNotFoundError, Node>> {
-		return this.#copyNode(ctx, uuid) as Promise<Either<NodeNotFoundError, Node>>;
+	): Promise<Either<AntboxError, NodeMetadata>> {
+		return this.#copyNode(ctx, uuid);
 	}
 
 	async #copyNode(
 		ctx: AuthenticationContext,
 		uuid: string,
 		parent?: string,
-	): Promise<Either<AntboxError, Node>> {
-		const nodeOrErr = await this.nodeLookup.get(uuid);
+		title?: string,
+	): Promise<Either<AntboxError, NodeMetadata>> {
+		const nodeOrErr = await this.get(ctx, uuid);
 		if (nodeOrErr.isLeft()) {
 			return left(nodeOrErr.value);
 		}
@@ -358,23 +412,23 @@ export class NodeService {
 		}
 
 		const metadata = {
-			...node.metadata,
+			...node,
 			uuid: UuidGenerator.generate(),
-			title: `${node.title} 2`,
+			title: title ?? `${node.title} 2`,
 			parent: parent ?? node.parent,
 		};
 		delete (metadata as Partial<NodeMetadata>).fid;
 
 		if (!Nodes.isFileLike(node)) {
-			return this.create(ctx, metadata) as Promise<Either<AntboxError, Node>>;
+			return this.create(ctx, metadata);
 		}
 
-		const fileOrErr = await this.context.storage.read(node.uuid);
+		const fileOrErr = await this.export(ctx, node.uuid);
 		if (fileOrErr.isLeft()) {
 			return left(fileOrErr.value);
 		}
 
-		return this.createFile(ctx, fileOrErr.value, metadata) as Promise<Either<AntboxError, Node>>;
+		return this.createFile(ctx, fileOrErr.value, metadata);
 	}
 
 	async export(
@@ -675,6 +729,20 @@ export class NodeService {
 		metadata: Partial<NodeMetadata>,
 		options: NodeUpdateOptions = {},
 	): Promise<Either<NodeNotFoundError, void>> {
+		metadata = { ...metadata };
+		delete metadata.size;
+		return this.#updateNode(ctx, uuid, metadata, options);
+	}
+
+	async #updateNode(
+		ctx: AuthenticationContext,
+		uuid: string,
+		metadata: Partial<NodeMetadata>,
+		options: NodeUpdateOptions = {},
+		file?: File,
+	): Promise<Either<NodeNotFoundError, void>> {
+		const validationError = this.#validateMetadata(metadata);
+		if (validationError) return left(validationError);
 		let nodeOrErr = await this.nodeLookup.get(uuid);
 		if (nodeOrErr.isLeft()) {
 			return left(nodeOrErr.value);
@@ -700,6 +768,16 @@ export class NodeService {
 		);
 		if (allowedOrErr.isLeft()) {
 			return left(allowedOrErr.value);
+		}
+		if (Nodes.isFolder(nodeOrErr.value) && metadata.permissions != null) {
+			const aclAllowedOrErr = this.authorizationService.isPrincipalAllowedTo(
+				ctx,
+				nodeOrErr.value,
+				"Write",
+			);
+			if (aclAllowedOrErr.isLeft()) {
+				return left(aclAllowedOrErr.value);
+			}
 		}
 
 		// Check if node is locked
@@ -744,20 +822,24 @@ export class NodeService {
 			}
 		}
 
-		// Validate aspectable updates on a detached candidate so rejected changes are not persisted
-		// by repositories that return live object references.
-		if (Nodes.hasAspects(nodeOrErr.value)) {
-			const newNodeOrErr = NodeFactory.from({
-				...nodeOrErr.value.metadata,
-				...(metadata.size !== undefined ? { size: metadata.size } : {}),
-			});
-			if (newNodeOrErr.isLeft()) {
-				return left(newNodeOrErr.value);
-			}
-			nodeOrErr = newNodeOrErr;
+		// Validate a detached candidate so a rejected change cannot mutate a live repository object.
+		const candidate = NodeFactory.from<NodeLike>(nodeOrErr.value.metadata);
+		if (candidate.isLeft()) {
+			return left(candidate.value);
 		}
+		nodeOrErr = candidate;
 
-		let safeMetadata: Partial<NodeMetadata> = metadata;
+		let safeMetadata: Partial<NodeMetadata> = { ...metadata };
+		delete safeMetadata.locked;
+		delete safeMetadata.lockedBy;
+		delete safeMetadata.unlockAuthorizedGroups;
+		if (safeMetadata.parent != null && safeMetadata.parent !== currentMetadata.parent) {
+			const parent = await this.nodeLookup.getFolder(safeMetadata.parent);
+			if (parent.isLeft()) {
+				return left(new BadRequestError(`Parent folder not found: ${safeMetadata.parent}`));
+			}
+			safeMetadata.parent = parent.value.uuid;
+		}
 
 		// Merge properties to avoid accidentally dropping unspecified properties
 		if (safeMetadata.properties && Nodes.hasAspects(nodeOrErr.value)) {
@@ -808,6 +890,38 @@ export class NodeService {
 			);
 		}
 
+		if (actualParentOrErr.value.uuid !== currentParentOrErr.value.uuid) {
+			const moveAllowed = this.authorizationService.isPrincipalAllowedTo(
+				ctx,
+				actualParentOrErr.value,
+				"Write",
+			);
+			if (moveAllowed.isLeft()) return left(moveAllowed.value);
+			if (actualParentOrErr.value.locked) {
+				return left(
+					new BadRequestError(
+						"Cannot move nodes into a locked folder. Unlock the folder first.",
+					),
+				);
+			}
+
+			if (Nodes.isFolder(nodeOrErr.value)) {
+				const visited = new Set([nodeOrErr.value.uuid]);
+				let ancestor = actualParentOrErr.value;
+				while (ancestor.uuid !== Nodes.ROOT_FOLDER_UUID) {
+					if (visited.has(ancestor.uuid)) {
+						return left(
+							new BadRequestError("Cannot move a folder into itself or its descendants"),
+						);
+					}
+					visited.add(ancestor.uuid);
+					const parent = await this.nodeLookup.getFolder(ancestor.parent);
+					if (parent.isLeft()) return left(parent.value);
+					ancestor = parent.value;
+				}
+			}
+		}
+
 		const filtersSatisfied = NodesFilters.satisfiedBy(
 			actualParentOrErr.value.filters,
 			nodeOrErr.value,
@@ -818,17 +932,11 @@ export class NodeService {
 
 		// If updating a folder's filters, validate all existing children against new filters
 		if (Nodes.isFolder(nodeOrErr.value) && metadata.filters !== undefined) {
-			const children = await this.context.repository.filter([[
-				"parent",
-				"==",
-				uuid,
-			]]);
+			const children = await this.nodeLookup.listChildren(nodeOrErr.value.uuid);
+			const specification = NodesFilters.nodeSpecificationFrom(nodeOrErr.value.filters);
 
-			for (const child of children.nodes) {
-				const childFiltersSatisfied = NodesFilters.satisfiedBy(
-					nodeOrErr.value.filters,
-					child,
-				).isRight();
+			for (const child of children) {
+				const childFiltersSatisfied = specification.isSatisfiedBy(child).isRight();
 				if (!childFiltersSatisfied) {
 					return left(
 						new BadRequestError(
@@ -842,6 +950,15 @@ export class NodeService {
 		nodeOrErr.value.update({
 			fulltext: await this.#calculateFulltext(nodeOrErr.value),
 		});
+
+		if (file) {
+			const writeOrErr = await this.context.storage.write(nodeOrErr.value.uuid, file, {
+				title: nodeOrErr.value.title,
+				parent: nodeOrErr.value.parent,
+				mimetype: nodeOrErr.value.mimetype,
+			});
+			if (writeOrErr.isLeft()) return left(writeOrErr.value);
+		}
 
 		const updateResult = await this.context.repository.update(nodeOrErr.value);
 
@@ -870,6 +987,14 @@ export class NodeService {
 		uuid: string,
 		file: File,
 	): Promise<Either<NodeNotFoundError, void>> {
+		return this.#withStorageLimitLock(() => this.#updateFile(ctx, uuid, file));
+	}
+
+	async #updateFile(
+		ctx: AuthenticationContext,
+		uuid: string,
+		file: File,
+	): Promise<Either<NodeNotFoundError, void>> {
 		const nodeOrErr = await this.nodeLookup.get(uuid);
 		if (nodeOrErr.isLeft()) {
 			return left(nodeOrErr.value);
@@ -880,10 +1005,8 @@ export class NodeService {
 		}
 
 		const mappedMimetype = this.#mapAntboxMimetypes(nodeOrErr.value.mimetype);
-		if (
-			mappedMimetype !== file.type && !mappedMimetype.endsWith("/javascript") &&
-			!file.type.endsWith("/javascript")
-		) {
+		const fileMimetype = file.type === "text/javascript" ? "application/javascript" : file.type;
+		if (mappedMimetype !== fileMimetype) {
 			return left(
 				new BadRequestError(
 					`Mimetype mismatch ${mappedMimetype} vs ${file.type}`,
@@ -899,25 +1022,38 @@ export class NodeService {
 			return left(limitsOrErr.value);
 		}
 
-		const writeOrErr = await this.context.storage.write(uuid, file, {
-			title: nodeOrErr.value.title,
-			parent: nodeOrErr.value.parent,
-			mimetype: nodeOrErr.value.mimetype,
-		});
-		if (writeOrErr.isLeft()) {
-			return left(writeOrErr.value);
-		}
-
 		const updateMetadata: Partial<NodeMetadata> = { size: file.size };
 
 		if (this.context.storage.provideCDN()) {
-			const cdnUrl = this.context.storage.getCDNUrl(uuid);
+			const cdnUrl = this.context.storage.getCDNUrl(nodeOrErr.value.uuid);
 			if (cdnUrl) {
 				updateMetadata.cdnUrl = cdnUrl;
 			}
 		}
 
-		return this.update(ctx, uuid, updateMetadata, { forceEvent: true });
+		return this.#updateNode(
+			ctx,
+			nodeOrErr.value.uuid,
+			updateMetadata,
+			{ forceEvent: true },
+			file,
+		);
+	}
+
+	#validateMetadata(metadata: Partial<NodeMetadata>): ValidationError | undefined {
+		const result = NodeMetadataInputSchema.safeParse(metadata);
+		return result.success
+			? undefined
+			: ValidationError.from(...result.error.issues.map(toPropertyError("NodeMetadata")));
+	}
+
+	#withStorageLimitLock<T>(operation: () => Promise<T>): Promise<T> {
+		const guard = this.context.tenantLimitsGuard;
+		if (!guard || guard.storageLimitEnabled === false) return operation();
+		// Keep the quota read, current file-size read, and persistence in one tenant-local turn.
+		const result = this.#storageWrites.then(operation);
+		this.#storageWrites = result.then(() => undefined, () => undefined);
+		return result;
 	}
 
 	async lock(

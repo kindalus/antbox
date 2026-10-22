@@ -17,7 +17,6 @@ npm/
 *.log
 .zed
 
-deno.lock
 node_modules
 bun.lock
 bun.lockb

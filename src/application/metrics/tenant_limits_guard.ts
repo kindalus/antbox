@@ -10,6 +10,7 @@ const LIMIT_BUFFER_MULTIPLIER = 1.05;
 const AGENT_USAGE_MIMETYPE = "application/vnd.antbox.agent-usage";
 
 export interface TenantLimitsEnforcer {
+	readonly storageLimitEnabled?: boolean;
 	ensureCanCreateFile(fileSize: number): Promise<Either<AntboxError, void>>;
 	ensureCanUpdateFile(
 		currentFileSize: number,
@@ -22,6 +23,10 @@ export class TenantLimitsGuard implements TenantLimitsEnforcer {
 	readonly #nodeRepository: NodeRepository;
 	readonly #eventStore: EventStoreRepository;
 	readonly #tenantLimits: TenantLimits;
+
+	get storageLimitEnabled(): boolean {
+		return this.#tenantLimits.storage !== "pay-as-you-go";
+	}
 
 	constructor(
 		nodeRepository: NodeRepository,

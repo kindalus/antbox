@@ -6,7 +6,7 @@ import { Users } from "domain/users_groups/users.ts";
 import { type Either, left, right } from "shared/either.ts";
 import type { AntboxTenant } from "./antbox_tenant.ts";
 import { getQuery } from "./get_query.ts";
-import { resolveTenant } from "./get_tenant.ts";
+import { bindRequestTenant, resolveTenant } from "./get_tenant.ts";
 import type { HttpHandler } from "./handler.ts";
 import type { HttpMiddleware } from "./middleware.ts";
 import { decodeJwt, jwtVerify, type KeyObject } from "jose";
@@ -14,7 +14,12 @@ import { decodeJwt, jwtVerify, type KeyObject } from "jose";
 export function authenticationMiddleware(
 	tenants: AntboxTenant[],
 ): HttpMiddleware {
-	return (next: HttpHandler) => {
+	return (handler: HttpHandler) => {
+		const next: HttpHandler = async (req) => {
+			const response = await handler(req);
+			response.headers.append("Vary", "Authorization, Cookie, Origin, Sec-Fetch-Site, X-Tenant");
+			return response;
+		};
 		return async (req: Request) => {
 			const tenant = resolveTenant(req, tenants);
 			if (!tenant) {
@@ -23,12 +28,15 @@ export function authenticationMiddleware(
 					headers: { "Content-Type": "application/json" },
 				});
 			}
+			req.headers.set("X-Tenant", tenant.name);
+			// A reload may replace the registry while authentication is awaiting a repository.
+			bindRequestTenant(req, tenant);
 
 			const secret = importKey(tenant.symmetricKey);
 			const apiKeysService = tenant.apiKeysService;
 			const externalLoginService = tenant.externalLoginService;
 
-			if (!apiKeysService || !externalLoginService || !secret) {
+			if (!apiKeysService || !externalLoginService || !tenant.symmetricKey) {
 				storeAnonymous(req);
 				return next(req);
 			}
@@ -45,14 +53,16 @@ export function authenticationMiddleware(
 				return next(req);
 			}
 
-			const payload = decodeJwt(token);
-			if (!payload) {
+			let payload;
+			try {
+				payload = decodeJwt(token);
+			} catch {
 				storeAnonymous(req);
 				return next(req);
 			}
 
 			if (payload.iss === "urn:antbox") {
-				await authenticateRoot(secret, req, token);
+				await authenticateRoot(secret, req, token, tenant.name);
 				return next(req);
 			}
 
@@ -63,16 +73,26 @@ export function authenticationMiddleware(
 }
 
 function getToken(req: Request) {
-	// Priority 2: Authorization: Bearer <token>
-	const bearer = req.headers.get("authorization");
-	if (bearer && /Bearer\s.*/.test(bearer)) {
-		return bearer.split(" ")[1];
+	// Priority 3: Authorization: Bearer <token>
+	const bearer = req.headers.get("authorization")?.match(/^Bearer\s+(\S+)$/i);
+	if (bearer) {
+		return bearer[1];
 	}
 
-	// Priority 3: Cookie: token=<jwt>
+	// Browser metadata survives TLS termination without trusting forwarded host headers.
+	const fetchSite = req.headers.get("sec-fetch-site");
+	const origin = req.headers.get("origin");
+	if (
+		fetchSite === "same-site" || fetchSite === "cross-site" ||
+		(fetchSite !== "same-origin" && origin && origin !== new URL(req.url).origin)
+	) {
+		return undefined;
+	}
+
+	// Priority 4: Cookie: token=<jwt>
 	const cookieHeader = req.headers.get("cookie");
 	if (cookieHeader) {
-		const match = cookieHeader.match(/\btoken=([^;]+)/);
+		const match = cookieHeader.match(/(?:^|;\s*)token=([^;]+)/);
 		if (match) {
 			return match[1];
 		}
@@ -101,10 +121,11 @@ function storeAnonymous(req: Request) {
 	return storePrincipal(req, Users.ANONYMOUS_USER_EMAIL, [Groups.ANONYMOUS_GROUP_UUID]);
 }
 
-function storePrincipal(req: Request, email: string, groups: string[]) {
+function storePrincipal(req: Request, email: string, groups: string[], apiKeyUuid?: string) {
 	const principal: Principal = {
 		email,
 		groups,
+		...(apiKeyUuid === undefined ? {} : { apiKeyUuid }),
 	};
 
 	req.headers.set("X-Principal", JSON.stringify(principal));
@@ -114,8 +135,9 @@ async function authenticateRoot(
 	secret: Uint8Array,
 	req: Request,
 	token: string,
+	tenantName: string,
 ) {
-	const tokenOrErr = await verifyToken(secret, token);
+	const tokenOrErr = await verifyToken(secret, token, tenantName);
 
 	if (tokenOrErr.isLeft()) {
 		return storeAnonymous(req);
@@ -134,7 +156,12 @@ async function authenticateApiKey(
 		return storeAnonymous(req);
 	}
 
-	return storePrincipal(req, Users.API_KEY_USER_EMAIL, [apiKeyOrErr.value.group]);
+	return storePrincipal(
+		req,
+		Users.API_KEY_USER_EMAIL,
+		[apiKeyOrErr.value.group],
+		apiKeyOrErr.value.uuid,
+	);
 }
 
 async function authenticateToken(
@@ -153,8 +180,14 @@ async function authenticateToken(
 function verifyToken(
 	key: KeyObject | Uint8Array,
 	token: string,
+	tenantName: string,
 ): Promise<Either<Error, { payload: Principal }>> {
-	return jwtVerify(token, key)
+	return jwtVerify(token, key, {
+		algorithms: ["HS256"],
+		issuer: "urn:antbox",
+		audience: tenantName,
+		requiredClaims: ["exp"],
+	})
 		.then((payload) => right(payload))
 		.catch((e) => left(e)) as Promise<Either<Error, { payload: Principal }>>;
 }

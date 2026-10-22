@@ -1,5 +1,5 @@
 import type { AntboxError } from "shared/antbox_error.ts";
-import { BadRequestError } from "shared/antbox_error.ts";
+import { BadRequestError, UnknownError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
 import type {
 	CollectionMap,
@@ -65,7 +65,11 @@ export class InMemoryConfigurationRepository implements ConfigurationRepository 
 			? (data as { email: string }).email
 			: (data as { uuid: string }).uuid;
 
-		collectionMap.set(key, data);
+		try {
+			collectionMap.set(key, structuredClone(data));
+		} catch (error) {
+			return left(new UnknownError(error instanceof Error ? error.message : String(error)));
+		}
 
 		return right(data);
 	}
@@ -83,7 +87,7 @@ export class InMemoryConfigurationRepository implements ConfigurationRepository 
 			);
 		}
 
-		return right(item);
+		return right(structuredClone(item));
 	}
 
 	async list<K extends keyof CollectionMap>(
@@ -92,7 +96,7 @@ export class InMemoryConfigurationRepository implements ConfigurationRepository 
 		const collectionMap = this.collections[collection] as Map<string, CollectionMap[K]>;
 		const items = Array.from(collectionMap.values());
 
-		return right(items);
+		return right(structuredClone(items));
 	}
 
 	async delete<K extends keyof CollectionMap>(

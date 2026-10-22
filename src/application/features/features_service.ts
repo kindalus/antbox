@@ -71,7 +71,7 @@ export class FeaturesService {
 				return left(new ForbiddenError("Not authorized to access this feature"));
 			}
 
-			return right(builtinFeature);
+			return right(structuredClone(builtinFeature));
 		}
 
 		const customFeatureOrErr = await this.#configRepo.get("features", uuid);
@@ -113,7 +113,7 @@ export class FeaturesService {
 			customFeatures.push(featureOrErr.value);
 		}
 
-		const allFeatures: FeatureData[] = [...BUILTIN_FEATURES, ...customFeatures];
+		const allFeatures: FeatureData[] = [...structuredClone(BUILTIN_FEATURES), ...customFeatures];
 
 		// Sort by title
 		allFeatures.sort((a, b) => a.title.localeCompare(b.title));

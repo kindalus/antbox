@@ -28,6 +28,22 @@ export class PostgresError extends AntboxError {
 	}
 }
 
+export default async function buildPostgresNodeRepository(
+	connectionString?: string,
+): Promise<Either<AntboxError, NodeRepository>> {
+	try {
+		const repository = new PostgresNodeRepository(connectionString);
+		const initialized = await repository.initialize();
+		if (initialized.isLeft()) {
+			await repository.close();
+			return left(initialized.value);
+		}
+		return right(repository);
+	} catch (error) {
+		return left(new PostgresError((error as Error).message));
+	}
+}
+
 /**
  * Postgres-backed NodeRepository with pgvector support.
  *
@@ -252,7 +268,7 @@ export class PostgresNodeRepository implements NodeRepository {
 					${metadata.title},
 					${metadata.parent},
 					${metadata.mimetype},
-					${bodyJson}::jsonb
+					${bodyJson}::text::jsonb
 				)
 			`;
 			return right(undefined);
@@ -323,12 +339,28 @@ export class PostgresNodeRepository implements NodeRepository {
 					title = ${metadata.title},
 					parent = ${metadata.parent},
 					mimetype = ${metadata.mimetype},
-					body = ${bodyJson}::jsonb
+					body = ${bodyJson}::text::jsonb
 				WHERE uuid = ${node.uuid}
 			`;
 			return right(undefined);
 		} catch (_err) {
 			return left(new NodeNotFoundError(node.uuid));
+		}
+	}
+
+	async touch(uuid: string): Promise<Either<AntboxError, void>> {
+		try {
+			const rows = await this.#sql`
+				UPDATE nodes
+				SET body = jsonb_set(body, '{modifiedTime}', to_jsonb(${
+				new Date().toISOString()
+			}::text))
+				WHERE uuid = ${uuid}
+				RETURNING uuid
+			`;
+			return rows.length ? right(undefined) : left(new NodeNotFoundError(uuid));
+		} catch (error) {
+			return left(new PostgresError(error instanceof Error ? error.message : String(error)));
 		}
 	}
 
@@ -439,7 +471,7 @@ export class PostgresNodeRepository implements NodeRepository {
 				return clause;
 			});
 
-			return andClauses.length > 1 ? `(${andClauses.join(" AND ")})` : andClauses[0];
+			return andClauses.length > 1 ? `(${andClauses.join(" AND ")})` : (andClauses[0] ?? "TRUE");
 		});
 
 		const whereClause = orClauses.length > 1 ? `(${orClauses.join(" OR ")})` : orClauses[0];
@@ -477,7 +509,31 @@ export class PostgresNodeRepository implements NodeRepository {
 		paramIndex: number,
 		isPromoted: boolean,
 	): { clause: string; newParamIndex: number } {
-		const jsonPath = field.split(".").map((p) => `'${p}'`).join("->");
+		if (
+			([">", ">=", "<", "<="].includes(operator) &&
+				typeof value !== "string" && typeof value !== "number") ||
+			(operator === "match" && typeof value === "object" && value !== null)
+		) return { clause: "FALSE", newParamIndex: paramIndex };
+		if (Array.isArray(value) && value.length === 0) {
+			if (operator === "in" || operator === "contains-any") {
+				return { clause: "FALSE", newParamIndex: paramIndex };
+			}
+			if (
+				operator === "not-in" || operator === "contains-all" || operator === "contains-none"
+			) return { clause: "TRUE", newParamIndex: paramIndex };
+		}
+
+		const usesJsonPath = operator !== "==" && (
+			!isPromoted || operator.includes("contains")
+		);
+		const jsonPath = usesJsonPath
+			? field.split(".").map((part) => {
+				params.push(part);
+				return `$${paramIndex++}::text`;
+			}).join(", ")
+			: "";
+		const jsonValue = `jsonb_extract_path(body, ${jsonPath})`;
+		const textValue = `jsonb_extract_path_text(body, ${jsonPath})`;
 
 		switch (operator) {
 			case "==": {
@@ -490,18 +546,18 @@ export class PostgresNodeRepository implements NodeRepository {
 				const jsonValue = this.#buildNestedJson(pathParts, value);
 				params.push(JSON.stringify(jsonValue));
 				return {
-					clause: `body @> $${paramIndex}::jsonb`,
+					clause: `body @> $${paramIndex}::text::jsonb`,
 					newParamIndex: paramIndex + 1,
 				};
 			}
 
 			case "!=": {
-				params.push(value);
+				params.push(isPromoted ? value : JSON.stringify(value));
 				if (isPromoted) {
 					return { clause: `${field} != $${paramIndex}`, newParamIndex: paramIndex + 1 };
 				}
 				return {
-					clause: `body->${jsonPath} != to_jsonb($${paramIndex}::text)`,
+					clause: `${jsonValue} != $${paramIndex}::text::jsonb`,
 					newParamIndex: paramIndex + 1,
 				};
 			}
@@ -518,7 +574,7 @@ export class PostgresNodeRepository implements NodeRepository {
 					};
 				}
 				return {
-					clause: `(body->>${jsonPath})::numeric ${operator} $${paramIndex}`,
+					clause: `(${textValue})::numeric ${operator} $${paramIndex}`,
 					newParamIndex: paramIndex + 1,
 				};
 			}
@@ -534,7 +590,7 @@ export class PostgresNodeRepository implements NodeRepository {
 					};
 				}
 				return {
-					clause: `body->>${jsonPath} IN (${placeholders})`,
+					clause: `${textValue} IN (${placeholders})`,
 					newParamIndex: paramIndex + values.length,
 				};
 			}
@@ -550,13 +606,17 @@ export class PostgresNodeRepository implements NodeRepository {
 					};
 				}
 				return {
-					clause: `body->>${jsonPath} NOT IN (${placeholders})`,
+					clause: `${textValue} NOT IN (${placeholders})`,
 					newParamIndex: paramIndex + values.length,
 				};
 			}
 
 			case "match": {
-				params.push(`%${value}%`);
+				const pattern = String(value).trim().replaceAll(/[\\%_]/g, "\\$&").replaceAll(
+					/\s+/g,
+					"%",
+				);
+				params.push(`%${pattern}%`);
 				if (isPromoted) {
 					return {
 						clause: `${field} ILIKE $${paramIndex}`,
@@ -564,7 +624,7 @@ export class PostgresNodeRepository implements NodeRepository {
 					};
 				}
 				return {
-					clause: `body->>${jsonPath} ILIKE $${paramIndex}`,
+					clause: `${textValue} ILIKE $${paramIndex}`,
 					newParamIndex: paramIndex + 1,
 				};
 			}
@@ -572,7 +632,7 @@ export class PostgresNodeRepository implements NodeRepository {
 			case "contains": {
 				params.push(JSON.stringify([value]));
 				return {
-					clause: `body->${jsonPath} @> $${paramIndex}::jsonb`,
+					clause: `${jsonValue} @> $${paramIndex}::text::jsonb`,
 					newParamIndex: paramIndex + 1,
 				};
 			}
@@ -580,7 +640,7 @@ export class PostgresNodeRepository implements NodeRepository {
 			case "not-contains": {
 				params.push(JSON.stringify([value]));
 				return {
-					clause: `NOT (body->${jsonPath} @> $${paramIndex}::jsonb)`,
+					clause: `NOT (${jsonValue} @> $${paramIndex}::text::jsonb)`,
 					newParamIndex: paramIndex + 1,
 				};
 			}
@@ -589,7 +649,7 @@ export class PostgresNodeRepository implements NodeRepository {
 				const values = value as unknown[];
 				params.push(JSON.stringify(values));
 				return {
-					clause: `body->${jsonPath} @> $${paramIndex}::jsonb`,
+					clause: `${jsonValue} @> $${paramIndex}::text::jsonb`,
 					newParamIndex: paramIndex + 1,
 				};
 			}
@@ -598,7 +658,7 @@ export class PostgresNodeRepository implements NodeRepository {
 				const values = value as unknown[];
 				const conditions = values.map((v, i) => {
 					params.push(JSON.stringify([v]));
-					return `body->${jsonPath} @> $${paramIndex + i}::jsonb`;
+					return `${jsonValue} @> $${paramIndex + i}::text::jsonb`;
 				});
 				return {
 					clause: `(${conditions.join(" OR ")})`,
@@ -610,7 +670,7 @@ export class PostgresNodeRepository implements NodeRepository {
 				const values = value as unknown[];
 				const conditions = values.map((v, i) => {
 					params.push(JSON.stringify([v]));
-					return `NOT (body->${jsonPath} @> $${paramIndex + i}::jsonb)`;
+					return `NOT (${jsonValue} @> $${paramIndex + i}::text::jsonb)`;
 				});
 				return {
 					clause: `(${conditions.join(" AND ")})`,
@@ -619,7 +679,7 @@ export class PostgresNodeRepository implements NodeRepository {
 			}
 
 			default:
-				return { clause: "TRUE", newParamIndex: paramIndex };
+				return { clause: "FALSE", newParamIndex: paramIndex };
 		}
 	}
 

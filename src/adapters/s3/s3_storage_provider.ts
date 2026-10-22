@@ -1,6 +1,6 @@
 import type { StorageProvider, WriteFileOpts } from "application/nodes/storage_provider.ts";
 import { S3Client } from "s3";
-import type { DuplicatedNodeError } from "domain/nodes/duplicated_node_error.ts";
+import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import * as path from "path";
 import { AntboxError, UnknownError } from "shared/antbox_error.ts";
@@ -58,18 +58,18 @@ export class S3StorageProvider implements StorageProvider {
 		this.#bucket = bucket;
 	}
 
-	async delete(uuid: string): Promise<Either<NodeNotFoundError, void>> {
-		const fileOrErr = await this.read(uuid);
-		if (fileOrErr.isLeft()) {
-			return left(new NodeNotFoundError(uuid));
+	async delete(uuid: string): Promise<Either<AntboxError, void>> {
+		try {
+			await this.#s3.realS3Client().send(
+				new DeleteObjectCommand({
+					Bucket: this.#bucket,
+					Key: this.#getPath(uuid),
+				}),
+			);
+			return right(undefined);
+		} catch (error) {
+			return left(storageError(uuid, error));
 		}
-
-		return this.#s3
-			.delete(this.#getPath(uuid))
-			.then(() => right(undefined))
-			.catch(() => {
-				return left(new NodeNotFoundError(uuid));
-			}) as Promise<Either<NodeNotFoundError, void>>;
 	}
 
 	mkdir(_uuid: string): Promise<Either<AntboxError, void>> {
@@ -84,29 +84,41 @@ export class S3StorageProvider implements StorageProvider {
 		uuid: string,
 		file: File,
 		opts?: WriteFileOpts | undefined,
-	): Promise<Either<DuplicatedNodeError, void>> {
-		const buffer = await file.arrayBuffer();
-		const type = opts?.mimetype ?? file.type;
-
-		return this.#s3
-			.write(this.#getPath(uuid), buffer, { type })
-			.then(() => right(undefined))
-			.catch((err) => {
-				return left(new UnknownError(err.message));
-			}) as Promise<Either<DuplicatedNodeError, void>>;
+	): Promise<Either<AntboxError, void>> {
+		try {
+			await this.#s3.realS3Client().send(
+				new PutObjectCommand({
+					Bucket: this.#bucket,
+					Key: this.#getPath(uuid),
+					Body: new Uint8Array(await file.arrayBuffer()),
+					ContentType: opts?.mimetype ?? file.type,
+				}),
+			);
+			return right(undefined);
+		} catch (error) {
+			return left(new UnknownError(error instanceof Error ? error.message : String(error)));
+		}
 	}
 
-	async read(uuid: string): Promise<Either<NodeNotFoundError, File>> {
-		const s3FileRef = this.#s3.file(this.#getPath(uuid));
-		const name = s3FileRef.name ?? "unknown";
-		const type = (await s3FileRef.type()) || "application/octet-stream";
-
-		return s3FileRef
-			.arrayBuffer()
-			.then((buf) => right(new File([buf], name, { type })))
-			.catch((_err: unknown) => {
-				return left(new NodeNotFoundError(uuid));
-			}) as Promise<Either<NodeNotFoundError, File>>;
+	async read(uuid: string): Promise<Either<AntboxError, File>> {
+		try {
+			const name = this.#getPath(uuid);
+			const response = await this.#s3.realS3Client().send(
+				new GetObjectCommand({
+					Bucket: this.#bucket,
+					Key: name,
+				}),
+			);
+			if (!response.Body) return left(new UnknownError("S3 response has no object body"));
+			const bytes = new Uint8Array(await response.Body.transformToByteArray());
+			return right(
+				new File([bytes], name, {
+					type: response.ContentType || "application/octet-stream",
+				}),
+			);
+		} catch (error) {
+			return left(storageError(uuid, error));
+		}
 	}
 
 	#getPath(uuid: string): string {
@@ -130,4 +142,13 @@ export class S3StorageProvider implements StorageProvider {
 	getCDNUrl(_uuid: string): string | undefined {
 		return undefined;
 	}
+}
+
+function storageError(uuid: string, error: unknown): AntboxError {
+	const failure = error as { name?: string; $metadata?: { httpStatusCode?: number } } | null;
+	if (
+		failure?.$metadata?.httpStatusCode === 404 &&
+		(failure.name === "NoSuchKey" || failure.name === "NotFound")
+	) return new NodeNotFoundError(uuid);
+	return new UnknownError(error instanceof Error ? error.message : String(error));
 }

@@ -22,7 +22,11 @@ export default function buildInmemStorageProvider(): Promise<
 }
 
 export class InMemoryStorageProvider implements StorageProvider {
-	constructor(readonly fs: Record<string, File> = {}) {}
+	readonly fs: Record<string, File>;
+
+	constructor(fs: Record<string, File> = {}) {
+		this.fs = Object.assign(Object.create(null), fs);
+	}
 
 	read(uuid: string): Promise<Either<AntboxError, File>> {
 		const file = this.fs[uuid];

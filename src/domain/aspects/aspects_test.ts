@@ -78,6 +78,80 @@ describe("Aspects", () => {
 	});
 
 	describe("specificationFrom", () => {
+		it("validates ISO dates and timestamps and JSON object properties", () => {
+			for (
+				const [type, valid, invalid] of [
+					["date", [
+						"2024-02-29",
+						"2026-10-22T12:30",
+						"2026-10-22T12:30:00Z",
+						"2026-10-22T12:30:00+01:00",
+					], ["not-a-date", "2", "2026-02-29", "2026-04-31", 42, new Date()]],
+					["object", [{}, { nested: [null, 42, true, { value: "text" }] }], [
+						42,
+						[],
+						"text",
+						new Date(),
+						{ value: undefined },
+						{ value: () => "text" },
+					]],
+				] as const
+			) {
+				const property: AspectProperty = { name: "value", title: "Value", type };
+				const aspect = createMockAspectData([property]);
+				const spec = Aspects.specificationFrom(aspect);
+				const check = (value: unknown) =>
+					spec.isSatisfiedBy(createMockAspectableNode({
+						[Aspects.propertyName(aspect, property)]: value,
+					}));
+				for (const value of valid) expect(check(value).isRight()).toBe(true);
+				for (const value of invalid) expect(check(value).isLeft()).toBe(true);
+				for (const value of [undefined, null, ""]) expect(check(value).isRight()).toBe(true);
+			}
+		});
+
+		it("reports invalid string values without coercing objects during list or regex checks", () => {
+			const value = { toString: null, valueOf: null };
+			for (
+				const constraint of [{ validationList: ["allowed"] }, { validationRegex: "^allowed$" }]
+			) {
+				const property: AspectProperty = {
+					name: "value",
+					title: "Value",
+					type: "string",
+					...constraint,
+				};
+				const aspect = createMockAspectData([property]);
+				const node = createMockAspectableNode({
+					[Aspects.propertyName(aspect, property)]: value,
+				});
+				expect(Aspects.specificationFrom(aspect).isSatisfiedBy(node).isLeft()).toBe(true);
+			}
+		});
+
+		it("validates array containers, element types, and UUID shapes", () => {
+			for (
+				const [type, arrayType, valid, invalid] of [
+					["array", "string", ["text"], ["scalar", [42], {}]],
+					["array", "number", [1, 2], [42, ["text"], [NaN]]],
+					["array", "uuid", ["node-1234"], ["node-1234", [42], ["bad/id"]]],
+					["array", undefined, [1, "text"], [42, "scalar", {}]],
+					["uuid", undefined, "node-1234", [42, [], "bad/id"]],
+				] as const
+			) {
+				const property: AspectProperty = { name: "value", title: "Value", type, arrayType };
+				const aspect = createMockAspectData([property]);
+				const spec = Aspects.specificationFrom(aspect);
+				const check = (value: unknown) =>
+					spec.isSatisfiedBy(createMockAspectableNode({
+						[Aspects.propertyName(aspect, property)]: value,
+					}));
+				expect(check(valid).isRight()).toBe(true);
+				for (const value of invalid) expect(check(value).isLeft()).toBe(true);
+				for (const value of [undefined, null, ""]) expect(check(value).isRight()).toBe(true);
+			}
+		});
+
 		it("should return always-true specification for aspect with no properties", () => {
 			const aspect = createMockAspectData([]);
 			const specification = Aspects.specificationFrom(aspect);

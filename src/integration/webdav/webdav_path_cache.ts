@@ -10,6 +10,7 @@ interface CacheEntry {
 	lastAccess: number;
 	tenantName: string;
 	userId: string;
+	path: string;
 }
 
 /**
@@ -101,10 +102,7 @@ export class WebDAVPathCache {
 	 * Generate cache key from tenant, user, and path
 	 */
 	#makeKey(tenantName: string, userId: string, path: string): string {
-		if (this.#userIsolation) {
-			return `${tenantName}:${userId}:${path}`;
-		}
-		return `${tenantName}:${path}`;
+		return JSON.stringify([tenantName, this.#userIsolation ? userId : null, path]);
 	}
 
 	/**
@@ -195,6 +193,7 @@ export class WebDAVPathCache {
 			lastAccess,
 			tenantName,
 			userId,
+			path,
 		});
 	}
 
@@ -209,16 +208,14 @@ export class WebDAVPathCache {
 	invalidatePath(tenantName: string, path: string): void {
 		// Invalidate for all users if user isolation is enabled
 		if (this.#userIsolation) {
-			const prefix = `${tenantName}:`;
-			const suffix = `:${path}`;
-			for (const key of this.#cache.keys()) {
-				if (key.startsWith(prefix) && key.endsWith(suffix)) {
+			for (const [key, entry] of this.#cache.entries()) {
+				if (entry.tenantName === tenantName && entry.path === path) {
 					this.#cache.delete(key);
 					this.#invalidations++;
 				}
 			}
 		} else {
-			const key = `${tenantName}:${path}`;
+			const key = this.#makeKey(tenantName, "", path);
 			if (this.#cache.delete(key)) {
 				this.#invalidations++;
 			}
@@ -242,9 +239,7 @@ export class WebDAVPathCache {
 		for (const [key, entry] of this.#cache.entries()) {
 			if (entry.tenantName !== tenantName) continue;
 
-			// Extract path from key
-			const parts = key.split(":");
-			const path = this.#userIsolation ? parts[2] : parts[1];
+			const path = entry.path;
 
 			// Check if path starts with prefix or is exactly the prefix (without trailing /)
 			if (path.startsWith(normalizedPrefix) || path === pathPrefix) {

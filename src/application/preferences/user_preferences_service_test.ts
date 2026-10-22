@@ -3,6 +3,7 @@ import { expect } from "expect";
 import { InMemoryConfigurationRepository } from "adapters/inmem/inmem_configuration_repository.ts";
 import type { AuthenticationContext } from "application/security/authentication_context.ts";
 import { UserPreferencesService } from "./user_preferences_service.ts";
+import { Users } from "domain/users_groups/users.ts";
 
 describe("UserPreferencesService", () => {
 	const ctx: AuthenticationContext = {
@@ -17,6 +18,24 @@ describe("UserPreferencesService", () => {
 	function createService() {
 		return new UserPreferencesService(new InMemoryConfigurationRepository());
 	}
+
+	it("rejects anonymous preferences reads and mutations", async () => {
+		const repo = new InMemoryConfigurationRepository();
+		const service = new UserPreferencesService(repo);
+		const anonymous = { ...ctx, principal: { email: Users.ANONYMOUS_USER_EMAIL, groups: [] } };
+		const results = await Promise.all([
+			service.createUserPreferences(anonymous, { preferences: { secret: "private" } }),
+			service.updateUserPreferences(anonymous, { preferences: { theme: "dark" } }),
+			service.getUserPreferences(anonymous),
+			service.getPreference(anonymous, "secret"),
+			service.deleteUserPreferences(anonymous),
+		]);
+		for (const result of results) {
+			expect(result.isLeft()).toBe(true);
+			if (result.isLeft()) expect(result.value.errorCode).toBe("UnauthorizedError");
+		}
+		expect((await repo.list("userPreferences")).right).toHaveLength(0);
+	});
 
 	it("returns empty preferences when no record exists", async () => {
 		const service = createService();

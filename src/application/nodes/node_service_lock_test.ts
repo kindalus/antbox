@@ -12,6 +12,7 @@ import type { AuthenticationContext } from "../security/authentication_context.t
 import { Nodes } from "domain/nodes/nodes.ts";
 import { Groups } from "domain/users_groups/groups.ts";
 import { Users } from "domain/users_groups/users.ts";
+import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
 
 // Mock EventBus implementation
 class MockEventBus implements EventBus {
@@ -353,7 +354,226 @@ describe("NodeService - Lock/Unlock", () => {
 		});
 	});
 
+	describe("managed lock metadata", () => {
+		const forged = {
+			locked: true,
+			lockedBy: Users.LOCK_SYSTEM_USER_EMAIL,
+			unlockAuthorizedGroups: ["stranger"],
+		};
+		const malformed = {
+			locked: "yes",
+			lockedBy: {},
+			unlockAuthorizedGroups: {},
+		} as unknown as Partial<NodeMetadata>;
+
+		for (const operation of ["create", "createFile"] as const) {
+			for (
+				const [kind, lockMetadata] of [["forged", forged], ["malformed", malformed]] as const
+			) {
+				it(`ignores ${kind} lock fields in ${operation} metadata`, async () => {
+					const service = new NodeService(createContext());
+					const owner = createAuthContext("owner@example.com");
+					const writer = createNonAdminAuthContext("writer@example.com");
+					const parent = await createTestFolder(service, owner);
+					const metadata = {
+						...lockMetadata,
+						uuid: "created-node",
+						title: "Created node",
+						parent,
+						mimetype: Nodes.META_NODE_MIMETYPE,
+					};
+					const result = operation === "create"
+						? await service.create(writer, metadata)
+						: await service.createFile(
+							writer,
+							new File(["content"], "file.txt", { type: "text/plain" }),
+							metadata,
+						);
+					expect(result.isRight()).toBe(true);
+					const created = (await service.get(owner, "created-node")).right;
+					expect(created.locked).toBe(false);
+					expect(created.lockedBy).toBe("");
+					expect(created.unlockAuthorizedGroups).toEqual([]);
+					expect((await service.update(writer, created.uuid, {
+						...lockMetadata,
+						description: "Still editable",
+					})).isRight()).toBe(true);
+					const updated = (await service.get(owner, created.uuid)).right;
+					expect(updated.locked).toBe(false);
+					expect(updated.lockedBy).toBe("");
+					expect(updated.unlockAuthorizedGroups).toEqual([]);
+				});
+			}
+		}
+
+		for (const operation of ["copy", "duplicate"] as const) {
+			it(`does not inherit lock identity when performing ${operation}`, async () => {
+				const service = new NodeService(createContext());
+				const owner = createAuthContext("owner@example.com");
+				const parent = await createTestFolder(service, owner);
+				const created = await service.createFile(
+					owner,
+					new File(["content"], "source.txt", { type: "text/plain" }),
+					{ parent },
+				);
+				expect(created.isRight()).toBe(true);
+				expect((await service.lock(owner, created.right.uuid, ["stranger"])).isRight()).toBe(
+					true,
+				);
+
+				const result = operation === "copy"
+					? await service.copy(owner, created.right.uuid, parent)
+					: await service.duplicate(owner, created.right.uuid);
+
+				expect(result.isRight()).toBe(true);
+				expect(result.right.locked).toBe(false);
+				expect(result.right.lockedBy).toBe("");
+				expect(result.right.unlockAuthorizedGroups).toEqual([]);
+				expect((await service.get(owner, created.right.uuid)).right.locked).toBe(true);
+			});
+		}
+
+		it("preserves recursive locks when parent and child receive metadata unlock requests", async () => {
+			const service = new NodeService(createContext());
+			const owner = createAuthContext("owner@example.com");
+			const parent = await createTestFolder(service, owner);
+			const child = await service.create(owner, {
+				title: "Child",
+				parent,
+				mimetype: Nodes.META_NODE_MIMETYPE,
+			});
+			expect((await service.lock(owner, parent)).isRight()).toBe(true);
+			for (const uuid of [parent, child.right.uuid]) {
+				const before = (await service.get(owner, uuid)).right;
+				const result = await service.update(owner, uuid, {
+					locked: false,
+					lockedBy: "stranger@example.com",
+					unlockAuthorizedGroups: ["stranger"],
+					description: "Metadata update",
+				});
+				expect(result.isRight()).toBe(true);
+				const after = (await service.get(owner, uuid)).right;
+				expect(after.locked).toBe(true);
+				expect(after.lockedBy).toBe(before.lockedBy);
+				expect(after.unlockAuthorizedGroups).toEqual(before.unlockAuthorizedGroups);
+			}
+			expect((await service.unlock(owner, child.right.uuid)).isLeft()).toBe(true);
+			expect((await service.unlock(owner, parent)).isRight()).toBe(true);
+			expect((await service.get(owner, child.right.uuid)).right.locked).toBe(false);
+		});
+
+		it("preserves lock metadata when an authorized owner replaces file content", async () => {
+			const context = createContext();
+			const service = new NodeService(context);
+			const owner = createAuthContext("owner@example.com");
+			const parent = await createTestFolder(service, owner);
+			const created = await service.createFile(
+				owner,
+				new File(["original"], "file.txt", { type: "text/plain" }),
+				{ parent },
+			);
+			expect((await service.lock(owner, created.right.uuid, ["editors"])).isRight()).toBe(true);
+
+			const result = await service.updateFile(
+				owner,
+				created.right.uuid,
+				new File(["changed content"], "file.txt", { type: "text/plain" }),
+			);
+
+			expect(result.isRight()).toBe(true);
+			const updated = (await service.get(owner, created.right.uuid)).right;
+			expect(updated.locked).toBe(true);
+			expect(updated.lockedBy).toBe(owner.principal.email);
+			expect(updated.unlockAuthorizedGroups).toEqual(["editors"]);
+			expect(await (await context.storage.read(updated.uuid)).right.text()).toBe(
+				"changed content",
+			);
+		});
+	});
+
 	describe("recursive folder locks", () => {
+		for (const operation of ["create", "createFile", "copy", "move"] as const) {
+			for (const actor of ["owner", "writer"] as const) {
+				it(`rejects ${operation} into a locked folder by ${actor} until unlock`, async () => {
+					const context = createContext();
+					const service = new NodeService(context);
+					const owner = createAuthContext("lock-owner@example.com");
+					const caller = actor === "owner"
+						? owner
+						: createNonAdminAuthContext("writer@example.com");
+					const destination = await createTestFolder(service, owner);
+					const source = await createTestFolder(service, owner);
+					const file = await service.createFile(
+						owner,
+						new File(["source content"], "source.txt", { type: "text/plain" }),
+						{ uuid: "source-file", parent: source },
+					);
+					expect(file.isRight()).toBe(true);
+					const addChild = () => {
+						switch (operation) {
+							case "create":
+								return service.create(caller, {
+									uuid: "new-child",
+									title: "New folder",
+									mimetype: Nodes.FOLDER_MIMETYPE,
+									parent: destination,
+								});
+							case "createFile":
+								return service.createFile(
+									caller,
+									new File(["new content"], "new.txt", { type: "text/plain" }),
+									{ uuid: "new-child", parent: destination },
+								);
+							case "copy":
+								return service.copy(caller, "source-file", destination);
+							case "move":
+								return service.update(caller, "source-file", { parent: destination });
+						}
+					};
+					expect((await service.lock(owner, destination)).isRight()).toBe(true);
+
+					const denied = await addChild();
+
+					expect(denied.isLeft()).toBe(true);
+					expect(denied.isLeft() && denied.value.message).toContain("locked folder");
+					expect((await service.find(owner, [["parent", "==", destination]])).right.nodes)
+						.toHaveLength(0);
+					expect((await service.get(owner, "source-file")).right.parent).toBe(source);
+					expect((await context.storage.read("new-child")).isLeft()).toBe(true);
+
+					expect((await service.unlock(owner, destination)).isRight()).toBe(true);
+					expect((await addChild()).isRight()).toBe(true);
+					expect((await service.find(owner, [["parent", "==", destination]])).right.nodes)
+						.toHaveLength(1);
+				});
+			}
+		}
+
+		it("allows the lock owner to edit metadata without changing parent", async () => {
+			const service = new NodeService(createContext());
+			const owner = createAuthContext("lock-owner@example.com");
+			const parent = await createTestFolder(service, owner);
+			const folder = await service.create(owner, {
+				uuid: "locked-child-folder",
+				title: "Child folder",
+				mimetype: Nodes.FOLDER_MIMETYPE,
+				parent,
+			});
+			expect(folder.isRight()).toBe(true);
+			expect((await service.lock(owner, parent)).isRight()).toBe(true);
+
+			const result = await service.update(owner, folder.right.uuid, {
+				parent,
+				description: "Changed by an authorized lock owner",
+			});
+
+			expect(result.isRight()).toBe(true);
+			const updated = await service.get(owner, folder.right.uuid);
+			expect(updated.right.description).toBe("Changed by an authorized lock owner");
+			expect(updated.right.parent).toBe(parent);
+			expect(updated.right.locked).toBe(true);
+		});
+
 		async function createTree(service: NodeService, authCtx: AuthenticationContext) {
 			const parentUuid = await createTestFolder(service, authCtx);
 			const childFolder = await service.create(authCtx, {

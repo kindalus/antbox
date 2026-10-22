@@ -7,6 +7,10 @@ import { type HttpHandler, sendBadRequest } from "./handler.ts";
 import { processError } from "./process_error.ts";
 import { processServiceCreateResult, processServiceResult } from "./process_service_result.ts";
 import { checkServiceAvailability } from "./service_availability.ts";
+import { GroupDataSchema } from "domain/configuration/group_schema.ts";
+import { parseJsonBody } from "./parse_json_body.ts";
+
+const createGroupSchema = GroupDataSchema.omit({ createdTime: true }).partial({ uuid: true });
 
 // ============================================================================
 // CRUD HANDLERS
@@ -24,13 +28,11 @@ export function createGroupHandler(tenants: AntboxTenant[]): HttpHandler {
 				return Promise.resolve(unavailableResponse);
 			}
 
-			const metadata = await req.json();
-			if (!metadata?.title) {
-				return sendBadRequest({ error: "{ title } not given" });
-			}
+			const parsed = await parseJsonBody(req, createGroupSchema);
+			if (parsed.isLeft()) return processError(parsed.value);
 
 			return service
-				.createGroup(getAuthenticationContext(req), metadata)
+				.createGroup(getAuthenticationContext(req), parsed.value)
 				.then(processServiceCreateResult)
 				.catch(processError);
 		},

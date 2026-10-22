@@ -80,6 +80,7 @@ export class AuthorizationService {
 		permission: Permission,
 	): (acc: NodeFilters2D, cur: NodeFilters2D[0]) => NodeFilters2D {
 		if (
+			ctx.principal.email === Users.ROOT_USER_EMAIL ||
 			ctx.principal.groups.includes(Groups.ADMINS_GROUP_UUID)
 		) {
 			return (acc: NodeFilters2D, cur: NodeFilters2D[0]) => {
@@ -189,7 +190,7 @@ export class AuthorizationService {
 		]]);
 		this.#addPermissionFilters(f, [["owner", "==", ctx.principal.email]]);
 		this.#addPermissionFilters(f, [
-			["group", "==", ctx.principal.groups[0]],
+			["group", "in", ctx.principal.groups],
 			["permissions.group", "contains", p],
 		]);
 

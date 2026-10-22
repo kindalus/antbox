@@ -38,6 +38,26 @@ async function withConfigDir(
 }
 
 describe("loadConfiguration", () => {
+	it("generates a private random root password and preserves it on reload", async () => {
+		const dir = await Deno.makeTempDir({ prefix: "antbox-credentials-test-" });
+		try {
+			const configDir = join(dir, "first");
+			const first = await loadConfiguration(configDir);
+			const second = await loadConfiguration(join(dir, "second"));
+			expect(first.rootPasswd).toMatch(/^[0-9a-f-]{36}$/);
+			expect(first.rootPasswd).not.toBe(second.rootPasswd);
+			expect((await loadConfiguration(configDir)).rootPasswd).toBe(first.rootPasswd);
+			if (Deno.build.os !== "windows") {
+				for (const filename of ["config.toml", "antbox.key", "antbox-private.jwk"]) {
+					const stat = await Deno.stat(join(configDir, filename));
+					expect(stat.mode! & 0o777).toBe(0o600);
+				}
+			}
+		} finally {
+			await Deno.remove(dir, { recursive: true });
+		}
+	});
+
 	it("generates default tenant paths under dataDir", async () => {
 		const dir = await Deno.makeTempDir({ prefix: "antbox-default-config-test-" });
 		const dataDir = join(dir, "runtime-data");

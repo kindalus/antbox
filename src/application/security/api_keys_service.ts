@@ -29,7 +29,7 @@ export class ApiKeysService {
 		}
 
 		const now = new Date().toISOString();
-		const secret = UuidGenerator.generate() + UuidGenerator.generate(); // 16+ chars
+		const secret = crypto.randomUUID();
 
 		const apiKeyData: ApiKeyData = {
 			uuid: UuidGenerator.generate(),
@@ -60,7 +60,7 @@ export class ApiKeysService {
 		// Check builtin API keys first (currently none)
 		const builtinApiKey = BUILTIN_API_KEYS.find((k) => k.uuid === uuid);
 		if (builtinApiKey) {
-			return right(builtinApiKey);
+			return right(structuredClone(builtinApiKey));
 		}
 
 		// Only admins can get API keys
@@ -81,7 +81,7 @@ export class ApiKeysService {
 				return left(new BadRequestError("API key is inactive"));
 			}
 
-			return right(builtinApiKey);
+			return right(structuredClone(builtinApiKey));
 		}
 
 		// Search through all API keys for matching secret
@@ -117,7 +117,7 @@ export class ApiKeysService {
 		}
 
 		// Combine builtin API keys with custom API keys, sorted by title
-		const allApiKeys = [...BUILTIN_API_KEYS, ...customApiKeysOrErr.value];
+		const allApiKeys = [...structuredClone(BUILTIN_API_KEYS), ...customApiKeysOrErr.value];
 		allApiKeys.sort((a, b) => a.title.localeCompare(b.title));
 
 		return right(allApiKeys);

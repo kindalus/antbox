@@ -28,6 +28,24 @@ function createMockNode(uuid: string, title: string, parent: string): NodeMetada
 }
 
 describe("WebDAVPathCache", () => {
+	it("invalidates colon-containing paths without parsing cache keys", () => {
+		for (const userIsolation of [false, true]) {
+			const cache = new WebDAVPathCache({ userIsolation });
+			cache.set(
+				"tenant1",
+				"user@example.com",
+				"/folder:2026/file.txt",
+				createMockNode(
+					"uuid-1",
+					"file.txt",
+					"parent-1",
+				),
+			);
+			cache.invalidatePrefix("tenant1", "/folder:2026");
+			expect(cache.size).toBe(0);
+		}
+	});
+
 	it("basic get/set", () => {
 		const cache = new WebDAVPathCache({ maxEntries: 100, ttlMs: 60000 });
 		const node = createMockNode("uuid-1", "file.txt", "parent-1");

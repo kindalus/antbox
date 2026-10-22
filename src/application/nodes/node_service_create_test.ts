@@ -427,6 +427,26 @@ describe("NodeService.createFile", () => {
 		expect(fileOrErr.right.size).toBe(dummyFile.size);
 	});
 
+	it("returns public metadata rather than a live file node", async () => {
+		const service = nodeService();
+		const parent = await service.create(authCtx, {
+			title: "Folder",
+			mimetype: Nodes.FOLDER_MIMETYPE,
+			parent: Nodes.ROOT_FOLDER_UUID,
+		});
+		const created = await service.createFile(authCtx, dummyFile, { parent: parent.right.uuid });
+		expect(created.isRight()).toBe(true);
+		const metadata = created.right;
+		expect(Object.getPrototypeOf(metadata)).toBe(Object.prototype);
+		expect(Object.hasOwn(metadata, "title")).toBe(true);
+		expect("update" in metadata).toBe(false);
+		metadata.title = "Local change";
+		metadata.locked = true;
+		const stored = await service.get(authCtx, metadata.uuid);
+		expect(stored.right.title).toBe(dummyFile.name);
+		expect(stored.right.locked).toBe(false);
+	});
+
 	it("should use file mimetype", async () => {
 		const service = nodeService();
 		await service.create(authCtx, {

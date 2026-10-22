@@ -61,6 +61,7 @@ describe("oak server", () => {
 				}),
 			});
 			// The default allowlist would reject this Origin, so 200 proves the option reached the handler.
+			await allowedOrigin.body?.cancel();
 			expect(allowedOrigin.status).toBe(200);
 
 			const oversized = await fetch(base, {
@@ -74,6 +75,7 @@ describe("oak server", () => {
 				}),
 			});
 			// The default 1048576-byte limit would accept this body, so 413 proves the configured limit is live.
+			await oversized.body?.cancel();
 			expect(oversized.status).toBe(413);
 		} finally {
 			abortController.abort();

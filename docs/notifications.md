@@ -62,5 +62,7 @@ Group-targeted notifications are not removed by this endpoint.
 
 ## Access model
 
+- Every operation requires authentication. Anonymous requests return `401`.
+- Authenticated callers can send notifications to a user or group.
 - list returns notifications that target the current user or one of the user's groups.
 - delete enforces the same visibility rule per notification.

@@ -1,5 +1,5 @@
 import { stringify } from "toml";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { getDefaultConfigDir } from "./load_configuration.ts";
 import {
 	type TenantConfiguration,
@@ -12,6 +12,24 @@ interface FileChange {
 	text?: string;
 }
 
+const configurationOperations = new Map<string, Promise<void>>();
+
+export async function withTenantConfigurationLock<T>(
+	configDir: string | undefined,
+	operation: () => Promise<T>,
+): Promise<T> {
+	const dir = resolve(configDir ?? getDefaultConfigDir());
+	const previous = configurationOperations.get(dir) ?? Promise.resolve();
+	const result = previous.then(operation);
+	const tail = result.then(() => {}, () => {});
+	configurationOperations.set(dir, tail);
+	try {
+		return await result;
+	} finally {
+		if (configurationOperations.get(dir) === tail) configurationOperations.delete(dir);
+	}
+}
+
 export async function saveTenantConfiguration(
 	configDir: string | undefined,
 	tenants: TenantConfiguration[],
@@ -20,9 +38,20 @@ export async function saveTenantConfiguration(
 	const validation = TenantsConfigurationSchema.safeParse(tenants);
 	if (!validation.success) throw validation.error;
 
-	const dir = configDir ?? getDefaultConfigDir();
+	const dir = resolve(configDir ?? getDefaultConfigDir());
+	return withTenantConfigurationLock(
+		dir,
+		() => saveValidatedTenants(dir, validation.data, reload),
+	);
+}
+
+async function saveValidatedTenants(
+	dir: string,
+	tenants: TenantConfiguration[],
+	reload?: () => Promise<void>,
+): Promise<void> {
 	const state = await readTenantConfigurationState(dir);
-	const desired = new Map(validation.data.map((tenant) => [tenant.name, tenant]));
+	const desired = new Map(tenants.map((tenant) => [tenant.name, tenant]));
 	const inlineNames = new Set(state.inlineTenants.map((tenant) => tenant.name));
 	const changes = new Map<string, FileChange>();
 	const nextInline: TenantConfiguration[] = [];
@@ -42,7 +71,7 @@ export async function saveTenantConfiguration(
 		if (!configurationsEqual(current, replacement)) inlineChanged = true;
 	}
 
-	for (const tenant of validation.data) {
+	for (const tenant of tenants) {
 		const external = state.fileTenants.get(tenant.name);
 		if (external) {
 			if (!configurationsEqual(external.config, tenant)) {
@@ -125,7 +154,7 @@ async function applyChanges(
 		for (const [path, text] of originals) {
 			try {
 				if (text === undefined) await removeIfExists(path);
-				else await Deno.writeTextFile(path, text);
+				else await Deno.writeTextFile(path, text, { mode: 0o600 });
 			} catch (rollbackError) {
 				rollbackErrors.push(rollbackError);
 			}

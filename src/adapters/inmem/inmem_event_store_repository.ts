@@ -1,7 +1,7 @@
 import type { AuditEvent } from "domain/audit/audit_event.ts";
 import type { EventStoreRepository } from "domain/audit/event_store_repository.ts";
-import type { AntboxError } from "shared/antbox_error.ts";
-import { type Either, right } from "shared/either.ts";
+import { type AntboxError, UnknownError } from "shared/antbox_error.ts";
+import { type Either, left, right } from "shared/either.ts";
 
 /**
  * Builds an in-memory EventStoreRepository.
@@ -33,28 +33,17 @@ export class InMemoryEventStoreRepository implements EventStoreRepository {
 		mimetype: string,
 		event: Omit<AuditEvent, "streamId" | "sequence">,
 	): Promise<Either<AntboxError, void>> {
-		if (!this.#streams.has(mimetype)) {
-			this.#streams.set(mimetype, new Map());
+		try {
+			const mimetypeStreams = this.#streams.get(mimetype) ?? new Map();
+			const stream = mimetypeStreams.get(streamId) ?? [];
+			const auditEvent = structuredClone({ ...event, streamId, sequence: stream.length });
+			stream.push(auditEvent);
+			mimetypeStreams.set(streamId, stream);
+			this.#streams.set(mimetype, mimetypeStreams);
+			return right(undefined);
+		} catch (error) {
+			return left(new UnknownError((error as Error).message));
 		}
-
-		const mimetypeStreams = this.#streams.get(mimetype)!;
-
-		if (!mimetypeStreams.has(streamId)) {
-			mimetypeStreams.set(streamId, []);
-		}
-
-		const stream = mimetypeStreams.get(streamId)!;
-		const sequence = stream.length;
-
-		const auditEvent: AuditEvent = {
-			...event,
-			streamId,
-			sequence,
-		};
-
-		stream.push(auditEvent);
-
-		return Promise.resolve(right(undefined));
 	}
 
 	async getStream(
@@ -73,7 +62,7 @@ export class InMemoryEventStoreRepository implements EventStoreRepository {
 			return Promise.resolve(right([]));
 		}
 
-		return Promise.resolve(right([...stream]));
+		return Promise.resolve(right(structuredClone(stream)));
 	}
 
 	async getStreamsByMimetype(
@@ -85,12 +74,7 @@ export class InMemoryEventStoreRepository implements EventStoreRepository {
 			return Promise.resolve(right(new Map()));
 		}
 
-		const result = new Map<string, AuditEvent[]>();
-		for (const [streamId, events] of mimetypeStreams.entries()) {
-			result.set(streamId, [...events]);
-		}
-
-		return Promise.resolve(right(result));
+		return Promise.resolve(right(structuredClone(mimetypeStreams)));
 	}
 
 	get streamsByMimetype(): Map<string, Map<string, AuditEvent[]>> {

@@ -66,7 +66,7 @@ export function sendNoContent() {
 function sendResponse<T>(status: number, body?: T): Response {
 	const options = { status, headers: new Headers() };
 
-	if (body) {
+	if (body !== undefined) {
 		options.headers.set("Content-Type", "application/json");
 		return new Response(JSON.stringify(body), options);
 	}

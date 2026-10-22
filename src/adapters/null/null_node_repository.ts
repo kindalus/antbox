@@ -3,6 +3,7 @@ import type { Embedding } from "domain/nodes/embedding.ts";
 import type { NodeFilters } from "domain/nodes/node_filter.ts";
 import type { NodeLike } from "domain/node_like.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
+import { Users } from "domain/users_groups/users.ts";
 import type {
 	NodeFilterResult,
 	NodeRepository,
@@ -25,6 +26,10 @@ export class NullNodeRepository implements NodeRepository {
 	}
 
 	update(_node: NodeLike): Promise<Either<NodeNotFoundError, void>> {
+		return Promise.resolve(right(undefined));
+	}
+
+	touch(_uuid: string): Promise<Either<AntboxError, void>> {
 		return Promise.resolve(right(undefined));
 	}
 
@@ -79,7 +84,11 @@ export class NullNodeRepository implements NodeRepository {
 		return Promise.resolve(right(0));
 	}
 
-	#nullNode = FileNode.create({ title: "Null", mimetype: "null/null" }).right;
+	#nullNode = FileNode.create({
+		title: "Null",
+		mimetype: "null/null",
+		owner: Users.ANONYMOUS_USER_EMAIL,
+	}).right;
 }
 
 /**

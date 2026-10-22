@@ -224,7 +224,7 @@ describe("WorkflowInstancesService", () => {
 
 			expect(result.isLeft()).toBe(true);
 			if (result.isLeft()) {
-				expect(result.value.errorCode).toBe("BadRequestError");
+				expect(result.value.errorCode).toBe("NotFoundError");
 			}
 		});
 
@@ -342,12 +342,12 @@ describe("WorkflowInstancesService", () => {
 	});
 
 	describe("deleteWorkflowInstance", () => {
-		it("should delete workflow instance as admin", async () => {
+		it("should delete completed workflow instance as admin", async () => {
 			const repo = new InMemoryConfigurationRepository();
 			const service = createService(repo);
 
 			const instance = createWorkflowInstance("instance-1", "node-123", []);
-			await repo.save("workflowInstances", instance);
+			await repo.save("workflowInstances", { ...instance, running: false });
 
 			const result = await service.deleteWorkflowInstance(adminCtx, "instance-1");
 

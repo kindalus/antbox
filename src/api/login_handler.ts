@@ -35,6 +35,7 @@ export function rootHandler(tenants: AntboxTenant[]): HttpHandler {
 				.setProtectedHeader({ alg: "HS256" })
 				.setIssuedAt()
 				.setIssuer("urn:antbox")
+				.setAudience(tenant.name)
 				.setExpirationTime("4h")
 				.sign(secret);
 

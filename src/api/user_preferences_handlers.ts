@@ -1,3 +1,5 @@
+import { z } from "zod";
+import { parseJsonBody } from "./parse_json_body.ts";
 import type { AntboxTenant } from "api/antbox_tenant.ts";
 import { defaultMiddlewareChain } from "api/default_middleware_chain.ts";
 import { getAuthenticationContext } from "api/get_authentication_context.ts";
@@ -8,18 +10,7 @@ import { processError } from "api/process_error.ts";
 import { processServiceCreateResult, processServiceResult } from "api/process_service_result.ts";
 import { checkServiceAvailability } from "api/service_availability.ts";
 
-function getPreferencesPayload(body: unknown): Record<string, unknown> | undefined {
-	if (!body || typeof body !== "object" || Array.isArray(body)) {
-		return undefined;
-	}
-
-	const preferences = (body as { preferences?: unknown }).preferences;
-	if (!preferences || typeof preferences !== "object" || Array.isArray(preferences)) {
-		return undefined;
-	}
-
-	return preferences as Record<string, unknown>;
-}
+const preferencesRequestSchema = z.object({ preferences: z.record(z.string(), z.unknown()) });
 
 export function createUserPreferencesHandler(tenants: AntboxTenant[]): HttpHandler {
 	return defaultMiddlewareChain(tenants, async (req: Request): Promise<Response> => {
@@ -31,11 +22,9 @@ export function createUserPreferencesHandler(tenants: AntboxTenant[]): HttpHandl
 			return Promise.resolve(unavailableResponse);
 		}
 
-		const body = await req.json();
-		const preferences = getPreferencesPayload(body);
-		if (!preferences) {
-			return sendBadRequest({ error: "{ preferences } object not given" });
-		}
+		const parsed = await parseJsonBody(req, preferencesRequestSchema);
+		if (parsed.isLeft()) return processError(parsed.value);
+		const { preferences } = parsed.value;
 
 		return service
 			.createUserPreferences(getAuthenticationContext(req), { preferences })
@@ -71,11 +60,9 @@ export function updateUserPreferencesHandler(tenants: AntboxTenant[]): HttpHandl
 			return Promise.resolve(unavailableResponse);
 		}
 
-		const body = await req.json();
-		const preferences = getPreferencesPayload(body);
-		if (!preferences) {
-			return sendBadRequest({ error: "{ preferences } object not given" });
-		}
+		const parsed = await parseJsonBody(req, preferencesRequestSchema);
+		if (parsed.isLeft()) return processError(parsed.value);
+		const { preferences } = parsed.value;
 
 		return service
 			.updateUserPreferences(getAuthenticationContext(req), { preferences })

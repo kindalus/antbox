@@ -2,6 +2,12 @@ import type { AuthenticationContext } from "application/security/authentication_
 import { type AntboxTenant } from "./antbox_tenant.ts";
 import { getQuery } from "./get_query.ts";
 
+const requestTenants = new WeakMap<Request, AntboxTenant>();
+
+export function bindRequestTenant(req: Request, tenant: AntboxTenant): void {
+	requestTenants.set(req, tenant);
+}
+
 export function getTenantByHeaders(req: Request, tenants: AntboxTenant[]) {
 	const tenant = req.headers.get("X-Tenant") ?? tenants[0].name;
 	return tenants.find((t) => t.name === tenant);
@@ -34,7 +40,7 @@ export function resolveTenant(req: Request, tenants: AntboxTenant[]): AntboxTena
 }
 
 export function getTenant(req: Request, tenants: AntboxTenant[]) {
-	return resolveTenant(req, tenants) ?? tenants[0];
+	return requestTenants.get(req) ?? resolveTenant(req, tenants) ?? tenants[0];
 }
 
 export function getTenantByAuthContext(ctx: AuthenticationContext, tenants: AntboxTenant[]) {

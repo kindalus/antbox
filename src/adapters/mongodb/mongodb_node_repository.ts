@@ -1,4 +1,4 @@
-import { type Document, type Filter, MongoClient, ObjectId } from "mongodb";
+import { type Filter, MongoClient, type ObjectId } from "mongodb";
 
 import { type NodeLike } from "domain/node_like.ts";
 import { NodeFactory } from "domain/node_factory.ts";
@@ -17,7 +17,7 @@ import { type Either, left, right } from "shared/either.ts";
 import { isNodeFilters2D, type NodeFilter } from "domain/nodes/node_filter.ts";
 
 type NodeDbModel = NodeMetadata & {
-	_id: ObjectId;
+	_id: string | ObjectId;
 	embedding?: Embedding;
 	embeddingContentMd?: string;
 };
@@ -36,17 +36,20 @@ type NodeDbModel = NodeMetadata & {
  *   const repo = repoOrErr.value;
  * }
  */
-export default function buildMongodbNodeRepository(
+export default async function buildMongodbNodeRepository(
 	url: string,
 	dbname: string,
 ): Promise<Either<AntboxError, NodeRepository>> {
-	return new MongoClient(url)
-		.connect()
-		.then((client) => new MongodbNodeRepository(client, dbname))
-		.then((repo) => right(repo))
-		.catch((err) => left(new UnknownError(err.message))) as Promise<
-			Either<AntboxError, NodeRepository>
-		>;
+	const client = new MongoClient(url);
+	try {
+		await client.connect();
+		await client.db(dbname).collection(MongodbNodeRepository.COLLECTION_NAME)
+			.createIndex({ uuid: 1 }, { unique: true });
+		return right(new MongodbNodeRepository(client, dbname));
+	} catch (err) {
+		await client.close();
+		return left(new UnknownError((err as Error).message));
+	}
 }
 
 export class MongodbNodeRepository implements NodeRepository {
@@ -61,7 +64,7 @@ export class MongodbNodeRepository implements NodeRepository {
 	}
 
 	get #collection() {
-		return this.#client.db(this.#db).collection(
+		return this.#client.db(this.#db).collection<NodeDbModel>(
 			MongodbNodeRepository.COLLECTION_NAME,
 		);
 	}
@@ -82,7 +85,7 @@ export class MongodbNodeRepository implements NodeRepository {
 
 	async getById(uuid: string): Promise<Either<NodeNotFoundError, NodeLike>> {
 		try {
-			const doc = await this.#collection.findOne({ _id: toObjectId(uuid) });
+			const doc = await this.#collection.findOne({ uuid });
 
 			if (!doc) {
 				return left(new NodeNotFoundError(uuid));
@@ -103,7 +106,7 @@ export class MongodbNodeRepository implements NodeRepository {
 		}
 
 		try {
-			await this.#collection.deleteOne({ _id: toObjectId(uuid) });
+			await this.#collection.deleteOne({ uuid });
 		} catch (err) {
 			// deno-lint-ignore no-explicit-any
 			return left(new MongodbError((err as any).message));
@@ -114,8 +117,8 @@ export class MongodbNodeRepository implements NodeRepository {
 
 	async filter(
 		filters: NodeFilters,
-		pageSize: number,
-		pageToken: number,
+		pageSize = 20,
+		pageToken = 1,
 	): Promise<NodeFilterResult> {
 		const query = buildMongoQuery(filters);
 
@@ -157,7 +160,7 @@ export class MongodbNodeRepository implements NodeRepository {
 
 		try {
 			const { _id, ...doc } = this.#fromNodeLike(node);
-			await this.#collection.updateOne({ _id: toObjectId(node.uuid) }, {
+			await this.#collection.updateOne({ uuid: node.uuid }, {
 				$set: doc,
 			});
 		} catch (err) {
@@ -166,6 +169,18 @@ export class MongodbNodeRepository implements NodeRepository {
 		}
 
 		return right(undefined);
+	}
+
+	async touch(uuid: string): Promise<Either<AntboxError, void>> {
+		try {
+			const result = await this.#collection.updateOne(
+				{ uuid },
+				{ $set: { modifiedTime: new Date().toISOString() } },
+			);
+			return result.matchedCount ? right(undefined) : left(new NodeNotFoundError(uuid));
+		} catch (error) {
+			return left(new MongodbError(error instanceof Error ? error.message : String(error)));
+		}
 	}
 
 	supportsEmbeddings(): boolean {
@@ -179,7 +194,7 @@ export class MongodbNodeRepository implements NodeRepository {
 	): Promise<Either<AntboxError, void>> {
 		try {
 			await this.#collection.updateOne(
-				{ _id: toObjectId(uuid) },
+				{ uuid },
 				{ $set: { embedding, embeddingContentMd: contentMd } },
 			);
 			return right(undefined);
@@ -232,11 +247,11 @@ export class MongodbNodeRepository implements NodeRepository {
 
 		try {
 			const docs = await this.#collection.find(
-				{ _id: { $in: uuids.map((uuid) => toObjectId(uuid)) } } as Filter<Document>,
-				{ projection: { embeddingContentMd: 1 } },
+				{ uuid: { $in: uuids } },
+				{ projection: { uuid: 1, embeddingContentMd: 1 } },
 			).toArray();
 
-			const contents: Record<string, string> = {};
+			const contents: Record<string, string> = Object.create(null);
 			for (const doc of docs) {
 				const dbDoc = doc as unknown as NodeDbModel;
 				if (
@@ -256,7 +271,7 @@ export class MongodbNodeRepository implements NodeRepository {
 	async deleteEmbedding(uuid: string): Promise<Either<AntboxError, void>> {
 		try {
 			await this.#collection.updateOne(
-				{ _id: toObjectId(uuid) },
+				{ uuid },
 				{ $unset: { embedding: "", embeddingContentMd: "" } },
 			);
 			return right(undefined);
@@ -320,7 +335,7 @@ export class MongodbNodeRepository implements NodeRepository {
 
 	#fromNodeLike(node: NodeLike): NodeDbModel {
 		return {
-			_id: toObjectId(node.uuid),
+			_id: node.uuid,
 			...node.metadata,
 		};
 	}
@@ -337,16 +352,7 @@ export class MongodbError extends AntboxError {
 	}
 }
 
-export function toObjectId(uuid: string): ObjectId {
-	let hex = 0;
-	for (const i of uuid) {
-		hex = (hex << 8) | i.charCodeAt(0);
-	}
-
-	return ObjectId.createFromTime(hex);
-}
-
-function buildMongoQuery(filters: NodeFilters): Filter<Document> {
+function buildMongoQuery(filters: NodeFilters): Filter<NodeDbModel> {
 	if (filters.length === 0) {
 		return {};
 	}
@@ -356,36 +362,61 @@ function buildMongoQuery(filters: NodeFilters): Filter<Document> {
 	const ffs = ofs.map((ifs) => {
 		const mfs = ifs.map(toMongoFilter);
 
-		return mfs.length > 1 ? { $and: mfs } : mfs[0];
+		return mfs.length > 1 ? { $and: mfs } : (mfs[0] ?? {});
 	});
 
 	return ffs.length > 1 ? { $or: ffs } : ffs[0];
 }
 
-function toMongoFilter(filter: NodeFilter): Filter<Document> {
-	const [field, operator, value] = filter;
+function toMongoFilter(filter: NodeFilter): Filter<NodeDbModel> {
+	const [rawField, operator, value] = filter;
+	const field = !rawField.startsWith("properties.") && rawField.includes(":")
+		? `properties.${rawField}`
+		: rawField;
+	if (field.startsWith("$")) return { $expr: false };
+	if (
+		([">", ">=", "<", "<="].includes(operator) &&
+			typeof value !== "string" && typeof value !== "number") ||
+		(operator === "match" && typeof value === "object" && value !== null)
+	) return { $expr: false };
+	if (Array.isArray(value) && value.length === 0) {
+		if (operator === "in" || operator === "contains-any") return { $expr: false };
+		if (operator === "not-in" || operator === "contains-all" || operator === "contains-none") {
+			return {};
+		}
+	}
 	const filterOperator = operatorMap[operator];
 	return filterOperator([field, operator, value]);
 }
 
-const operatorMap: Record<FilterOperator, (f: NodeFilter) => Filter<Document>> = {
-	"==": ([f, _o, v]) => ({ [f]: v }),
+const operatorMap: Record<FilterOperator, (f: NodeFilter) => Filter<NodeDbModel>> = {
+	"==": ([f, _o, v]) => ({ [f]: { $eq: v } }),
 	"!=": ([f, _o, v]) => ({ [f]: { $ne: v } }),
 	">": ([f, _o, v]) => ({ [f]: { $gt: v } }),
 	">=": ([f, _o, v]) => ({ [f]: { $gte: v } }),
 	"<": ([f, _o, v]) => ({ [f]: { $lt: v } }),
 	"<=": ([f, _o, v]) => ({ [f]: { $lte: v } }),
-	in: ([f, _o, v]) => ({ [f]: { $in: v } }),
-	"not-in": ([f, _o, v]) => ({ [f]: { $nin: v } }),
-	contains: ([f, _o, v]) => ({ [f]: { $all: [v] } }),
-	"not-contains": ([f, _o, v]) => ({ [f]: { $not: { $all: [v] } } }),
-	"contains-all": ([f, _o, v]) => ({ [f]: { $all: v } }),
-	"contains-none": ([f, _o, v]) => ({ [f]: { $not: { $all: v } } }),
-	match: ([f, _o, v]) => ({ [f]: { $regex: v } }),
-	"contains-any": ([f, _o, v]) => {
-		const values = v as string[];
-		const condition = values.map((v) => ({ [f]: v }));
-
-		return { $or: condition };
-	},
+	in: ([f, _o, v]) => ({ $or: (v as unknown[]).map((value) => ({ [f]: { $eq: value } })) }),
+	"not-in": ([f, _o, v]) => ({ $and: (v as unknown[]).map((value) => ({ [f]: { $ne: value } })) }),
+	contains: ([f, _o, v]) => ({ [f]: { $eq: v } }),
+	"not-contains": ([f, _o, v]) => ({ [f]: { $ne: v } }),
+	"contains-all": ([f, _o, v]) => ({
+		$and: (v as unknown[]).map((value) => ({ [f]: { $eq: value } })),
+	}),
+	"contains-none": ([f, _o, v]) => ({
+		$and: (v as unknown[]).map((value) => ({ [f]: { $ne: value } })),
+	}),
+	match: ([f, _o, v]) => ({
+		[f]: {
+			// Anchor atomic groups so a missing later term cannot revisit earlier matches.
+			$regex: "\\A" +
+				String(v).trim().split(/\s+/).map((term) =>
+					`(?>.*?${term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replaceAll("\0", "\\x00")})`
+				).join(""),
+			$options: "is",
+		},
+	}),
+	"contains-any": ([f, _o, v]) => ({
+		$or: (v as unknown[]).map((value) => ({ [f]: { $eq: value } })),
+	}),
 };

@@ -3,6 +3,17 @@ import { ValidationError } from "shared/validation_error.ts";
 import { Node } from "./node.ts";
 import type { NodeMetadata } from "./node_metadata.ts";
 import { WithAspectMixin } from "domain/nodes/with_aspect_mixin.ts";
+import { toPropertyError } from "domain/validation_schemas.ts";
+import { z } from "zod";
+
+const FileSizeSchema = z.object({ size: z.number().int().nonnegative() });
+
+function validateSize(size: number): ValidationError | undefined {
+	const result = FileSizeSchema.safeParse({ size });
+	return result.success
+		? undefined
+		: ValidationError.from(...result.error.issues.map(toPropertyError("FileNode")));
+}
 
 export class FileNode extends WithAspectMixin(Node) {
 	protected _size: number;
@@ -28,6 +39,8 @@ export class FileNode extends WithAspectMixin(Node) {
 		});
 
 		this._size = metadata.size ?? 0;
+		const error = validateSize(this._size);
+		if (error) throw error;
 		this._cdnUrl = metadata.cdnUrl;
 	}
 
@@ -48,7 +61,10 @@ export class FileNode extends WithAspectMixin(Node) {
 	}
 
 	override update(metadata: Partial<NodeMetadata>): Either<ValidationError, void> {
-		this._size = metadata.size ?? this._size;
+		const size = metadata.size ?? this._size;
+		const error = validateSize(size);
+		if (error) return left(error);
+		this._size = size;
 		this._cdnUrl = metadata.cdnUrl ?? this._cdnUrl;
 		return super.update(metadata);
 	}

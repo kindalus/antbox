@@ -55,7 +55,7 @@ export async function loadConfiguration(
 		const defaultConfig = `engine = "oak"
 port = 7180
 logLevel = "info"
-rootPasswd = "demo"
+rootPasswd = "${crypto.randomUUID()}"
 key = "antbox.key"
 jwks = "antbox.jwks"
 mcpAllowedOrigins = []
@@ -72,7 +72,7 @@ eventStoreRepository = ["sqlite/sqlite_event_store_repository.ts", "default/even
 storage = "pay-as-you-go"
 tokens = 0
 `;
-		await Deno.writeTextFile(configPath, defaultConfig);
+		await Deno.writeTextFile(configPath, defaultConfig, { mode: 0o600 });
 		Logger.info(`Created default configuration file: ${configPath}`);
 	}
 
@@ -80,7 +80,7 @@ tokens = 0
 	if (!fileExistsSync(keyPath)) {
 		const randomBytes = new Uint8Array(32);
 		crypto.getRandomValues(randomBytes);
-		await Deno.writeTextFile(keyPath, encodeBase64(randomBytes));
+		await Deno.writeTextFile(keyPath, encodeBase64(randomBytes), { mode: 0o600 });
 		Logger.info(`Generated new symmetric key at: ${keyPath}`);
 	}
 
@@ -92,7 +92,7 @@ tokens = 0
 		const privJwk = { ...(await exportJWK(privateKey)), alg: "ES256", kid: "antbox-auto-key" };
 
 		await Deno.writeTextFile(jwksPath, JSON.stringify({ keys: [pubJwk] }, null, 2));
-		await Deno.writeTextFile(privateJwkPath, JSON.stringify(privJwk, null, 2));
+		await Deno.writeTextFile(privateJwkPath, JSON.stringify(privJwk, null, 2), { mode: 0o600 });
 		Logger.info(`Generated new JWKS at: ${jwksPath}`);
 	}
 

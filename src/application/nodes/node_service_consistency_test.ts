@@ -61,7 +61,9 @@ describe("NodeService consistency", () => {
 		await createParent(service);
 		const createdEvents: NodeCreatedEvent[] = [];
 		bus.subscribe(NodeCreatedEvent.EVENT_ID, {
-			handle: (event) => createdEvents.push(event as NodeCreatedEvent),
+			handle: (event) => {
+				createdEvents.push(event as NodeCreatedEvent);
+			},
 		});
 		await flushEvents();
 
@@ -105,7 +107,9 @@ describe("NodeService consistency", () => {
 		);
 		const deletedEvents: NodeDeletedEvent[] = [];
 		bus.subscribe(NodeDeletedEvent.EVENT_ID, {
-			handle: (event) => deletedEvents.push(event as NodeDeletedEvent),
+			handle: (event) => {
+				deletedEvents.push(event as NodeDeletedEvent);
+			},
 		});
 		await flushEvents();
 		storage.failUuid = "kept-file";

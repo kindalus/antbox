@@ -9,7 +9,7 @@ import type { AuthenticationContext } from "../security/authentication_context.t
 import { Groups } from "domain/users_groups/groups.ts";
 import { ForbiddenError, UnknownError } from "shared/antbox_error.ts";
 import type { NodeServiceContext } from "./node_service_context.ts";
-import { FileNode } from "domain/nodes/file_node.ts";
+import { SmartFolderNode } from "domain/nodes/smart_folder_node.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus.ts";
 import type { EventBus } from "shared/event_bus.ts";
@@ -19,11 +19,12 @@ import { left, right } from "shared/either.ts";
 describe("NodeService", () => {
 	describe("delete", () => {
 		it("should delete a node and its metadata", async () => {
-			const node = FileNode.create({
+			const node = SmartFolderNode.create({
 				title: "Node to delete",
 				mimetype: Nodes.SMART_FOLDER_MIMETYPE,
 				owner: "tester@domain.com",
 				parent: Nodes.ROOT_FOLDER_UUID,
+				filters: [["mimetype", "==", "text/plain"]],
 			}).right;
 
 			// const bus: EventBus = new InMemoryEventBus();
@@ -34,7 +35,7 @@ describe("NodeService", () => {
 			};
 
 			const repository = new InMemoryNodeRepository();
-			await repository.add(node);
+			expect((await repository.add(node)).isRight()).toBe(true);
 
 			const service = nodeService({ repository, bus });
 

@@ -120,6 +120,31 @@ describe("ExternalLoginService", () => {
 		}
 	});
 
+	it("rejects identities the provider marks as unverified", async () => {
+		const { privateKey, service } = await createFixture();
+		for (
+			const claims of [
+				{ email: "john.doe@example.com", email_verified: false },
+				{ phone_number: "+1234567890", phone_number_verified: false },
+			]
+		) {
+			const result = await service.login(await signToken(privateKey, claims));
+			expect(result.isLeft()).toBe(true);
+			if (result.isLeft()) expect(result.value.errorCode).toBe("UnauthorizedError");
+		}
+	});
+
+	it("requires external tokens to expire", async () => {
+		const { privateKey, service } = await createFixture();
+		const token = await new SignJWT({ email: "john.doe@example.com" })
+			.setProtectedHeader({ alg: "RS256", kid: "test-key" })
+			.setIssuer("external-idp")
+			.sign(privateKey);
+		const result = await service.login(token);
+		expect(result.isLeft()).toBe(true);
+		if (result.isLeft()) expect(result.value.errorCode).toBe("UnauthorizedError");
+	});
+
 	it("logs a warning when external JWT verification fails", async () => {
 		const { service } = await createFixture();
 		const { privateKey: otherPrivateKey } = await generateKeyPair("RS256");

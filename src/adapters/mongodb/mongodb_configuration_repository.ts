@@ -85,9 +85,9 @@ export class MongodbConfigurationRepository implements ConfigurationRepository {
 			const coll = this.#getCollection(collection);
 			const key = this.#getKey(collection, data);
 
-			await coll.updateOne(
+			await coll.replaceOne(
 				{ _id: key } as Filter<ConfigDocument>,
-				{ $set: { ...data, _id: key } as ConfigDocument },
+				{ ...data, _id: key } as ConfigDocument,
 				{ upsert: true },
 			);
 

@@ -36,6 +36,15 @@ class MockNodeRepository {
 		return right(undefined);
 	}
 
+	async touch(uuid: string) {
+		const node = this.nodes.get(uuid);
+		if (!node) return left(new NodeNotFoundError(uuid));
+		const changed = node.update({});
+		if (changed.isLeft()) return changed;
+		this.updatedUuids.push(uuid);
+		return right(undefined);
+	}
+
 	async delete(_uuid: string) {
 		return right(undefined);
 	}
@@ -75,6 +84,68 @@ function createMockContext(): NodeServiceContext {
 }
 
 describe("ParentFolderUpdateHandler", () => {
+	it("preserves a concurrent parent edit when its timestamp write is delayed", async () => {
+		const context = createMockContext();
+		const repository = context.repository as unknown as MockNodeRepository;
+		const parent = FolderNode.create({
+			uuid: "parent",
+			title: "Original title",
+			owner: "test@example.com",
+			group: "testers",
+		}).right;
+		const child = FileNode.create({
+			uuid: "child",
+			title: "child.txt",
+			parent: parent.uuid,
+			mimetype: "text/plain",
+			owner: "test@example.com",
+		}).right;
+		repository.setNode(parent.uuid, parent);
+		const entered = Promise.withResolvers<void>();
+		const resume = Promise.withResolvers<void>();
+		const completed = Promise.withResolvers<void>();
+		let pauseNextWrite = true;
+		const pause = async <T>(write: () => Promise<T>): Promise<T> => {
+			const paused = pauseNextWrite;
+			pauseNextWrite = false;
+			if (paused) {
+				entered.resolve();
+				await resume.promise;
+			}
+			const result = await write();
+			if (paused) completed.resolve();
+			return result;
+		};
+		const update = repository.update.bind(repository);
+		const touch = repository.touch.bind(repository);
+		repository.update = (node) => pause(() => update(node));
+		repository.touch = (uuid) => pause(() => touch(uuid));
+		new ParentFolderUpdateHandler(context).handle(
+			new NodeCreatedEvent("test@example.com", "test", child),
+		);
+		await entered.promise;
+		try {
+			const edited = FolderNode.create({
+				...parent.metadata,
+				title: "Concurrent edit",
+				locked: true,
+				lockedBy: "test@example.com",
+				workflowInstanceUuid: "workflow",
+				workflowState: "review",
+			}).right;
+			await repository.update(edited);
+			resume.resolve();
+			await completed.promise;
+			const stored = (await context.repository.getById(parent.uuid)).right;
+			expect(stored.metadata).toEqual({
+				...edited.metadata,
+				modifiedTime: stored.modifiedTime,
+			});
+		} finally {
+			resume.resolve();
+		}
+	});
+
 	describe("handleNodeCreated", () => {
 		it("should update parent folder modification time when node is created", async () => {
 			const mockContext = createMockContext();
@@ -116,10 +187,7 @@ describe("ParentFolderUpdateHandler", () => {
 			const event = new NodeCreatedEvent("test@example.com", "test-tenant", childFile);
 
 			// Handle the event
-			handler.handle(event);
-
-			// Wait a bit for async operation to complete
-			await new Promise((resolve) => setTimeout(resolve, 10));
+			await handler.handle(event);
 
 			// Verify parent folder modification time was updated
 			const updatedParentResult = await mockContext.repository.getById(parentFolder.uuid);
@@ -160,8 +228,7 @@ describe("ParentFolderUpdateHandler", () => {
 			// Create event
 			const event = new NodeCreatedEvent("test@example.com", "test-tenant", childFile);
 
-			handler.handle(event);
-			await new Promise((resolve) => setTimeout(resolve, 10));
+			await handler.handle(event);
 
 			expect(mockRepo.updatedUuids).toEqual([]);
 		});
@@ -189,8 +256,7 @@ describe("ParentFolderUpdateHandler", () => {
 			// Create event
 			const event = new NodeCreatedEvent("test@example.com", "test-tenant", childFile);
 
-			handler.handle(event);
-			await new Promise((resolve) => setTimeout(resolve, 10));
+			await handler.handle(event);
 
 			expect(mockRepo.updatedUuids).toEqual([]);
 		});
@@ -200,7 +266,7 @@ describe("ParentFolderUpdateHandler", () => {
 			const mockRepo = mockContext.repository as unknown as MockNodeRepository;
 
 			let updateAttempted = false;
-			mockRepo.update = async () => {
+			mockRepo.touch = async () => {
 				updateAttempted = true;
 				return left(new NodeNotFoundError("Update failed"));
 			};
@@ -241,8 +307,7 @@ describe("ParentFolderUpdateHandler", () => {
 			// Create event
 			const event = new NodeCreatedEvent("test@example.com", "test-tenant", childFile);
 
-			handler.handle(event);
-			await new Promise((resolve) => setTimeout(resolve, 10));
+			await handler.handle(event);
 
 			expect(updateAttempted).toBe(true);
 		});
@@ -289,10 +354,7 @@ describe("ParentFolderUpdateHandler", () => {
 			const event = new NodeDeletedEvent("test@example.com", "test-tenant", childFile);
 
 			// Handle the event
-			handler.handle(event);
-
-			// Wait a bit for async operation to complete
-			await new Promise((resolve) => setTimeout(resolve, 10));
+			await handler.handle(event);
 
 			// Verify parent folder modification time was updated
 			const updatedParentResult = await mockContext.repository.getById(parentFolder.uuid);
@@ -382,10 +444,7 @@ describe("ParentFolderUpdateHandler", () => {
 			const event = new NodeUpdatedEvent("test@example.com", "test-tenant", changes);
 
 			// Handle the event
-			handler.handle(event);
-
-			// Wait a bit for async operation to complete
-			await new Promise((resolve) => setTimeout(resolve, 10));
+			await handler.handle(event);
 
 			// Verify parent folder modification time was updated
 			const updatedParentResult = await mockContext.repository.getById(parentFolder.uuid);
@@ -485,10 +544,7 @@ describe("ParentFolderUpdateHandler", () => {
 			const event = new NodeUpdatedEvent("test@example.com", "test-tenant", changes);
 
 			// Handle the event
-			handler.handle(event);
-
-			// Wait a bit for async operation to complete
-			await new Promise((resolve) => setTimeout(resolve, 50));
+			await handler.handle(event);
 
 			// Verify old parent folder modification time was updated
 			const updatedOldParentResult = await mockContext.repository.getById(oldParent.uuid);
@@ -572,10 +628,7 @@ describe("ParentFolderUpdateHandler", () => {
 			const event = new NodeUpdatedEvent("test@example.com", "test-tenant", changes);
 
 			// Handle the event
-			handler.handle(event);
-
-			// Wait a bit for async operation to complete
-			await new Promise((resolve) => setTimeout(resolve, 10));
+			await handler.handle(event);
 
 			// Verify parent folder modification time was updated
 			// (because any change to a child node should update the parent)

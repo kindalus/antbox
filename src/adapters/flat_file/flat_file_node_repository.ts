@@ -4,6 +4,7 @@ import type { NodeLike } from "domain/node_like.ts";
 import type { Embedding } from "domain/nodes/embedding.ts";
 import type { NodeFilters } from "domain/nodes/node_filter.ts";
 import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
+import { DuplicatedNodeError } from "domain/nodes/duplicated_node_error.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import type {
 	NodeFilterResult,
@@ -11,11 +12,11 @@ import type {
 	VectorSearchResult,
 } from "domain/nodes/node_repository.ts";
 
-import { join } from "path";
+import { dirname, join } from "path";
 
 import { AntboxError, UnknownError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
-import { copyFile, fileExistsSync } from "shared/os_helpers.ts";
+import { fileExistsSync } from "shared/os_helpers.ts";
 import { Logger } from "shared/logger.ts";
 
 /**
@@ -48,7 +49,7 @@ export default function buildFlatFileStorageProvider(
 			const data = Deno.readTextFileSync(dbFilePath);
 			metadata = JSON.parse(data);
 
-			copyFile(dbFilePath, dbBackupFilePath);
+			Deno.copyFileSync(dbFilePath, dbBackupFilePath);
 		}
 
 		return Promise.resolve(
@@ -74,66 +75,75 @@ class FlatFileNodeRepository implements NodeRepository {
 				.reduce((acc, m) => {
 					acc[m.uuid] = NodeFactory.from(m).right;
 					return acc;
-				}, {} as Record<string, NodeLike>),
+				}, Object.create(null) as Record<string, NodeLike>),
 		);
 	}
 
-	#dataAsArray(): NodeMetadata[] {
-		return Object.values(this.#base.data).map((m) => m.metadata);
-	}
-
-	#saveDb(path?: string) {
-		const rows = this.#dataAsArray();
+	#saveDb(rows: NodeMetadata[]) {
 		const rawData = this.#encoder.encode(JSON.stringify(rows, null, 2));
-		Deno.writeFileSync(path || this.#dbFilePath, rawData);
+		const temporaryPath = Deno.makeTempFileSync({ dir: dirname(this.#dbFilePath) });
+		try {
+			Deno.writeFileSync(temporaryPath, rawData);
+			Deno.renameSync(temporaryPath, this.#dbFilePath);
+		} catch (error) {
+			Deno.removeSync(temporaryPath);
+			throw error;
+		}
 	}
 
 	delete(uuid: string): Promise<Either<NodeNotFoundError, void>> {
-		return this.#base
-			.delete(uuid)
-			.then((result) => {
-				if (result.isRight()) {
-					this.#saveDb();
-				}
-
-				return result;
-			})
-			.catch((err) => {
-				Logger.error(err);
-				return left(new NodeNotFoundError(uuid));
-			});
+		const records = this.#base.data;
+		if (!records[uuid]) return Promise.resolve(left(new NodeNotFoundError(uuid)));
+		delete records[uuid];
+		try {
+			this.#saveDb(Object.values(records).map((node) => node.metadata));
+			return this.#base.delete(uuid);
+		} catch (error) {
+			Logger.error(error);
+			return Promise.resolve(left(new UnknownError((error as Error).message)));
+		}
 	}
 
 	update(node: NodeLike): Promise<Either<NodeNotFoundError, void>> {
-		return this.#base
-			.update(node)
-			.then((result) => {
-				if (result.isRight()) {
-					this.#saveDb();
-				}
+		const records = this.#base.data;
+		if (!records[node.uuid]) return Promise.resolve(left(new NodeNotFoundError(node.uuid)));
+		try {
+			const snapshot = NodeFactory.from(structuredClone(node.metadata));
+			if (snapshot.isLeft()) return Promise.resolve(left(snapshot.value));
+			records[node.uuid] = snapshot.value;
+			this.#saveDb(Object.values(records).map((node) => node.metadata));
+			return this.#base.update(snapshot.value);
+		} catch (error) {
+			Logger.error(error);
+			return Promise.resolve(left(new UnknownError((error as Error).message)));
+		}
+	}
 
-				return result;
-			})
-			.catch((err) => {
-				Logger.error(err);
-				return left(new NodeNotFoundError(node.uuid));
-			});
+	touch(uuid: string): Promise<Either<AntboxError, void>> {
+		const current = this.#base.data[uuid];
+		if (!current) return Promise.resolve(left(new NodeNotFoundError(uuid)));
+		const updated = NodeFactory.from({
+			...current.metadata,
+			modifiedTime: new Date().toISOString(),
+		});
+		if (updated.isLeft()) return Promise.resolve(left(updated.value));
+		// Both the snapshot and persistence run synchronously, without another write between them.
+		return this.update(updated.value);
 	}
 
 	add(node: NodeLike): Promise<Either<AntboxError, void>> {
-		return this.#base
-			.add(node)
-			.then((result) => {
-				if (result.isRight()) {
-					this.#saveDb();
-				}
-
-				return result;
-			})
-			.catch((err) => {
-				Logger.error(err);
-				return left(new UnknownError(err));
-			});
+		const records = this.#base.data;
+		if (records[node.uuid]) return Promise.resolve(left(new DuplicatedNodeError(node.uuid)));
+		try {
+			const snapshot = NodeFactory.from(structuredClone(node.metadata));
+			if (snapshot.isLeft()) return Promise.resolve(left(snapshot.value));
+			records[node.uuid] = snapshot.value;
+			this.#saveDb(Object.values(records).map((node) => node.metadata));
+			return this.#base.add(snapshot.value);
+		} catch (error) {
+			Logger.error(error);
+			return Promise.resolve(left(new UnknownError((error as Error).message)));
+		}
 	}
 
 	getByFid(fid: string): Promise<Either<NodeNotFoundError, NodeLike>> {

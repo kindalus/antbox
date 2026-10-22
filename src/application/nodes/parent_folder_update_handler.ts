@@ -15,7 +15,7 @@ export class ParentFolderUpdateHandler
 	implements EventHandler<NodeCreatedEvent | NodeDeletedEvent | NodeUpdatedEvent> {
 	constructor(private readonly context: NodeServiceContext) {}
 
-	handle(event: NodeCreatedEvent | NodeDeletedEvent | NodeUpdatedEvent): void {
+	handle(event: NodeCreatedEvent | NodeDeletedEvent | NodeUpdatedEvent): Promise<void> {
 		const errorHandler = <T>(error: T) =>
 			Logger.error(
 				`ParentFolderUpdateHandler: Unexpected error handling ${event.eventId}:`,
@@ -23,9 +23,9 @@ export class ParentFolderUpdateHandler
 			);
 
 		if (event.eventId === NodeUpdatedEvent.EVENT_ID) {
-			this.handleNodeUpdated(event as NodeUpdatedEvent).catch(errorHandler);
+			return this.handleNodeUpdated(event as NodeUpdatedEvent).catch(errorHandler);
 		} else {
-			this.handleNodeCreatedOrDeleted(event as NodeCreatedEvent | NodeDeletedEvent).catch(
+			return this.handleNodeCreatedOrDeleted(event as NodeCreatedEvent | NodeDeletedEvent).catch(
 				errorHandler,
 			);
 		}
@@ -71,36 +71,11 @@ export class ParentFolderUpdateHandler
 			return;
 		}
 
-		// Get the parent node from repository
-		const parentOrErr = await this.context.repository.getById(parentUuid);
-		if (parentOrErr.isLeft()) {
-			// Parent not found - this could happen if parent was deleted
-			// or if it's a built-in folder. Log but don't throw.
-			Logger.warn(`ParentFolderUpdateHandler: Parent folder not found: ${parentUuid}`);
-			return;
-		}
-
-		const parent = parentOrErr.value;
-
-		// Update the parent's modification time
-		const updateResult = parent.update({
-			modifiedTime: new Date().toISOString(),
-		});
-
-		if (updateResult.isLeft()) {
-			Logger.error(
-				`ParentFolderUpdateHandler: Failed to update parent folder metadata: ${updateResult.value.message}`,
-			);
-			return;
-		}
-
-		// Save the updated parent to repository
-		const saveResult = await this.context.repository.update(parent);
-		if (saveResult.isLeft()) {
+		const touched = await this.context.repository.touch(parentUuid);
+		if (touched.isLeft()) {
 			Logger.debug(
-				`ParentFolderUpdateHandler: Parent folder disappeared before save: ${parentUuid}`,
+				`ParentFolderUpdateHandler: Could not update parent ${parentUuid}: ${touched.value.message}`,
 			);
-			return;
 		}
 	}
 }

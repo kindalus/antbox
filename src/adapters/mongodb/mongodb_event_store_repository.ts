@@ -76,27 +76,29 @@ export class MongodbEventStoreRepository implements EventStoreRepository {
 		try {
 			const collection = this.#getCollection(mimetype);
 
-			// Get next sequence number
-			const lastEvent = await collection
-				.find({ streamId })
-				.sort({ sequence: -1 })
-				.limit(1)
-				.toArray();
+			await collection.createIndex({ streamId: 1, sequence: 1 }, { unique: true });
 
-			const sequence = lastEvent.length > 0 ? lastEvent[0].sequence + 1 : 0;
-
-			await collection.insertOne({
-				streamId,
-				sequence,
-				payload: event,
-				createdAt: new Date(event.occurredOn),
-			});
-
-			// Ensure index for efficient queries
-			await collection.createIndex(
-				{ streamId: 1, sequence: 1 },
-				{ unique: true },
-			);
+			// ponytail: retry sequence conflicts; use a counter for sustained writes to one stream.
+			while (true) {
+				const lastEvent = await collection.find({ streamId }).sort({ sequence: -1 }).limit(1)
+					.toArray();
+				const sequence = lastEvent.length > 0 ? lastEvent[0].sequence + 1 : 0;
+				try {
+					await collection.insertOne({
+						streamId,
+						sequence,
+						payload: event,
+						createdAt: new Date(event.occurredOn),
+					});
+					break;
+				} catch (error) {
+					const duplicate = error as { code?: number; keyPattern?: Record<string, number> };
+					if (
+						duplicate.code !== 11000 || duplicate.keyPattern?.streamId !== 1 ||
+						duplicate.keyPattern?.sequence !== 1
+					) throw error;
+				}
+			}
 
 			return right(undefined);
 		} catch (err) {

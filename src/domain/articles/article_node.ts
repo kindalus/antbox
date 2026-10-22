@@ -1,6 +1,5 @@
 import { Node } from "../nodes/node.ts";
 import { type NodeMetadata } from "../nodes/node_metadata.ts";
-import { PropertyRequiredError, PropertyTypeError } from "../nodes/property_errors.ts";
 import { WithAspectMixin } from "../nodes/with_aspect_mixin.ts";
 import { AntboxError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
@@ -10,7 +9,6 @@ import { toPropertyError, uuid } from "../validation_schemas.ts";
 import {
 	ARTICLE_BODY_CONTENT_TYPES,
 	type ArticleBodyContentType,
-	type ArticleProperties,
 	type ArticlePropertiesMap,
 } from "./article_properties.ts";
 import { Nodes } from "../nodes/nodes.ts";
@@ -22,6 +20,18 @@ const ArticleNodeValidationSchema = z.object({
 		"ArticleNode.mimetype must be application/vnd.antbox.article",
 	),
 	articleBodyContentType: z.enum(ARTICLE_BODY_CONTENT_TYPES),
+	articleAuthor: z.string().min(1),
+	articleProperties: z.record(
+		z.string(),
+		z.object({
+			articleTitle: z.string().min(1),
+			articleFid: z.string().min(1),
+			articleResume: z.string().min(1),
+			articleBody: z.string().min(1),
+		}),
+	).refine((properties) => Object.keys(properties).length > 0, {
+		message: "ArticleNode.articleProperties is required",
+	}),
 });
 
 export class ArticleNode extends WithAspectMixin(Node) {
@@ -122,104 +132,6 @@ export class ArticleNode extends WithAspectMixin(Node) {
 		if (!result.success) {
 			const validationErrors = result.error.issues.map(toPropertyError("ArticleNode"));
 			errors.push(ValidationError.from(...validationErrors));
-		}
-
-		if (!this._articleProperties || typeof this._articleProperties !== "object") {
-			errors.push(
-				new PropertyTypeError(
-					"ArticleNode._articleProperties",
-					"object",
-					typeof this._articleProperties,
-				),
-			);
-		} else {
-			if (Object.keys(this._articleProperties).length === 0) {
-				errors.push(new PropertyRequiredError("ArticleNode.articleProperties"));
-			}
-
-			// Validate each locale's properties
-			for (const [locale, localizedProps] of Object.entries(this._articleProperties)) {
-				if (typeof localizedProps !== "object") {
-					errors.push(
-						new PropertyTypeError(
-							`ArticleNode._articleProperties.${locale}`,
-							"object",
-							typeof localizedProps,
-						),
-					);
-					continue;
-				}
-
-				const articleProps = localizedProps as ArticleProperties;
-
-				if (!articleProps.articleTitle || typeof articleProps.articleTitle !== "string") {
-					errors.push(
-						articleProps.articleTitle
-							? new PropertyTypeError(
-								`ArticleNode._articleProperties.${locale}.articleTitle`,
-								"string",
-								typeof articleProps.articleTitle,
-							)
-							: new PropertyRequiredError(
-								`ArticleNode._articleProperties.${locale}.articleTitle`,
-							),
-					);
-				}
-
-				if (!articleProps.articleFid || typeof articleProps.articleFid !== "string") {
-					errors.push(
-						articleProps.articleFid
-							? new PropertyTypeError(
-								`ArticleNode._articleProperties.${locale}.articleFid`,
-								"string",
-								typeof articleProps.articleFid,
-							)
-							: new PropertyRequiredError(
-								`ArticleNode._articleProperties.${locale}.articleFid`,
-							),
-					);
-				}
-
-				if (!articleProps.articleResume || typeof articleProps.articleResume !== "string") {
-					errors.push(
-						articleProps.articleResume
-							? new PropertyTypeError(
-								`ArticleNode._articleProperties.${locale}.articleResume`,
-								"string",
-								typeof articleProps.articleResume,
-							)
-							: new PropertyRequiredError(
-								`ArticleNode._articleProperties.${locale}.articleResume`,
-							),
-					);
-				}
-
-				if (!articleProps.articleBody || typeof articleProps.articleBody !== "string") {
-					errors.push(
-						articleProps.articleBody
-							? new PropertyTypeError(
-								`ArticleNode._articleProperties.${locale}.articleBody`,
-								"string",
-								typeof articleProps.articleBody,
-							)
-							: new PropertyRequiredError(
-								`ArticleNode._articleProperties.${locale}.articleBody`,
-							),
-					);
-				}
-			}
-		}
-
-		if (!this._articleAuthor || typeof this._articleAuthor !== "string") {
-			errors.push(
-				this._articleAuthor
-					? new PropertyTypeError(
-						"ArticleNode.articleAuthor",
-						"string",
-						typeof this._articleAuthor,
-					)
-					: new PropertyRequiredError("ArticleNode.articleAuthor"),
-			);
 		}
 
 		if (errors.length > 0) {

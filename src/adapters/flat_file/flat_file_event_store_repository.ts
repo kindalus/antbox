@@ -4,8 +4,20 @@ import type { EventStoreRepository } from "domain/audit/event_store_repository.t
 import { join } from "path";
 import { AntboxError, UnknownError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
-import { copyFile, fileExistsSync } from "shared/os_helpers.ts";
+import { fileExistsSync } from "shared/os_helpers.ts";
 import { Logger } from "shared/logger.ts";
+import { z } from "zod";
+
+const AuditStreamSchema = z.array(
+	z.object({
+		streamId: z.string(),
+		eventType: z.string(),
+		occurredOn: z.string(),
+		userEmail: z.string(),
+		payload: z.unknown(),
+		sequence: z.number().int().nonnegative(),
+	}).passthrough(),
+);
 
 /**
  * Builds a file-backed EventStoreRepository that persists streams as JSON.
@@ -52,40 +64,24 @@ class FlatFileEventStoreRepository implements EventStoreRepository {
 	}
 
 	loadAllStreams(): void {
-		try {
-			for (const entry of Deno.readDirSync(this.#eventsDir)) {
-				if (entry.isDirectory) {
-					const mimetype = this.#decodeMimetypeDirName(entry.name);
-					const mimetypeDir = join(this.#eventsDir, entry.name);
+		for (const entry of Deno.readDirSync(this.#eventsDir)) {
+			if (!entry.isDirectory) continue;
+			const mimetype = this.#decodeMimetypeDirName(entry.name);
+			const mimetypeDir = join(this.#eventsDir, entry.name);
 
-					for (const streamFile of Deno.readDirSync(mimetypeDir)) {
-						if (streamFile.isFile && streamFile.name.endsWith(".json")) {
-							const streamId = streamFile.name.replace(".json", "");
-							const streamPath = join(mimetypeDir, streamFile.name);
-							const streamBackupPath = join(mimetypeDir, `${streamFile.name}.backup`);
+			for (const streamFile of Deno.readDirSync(mimetypeDir)) {
+				if (!streamFile.isFile || !streamFile.name.endsWith(".json")) continue;
+				const streamId = streamFile.name.slice(0, -5);
+				const streamPath = join(mimetypeDir, streamFile.name);
+				const streamBackupPath = join(mimetypeDir, `${streamFile.name}.backup`);
+				const events = AuditStreamSchema.parse(JSON.parse(Deno.readTextFileSync(streamPath)));
 
-							try {
-								const data = Deno.readTextFileSync(streamPath);
-								const events: AuditEvent[] = JSON.parse(data);
+				Deno.copyFileSync(streamPath, streamBackupPath);
 
-								copyFile(streamPath, streamBackupPath);
-
-								const mimetypeStreams = this.#base.streamsByMimetype.get(mimetype) ||
-									new Map();
-								mimetypeStreams.set(streamId, events);
-								this.#base.streamsByMimetype.set(mimetype, mimetypeStreams);
-							} catch (err) {
-								Logger.error(
-									`Error loading stream ${streamId} for mimetype ${mimetype}:`,
-									err,
-								);
-							}
-						}
-					}
-				}
+				const mimetypeStreams = this.#base.streamsByMimetype.get(mimetype) || new Map();
+				mimetypeStreams.set(streamId, events);
+				this.#base.streamsByMimetype.set(mimetype, mimetypeStreams);
 			}
-		} catch (err) {
-			Logger.error("Error loading event streams:", err);
 		}
 	}
 
@@ -113,11 +109,18 @@ class FlatFileEventStoreRepository implements EventStoreRepository {
 		const streamBackupPath = `${streamPath}.backup`;
 
 		if (fileExistsSync(streamPath)) {
-			copyFile(streamPath, streamBackupPath);
+			Deno.copyFileSync(streamPath, streamBackupPath);
 		}
 
 		const rawData = this.#encoder.encode(JSON.stringify(events, null, 2));
-		Deno.writeFileSync(streamPath, rawData);
+		const temporaryPath = Deno.makeTempFileSync({ dir: mimetypeDir, prefix: ".audit-" });
+		try {
+			Deno.writeFileSync(temporaryPath, rawData);
+			Deno.renameSync(temporaryPath, streamPath);
+		} catch (err) {
+			Deno.removeSync(temporaryPath);
+			throw err;
+		}
 	}
 
 	async append(
@@ -126,16 +129,14 @@ class FlatFileEventStoreRepository implements EventStoreRepository {
 		event: Omit<AuditEvent, "streamId" | "sequence">,
 	): Promise<Either<AntboxError, void>> {
 		try {
-			const result = await this.#base.append(streamId, mimetype, event);
-
-			if (result.isRight()) {
-				const streamResult = await this.#base.getStream(streamId, mimetype);
-				if (streamResult.isRight()) {
-					this.#saveStream(streamId, mimetype, streamResult.value);
-				}
-			}
-
-			return result;
+			const mimetypeStreams = this.#base.streamsByMimetype.get(mimetype) || new Map();
+			const previous = mimetypeStreams.get(streamId) ?? [];
+			const auditEvent = structuredClone({ ...event, streamId, sequence: previous.length });
+			const events = [...previous, auditEvent];
+			this.#saveStream(streamId, mimetype, events);
+			mimetypeStreams.set(streamId, events);
+			this.#base.streamsByMimetype.set(mimetype, mimetypeStreams);
+			return right(undefined);
 		} catch (err) {
 			Logger.error(`Error appending event to stream ${streamId}:`, err);
 			return left(new UnknownError(err as string));

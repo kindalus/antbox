@@ -341,6 +341,17 @@ export class SqliteNodeRepository implements NodeRepository {
 		}
 	}
 
+	async touch(uuid: string): Promise<Either<AntboxError, void>> {
+		try {
+			const row = this.#db.prepare(
+				"UPDATE nodes SET body = json_set(body, '$.modifiedTime', ?) WHERE uuid = ? RETURNING uuid",
+			).get(new Date().toISOString(), uuid);
+			return row ? right(undefined) : left(new NodeNotFoundError(uuid));
+		} catch (error) {
+			return left(new SqliteError(error instanceof Error ? error.message : String(error)));
+		}
+	}
+
 	async delete(uuid: string): Promise<Either<NodeNotFoundError, void>> {
 		const existing = await this.getById(uuid);
 
@@ -433,7 +444,7 @@ export class SqliteNodeRepository implements NodeRepository {
 				return clause;
 			});
 
-			return andClauses.length > 1 ? `(${andClauses.join(" AND ")})` : andClauses[0];
+			return andClauses.length > 1 ? `(${andClauses.join(" AND ")})` : (andClauses[0] ?? "TRUE");
 		});
 
 		const whereClause = orClauses.length > 1 ? `(${orClauses.join(" OR ")})` : orClauses[0];
@@ -449,11 +460,22 @@ export class SqliteNodeRepository implements NodeRepository {
 	#filterToSql(filter: NodeFilter, params: BindValue[]): string {
 		const [rawField, operator, value] = filter;
 		const field = normalizeFieldName(rawField);
+		if (
+			([">", ">=", "<", "<="].includes(operator) &&
+				typeof value !== "string" && typeof value !== "number") ||
+			(operator === "match" && typeof value === "object" && value !== null)
+		) return "FALSE";
+		if (Array.isArray(value) && value.length === 0) {
+			if (operator === "in" || operator === "contains-any") return "FALSE";
+			if (
+				operator === "not-in" || operator === "contains-all" || operator === "contains-none"
+			) return "TRUE";
+		}
 
 		const promotedColumns = ["uuid", "fid", "title", "parent", "mimetype"];
 		const columnRef = promotedColumns.includes(field)
 			? field
-			: `json_extract(body, '$.${field}')`;
+			: `json_extract(body, ?${params.push(`$.${field}`)})`;
 
 		return operatorMap[operator](columnRef, value, params);
 	}
@@ -513,8 +535,9 @@ const operatorMap: Record<FilterOperator, SqlBuilder> = {
 		return `${col} NOT IN (${placeholders})`;
 	},
 	match: (col, val, params) => {
-		params.push(`%${val}%`);
-		return `${col} LIKE ?`;
+		const pattern = String(val).trim().replaceAll(/[\\%_]/g, "\\$&").replaceAll(/\s+/g, "%");
+		params.push(`%${pattern}%`);
+		return `${col} LIKE ? ESCAPE '\\'`;
 	},
 	contains: (col, val, params) => {
 		const comparison = buildJsonEachEqualsClause(val, params);

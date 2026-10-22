@@ -34,6 +34,42 @@ async function createSkill(root: string): Promise<LoadedSkill> {
 }
 
 describe("SessionWorkspaceStore", () => {
+	it("requires matching API key ownership in both directions and rejects legacy unbound key sessions", async () => {
+		const root = await Deno.makeTempDir({ prefix: "antbox-session-owner-test-" });
+		try {
+			const store = new SessionWorkspaceStore(root);
+			const input = {
+				tenant: "tenant-a",
+				userEmail: "apikey@antbox.io",
+				agentData: agent,
+				toolNames: [],
+				featureVersions: [],
+				skills: [],
+			};
+			const identity = {
+				tenant: input.tenant,
+				userEmail: input.userEmail,
+				agentUuid: agent.uuid,
+			};
+			const legacy = await store.create(input);
+			await expect(
+				store.open(legacy.manifest.sessionId, { ...identity, apiKeyUuid: "firstkey" }),
+			).rejects.toThrow("Session not found");
+			const bound = await store.create({ ...input, apiKeyUuid: "firstkey" });
+			await expect(store.open(bound.manifest.sessionId, identity)).rejects.toThrow(
+				"Session not found",
+			);
+			await expect(store.open(bound.manifest.sessionId, { ...identity, apiKeyUuid: "otherkey" }))
+				.rejects.toThrow("Session not found");
+			expect(
+				(await store.open(bound.manifest.sessionId, { ...identity, apiKeyUuid: "firstkey" }))
+					.manifest.apiKeyUuid,
+			).toBe("firstkey");
+		} finally {
+			await Deno.remove(root, { recursive: true });
+		}
+	});
+
 	it("persists an isolated session snapshot and reopens it for its owner", async () => {
 		const root = await Deno.makeTempDir({ prefix: "antbox-session-workspace-test-" });
 		try {

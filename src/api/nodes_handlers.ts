@@ -1,4 +1,5 @@
-import { NodeMetadata } from "domain/nodes/node_metadata.ts";
+import { NodeFiltersSchema } from "domain/nodes/node_filter.ts";
+import { z } from "zod";
 import { ExportAllRequestSchema } from "application/nodes/node_export_all.ts";
 import { AntboxError, BadRequestError, UnknownError } from "shared/antbox_error.ts";
 import { type AntboxTenant } from "./antbox_tenant.ts";
@@ -10,6 +11,16 @@ import { getTenant } from "./get_tenant.ts";
 import { type HttpHandler, sendBadRequest } from "./handler.ts";
 import { processError } from "./process_error.ts";
 import { processServiceCreateResult, processServiceResult } from "./process_service_result.ts";
+import { parseJsonBody } from "./parse_json_body.ts";
+import { getUploadFile, getUploadFormData } from "./upload_utils.ts";
+
+const metadataSchema = z.looseObject({});
+const findRequestSchema = z.object({
+	filters: z.union([z.string(), NodeFiltersSchema]),
+	pageSize: z.number().int().min(1).max(200).default(20),
+	pageToken: z.number().int().positive().default(1),
+});
+const copyRequestSchema = z.object({ to: z.string().min(1) });
 
 export function listHandler(tenants: AntboxTenant[]): HttpHandler {
 	return defaultMiddlewareChain(
@@ -51,7 +62,9 @@ export function createHandler(tenants: AntboxTenant[]): HttpHandler {
 		tenants,
 		async (req: Request): Promise<Response> => {
 			const service = getTenant(req, tenants).nodeService;
-			const metadata = await req.json();
+			const body = await parseJsonBody(req, metadataSchema);
+			if (body.isLeft()) return processError(body.value);
+			const metadata = body.value;
 
 			if (!metadata?.mimetype) {
 				return Promise.resolve(
@@ -72,22 +85,26 @@ export function createFileHandler(tenants: AntboxTenant[]): HttpHandler {
 		tenants,
 		async (req: Request): Promise<Response> => {
 			const service = getTenant(req, tenants).nodeService;
-			const formdata = await req.formData();
-
-			const metadataStr = formdata.get("metadata");
-			const file = formdata.get("file") as File;
-			let metadata: NodeMetadata;
+			const form = await getUploadFormData(req);
+			if (form.isLeft()) return processError(form.value);
+			const file = getUploadFile(form.value);
+			if (file.isLeft()) return processError(file.value);
+			const metadataStr = form.value.get("metadata");
+			let metadata: unknown;
 
 			try {
-				metadata = JSON.parse(metadataStr as string);
+				if (typeof metadataStr !== "string") throw new Error("Missing metadata");
+				metadata = JSON.parse(metadataStr);
 			} catch (_e) {
-				return Promise.resolve(
-					new Response("X-Metadata header is not valid JSON", { status: 400 }),
-				);
+				return sendBadRequest({ error: "{ metadata } form field must contain a JSON object" });
+			}
+			const parsed = metadataSchema.safeParse(metadata);
+			if (!parsed.success) {
+				return sendBadRequest({ error: "{ metadata } must be a JSON object" });
 			}
 
 			return service
-				.createFile(getAuthenticationContext(req), file, metadata)
+				.createFile(getAuthenticationContext(req), file.value, parsed.data)
 				.then(processServiceCreateResult)
 				.catch(processError);
 		},
@@ -104,9 +121,10 @@ export function updateHandler(tenants: AntboxTenant[]): HttpHandler {
 				return new Response("{ uuid } not given", { status: 400 });
 			}
 
-			const body = await req.json();
+			const body = await parseJsonBody(req, metadataSchema);
+			if (body.isLeft()) return processError(body.value);
 			return await service
-				.update(getAuthenticationContext(req), params.uuid, body)
+				.update(getAuthenticationContext(req), params.uuid, body.value)
 				.then(processServiceResult)
 				.catch(processError);
 		},
@@ -123,14 +141,13 @@ export function updateFileHandler(tenants: AntboxTenant[]): HttpHandler {
 				return new Response("{ uuid } not given", { status: 400 });
 			}
 
-			const formdata = await req.formData();
-			const file = formdata.get("file") as File;
-			if (!file) {
-				return new Response("{ file } not given", { status: 400 });
-			}
+			const form = await getUploadFormData(req);
+			if (form.isLeft()) return processError(form.value);
+			const file = getUploadFile(form.value);
+			if (file.isLeft()) return processError(file.value);
 
 			return await service
-				.updateFile(getAuthenticationContext(req), params.uuid, file)
+				.updateFile(getAuthenticationContext(req), params.uuid, file.value)
 				.then(processServiceResult)
 				.catch(processError);
 		},
@@ -160,14 +177,15 @@ export function copyHandler(tenants: AntboxTenant[]): HttpHandler {
 		tenants,
 		async (req: Request): Promise<Response> => {
 			const service = getTenant(req, tenants).nodeService;
-			const body = await req.json();
+			const body = await parseJsonBody(req, copyRequestSchema);
+			if (body.isLeft()) return processError(body.value);
 			const params = getParams(req);
 			if (!params.uuid) {
 				return new Response("{ uuid } not given", { status: 400 });
 			}
 
 			return await service
-				.copy(getAuthenticationContext(req), params.uuid, body.to)
+				.copy(getAuthenticationContext(req), params.uuid, body.value.to)
 				.then(processServiceResult)
 				.catch(processError);
 		},
@@ -197,7 +215,9 @@ export function findHandler(tenants: AntboxTenant[]): HttpHandler {
 		tenants,
 		async (req: Request): Promise<Response> => {
 			const service = getTenant(req, tenants).nodeService;
-			const body = await req.json();
+			const parsed = await parseJsonBody(req, findRequestSchema);
+			if (parsed.isLeft()) return processError(parsed.value);
+			const body = parsed.value;
 			return service
 				.find(
 					getAuthenticationContext(req),
@@ -258,6 +278,12 @@ export function exportHandler(tenants: AntboxTenant[]): HttpHandler {
 					const response = new Response(blob.value);
 					response.headers.set("Content-Type", node.value.mimetype!);
 					response.headers.set("Content-length", blob.value.size.toString());
+					response.headers.set("X-Content-Type-Options", "nosniff");
+					response.headers.set(
+						"Content-Security-Policy",
+						"sandbox; default-src 'none'; base-uri 'none'; form-action 'none'",
+					);
+					response.headers.set("Cache-Control", "no-store");
 					return response;
 				})
 				.catch(processError);

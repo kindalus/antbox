@@ -5,20 +5,43 @@ import { getAuthenticationContext } from "api/get_authentication_context.ts";
 import { getTenant } from "api/get_tenant.ts";
 import { type HttpHandler, sendCreated, sendNoContent, sendOK } from "api/handler.ts";
 
-import { createPropfindResponse } from "./webdav_xml.ts";
+import { createPropfindResponse, escapeXml } from "./webdav_xml.ts";
 import { getMimetype, resolvePath, unescapePath } from "./webdav_utils.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import { createETagHeader } from "./webdav_etag.ts";
 import { processError } from "api/process_error.ts";
 import { NodeMetadata } from "domain/nodes/node_metadata.ts";
+import { BadRequestError } from "shared/antbox_error.ts";
+import { type Either, left, right } from "shared/either.ts";
 
-function getPath(req: Request | string, tenant: AntboxTenant): string {
-	const path = new URL(typeof req === "string" ? req : req.url).pathname.replace(
-		`/webdav/${tenant.name}`,
-		"",
-	) || "/";
-	return path;
+function getPath(req: Request | string): string {
+	const segments = new URL(typeof req === "string" ? req : req.url).pathname.split("/");
+	return `/${segments.slice(3).join("/")}`.replace(/\/+$/, "") || "/";
+}
+
+function getDestinationPath(req: Request, tenant: AntboxTenant): Either<BadRequestError, string> {
+	const destination = req.headers.get("Destination");
+	if (!destination) return left(new BadRequestError("Destination header missing"));
+	try {
+		if (!destination.startsWith("/") && !/^https?:\/\//i.test(destination)) {
+			return left(new BadRequestError("Destination must be an absolute URL or path"));
+		}
+		const url = new URL(destination, req.url);
+		const segments = url.pathname.split("/");
+		if (
+			url.origin !== new URL(req.url).origin || url.username || url.password || url.hash ||
+			segments[1] !== "webdav" || decodeURIComponent(segments[2]) !== tenant.name ||
+			url.searchParams.getAll("x-tenant").some((name) => name && name !== tenant.name)
+		) {
+			return left(new BadRequestError("Destination must remain in the same origin and tenant"));
+		}
+		const path = getPath(url.href);
+		unescapePath(path);
+		return right(path);
+	} catch {
+		return left(new BadRequestError("Invalid Destination URL"));
+	}
 }
 
 export function optionsHandler(tenants: AntboxTenant[]): HttpHandler {
@@ -60,7 +83,7 @@ export function propfindHandler(tenants: AntboxTenant[]): HttpHandler {
 	return webdavMiddlewareChain(tenants, async (req: Request) => {
 		const tenant = getTenant(req, tenants);
 		const authContext = getAuthenticationContext(req);
-		const path = getPath(req, tenant);
+		const path = getPath(req);
 
 		const nodeOrErr = await resolvePath(tenant.nodeService, authContext, path, tenant.name);
 		if (nodeOrErr.isLeft()) {
@@ -92,7 +115,7 @@ export function propfindHandler(tenants: AntboxTenant[]): HttpHandler {
 			"Pragma": "no-cache",
 			"Expires": "0",
 			"ETag": createETagHeader(node),
-			"Content-Length": xml.length.toString(),
+			"Content-Length": new TextEncoder().encode(xml).length.toString(),
 		};
 
 		return new Response(xml, { status: 207, headers });
@@ -103,7 +126,7 @@ export function getHandler(tenants: AntboxTenant[]): HttpHandler {
 	return webdavMiddlewareChain(tenants, async (req: Request) => {
 		const tenant = getTenant(req, tenants);
 		const authContext = getAuthenticationContext(req);
-		const path = getPath(req, tenant);
+		const path = getPath(req);
 
 		const nodeOrErr = await resolvePath(tenant.nodeService, authContext, path, tenant.name);
 
@@ -118,9 +141,9 @@ export function getHandler(tenants: AntboxTenant[]): HttpHandler {
 			if (childrenOrErr.isLeft()) {
 				return processError(childrenOrErr.value);
 			}
-			const xml = createPropfindResponse(childrenOrErr.value, req);
+			const xml = createPropfindResponse([node, ...childrenOrErr.value], req);
 
-			return new Response(xml, {
+			return new Response(req.method === "HEAD" ? null : xml, {
 				status: 207,
 				headers: {
 					"Content-Type": "application/xml; charset=utf-8",
@@ -128,7 +151,7 @@ export function getHandler(tenants: AntboxTenant[]): HttpHandler {
 					"Pragma": "no-cache",
 					"Expires": "0",
 					"ETag": createETagHeader(node),
-					"Content-Length": xml.length.toString(),
+					"Content-Length": new TextEncoder().encode(xml).length.toString(),
 				},
 			});
 		}
@@ -143,10 +166,13 @@ export function getHandler(tenants: AntboxTenant[]): HttpHandler {
 		}
 
 		const file = fileOrErr.value;
-		return new Response(file.stream(), {
+		return new Response(req.method === "HEAD" ? null : file.stream(), {
 			headers: {
 				"Content-Type": file.type,
 				"Content-Length": file.size.toString(),
+				"X-Content-Type-Options": "nosniff",
+				"Content-Security-Policy":
+					"sandbox; default-src 'none'; base-uri 'none'; form-action 'none'",
 				"Cache-Control": "no-cache, no-store, must-revalidate",
 				"Pragma": "no-cache",
 				"Expires": "0",
@@ -160,19 +186,15 @@ export function putHandler(tenants: AntboxTenant[]): HttpHandler {
 	return webdavMiddlewareChain(tenants, async (req: Request) => {
 		const tenant = getTenant(req, tenants);
 		const authContext = getAuthenticationContext(req);
-		const path = getPath(req, tenant);
+		const path = getPath(req);
 		const parentPath = path.substring(0, path.lastIndexOf("/"));
-		const title = path.substring(path.lastIndexOf("/") + 1);
+		const title = unescapePath(path.substring(path.lastIndexOf("/") + 1));
 
 		if (title.startsWith("._")) {
 			return new Response("Invalid file name", { status: 400 });
 		}
 
 		const mimetype = getMimetype(title);
-
-		if (!req.body) {
-			return new Response("Missing file content", { status: 400 });
-		}
 
 		const parentOrErr = await resolvePath(
 			tenant.nodeService,
@@ -207,7 +229,7 @@ export function putHandler(tenants: AntboxTenant[]): HttpHandler {
 					{
 						parent: parent.uuid,
 						mimetype,
-						title: unescapePath(title),
+						title,
 					},
 				);
 				return result.isRight() ? sendCreated() : processError(result.value);
@@ -238,7 +260,7 @@ export function deleteHandler(tenants: AntboxTenant[]): HttpHandler {
 	return webdavMiddlewareChain(tenants, async (req: Request) => {
 		const tenant = getTenant(req, tenants);
 		const authContext = getAuthenticationContext(req);
-		const path = getPath(req, tenant);
+		const path = getPath(req);
 
 		const nodeOrErr = await resolvePath(tenant.nodeService, authContext, path, tenant.name);
 		if (nodeOrErr.isLeft()) {
@@ -268,7 +290,7 @@ export function mkcolHandler(tenants: AntboxTenant[]): HttpHandler {
 	return webdavMiddlewareChain(tenants, async (req: Request) => {
 		const tenant = getTenant(req, tenants);
 		const authContext = getAuthenticationContext(req);
-		const path = getPath(req, tenant);
+		const path = getPath(req);
 		const parentPath = path.substring(0, path.lastIndexOf("/"));
 		const title = unescapePath(path.substring(path.lastIndexOf("/") + 1));
 
@@ -286,6 +308,9 @@ export function mkcolHandler(tenants: AntboxTenant[]): HttpHandler {
 		if (!Nodes.isFolder(parent)) {
 			return new Response("Parent is not a folder", { status: 400 });
 		}
+		const existing = await resolvePath(tenant.nodeService, authContext, path, tenant.name);
+		if (existing.isRight()) return new Response("Collection already exists", { status: 405 });
+		if (!(existing.value instanceof NodeNotFoundError)) return processError(existing.value);
 
 		const result = await tenant.nodeService.create(authContext, {
 			parent: parent.uuid,
@@ -301,14 +326,10 @@ export function copyHandler(tenants: AntboxTenant[]): HttpHandler {
 	return webdavMiddlewareChain(tenants, async (req: Request) => {
 		const tenant = getTenant(req, tenants);
 		const authContext = getAuthenticationContext(req);
-		const sourcePath = getPath(req, tenant);
-		const destination = req.headers.get("Destination");
-
-		if (!destination) {
-			return new Response("Destination header missing", { status: 400 });
-		}
-
-		const destinationPath = getPath(destination, tenant);
+		const sourcePath = getPath(req);
+		const destination = getDestinationPath(req, tenant);
+		if (destination.isLeft()) return processError(destination.value);
+		const destinationPath = destination.value;
 		const sourceNodeOrErr = await resolvePath(
 			tenant.nodeService,
 			authContext,
@@ -337,23 +358,34 @@ export function copyHandler(tenants: AntboxTenant[]): HttpHandler {
 			return processError(destParentOrErr.value);
 		}
 
+		const existing = await resolvePath(
+			tenant.nodeService,
+			authContext,
+			destinationPath,
+			tenant.name,
+		);
+		if (existing.isRight()) {
+			if (existing.value.uuid === sourceNodeOrErr.value.uuid) {
+				return new Response("Source and destination are the same", { status: 403 });
+			}
+			return new Response("Destination already exists; overwriting is not supported", {
+				status: req.headers.get("Overwrite") === "F" ? 412 : 409,
+			});
+		}
+		if (!(existing.value instanceof NodeNotFoundError)) return processError(existing.value);
+
 		const result = await tenant.nodeService.copy(
 			authContext,
 			sourceNodeOrErr.value.uuid,
 			destParentOrErr.value.uuid,
+			unescapePath(destTitle),
 		);
 
 		if (result.isLeft()) {
 			return processError(result.value);
 		}
 
-		const updateResult = await tenant.nodeService.update(
-			authContext,
-			result.value.uuid,
-			{ title: destTitle },
-		);
-
-		return updateResult.isRight() ? sendCreated() : processError(updateResult.value);
+		return sendCreated();
 	});
 }
 
@@ -361,14 +393,10 @@ export function moveHandler(tenants: AntboxTenant[]): HttpHandler {
 	return webdavMiddlewareChain(tenants, async (req: Request) => {
 		const tenant = getTenant(req, tenants);
 		const authContext = getAuthenticationContext(req);
-		const destination = req.headers.get("Destination");
-
-		if (!destination) {
-			return new Response("Destination header missing", { status: 400 });
-		}
-
-		const sourcePath = getPath(req, tenant);
-		const destinationPath = getPath(destination as string, tenant);
+		const sourcePath = getPath(req);
+		const destination = getDestinationPath(req, tenant);
+		if (destination.isLeft()) return processError(destination.value);
+		const destinationPath = destination.value;
 
 		const sourceNodeOrErr = await resolvePath(
 			tenant.nodeService,
@@ -403,6 +431,22 @@ export function moveHandler(tenants: AntboxTenant[]): HttpHandler {
 			return processError(destParentOrErr.value);
 		}
 
+		const existing = await resolvePath(
+			tenant.nodeService,
+			authContext,
+			destinationPath,
+			tenant.name,
+		);
+		if (existing.isRight()) {
+			if (existing.value.uuid === sourceNodeOrErr.value.uuid) {
+				return new Response("Source and destination are the same", { status: 403 });
+			}
+			return new Response("Destination already exists; overwriting is not supported", {
+				status: req.headers.get("Overwrite") === "F" ? 412 : 409,
+			});
+		}
+		if (!(existing.value instanceof NodeNotFoundError)) return processError(existing.value);
+
 		const result = await tenant.nodeService.update(
 			authContext,
 			sourceNode.uuid,
@@ -417,7 +461,7 @@ export function lockHandler(tenants: AntboxTenant[]): HttpHandler {
 	return webdavMiddlewareChain(tenants, async (req: Request) => {
 		const tenant = getTenant(req, tenants);
 		const authContext = getAuthenticationContext(req);
-		const path = getPath(req, tenant);
+		const path = getPath(req);
 
 		const nodeOrErr = await resolvePath(tenant.nodeService, authContext, path, tenant.name);
 		if (nodeOrErr.isLeft()) {
@@ -452,11 +496,11 @@ export function lockHandler(tenants: AntboxTenant[]): HttpHandler {
       <D:lockscope><D:exclusive/></D:lockscope>
       <D:depth>0</D:depth>
       <D:owner>
-        <D:href>${authContext.principal.email}</D:href>
+        <D:href>${escapeXml(authContext.principal.email)}</D:href>
       </D:owner>
-      <D:timeout>${timeout}</D:timeout>
+      <D:timeout>${escapeXml(timeout)}</D:timeout>
       <D:locktoken>
-        <D:href>${lockToken}</D:href>
+        <D:href>${escapeXml(lockToken)}</D:href>
       </D:locktoken>
     </D:activelock>
   </D:lockdiscovery>
@@ -476,7 +520,7 @@ export function unlockHandler(tenants: AntboxTenant[]): HttpHandler {
 	return webdavMiddlewareChain(tenants, async (req: Request) => {
 		const tenant = getTenant(req, tenants);
 		const authContext = getAuthenticationContext(req);
-		const path = getPath(req, tenant);
+		const path = getPath(req);
 		const lockToken = req.headers.get("Lock-Token");
 
 		const nodeOrErr = await resolvePath(tenant.nodeService, authContext, path, tenant.name);

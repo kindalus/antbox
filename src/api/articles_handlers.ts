@@ -1,4 +1,4 @@
-import { Logger } from "shared/logger.ts";
+import { z } from "zod";
 import type { AntboxError } from "shared/antbox_error.ts";
 import type { Either } from "shared/either.ts";
 import type { RenderedArticle } from "application/articles/article_service.ts";
@@ -10,6 +10,9 @@ import { getTenant } from "api/get_tenant.ts";
 import { type HttpHandler, sendOK } from "api/handler.ts";
 import { processError } from "api/process_error.ts";
 import { processServiceResult } from "api/process_service_result.ts";
+import { getUploadFile, getUploadFormData } from "./upload_utils.ts";
+
+const articleUploadSchema = z.looseObject({ uuid: z.string().optional() });
 
 export function listHandler(tenants: AntboxTenant[]): HttpHandler {
 	return defaultMiddlewareChain(
@@ -168,20 +171,21 @@ export function createOrReplaceHandler(tenants: AntboxTenant[]): HttpHandler {
 		async (req: Request): Promise<Response> => {
 			const service = getTenant(req, tenants).articleService;
 
-			const formdata = await req.formData();
-			const file = formdata.get("file") as File;
-			let metadata;
+			const formdata = await getUploadFormData(req);
+			if (formdata.isLeft()) return processError(formdata.value);
+			const uploaded = getUploadFile(formdata.value);
+			if (uploaded.isLeft()) return processError(uploaded.value);
+			const file = uploaded.value;
+			let raw: unknown;
 
 			try {
-				metadata = JSON.parse(await file.text());
-
-				if (!metadata) {
-					return new Response("Missing metadata", { status: 400 });
-				}
-			} catch (_error) {
-				Logger.error(_error);
+				raw = JSON.parse(await file.text());
+			} catch {
 				return new Response("Invalid metadata", { status: 400 });
 			}
+			const parsed = articleUploadSchema.safeParse(raw);
+			if (!parsed.success) return new Response("Invalid metadata", { status: 400 });
+			const metadata = parsed.data;
 
 			if (!metadata.uuid) {
 				metadata.uuid = file.name.substring(0, file.name.lastIndexOf("."));

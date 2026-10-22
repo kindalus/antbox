@@ -100,6 +100,15 @@ export default async function ({ nodes }) {
 | `not-contains`       | Array does not contain value  |
 | `in`, `not-in`       | Membership against a list     |
 
+`match` searches for literal, case-insensitive terms in their given order. Whitespace separates
+terms; punctuation such as `[draft]`, `C++`, `%`, and `_` is literal rather than query syntax. Array
+operators (`in`, `not-in`, `contains-all`, `contains-any`, `contains-none`) require array values.
+`contains-none` succeeds only when none of the supplied values is present.
+
+An empty filter list accepts every node allowed by the caller's permissions. An empty AND group
+inside an OR expression is also unconditional. A parent filter that matches no folders returns no
+nodes.
+
 ## Common queryable fields
 
 - `uuid`, `title`, `description`, `mimetype`, `parent`, `owner`
@@ -109,6 +118,13 @@ export default async function ({ nodes }) {
 - `${aspectUuid}:${propertyName}` for aspect properties
 
 ## Strategy
+
+HTTP and MCP searches accept `pageSize` from 1 to 200, with a default of 20, and a positive integer
+`pageToken`, with a default of 1. Invalid HTTP pagination returns `400`. Pagination values and their
+product must be safe integers. Internal service calls can request larger pages for bulk operations.
+
+Semantic searches using the `?` prefix are limited to the first 10,000 candidates:
+`pageSize * pageToken <= 10000`. The service rejects larger windows before requesting embeddings.
 
 1. Use `semanticQuery` for conceptual/natural language queries, then refine with metadata filters
    via `find`.

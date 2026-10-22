@@ -1,5 +1,4 @@
 import { Logger } from "shared/logger.ts";
-import { ROOT_PASSWD } from "setup/server_defaults.ts";
 import { fileExistsSync, readFileSync } from "shared/os_helpers.ts";
 import { join } from "node:path";
 import { getDefaultConfigDir } from "setup/load_configuration.ts";
@@ -23,7 +22,8 @@ export function printServerKeys(opts?: {
 	const keyPath = join(dir, "antbox.key");
 	const jwksPath = join(dir, "antbox.jwks");
 
-	Logger.info("Root passwd:\t", opts?.passwd ?? ROOT_PASSWD);
+	if (opts?.passwd !== undefined) Logger.info("Root passwd:\t", opts.passwd);
+	else Logger.info("Root password: see rootPasswd in config.toml or tenants.d");
 
 	if (fileExistsSync(keyPath)) {
 		Logger.info("Symmetric Key:\t", readFileSync(keyPath).trim());

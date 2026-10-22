@@ -142,6 +142,22 @@ The response contains `sessionId`, `expiresAt`, and the final model `message`. S
 to the session messages endpoint without resending history. Sessions expire 24 hours after creation,
 use a fixed agent/tool/skill snapshot, and abort an individual run after five minutes.
 
+Persisted sessions require authentication. Ownership is bound to the tenant, agent, and individual
+user or API key; another API key cannot access a session even when its group is the same. Anonymous
+requests return `401`. API key sessions created before credential-specific ownership was introduced
+must be recreated; existing individual-user sessions remain compatible.
+
+Queued messages recheck the token limit when their turn begins. The current quota counts recorded
+agent-call tokens only. Usage is recorded asynchronously after a model run, so these checks do not
+reserve tokens for in-flight calls. Concurrent sessions or delayed audit writes can exceed the
+configured threshold before later requests are blocked.
+
+The token metrics endpoint includes recorded agent and embedding usage, and returns an error if
+either usage source cannot be read. Embeddings currently have no token quota check. RAG indexing and
+RAG queries record embedding usage; the `?` semantic search path in node queries does not yet record
+its query embeddings. The displayed combined total therefore differs from quota enforcement and can
+understate total embedding consumption.
+
 ## Tools
 
 Current built-in function tools include:

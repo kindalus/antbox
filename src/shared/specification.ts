@@ -44,13 +44,13 @@ export function andSpecification<T>(
 	...s: Specification<T>[]
 ): CompositeSpecification<T> {
 	return new CompositeSpecification((candidate: T) => {
-		const errors = [s1, s2, ...s]
+		const failures = [s1, s2, ...s]
 			.map((spec) => spec.isSatisfiedBy(candidate))
 			.filter((r) => r.isLeft())
-			.map((r) => r.value)
-			.reduce((acc, err) => [...acc, ...(err as ValidationError).errors], [] as AntboxError[]);
+			.map((r) => r.value);
 
-		if (errors.length > 0) {
+		if (failures.length > 0) {
+			const errors = failures.flatMap((err) => err.errors.length ? err.errors : [err]);
 			return left(ValidationError.from(...errors));
 		}
 
@@ -60,13 +60,13 @@ export function andSpecification<T>(
 
 export function orSpecification<T>(...specs: Specification<T>[]): CompositeSpecification<T> {
 	return new CompositeSpecification((candidate: T) => {
-		const errors = specs
+		const failures = specs
 			.map((spec) => spec.isSatisfiedBy(candidate))
 			.filter((r) => r.isLeft())
-			.map((r) => r.value)
-			.reduce((acc, err) => [...acc, ...(err as ValidationError).errors], [] as AntboxError[]);
+			.map((r) => r.value);
 
-		if (errors.length === specs.length) {
+		if (failures.length === specs.length) {
+			const errors = failures.flatMap((err) => err.errors.length ? err.errors : [err]);
 			return left(ValidationError.from(...errors));
 		}
 
@@ -113,10 +113,10 @@ export function orNotSpecification<T>(
 		if (result.isLeft()) {
 			const notResult = notSpec.isSatisfiedBy(candidate);
 			if (notResult.isLeft()) {
-				return result;
+				return right(true);
 			}
 
-			return right(true);
+			return result;
 		}
 
 		return result;

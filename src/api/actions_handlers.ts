@@ -8,6 +8,13 @@ import { processError } from "./process_error.ts";
 import { processServiceResult } from "./process_service_result.ts";
 import { checkServiceAvailability } from "./service_availability.ts";
 import { kebabToCamelCase } from "shared/string_utils.ts";
+import { parseJsonBody } from "./parse_json_body.ts";
+import { z } from "zod";
+
+const runActionSchema = z.object({
+	uuids: z.array(z.string().min(1), { error: "{ uuids } array not given" }),
+	parameters: z.record(z.string(), z.unknown()).default({}),
+});
 
 // ============================================================================
 // ACTIONS HANDLERS
@@ -52,29 +59,21 @@ export function runActionHandler(tenants: AntboxTenant[]): HttpHandler {
 				return sendBadRequest({ error: "{ uuid } not given" });
 			}
 
-			try {
-				const body = await req.json();
-				if (!body?.uuids || !Array.isArray(body.uuids)) {
-					return sendBadRequest({ error: "{ uuids } array not given" });
-				}
+			const body = await parseJsonBody(req, runActionSchema);
+			if (body.isLeft()) return sendBadRequest({ error: body.value.message });
+			const parameters = Object.fromEntries(
+				Object.entries(body.value.parameters).map(([k, v]) => [kebabToCamelCase(k), v]),
+			);
 
-				const rawParams: Record<string, unknown> = body.parameters || {};
-				const parameters = Object.fromEntries(
-					Object.entries(rawParams).map(([k, v]) => [kebabToCamelCase(k), v]),
-				);
-
-				return await engine
-					.runAction(
-						getAuthenticationContext(req),
-						params.uuid,
-						body.uuids,
-						parameters,
-					)
-					.then(processServiceResult)
-					.catch(processError);
-			} catch (_error) {
-				return sendBadRequest({ error: "Invalid JSON body" });
-			}
+			return engine
+				.runAction(
+					getAuthenticationContext(req),
+					params.uuid,
+					body.value.uuids,
+					parameters,
+				)
+				.then(processServiceResult)
+				.catch(processError);
 		},
 	);
 }

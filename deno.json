@@ -21,6 +21,7 @@
 		"toml": "jsr:@std/toml@1.0.11",
 		"@std/yaml": "jsr:@std/yaml@1.0.8",
 
+		"@aws-sdk/client-s3": "npm:@aws-sdk/client-s3@3.1040.0",
 		"@googleapis/drive": "npm:@googleapis/drive@18.0.0",
 		"@google/genai": "npm:@google/genai@1.25.0",
 		"@opentelemetry/api": "npm:@opentelemetry/api@1.9.0",
@@ -33,7 +34,7 @@
 		"commander": "npm:commander@14.0.1",
 		"crypto": "node:crypto",
 		"fflate": "npm:fflate@0.8.3",
-		"dompurify": "npm:dompurify@3.4.15",
+		"dompurify": "npm:dompurify@3.4.17",
 		"jose": "npm:jose@6.1.0",
 		"jsdom": "npm:jsdom@27.0.0",
 		"marked": "npm:marked@16.4.0",

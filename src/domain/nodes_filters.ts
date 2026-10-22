@@ -8,7 +8,7 @@ import {
 } from "shared/specification.ts";
 import { ValidationError } from "shared/validation_error.ts";
 import { AntboxError, BadRequestError } from "shared/antbox_error.ts";
-import { isNodeFilters2D } from "./nodes/node_filter.ts";
+import { isNodeFilters2D, NodeFiltersSchema } from "./nodes/node_filter.ts";
 
 import type {
 	FilterOperator,
@@ -28,8 +28,10 @@ export class NodesFilters {
 			return left(new BadRequestError("Invalid filter string"));
 		}
 		try {
-			const filters = parseFilterString(value);
-			return right(filters);
+			const parsed = NodeFiltersSchema.safeParse(parseFilterString(value));
+			return parsed.success
+				? right(parsed.data)
+				: left(new BadRequestError("Invalid node filters"));
 		} catch (err) {
 			Logger.error(err);
 			return left(new BadRequestError("Failed to parse filter string"));
@@ -42,7 +44,13 @@ export class NodesFilters {
 	}
 
 	static nodeSpecificationFrom(filters: NodeFilters): Specification<NodeLike> {
-		if (!filters || !filters.length) return specificationFn(() => right(true));
+		const validation = NodeFiltersSchema.safeParse(filters);
+		if (!validation.success) {
+			return specificationFn(() =>
+				left(ValidationError.from(new BadRequestError("Invalid node filters")))
+			);
+		}
+		if (!filters.length) return specificationFn(() => right(true));
 
 		const isSatisfiedByFn = isNodeFilters2D(filters)
 			? NodesFilters.#processNodeFilters(filters)
@@ -78,7 +86,7 @@ export class NodesFilters {
 
 	static #nodeFilterToPredicate(filter: NodeFilter): (n: NodeLike) => boolean {
 		const [field, operator, target] = filter;
-		const satisfiesFn = filterFns[operator];
+		const satisfiesFn = operator === "match" ? matchTerms(target) : filterFns[operator];
 
 		if (!satisfiesFn) {
 			Logger.error(`Invalid filter operator: ${operator}`);
@@ -115,54 +123,63 @@ export class NodesFilters {
 
 type FilterFn = <T>(a: T, b: T) => boolean;
 
-const filterFns: Record<FilterOperator, FilterFn> = {
+const filterFns: Record<Exclude<FilterOperator, "match">, FilterFn> = {
 	"==": (a, b) => a === b,
-	"<=": (a, b) => a <= b,
-	">=": (a, b) => a >= b,
-	"<": (a, b) => a < b,
-	">": (a, b) => a > b,
+	"<=": (a, b) => isOrderedValue(a) && isOrderedValue(b) && a <= b,
+	">=": (a, b) => isOrderedValue(a) && isOrderedValue(b) && a >= b,
+	"<": (a, b) => isOrderedValue(a) && isOrderedValue(b) && a < b,
+	">": (a, b) => isOrderedValue(a) && isOrderedValue(b) && a > b,
 	"!=": (a, b) => a !== b,
 
 	in: <T>(a: T, b: T) => (b as T[])?.includes(a as never),
 	"not-in": <T>(a: T, b: T) => !(b as T[])?.includes(a),
 
-	contains: <T>(a: T, b: T) => (a as T[])?.includes(b) || false,
-	"contains-all": <T>(a: T, b: T) => (b as T[])?.every((v) => (a as T[])?.includes(v)),
+	contains: contains,
+	"contains-all": <T>(a: T, b: T) => (b as T[]).every((v) => contains(a, v)),
 
-	"contains-any": <T>(a: T, b: T) => (b as T[])?.some((v) => (a as T[])?.includes(v)),
+	"contains-any": <T>(a: T, b: T) => (b as T[]).some((v) => contains(a, v)),
 
-	"not-contains": <T>(a: T, b: T) => !(a as T[])?.includes(b),
-	"contains-none": <T>(a: T, b: T) => !(b as T[])?.every((v) => (a as T[])?.includes(v)),
-
-	match: (a, b) => {
-		const a1 = a as unknown as string;
-		const b1 = b as unknown as string;
-
-		const re = new RegExp(b1.replaceAll(/\s/g, ".*?"), "i");
-		const match = a1?.match(re);
-
-		return match !== undefined && match !== null;
-	},
+	"not-contains": <T>(a: T, b: T) => !contains(a, b),
+	"contains-none": <T>(a: T, b: T) => !(b as T[]).some((v) => contains(a, v)),
 };
 
-// A list of all valid operators, sorted by length descending.
-// This is crucial to ensure we match "contains-all" before "contains", or ">=" before ">".
-const OPERATORS: FilterOperator[] = [
-	"contains-none",
-	"contains-all",
-	"contains-any",
-	"not-contains",
-	"not-in",
-	"contains",
-	"match",
-	"==",
-	"<=",
-	">=",
-	"!=",
-	"in",
-	"<",
-	">",
-];
+function contains(value: unknown, target: unknown): boolean {
+	if (Array.isArray(value)) return value.includes(target);
+	const text = searchText(target);
+	return typeof value === "string" && text !== undefined && value.includes(text);
+}
+
+function isOrderedValue(value: unknown): value is string | number {
+	return typeof value === "string" || typeof value === "number";
+}
+
+function searchText(value: unknown): string | undefined {
+	if ((typeof value === "object" && value !== null) || typeof value === "function") {
+		return undefined;
+	}
+	return String(value);
+}
+
+function matchTerms(target: unknown): FilterFn {
+	const query = searchText(target);
+	if (query === undefined) return () => false;
+	const terms = query.trim().toLowerCase().split(/\s+/);
+	return (value) => {
+		if (typeof value !== "string") return false;
+		const text = value.toLowerCase();
+		let start = 0;
+		for (const term of terms) {
+			const index = text.indexOf(term, start);
+			if (index < 0) return false;
+			start = index + term.length;
+		}
+		return true;
+	};
+}
+
+// Word operators need whitespace so ordinary words such as "begin" remain search text.
+const FILTER_EXPRESSION =
+	/^([\w@.:-]+)(?:\s*(==|!=|<=|>=|<|>)\s*|\s+(contains-none|contains-all|contains-any|not-contains|not-in|contains|match|in)\s+)(.+)$/s;
 
 // A set of operators that expect their value to be an array.
 const ARRAY_VALUE_OPERATORS = new Set<FilterOperator>([
@@ -180,44 +197,7 @@ const ARRAY_VALUE_OPERATORS = new Set<FilterOperator>([
  * @returns True if the string is a filter query, false otherwise.
  */
 export function isFilterString(input: string): boolean {
-	const trimmedInput = input.trim();
-
-	// A simple string can't be empty.
-	if (trimmedInput === "") {
-		return false;
-	}
-
-	// If the entire string is quoted, treat it as a single literal value, not a query.
-	if (trimmedInput.startsWith('"') && trimmedInput.endsWith('"')) {
-		return false;
-	}
-
-	// The core logic: check for the presence of a valid operator
-	// that actually separates a field from a value.
-	for (const op of OPERATORS) {
-		const idx = trimmedInput.indexOf(op);
-
-		if (idx > -1) {
-			// Check if there is something non-whitespace before the operator.
-			const fieldPart = trimmedInput.substring(0, idx).trim();
-			if (fieldPart === "") {
-				continue; // Operator is at the start, not a valid query structure.
-			}
-
-			// Check if there is something non-whitespace after the operator.
-			const valuePart = trimmedInput.substring(idx + op.length).trim();
-			if (valuePart === "") {
-				continue; // Operator is at the end, not a valid query structure.
-			}
-
-			// We found a valid operator separating a non-empty field and value.
-			// This is enough to classify it as a query.
-			return true;
-		}
-	}
-
-	// No valid operator found that properly splits the string.
-	return false;
+	return FILTER_EXPRESSION.test(input.trim());
 }
 
 /**
@@ -331,26 +311,12 @@ function parseValue(valueStr: string, operator: FilterOperator): unknown {
  * @returns A NodeFilter tuple.
  */
 function parseSingleFilter(filterStr: string): NodeFilter {
-	filterStr = filterStr.trim();
-
-	const foundOperator = OPERATORS.find((op) => filterStr.includes(op));
-
-	if (!foundOperator) {
+	const expression = FILTER_EXPRESSION.exec(filterStr.trim());
+	if (!expression) {
 		throw new Error(`Could not find a valid operator in filter: "${filterStr}"`);
 	}
-
-	const operatorIndex = filterStr.indexOf(foundOperator);
-
-	const field = filterStr.substring(0, operatorIndex).trim();
-	const rawValue = filterStr.substring(operatorIndex + foundOperator.length).trim();
-
-	if (!field) {
-		throw new Error(`Field cannot be empty in filter: "${filterStr}"`);
-	}
-
-	const value = parseValue(rawValue, foundOperator);
-
-	return [field, foundOperator, value];
+	const operator = (expression[2] ?? expression[3]) as FilterOperator;
+	return [expression[1], operator, parseValue(expression[4], operator)];
 }
 
 /**

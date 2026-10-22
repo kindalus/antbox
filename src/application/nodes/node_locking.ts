@@ -1,3 +1,4 @@
+import { NodeFactory } from "domain/node_factory.ts";
 import type { NodeLike } from "domain/node_like.ts";
 import type { NodeRepository } from "domain/nodes/node_repository.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
@@ -22,7 +23,7 @@ export class NodeLocking {
 		uuid: string,
 		unlockAuthorizedGroups: string[] = [],
 	): Promise<Either<AntboxError, void>> {
-		const nodeOrErr = await this.lookup.getStored(uuid);
+		const nodeOrErr = await this.#getDetachedNode(uuid);
 		if (nodeOrErr.isLeft()) {
 			return left(nodeOrErr.value);
 		}
@@ -30,6 +31,11 @@ export class NodeLocking {
 		const node = nodeOrErr.value;
 		if (node.locked) {
 			return left(new BadRequestError(`Node is already locked by ${node.lockedBy}`));
+		}
+		if (node.metadata.workflowInstanceUuid) {
+			return left(
+				new BadRequestError("Cannot lock a node in a workflow. Cancel or complete it first."),
+			);
 		}
 
 		const parentOrErr = await this.lookup.getFolder(node.parent);
@@ -62,9 +68,10 @@ export class NodeLocking {
 
 		if (Nodes.isFolder(node)) {
 			const lockSystemCtx = this.#systemContext(ctx);
-			for (const child of await this.lookup.listChildren(uuid)) {
-				if (!child.locked) {
-					await this.lock(lockSystemCtx, child.uuid);
+			for (const child of await this.lookup.listChildren(node.uuid)) {
+				if (!child.locked && !child.metadata.workflowInstanceUuid) {
+					const result = await this.lock(lockSystemCtx, child.uuid);
+					if (result.isLeft()) return result;
 				}
 			}
 		}
@@ -76,7 +83,7 @@ export class NodeLocking {
 		ctx: AuthenticationContext,
 		uuid: string,
 	): Promise<Either<AntboxError, void>> {
-		const nodeOrErr = await this.lookup.getStored(uuid);
+		const nodeOrErr = await this.#getDetachedNode(uuid);
 		if (nodeOrErr.isLeft()) {
 			return left(nodeOrErr.value);
 		}
@@ -84,6 +91,14 @@ export class NodeLocking {
 		const node = nodeOrErr.value;
 		if (!node.locked) {
 			return left(new BadRequestError("Node is not locked"));
+		}
+		if (
+			node.metadata.workflowInstanceUuid &&
+			ctx.principal.email !== Users.WORKFLOW_INSTANCE_USER_EMAIL
+		) {
+			return left(
+				new BadRequestError("Cannot unlock a node in a workflow. Cancel or complete it first."),
+			);
 		}
 		if (
 			node.lockedBy === Users.LOCK_SYSTEM_USER_EMAIL &&
@@ -104,21 +119,24 @@ export class NodeLocking {
 			lockedBy: "",
 			unlockAuthorizedGroups: [],
 		});
-		const updateResult = await this.repository.update(node);
-		if (updateResult.isLeft()) {
-			return left(updateResult.value);
-		}
 
 		if (Nodes.isFolder(node)) {
 			const lockSystemCtx = this.#systemContext(ctx);
-			for (const child of await this.lookup.listChildren(uuid)) {
+			for (const child of await this.lookup.listChildren(node.uuid)) {
 				if (child.locked && child.lockedBy === Users.LOCK_SYSTEM_USER_EMAIL) {
-					await this.unlock(lockSystemCtx, child.uuid);
+					const result = await this.unlock(lockSystemCtx, child.uuid);
+					if (result.isLeft()) return result;
 				}
 			}
 		}
 
-		return right(undefined);
+		// Retain the parent lock until every descendant is unlocked so a failed write is retryable.
+		return this.repository.update(node);
+	}
+
+	async #getDetachedNode(uuid: string): Promise<Either<AntboxError, NodeLike>> {
+		const stored = await this.lookup.getStored(uuid);
+		return stored.isLeft() ? left(stored.value) : NodeFactory.from(stored.value.metadata);
 	}
 
 	checkModification(
@@ -147,7 +165,9 @@ export class NodeLocking {
 	}
 
 	#canUnlock(ctx: AuthenticationContext, node: NodeLike): boolean {
-		return node.lockedBy === ctx.principal.email ||
+		return (Boolean(node.metadata.workflowInstanceUuid) &&
+			ctx.principal.email === Users.WORKFLOW_INSTANCE_USER_EMAIL) ||
+			node.lockedBy === ctx.principal.email ||
 			(node.unlockAuthorizedGroups || []).some((group) => ctx.principal.groups.includes(group));
 	}
 }

@@ -89,9 +89,9 @@ curl -X POST http://localhost:7180/v2/login/root --data "$HASH"
 ### Auth resolution priority
 
 1. `Authorization: ApiKey <secret>`
-2. `Authorization: Bearer <jwt>`
-3. `Cookie: token=<jwt>`
-4. `?api_key=<secret>`
+2. `?api_key=<secret>`
+3. `Authorization: Bearer <jwt>`
+4. `Cookie: token=<jwt>`
 5. anonymous fallback
 
 ### Tenant resolution priority

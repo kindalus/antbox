@@ -1,6 +1,7 @@
 export interface Principal {
 	readonly email: string;
 	readonly groups: string[];
+	readonly apiKeyUuid?: string;
 }
 
 export interface AuthenticationContext {

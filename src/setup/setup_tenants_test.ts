@@ -149,6 +149,31 @@ describe("setupTenants", () => {
 		}
 	});
 
+	it("requires an explicit nonempty root password globally or for each tenant", async () => {
+		const { jwksPath } = await createJwksFile();
+		try {
+			for (const rootPasswd of [undefined, "", "   "]) {
+				await expect(setupTenants({
+					rootPasswd,
+					key: "c2VydmVyLXNlY3JldA==",
+					jwks: jwksPath,
+					tenants: [createTenantConfig("tenant-a", "inmem/inmem_configuration_repository.ts")],
+				})).rejects.toThrow("rootPasswd");
+			}
+			await expect(setupTenants({
+				rootPasswd: "global-root",
+				key: "c2VydmVyLXNlY3JldA==",
+				jwks: jwksPath,
+				tenants: [{
+					...createTenantConfig("tenant-a", "inmem/inmem_configuration_repository.ts"),
+					rootPasswd: "",
+				}],
+			})).rejects.toThrow("rootPasswd");
+		} finally {
+			await Deno.remove(jwksPath);
+		}
+	});
+
 	it("inherits global rootPasswd, key, and jwks when tenant values are absent", async () => {
 		const { jwksPath, privateKey } = await createJwksFile();
 		const { modulePath, relativeModulePath } = await createConfigRepositoryModule();

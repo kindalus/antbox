@@ -1,17 +1,19 @@
 import { Nodes } from "./nodes.ts";
 import { type NodeMetadata } from "./node_metadata.ts";
 import { Node } from "./node.ts";
-import { type NodeFilters } from "./node_filter.ts";
+import { type NodeFilters, NodeFiltersSchema } from "./node_filter.ts";
 import { type Either, left, right } from "shared/either.ts";
 import { ValidationError } from "shared/validation_error.ts";
-import { PropertyRequiredError } from "./property_errors.ts";
 import { AntboxError } from "shared/antbox_error.ts";
 import { z } from "zod";
 import { toPropertyError } from "../validation_schemas.ts";
 import { NodesFilters } from "../nodes_filters.ts";
 
 const SmartFolderValidationSchema = z.object({
-	filters: z.array(z.any()).min(1, "SmartFolder.filters is required"),
+	filters: NodeFiltersSchema.refine(
+		(filters) => filters.length > 0,
+		"SmartFolder.filters is required",
+	),
 });
 
 export class SmartFolderNode extends Node {
@@ -45,8 +47,13 @@ export class SmartFolderNode extends Node {
 		try {
 			if (metadata.filters !== undefined) {
 				const resolved = SmartFolderNode.#resolveFilters(metadata.filters);
-				if (!resolved?.length) {
-					return left(ValidationError.from(new PropertyRequiredError("filters")));
+				const validation = SmartFolderValidationSchema.safeParse({ filters: resolved });
+				if (!validation.success) {
+					return left(
+						ValidationError.from(
+							...validation.error.issues.map(toPropertyError("SmartFolderNode")),
+						),
+					);
 				}
 				this._filters = resolved;
 			}

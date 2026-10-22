@@ -1,4 +1,5 @@
-import type { DuplicatedNodeError } from "domain/nodes/duplicated_node_error.ts";
+import { DuplicatedNodeError } from "domain/nodes/duplicated_node_error.ts";
+import { NodeFactory } from "domain/node_factory.ts";
 import type { Embedding } from "domain/nodes/embedding.ts";
 import type { NodeFilters } from "domain/nodes/node_filter.ts";
 import type { NodeLike } from "domain/node_like.ts";
@@ -9,7 +10,7 @@ import type {
 	VectorSearchResult,
 } from "domain/nodes/node_repository.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
-import { type AntboxError, BadRequestError } from "shared/antbox_error.ts";
+import { type AntboxError, BadRequestError, UnknownError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
 import { NodesFilters } from "domain/nodes_filters.ts";
 
@@ -41,16 +42,16 @@ export class InMemoryNodeRepository implements NodeRepository {
 	readonly #data: Record<string, NodeWithEmbedding>;
 
 	constructor(data: Record<string, NodeLike> = {}) {
-		this.#data = {};
+		this.#data = Object.create(null);
 		for (const [key, node] of Object.entries(data)) {
-			this.#data[key] = { node };
+			this.#data[key] = { node: this.#snapshot(node).right };
 		}
 	}
 
 	get data(): Record<string, NodeLike> {
-		const result: Record<string, NodeLike> = {};
+		const result: Record<string, NodeLike> = Object.create(null);
 		for (const [key, value] of Object.entries(this.#data)) {
-			result[key] = value.node;
+			result[key] = this.#snapshot(value.node).right;
 		}
 		return result;
 	}
@@ -66,22 +67,28 @@ export class InMemoryNodeRepository implements NodeRepository {
 	}
 
 	get records(): NodeLike[] {
-		return Object.values(this.#data).map((v) => v.node);
+		return Object.values(this.#data).map((v) => this.#snapshot(v.node).right);
 	}
 
 	set records(records: NodeLike[]) {
+		const snapshots = records.map((node) => this.#snapshot(node).right);
 		Object.keys(this.#data).forEach((k) => delete this.#data[k]);
-		records.forEach((r) => {
+		snapshots.forEach((r) => {
 			this.#data[r.uuid] = { node: r };
 		});
 	}
 
 	get count(): number {
-		return this.records.length;
+		return Object.keys(this.#data).length;
 	}
 
 	add(node: NodeLike): Promise<Either<DuplicatedNodeError, void>> {
-		this.#data[node.uuid] = { node };
+		if (this.#data[node.uuid]) {
+			return Promise.resolve(left(new DuplicatedNodeError(node.uuid)));
+		}
+		const snapshot = this.#snapshot(node);
+		if (snapshot.isLeft()) return Promise.resolve(left(snapshot.value));
+		this.#data[node.uuid] = { node: snapshot.value };
 		return Promise.resolve(right(undefined));
 	}
 
@@ -90,12 +97,26 @@ export class InMemoryNodeRepository implements NodeRepository {
 		if (!existing) {
 			return Promise.resolve(left(new NodeNotFoundError(node.uuid)));
 		}
+		const snapshot = this.#snapshot(node);
+		if (snapshot.isLeft()) return Promise.resolve(left(snapshot.value));
 
 		this.#data[node.uuid] = {
-			node,
+			node: snapshot.value,
 			embedding: existing.embedding,
 			contentMd: existing.contentMd,
 		};
+		return Promise.resolve(right(undefined));
+	}
+
+	touch(uuid: string): Promise<Either<AntboxError, void>> {
+		const existing = this.#data[uuid];
+		if (!existing) return Promise.resolve(left(new NodeNotFoundError(uuid)));
+		const updated = NodeFactory.from({
+			...existing.node.metadata,
+			modifiedTime: new Date().toISOString(),
+		});
+		if (updated.isLeft()) return Promise.resolve(left(updated.value));
+		existing.node = updated.value;
 		return Promise.resolve(right(undefined));
 	}
 
@@ -106,7 +127,7 @@ export class InMemoryNodeRepository implements NodeRepository {
 			return Promise.resolve(left(new NodeNotFoundError(Nodes.fidToUuid(fid))));
 		}
 
-		return Promise.resolve(right(entry.node));
+		return Promise.resolve(this.#snapshot(entry.node));
 	}
 
 	getById(uuid: string): Promise<Either<NodeNotFoundError, NodeLike>> {
@@ -116,11 +137,11 @@ export class InMemoryNodeRepository implements NodeRepository {
 			return Promise.resolve(left(new NodeNotFoundError(uuid)));
 		}
 
-		return Promise.resolve(right(entry.node));
+		return Promise.resolve(this.#snapshot(entry.node));
 	}
 
 	getEmbeddingContents(uuids: string[]): Promise<Either<AntboxError, Record<string, string>>> {
-		const contents: Record<string, string> = {};
+		const contents: Record<string, string> = Object.create(null);
 
 		for (const uuid of uuids) {
 			const contentMd = this.#data[uuid]?.contentMd;
@@ -141,11 +162,11 @@ export class InMemoryNodeRepository implements NodeRepository {
 		const lastIndex = firstIndex + pageSize;
 
 		const spec = NodesFilters.nodeSpecificationFrom(filters);
-		const filtered = this.records
+		const filtered = Object.values(this.#data).map((entry) => entry.node)
 			.filter((n) => spec.isSatisfiedBy(n).isRight())
 			.sort((a, b) => a.title.localeCompare(b.title));
 
-		const nodes = filtered.slice(firstIndex, lastIndex);
+		const nodes = filtered.slice(firstIndex, lastIndex).map((node) => this.#snapshot(node).right);
 
 		return Promise.resolve({ nodes, pageSize, pageToken });
 	}
@@ -164,7 +185,11 @@ export class InMemoryNodeRepository implements NodeRepository {
 			return Promise.resolve(left(new BadRequestError(`Node ${uuid} not found`)));
 		}
 
-		entry.embedding = embedding;
+		try {
+			entry.embedding = structuredClone(embedding);
+		} catch (error) {
+			return Promise.resolve(left(new UnknownError((error as Error).message)));
+		}
 		entry.contentMd = contentMd;
 		return Promise.resolve(right(undefined));
 	}
@@ -187,7 +212,10 @@ export class InMemoryNodeRepository implements NodeRepository {
 		}
 
 		results.sort((a, b) => b.score - a.score);
-		const topResults = results.slice(0, topK);
+		const topResults = results.slice(0, topK).map((result) => ({
+			...result,
+			node: this.#snapshot(result.node).right,
+		}));
 
 		return Promise.resolve(right({ nodes: topResults }));
 	}
@@ -210,6 +238,14 @@ export class InMemoryNodeRepository implements NodeRepository {
 			}
 		}
 		return Promise.resolve(right(total));
+	}
+
+	#snapshot(node: NodeLike): Either<AntboxError, NodeLike> {
+		try {
+			return NodeFactory.from(structuredClone(node.metadata));
+		} catch (error) {
+			return left(new UnknownError((error as Error).message));
+		}
 	}
 
 	#cosineSimilarity(vectorA: Embedding, vectorB: Embedding): number {

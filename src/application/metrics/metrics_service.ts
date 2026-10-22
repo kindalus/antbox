@@ -62,17 +62,15 @@ export class MetricsService {
 		const agentStreamsOrErr = await this.#eventStore.getStreamsByMimetype(
 			"application/vnd.antbox.agent-usage",
 		);
-		if (agentStreamsOrErr.isRight()) {
-			this.#aggregateTokens(metrics, agentStreamsOrErr.value, year, month);
-		}
+		if (agentStreamsOrErr.isLeft()) return left(agentStreamsOrErr.value);
+		this.#aggregateTokens(metrics, agentStreamsOrErr.value, year, month);
 
 		// 2. Fetch embeddings usage
 		const embedStreamsOrErr = await this.#eventStore.getStreamsByMimetype(
 			"application/vnd.antbox.embeddings-usage",
 		);
-		if (embedStreamsOrErr.isRight()) {
-			this.#aggregateTokens(metrics, embedStreamsOrErr.value, year, month);
-		}
+		if (embedStreamsOrErr.isLeft()) return left(embedStreamsOrErr.value);
+		this.#aggregateTokens(metrics, embedStreamsOrErr.value, year, month);
 
 		return right(metrics);
 	}

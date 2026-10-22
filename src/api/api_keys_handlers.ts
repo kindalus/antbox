@@ -7,6 +7,11 @@ import { type HttpHandler, sendBadRequest } from "./handler.ts";
 import { processError } from "./process_error.ts";
 import { processServiceCreateResult, processServiceResult } from "./process_service_result.ts";
 import { checkServiceAvailability } from "./service_availability.ts";
+import { ApiKeyDataSchema } from "domain/configuration/api_key_schema.ts";
+import { parseJsonBody } from "./parse_json_body.ts";
+
+const createApiKeySchema = ApiKeyDataSchema.omit({ uuid: true, secret: true, createdTime: true })
+	.partial({ title: true, active: true });
 
 // ============================================================================
 // CRUD HANDLERS
@@ -24,10 +29,9 @@ export function createApiKeyHandler(tenants: AntboxTenant[]): HttpHandler {
 				return Promise.resolve(unavailableResponse);
 			}
 
-			const body = await req.json();
-			if (!body?.group) {
-				return sendBadRequest({ error: "{ group } not given" });
-			}
+			const parsed = await parseJsonBody(req, createApiKeySchema);
+			if (parsed.isLeft()) return processError(parsed.value);
+			const body = parsed.value;
 
 			return service
 				.createApiKey(getAuthenticationContext(req), {

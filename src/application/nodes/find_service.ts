@@ -1,10 +1,10 @@
 import type { NodeFilters, NodeFilters1D, NodeFilters2D } from "domain/nodes/node_filter.ts";
-import { isNodeFilters2D } from "domain/nodes/node_filter.ts";
+import { isNodeFilters2D, NodeFiltersSchema } from "domain/nodes/node_filter.ts";
 import type { NodeFilterResult } from "domain/nodes/node_repository.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import { NodesFilters } from "domain/nodes_filters.ts";
-import { AntboxError } from "shared/antbox_error.ts";
-import { Either, right } from "shared/either.ts";
+import { AntboxError, BadRequestError } from "shared/antbox_error.ts";
+import { Either, left, right } from "shared/either.ts";
 import { Logger } from "shared/logger.ts";
 import type { AuthenticationContext } from "../security/authentication_context.ts";
 import type { AuthorizationService } from "../security/authorization_service.ts";
@@ -29,8 +29,20 @@ export class FindService {
 			NodeFilterResult & { scores?: Record<string, number> }
 		>
 	> {
+		if (
+			!Number.isSafeInteger(pageSize) || pageSize < 1 ||
+			!Number.isSafeInteger(pageToken) || pageToken < 1 ||
+			!Number.isSafeInteger(pageSize * pageToken)
+		) {
+			return left(new BadRequestError("Pagination must use positive safe integers"));
+		}
 		if (typeof filters === "string") {
 			if (filters.startsWith("?")) {
+				if (pageSize * pageToken > 10_000) {
+					return left(
+						new BadRequestError("Semantic search is limited to the first 10000 results"),
+					);
+				}
 				const semanticQuery = filters.substring(1).trim();
 				return this.#performSemanticSearch(ctx, semanticQuery, pageSize, pageToken);
 			}
@@ -45,7 +57,11 @@ export class FindService {
 			return this.find(ctx, [["fulltext", "match", filters]], pageSize, pageToken);
 		}
 
-		const normalizedFilters = isNodeFilters2D(filters) ? filters : [filters];
+		const parsed = NodeFiltersSchema.safeParse(filters);
+		if (!parsed.success) {
+			return left(new BadRequestError("Invalid node filters"));
+		}
+		const normalizedFilters = isNodeFilters2D(parsed.data) ? parsed.data : [parsed.data];
 		const processedFilters = await this.#resolveFilters(ctx, normalizedFilters);
 		return right(await this.context.repository.filter(processedFilters, pageSize, pageToken));
 	}
@@ -152,13 +168,18 @@ export class FindService {
 			permissionFilters.map((filter) => this.#toFiltersWithAtResolved(filter)),
 		);
 
-		return settled
+		const resolved = settled
 			.filter((result) => result.status === "fulfilled")
 			.map((result) => result.value)
-			.filter((filter) => filter.length);
+			.filter((filter): filter is NodeFilters1D => filter !== undefined);
+
+		if (resolved.some((filter) => filter.length === 0)) return [];
+
+		// An empty repository filter means "all nodes", not "no matching permission branches".
+		return resolved.length ? resolved : [[["uuid", "in", []]]];
 	}
 
-	async #toFiltersWithAtResolved(f: NodeFilters1D): Promise<NodeFilters1D> {
+	async #toFiltersWithAtResolved(f: NodeFilters1D): Promise<NodeFilters1D | undefined> {
 		if (!f.some((f) => f[0].startsWith("@"))) {
 			return f;
 		}
@@ -178,9 +199,8 @@ export class FindService {
 
 		at.push(["mimetype", "==", Nodes.FOLDER_MIMETYPE]);
 
-		const parentFilter = filters.find((f) => f[0] === "parent");
-		if (parentFilter) {
-			at.push(["uuid", parentFilter[1], parentFilter[2]]);
+		for (const [, operator, value] of filters.filter((filter) => filter[0] === "parent")) {
+			at.push(["uuid", operator, value]);
 		}
 
 		// The root folder is not stored in the repository.
@@ -199,7 +219,7 @@ export class FindService {
 		];
 
 		if (parentList.length === 0) {
-			return [];
+			return undefined;
 		}
 
 		const cleanFilters = filters.filter((f) => f[0] !== "parent");

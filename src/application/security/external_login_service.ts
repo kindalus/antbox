@@ -99,7 +99,16 @@ export class ExternalLoginService {
 			return left(new UnauthorizedError());
 		}
 
-		const identity = extractIdentity(verification.value.payload);
+		const payload = verification.value.payload;
+		const identity = extractIdentity(payload);
+		if (
+			(identity.email && payload.email_verified !== undefined &&
+				payload.email_verified !== true) ||
+			(identity.phone && payload.phone_number_verified !== undefined &&
+				payload.phone_number_verified !== true)
+		) {
+			return left(new UnauthorizedError());
+		}
 		if (!identity.email && !identity.phone) {
 			return left(new BadRequestError("JWT must contain email or phone number claim"));
 		}
@@ -131,7 +140,7 @@ function verifyToken(
 	jwks: ReturnType<typeof createRemoteJWKSet> | ReturnType<typeof createLocalJWKSet>,
 	token: string,
 ): Promise<Either<Error, { payload: JWTPayload }>> {
-	return jwtVerify(token, jwks)
+	return jwtVerify(token, jwks, { requiredClaims: ["exp"] })
 		.then((payload) => right(payload))
 		.catch((error) => left(error)) as Promise<Either<Error, { payload: JWTPayload }>>;
 }

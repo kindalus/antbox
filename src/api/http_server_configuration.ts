@@ -4,6 +4,10 @@ import type { TenantLimits } from "domain/metrics/tenant_limits.ts";
 
 export const ModuleConfigurationSchema = z.tuple([z.string()]).rest(z.string());
 
+export const RootPasswordSchema = z.string().refine((password) => password.trim().length > 0, {
+	message: "rootPasswd must not be blank",
+});
+
 export const TenantNameSchema = z.string().regex(
 	/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/,
 	"must contain only lowercase letters, numbers, and internal hyphens",
@@ -57,7 +61,7 @@ export interface McpHttpOptions {
 
 export const TenantConfigurationSchema = z.object({
 	name: TenantNameSchema,
-	rootPasswd: z.string().optional(),
+	rootPasswd: RootPasswordSchema.optional(),
 	key: OptionalNonEmptyStringSchema,
 	jwks: OptionalNonEmptyStringSchema,
 	storage: ModuleConfigurationSchema,

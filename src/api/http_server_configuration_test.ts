@@ -26,6 +26,16 @@ describe("TenantConfigurationSchema", () => {
 		expect(result.success).toBe(true);
 	});
 
+	it("rejects blank root passwords without trimming valid passwords", () => {
+		for (const rootPasswd of ["", "   "]) {
+			expect(TenantConfigurationSchema.safeParse({ ...makeTenantConfig(), rootPasswd }).success)
+				.toBe(false);
+		}
+		const rootPasswd = "  meaningful whitespace  ";
+		expect(TenantConfigurationSchema.parse({ ...makeTenantConfig(), rootPasswd }).rootPasswd)
+			.toBe(rootPasswd);
+	});
+
 	it("rejects pay-as-you-go token limit when AI is disabled", () => {
 		const result = TenantConfigurationSchema.safeParse({
 			...makeTenantConfig(),

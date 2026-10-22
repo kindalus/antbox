@@ -2,10 +2,23 @@ import { type AntboxTenant } from "./antbox_tenant.ts";
 import { defaultMiddlewareChain } from "./default_middleware_chain.ts";
 import { getAuthenticationContext } from "./get_authentication_context.ts";
 import { getTenant } from "./get_tenant.ts";
-import { type HttpHandler, sendBadRequest } from "./handler.ts";
+import { type HttpHandler } from "./handler.ts";
+import { parseJsonBody } from "./parse_json_body.ts";
+import { NotificationDataSchema } from "domain/configuration/notification_schema.ts";
+import { z } from "zod";
 import { processError } from "./process_error.ts";
 import { processServiceCreateResult, processServiceResult } from "./process_service_result.ts";
 import { checkServiceAvailability } from "./service_availability.ts";
+
+const notificationRequestSchema = z.object({
+	targetUser: NotificationDataSchema.shape.targetUser,
+	targetGroup: NotificationDataSchema.shape.targetGroup,
+	title: NotificationDataSchema.shape.title,
+	body: NotificationDataSchema.shape.body,
+}).refine((value) => value.targetUser !== undefined || value.targetGroup !== undefined, {
+	message: "{ targetUser } or { targetGroup } must be provided",
+});
+const deleteRequestSchema = z.object({ uuids: z.array(z.string().min(1)).min(1) });
 
 // ============================================================================
 // NOTIFICATION HANDLERS
@@ -23,16 +36,9 @@ export function sendCriticalNotificationHandler(tenants: AntboxTenant[]): HttpHa
 				return Promise.resolve(unavailableResponse);
 			}
 
-			const body = await req.json();
-			if (!body?.title) {
-				return sendBadRequest({ error: "{ title } not given" });
-			}
-			if (!body?.body) {
-				return sendBadRequest({ error: "{ body } not given" });
-			}
-			if (!body?.targetUser && !body?.targetGroup) {
-				return sendBadRequest({ error: "{ targetUser } or { targetGroup } must be provided" });
-			}
+			const parsed = await parseJsonBody(req, notificationRequestSchema);
+			if (parsed.isLeft()) return processError(parsed.value);
+			const body = parsed.value;
 
 			return service
 				.critical(getAuthenticationContext(req), {
@@ -59,16 +65,9 @@ export function sendInfoNotificationHandler(tenants: AntboxTenant[]): HttpHandle
 				return Promise.resolve(unavailableResponse);
 			}
 
-			const body = await req.json();
-			if (!body?.title) {
-				return sendBadRequest({ error: "{ title } not given" });
-			}
-			if (!body?.body) {
-				return sendBadRequest({ error: "{ body } not given" });
-			}
-			if (!body?.targetUser && !body?.targetGroup) {
-				return sendBadRequest({ error: "{ targetUser } or { targetGroup } must be provided" });
-			}
+			const parsed = await parseJsonBody(req, notificationRequestSchema);
+			if (parsed.isLeft()) return processError(parsed.value);
+			const body = parsed.value;
 
 			return service
 				.info(getAuthenticationContext(req), {
@@ -95,16 +94,9 @@ export function sendInsightNotificationHandler(tenants: AntboxTenant[]): HttpHan
 				return Promise.resolve(unavailableResponse);
 			}
 
-			const body = await req.json();
-			if (!body?.title) {
-				return sendBadRequest({ error: "{ title } not given" });
-			}
-			if (!body?.body) {
-				return sendBadRequest({ error: "{ body } not given" });
-			}
-			if (!body?.targetUser && !body?.targetGroup) {
-				return sendBadRequest({ error: "{ targetUser } or { targetGroup } must be provided" });
-			}
+			const parsed = await parseJsonBody(req, notificationRequestSchema);
+			if (parsed.isLeft()) return processError(parsed.value);
+			const body = parsed.value;
 
 			return service
 				.insight(getAuthenticationContext(req), {
@@ -151,10 +143,9 @@ export function deleteNotificationsHandler(tenants: AntboxTenant[]): HttpHandler
 				return Promise.resolve(unavailableResponse);
 			}
 
-			const body = await req.json();
-			if (!body?.uuids || !Array.isArray(body.uuids) || body.uuids.length === 0) {
-				return sendBadRequest({ error: "{ uuids } array is required and must not be empty" });
-			}
+			const parsed = await parseJsonBody(req, deleteRequestSchema);
+			if (parsed.isLeft()) return processError(parsed.value);
+			const body = parsed.value;
 
 			return service
 				.delete(getAuthenticationContext(req), body.uuids)

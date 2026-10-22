@@ -69,12 +69,35 @@ describe("createAdkLogger", () => {
 });
 
 describe("main entry point", () => {
+	it("prints key information without inventing a default root password", async () => {
+		const dir = await Deno.makeTempDir({ prefix: "antbox-print-keys-" });
+		try {
+			await Deno.writeTextFile(join(dir, "antbox.key"), "test-key");
+			await Deno.writeTextFile(join(dir, "antbox.jwks"), JSON.stringify({ keys: [] }));
+			const result = await new Deno.Command(Deno.execPath(), {
+				args: ["run", "-A", "--unstable-raw-imports", "main.ts", "--keys", "-c", dir],
+				cwd: new URL(".", import.meta.url).pathname,
+				env: { ANTBOX_LOG_LEVEL: "info" },
+				stdout: "piped",
+				stderr: "piped",
+			}).output();
+			expect(result.code).toBe(0);
+			const output = new TextDecoder().decode(result.stdout);
+			expect(output).toContain("rootPasswd in config.toml or tenants.d");
+			expect(output).toContain("test-key");
+			expect(output).not.toContain("demo");
+		} finally {
+			await Deno.remove(dir, { recursive: true });
+		}
+	});
+
 	it("forwards loaded MCP settings through the real server process", async () => {
 		const repoRoot = new URL(".", import.meta.url).pathname;
 		const dir = await Deno.makeTempDir({ prefix: "antbox-main-mcp-" });
 		const port = await reservePort();
 		const config = {
 			engine: "oak",
+			rootPasswd: "test-root",
 			port,
 			logLevel: "error",
 			mcpAllowedOrigins: ["https://app.example"],
@@ -149,6 +172,7 @@ describe("main entry point", () => {
 				}),
 			});
 			// The default allowlist would reject this Origin; 200 proves loadConfiguration -> main -> server wiring.
+			await allowlisted.body?.cancel();
 			expect(allowlisted.status).toBe(200);
 
 			const oversized = await fetch(base, {
@@ -162,6 +186,7 @@ describe("main entry point", () => {
 				}),
 			});
 			// The default 1048576-byte limit would accept this; 413 proves the loaded limit is forwarded.
+			await oversized.body?.cancel();
 			expect(oversized.status).toBe(413);
 		} finally {
 			try {

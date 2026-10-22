@@ -39,6 +39,12 @@ storage = ["inmem/inmem_storage_provider.ts"]
 storage = ["flat_file/flat_file_storage_provider.ts", "/path/to/storage"]
 ```
 
+Content overwrites use a temporary file and atomic rename, so a failed content write preserves the
+previous bytes. MIME types remain in separate `.mimetype` files for compatibility. If updating that
+sidecar fails after the content rename, the operation returns an error but the new bytes are already
+stored; the previous MIME type may remain. Treat this as a partial update, not a rollback. Keep
+backups of the storage directory and use one application process per directory.
+
 ### Google Drive
 
 Antbox supports **Google Shared Drives only** for the Google Drive adapter. The configured Google
@@ -74,6 +80,12 @@ Example `s3-config.json`:
 	}
 }
 ```
+
+Uploads preserve the requested MIME type, and reads report transport and object-stream failures.
+Deletes send a direct request without downloading the object. Deleting an already absent object can
+succeed, following the
+[S3 DeleteObject API](https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteObject.html).
+Permission, missing-bucket, and network failures return errors so node metadata is retained.
 
 ## Related Adapters
 

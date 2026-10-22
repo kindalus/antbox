@@ -87,7 +87,7 @@ export class WorkflowsService {
 		// Check builtin workflows first
 		const builtinWorkflow = BUILTIN_WORKFLOWS.find((w) => w.uuid === uuid);
 		if (builtinWorkflow) {
-			return right(builtinWorkflow);
+			return right(structuredClone(builtinWorkflow));
 		}
 
 		return this.configRepo.get("workflows", uuid);
@@ -103,7 +103,7 @@ export class WorkflowsService {
 		}
 
 		// Combine builtin workflows with custom workflows, sorted by title
-		const allWorkflows = [...BUILTIN_WORKFLOWS, ...customWorkflowsOrErr.value];
+		const allWorkflows = [...structuredClone(BUILTIN_WORKFLOWS), ...customWorkflowsOrErr.value];
 		allWorkflows.sort((a, b) => a.title.localeCompare(b.title));
 
 		return right(allWorkflows);

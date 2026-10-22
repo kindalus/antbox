@@ -13,28 +13,20 @@ import { Logger } from "shared/logger.ts";
  * const bus = new InMemoryEventBus();
  */
 export class InMemoryEventBus implements EventBus {
-	#handlers: Record<string, EventHandler<Event>[]> = {};
+	#handlers: Record<string, EventHandler<Event>[]> = Object.create(null);
 
 	publish(event: Event): void {
 		queueMicrotask(() => void this.#handleAsync(event));
 	}
 
-	#handleAsync(event: Event): Promise<void> {
-		return new Promise((resolve) => {
-			const eventHandlers = this.#handlers[event.eventId];
-			if (eventHandlers) {
-				eventHandlers.forEach((handler) => {
-					try {
-						handler.handle(event);
-					} catch (err) {
-						Logger.error("Error in event handling:");
-						Logger.error(err);
-					}
-				});
+	async #handleAsync(event: Event): Promise<void> {
+		await Promise.all((this.#handlers[event.eventId] ?? []).map(async (handler) => {
+			try {
+				await handler.handle(event);
+			} catch (err) {
+				Logger.error("Error in event handling:", err);
 			}
-
-			resolve();
-		});
+		}));
 	}
 
 	subscribe(eventId: string, handler: EventHandler<Event>): void {

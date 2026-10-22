@@ -1,5 +1,6 @@
 import { describe, it } from "bdd";
 import { expect } from "expect";
+import { stub } from "mock";
 import { InMemoryConfigurationRepository } from "adapters/inmem/inmem_configuration_repository.ts";
 import { ApiKeysService } from "./api_keys_service.ts";
 import type { AuthenticationContext } from "./authentication_context.ts";
@@ -25,6 +26,29 @@ describe("ApiKeysService", () => {
 	};
 
 	describe("createApiKey", () => {
+		it("does not derive credentials from predictable Math.random output", async () => {
+			const random = stub(Math, "random", () => 0);
+			try {
+				const service = new ApiKeysService(new InMemoryConfigurationRepository());
+				const first = await service.createApiKey(adminCtx, {
+					title: "First key",
+					group: "developers",
+					active: true,
+				});
+				const second = await service.createApiKey(adminCtx, {
+					title: "Second key",
+					group: "developers",
+					active: true,
+				});
+				expect(first.isRight() && second.isRight()).toBe(true);
+				if (first.isRight() && second.isRight()) {
+					expect(first.value.secret).not.toBe(second.value.secret);
+				}
+			} finally {
+				random.restore();
+			}
+		});
+
 		it("should create API key successfully as admin", async () => {
 			const repo = new InMemoryConfigurationRepository();
 			const service = new ApiKeysService(repo);

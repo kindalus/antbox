@@ -57,7 +57,7 @@ export class AspectsService {
 		// Check builtin aspects first (currently none)
 		const builtinAspect = BUILTIN_ASPECTS.find((a) => a.uuid === uuid);
 		if (builtinAspect) {
-			return right(builtinAspect);
+			return right(structuredClone(builtinAspect));
 		}
 
 		return this.configRepo.get("aspects", uuid);
@@ -73,7 +73,7 @@ export class AspectsService {
 		}
 
 		// Combine builtin aspects with custom aspects, sorted by title
-		const allAspects = [...BUILTIN_ASPECTS, ...customAspectsOrErr.value];
+		const allAspects = [...structuredClone(BUILTIN_ASPECTS), ...customAspectsOrErr.value];
 		allAspects.sort((a, b) => a.title.localeCompare(b.title));
 
 		return right(allAspects);

@@ -1,7 +1,7 @@
 import type { AgentMessage, AgentTool } from "@earendil-works/pi-agent-core";
 import type { Api, AssistantMessage, Message, Model } from "@earendil-works/pi-ai";
 import { type Either, left, right } from "shared/either.ts";
-import { AntboxError, ForbiddenError } from "shared/antbox_error.ts";
+import { AntboxError, ForbiddenError, UnauthorizedError } from "shared/antbox_error.ts";
 import { Logger } from "shared/logger.ts";
 import type { AuthenticationContext } from "../security/authentication_context.ts";
 import type { AgentData } from "domain/configuration/agent_data.ts";
@@ -33,7 +33,12 @@ import type {
 	FeatureAIToolExecutor,
 	IAgentsEngineInternal,
 } from "./agents_engine_interface.ts";
-import { type SessionManifest, SessionWorkspaceStore } from "./session_workspace.ts";
+import {
+	type SessionManifest,
+	type SessionOwner,
+	SessionWorkspaceStore,
+} from "./session_workspace.ts";
+import { Users } from "domain/users_groups/users.ts";
 import { setTelemetryAttributes, withTelemetrySpan } from "shared/telemetry.ts";
 import type { Span } from "@opentelemetry/api";
 import {
@@ -229,6 +234,8 @@ export class AgentsEngine implements IAgentsEngineInternal {
 		agentUuid: string,
 		text: string,
 	): Promise<Either<AntboxError, ChatSessionResult>> {
+		const owner = this.#sessionOwner(authContext, agentUuid);
+		if (owner.isLeft()) return left(owner.value);
 		if (!this.#sessionWorkspace) {
 			return left(
 				new AntboxError("SessionsUnavailable", "Persisted sessions are not configured"),
@@ -257,8 +264,7 @@ export class AgentsEngine implements IAgentsEngineInternal {
 		try {
 			await this.#sessionWorkspace.sweepExpired();
 			const workspace = await this.#sessionWorkspace.create({
-				tenant: authContext.tenant,
-				userEmail: authContext.principal.email,
+				...owner.value,
 				agentData,
 				toolNames: builtOrErr.value.toolNames,
 				featureVersions: builtOrErr.value.featureVersions,
@@ -300,20 +306,19 @@ export class AgentsEngine implements IAgentsEngineInternal {
 		sessionId: string,
 		text: string,
 	): Promise<Either<AntboxError, ChatSessionResult>> {
+		const owner = this.#sessionOwner(authContext, agentUuid);
+		if (owner.isLeft()) return left(owner.value);
 		if (!this.#sessionWorkspace) {
 			return left(
 				new AntboxError("SessionsUnavailable", "Persisted sessions are not configured"),
 			);
 		}
-		const limitsOrErr = await this.#tenantLimitsGuard?.ensureCanRunAgent() ?? right(undefined);
-		if (limitsOrErr.isLeft()) return left(limitsOrErr.value);
 		return await this.#withSessionLock(sessionId, async () => {
 			try {
-				const workspace = await this.#sessionWorkspace!.open(sessionId, {
-					tenant: authContext.tenant,
-					userEmail: authContext.principal.email,
-					agentUuid,
-				});
+				const workspace = await this.#sessionWorkspace!.open(sessionId, owner.value);
+				const limitsOrErr = await this.#tenantLimitsGuard?.ensureCanRunAgent() ??
+					right(undefined);
+				if (limitsOrErr.isLeft()) return left(limitsOrErr.value);
 				const builtOrErr = await this.#buildTools(
 					workspace.manifest.agentData,
 					authContext,
@@ -349,6 +354,8 @@ export class AgentsEngine implements IAgentsEngineInternal {
 		agentUuid: string,
 		sessionId: string,
 	): Promise<Either<AntboxError, void>> {
+		const owner = this.#sessionOwner(authContext, agentUuid);
+		if (owner.isLeft()) return left(owner.value);
 		if (!this.#sessionWorkspace) {
 			return left(
 				new AntboxError("SessionsUnavailable", "Persisted sessions are not configured"),
@@ -356,17 +363,27 @@ export class AgentsEngine implements IAgentsEngineInternal {
 		}
 		return await this.#withSessionLock(sessionId, async () => {
 			try {
-				await this.#sessionWorkspace!.delete(sessionId, {
-					tenant: authContext.tenant,
-					userEmail: authContext.principal.email,
-					agentUuid,
-				});
+				await this.#sessionWorkspace!.delete(sessionId, owner.value);
 				return right(undefined);
 			} catch (error) {
 				if ((error as Error).message === "Session not found") return right(undefined);
 				return left(this.#sessionError(error));
 			}
 		});
+	}
+
+	#sessionOwner(
+		authContext: AuthenticationContext,
+		agentUuid: string,
+	): Either<UnauthorizedError, SessionOwner> {
+		const { email, apiKeyUuid } = authContext.principal;
+		if (
+			email === Users.ANONYMOUS_USER_EMAIL ||
+			(email === Users.API_KEY_USER_EMAIL && !apiKeyUuid)
+		) {
+			return left(new UnauthorizedError());
+		}
+		return right({ tenant: authContext.tenant, userEmail: email, apiKeyUuid, agentUuid });
 	}
 
 	async #withSessionLock<T>(sessionId: string, operation: () => Promise<T>): Promise<T> {

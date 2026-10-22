@@ -54,6 +54,32 @@ Deno.test("MetricsService", async (t) => {
 	});
 
 	await t.step("getTokenUsage", async (t) => {
+		await t.step(
+			"propagates either usage source failure instead of reporting partial totals",
+			async () => {
+				for (
+					const failedType of [
+						"application/vnd.antbox.agent-usage",
+						"application/vnd.antbox.embeddings-usage",
+					]
+				) {
+					const failure = new AntboxError("DatabaseError", "Usage database unavailable");
+					const store = {
+						getStreamsByMimetype: (mimetype: string) =>
+							Promise.resolve(
+								mimetype === failedType
+									? left(failure)
+									: right(new Map<string, AuditEvent[]>()),
+							),
+					} as EventStoreRepository;
+					const result = await new MetricsService({} as NodeRepository, store, tenantLimits)
+						.getTokenUsage(2026, 3);
+					assert(result.isLeft());
+					assertEquals(result.value, failure);
+				}
+			},
+		);
+
 		await t.step("aggregates tokens correctly for target month", async () => {
 			const createEvent = (
 				dateStr: string,

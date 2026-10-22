@@ -63,7 +63,7 @@ export class GroupsService {
 		// Check builtin groups first
 		const builtinGroup = BUILTIN_GROUPS.find((g) => g.uuid === uuid);
 		if (builtinGroup) {
-			return right(builtinGroup);
+			return right(structuredClone(builtinGroup));
 		}
 
 		return this.configRepo.get("groups", uuid);
@@ -79,7 +79,7 @@ export class GroupsService {
 		}
 
 		// Combine builtin groups with custom groups
-		const allGroups = [...BUILTIN_GROUPS, ...customGroupsOrErr.value];
+		const allGroups = [...structuredClone(BUILTIN_GROUPS), ...customGroupsOrErr.value];
 
 		return right(allGroups);
 	}

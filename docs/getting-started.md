@@ -25,7 +25,9 @@ Antbox uses a central configuration directory. By default, it manages its config
 
 When you start Antbox for the first time, it automatically creates this directory, generates
 cryptographic keys (`antbox.key`, `antbox.jwks`, and `antbox-private.jwk`), creates a default
-`config.toml` file, and creates `tenants.d/tenant.toml.sample`.
+`config.toml` file, and creates `tenants.d/tenant.toml.sample`. The generated `config.toml` contains
+a random `rootPasswd`. Read it there before logging in. New config files, symmetric keys, and
+private keys allow only their owner to read and write them on Unix.
 
 You can override the configuration directory using `--config-dir` (`-c`). Persistent data defaults
 to `$HOME/.local/share/antbox` and can be overridden with `--data-dir` (`-d`). The `--demo` and
@@ -60,6 +62,8 @@ Notes:
 - `limits` is required for every tenant.
 - `rootPasswd`, `key`, and `jwks` can be defined globally and inherited by tenants, or overridden
   per tenant.
+- Every tenant must resolve a nonempty `rootPasswd`. Existing configurations that omit it must add
+  one before upgrading. The `demo` password in this example is for local use.
 - If `key` and `jwks` are not provided anywhere, the server will default to loading them from the
   configuration directory or generate them if they don't exist.
 - Relative flat-file and SQLite paths resolve against `dataDir`; absolute paths are preserved.
@@ -67,6 +71,10 @@ Notes:
 - Relative keys, JWKS, skills, S3 configuration, and Google credentials resolve against `configDir`.
 - When AI is disabled, `limits.tokens` must be `0`.
 - When AI is enabled, `limits.tokens` must be greater than `0` or `"pay-as-you-go"`.
+- Finite storage limits serialize uploads and file replacements within each tenant's server process,
+  including the quota check and persistence. Pay-as-you-go uploads remain concurrent. Multiple
+  server processes sharing one tenant's repository and storage need an external coordination
+  mechanism to enforce the same quota across processes.
 
 For larger installations, place one tenant in each `<config-dir>/tenants.d/<name>.toml` file:
 
@@ -114,7 +122,8 @@ Antbox Server (oak) started successfully on http://localhost:7180
 
 ## Authentication (Quick Login)
 
-Root login expects the SHA-256 hash of the root password (`rootPasswd` in config).
+Root login expects the SHA-256 hash of the root password (`rootPasswd` in config). The commands
+below use the example password; replace `demo` with your configured password.
 
 Linux:
 
@@ -162,6 +171,27 @@ curl -X POST http://localhost:7180/v2/nodes \
 curl "http://localhost:7180/v2/nodes?parent=--root--" \
   -H "Authorization: Bearer $JWT"
 ```
+
+## Upgrading an existing installation
+
+- Set a nonblank `rootPasswd` globally or for each tenant before starting the updated server.
+- Log in again for root sessions. External JWTs require `exp`, and cross-origin browser clients must
+  send an explicit Authorization header. See [authentication](./authentication.md).
+- Recreate persisted API-key agent sessions created without credential-specific ownership. See
+  [agent sessions](./ai-agents.md).
+- Implement atomic `NodeRepository.touch(uuid)` in custom node adapters before loading them. It must
+  update only `modifiedTime` and return an error for a missing node. See
+  [repository consistency](./architecture.md#consistency-boundaries).
+- Folder permission updates require existing Write access to both the folder and its parent. Review
+  clients that previously relied only on parent Write; see
+  [folder fields](./nodes-and-aspects.md#folder-fields).
+- Back up existing data and review
+  [repository data compatibility](./adapters.md#existing-repository-data), particularly PostgreSQL
+  JSON values, duplicate MongoDB UUIDs, and invalid flat-file audit streams. Stricter node and
+  aspect validation can also expose malformed historical records; repairs are not applied
+  automatically.
+- Review the remaining [dependency advisories](./dependency-audit.md) and
+  [consistency and execution limits](./architecture.md#consistency-boundaries) before deployment.
 
 ## Next Steps
 

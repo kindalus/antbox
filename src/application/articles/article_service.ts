@@ -17,6 +17,7 @@ import {
 import type { NodeLike } from "domain/node_like.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
+import type { NodeFilters1D } from "domain/nodes/node_filter.ts";
 import { type AntboxError, BadRequestError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
 import { FidGenerator } from "shared/fid_generator.ts";
@@ -50,7 +51,11 @@ export class ArticleService {
 
 		const nodeOrErr = await this.get(ctx, metadata.uuid);
 		if (nodeOrErr.isRight()) {
-			return this.#update(ctx, metadata.uuid, metadata);
+			return this.#update(ctx, metadata.uuid, metadata, nodeOrErr.value);
+		}
+
+		if (!(nodeOrErr.value instanceof NodeNotFoundError)) {
+			return left(nodeOrErr.value);
 		}
 
 		if (!metadata.articleProperties || Object.keys(metadata.articleProperties).length === 0) {
@@ -73,7 +78,7 @@ export class ArticleService {
 
 		// Get title from first available locale (pt -> en -> first available)
 		const props = selectLocalizedProperties(articleProperties, "pt");
-		const title = metadata.title || props.articleTitle;
+		const title = metadata.title || props?.articleTitle;
 
 		const nodeOrErr = ArticleNode.create({
 			uuid: metadata.uuid,
@@ -106,15 +111,8 @@ export class ArticleService {
 		ctx: AuthenticationContext,
 		uuid: string,
 		metadata: Partial<RawArticleDTO>,
+		existing: RawArticleDTO,
 	): Promise<Either<AntboxError, RawArticleDTO>> {
-		// Get existing article to merge properties
-		const existingOrErr = await this.get(ctx, uuid);
-		if (existingOrErr.isLeft()) {
-			return left(existingOrErr.value);
-		}
-
-		const existing = existingOrErr.value;
-
 		// Merge the properties
 		const articleProperties = metadata.articleProperties
 			? this.#ensureArticleFids(metadata.articleProperties)
@@ -124,7 +122,7 @@ export class ArticleService {
 			existing.articleBodyContentType;
 
 		const title = metadata.title ||
-			selectLocalizedProperties(articleProperties, "pt").articleTitle;
+			selectLocalizedProperties(articleProperties, "pt")?.articleTitle;
 
 		const updateOrErr = await this.nodeService.update(ctx, uuid, {
 			title,
@@ -185,18 +183,7 @@ export class ArticleService {
 			return left(articleOrErr.value);
 		}
 
-		const nodeOrErr = await this.nodeService.get(ctx, uuid);
-		if (nodeOrErr.isLeft()) {
-			return left(nodeOrErr.value);
-		}
-
-		const articleNodeOrErr = ArticleNode.create(nodeOrErr.value);
-
-		if (articleNodeOrErr.isLeft()) {
-			return left(articleNodeOrErr.value);
-		}
-
-		return right(toLocalizedArticleDTO(articleNodeOrErr.value, locale));
+		return right(toLocalizedArticleDTO(articleOrErr.value, locale));
 	}
 
 	async getLocalizedByFid(
@@ -204,12 +191,14 @@ export class ArticleService {
 		fid: string,
 		locale: string,
 	): Promise<Either<AntboxError, LocalizedArticleDTO>> {
+		const filters: NodeFilters1D = [["mimetype", "==", Nodes.ARTICLE_MIMETYPE]];
+		// Unusual locale keys may contain query path separators; preserve their literal lookup.
+		const queryLocale = /^[a-zA-Z0-9_-]+$/.test(locale);
+		if (queryLocale) filters.push([`articleProperties.${locale}.articleFid`, "==", fid]);
 		const articlesOrErrs = await this.nodeService.find(
 			ctx,
-			[
-				["mimetype", "==", "application/vnd.antbox.article"],
-			],
-			Number.MAX_SAFE_INTEGER,
+			filters,
+			queryLocale ? 1 : Number.MAX_SAFE_INTEGER,
 		);
 
 		if (articlesOrErrs.isLeft()) {
@@ -311,6 +300,11 @@ export class ArticleService {
 		const result: ArticlePropertiesMap = {};
 
 		for (const [locale, props] of Object.entries(properties)) {
+			// Leave malformed values for ArticleNode's validation instead of dereferencing them here.
+			if (!props || typeof props.articleTitle !== "string") {
+				result[locale] = props;
+				continue;
+			}
 			result[locale] = {
 				...props,
 				articleFid: props.articleFid || FidGenerator.generate(props.articleTitle),

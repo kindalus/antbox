@@ -30,9 +30,30 @@ All node types share these fields:
 - `locked`, `lockedBy`, `unlockAuthorizedGroups`
 - `workflowInstanceUuid`, `workflowState`
 
+`locked`, `lockedBy`, and `unlockAuthorizedGroups` are output-only metadata. Use the lock and unlock
+operations to change lock state; creation and metadata updates ignore those fields. Copies start
+unlocked.
+
+Descriptions and friendly identifiers must be strings; tags, aspects, and related identifiers must
+be arrays of strings, and properties must be an object. Malformed shapes are rejected before
+metadata or file content changes. An empty `fid` regenerates it from the title. Null optional
+collections use their defaults during creation and leave existing values unchanged during updates;
+use empty arrays to clear them. Null descriptions leave existing descriptions unchanged during
+updates, while an empty string clears the description.
+
 ### File Node Fields
 
-- `size` (bytes)
+- `size` (bytes, measured from uploaded content; read-only in metadata requests)
+
+Metadata-only file creation starts with a size of zero. File replacement checks permissions, locks,
+workflow restrictions, and validation before writing content. Copying or duplicating a file requires
+Read and Export on the source parent and Write on the destination parent. File uploads reject
+reserved `application/vnd.antbox` MIME types; create those node types through metadata operations
+instead.
+
+Raw file exports keep their content and MIME type. Browser responses use `nosniff`, `no-store`, and
+a [CSP sandbox](https://www.w3.org/TR/CSP3/#directive-sandbox) that disables scripts, forms, and
+external resources in uploaded documents. These URLs are for reading files, not hosting web apps.
 
 ### Folder Fields
 
@@ -40,6 +61,18 @@ All node types share these fields:
 - `permissions` (group/authenticated/anonymous/advanced)
 - `onCreate`, `onUpdate`, `onDelete` (feature UUIDs)
 - `filters` (NodeFilters)
+
+Changing a folder's `permissions` requires existing Write permission on both that folder and its
+parent. Owner, admin, and root access follow the usual authorization rules. Clients that previously
+changed a restricted child folder's permissions using only parent Write must use an authorized
+folder writer. Ordinary metadata updates retain the parent Write requirement.
+
+Locking a folder also locks its unlocked descendants, preserving independently locked and
+workflow-bound nodes. Unlock the destination folder before creating, uploading, copying, or moving
+children into it, including when you own the lock. This prevents new, unlocked children from
+bypassing the folder lock. Authorized metadata edits that keep the same parent remain allowed.
+Workflow-bound nodes require cancellation or completion before direct lock or unlock operations,
+including for administrators.
 
 ### Smart Folder Fields
 
@@ -130,6 +163,21 @@ interface AspectProperty {
 	defaultValue?: string | number | boolean;
 }
 ```
+
+Array properties require arrays. When `arrayType` is present, every element must have that type;
+UUID values use Antbox identifiers and must reference existing nodes. Invalid UUID shapes are
+rejected before reference lookups. Optional properties may be absent, `null`, or an empty string.
+Date properties accept ISO dates (`2026-10-22`) and ISO timestamps, including UTC, explicit offsets,
+or local time (`2026-10-22T12:30`). Invalid calendar dates and ambiguous numeric strings are
+rejected. Object properties require JSON objects rather than arrays or scalar values.
+
+Existing records are not repaired automatically. Stored metadata with malformed collection shapes,
+invalid aspect UUIDs or objects, or non-ISO dates may need correction before the next edit passes
+validation. Back up affected records before repairing them.
+
+`searchable` is an optional boolean. When enabled, the property's value contributes to the node's
+fulltext when that node is created or updated. Changing an aspect does not reindex existing nodes.
+Searchable object and array values are indexed as JSON text.
 
 ### Example Aspect
 

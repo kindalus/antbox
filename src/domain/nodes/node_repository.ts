@@ -23,6 +23,12 @@ export interface VectorSearchResult {
 export interface NodeRepository {
 	delete(uuid: string): Promise<Either<NodeNotFoundError, void>>;
 	update(node: NodeLike): Promise<Either<NodeNotFoundError, void>>;
+	/**
+	 * Set modifiedTime to the current time without changing any other stored fields.
+	 * The update must be atomic with respect to other repository writes. Missing nodes return Left;
+	 * this operation must never create a node.
+	 */
+	touch(uuid: string): Promise<Either<AntboxError, void>>;
 	add(node: NodeLike): Promise<Either<DuplicatedNodeError, void>>;
 	getByFid(fid: string): Promise<Either<NodeNotFoundError, NodeLike>>;
 	getById(uuid: string): Promise<Either<NodeNotFoundError, NodeLike>>;

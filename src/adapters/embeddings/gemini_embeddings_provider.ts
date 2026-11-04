@@ -18,7 +18,7 @@ import { GoogleGenAI } from "@google/genai";
  * - Ensure the process can reach Google APIs.
  *
  * @example
- * const provider = new GeminiEmbeddingsProvider("gemini-embedding-001");
+ * const provider = new GeminiEmbeddingsProvider("gemini-embedding-2");
  */
 export class GeminiEmbeddingsProvider implements EmbeddingsProvider {
 	readonly #client: GoogleGenAI;
@@ -26,7 +26,7 @@ export class GeminiEmbeddingsProvider implements EmbeddingsProvider {
 	readonly #threshold: number;
 
 	constructor(
-		modelName = "gemini-embedding-2-preview",
+		modelName = "gemini-embedding-2",
 		apiKey?: string,
 		threshold = 0.6,
 	) {

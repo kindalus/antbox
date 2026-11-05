@@ -89,6 +89,9 @@ export default {
 
 - `ctx.authenticationContext`
 - `ctx.nodeService` (NodeServiceProxy)
+  - `getEmbeddingContents(uuids)` returns stored Markdown keyed by readable node UUID, using the
+    feature's bound authentication context. Missing or inaccessible nodes are omitted. Use it to
+    validate classifications against actual document content, rather than caller-supplied text.
 - `ctx.logger` (`Logger` instance scoped to the feature/tenant)
 - `ctx.requestUrl` (`Readonly<URL>`, HTTP extensions only)
 

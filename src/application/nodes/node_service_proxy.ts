@@ -99,6 +99,10 @@ export class NodeServiceProxy {
 		return this.#nodeService.get(this.#ctx, uuid);
 	}
 
+	getEmbeddingContents(uuids: string[]) {
+		return this.#nodeService.getEmbeddingContents(this.#ctx, uuids);
+	}
+
 	list(parent?: string) {
 		Logger.instance("NodeServiceProxy.list").debug(JSON.stringify(parent));
 		return this.#nodeService.list(this.#ctx, parent);

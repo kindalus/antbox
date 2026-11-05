@@ -23,9 +23,9 @@ const adminCtx: AuthenticationContext = {
 	},
 };
 
-function createService() {
+function createService(repository = new InMemoryNodeRepository()) {
 	return new NodeService({
-		repository: new InMemoryNodeRepository(),
+		repository,
 		storage: new InMemoryStorageProvider(),
 		bus: new InMemoryEventBus(),
 		configRepo: new InMemoryConfigurationRepository(),
@@ -101,6 +101,35 @@ describe("NodeServiceProxy", () => {
 		const result = await proxy.get("private-node");
 
 		expect(result.isLeft()).toBe(true);
+	});
+
+	it("reads exact embedding contents using the immutable bound principal", async () => {
+		const repository = new InMemoryNodeRepository();
+		const service = createService(repository);
+		await createFolder(service, "public-content", "public", true);
+		await createFolder(service, "private-content", "private", false);
+		await createNode(service, "visible-document", "public-content");
+		await createNode(service, "hidden-document", "private-content");
+		await repository.upsertEmbedding(
+			"visible-document",
+			[1, 0],
+			"DU - Nota de Valor - Secção Geral",
+		);
+		await repository.upsertEmbedding("hidden-document", [0, 1], "Private document body");
+		const ctx: AuthenticationContext = {
+			mode: "Action",
+			tenant: "test",
+			principal: { email: "reader@example.com", groups: ["readers"] },
+		};
+		const proxy = new NodeServiceProxy(service, undefined, ctx);
+		ctx.principal.groups.push(Groups.ADMINS_GROUP_UUID);
+		const result = await proxy.getEmbeddingContents([
+			"visible-document",
+			"hidden-document",
+			"missing-document",
+		]);
+		expect(result.isRight()).toBe(true);
+		expect(result.right).toEqual({ "visible-document": "DU - Nota de Valor - Secção Geral" });
 	});
 
 	it("returns an error when semantic query is unavailable", async () => {

@@ -1,10 +1,15 @@
+import { it } from "bdd";
 import { expect } from "expect";
-import { stub } from "mock";
+import fs from "node:fs/promises";
+import fsSync from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { stub } from "shared/testing/stub.ts";
 import { FileNode } from "domain/nodes/file_node.ts";
 import buildFlatFileNodeRepository from "./flat_file_node_repository.ts";
 
-Deno.test("flat-file repository leaves memory and disk unchanged when persistence fails", async () => {
-	const directory = await Deno.makeTempDir();
+it("flat-file repository leaves memory and disk unchanged when persistence fails", async () => {
+	const directory = await fs.mkdtemp(join(tmpdir(), "antbox-flat-file-"));
 	try {
 		const repository = (await buildFlatFileNodeRepository(directory)).right;
 		const original = FileNode.create({
@@ -16,9 +21,9 @@ Deno.test("flat-file repository leaves memory and disk unchanged when persistenc
 		const added = FileNode.create({ ...original.metadata, uuid: "another_node" }).right;
 		const updated = FileNode.create({ ...original.metadata, title: "Updated" }).right;
 		await repository.add(original);
-		const before = await Deno.readTextFile(`${directory}/nodes_repo.json`);
-		const write = stub(Deno, "writeFileSync", () => {
-			throw new Deno.errors.PermissionDenied("test write failure");
+		const before = await fs.readFile(`${directory}/nodes_repo.json`, "utf-8");
+		const write = stub(fsSync, "writeFileSync", () => {
+			throw Object.assign(new Error("test write failure"), { code: "EACCES" });
 		});
 		try {
 			expect((await repository.add(added)).isLeft()).toBe(true);
@@ -30,14 +35,14 @@ Deno.test("flat-file repository leaves memory and disk unchanged when persistenc
 		}
 		expect((await repository.getById(added.uuid)).isLeft()).toBe(true);
 		expect((await repository.getById(original.uuid)).right.metadata).toEqual(original.metadata);
-		expect(await Deno.readTextFile(`${directory}/nodes_repo.json`)).toBe(before);
+		expect(await fs.readFile(`${directory}/nodes_repo.json`, "utf-8")).toBe(before);
 	} finally {
-		await Deno.remove(directory, { recursive: true });
+		await fs.rm(directory, { recursive: true, force: true });
 	}
 });
 
-Deno.test("flat-file repository commits through atomic rename and cleans failed temporary writes", async () => {
-	const directory = await Deno.makeTempDir();
+it("flat-file repository commits through atomic rename and cleans failed temporary writes", async () => {
+	const directory = await fs.mkdtemp(join(tmpdir(), "antbox-flat-file-"));
 	try {
 		const repository = (await buildFlatFileNodeRepository(directory)).right;
 		const original = FileNode.create({
@@ -47,9 +52,9 @@ Deno.test("flat-file repository commits through atomic rename and cleans failed 
 			owner: "test@antbox.io",
 		}).right;
 		await repository.add(original);
-		const before = await Deno.readTextFile(`${directory}/nodes_repo.json`);
-		const rename = stub(Deno, "renameSync", () => {
-			throw new Deno.errors.PermissionDenied("test rename failure");
+		const before = await fs.readFile(`${directory}/nodes_repo.json`, "utf-8");
+		const rename = stub(fsSync, "renameSync", () => {
+			throw Object.assign(new Error("test rename failure"), { code: "EACCES" });
 		});
 		try {
 			expect((await repository.delete(original.uuid)).isLeft()).toBe(true);
@@ -57,17 +62,17 @@ Deno.test("flat-file repository commits through atomic rename and cleans failed 
 			rename.restore();
 		}
 		expect((await repository.getById(original.uuid)).isRight()).toBe(true);
-		expect(await Deno.readTextFile(`${directory}/nodes_repo.json`)).toBe(before);
-		expect([...Deno.readDirSync(directory)].map((entry) => entry.name)).toEqual([
+		expect(await fs.readFile(`${directory}/nodes_repo.json`, "utf-8")).toBe(before);
+		expect(fsSync.readdirSync(directory)).toEqual([
 			"nodes_repo.json",
 		]);
 	} finally {
-		await Deno.remove(directory, { recursive: true });
+		await fs.rm(directory, { recursive: true, force: true });
 	}
 });
 
-Deno.test("flat-file touch persists only the current node's timestamp", async () => {
-	const directory = await Deno.makeTempDir();
+it("flat-file touch persists only the current node's timestamp", async () => {
+	const directory = await fs.mkdtemp(join(tmpdir(), "antbox-flat-file-"));
 	try {
 		const repository = (await buildFlatFileNodeRepository(directory)).right;
 		const original = FileNode.create({
@@ -89,12 +94,12 @@ Deno.test("flat-file touch persists only the current node's timestamp", async ()
 		expect((await reloaded.getById(original.uuid)).right.metadata).toEqual(stored.metadata);
 		expect((await repository.touch("absent_node")).isLeft()).toBe(true);
 	} finally {
-		await Deno.remove(directory, { recursive: true });
+		await fs.rm(directory, { recursive: true, force: true });
 	}
 });
 
-Deno.test("flat-file node snapshots reject noncloneable writes before changing disk", async () => {
-	const directory = await Deno.makeTempDir();
+it("flat-file node snapshots reject noncloneable writes before changing disk", async () => {
+	const directory = await fs.mkdtemp(join(tmpdir(), "antbox-flat-file-"));
 	try {
 		const repository = (await buildFlatFileNodeRepository(directory)).right;
 		const original = FileNode.create({
@@ -105,7 +110,7 @@ Deno.test("flat-file node snapshots reject noncloneable writes before changing d
 			tags: ["original"],
 		}).right;
 		expect((await repository.add(original)).isRight()).toBe(true);
-		const before = await Deno.readTextFile(`${directory}/nodes_repo.json`);
+		const before = await fs.readFile(`${directory}/nodes_repo.json`, "utf-8");
 		for (const uuid of [original.uuid, "new_node"]) {
 			const candidate = FileNode.create({
 				...original.metadata,
@@ -117,19 +122,19 @@ Deno.test("flat-file node snapshots reject noncloneable writes before changing d
 				? await repository.update(candidate)
 				: await repository.add(candidate);
 			expect(result.isLeft()).toBe(true);
-			expect(await Deno.readTextFile(`${directory}/nodes_repo.json`)).toBe(before);
+			expect(await fs.readFile(`${directory}/nodes_repo.json`, "utf-8")).toBe(before);
 			expect((await repository.getById(original.uuid)).right.metadata).toEqual(
 				original.metadata,
 			);
 			expect((await repository.getById("new_node")).isLeft()).toBe(true);
 		}
 	} finally {
-		await Deno.remove(directory, { recursive: true });
+		await fs.rm(directory, { recursive: true, force: true });
 	}
 });
 
-Deno.test("flat-file node inputs and reads cannot mutate persisted snapshots", async () => {
-	const directory = await Deno.makeTempDir();
+it("flat-file node inputs and reads cannot mutate persisted snapshots", async () => {
+	const directory = await fs.mkdtemp(join(tmpdir(), "antbox-flat-file-"));
 	try {
 		const repository = (await buildFlatFileNodeRepository(directory)).right;
 		const original = FileNode.create({
@@ -148,6 +153,6 @@ Deno.test("flat-file node inputs and reads cannot mutate persisted snapshots", a
 		const reloaded = (await buildFlatFileNodeRepository(directory)).right;
 		expect((await reloaded.getById(original.uuid)).right.tags).toEqual(["original"]);
 	} finally {
-		await Deno.remove(directory, { recursive: true });
+		await fs.rm(directory, { recursive: true, force: true });
 	}
 });

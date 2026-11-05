@@ -19,7 +19,7 @@ const ctx: AuthenticationContext = {
 	principal: { email: Users.ROOT_USER_EMAIL, groups: [] },
 };
 
-Deno.test("FindService preserves every parent constraint when resolving parent metadata", async () => {
+it("FindService preserves every parent constraint when resolving parent metadata", async () => {
 	const repository = new InMemoryNodeRepository();
 	const file = FileNode.create({
 		uuid: "matching-file",

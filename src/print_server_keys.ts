@@ -1,3 +1,4 @@
+import process from "node:process";
 import { Logger } from "shared/logger.ts";
 import { fileExistsSync, readFileSync } from "shared/os_helpers.ts";
 import { join } from "node:path";
@@ -9,7 +10,7 @@ import { getDefaultConfigDir } from "setup/load_configuration.ts";
  * @remarks
  * External setup:
  * - Ensure the JWKS file exists in the config directory.
- * - Deno requires `--allow-read` to read the files.
+ * - The process needs read access to the files.
  *
  * @example
  * printServerKeys({ configDir: "/path/to/config" });
@@ -33,7 +34,7 @@ export function printServerKeys(opts?: {
 
 	if (!fileExistsSync(jwksPath)) {
 		Logger.error(`JWKS file not found: ${jwksPath}`);
-		Deno.exit(-1);
+		process.exit(-1);
 	}
 
 	Logger.info("JSON Web Key Set:\t", JSON.stringify(JSON.parse(readFileSync(jwksPath)), null, 4));

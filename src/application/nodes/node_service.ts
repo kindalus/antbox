@@ -1,3 +1,4 @@
+import { fileMimetype } from "shared/mimetype.ts";
 import { NodeFactory } from "domain/node_factory.ts";
 import { toPropertyError } from "domain/validation_schemas.ts";
 import type { AspectableNode, NodeLike } from "domain/node_like.ts";
@@ -240,7 +241,8 @@ export class NodeService {
 	): Promise<Either<AntboxError, NodeMetadata>> {
 		const validationError = this.#validateMetadata(metadata);
 		if (validationError) return left(validationError);
-		const fileType = file.type === "text/javascript" ? "application/javascript" : file.type;
+		const uploadedType = fileMimetype(file);
+		const fileType = uploadedType === "text/javascript" ? "application/javascript" : uploadedType;
 		const requestedType = metadata.mimetype === "text/javascript"
 			? "application/javascript"
 			: metadata.mimetype;
@@ -1048,11 +1050,12 @@ export class NodeService {
 		}
 
 		const mappedMimetype = this.#mapAntboxMimetypes(nodeOrErr.value.mimetype);
-		const fileMimetype = file.type === "text/javascript" ? "application/javascript" : file.type;
-		if (mappedMimetype !== fileMimetype) {
+		const uploadedType = fileMimetype(file);
+		const fileType = uploadedType === "text/javascript" ? "application/javascript" : uploadedType;
+		if (mappedMimetype !== fileType) {
 			return left(
 				new BadRequestError(
-					`Mimetype mismatch ${mappedMimetype} vs ${file.type}`,
+					`Mimetype mismatch ${mappedMimetype} vs ${uploadedType}`,
 				),
 			);
 		}

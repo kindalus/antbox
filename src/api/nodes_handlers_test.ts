@@ -1,5 +1,6 @@
 import { describe, it } from "bdd";
 import { expect } from "expect";
+import { fileMimetype } from "shared/mimetype.ts";
 import type { AntboxTenant } from "./antbox_tenant.ts";
 import {
 	copyHandler,
@@ -34,29 +35,31 @@ function jsonRequest(body: string) {
 	});
 }
 
-Deno.test("raw node exports preserve content and restrict browser document capabilities", async () => {
-	const content = "<h1>Document preview</h1>";
-	const file = new File([content], "document.html", { type: "text/html" });
-	const tenant = {
-		name: "default",
-		nodeService: {
-			get: () => Promise.resolve(right({ uuid: "file", mimetype: file.type })),
-			export: () => Promise.resolve(right(file)),
-		},
-	} as unknown as AntboxTenant;
-	const response = await exportHandler([tenant])(
-		new Request("http://localhost/nodes/file/-/export", {
-			headers: { "x-params": '{"uuid":"file"}' },
-		}),
-	);
-	expect(response.status).toBe(200);
-	expect(response.headers.get("Content-Type")).toBe("text/html");
-	expect(response.headers.get("Content-Length")).toBe(String(file.size));
-	expect(response.headers.get("X-Content-Type-Options")).toBe("nosniff");
-	expect(response.headers.get("Content-Security-Policy"))
-		.toBe("sandbox; default-src 'none'; base-uri 'none'; form-action 'none'");
-	expect(response.headers.get("Cache-Control")).toBe("no-store");
-	expect(await response.text()).toBe(content);
+describe("exportHandler", () => {
+	it("raw node exports preserve content and restrict browser document capabilities", async () => {
+		const content = "<h1>Document preview</h1>";
+		const file = new File([content], "document.html", { type: "text/html" });
+		const tenant = {
+			name: "default",
+			nodeService: {
+				get: () => Promise.resolve(right({ uuid: "file", mimetype: fileMimetype(file) })),
+				export: () => Promise.resolve(right(file)),
+			},
+		} as unknown as AntboxTenant;
+		const response = await exportHandler([tenant])(
+			new Request("http://localhost/nodes/file/-/export", {
+				headers: { "x-params": '{"uuid":"file"}' },
+			}),
+		);
+		expect(response.status).toBe(200);
+		expect(response.headers.get("Content-Type")).toBe("text/html");
+		expect(response.headers.get("Content-Length")).toBe(String(file.size));
+		expect(response.headers.get("X-Content-Type-Options")).toBe("nosniff");
+		expect(response.headers.get("Content-Security-Policy"))
+			.toBe("sandbox; default-src 'none'; base-uri 'none'; form-action 'none'");
+		expect(response.headers.get("Cache-Control")).toBe("no-store");
+		expect(await response.text()).toBe(content);
+	});
 });
 
 describe("node request validation", () => {

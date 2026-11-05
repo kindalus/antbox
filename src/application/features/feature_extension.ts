@@ -1,3 +1,4 @@
+import { fileMimetype } from "shared/mimetype.ts";
 import type { FeatureData } from "domain/configuration/feature_data.ts";
 import type { AuthenticationContext } from "application/security/authentication_context.ts";
 import { type AntboxError, BadRequestError, ForbiddenError } from "shared/antbox_error.ts";
@@ -121,7 +122,7 @@ function extensionResponse(feature: FeatureData, value: unknown): Response {
 			const file = value as File;
 			return new Response(file, {
 				headers: {
-					"Content-Type": file.type,
+					"Content-Type": fileMimetype(file),
 					"Content-Disposition": `attachment; filename="${file.name}"`,
 				},
 			});

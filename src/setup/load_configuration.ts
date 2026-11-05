@@ -8,13 +8,16 @@ import { fileExistsSync } from "shared/os_helpers.ts";
 import { PORT } from "./server_defaults.ts";
 import { readTenantConfigurationState } from "./tenant_configuration_files.ts";
 import { join, resolve } from "node:path";
+import fs from "node:fs/promises";
+import fsSync from "node:fs";
+import process from "node:process";
+import { Buffer } from "node:buffer";
 import {
 	getDefaultDataDir,
 	resolveConfigPath,
 	resolveTenantConfigurationPaths,
 } from "./configuration_paths.ts";
 import { exportJWK, generateKeyPair } from "jose";
-import { encodeBase64 } from "jsr:@std/encoding@1.0.10/base64";
 
 /**
  * Resolves the default configuration directory.
@@ -22,7 +25,7 @@ import { encodeBase64 } from "jsr:@std/encoding@1.0.10/base64";
  * Windows: %USERPROFILE%/.config/antbox
  */
 export function getDefaultConfigDir(): string {
-	const home = Deno.env.get("HOME") || Deno.env.get("USERPROFILE") || "";
+	const home = process.env.HOME || process.env.USERPROFILE || "";
 	return join(home, ".config", "antbox");
 }
 
@@ -33,7 +36,7 @@ export function getDefaultConfigDir(): string {
  * @remarks
  * External setup:
  * - Provide a valid config directory path, or leave undefined for default.
- * - Ensure Deno has `--allow-read` and `--allow-write` for the config dir.
+ * - Ensure the process can read and write the config dir.
  *
  * @example
  * const config = await loadConfiguration("/var/lib/antbox");
@@ -46,7 +49,7 @@ export async function loadConfiguration(
 	const dataRoot = resolve(dataDir || getDefaultDataDir());
 
 	if (!fileExistsSync(dir)) {
-		Deno.mkdirSync(dir, { recursive: true });
+		fsSync.mkdirSync(dir, { recursive: true });
 		Logger.info(`Created configuration directory: ${dir}`);
 	}
 
@@ -72,7 +75,7 @@ eventStoreRepository = ["sqlite/sqlite_event_store_repository.ts", "default/even
 storage = "pay-as-you-go"
 tokens = 0
 `;
-		await Deno.writeTextFile(configPath, defaultConfig, { mode: 0o600 });
+		await fs.writeFile(configPath, defaultConfig, { mode: 0o600 });
 		Logger.info(`Created default configuration file: ${configPath}`);
 	}
 
@@ -80,7 +83,7 @@ tokens = 0
 	if (!fileExistsSync(keyPath)) {
 		const randomBytes = new Uint8Array(32);
 		crypto.getRandomValues(randomBytes);
-		await Deno.writeTextFile(keyPath, encodeBase64(randomBytes), { mode: 0o600 });
+		await fs.writeFile(keyPath, Buffer.from(randomBytes).toString("base64"), { mode: 0o600 });
 		Logger.info(`Generated new symmetric key at: ${keyPath}`);
 	}
 
@@ -91,8 +94,8 @@ tokens = 0
 		const pubJwk = { ...(await exportJWK(publicKey)), alg: "ES256", kid: "antbox-auto-key" };
 		const privJwk = { ...(await exportJWK(privateKey)), alg: "ES256", kid: "antbox-auto-key" };
 
-		await Deno.writeTextFile(jwksPath, JSON.stringify({ keys: [pubJwk] }, null, 2));
-		await Deno.writeTextFile(privateJwkPath, JSON.stringify(privJwk, null, 2), { mode: 0o600 });
+		await fs.writeFile(jwksPath, JSON.stringify({ keys: [pubJwk] }, null, 2));
+		await fs.writeFile(privateJwkPath, JSON.stringify(privJwk, null, 2), { mode: 0o600 });
 		Logger.info(`Generated new JWKS at: ${jwksPath}`);
 	}
 
@@ -119,8 +122,8 @@ tokens = 0
 
 	if (!config.port) config.port = PORT;
 
-	if (config.logLevel && !Deno.env.has("ANTBOX_LOG_LEVEL")) {
-		Deno.env.set("ANTBOX_LOG_LEVEL", config.logLevel);
+	if (config.logLevel && process.env.ANTBOX_LOG_LEVEL === undefined) {
+		process.env.ANTBOX_LOG_LEVEL = config.logLevel;
 	}
 
 	if (config.key) config.key = resolveConfigPath(dir, config.key);

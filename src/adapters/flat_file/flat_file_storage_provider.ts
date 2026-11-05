@@ -1,12 +1,16 @@
 import { type StorageProvider } from "application/nodes/storage_provider.ts";
 import { NodeFileNotFoundError } from "domain/nodes/node_file_not_found_error.ts";
 
-import { join } from "path";
+import fs from "node:fs/promises";
+import fsSync from "node:fs";
+import { join } from "node:path";
 import { AntboxError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
 import { type Event } from "shared/event.ts";
 import { type EventHandler } from "shared/event_handler.ts";
 import { fileExistsSync } from "shared/os_helpers.ts";
+import { fileMimetype } from "shared/mimetype.ts";
+import { tempPath } from "shared/temp_path.ts";
 
 /**
  * Builds a file-backed StorageProvider that stores files under `baseDir`.
@@ -38,7 +42,7 @@ class FlatFileStorageProvider implements StorageProvider {
 		this.#path = baseDir;
 
 		if (!fileExistsSync(this.#path)) {
-			Deno.mkdirSync(this.#path, { recursive: true });
+			fsSync.mkdirSync(this.#path, { recursive: true });
 		}
 	}
 
@@ -47,7 +51,7 @@ class FlatFileStorageProvider implements StorageProvider {
 			const filePath = this.#buildFilePath(uuid);
 			const mimetype = this.#readMimetype(uuid);
 
-			const b = await Deno.readFile(filePath);
+			const b = await fs.readFile(filePath);
 			const a = new File([b], uuid, { type: mimetype });
 
 			return right(a);
@@ -62,9 +66,9 @@ class FlatFileStorageProvider implements StorageProvider {
 		const mimetypePath = this.#buildMimetypePath(uuid);
 
 		try {
-			await Deno.remove(path);
+			await fs.unlink(path);
 			if (fileExistsSync(mimetypePath)) {
-				await Deno.remove(mimetypePath);
+				await fs.unlink(mimetypePath);
 			}
 			return right(undefined);
 		} catch (e) {
@@ -91,26 +95,26 @@ class FlatFileStorageProvider implements StorageProvider {
 			const folderPath = this.#buildFileFolderPath(uuid);
 			const filePath = this.#buildFilePath(uuid);
 			const mimetypePath = this.#buildMimetypePath(uuid);
-			Deno.mkdirSync(folderPath, { recursive: true });
+			fsSync.mkdirSync(folderPath, { recursive: true });
 
 			const buffer = new Uint8Array(await file.arrayBuffer());
-			temporaryPath = await Deno.makeTempFile({ dir: folderPath, prefix: ".content-" });
-			await Deno.writeFile(temporaryPath, buffer);
-			await Deno.rename(temporaryPath, filePath);
+			temporaryPath = tempPath(folderPath, ".content-");
+			await fs.writeFile(temporaryPath, buffer);
+			await fs.rename(temporaryPath, filePath);
 			temporaryPath = undefined;
 			// Content is committed here; a sidecar failure cannot roll it back.
-			await Deno.writeTextFile(mimetypePath, file.type ?? "");
+			await fs.writeFile(mimetypePath, fileMimetype(file));
 			return right(undefined);
 		} catch (e) {
 			return left(error(uuid, (e as Error).message));
 		} finally {
-			if (temporaryPath) await Deno.remove(temporaryPath).catch(() => undefined);
+			if (temporaryPath) await fs.unlink(temporaryPath).catch(() => undefined);
 		}
 	}
 
 	list(): Promise<string[]> {
-		const files = [...Deno.readDirSync(this.#path)]
-			.map((file) => join(this.#path, file.name));
+		const files = fsSync.readdirSync(this.#path)
+			.map((name) => join(this.#path, name));
 
 		return Promise.resolve(files);
 	}
@@ -146,7 +150,7 @@ class FlatFileStorageProvider implements StorageProvider {
 			return "";
 		}
 
-		return Deno.readTextFileSync(mimetypePath).trim();
+		return fsSync.readFileSync(mimetypePath, "utf-8").trim();
 	}
 }
 

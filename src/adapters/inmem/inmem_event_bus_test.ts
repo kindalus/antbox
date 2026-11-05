@@ -1,6 +1,6 @@
 import { describe, it } from "bdd";
 import { expect } from "expect";
-import { stub } from "mock";
+import { stub } from "shared/testing/stub.ts";
 import type { Event } from "shared/event.ts";
 import { eventHandlerFunc } from "shared/event_handler.ts";
 import { Logger } from "shared/logger.ts";

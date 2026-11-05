@@ -1,3 +1,5 @@
+import { fileMimetype } from "shared/mimetype.ts";
+import process from "node:process";
 import { left, right } from "shared/either.ts";
 import type { Either } from "shared/either.ts";
 import { AntboxError } from "shared/antbox_error.ts";
@@ -37,10 +39,10 @@ export class GeminiOCRProvider implements OCRProvider {
 	readonly #modelName: string;
 
 	constructor(modelName = "gemini-flash-latest", apiKey?: string) {
-		const key = apiKey ?? Deno.env.get("GOOGLE_API_KEY") ?? Deno.env.get("GEMINI_API_KEY");
+		const key = apiKey ?? process.env.GOOGLE_API_KEY ?? process.env.GEMINI_API_KEY;
 		if (!key) {
 			Logger.error("GOOGLE_API_KEY nor GEMINI_API_KEY is set");
-			Deno.exit(1);
+			process.exit(1);
 		}
 		this.#modelName = modelName;
 		this.#client = new GoogleGenAI({ apiKey: key });
@@ -62,7 +64,7 @@ export class GeminiOCRProvider implements OCRProvider {
 							},
 							{
 								inlineData: {
-									mimeType: file.type,
+									mimeType: fileMimetype(file),
 									data: base64Data,
 								},
 							},

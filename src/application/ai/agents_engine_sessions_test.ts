@@ -1,3 +1,7 @@
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import fsSync from "node:fs";
+import fs from "node:fs/promises";
 import { describe, it } from "bdd";
 import { expect } from "expect";
 import {
@@ -107,7 +111,7 @@ async function buildContext(
 
 describe("AgentsEngine persisted sessions", () => {
 	it("records usage when a continuation fails", async () => {
-		const root = await Deno.makeTempDir({ prefix: "antbox-session-failed-usage-test-" });
+		const root = await fs.mkdtemp(join(tmpdir(), "antbox-session-failed-usage-test-"));
 		try {
 			const { context, faux } = await buildContext(root);
 			faux.setResponses([fauxAssistantMessage("first-answer")]);
@@ -135,12 +139,12 @@ describe("AgentsEngine persisted sessions", () => {
 			expect(failed.isLeft()).toBe(true);
 			expect(completed).toBe(2);
 		} finally {
-			await Deno.remove(root, { recursive: true });
+			await fs.rm(root, { recursive: true });
 		}
 	});
 
 	it("checks the token limit again when a queued continuation starts", async () => {
-		const root = await Deno.makeTempDir({ prefix: "antbox-session-token-check-test-" });
+		const root = await fs.mkdtemp(join(tmpdir(), "antbox-session-token-check-test-"));
 		try {
 			const { context, faux } = await buildContext(root);
 			faux.setResponses([
@@ -190,12 +194,12 @@ describe("AgentsEngine persisted sessions", () => {
 			if (results[1].isLeft()) expect(results[1].value.errorCode).toBe("ForbiddenError");
 			expect(faux.state.callCount).toBe(2);
 		} finally {
-			await Deno.remove(root, { recursive: true });
+			await fs.rm(root, { recursive: true });
 		}
 	});
 
 	it("keeps sessions private to the API key that created them", async () => {
-		const root = await Deno.makeTempDir({ prefix: "antbox-session-key-owner-test-" });
+		const root = await fs.mkdtemp(join(tmpdir(), "antbox-session-key-owner-test-"));
 		try {
 			const { context, faux } = await buildContext(root);
 			const engine = new AgentsEngine(context);
@@ -238,7 +242,7 @@ describe("AgentsEngine persisted sessions", () => {
 			).toBe(true);
 			expect(faux.state.callCount).toBe(1);
 			await engine.deleteChatSession(otherKey, agent.uuid, created.value.sessionId);
-			expect((await Deno.stat(`${root}/${created.value.sessionId}`)).isDirectory).toBe(true);
+			expect((await fs.stat(`${root}/${created.value.sessionId}`)).isDirectory()).toBe(true);
 			const owned = await engine.continueChatSession(
 				firstKey,
 				agent.uuid,
@@ -248,14 +252,14 @@ describe("AgentsEngine persisted sessions", () => {
 			if (owned.isLeft()) throw owned.value;
 			expect(owned.value.message.parts[0].text).toBe("second-answer");
 			await engine.deleteChatSession(firstKey, agent.uuid, created.value.sessionId);
-			await expect(Deno.stat(`${root}/${created.value.sessionId}`)).rejects.toThrow();
+			await expect(fs.stat(`${root}/${created.value.sessionId}`)).rejects.toThrow();
 		} finally {
-			await Deno.remove(root, { recursive: true });
+			await fs.rm(root, { recursive: true });
 		}
 	});
 
 	it("rejects anonymous persisted sessions before creating or reading any workspace", async () => {
-		const root = await Deno.makeTempDir({ prefix: "antbox-session-anonymous-test-" });
+		const root = await fs.mkdtemp(join(tmpdir(), "antbox-session-anonymous-test-"));
 		try {
 			const { context, faux } = await buildContext(root);
 			const engine = new AgentsEngine(context);
@@ -277,14 +281,14 @@ describe("AgentsEngine persisted sessions", () => {
 				}
 			}
 			expect(faux.state.callCount).toBe(0);
-			expect([...Deno.readDirSync(root)]).toHaveLength(0);
+			expect([...fsSync.readdirSync(root)]).toHaveLength(0);
 		} finally {
-			await Deno.remove(root, { recursive: true });
+			await fs.rm(root, { recursive: true });
 		}
 	});
 
 	it("continues from Pi JSONL after rebuilding the engine", async () => {
-		const root = await Deno.makeTempDir({ prefix: "antbox-engine-session-test-" });
+		const root = await fs.mkdtemp(join(tmpdir(), "antbox-engine-session-test-"));
 		try {
 			const { context, faux } = await buildContext(root);
 			const firstEngine = new AgentsEngine(context);
@@ -315,14 +319,14 @@ describe("AgentsEngine persisted sessions", () => {
 				created.value.sessionId,
 			);
 			expect(deleted.isRight()).toBe(true);
-			await expect(Deno.stat(`${root}/${created.value.sessionId}`)).rejects.toThrow();
+			await expect(fs.stat(`${root}/${created.value.sessionId}`)).rejects.toThrow();
 		} finally {
-			await Deno.remove(root, { recursive: true });
+			await fs.rm(root, { recursive: true });
 		}
 	});
 
 	it("rejects a session when a sealed feature tool changes", async () => {
-		const root = await Deno.makeTempDir({ prefix: "antbox-engine-stale-session-test-" });
+		const root = await fs.mkdtemp(join(tmpdir(), "antbox-engine-stale-session-test-"));
 		const feature: FeatureData = {
 			uuid: "lookupRecords",
 			title: "Lookup records",
@@ -364,7 +368,7 @@ describe("AgentsEngine persisted sessions", () => {
 			expect(continued.isLeft()).toBe(true);
 			if (continued.isLeft()) expect(continued.value.errorCode).toBe("StaleSession");
 		} finally {
-			await Deno.remove(root, { recursive: true });
+			await fs.rm(root, { recursive: true });
 		}
 	});
 });

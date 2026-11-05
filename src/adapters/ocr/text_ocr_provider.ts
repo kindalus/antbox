@@ -1,3 +1,4 @@
+import { fileMimetype } from "shared/mimetype.ts";
 import { left, right } from "shared/either.ts";
 import type { Either } from "shared/either.ts";
 import { AntboxError } from "shared/antbox_error.ts";
@@ -11,11 +12,11 @@ const TEXT_MIMETYPES = ["text/plain", "text/markdown", "text/html", "application
  */
 export class TextOCRProvider implements OCRProvider {
 	async ocr(file: File): Promise<Either<AntboxError, OCRResult>> {
-		if (!TEXT_MIMETYPES.includes(file.type)) {
+		if (!TEXT_MIMETYPES.includes(fileMimetype(file))) {
 			return left(
 				new AntboxError(
 					"UnsupportedMimetype",
-					`TextOCRProvider does not support mimetype: ${file.type}`,
+					`TextOCRProvider does not support mimetype: ${fileMimetype(file)}`,
 				),
 			);
 		}

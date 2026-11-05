@@ -1,13 +1,14 @@
+import { it } from "bdd";
+import process from "node:process";
 import { expect } from "expect";
 import { MongoClient } from "mongodb";
 import { MongodbEventStoreRepository } from "./mongodb_event_store_repository.ts";
 
-const mongodbUrl = Deno.env.get("ANTBOX_TEST_MONGODB_URL");
+const mongodbUrl = process.env.ANTBOX_TEST_MONGODB_URL;
 
-Deno.test({
-	name: "MongoDB audit streams retain concurrent appends across repository instances",
-	ignore: !mongodbUrl,
-	async fn() {
+(mongodbUrl ? it : it.skip)(
+	"MongoDB audit streams retain concurrent appends across repository instances",
+	async () => {
 		const client = await new MongoClient(mongodbUrl!).connect();
 		const databaseName = `antbox_test_${crypto.randomUUID().replaceAll("-", "")}`;
 		const database = client.db(databaseName);
@@ -39,4 +40,4 @@ Deno.test({
 			await client.close();
 		}
 	},
-});
+);

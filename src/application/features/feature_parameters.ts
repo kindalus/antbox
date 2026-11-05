@@ -1,3 +1,4 @@
+import { fileMimetype, normalizeMimetype } from "shared/mimetype.ts";
 import type { FeatureParameter } from "domain/configuration/feature_data.ts";
 import { type AntboxError, BadRequestError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
@@ -120,7 +121,10 @@ function coerceParameterValue(
 				return left(new BadRequestError(`Parameter '${parameter.name}' must be a file`));
 			}
 
-			if (parameter.contentType && value.type !== parameter.contentType) {
+			if (
+				parameter.contentType &&
+				fileMimetype(value) !== normalizeMimetype(parameter.contentType)
+			) {
 				return left(
 					new BadRequestError(
 						`Parameter '${parameter.name}' must have content type '${parameter.contentType}'`,
@@ -215,7 +219,10 @@ function coerceArrayItem(
 				);
 			}
 
-			if (parameter.contentType && value.type !== parameter.contentType) {
+			if (
+				parameter.contentType &&
+				fileMimetype(value) !== normalizeMimetype(parameter.contentType)
+			) {
 				return left(
 					new BadRequestError(
 						`Parameter '${parameter.name}' files must have content type '${parameter.contentType}'`,

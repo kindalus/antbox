@@ -1,4 +1,5 @@
-import postgres from "npm:postgres@3.4.8";
+import process from "node:process";
+import postgres from "postgres";
 
 import type { AuditEvent } from "domain/audit/audit_event.ts";
 import type { EventStoreRepository } from "domain/audit/event_store_repository.ts";
@@ -46,7 +47,7 @@ export class PostgresEventStoreRepository implements EventStoreRepository {
 	readonly #existingTables: Set<string>;
 
 	constructor(connectionString?: string) {
-		const connStr = connectionString ?? Deno.env.get("DATABASE_URL");
+		const connStr = connectionString ?? process.env.DATABASE_URL;
 		if (!connStr) {
 			throw new Error("DATABASE_URL environment variable is required");
 		}

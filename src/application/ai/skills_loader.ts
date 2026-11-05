@@ -1,13 +1,14 @@
-import { parse as parseYaml } from "@std/yaml";
+import { parse as parseYaml } from "yaml";
+import fs from "node:fs/promises";
 import { Logger } from "shared/logger.ts";
 import { DOCS } from "../../../docs/index.ts";
-import { fromFileUrl } from "jsr:@std/path@1.1.2";
+import { fileURLToPath } from "node:url";
 
 const SKILL_NAME_REGEX = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const MAX_SKILL_NAME_LENGTH = 64;
 const MAX_SKILL_DESCRIPTION_LENGTH = 1024;
 const MAX_SKILL_COMPATIBILITY_LENGTH = 500;
-const DOCUMENTATION_DIR = fromFileUrl(new URL("../../../docs", import.meta.url));
+const DOCUMENTATION_DIR = fileURLToPath(new URL("../../../docs", import.meta.url));
 const SKILL_FRONTMATTER_KEYS = new Set([
 	"name",
 	"description",
@@ -150,10 +151,10 @@ async function readSkillsFromDirectory(dirPath: string): Promise<LoadedSkill[]> 
 	const results: LoadedSkill[] = [];
 
 	try {
-		const entries = Deno.readDir(dirPath);
+		const entries = await fs.readdir(dirPath, { withFileTypes: true });
 
-		for await (const entry of entries) {
-			if (!entry.isDirectory) {
+		for (const entry of entries) {
+			if (!entry.isDirectory()) {
 				continue;
 			}
 
@@ -161,7 +162,7 @@ async function readSkillsFromDirectory(dirPath: string): Promise<LoadedSkill[]> 
 			const skillFile = `${skillDir}/SKILL.md`;
 
 			try {
-				const markdown = await Deno.readTextFile(skillFile);
+				const markdown = await fs.readFile(skillFile, "utf-8");
 				const parsedSkill = parseSkillMarkdown(markdown, entry.name);
 
 				if (!parsedSkill) {
@@ -206,7 +207,7 @@ export async function loadSkillsFromDocumentation(): Promise<LoadedSkill[]> {
 		const skillFile = `${DOCUMENTATION_DIR}/${doc.uuid}.md`;
 
 		try {
-			const markdown = await Deno.readTextFile(skillFile);
+			const markdown = await fs.readFile(skillFile, "utf-8");
 			const parsedSkill = parseSkillMarkdown(markdown);
 
 			if (!parsedSkill) {
@@ -285,7 +286,7 @@ export async function loadSkills(
 export async function loadSkillInstruction(skillFile: string): Promise<string | undefined> {
 	Logger.instance("SkillLoader").debug("File:", skillFile);
 	try {
-		const markdown = await Deno.readTextFile(skillFile);
+		const markdown = await fs.readFile(skillFile, "utf-8");
 		const parsedSkill = parseSkillMarkdown(markdown);
 		if (!parsedSkill) {
 			return undefined;

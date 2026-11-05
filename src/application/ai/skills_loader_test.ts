@@ -1,16 +1,19 @@
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import fs from "node:fs/promises";
 import { afterEach, beforeEach, describe, it } from "bdd";
 import { expect } from "expect";
 import { loadSkillInstruction, loadSkills, loadSkillsFromDocumentation } from "./skills_loader.ts";
 import { DOCS } from "../../../docs/index.ts";
 
 async function createTempDir(): Promise<string> {
-	return await Deno.makeTempDir();
+	return await fs.mkdtemp(join(tmpdir(), "antbox-test-"));
 }
 
 async function writeSkill(root: string, skillName: string, content: string): Promise<void> {
 	const dir = `${root}/${skillName}`;
-	await Deno.mkdir(dir, { recursive: true });
-	await Deno.writeTextFile(`${dir}/SKILL.md`, content);
+	await fs.mkdir(dir, { recursive: true });
+	await fs.writeFile(`${dir}/SKILL.md`, content);
 }
 
 function makeSkill(frontmatter: string, body = "# Skill\n\nInstructions\n"): string {
@@ -25,7 +28,7 @@ describe("loadSkills", () => {
 	});
 
 	afterEach(async () => {
-		await Deno.remove(tempDir, { recursive: true });
+		await fs.rm(tempDir, { recursive: true });
 	});
 
 	it("loads valid skills when directory name matches frontmatter name", async () => {
@@ -115,7 +118,7 @@ describe("loadSkills", () => {
 		const shared = skills.find((s) => s.frontmatter.name === "shared-skill");
 		expect(shared?.frontmatter.description).toBe("Extra version");
 
-		await Deno.remove(extraDir, { recursive: true });
+		await fs.rm(extraDir, { recursive: true });
 	});
 
 	it("parses allowed-tools as space-delimited list", async () => {
@@ -200,7 +203,7 @@ describe("loadSkillInstruction", () => {
 	});
 
 	afterEach(async () => {
-		await Deno.remove(tempDir, { recursive: true });
+		await fs.rm(tempDir, { recursive: true });
 	});
 
 	it("returns instruction body without frontmatter", async () => {

@@ -1,16 +1,24 @@
 import { describe, it } from "bdd";
 import { expect } from "expect";
 import { join } from "node:path";
-import { stringify } from "toml";
+import { tmpdir } from "node:os";
+import { fileURLToPath } from "node:url";
+import { createServer } from "node:net";
+import { spawn, spawnSync } from "node:child_process";
+import fs from "node:fs/promises";
+import process from "node:process";
+import { stringify } from "smol-toml";
 
 import type { ServerConfiguration } from "api/http_server_configuration.ts";
 import { MCP_PROTOCOL_VERSION } from "adapters/mcp/mcp_server.ts";
 import { createAdkLogger, getTenantSetupConfiguration } from "./main.ts";
 
 async function reservePort(): Promise<number> {
-	const server = Deno.serve({ port: 0, hostname: "127.0.0.1" }, () => new Response(""));
-	const port = (server.addr as Deno.NetAddr).port;
-	await server.shutdown();
+	const server = createServer();
+	await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+	const address = server.address();
+	const port = typeof address === "object" && address ? address.port : 0;
+	await new Promise<void>((resolve) => server.close(() => resolve()));
 	return port;
 }
 
@@ -41,11 +49,11 @@ describe("getTenantSetupConfiguration", () => {
 
 describe("createAdkLogger", () => {
 	it("routes ADK info logs to the main debug logger", () => {
-		const originalLevel = Deno.env.get("ANTBOX_LOG_LEVEL");
+		const originalLevel = process.env.ANTBOX_LOG_LEVEL;
 		const originalDebug = console.debug;
 		const messages: unknown[][] = [];
 
-		Deno.env.set("ANTBOX_LOG_LEVEL", "debug");
+		process.env.ANTBOX_LOG_LEVEL = "debug";
 		console.debug = (...args: unknown[]) => {
 			messages.push(args);
 		};
@@ -55,9 +63,9 @@ describe("createAdkLogger", () => {
 		} finally {
 			console.debug = originalDebug;
 			if (originalLevel === undefined) {
-				Deno.env.delete("ANTBOX_LOG_LEVEL");
+				delete process.env.ANTBOX_LOG_LEVEL;
 			} else {
-				Deno.env.set("ANTBOX_LOG_LEVEL", originalLevel);
+				process.env.ANTBOX_LOG_LEVEL = originalLevel;
 			}
 		}
 
@@ -70,30 +78,32 @@ describe("createAdkLogger", () => {
 
 describe("main entry point", () => {
 	it("prints key information without inventing a default root password", async () => {
-		const dir = await Deno.makeTempDir({ prefix: "antbox-print-keys-" });
+		const dir = await fs.mkdtemp(join(tmpdir(), "antbox-print-keys-"));
 		try {
-			await Deno.writeTextFile(join(dir, "antbox.key"), "test-key");
-			await Deno.writeTextFile(join(dir, "antbox.jwks"), JSON.stringify({ keys: [] }));
-			const result = await new Deno.Command(Deno.execPath(), {
-				args: ["run", "-A", "--unstable-raw-imports", "main.ts", "--keys", "-c", dir],
-				cwd: new URL(".", import.meta.url).pathname,
-				env: { ANTBOX_LOG_LEVEL: "info" },
-				stdout: "piped",
-				stderr: "piped",
-			}).output();
-			expect(result.code).toBe(0);
-			const output = new TextDecoder().decode(result.stdout);
+			await fs.writeFile(join(dir, "antbox.key"), "test-key");
+			await fs.writeFile(join(dir, "antbox.jwks"), JSON.stringify({ keys: [] }));
+			const result = spawnSync(
+				process.execPath,
+				["run", "-A", "--unstable-raw-imports", "main.ts", "--keys", "-c", dir],
+				{
+					cwd: fileURLToPath(new URL(".", import.meta.url)),
+					env: { ...process.env, ANTBOX_LOG_LEVEL: "info" },
+					encoding: "utf8",
+				},
+			);
+			expect(result.status).toBe(0);
+			const output = result.stdout;
 			expect(output).toContain("rootPasswd in config.toml or tenants.d");
 			expect(output).toContain("test-key");
 			expect(output).not.toContain("demo");
 		} finally {
-			await Deno.remove(dir, { recursive: true });
+			await fs.rm(dir, { recursive: true, force: true });
 		}
 	});
 
 	it("forwards loaded MCP settings through the real server process", async () => {
-		const repoRoot = new URL(".", import.meta.url).pathname;
-		const dir = await Deno.makeTempDir({ prefix: "antbox-main-mcp-" });
+		const repoRoot = fileURLToPath(new URL(".", import.meta.url));
+		const dir = await fs.mkdtemp(join(tmpdir(), "antbox-main-mcp-"));
 		const port = await reservePort();
 		const config = {
 			engine: "oak",
@@ -111,29 +121,26 @@ describe("main entry point", () => {
 				limits: { storage: 10, tokens: 0 },
 			}],
 		};
-		await Deno.writeTextFile(join(dir, "config.toml"), stringify(config));
+		await fs.writeFile(join(dir, "config.toml"), stringify(config));
 
-		const child = new Deno.Command(Deno.execPath(), {
-			args: ["run", "-A", "main.ts", "-c", dir, "-d", join(dir, "data")],
-			cwd: repoRoot,
-			stdout: "piped",
-			stderr: "piped",
-		}).spawn();
+		const child = spawn(
+			process.execPath,
+			["run", "-A", "main.ts", "-c", dir, "-d", join(dir, "data")],
+			{ cwd: repoRoot, stdio: ["ignore", "pipe", "pipe"] },
+		);
+		const exited = new Promise<void>((resolve) => {
+			child.once("exit", () => resolve());
+			child.once("error", () => resolve());
+		});
 
-		const decoder = new TextDecoder();
 		let stdoutText = "";
 		let stderrText = "";
-		const pump = async (
-			stream: ReadableStream<Uint8Array> | null,
-			append: (chunk: string) => void,
-		) => {
-			if (!stream) return;
-			for await (const chunk of stream) append(decoder.decode(chunk));
-		};
-		void pump(child.stdout, (chunk) => {
+		child.stdout.setEncoding("utf8");
+		child.stderr.setEncoding("utf8");
+		child.stdout.on("data", (chunk: string) => {
 			stdoutText += chunk;
 		});
-		void pump(child.stderr, (chunk) => {
+		child.stderr.on("data", (chunk: string) => {
 			stderrText += chunk;
 		});
 
@@ -194,8 +201,8 @@ describe("main entry point", () => {
 			} catch {
 				// Process already exited.
 			}
-			await child.status.catch(() => {});
-			await Deno.remove(dir, { recursive: true });
+			await exited;
+			await fs.rm(dir, { recursive: true, force: true });
 		}
 	});
 });

@@ -1,3 +1,4 @@
+import { fileMimetype } from "shared/mimetype.ts";
 import { Logger } from "shared/logger.ts";
 import { type AntboxTenant } from "api/antbox_tenant.ts";
 import { webdavMiddlewareChain } from "./webdav_middleware.ts";
@@ -168,7 +169,7 @@ export function getHandler(tenants: AntboxTenant[]): HttpHandler {
 		const file = fileOrErr.value;
 		return new Response(req.method === "HEAD" ? null : file.stream(), {
 			headers: {
-				"Content-Type": file.type,
+				"Content-Type": fileMimetype(file),
 				"Content-Length": file.size.toString(),
 				"X-Content-Type-Options": "nosniff",
 				"Content-Security-Policy":

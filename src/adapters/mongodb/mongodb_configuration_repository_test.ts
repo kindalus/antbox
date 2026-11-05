@@ -1,13 +1,14 @@
+import { it } from "bdd";
+import process from "node:process";
 import { expect } from "expect";
 import { MongoClient } from "mongodb";
 import { MongodbConfigurationRepository } from "./mongodb_configuration_repository.ts";
 
-const mongodbUrl = Deno.env.get("ANTBOX_TEST_MONGODB_URL");
+const mongodbUrl = process.env.ANTBOX_TEST_MONGODB_URL;
 
-Deno.test({
-	name: "MongoDB configuration saves replace the full object state",
-	ignore: !mongodbUrl,
-	async fn() {
+(mongodbUrl ? it : it.skip)(
+	"MongoDB configuration saves replace the full object state",
+	async () => {
 		const client = await new MongoClient(mongodbUrl!).connect();
 		const databaseName = `antbox_test_${crypto.randomUUID().replaceAll("-", "")}`;
 		try {
@@ -29,4 +30,4 @@ Deno.test({
 			await client.close();
 		}
 	},
-});
+);

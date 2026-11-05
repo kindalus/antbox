@@ -1,3 +1,5 @@
+import fs from "node:fs/promises";
+import { isNotFoundError, isNotSupportedError } from "shared/fs_errors.ts";
 import type { AgentMessage, AgentTool } from "@earendil-works/pi-agent-core";
 import type { Api, Message, Model } from "@earendil-works/pi-ai";
 import type { ModelRuntime, SessionManager, ToolDefinition } from "@earendil-works/pi-coding-agent";
@@ -155,10 +157,10 @@ async function secureSessionFile(manager: SessionManager): Promise<void> {
 	const path = manager.getSessionFile();
 	if (!path) return;
 	try {
-		await Deno.chmod(path, 0o600);
+		await fs.chmod(path, 0o600);
 	} catch (error) {
 		if (
-			!(error instanceof Deno.errors.NotFound) && !(error instanceof Deno.errors.NotSupported)
+			!isNotFoundError(error) && !isNotSupportedError(error)
 		) {
 			throw error;
 		}

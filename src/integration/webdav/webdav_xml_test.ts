@@ -1,10 +1,11 @@
+import { it } from "bdd";
 import { expect } from "expect";
 import { JSDOM } from "jsdom";
 import { createPropfindResponse } from "./webdav_xml.ts";
 import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 
-Deno.test("WebDAV XML escapes owner metadata and URI ampersands", () => {
+it("WebDAV XML escapes owner metadata and URI ampersands", () => {
 	const node = {
 		uuid: "file",
 		title: "file.txt",
@@ -30,7 +31,7 @@ Deno.test("WebDAV XML escapes owner metadata and URI ampersands", () => {
 	}
 });
 
-Deno.test("WebDAV root response keeps the requested tenant href", () => {
+it("WebDAV root response keeps the requested tenant href", () => {
 	const node = {
 		uuid: Nodes.ROOT_FOLDER_UUID,
 		title: "Root",

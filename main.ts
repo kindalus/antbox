@@ -50,7 +50,7 @@ function toUrlHost(hostname: string): string {
  * @remarks
  * External setup:
  * - Ensure the `engine` in the config maps to an adapter under `src/adapters/<engine>/server.ts`.
- * - Grant Deno permissions required by the configured adapters (net, env, read/write).
+ * - Grant the runtime permissions required by the configured adapters (net, env, read/write).
  *
  * @example
  * await startServer(config);
@@ -65,7 +65,7 @@ async function startServer(
 		tenants = await setupTenants(getTenantSetupConfiguration(config));
 	} catch (err) {
 		console.error("Failed to setup tenants on startup:", err);
-		Deno.exit(-1);
+		process.exit(-1);
 	}
 
 	const reloadFn = async () => {
@@ -89,7 +89,7 @@ async function startServer(
 	} catch (error) {
 		console.error(`Failed to load server engine module: ${serverLocation}`);
 		console.error(error);
-		Deno.exit(1);
+		process.exit(1);
 	}
 
 	const port = config.port || PORT;
@@ -138,7 +138,7 @@ if (import.meta.main) {
 
 			if (opts.keys) {
 				printServerKeys({ configDir });
-				Deno.exit(0);
+				process.exit(0);
 			}
 
 			const config = await loadConfiguration(configDir, dataDir);

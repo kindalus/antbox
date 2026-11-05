@@ -1,3 +1,5 @@
+import process from "node:process";
+
 type LogLevel = "debug" | "info" | "warn" | "error" | "fatal" | "trace";
 
 const LOG_LEVELS: Record<LogLevel, number> = {
@@ -10,7 +12,7 @@ const LOG_LEVELS: Record<LogLevel, number> = {
 };
 
 function getLogLevel(): number {
-	const envLevel = Deno.env.get("ANTBOX_LOG_LEVEL")?.toLowerCase() as LogLevel | undefined;
+	const envLevel = process.env.ANTBOX_LOG_LEVEL?.toLowerCase() as LogLevel | undefined;
 	return LOG_LEVELS[envLevel ?? "info"] ?? LOG_LEVELS.info;
 }
 

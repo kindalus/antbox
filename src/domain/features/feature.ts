@@ -1,3 +1,4 @@
+import { fileMimetype } from "shared/mimetype.ts";
 import type { FeatureData, FeatureParameter } from "domain/configuration/feature_data.ts";
 import type { NodeFilter } from "domain/nodes/node_filter.ts";
 import { AntboxError, BadRequestError } from "shared/antbox_error.ts";
@@ -251,12 +252,13 @@ export async function featureDataToFeature(
 }
 
 async function loadUploadedFeature(file: File): Promise<Either<AntboxError, UploadedFeature>> {
+	const type = fileMimetype(file);
 	if (
-		file.type !== "text/javascript" &&
-		file.type !== "application/javascript" &&
-		file.type !== "application/vnd.antbox.feature"
+		type !== "text/javascript" &&
+		type !== "application/javascript" &&
+		type !== "application/vnd.antbox.feature"
 	) {
-		return left(new BadRequestError(`Invalid file type: ${file.type}`));
+		return left(new BadRequestError(`Invalid file type: ${type}`));
 	}
 
 	try {

@@ -1,7 +1,11 @@
 import { describe, it } from "bdd";
 import { expect } from "expect";
 import { exportJWK, generateKeyPair, SignJWT } from "jose";
-import { basename } from "path";
+import { basename } from "node:path";
+import { tmpdir } from "node:os";
+import fs from "node:fs/promises";
+import process from "node:process";
+import { tempPath } from "shared/temp_path.ts";
 
 import type { AuthenticationContext } from "application/security/authentication_context.ts";
 import { ADMINS_GROUP_UUID } from "domain/configuration/builtin_groups.ts";
@@ -25,8 +29,8 @@ describe("setupTenants", () => {
 
 	async function createJwksFile() {
 		const { publicKey, privateKey } = await generateKeyPair("RS256");
-		const jwksPath = await Deno.makeTempFile({ suffix: ".jwks.json" });
-		await Deno.writeTextFile(
+		const jwksPath = tempPath(tmpdir(), "antbox-") + ".jwks.json";
+		await fs.writeFile(
 			jwksPath,
 			JSON.stringify({
 				keys: [{ ...(await exportJWK(publicKey)), alg: "RS256", kid: "test-key" }],
@@ -37,15 +41,11 @@ describe("setupTenants", () => {
 	}
 
 	async function createConfigRepositoryModule() {
-		const adaptersDir = `${Deno.cwd()}/src/adapters`;
-		const modulePath = await Deno.makeTempFile({
-			dir: adaptersDir,
-			prefix: ".tmp-setup-tenants-",
-			suffix: ".ts",
-		});
+		const adaptersDir = `${process.cwd()}/src/adapters`;
+		const modulePath = tempPath(adaptersDir, ".tmp-setup-tenants-") + ".ts";
 		const relativeModulePath = `./${basename(modulePath)}`;
 
-		await Deno.writeTextFile(
+		await fs.writeFile(
 			modulePath,
 			[
 				'import { InMemoryConfigurationRepository } from "./inmem/inmem_configuration_repository.ts";',
@@ -61,15 +61,11 @@ describe("setupTenants", () => {
 	}
 
 	async function createStorageProviderModule() {
-		const adaptersDir = `${Deno.cwd()}/src/adapters`;
-		const modulePath = await Deno.makeTempFile({
-			dir: adaptersDir,
-			prefix: ".tmp-storage-provider-",
-			suffix: ".ts",
-		});
+		const adaptersDir = `${process.cwd()}/src/adapters`;
+		const modulePath = tempPath(adaptersDir, ".tmp-storage-provider-") + ".ts";
 		const relativeModulePath = `./${basename(modulePath)}`;
 
-		await Deno.writeTextFile(
+		await fs.writeFile(
 			modulePath,
 			[
 				'import { right } from "../shared/either.ts";',
@@ -144,8 +140,8 @@ describe("setupTenants", () => {
 			const tenants = await setupTenants(config);
 			expect(tenants.map(({ name }) => name)).toEqual(["tenant-a", "tenant-b"]);
 		} finally {
-			await Deno.remove(modulePath);
-			await Deno.remove(jwksPath);
+			await fs.unlink(modulePath);
+			await fs.unlink(jwksPath);
 		}
 	});
 
@@ -170,7 +166,7 @@ describe("setupTenants", () => {
 				}],
 			})).rejects.toThrow("rootPasswd");
 		} finally {
-			await Deno.remove(jwksPath);
+			await fs.unlink(jwksPath);
 		}
 	});
 
@@ -209,8 +205,8 @@ describe("setupTenants", () => {
 				expect(principalOrErr.value.email).toBe("john.doe@example.com");
 			}
 		} finally {
-			await Deno.remove(modulePath);
-			await Deno.remove(jwksPath);
+			await fs.unlink(modulePath);
+			await fs.unlink(jwksPath);
 		}
 	});
 
@@ -237,9 +233,9 @@ describe("setupTenants", () => {
 			const storageModuleExports = await import(`file://${storageModulePath}`);
 			expect(storageModuleExports.wasListenerRegistered()).toBe(true);
 		} finally {
-			await Deno.remove(configModulePath);
-			await Deno.remove(storageModulePath);
-			await Deno.remove(jwksPath);
+			await fs.unlink(configModulePath);
+			await fs.unlink(storageModulePath);
+			await fs.unlink(jwksPath);
 		}
 	});
 
@@ -265,8 +261,8 @@ describe("setupTenants", () => {
 				"Tenant tenant-invalid-ai-disabled: tokens limit must be 0 when AI is disabled",
 			);
 		} finally {
-			await Deno.remove(modulePath);
-			await Deno.remove(jwksPath);
+			await fs.unlink(modulePath);
+			await fs.unlink(jwksPath);
 		}
 	});
 
@@ -296,8 +292,8 @@ describe("setupTenants", () => {
 				"Tenant tenant-invalid-ai-enabled: tokens limit must be greater than 0 when AI is enabled",
 			);
 		} finally {
-			await Deno.remove(modulePath);
-			await Deno.remove(jwksPath);
+			await fs.unlink(modulePath);
+			await fs.unlink(jwksPath);
 		}
 	});
 
@@ -344,9 +340,9 @@ describe("setupTenants", () => {
 			);
 			expect(globalPrincipalOrErr.isLeft()).toBe(true);
 		} finally {
-			await Deno.remove(modulePath);
-			await Deno.remove(globalJwks.jwksPath);
-			await Deno.remove(tenantJwks.jwksPath);
+			await fs.unlink(modulePath);
+			await fs.unlink(globalJwks.jwksPath);
+			await fs.unlink(tenantJwks.jwksPath);
 		}
 	});
 
@@ -375,8 +371,8 @@ describe("setupTenants", () => {
 				"Tenant broken-tenant: repository is required but not configured",
 			);
 		} finally {
-			await Deno.remove(modulePath);
-			await Deno.remove(jwksPath);
+			await fs.unlink(modulePath);
+			await fs.unlink(jwksPath);
 		}
 	});
 });

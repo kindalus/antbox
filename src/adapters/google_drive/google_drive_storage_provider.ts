@@ -1,3 +1,4 @@
+import { fileMimetype } from "shared/mimetype.ts";
 import { auth, drive, drive_v3 } from "@googleapis/drive";
 import { Logger } from "shared/logger.ts";
 import type {
@@ -173,11 +174,11 @@ export class GoogleDriveStorageProvider implements StorageProvider {
 				name: opts.title,
 				parents: [parentId],
 				appProperties: { uuid },
-				mimeType: file.type,
+				mimeType: fileMimetype(file),
 			};
 
 			const media = {
-				mimeType: file.type,
+				mimeType: fileMimetype(file),
 				body: Readable.fromWeb(file.stream() as unknown as NodeReadableStream<Uint8Array>),
 			};
 
@@ -206,7 +207,7 @@ export class GoogleDriveStorageProvider implements StorageProvider {
 
 			this.#metadataByUuid.set(uuid, {
 				id,
-				mimeType: file.type,
+				mimeType: fileMimetype(file),
 				name: metadataOrError.isRight() ? metadataOrError.value.name : opts.title,
 				parents: metadataOrError.isRight() ? metadataOrError.value.parents : [parentId],
 			});

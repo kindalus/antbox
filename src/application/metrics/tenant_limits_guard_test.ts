@@ -1,4 +1,5 @@
-import { assert, assertEquals } from "jsr:@std/assert@0.224.0";
+import { expect } from "expect";
+import { describe, it } from "bdd";
 import type { AuditEvent } from "domain/audit/audit_event.ts";
 import type { EventStoreRepository } from "domain/audit/event_store_repository.ts";
 import type { TenantLimits } from "domain/metrics/tenant_limits.ts";
@@ -43,8 +44,8 @@ function createUsageEvent(occurredOn: string, totalTokens: number): AuditEvent {
 	};
 }
 
-Deno.test("TenantLimitsGuard", async (t) => {
-	await t.step("blocks file creation at storage limit plus buffer", async () => {
+describe("TenantLimitsGuard", () => {
+	it("blocks file creation at storage limit plus buffer", async () => {
 		const guard = createGuard({
 			nodeRepository: {
 				aggregateTotalSize: () => Promise.resolve(right(1_049_999_999)),
@@ -53,12 +54,14 @@ Deno.test("TenantLimitsGuard", async (t) => {
 
 		const result = await guard.ensureCanCreateFile(1);
 
-		assert(result.isLeft());
-		assert(result.value instanceof ForbiddenError);
-		assertEquals(result.value.message, "Storage limit exceeded for this tenant");
+		expect(result.isLeft()).toBeTruthy();
+		expect(result.value instanceof ForbiddenError).toBeTruthy();
+		expect((result.value as ForbiddenError).message).toEqual(
+			"Storage limit exceeded for this tenant",
+		);
 	});
 
-	await t.step("allows file update that reduces usage below storage threshold", async () => {
+	it("allows file update that reduces usage below storage threshold", async () => {
 		const guard = createGuard({
 			nodeRepository: {
 				aggregateTotalSize: () => Promise.resolve(right(1_060_000_000)),
@@ -67,10 +70,10 @@ Deno.test("TenantLimitsGuard", async (t) => {
 
 		const result = await guard.ensureCanUpdateFile(100_000_000, 80_000_000);
 
-		assert(result.isRight());
+		expect(result.isRight()).toBeTruthy();
 	});
 
-	await t.step("skips storage enforcement for pay-as-you-go", async () => {
+	it("skips storage enforcement for pay-as-you-go", async () => {
 		const guard = createGuard({
 			nodeRepository: {
 				aggregateTotalSize: () => Promise.resolve(right(9_000_000_000)),
@@ -83,10 +86,10 @@ Deno.test("TenantLimitsGuard", async (t) => {
 
 		const result = await guard.ensureCanCreateFile(9_000_000_000);
 
-		assert(result.isRight());
+		expect(result.isRight()).toBeTruthy();
 	});
 
-	await t.step("blocks agent execution at token limit plus buffer", async () => {
+	it("blocks agent execution at token limit plus buffer", async () => {
 		const guard = createGuard({
 			eventStore: {
 				getStreamsByMimetype: () =>
@@ -100,12 +103,14 @@ Deno.test("TenantLimitsGuard", async (t) => {
 
 		const result = await guard.ensureCanRunAgent(new Date("2026-03-21T12:00:00Z"));
 
-		assert(result.isLeft());
-		assert(result.value instanceof ForbiddenError);
-		assertEquals(result.value.message, "Agent token limit exceeded for the current month");
+		expect(result.isLeft()).toBeTruthy();
+		expect(result.value instanceof ForbiddenError).toBeTruthy();
+		expect((result.value as ForbiddenError).message).toEqual(
+			"Agent token limit exceeded for the current month",
+		);
 	});
 
-	await t.step("excludes cache reads from the agent execution limit", async () => {
+	it("excludes cache reads from the agent execution limit", async () => {
 		const cachedRun: AuditEvent = {
 			...createUsageEvent("2026-03-10T10:00:00Z", 2_000_000),
 			payload: {
@@ -126,10 +131,10 @@ Deno.test("TenantLimitsGuard", async (t) => {
 
 		const result = await guard.ensureCanRunAgent(new Date("2026-03-21T12:00:00Z"));
 
-		assert(result.isRight());
+		expect(result.isRight()).toBe(true);
 	});
 
-	await t.step("counts cache writes towards the agent execution limit", async () => {
+	it("counts cache writes towards the agent execution limit", async () => {
 		const writtenRun: AuditEvent = {
 			...createUsageEvent("2026-03-10T10:00:00Z", 2_000_000),
 			payload: {
@@ -151,10 +156,10 @@ Deno.test("TenantLimitsGuard", async (t) => {
 
 		const result = await guard.ensureCanRunAgent(new Date("2026-03-21T12:00:00Z"));
 
-		assert(result.isLeft());
+		expect(result.isLeft()).toBe(true);
 	});
 
-	await t.step("counts only the current month for agent execution limits", async () => {
+	it("counts only the current month for agent execution limits", async () => {
 		const guard = createGuard({
 			eventStore: {
 				getStreamsByMimetype: () =>
@@ -171,10 +176,10 @@ Deno.test("TenantLimitsGuard", async (t) => {
 
 		const result = await guard.ensureCanRunAgent(new Date("2026-03-21T12:00:00Z"));
 
-		assert(result.isRight());
+		expect(result.isRight()).toBeTruthy();
 	});
 
-	await t.step("skips token enforcement for pay-as-you-go", async () => {
+	it("skips token enforcement for pay-as-you-go", async () => {
 		const guard = createGuard({
 			eventStore: {
 				getStreamsByMimetype: () =>
@@ -192,6 +197,6 @@ Deno.test("TenantLimitsGuard", async (t) => {
 
 		const result = await guard.ensureCanRunAgent(new Date("2026-03-21T12:00:00Z"));
 
-		assert(result.isRight());
+		expect(result.isRight()).toBeTruthy();
 	});
 });

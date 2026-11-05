@@ -1,5 +1,6 @@
 import { describe, it } from "bdd";
 import { expect } from "expect";
+import fs from "node:fs/promises";
 
 const README_PATH = new URL("../../../README.md", import.meta.url);
 const MCP_DOC_PATH = new URL("../../../docs/mcp.md", import.meta.url);
@@ -24,8 +25,8 @@ const NAME_PARAMETER_BY_METHOD: Record<string, "name" | "uri"> = {
 
 async function readDocs(): Promise<Docs> {
 	return {
-		readme: await Deno.readTextFile(README_PATH),
-		mcpDoc: await Deno.readTextFile(MCP_DOC_PATH),
+		readme: await fs.readFile(README_PATH, "utf-8"),
+		mcpDoc: await fs.readFile(MCP_DOC_PATH, "utf-8"),
 	};
 }
 

@@ -1,3 +1,4 @@
+import { fileMimetype } from "shared/mimetype.ts";
 import { FileNode } from "./file_node.ts";
 import { FolderNode } from "./folder_node.ts";
 import { MetaNode } from "./meta_node.ts";
@@ -49,8 +50,8 @@ export class Nodes {
 
 	static isJavascript(file: File) {
 		return (
-			file.type.startsWith("application/javascript") ||
-			file.type.startsWith("text/javascript")
+			fileMimetype(file).startsWith("application/javascript") ||
+			fileMimetype(file).startsWith("text/javascript")
 		);
 	}
 

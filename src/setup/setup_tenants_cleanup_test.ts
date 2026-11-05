@@ -1,4 +1,8 @@
+import { describe, it } from "bdd";
 import { expect } from "expect";
+import fs from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { setupTenants } from "./setup_tenants.ts";
 import type { ServerConfiguration, TenantConfiguration } from "api/http_server_configuration.ts";
 import { loadPiCodingAgent } from "application/ai/pi_coding_agent.ts";
@@ -6,9 +10,9 @@ import { loadPiCodingAgent } from "application/ai/pi_coding_agent.ts";
 await loadPiCodingAgent();
 
 async function fixture() {
-	const directory = await Deno.makeTempDir();
+	const directory = await fs.mkdtemp(join(tmpdir(), "antbox-"));
 	const modulePath = `${directory}/adapter.ts`;
-	await Deno.writeTextFile(
+	await fs.writeFile(
 		modulePath,
 		`
 import { right } from "shared/either.ts";
@@ -30,7 +34,7 @@ export default async function build(kind: string, id: string, failClose?: string
 }
 `,
 	);
-	await Deno.writeTextFile(`${directory}/jwks.json`, JSON.stringify({ keys: [] }));
+	await fs.writeFile(`${directory}/jwks.json`, JSON.stringify({ keys: [] }));
 	const adapter = await import(modulePath) as { closed: string[] };
 	const tenant = (name: string): TenantConfiguration => ({
 		name,
@@ -49,42 +53,44 @@ export default async function build(kind: string, id: string, failClose?: string
 	return { directory, modulePath, adapter, tenant, configuration };
 }
 
-Deno.test("failed tenant setup closes new providers in reverse order and keeps the original error", async () => {
-	const test = await fixture();
-	try {
-		await setupTenants(test.configuration([test.tenant("already-active")]));
-		expect(test.adapter.closed).toEqual([]);
-		await expect(setupTenants(test.configuration([
-			test.tenant("first"),
-			{ ...test.tenant("second"), eventStoreRepository: [test.modulePath, "fail"] },
-		]))).rejects.toThrow("provider initialization failed");
-		expect(test.adapter.closed).toEqual([
-			"second:storage",
-			"second:repository",
-			"first:configuration",
-			"first:events",
-			"first:storage",
-			"first:repository",
-		]);
-	} finally {
-		await Deno.remove(test.directory, { recursive: true });
-	}
-});
+describe("setupTenants cleanup", () => {
+	it("failed tenant setup closes new providers in reverse order and keeps the original error", async () => {
+		const test = await fixture();
+		try {
+			await setupTenants(test.configuration([test.tenant("already-active")]));
+			expect(test.adapter.closed).toEqual([]);
+			await expect(setupTenants(test.configuration([
+				test.tenant("first"),
+				{ ...test.tenant("second"), eventStoreRepository: [test.modulePath, "fail"] },
+			]))).rejects.toThrow("provider initialization failed");
+			expect(test.adapter.closed).toEqual([
+				"second:storage",
+				"second:repository",
+				"first:configuration",
+				"first:events",
+				"first:storage",
+				"first:repository",
+			]);
+		} finally {
+			await fs.rm(test.directory, { recursive: true });
+		}
+	});
 
-Deno.test("invalid tenant key files reject setup and close earlier tenant providers", async () => {
-	const test = await fixture();
-	try {
-		await expect(setupTenants(test.configuration([
-			test.tenant("first"),
-			{ ...test.tenant("second"), key: `${test.directory}/missing.key` },
-		]))).rejects.toThrow();
-		expect(test.adapter.closed).toEqual([
-			"first:configuration",
-			"first:events",
-			"first:storage",
-			"first:repository",
-		]);
-	} finally {
-		await Deno.remove(test.directory, { recursive: true });
-	}
+	it("invalid tenant key files reject setup and close earlier tenant providers", async () => {
+		const test = await fixture();
+		try {
+			await expect(setupTenants(test.configuration([
+				test.tenant("first"),
+				{ ...test.tenant("second"), key: `${test.directory}/missing.key` },
+			]))).rejects.toThrow();
+			expect(test.adapter.closed).toEqual([
+				"first:configuration",
+				"first:events",
+				"first:storage",
+				"first:repository",
+			]);
+		} finally {
+			await fs.rm(test.directory, { recursive: true });
+		}
+	});
 });

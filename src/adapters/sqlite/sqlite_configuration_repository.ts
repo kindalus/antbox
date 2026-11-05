@@ -1,4 +1,5 @@
-import { Database } from "jsr:@db/sqlite@0.13.0";
+import fsSync from "node:fs";
+import { DatabaseSync } from "node:sqlite";
 
 import type {
 	CollectionMap,
@@ -35,15 +36,15 @@ export class SqliteConfigurationError extends AntboxError {
 }
 
 export class SqliteConfigurationRepository implements ConfigurationRepository {
-	readonly #db: Database;
+	readonly #db: DatabaseSync;
 	readonly #existingTables: Set<string>;
 
 	constructor(baseFolder?: string) {
 		if (baseFolder) {
-			Deno.mkdirSync(baseFolder, { recursive: true });
-			this.#db = new Database(`${baseFolder}/config.db`);
+			fsSync.mkdirSync(baseFolder, { recursive: true });
+			this.#db = new DatabaseSync(`${baseFolder}/config.db`);
 		} else {
-			this.#db = new Database(":memory:");
+			this.#db = new DatabaseSync(":memory:");
 		}
 
 		this.#existingTables = new Set();
@@ -97,11 +98,10 @@ export class SqliteConfigurationRepository implements ConfigurationRepository {
 			const uuid = this.#extractKey(collection, data);
 			const body = JSON.stringify(data);
 
-			this.#db.exec(
+			this.#db.prepare(
 				`INSERT INTO ${tableName} (uuid, body) VALUES (?, ?)
 				 ON CONFLICT(uuid) DO UPDATE SET body = excluded.body`,
-				[uuid, body],
-			);
+			).run(uuid, body);
 
 			return Promise.resolve(right(data));
 		} catch (err) {
@@ -173,7 +173,7 @@ export class SqliteConfigurationRepository implements ConfigurationRepository {
 				);
 			}
 
-			this.#db.exec(`DELETE FROM ${tableName} WHERE uuid = ?`, [uuid]);
+			this.#db.prepare(`DELETE FROM ${tableName} WHERE uuid = ?`).run(uuid);
 
 			return Promise.resolve(right(undefined));
 		} catch (err) {

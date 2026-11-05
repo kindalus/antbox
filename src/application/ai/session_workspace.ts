@@ -1,6 +1,9 @@
 import type { AgentData } from "domain/configuration/agent_data.ts";
 import { AgentDataSchema } from "domain/configuration/agent_schema.ts";
+import fs from "node:fs/promises";
+import fsSync from "node:fs";
 import { basename, join } from "node:path";
+import { isNotFoundError, isNotSupportedError } from "shared/fs_errors.ts";
 import type { LoadedSkill, SkillFrontmatter } from "./skills_loader.ts";
 import { z } from "zod";
 
@@ -104,16 +107,16 @@ export class SessionWorkspaceStore {
 		};
 		const tempDir = join(this.root, `.${sessionId}.tmp`);
 		const dir = this.sessionDir(sessionId);
-		await Deno.mkdir(this.root, { recursive: true, mode: 0o700 });
-		await Deno.mkdir(tempDir, { recursive: false, mode: 0o700 });
+		await fs.mkdir(this.root, { recursive: true, mode: 0o700 });
+		await fs.mkdir(tempDir, { recursive: false, mode: 0o700 });
 		try {
 			const skills = await snapshotSkills(input.skills, join(tempDir, "resources", "skills"));
-			await Deno.writeTextFile(
+			await fs.writeFile(
 				join(tempDir, "manifest.json"),
 				JSON.stringify(manifest, null, 2),
 				{ mode: 0o600 },
 			);
-			await Deno.rename(tempDir, dir);
+			await fs.rename(tempDir, dir);
 			return {
 				dir,
 				manifest,
@@ -165,8 +168,8 @@ export class SessionWorkspaceStore {
 
 	async sweepExpired(): Promise<void> {
 		try {
-			for await (const entry of Deno.readDir(this.root)) {
-				if (!entry.isDirectory || !SESSION_ID_PATTERN.test(entry.name)) continue;
+			for (const entry of await fs.readdir(this.root, { withFileTypes: true })) {
+				if (!entry.isDirectory() || !SESSION_ID_PATTERN.test(entry.name)) continue;
 				const dir = join(this.root, entry.name);
 				try {
 					const manifest = await readManifest(dir);
@@ -176,7 +179,7 @@ export class SessionWorkspaceStore {
 				}
 			}
 		} catch (error) {
-			if (!(error instanceof Deno.errors.NotFound)) throw error;
+			if (!isNotFoundError(error)) throw error;
 		}
 	}
 
@@ -185,8 +188,10 @@ export class SessionWorkspaceStore {
 	}
 
 	findSessionFile(workspace: SessionWorkspace): string {
-		for (const entry of Deno.readDirSync(workspace.dir)) {
-			if (entry.isFile && entry.name.endsWith(".jsonl")) return join(workspace.dir, entry.name);
+		for (const entry of fsSync.readdirSync(workspace.dir, { withFileTypes: true })) {
+			if (entry.isFile() && entry.name.endsWith(".jsonl")) {
+				return join(workspace.dir, entry.name);
+			}
 		}
 		throw new Error("Session data is missing");
 	}
@@ -199,10 +204,10 @@ export class SessionWorkspaceStore {
 
 async function readManifest(dir: string): Promise<SessionManifest> {
 	try {
-		const raw = JSON.parse(await Deno.readTextFile(join(dir, "manifest.json")));
+		const raw = JSON.parse(await fs.readFile(join(dir, "manifest.json"), "utf-8"));
 		return SessionManifestSchema.parse(raw) as SessionManifest;
 	} catch (error) {
-		if (error instanceof Deno.errors.NotFound) throw new Error("Session not found");
+		if (isNotFoundError(error)) throw new Error("Session not found");
 		throw new Error(`Invalid session: ${error}`);
 	}
 }
@@ -214,12 +219,12 @@ async function snapshotSkills(
 	const snapshots: LoadedSkill[] = [];
 	for (const skill of skills) {
 		const target = join(root, skill.frontmatter.name);
-		await Deno.mkdir(target, { recursive: true, mode: 0o700 });
+		await fs.mkdir(target, { recursive: true, mode: 0o700 });
 		if (basename(skill.skillDir) === skill.frontmatter.name) {
 			await copyTree(skill.skillDir, target, { files: 0, bytes: 0 });
 		} else {
 			const targetFile = join(target, "SKILL.md");
-			await Deno.copyFile(skill.skillFile, targetFile);
+			await fs.copyFile(skill.skillFile, targetFile);
 			await setMode(targetFile, 0o600);
 		}
 		snapshots.push({
@@ -236,23 +241,25 @@ async function copyTree(
 	target: string,
 	budget: { files: number; bytes: number },
 ): Promise<void> {
-	for await (const entry of Deno.readDir(source)) {
-		if (entry.isSymlink) throw new Error(`Skill snapshots do not allow symlinks: ${entry.name}`);
+	for (const entry of await fs.readdir(source, { withFileTypes: true })) {
+		if (entry.isSymbolicLink()) {
+			throw new Error(`Skill snapshots do not allow symlinks: ${entry.name}`);
+		}
 		const from = join(source, entry.name);
 		const to = join(target, entry.name);
-		if (entry.isDirectory) {
-			await Deno.mkdir(to, { recursive: false, mode: 0o700 });
+		if (entry.isDirectory()) {
+			await fs.mkdir(to, { recursive: false, mode: 0o700 });
 			await copyTree(from, to, budget);
 			continue;
 		}
-		if (!entry.isFile) throw new Error(`Unsupported skill entry: ${entry.name}`);
-		const size = (await Deno.stat(from)).size;
+		if (!entry.isFile()) throw new Error(`Unsupported skill entry: ${entry.name}`);
+		const size = (await fs.stat(from)).size;
 		budget.files++;
 		budget.bytes += size;
 		if (budget.files > MAX_SKILL_FILES || budget.bytes > MAX_SKILL_BYTES) {
 			throw new Error("Skill snapshot exceeds the allowed size");
 		}
-		await Deno.copyFile(from, to);
+		await fs.copyFile(from, to);
 		await setMode(to, 0o600);
 	}
 }
@@ -280,16 +287,16 @@ function snapshotSkill(sessionDir: string, frontmatter: SkillFrontmatter): Loade
 
 async function setMode(path: string, mode: number): Promise<void> {
 	try {
-		await Deno.chmod(path, mode);
+		await fs.chmod(path, mode);
 	} catch (error) {
-		if (!(error instanceof Deno.errors.NotSupported)) throw error;
+		if (!isNotSupportedError(error)) throw error;
 	}
 }
 
 async function removeIfExists(path: string): Promise<void> {
 	try {
-		await Deno.remove(path, { recursive: true });
+		await fs.rm(path, { recursive: true });
 	} catch (error) {
-		if (!(error instanceof Deno.errors.NotFound)) throw error;
+		if (!isNotFoundError(error)) throw error;
 	}
 }

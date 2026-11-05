@@ -1,3 +1,4 @@
+import { it } from "bdd";
 import { expect } from "expect";
 import { InMemoryConfigurationRepository } from "adapters/inmem/inmem_configuration_repository.ts";
 import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository.ts";
@@ -18,7 +19,7 @@ const admin: AuthenticationContext = {
 	principal: { email: Users.ROOT_USER_EMAIL, groups: [Groups.ADMINS_GROUP_UUID] },
 };
 
-Deno.test("aspect UUID validation rejects malformed values before repository lookup", async () => {
+it("aspect UUID validation rejects malformed values before repository lookup", async () => {
 	const configRepo = new InMemoryConfigurationRepository();
 	const service = new AspectsService(configRepo);
 	let lookups = 0;
@@ -54,7 +55,7 @@ Deno.test("aspect UUID validation rejects malformed values before repository loo
 	expect(lookups).toBe(0);
 });
 
-Deno.test("searchable aspect properties survive save and update and populate fulltext", async () => {
+it("searchable aspect properties survive save and update and populate fulltext", async () => {
 	const configRepo = new InMemoryConfigurationRepository();
 	const aspects = new AspectsService(configRepo);
 	const property: AspectProperty = {

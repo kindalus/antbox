@@ -2,11 +2,11 @@ import { it } from "bdd";
 import { expect } from "expect";
 import { Agent, type AgentTool } from "@earendil-works/pi-agent-core";
 import { fauxAssistantMessage, fauxProvider, fauxToolCall, Type } from "@earendil-works/pi-ai";
-import { fromFileUrl } from "jsr:@std/path@1.1.2";
+import { fileURLToPath } from "node:url";
 import { loadSkillInstruction, loadSkills } from "./skills_loader.ts";
 
 it("Pi core loads an Antbox skill progressively in Deno", async () => {
-	const builtinSkillsDir = fromFileUrl(new URL("./builtin_skills", import.meta.url));
+	const builtinSkillsDir = fileURLToPath(new URL("./builtin_skills", import.meta.url));
 	const skills = await loadSkills(builtinSkillsDir, undefined, {
 		includeDocumentationSkills: false,
 	});

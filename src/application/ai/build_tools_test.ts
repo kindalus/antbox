@@ -1,6 +1,6 @@
 import { describe, it } from "bdd";
 import { expect } from "expect";
-import { fromFileUrl } from "jsr:@std/path@1.1.2";
+import { fileURLToPath } from "node:url";
 import { buildToolSet, type BuildToolSetContext } from "./build_tools.ts";
 import { loadSkills } from "./skills_loader.ts";
 import { right } from "shared/either.ts";
@@ -48,7 +48,7 @@ describe("buildToolSet", () => {
 	});
 
 	it("loads only skills allowed for the agent", async () => {
-		const builtinSkillsDir = fromFileUrl(new URL("./builtin_skills", import.meta.url));
+		const builtinSkillsDir = fileURLToPath(new URL("./builtin_skills", import.meta.url));
 		const skills = await loadSkills(builtinSkillsDir, undefined, {
 			includeDocumentationSkills: false,
 		});

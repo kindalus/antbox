@@ -1,3 +1,4 @@
+import process from "node:process";
 import { afterAll, beforeAll, describe, test } from "bdd";
 import { expect } from "expect";
 import { providerFrom } from "../module_configuration_parser.ts";
@@ -13,7 +14,7 @@ let repo: NodeRepository;
 const uuids = Array.from({ length: 4 }, () => UuidGenerator.generate());
 
 beforeAll(async () => {
-	const args = Deno.env.get("TEST_PARAMS")?.split(";");
+	const args = process.env.TEST_PARAMS?.split(";");
 	if (!args) {
 		throw new Error("No test arguments provided.");
 	}

@@ -1,3 +1,4 @@
+import process from "node:process";
 import { describe, it } from "bdd";
 import { expect } from "expect";
 import { loadPiCodingAgent } from "./pi_coding_agent.ts";
@@ -6,13 +7,13 @@ import { createModelRuntime } from "./resolve_model.ts";
 await loadPiCodingAgent();
 
 async function withEnv(name: string, value: string, run: () => Promise<void>): Promise<void> {
-	const original = Deno.env.get(name);
-	Deno.env.set(name, value);
+	const original = process.env[name];
+	process.env[name] = value;
 	try {
 		await run();
 	} finally {
-		if (original === undefined) Deno.env.delete(name);
-		else Deno.env.set(name, original);
+		if (original === undefined) delete process.env[name];
+		else process.env[name] = original;
 	}
 }
 

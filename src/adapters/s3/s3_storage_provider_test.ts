@@ -1,6 +1,8 @@
+import { fileMimetype } from "shared/mimetype.ts";
+import { it } from "bdd";
 import { expect } from "expect";
-import { stub } from "mock";
-import { S3Client } from "s3";
+import { stub } from "shared/testing/stub.ts";
+import { S3Client } from "@aws-sdk/client-s3";
 import { S3StorageProvider } from "./s3_storage_provider.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import { UnknownError } from "shared/antbox_error.ts";
@@ -13,31 +15,20 @@ import { Users } from "domain/users_groups/users.ts";
 
 type Command = { constructor: { name: string }; input: Record<string, unknown> };
 
-function fakeClient(send: (command: Command) => Promise<unknown>, deleteError?: Error): S3Client {
-	return {
-		realS3Client: () => ({ send }),
-		file: () => ({
-			name: "stored-file",
-			type: () => Promise.resolve("text/plain"),
-			arrayBuffer: () => Promise.resolve(new TextEncoder().encode("content").buffer),
-		}),
-		delete: () => deleteError ? Promise.reject(deleteError) : Promise.resolve(),
-	} as unknown as S3Client;
+function fakeClient(send: (command: Command) => Promise<unknown>): S3Client {
+	return { send } as unknown as S3Client;
 }
 
 function serviceError(name: string, httpStatusCode: number): Error {
 	return Object.assign(new Error(name), { name, $metadata: { httpStatusCode } });
 }
 
-Deno.test("S3 deletes directly without fetching bytes and accepts idempotent success", async () => {
+it("S3 deletes directly without fetching bytes and accepts idempotent success", async () => {
 	const commands: Command[] = [];
 	const client = fakeClient((command) => {
 		commands.push(command);
 		return Promise.resolve({ $metadata: { httpStatusCode: 204 } });
 	});
-	client.file = () => {
-		throw new Error("DELETE must not download the object");
-	};
 	const storage = new S3StorageProvider(client, "test-bucket");
 	for (let index = 0; index < 2; index++) {
 		expect((await storage.delete("abcd-file")).isRight()).toBe(true);
@@ -49,7 +40,7 @@ Deno.test("S3 deletes directly without fetching bytes and accepts idempotent suc
 	expect(commands[0].input).toEqual({ Bucket: "test-bucket", Key: "nodes/A/B/abcd-file" });
 });
 
-Deno.test("S3 reads use object bytes and content type and report body failures", async () => {
+it("S3 reads use object bytes and content type and report body failures", async () => {
 	const commands: Command[] = [];
 	const storage = new S3StorageProvider(
 		fakeClient((command) => {
@@ -65,7 +56,7 @@ Deno.test("S3 reads use object bytes and content type and report body failures",
 	);
 	const file = (await storage.read("abcd-file")).right;
 	expect(await file.text()).toBe("download");
-	expect(file.type).toBe("text/markdown");
+	expect(fileMimetype(file)).toBe("text/markdown");
 	expect(commands.map((command) => command.constructor.name)).toEqual(["GetObjectCommand"]);
 	for (
 		const body of [undefined, {
@@ -80,7 +71,7 @@ Deno.test("S3 reads use object bytes and content type and report body failures",
 	}
 });
 
-Deno.test("S3 distinguishes missing objects from permissions, bucket and network failures", async () => {
+it("S3 distinguishes missing objects from permissions, bucket and network failures", async () => {
 	for (
 		const error of [
 			serviceError("NoSuchKey", 404),
@@ -91,11 +82,7 @@ Deno.test("S3 distinguishes missing objects from permissions, bucket and network
 			new TypeError("network failed"),
 		]
 	) {
-		const client = fakeClient(() => Promise.reject(error), error);
-		client.file = () =>
-			({
-				type: () => Promise.reject(error),
-			}) as ReturnType<S3Client["file"]>;
+		const client = fakeClient(() => Promise.reject(error));
 		const storage = new S3StorageProvider(client, "test-bucket");
 		const expected = ["NoSuchKey", "NotFound"].includes(error.name)
 			? NodeNotFoundError
@@ -107,14 +94,12 @@ Deno.test("S3 distinguishes missing objects from permissions, bucket and network
 	}
 });
 
-Deno.test("S3 uploads send bytes and the requested MIME type through the configured client", async () => {
+it("S3 uploads send bytes and the requested MIME type through the configured client", async () => {
 	const client = new S3Client({
 		region: "us-east-1",
-		accessKeyId: "test-key",
-		secretAccessKey: "test-secret",
-		bucket: "test-bucket",
+		credentials: { accessKeyId: "test-key", secretAccessKey: "test-secret" },
 	});
-	const sdk = client.realS3Client();
+	const sdk = client;
 	const commands: Command[] = [];
 	const send = stub(
 		sdk,
@@ -145,10 +130,10 @@ Deno.test("S3 uploads send bytes and the requested MIME type through the configu
 	}
 });
 
-Deno.test("NodeService keeps metadata when S3 deletion is denied", async () => {
+it("NodeService keeps metadata when S3 deletion is denied", async () => {
 	const denied = serviceError("AccessDenied", 403);
 	const storage = new S3StorageProvider(
-		fakeClient(() => Promise.reject(denied), denied),
+		fakeClient(() => Promise.reject(denied)),
 		"test-bucket",
 	);
 	const repository = new InMemoryNodeRepository();

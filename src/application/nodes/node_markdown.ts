@@ -1,5 +1,5 @@
 import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
-import { stringify as yamlStringify } from "@std/yaml";
+import { stringify as yamlStringify } from "yaml";
 
 export function toYamlMetadata(node: NodeMetadata): string {
 	const filtered: Record<string, unknown> = {};
@@ -9,7 +9,7 @@ export function toYamlMetadata(node: NodeMetadata): string {
 		}
 	}
 
-	return yamlStringify(filtered).trimEnd();
+	return yamlStringify(filtered, { lineWidth: 0 }).trimEnd();
 }
 
 export function embeddingMarkdownBody(markdown: string): string {

@@ -1,4 +1,7 @@
-import { type BindValue, Database } from "jsr:@db/sqlite@0.13.0";
+import fsSync from "node:fs";
+import { DatabaseSync, type SQLOutputValue } from "node:sqlite";
+
+import { type BindValue, toSqlValues } from "./bind.ts";
 
 import { NodeFactory } from "domain/node_factory.ts";
 import { Logger } from "shared/logger.ts";
@@ -49,14 +52,14 @@ export class SqliteError extends AntboxError {
 }
 
 export class SqliteNodeRepository implements NodeRepository {
-	readonly #db: Database;
+	readonly #db: DatabaseSync;
 
 	constructor(baseFolder?: string) {
 		if (baseFolder) {
-			Deno.mkdirSync(baseFolder, { recursive: true });
-			this.#db = new Database(`${baseFolder}/nodes.db`);
+			fsSync.mkdirSync(baseFolder, { recursive: true });
+			this.#db = new DatabaseSync(`${baseFolder}/nodes.db`);
 		} else {
-			this.#db = new Database(":memory:");
+			this.#db = new DatabaseSync(":memory:");
 		}
 
 		this.#initialize();
@@ -97,8 +100,11 @@ export class SqliteNodeRepository implements NodeRepository {
 		}
 	}
 
-	#cosineSimilarityFn = (vectorAJson: string | null, vectorBJson: string | null): number => {
-		if (!vectorAJson || !vectorBJson) {
+	#cosineSimilarityFn = (vectorAJson: SQLOutputValue, vectorBJson: SQLOutputValue): number => {
+		if (
+			typeof vectorAJson !== "string" || typeof vectorBJson !== "string" || !vectorAJson ||
+			!vectorBJson
+		) {
 			return 0;
 		}
 
@@ -144,10 +150,9 @@ export class SqliteNodeRepository implements NodeRepository {
 	): Promise<Either<AntboxError, void>> {
 		try {
 			const embeddingJson = JSON.stringify(embedding);
-			this.#db.exec(
+			this.#db.prepare(
 				"UPDATE nodes SET embedding = ?, embedding_content_md = ? WHERE uuid = ?",
-				[embeddingJson, contentMd, uuid],
-			);
+			).run(embeddingJson, contentMd, uuid);
 			return Promise.resolve(right(undefined));
 		} catch (err) {
 			const error = err as Error;
@@ -203,10 +208,9 @@ export class SqliteNodeRepository implements NodeRepository {
 
 	deleteEmbedding(uuid: string): Promise<Either<AntboxError, void>> {
 		try {
-			this.#db.exec(
+			this.#db.prepare(
 				"UPDATE nodes SET embedding = NULL, embedding_content_md = NULL WHERE uuid = ?",
-				[uuid],
-			);
+			).run(uuid);
 			return Promise.resolve(right(undefined));
 		} catch (err) {
 			const error = err as Error;
@@ -232,10 +236,7 @@ export class SqliteNodeRepository implements NodeRepository {
 	add(node: NodeLike): Promise<Either<DuplicatedNodeError, void>> {
 		try {
 			const body = JSON.stringify(node.metadata);
-			this.#db.exec(
-				"INSERT INTO nodes (uuid, body) VALUES (?, ?)",
-				[node.uuid, body],
-			);
+			this.#db.prepare("INSERT INTO nodes (uuid, body) VALUES (?, ?)").run(node.uuid, body);
 			return Promise.resolve(right(undefined));
 		} catch (err) {
 			const error = err as Error;
@@ -331,10 +332,7 @@ export class SqliteNodeRepository implements NodeRepository {
 
 		try {
 			const body = JSON.stringify(node.metadata);
-			this.#db.exec(
-				"UPDATE nodes SET body = ? WHERE uuid = ?",
-				[body, node.uuid],
-			);
+			this.#db.prepare("UPDATE nodes SET body = ? WHERE uuid = ?").run(body, node.uuid);
 			return right(undefined);
 		} catch (_err) {
 			return left(new NodeNotFoundError(node.uuid));
@@ -360,7 +358,7 @@ export class SqliteNodeRepository implements NodeRepository {
 		}
 
 		try {
-			this.#db.exec("DELETE FROM nodes WHERE uuid = ?", [uuid]);
+			this.#db.prepare("DELETE FROM nodes WHERE uuid = ?").run(uuid);
 			return right(undefined);
 		} catch (_err) {
 			return left(new NodeNotFoundError(uuid));
@@ -380,7 +378,7 @@ export class SqliteNodeRepository implements NodeRepository {
 			}
 
 			const { sql, params } = this.#buildFilterQuery(filters, pageSize, offset);
-			const rows = this.#db.prepare(sql).all(...params) as { body: string }[];
+			const rows = this.#db.prepare(sql).all(...toSqlValues(params)) as { body: string }[];
 
 			const nodes = rows
 				.map((row) => {

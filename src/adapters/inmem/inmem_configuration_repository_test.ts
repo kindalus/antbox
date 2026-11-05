@@ -1,8 +1,9 @@
+import { it } from "bdd";
 import { expect } from "expect";
 import { InMemoryConfigurationRepository } from "./inmem_configuration_repository.ts";
 import type { UserData } from "domain/configuration/user_data.ts";
 
-Deno.test("in-memory configuration saves a snapshot of user groups", async () => {
+it("in-memory configuration saves a snapshot of user groups", async () => {
 	const repository = new InMemoryConfigurationRepository();
 	const user: UserData = {
 		email: "user@example.com",
@@ -21,7 +22,7 @@ Deno.test("in-memory configuration saves a snapshot of user groups", async () =>
 	expect((await repository.get("users", user.email)).right.groups).toEqual(["editors"]);
 });
 
-Deno.test("in-memory configuration reads return detached nested preferences", async () => {
+it("in-memory configuration reads return detached nested preferences", async () => {
 	const repository = new InMemoryConfigurationRepository();
 	const preferences = {
 		email: "user@example.com",
@@ -38,7 +39,7 @@ Deno.test("in-memory configuration reads return detached nested preferences", as
 	expect((await repository.get("userPreferences", preferences.email)).right).toEqual(expected);
 });
 
-Deno.test("in-memory configuration rejects uncloneable saves without changing stored state", async () => {
+it("in-memory configuration rejects uncloneable saves without changing stored state", async () => {
 	const repository = new InMemoryConfigurationRepository();
 	const preferences = { email: "user@example.com", preferences: { nested: { theme: "dark" } } };
 	expect((await repository.save("userPreferences", preferences)).isRight()).toBe(true);

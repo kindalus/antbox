@@ -405,7 +405,7 @@ paths:
             - admin
          summary: Get server runtime info
          operationId: getAdminRuntime
-         description: Returns Deno version, memory usage, OS uptime and tenant list. Root-only. Only available on the administrative tenant.
+         description: Returns runtime name and version, memory usage, OS uptime and tenant list. Root-only. Only available on the administrative tenant.
          security:
             - bearerAuth: []
             - cookieAuth: []
@@ -417,8 +417,15 @@ paths:
                      schema:
                         type: object
                         properties:
-                           deno:
+                           runtime:
                               type: object
+                              required: [name, version]
+                              properties:
+                                 name:
+                                    type: string
+                                    description: Runtime name (bun, deno or node)
+                                 version:
+                                    type: string
                            memory:
                               type: object
                            uptime:

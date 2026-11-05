@@ -10,6 +10,7 @@ import { processError } from "api/process_error.ts";
 import { processServiceResult } from "api/process_service_result.ts";
 import { type AntboxError, BadRequestError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
+import { fileMimetype } from "shared/mimetype.ts";
 
 export function listHandler(tenants: AntboxTenant[]): HttpHandler {
 	return defaultMiddlewareChain(
@@ -81,7 +82,7 @@ export function exportHandler(tenants: AntboxTenant[]): HttpHandler {
 			}
 
 			const response = new Response(fileOrErr.value);
-			response.headers.set("Content-Type", fileOrErr.value.type);
+			response.headers.set("Content-Type", fileMimetype(fileOrErr.value));
 			response.headers.set(
 				"Content-Disposition",
 				`attachment; filename="${fileOrErr.value.name}"`,

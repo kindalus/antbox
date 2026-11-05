@@ -1,3 +1,4 @@
+import fs from "node:fs/promises";
 import type { AntboxTenant } from "./antbox_tenant.ts";
 import { defaultMiddlewareChain } from "./default_middleware_chain.ts";
 import { getParams } from "./get_params.ts";
@@ -14,7 +15,7 @@ import { DOCS, loadDoc } from "../../docs/index.ts";
  */
 export function openapiSpecHandler(specPath: string): HttpHandler {
 	return async (_req: Request): Promise<Response> => {
-		const text = await Deno.readTextFile(specPath);
+		const text = await fs.readFile(specPath, "utf8");
 		return new Response(text, {
 			status: 200,
 			headers: { "Content-Type": "application/yaml" },

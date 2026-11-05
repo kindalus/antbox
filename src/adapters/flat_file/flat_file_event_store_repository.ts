@@ -1,10 +1,12 @@
 import { InMemoryEventStoreRepository } from "adapters/inmem/inmem_event_store_repository.ts";
 import type { AuditEvent } from "domain/audit/audit_event.ts";
 import type { EventStoreRepository } from "domain/audit/event_store_repository.ts";
-import { join } from "path";
+import fsSync from "node:fs";
+import { join } from "node:path";
 import { AntboxError, UnknownError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
 import { fileExistsSync } from "shared/os_helpers.ts";
+import { tempPath } from "shared/temp_path.ts";
 import { Logger } from "shared/logger.ts";
 import { z } from "zod";
 
@@ -40,7 +42,7 @@ export default function buildFlatFileEventStoreRepository(
 
 	try {
 		if (!fileExistsSync(eventsDir)) {
-			Deno.mkdirSync(eventsDir, { recursive: true });
+			fsSync.mkdirSync(eventsDir, { recursive: true });
 		}
 
 		const repository = new FlatFileEventStoreRepository(eventsDir);
@@ -64,19 +66,21 @@ class FlatFileEventStoreRepository implements EventStoreRepository {
 	}
 
 	loadAllStreams(): void {
-		for (const entry of Deno.readDirSync(this.#eventsDir)) {
-			if (!entry.isDirectory) continue;
+		for (const entry of fsSync.readdirSync(this.#eventsDir, { withFileTypes: true })) {
+			if (!entry.isDirectory()) continue;
 			const mimetype = this.#decodeMimetypeDirName(entry.name);
 			const mimetypeDir = join(this.#eventsDir, entry.name);
 
-			for (const streamFile of Deno.readDirSync(mimetypeDir)) {
-				if (!streamFile.isFile || !streamFile.name.endsWith(".json")) continue;
+			for (const streamFile of fsSync.readdirSync(mimetypeDir, { withFileTypes: true })) {
+				if (!streamFile.isFile() || !streamFile.name.endsWith(".json")) continue;
 				const streamId = streamFile.name.slice(0, -5);
 				const streamPath = join(mimetypeDir, streamFile.name);
 				const streamBackupPath = join(mimetypeDir, `${streamFile.name}.backup`);
-				const events = AuditStreamSchema.parse(JSON.parse(Deno.readTextFileSync(streamPath)));
+				const events = AuditStreamSchema.parse(
+					JSON.parse(fsSync.readFileSync(streamPath, "utf-8")),
+				);
 
-				Deno.copyFileSync(streamPath, streamBackupPath);
+				fsSync.copyFileSync(streamPath, streamBackupPath);
 
 				const mimetypeStreams = this.#base.streamsByMimetype.get(mimetype) || new Map();
 				mimetypeStreams.set(streamId, events);
@@ -102,23 +106,23 @@ class FlatFileEventStoreRepository implements EventStoreRepository {
 		const mimetypeDir = join(this.#eventsDir, this.#encodeMimetypeDirName(mimetype));
 
 		if (!fileExistsSync(mimetypeDir)) {
-			Deno.mkdirSync(mimetypeDir, { recursive: true });
+			fsSync.mkdirSync(mimetypeDir, { recursive: true });
 		}
 
 		const streamPath = this.#getStreamPath(streamId, mimetype);
 		const streamBackupPath = `${streamPath}.backup`;
 
 		if (fileExistsSync(streamPath)) {
-			Deno.copyFileSync(streamPath, streamBackupPath);
+			fsSync.copyFileSync(streamPath, streamBackupPath);
 		}
 
 		const rawData = this.#encoder.encode(JSON.stringify(events, null, 2));
-		const temporaryPath = Deno.makeTempFileSync({ dir: mimetypeDir, prefix: ".audit-" });
+		const temporaryPath = tempPath(mimetypeDir, ".audit-");
 		try {
-			Deno.writeFileSync(temporaryPath, rawData);
-			Deno.renameSync(temporaryPath, streamPath);
+			fsSync.writeFileSync(temporaryPath, rawData);
+			fsSync.renameSync(temporaryPath, streamPath);
 		} catch (err) {
-			Deno.removeSync(temporaryPath);
+			removeQuietly(temporaryPath);
 			throw err;
 		}
 	}
@@ -154,5 +158,13 @@ class FlatFileEventStoreRepository implements EventStoreRepository {
 		mimetype: string,
 	): Promise<Either<AntboxError, Map<string, AuditEvent[]>>> {
 		return this.#base.getStreamsByMimetype(mimetype);
+	}
+}
+
+function removeQuietly(path: string): void {
+	try {
+		fsSync.unlinkSync(path);
+	} catch {
+		// The original failure is the one worth reporting.
 	}
 }

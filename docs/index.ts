@@ -1,3 +1,7 @@
+import fs from "node:fs/promises";
+import { isAbsolute, relative, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
 export interface DocInfo {
 	uuid: string;
 	description: string;
@@ -111,7 +115,12 @@ export const DOCS: DocInfo[] = [
 	},
 ];
 
-const DOCS_DIR = "./";
+function isInside(directory: string, path: string): boolean {
+	const rel = relative(directory, path);
+	return rel !== "" && !rel.startsWith("..") && !isAbsolute(rel);
+}
+
+const DOCS_DIR = fileURLToPath(new URL("./", import.meta.url));
 
 function stripFrontmatter(markdown: string): string {
 	const match = markdown.match(/^---\r?\n[\s\S]*?\r?\n---\r?\n?([\s\S]*)$/);
@@ -129,10 +138,9 @@ export async function loadDoc(
 	uuid: string,
 ): Promise<{ content: string; mimetype: string } | null> {
 	try {
-		const content = await import(`${DOCS_DIR}${uuid}.md`, {
-			with: { type: "text" },
-		});
-		const markdown = content.default ? content.default : content;
+		const path = resolve(DOCS_DIR, `${uuid}.md`);
+		if (!isInside(DOCS_DIR, path)) return null;
+		const markdown = await fs.readFile(path, "utf8");
 
 		return {
 			content: stripFrontmatter(markdown),

@@ -1,4 +1,5 @@
-import { stringify } from "toml";
+import { stringify } from "smol-toml";
+import fs from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { getDefaultConfigDir } from "./load_configuration.ts";
 import {
@@ -6,6 +7,8 @@ import {
 	TenantsConfigurationSchema,
 } from "api/http_server_configuration.ts";
 import { readTenantConfigurationState } from "./tenant_configuration_files.ts";
+import { isAlreadyExistsError, isNotFoundError } from "shared/fs_errors.ts";
+import { tempPath as createTempPath } from "shared/temp_path.ts";
 
 interface FileChange {
 	path: string;
@@ -123,12 +126,9 @@ async function applyChanges(
 		for (const change of changes) {
 			originals.set(change.path, await readIfExists(change.path));
 			if (change.text !== undefined) {
-				const tempPath = await Deno.makeTempFile({
-					dir: dirname(change.path),
-					prefix: ".tenant-",
-				});
+				const tempPath = createTempPath(dirname(change.path), ".tenant-");
 				staged.set(change.path, tempPath);
-				await Deno.writeTextFile(tempPath, change.text);
+				await fs.writeFile(tempPath, change.text, { flag: "wx", mode: 0o600 });
 			}
 		}
 
@@ -139,11 +139,11 @@ async function applyChanges(
 				continue;
 			}
 			try {
-				await Deno.rename(tempPath, change.path);
+				await fs.rename(tempPath, change.path);
 			} catch (error) {
-				if (!(error instanceof Deno.errors.AlreadyExists)) throw error;
-				await Deno.remove(change.path);
-				await Deno.rename(tempPath, change.path);
+				if (!isAlreadyExistsError(error)) throw error;
+				await fs.unlink(change.path);
+				await fs.rename(tempPath, change.path);
 			}
 			staged.delete(change.path);
 		}
@@ -154,7 +154,7 @@ async function applyChanges(
 		for (const [path, text] of originals) {
 			try {
 				if (text === undefined) await removeIfExists(path);
-				else await Deno.writeTextFile(path, text, { mode: 0o600 });
+				else await fs.writeFile(path, text, { mode: 0o600 });
 			} catch (rollbackError) {
 				rollbackErrors.push(rollbackError);
 			}
@@ -173,17 +173,17 @@ async function applyChanges(
 
 async function readIfExists(path: string): Promise<string | undefined> {
 	try {
-		return await Deno.readTextFile(path);
+		return await fs.readFile(path, "utf8");
 	} catch (error) {
-		if (error instanceof Deno.errors.NotFound) return undefined;
+		if (isNotFoundError(error)) return undefined;
 		throw error;
 	}
 }
 
 async function removeIfExists(path: string): Promise<void> {
 	try {
-		await Deno.remove(path);
+		await fs.unlink(path);
 	} catch (error) {
-		if (!(error instanceof Deno.errors.NotFound)) throw error;
+		if (!isNotFoundError(error)) throw error;
 	}
 }

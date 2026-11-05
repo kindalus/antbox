@@ -602,7 +602,7 @@ describe("AgentsEngine usage recording", () => {
 
 		if (result.isLeft()) throw result.value;
 		expect(events.length).toBe(1);
-		expect(events[0].payload.usage).toEqual(result.value.usage);
+		expect(events[0].payload.usage).toEqual(result.value.usage!);
 		expect(events[0].payload.model).toBe("google/gemini-2.5-flash");
 	});
 

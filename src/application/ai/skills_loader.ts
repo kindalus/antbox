@@ -276,25 +276,3 @@ export async function loadSkills(
 
 	return skills;
 }
-
-/**
- * Load full skill instructions from a SKILL.md file.
- *
- * Returns only the markdown instruction body (frontmatter stripped),
- * suitable for injection into model context as loaded skill knowledge.
- */
-export async function loadSkillInstruction(skillFile: string): Promise<string | undefined> {
-	Logger.instance("SkillLoader").debug("File:", skillFile);
-	try {
-		const markdown = await fs.readFile(skillFile, "utf-8");
-		const parsedSkill = parseSkillMarkdown(markdown);
-		if (!parsedSkill) {
-			return undefined;
-		}
-
-		return parsedSkill.instruction;
-	} catch (error) {
-		Logger.warn(`skills_loader: failed loading instruction from ${skillFile}: ${error}`);
-		return undefined;
-	}
-}

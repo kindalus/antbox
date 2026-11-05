@@ -294,7 +294,7 @@ describe("AgentsEngine", () => {
 			);
 			expect(result.isRight()).toBe(true);
 			if (result.isRight()) {
-				expect(result.value).toEqual(["load_skill"]);
+				expect(result.value).toEqual(["read"]);
 			}
 		});
 
@@ -311,12 +311,12 @@ describe("AgentsEngine", () => {
 					"find_nodes",
 					"get_node",
 					"semantic_search",
-					"load_skill",
+					"read",
 				]);
 			}
 		});
 
-		it("returns whitelisted tools plus load_skill when agent.tools is array", async () => {
+		it("returns whitelisted tools plus read when agent.tools is array", async () => {
 			const engine = new AgentsEngine(makeContext());
 			const result = await engine.listAvailableToolNames(
 				mockAuthContext,
@@ -324,11 +324,11 @@ describe("AgentsEngine", () => {
 			);
 			expect(result.isRight()).toBe(true);
 			if (result.isRight()) {
-				expect(result.value).toEqual(["semantic_search", "load_skill"]);
+				expect(result.value).toEqual(["semantic_search", "read"]);
 			}
 		});
 
-		it("returns only load_skill when agent.tools is empty array", async () => {
+		it("returns only read when agent.tools is empty array", async () => {
 			const engine = new AgentsEngine(makeContext());
 			const result = await engine.listAvailableToolNames(
 				mockAuthContext,
@@ -336,7 +336,7 @@ describe("AgentsEngine", () => {
 			);
 			expect(result.isRight()).toBe(true);
 			if (result.isRight()) {
-				expect(result.value).toEqual(["load_skill"]);
+				expect(result.value).toEqual(["read"]);
 			}
 		});
 	});

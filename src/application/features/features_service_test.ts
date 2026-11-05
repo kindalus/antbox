@@ -104,6 +104,38 @@ describe("FeaturesService", () => {
 	}
 
 	describe("createFeature", () => {
+		it("rejects an AI tool whose name is reserved for a built-in tool", async () => {
+			const { service } = createFixture();
+
+			for (const uuid of ["read", "runCode", "findNodes", "getNode", "semanticSearch"]) {
+				const created = await service.createFeature(
+					adminCtx,
+					createFeatureInput({ uuid, exposeAction: false, exposeAITool: true }),
+				);
+				expect(created.isLeft()).toBe(true);
+				if (created.isLeft()) expect(created.value.message).toContain("reserved");
+			}
+
+			const asAction = await service.createFeature(
+				adminCtx,
+				createFeatureInput({ uuid: "read", exposeAction: false, exposeExtension: true }),
+			);
+			expect(asAction.isRight()).toBe(true);
+		});
+
+		it("rejects exposing an existing feature as a reserved AI tool", async () => {
+			const { service } = createFixture();
+			const created = await service.createFeature(
+				adminCtx,
+				createFeatureInput({ uuid: "read", exposeAction: false, exposeExtension: true }),
+			);
+			if (created.isLeft()) throw created.value;
+
+			const updated = await service.updateFeature(adminCtx, "read", { exposeAITool: true });
+			expect(updated.isLeft()).toBe(true);
+			if (updated.isLeft()) expect(updated.value.message).toContain("reserved");
+		});
+
 		it("should create feature successfully as admin", async () => {
 			const service = createService();
 

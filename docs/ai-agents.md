@@ -22,7 +22,7 @@ interface AgentData {
 	description?: string;
 	exposedToUsers: boolean;
 	model?: [string] | [string, ThinkingLevel]; // ["default"] or explicit Pi model
-	tools?: boolean | string[]; // true = all, false/undefined/[] = load_skill only
+	tools?: boolean | string[]; // true = all, false/undefined/[] = read only
 	skills?: string[]; // optional allow-list of discovered skill names
 	systemPrompt?: string; // defaults to a generic Antbox assistant prompt when omitted
 	createdTime: string;
@@ -45,9 +45,9 @@ register Google, OpenAI, or Anthropic providers itself. Set `ai.modelsPath` to a
 Tool rules:
 
 - `tools: true` -> all tools
-- `tools: false` -> only `load_skill`
-- omitted `tools` -> same as `[]`, only `load_skill`
-- `tools: []` -> only `load_skill`
+- `tools: false` -> only `read`
+- omitted `tools` -> same as `[]`, only `read`
+- `tools: []` -> only `read`
 - tool names exposed to the model are snake_case
 - `run_code` remains available for advanced multi-step workflows
 
@@ -172,10 +172,11 @@ Current built-in function tools include:
 - `find_nodes`
 - `get_node`
 - `semantic_search`
-- `load_skill`
+- `read` (Pi's file reader, confined to the agent's skills; see `agent-skills`)
 
 Feature-backed AI tools are also available when configured for the tenant and included in the
-agent's `tools` allow-list. `load_skill` is always available for agents.
+agent's `tools` allow-list. `read` is always available for agents. The names of the built-in tools are reserved and cannot be
+used by feature-backed AI tools.
 
 ## Debugging agent runs
 

@@ -3195,7 +3195,7 @@ components:
                $ref: "#/components/schemas/ModelSelection"
                description: Optional Pi model and thinking level. Falls back to the tenant default model.
             tools:
-               description: Tool access for agents. `true` grants all tools; `false`, omitted, or `[]` grants only `load_skill`; arrays grant the listed tools plus `load_skill`.
+               description: Tool access for agents. `true` grants all tools; `false`, omitted, or `[]` grants only `read`; arrays grant the listed tools plus `read`.
                oneOf:
                   - type: boolean
                   - type: array
@@ -3234,7 +3234,7 @@ components:
                $ref: "#/components/schemas/ModelSelection"
                description: Optional Pi model and thinking level for the agent
             tools:
-               description: Tool access for agents. `true` grants all tools; `false`, omitted, or `[]` grants only `load_skill`; arrays grant the listed tools plus `load_skill`.
+               description: Tool access for agents. `true` grants all tools; `false`, omitted, or `[]` grants only `read`; arrays grant the listed tools plus `read`.
                oneOf:
                   - type: boolean
                   - type: array

@@ -70,3 +70,29 @@ export interface FeatureData {
 	readonly createdTime: string;
 	readonly modifiedTime: string;
 }
+
+/**
+ * Names of the built-in AI tools. A feature exposed as an AI tool cannot use one of them,
+ * because the built-in tool always wins and the feature would never be reachable.
+ */
+export const RESERVED_AI_TOOL_NAMES: readonly string[] = [
+	"run_code",
+	"find_nodes",
+	"get_node",
+	"semantic_search",
+	"read",
+];
+
+/** snake_case form used for AI tool and AI tool parameter names. */
+export function toSnakeCase(featureUuid: string): string {
+	return featureUuid
+		.replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+		.replace(/[^a-zA-Z0-9]+/g, "_")
+		.replace(/_+/g, "_")
+		.replace(/^_+|_+$/g, "")
+		.toLowerCase();
+}
+
+export function isReservedAIToolName(featureUuid: string): boolean {
+	return RESERVED_AI_TOOL_NAMES.includes(toSnakeCase(featureUuid));
+}

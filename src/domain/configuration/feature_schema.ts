@@ -1,5 +1,10 @@
 import { z } from "zod";
-import { ACTION_UUIDS_PARAMETER_ERROR, hasRequiredActionUuidsParameter } from "./feature_data.ts";
+import {
+	ACTION_UUIDS_PARAMETER_ERROR,
+	hasRequiredActionUuidsParameter,
+	isReservedAIToolName,
+	toSnakeCase,
+} from "./feature_data.ts";
 
 /**
  * Zod schema for FeatureParameter validation
@@ -79,6 +84,14 @@ export const FeatureDataSchema = z.object({
 			code: z.ZodIssueCode.custom,
 			message: ACTION_UUIDS_PARAMETER_ERROR,
 			path: ["parameters"],
+		});
+	}
+
+	if (feature.exposeAITool && isReservedAIToolName(feature.uuid)) {
+		ctx.addIssue({
+			code: z.ZodIssueCode.custom,
+			message: `AI tool name '${toSnakeCase(feature.uuid)}' is reserved for a built-in tool`,
+			path: ["uuid"],
 		});
 	}
 });

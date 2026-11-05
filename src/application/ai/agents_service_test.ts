@@ -159,7 +159,7 @@ describe("AgentsService", () => {
 
 			const result = await service.createAgent(adminCtx, {
 				name: "Skill Loader Only Agent",
-				systemPrompt: "You may use only load_skill.",
+				systemPrompt: "You may use only read.",
 				tools: false,
 			});
 

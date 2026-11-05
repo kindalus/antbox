@@ -1,11 +1,20 @@
 import { it } from "bdd";
 import { expect } from "expect";
-import { Agent, type AgentTool } from "@earendil-works/pi-agent-core";
-import { fauxAssistantMessage, fauxProvider, fauxToolCall, Type } from "@earendil-works/pi-ai";
+import {
+	fauxAssistantMessage,
+	fauxProvider,
+	fauxToolCall,
+	InMemoryCredentialStore,
+	InMemoryModelsStore,
+} from "@earendil-works/pi-ai";
 import { fileURLToPath } from "node:url";
-import { loadSkillInstruction, loadSkills } from "./skills_loader.ts";
+import { PiAgentSessionRunner } from "./pi_agent_session.ts";
+import { loadPiCodingAgent } from "./pi_coding_agent.ts";
+import { createSkillReadTool } from "./skill_read_tool.ts";
+import { loadSkills } from "./skills_loader.ts";
 
-it("Pi core loads an Antbox skill progressively", async () => {
+it("Pi lists an Antbox skill and the model loads it progressively with read", async () => {
+	const pi = await loadPiCodingAgent();
 	const builtinSkillsDir = fileURLToPath(new URL("./builtin_skills", import.meta.url));
 	const skills = await loadSkills(builtinSkillsDir, undefined, {
 		includeDocumentationSkills: false,
@@ -13,65 +22,51 @@ it("Pi core loads an Antbox skill progressively", async () => {
 	const skill = skills.find((candidate) => candidate.frontmatter.name === "sdk-consumer");
 	if (!skill) throw new Error("sdk-consumer was not discovered");
 
-	const skillParameters = Type.Object({ name: Type.String() });
-	const loadSkill: AgentTool<typeof skillParameters> = {
-		name: "load_skill",
-		label: "Load skill",
-		description: "Load one discovered skill",
-		parameters: skillParameters,
-		execute: async (_id, params) => {
-			const requested = skills.find((candidate) => candidate.frontmatter.name === params.name);
-			if (!requested) throw new Error("Unknown skill");
-			const instruction = await loadSkillInstruction(requested.skillFile);
-			if (!instruction) throw new Error("Invalid skill");
-			return {
-				content: [{ type: "text", text: instruction }],
-				details: { skillDir: requested.skillDir },
-			};
-		},
-	};
-
 	const faux = fauxProvider({ provider: "skill-test" });
 	faux.setResponses([
 		(context) => {
+			// Level 1: only name, description and location are in the prompt, not the body.
 			expect(context.systemPrompt).toContain("<name>sdk-consumer</name>");
+			expect(context.systemPrompt).toContain(skill.skillFile);
+			expect(context.systemPrompt).not.toContain("SDK documentation specialist");
 			return fauxAssistantMessage(
-				fauxToolCall("load_skill", { name: "sdk-consumer" }, { id: "skill-call" }),
+				fauxToolCall("read", { path: skill.skillFile }, { id: "skill-call" }),
 				{ stopReason: "toolUse" },
 			);
 		},
 		(context) => {
+			// Level 2: the body arrives as the result of the read call.
 			const loaded = context.messages.some((message) =>
-				message.role === "toolResult" &&
+				message.role === "toolResult" && !message.isError &&
 				message.content.some((content) =>
-					content.type === "text" &&
-					content.text.includes("SDK documentation specialist")
+					content.type === "text" && content.text.includes("SDK documentation specialist")
 				)
 			);
 			expect(loaded).toBe(true);
 			return fauxAssistantMessage("skill-loaded:sdk-consumer");
 		},
 	]);
-
-	const systemPrompt = [
-		"Use load_skill when a task matches.",
-		"<available_skills>",
-		`<skill><name>${skill.frontmatter.name}</name><description>${skill.frontmatter.description}</description><location>${skill.skillFile}</location></skill>`,
-		"</available_skills>",
-	].join("\n");
-	const agent = new Agent({
-		streamFn: (model, context, options) => faux.provider.streamSimple(model, context, options),
-		initialState: {
-			systemPrompt,
-			model: faux.getModel(),
-			thinkingLevel: "off",
-			tools: [loadSkill],
-		},
+	const runtime = await pi.ModelRuntime.create({
+		credentials: new InMemoryCredentialStore(),
+		modelsPath: null,
+		modelsStore: new InMemoryModelsStore(),
+		refreshOnCreate: false,
 	});
-	await agent.prompt("Use the Antbox SDK skill");
+	runtime.registerNativeProvider(faux.provider);
+	const runner = new PiAgentSessionRunner(runtime, 5_000);
+	const output = await runner.run({
+		cwd: process.cwd(),
+		model: faux.getModel(),
+		thinkingLevel: "off",
+		systemPrompt: "Use skills when a task matches.",
+		tools: [await createSkillReadTool([skill])],
+		skills: [skill],
+		sessionManager: await runner.createInMemoryManager(process.cwd()),
+		userText: "Use the Antbox SDK skill",
+	});
 
 	expect(faux.state.callCount).toBe(2);
-	const final = agent.state.messages.at(-1);
+	const final = output.messages.at(-1);
 	expect(final?.role).toBe("assistant");
 	if (final?.role === "assistant") {
 		expect(

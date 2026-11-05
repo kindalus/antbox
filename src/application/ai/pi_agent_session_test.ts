@@ -51,7 +51,7 @@ describe("PiAgentSessionRunner", () => {
 				model: faux.getModel(),
 				thinkingLevel: "off",
 				systemPrompt: "Only Antbox resources are allowed.",
-				tools: [],
+				tools: [pi.createReadTool(dir) as never],
 				skills: [{
 					frontmatter: { name: "test-skill", description: "Test skill" },
 					skillDir,

@@ -5,9 +5,9 @@ description: How agent skills work
 
 # Agent Skills
 
-Antbox integrates skills with `pi-agent-core` using metadata-first progressive disclosure. Skills
-are discovered at startup, listed in agent context as lightweight metadata, and loaded on demand
-only when needed.
+Antbox uses Pi's native skill mechanism with metadata-first progressive disclosure. Skills are
+discovered at startup, listed in the agent's system prompt as lightweight metadata (name,
+description and file location), and loaded on demand when the model reads the skill file.
 
 ## Current implementation
 
@@ -15,19 +15,22 @@ Skills are integrated with these components:
 
 - `src/application/ai/skills_loader.ts`
 - `src/setup/setup_tenants.ts`
-- `src/application/ai/agents_engine.ts`
+- `src/application/ai/pi_agent_session.ts`
+- `src/application/ai/skill_read_tool.ts`
 
-The full `pi-coding-agent` resource loader is not embedded in the Antbox server. Antbox remains the
-host responsible for discovery and supplies `load_skill` as a Pi `AgentTool`, preserving tenant and
-agent allow-lists without exposing a general filesystem read tool.
+Antbox stays responsible for discovery, precedence and per-agent selection, and hands the resulting
+skills to Pi through `skillsOverride`. Pi then lists them in the system prompt and the model loads
+one by calling the `read` tool on its file. Antbox does not add its own skill-loading tool.
 
 At runtime:
 
 1. Skills are discovered during tenant setup.
-2. Agent instructions include an `<available_skills>` block with skill metadata.
-3. The model can call `load_skill` with a skill name.
-4. Antbox returns the full skill instruction body (frontmatter removed), wrapped with path guidance.
-5. That loaded content becomes part of model context for the current reasoning flow.
+2. For each run, the skills allowed by `AgentData.skills` are passed to Pi.
+3. Pi adds an `<available_skills>` block with each skill's name, description and location to the
+   system prompt.
+4. When a task matches a description, the model calls `read` with the skill's file path.
+5. Skill files stay in model context for the rest of the session. Files referenced by the skill
+   (for example `references/guide.md`) are loaded the same way, only when needed.
 
 ## Skill sources
 
@@ -74,25 +77,30 @@ For documentation-based skills (`docs/*.md`):
 
 - frontmatter `name` and `description` must match the corresponding entry in `docs/index.ts`
 
-## `load_skill` tool
+## `read` tool
 
-Agents receive a `load_skill` function tool with this behavior:
+Every agent receives a `read` tool. It is Pi's file reader, confined to the agent's skills:
 
-- `name`: `load_skill`
-- `parameter`: `name` (skill name)
-- loads only previously discovered skills allowed by `AgentData.skills`
-- returns the full skill body plus relative-path guidance
+- the tool is always included in the agent toolset, even when `agent.tools` is `false` or an empty
+  array
+- a directory-based skill exposes its whole directory (`SKILL.md`, `references/`, `assets/`, ...)
+- a documentation skill exposes only its own `docs/*.md` file, not the other docs
+- skills outside the agent's `skills` allow-list are neither listed nor readable
+- every other path fails with the same `File not available` error, whether the file exists or not;
+  symlinks and `..` segments are resolved before the check, so they cannot escape the skills
+- `read` handles text only; images are not detected
+- output is truncated at 50KB or 2000 lines, whichever comes first; the model pages through longer
+  files with the `offset` and `limit` parameters
+- no skill scripts are executed; only file reading happens
 
-Important:
-
-- `load_skill` is always included in the agent toolset, even when `agent.tools` is an empty array
-- no skill scripts are executed automatically; only instruction loading happens
-- arbitrary filesystem reads are not exposed through this tool
+The name `read` is reserved. A feature exposed as an AI tool cannot use it (nor `run_code`,
+`find_nodes`, `get_node` or `semantic_search`): creating or updating such a feature is rejected,
+and a stored feature that collides is ignored as an AI tool, with a warning in the log.
 
 ## Documentation skills
 
 All documents listed in `docs/index.ts` are also treated as skills. This enables models to load
-domain docs through `load_skill` instead of hardcoding documentation text in prompts.
+domain docs through `read` instead of hardcoding documentation text in prompts.
 
 Each `docs/*.md` file listed in `docs/index.ts` must start with this frontmatter shape:
 

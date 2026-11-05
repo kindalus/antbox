@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import fs from "node:fs/promises";
 import { afterEach, beforeEach, describe, it } from "bdd";
 import { expect } from "expect";
-import { loadSkillInstruction, loadSkills, loadSkillsFromDocumentation } from "./skills_loader.ts";
+import { loadSkills, loadSkillsFromDocumentation } from "./skills_loader.ts";
 import { DOCS } from "../../../docs/index.ts";
 
 async function createTempDir(): Promise<string> {
@@ -192,39 +192,5 @@ describe("loadSkillsFromDocumentation", () => {
 			expect(loaded).toBeDefined();
 			expect(loaded?.frontmatter.description).toBe(doc.description);
 		}
-	});
-});
-
-describe("loadSkillInstruction", () => {
-	let tempDir: string;
-
-	beforeEach(async () => {
-		tempDir = await createTempDir();
-	});
-
-	afterEach(async () => {
-		await fs.rm(tempDir, { recursive: true });
-	});
-
-	it("returns instruction body without frontmatter", async () => {
-		await writeSkill(
-			tempDir,
-			"instruction-skill",
-			makeSkill("name: instruction-skill\ndescription: Has body", "# Header\n\nBody content\n"),
-		);
-
-		const instruction = await loadSkillInstruction(`${tempDir}/instruction-skill/SKILL.md`);
-
-		expect(instruction).toContain("# Header");
-		expect(instruction).toContain("Body content");
-		expect(instruction?.includes("name: instruction-skill")).toBe(false);
-	});
-
-	it("returns undefined when file is invalid", async () => {
-		await writeSkill(tempDir, "invalid", "# no frontmatter");
-
-		const instruction = await loadSkillInstruction(`${tempDir}/invalid/SKILL.md`);
-
-		expect(instruction).toBeUndefined();
 	});
 });

@@ -81,7 +81,7 @@ describe("SessionWorkspaceStore", () => {
 				tenant: "tenant-a",
 				userEmail: "user@example.com",
 				agentData: agent,
-				toolNames: ["load_skill", "find_nodes"],
+				toolNames: ["read", "find_nodes"],
 				featureVersions: [{ uuid: "feature-a", modifiedTime: "v1" }],
 				skills: [skill],
 			});

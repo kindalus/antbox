@@ -7,6 +7,7 @@ import { expect } from "expect";
 import {
 	fauxAssistantMessage,
 	fauxProvider,
+	fauxToolCall,
 	InMemoryCredentialStore,
 	InMemoryModelsStore,
 } from "@earendil-works/pi-ai";
@@ -20,6 +21,7 @@ import { AgentsEngine, type AgentsEngineContext } from "./agents_engine.ts";
 import { PiAgentSessionRunner } from "./pi_agent_session.ts";
 import { loadPiCodingAgent } from "./pi_coding_agent.ts";
 import { SessionWorkspaceStore } from "./session_workspace.ts";
+import type { LoadedSkill } from "./skills_loader.ts";
 import type { AgentModelRuntime } from "./resolve_model.ts";
 import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus.ts";
 import type { AgentsService } from "./agents_service.ts";
@@ -52,6 +54,7 @@ async function buildContext(
 	options: {
 		agent?: Partial<AgentData>;
 		featureState?: { current: FeatureData };
+		skills?: LoadedSkill[];
 	} = {},
 ) {
 	const faux = fauxProvider({ provider: "session-test" });
@@ -100,7 +103,7 @@ async function buildContext(
 		nodeService: {} as NodeService,
 		aspectsService: {} as AspectsService,
 		defaultModel: modelSelection,
-		skills: [],
+		skills: options.skills ?? [],
 		eventBus: new InMemoryEventBus(),
 		modelRuntime,
 		sessionRunner: new PiAgentSessionRunner(codingRuntime, 5_000),
@@ -370,5 +373,135 @@ describe("AgentsEngine persisted sessions", () => {
 		} finally {
 			await fs.rm(root, { recursive: true });
 		}
+	});
+
+	describe("skills through the confined read tool", () => {
+		const readCall = (path: string, id: string) =>
+			fauxAssistantMessage(fauxToolCall("read", { path }, { id }), { stopReason: "toolUse" });
+		const toolResultText = (messages: readonly { role: string }[]) =>
+			(messages as Array<
+				{ role: string; isError?: boolean; content?: Array<{ type: string; text?: string }> }
+			>)
+				.filter((message) => message.role === "toolResult")
+				.map((message) => ({
+					isError: message.isError === true,
+					text: (message.content ?? []).map((part) => part.text ?? "").join(""),
+				}));
+
+		async function withSkills(
+			run: (input: {
+				root: string;
+				secret: string;
+				skills: Record<string, LoadedSkill>;
+			}) => Promise<void>,
+		) {
+			const root = await fs.mkdtemp(join(tmpdir(), "antbox-session-skills-test-"));
+			try {
+				const secret = join(root, "secret.key");
+				await fs.writeFile(secret, "TOP-SECRET-KEY");
+				const skills: Record<string, LoadedSkill> = {};
+				for (const name of ["alpha", "beta"]) {
+					const skillDir = join(root, "skills", name);
+					await fs.mkdir(skillDir, { recursive: true });
+					const skillFile = join(skillDir, "SKILL.md");
+					await fs.writeFile(
+						skillFile,
+						`---\nname: ${name}\ndescription: The ${name} skill\n---\nBODY-OF-${name}`,
+					);
+					skills[name] = {
+						frontmatter: { name, description: `The ${name} skill` },
+						skillDir,
+						skillFile,
+					};
+				}
+				await run({ root, secret, skills });
+			} finally {
+				await fs.rm(root, { recursive: true });
+			}
+		}
+
+		it("reads skill files but fails on files outside the skills", async () => {
+			await withSkills(async ({ root, secret, skills }) => {
+				const { context, faux } = await buildContext(join(root, "sessions"), {
+					skills: Object.values(skills),
+				});
+				let results: ReturnType<typeof toolResultText> = [];
+				faux.setResponses([
+					readCall(skills.alpha.skillFile, "1"),
+					readCall(secret, "2"),
+					(ctx) => {
+						results = toolResultText(ctx.messages);
+						return fauxAssistantMessage("done");
+					},
+				]);
+				const answered = await new AgentsEngine(context).answer(authContext, agent.uuid, "go");
+				if (answered.isLeft()) throw answered.value;
+
+				expect(results.length).toBe(2);
+				expect(results[0].isError).toBe(false);
+				expect(results[0].text).toContain("BODY-OF-alpha");
+				expect(results[1].isError).toBe(true);
+				expect(results[1].text).not.toContain("TOP-SECRET-KEY");
+			});
+		});
+
+		it("hides and blocks skills outside the agent allow-list", async () => {
+			await withSkills(async ({ root, skills }) => {
+				const { context, faux } = await buildContext(join(root, "sessions"), {
+					agent: { skills: ["alpha"] },
+					skills: Object.values(skills),
+				});
+				let prompt = "";
+				let results: ReturnType<typeof toolResultText> = [];
+				faux.setResponses([
+					(ctx) => {
+						prompt = ctx.systemPrompt ?? "";
+						return readCall(skills.beta.skillFile, "1");
+					},
+					(ctx) => {
+						results = toolResultText(ctx.messages);
+						return fauxAssistantMessage("done");
+					},
+				]);
+				const answered = await new AgentsEngine(context).answer(authContext, agent.uuid, "go");
+				if (answered.isLeft()) throw answered.value;
+
+				expect(prompt).toContain("<name>alpha</name>");
+				expect(prompt).not.toContain("<name>beta</name>");
+				expect(results[0].isError).toBe(true);
+				expect(results[0].text).not.toContain("BODY-OF-beta");
+			});
+		});
+
+		it("resumes a session sealed with the legacy load_skill tool", async () => {
+			await withSkills(async ({ root, skills }) => {
+				const sessions = join(root, "sessions");
+				const { context, faux } = await buildContext(sessions, {
+					skills: Object.values(skills),
+				});
+				faux.setResponses([
+					fauxAssistantMessage("first-answer"),
+					fauxAssistantMessage("second-answer"),
+				]);
+				const engine = new AgentsEngine(context);
+				const created = await engine.createChatSession(authContext, agent.uuid, "first");
+				if (created.isLeft()) throw created.value;
+
+				const manifestPath = join(sessions, created.value.sessionId, "manifest.json");
+				const manifest = JSON.parse(await fs.readFile(manifestPath, "utf-8"));
+				expect(manifest.toolNames).toEqual(["read"]);
+				manifest.toolNames = ["load_skill"];
+				await fs.writeFile(manifestPath, JSON.stringify(manifest));
+
+				const continued = await engine.continueChatSession(
+					authContext,
+					agent.uuid,
+					created.value.sessionId,
+					"second",
+				);
+				if (continued.isLeft()) throw continued.value;
+				expect(continued.value.message.parts[0].text).toBe("second-answer");
+			});
+		});
 	});
 });

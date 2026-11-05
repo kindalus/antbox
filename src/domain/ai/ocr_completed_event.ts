@@ -15,6 +15,7 @@ export class OcrCompletedEvent implements Event {
 		tenant: string,
 		readonly payload: {
 			nodeUuid: string;
+			model: string;
 			usage: TokenUsage;
 			context: OcrContext;
 		},

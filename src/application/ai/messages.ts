@@ -125,6 +125,8 @@ export function piUsageToTokenUsage(usage: Usage | undefined): TokenUsage | unde
 		promptTokens: usage.input + usage.cacheRead + usage.cacheWrite,
 		completionTokens: usage.output,
 		totalTokens: usage.totalTokens,
+		cacheReadTokens: usage.cacheRead,
+		cacheWriteTokens: usage.cacheWrite,
 	};
 }
 
@@ -139,6 +141,8 @@ export function piMessagesUsage(messages: readonly Message[]): TokenUsage | unde
 			promptTokens: total.promptTokens + usage.promptTokens,
 			completionTokens: total.completionTokens + usage.completionTokens,
 			totalTokens: total.totalTokens + usage.totalTokens,
+			cacheReadTokens: (total.cacheReadTokens ?? 0) + (usage.cacheReadTokens ?? 0),
+			cacheWriteTokens: (total.cacheWriteTokens ?? 0) + (usage.cacheWriteTokens ?? 0),
 		}),
 		{ promptTokens: 0, completionTokens: 0, totalTokens: 0 },
 	);

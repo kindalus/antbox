@@ -131,7 +131,7 @@ describe("FindService semantic search usage", () => {
 
 	it("records query embedding usage against the searching user and tenant", async () => {
 		const { published, service } = buildService(() =>
-			Promise.resolve(right({ embeddings: [[1]], usage }))
+			Promise.resolve(right({ embeddings: [[1]], model: "gemini-embedding-2", usage }))
 		);
 
 		const result = await service.find(ctx, "?invoices due this month");
@@ -144,7 +144,7 @@ describe("FindService semantic search usage", () => {
 		expect(event.tenant).toBe(ctx.tenant);
 		expect(event.payload).toEqual({
 			nodeUuid: "query",
-			model: "default",
+			model: "gemini-embedding-2",
 			usage,
 			context: "search",
 		});

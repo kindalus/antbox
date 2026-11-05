@@ -105,6 +105,55 @@ Deno.test("TenantLimitsGuard", async (t) => {
 		assertEquals(result.value.message, "Agent token limit exceeded for the current month");
 	});
 
+	await t.step("excludes cache reads from the agent execution limit", async () => {
+		const cachedRun: AuditEvent = {
+			...createUsageEvent("2026-03-10T10:00:00Z", 2_000_000),
+			payload: {
+				usage: {
+					promptTokens: 2_000_000,
+					completionTokens: 0,
+					totalTokens: 2_000_000,
+					cacheReadTokens: 1_900_000,
+					cacheWriteTokens: 50_000,
+				},
+			},
+		};
+		const guard = createGuard({
+			eventStore: {
+				getStreamsByMimetype: () => Promise.resolve(right(new Map([["agent-1", [cachedRun]]]))),
+			} as unknown as EventStoreRepository,
+		});
+
+		const result = await guard.ensureCanRunAgent(new Date("2026-03-21T12:00:00Z"));
+
+		assert(result.isRight());
+	});
+
+	await t.step("counts cache writes towards the agent execution limit", async () => {
+		const writtenRun: AuditEvent = {
+			...createUsageEvent("2026-03-10T10:00:00Z", 2_000_000),
+			payload: {
+				usage: {
+					promptTokens: 2_000_000,
+					completionTokens: 0,
+					totalTokens: 2_000_000,
+					cacheReadTokens: 0,
+					cacheWriteTokens: 1_900_000,
+				},
+			},
+		};
+		const guard = createGuard({
+			eventStore: {
+				getStreamsByMimetype: () =>
+					Promise.resolve(right(new Map([["agent-1", [writtenRun]]]))),
+			} as unknown as EventStoreRepository,
+		});
+
+		const result = await guard.ensureCanRunAgent(new Date("2026-03-21T12:00:00Z"));
+
+		assert(result.isLeft());
+	});
+
 	await t.step("counts only the current month for agent execution limits", async () => {
 		const guard = createGuard({
 			eventStore: {

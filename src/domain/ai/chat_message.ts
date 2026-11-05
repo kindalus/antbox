@@ -13,9 +13,12 @@ export interface ToolResponse {
 }
 
 export interface TokenUsage {
+	/** Includes cache reads and writes. */
 	promptTokens: number;
 	completionTokens: number;
 	totalTokens: number;
+	cacheReadTokens?: number;
+	cacheWriteTokens?: number;
 }
 
 export interface ChatMessage {

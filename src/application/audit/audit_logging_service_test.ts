@@ -46,6 +46,7 @@ Deno.test("AuditLoggingService persists AI usage events", async () => {
 	eventBus.publish(
 		new AgentInteractionCompletedEvent("user@example.com", "tenant-a", {
 			agentUuid: "agent-1",
+			model: "google/gemini-2.5-flash",
 			interactionType: "chat",
 			usage: {
 				promptTokens: 10,
@@ -90,6 +91,7 @@ Deno.test("AuditLoggingService persists AI usage events", async () => {
 		agentEventsOrErr.value[0].payload,
 		{
 			agentUuid: "agent-1",
+			model: "google/gemini-2.5-flash",
 			interactionType: "chat",
 			usage: {
 				promptTokens: 10,
@@ -203,6 +205,7 @@ Deno.test("AuditLoggingService persists OCR usage events", async () => {
 	new AuditLoggingService(repository, eventBus);
 	const payload = {
 		nodeUuid: "node-1",
+		model: "gemini-flash-latest",
 		context: "indexing" as const,
 		usage: { promptTokens: 30, completionTokens: 12, totalTokens: 42 },
 	};

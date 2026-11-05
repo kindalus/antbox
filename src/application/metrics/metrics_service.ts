@@ -2,18 +2,19 @@ import type { AntboxError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
 import type { NodeRepository } from "domain/nodes/node_repository.ts";
 import type { EventStoreRepository } from "domain/audit/event_store_repository.ts";
-import type { StorageUsageMetrics, TokenUsageMetrics } from "domain/metrics/tenant_metrics.ts";
+import type { TokenUsage } from "domain/ai/chat_message.ts";
+import { quotaTokens } from "domain/metrics/quota_tokens.ts";
+import type {
+	SourceTokenUsage,
+	StorageUsageMetrics,
+	TokenUsageMetrics,
+} from "domain/metrics/tenant_metrics.ts";
 import type { TenantLimits } from "domain/metrics/tenant_limits.ts";
 
 const BYTES_PER_GB = 1_000_000_000;
-
-type UsagePayload = {
-	usage?: {
-		promptTokens?: number;
-		completionTokens?: number;
-		totalTokens?: number;
-	};
-};
+const AGENT_USAGE_MIMETYPE = "application/vnd.antbox.agent-usage";
+const EMBEDDINGS_USAGE_MIMETYPE = "application/vnd.antbox.embeddings-usage";
+const OCR_USAGE_MIMETYPE = "application/vnd.antbox.ocr-usage";
 
 export class MetricsService {
 	readonly #nodeRepository: NodeRepository;
@@ -49,57 +50,71 @@ export class MetricsService {
 		year: number,
 		month: number,
 	): Promise<Either<AntboxError, TokenUsageMetrics>> {
-		const metrics: TokenUsageMetrics = {
+		const agentsOrErr = await this.#monthlyUsage(AGENT_USAGE_MIMETYPE, year, month);
+		if (agentsOrErr.isLeft()) return left(agentsOrErr.value);
+
+		const embeddingsOrErr = await this.#monthlyUsage(EMBEDDINGS_USAGE_MIMETYPE, year, month);
+		if (embeddingsOrErr.isLeft()) return left(embeddingsOrErr.value);
+
+		const ocrOrErr = await this.#monthlyUsage(OCR_USAGE_MIMETYPE, year, month);
+		if (ocrOrErr.isLeft()) return left(ocrOrErr.value);
+
+		const agents = sumUsage(agentsOrErr.value);
+		const embeddings = sumUsage(embeddingsOrErr.value);
+		const ocr = sumUsage(ocrOrErr.value);
+
+		return right({
 			year,
 			month,
-			promptTokens: 0,
-			completionTokens: 0,
-			totalTokens: 0,
+			promptTokens: agents.promptTokens + embeddings.promptTokens + ocr.promptTokens,
+			completionTokens: agents.completionTokens + embeddings.completionTokens +
+				ocr.completionTokens,
+			totalTokens: agents.totalTokens + embeddings.totalTokens + ocr.totalTokens,
+			quotaTokens: agentsOrErr.value.reduce((sum, usage) => sum + quotaTokens(usage), 0),
 			limitMillions: this.#tenantLimits.tokens,
-		};
-
-		// 1. Fetch agent usage
-		const agentStreamsOrErr = await this.#eventStore.getStreamsByMimetype(
-			"application/vnd.antbox.agent-usage",
-		);
-		if (agentStreamsOrErr.isLeft()) return left(agentStreamsOrErr.value);
-		this.#aggregateTokens(metrics, agentStreamsOrErr.value, year, month);
-
-		// 2. Fetch embeddings usage
-		const embedStreamsOrErr = await this.#eventStore.getStreamsByMimetype(
-			"application/vnd.antbox.embeddings-usage",
-		);
-		if (embedStreamsOrErr.isLeft()) return left(embedStreamsOrErr.value);
-		this.#aggregateTokens(metrics, embedStreamsOrErr.value, year, month);
-
-		// 3. Fetch OCR usage
-		const ocrStreamsOrErr = await this.#eventStore.getStreamsByMimetype(
-			"application/vnd.antbox.ocr-usage",
-		);
-		if (ocrStreamsOrErr.isLeft()) return left(ocrStreamsOrErr.value);
-		this.#aggregateTokens(metrics, ocrStreamsOrErr.value, year, month);
-
-		return right(metrics);
+			agents,
+			embeddings,
+			ocr,
+		});
 	}
 
-	#aggregateTokens(
-		metrics: TokenUsageMetrics,
-		streams: Map<string, import("domain/audit/audit_event.ts").AuditEvent[]>,
+	async #monthlyUsage(
+		mimetype: string,
 		year: number,
 		month: number,
-	): void {
-		for (const streamEvents of streams.values()) {
+	): Promise<Either<AntboxError, Partial<TokenUsage>[]>> {
+		const streamsOrErr = await this.#eventStore.getStreamsByMimetype(mimetype);
+		if (streamsOrErr.isLeft()) return left(streamsOrErr.value);
+
+		const usages: Partial<TokenUsage>[] = [];
+		for (const streamEvents of streamsOrErr.value.values()) {
 			for (const event of streamEvents) {
 				const date = new Date(event.occurredOn);
-				if (date.getUTCFullYear() === year && date.getUTCMonth() + 1 === month) {
-					const payload = event.payload as UsagePayload;
-					if (payload?.usage) {
-						metrics.promptTokens += payload.usage.promptTokens ?? 0;
-						metrics.completionTokens += payload.usage.completionTokens ?? 0;
-						metrics.totalTokens += payload.usage.totalTokens ?? 0;
-					}
+				const { usage } = event.payload as { usage?: Partial<TokenUsage> };
+				if (usage && date.getUTCFullYear() === year && date.getUTCMonth() + 1 === month) {
+					usages.push(usage);
 				}
 			}
 		}
+		return right(usages);
 	}
+}
+
+function sumUsage(usages: Partial<TokenUsage>[]): SourceTokenUsage {
+	return usages.reduce<SourceTokenUsage>(
+		(sum, usage) => ({
+			promptTokens: sum.promptTokens + (usage.promptTokens ?? 0),
+			completionTokens: sum.completionTokens + (usage.completionTokens ?? 0),
+			totalTokens: sum.totalTokens + (usage.totalTokens ?? 0),
+			cacheReadTokens: sum.cacheReadTokens + (usage.cacheReadTokens ?? 0),
+			cacheWriteTokens: sum.cacheWriteTokens + (usage.cacheWriteTokens ?? 0),
+		}),
+		{
+			promptTokens: 0,
+			completionTokens: 0,
+			totalTokens: 0,
+			cacheReadTokens: 0,
+			cacheWriteTokens: 0,
+		},
+	);
 }

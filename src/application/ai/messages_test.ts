@@ -128,6 +128,28 @@ describe("Pi messages", () => {
 			promptTokens: 11,
 			completionTokens: 3,
 			totalTokens: 14,
+			cacheReadTokens: 4,
+			cacheWriteTokens: 5,
+		});
+	});
+
+	it("sums the cache breakdown across model calls", () => {
+		const call = (input: number, cacheRead: number, cacheWrite: number): Message => ({
+			role: "assistant",
+			content: [{ type: "text", text: "one" }],
+			api: model.api,
+			provider: model.provider,
+			model: model.id,
+			usage: usage(input, 1, cacheRead, cacheWrite),
+			stopReason: "stop",
+			timestamp: 1,
+		});
+		expect(piMessagesUsage([call(1, 0, 10), call(1, 10, 2)])).toEqual({
+			promptTokens: 24,
+			completionTokens: 2,
+			totalTokens: 26,
+			cacheReadTokens: 10,
+			cacheWriteTokens: 12,
 		});
 	});
 

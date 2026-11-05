@@ -3080,14 +3080,18 @@ components:
                        - pay-as-you-go
       TokenUsageMetrics:
          type: object
-         description: Recorded agent, embedding, and OCR usage. Agent usage includes the completed model calls of runs that later fail. The current token quota is enforced against agent-call usage only.
+         description: Recorded agent, embedding, and OCR usage. Agent usage includes the completed model calls of runs that later fail. The top-level token fields combine all sources; quotaTokens is the value compared with the limit.
          required:
             - year
             - month
             - promptTokens
             - completionTokens
             - totalTokens
+            - quotaTokens
             - limitMillions
+            - agents
+            - embeddings
+            - ocr
          properties:
             year:
                type: integer
@@ -3104,6 +3108,16 @@ components:
             totalTokens:
                type: integer
                minimum: 0
+            quotaTokens:
+               type: integer
+               minimum: 0
+               description: Agent tokens compared with the monthly limit. Counts new input, cache writes, and output, but not cache reads.
+            agents:
+               $ref: "#/components/schemas/SourceTokenUsage"
+            embeddings:
+               $ref: "#/components/schemas/SourceTokenUsage"
+            ocr:
+               $ref: "#/components/schemas/SourceTokenUsage"
             limitMillions:
                oneOf:
                   - type: integer
@@ -3112,6 +3126,31 @@ components:
                   - type: string
                     enum:
                        - pay-as-you-go
+      SourceTokenUsage:
+         type: object
+         description: Monthly token usage from a single source. promptTokens includes cacheReadTokens and cacheWriteTokens.
+         required:
+            - promptTokens
+            - completionTokens
+            - totalTokens
+            - cacheReadTokens
+            - cacheWriteTokens
+         properties:
+            promptTokens:
+               type: integer
+               minimum: 0
+            completionTokens:
+               type: integer
+               minimum: 0
+            totalTokens:
+               type: integer
+               minimum: 0
+            cacheReadTokens:
+               type: integer
+               minimum: 0
+            cacheWriteTokens:
+               type: integer
+               minimum: 0
       ModelSelection:
          description: Pi model selection. A missing thinking level means `off`. Legacy strings remain accepted during migration.
          oneOf:

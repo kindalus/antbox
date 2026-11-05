@@ -89,6 +89,7 @@ export async function runSystemAITool<T>(
 					dependencies.eventBus.publish(
 						new OcrCompletedEvent(ctx.principal.email, ctx.tenant, {
 							nodeUuid: args.uuid as string,
+							model: ocrOrErr.value.model ?? "default",
 							usage: ocrOrErr.value.usage,
 							context: "tool",
 						}),

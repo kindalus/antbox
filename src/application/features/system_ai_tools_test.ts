@@ -23,7 +23,12 @@ describe("runSystemAITool", () => {
 			nodeService: {
 				export: () => Promise.resolve(right(new File(["x"], "x.pdf"))),
 			} as unknown as NodeService,
-			ocrProvider: { ocr: () => Promise.resolve(right({ text: "scanned text", usage })) },
+			ocrProvider: {
+				ocr: () =>
+					Promise.resolve(
+						right({ text: "scanned text", model: "gemini-flash-latest", usage }),
+					),
+			},
 			eventBus: {
 				publish: (event: Event) => published.push(event),
 				subscribe: () => {},
@@ -38,6 +43,11 @@ describe("runSystemAITool", () => {
 		expect(event).toBeInstanceOf(OcrCompletedEvent);
 		expect(event.userEmail).toBe("user@example.com");
 		expect(event.tenant).toBe("tenant-a");
-		expect(event.payload).toEqual({ nodeUuid: "node-1", context: "tool", usage });
+		expect(event.payload).toEqual({
+			nodeUuid: "node-1",
+			model: "gemini-flash-latest",
+			context: "tool",
+			usage,
+		});
 	});
 });

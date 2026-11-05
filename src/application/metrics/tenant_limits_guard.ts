@@ -1,5 +1,7 @@
 import type { EventStoreRepository } from "domain/audit/event_store_repository.ts";
+import type { TokenUsage } from "domain/ai/chat_message.ts";
 import type { NodeRepository } from "domain/nodes/node_repository.ts";
+import { quotaTokens } from "domain/metrics/quota_tokens.ts";
 import type { TenantLimits } from "domain/metrics/tenant_limits.ts";
 import { type AntboxError, ForbiddenError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
@@ -90,11 +92,8 @@ export class TenantLimitsGuard implements TenantLimitsEnforcer {
 					continue;
 				}
 
-				const payload = event.payload as {
-					usage?: { promptTokens?: number; completionTokens?: number; totalTokens?: number };
-				};
-				totalTokens += payload.usage?.totalTokens ??
-					((payload.usage?.promptTokens ?? 0) + (payload.usage?.completionTokens ?? 0));
+				const payload = event.payload as { usage?: Partial<TokenUsage> };
+				totalTokens += quotaTokens(payload.usage);
 			}
 		}
 

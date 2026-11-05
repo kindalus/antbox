@@ -104,6 +104,7 @@ class MeteredOCRProvider {
 	ocr(_file: File): Promise<import("shared/either.ts").Either<AntboxError, OCRResult>> {
 		return Promise.resolve(right({
 			text: "scanned text",
+			model: "gemini-flash-latest",
 			usage: { promptTokens: 30, completionTokens: 12, totalTokens: 42 },
 		}));
 	}
@@ -453,6 +454,7 @@ describe("RAGService", () => {
 			expect(events.length).toBe(1);
 			expect((events[0] as OcrCompletedEvent).payload).toEqual({
 				nodeUuid: "metered-ocr",
+				model: "gemini-flash-latest",
 				context: "indexing",
 				usage: { promptTokens: 30, completionTokens: 12, totalTokens: 42 },
 			});

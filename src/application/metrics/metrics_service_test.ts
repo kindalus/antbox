@@ -81,6 +81,52 @@ Deno.test("MetricsService", async (t) => {
 			},
 		);
 
+		await t.step("reports usage by source and the value compared with the quota", async () => {
+			const event = (usage: Record<string, number>): AuditEvent => ({
+				streamId: "any",
+				sequence: 0,
+				eventType: "any",
+				userEmail: "test@test.com",
+				occurredOn: "2026-03-10T00:00:00.000Z",
+				payload: { usage },
+			});
+			const byMimetype: Record<string, AuditEvent[]> = {
+				"application/vnd.antbox.agent-usage": [event({
+					promptTokens: 1_000,
+					completionTokens: 50,
+					totalTokens: 1_050,
+					cacheReadTokens: 900,
+					cacheWriteTokens: 80,
+				})],
+				"application/vnd.antbox.embeddings-usage": [
+					event({ promptTokens: 20, completionTokens: 0, totalTokens: 20 }),
+				],
+				"application/vnd.antbox.ocr-usage": [
+					event({ promptTokens: 30, completionTokens: 12, totalTokens: 42 }),
+				],
+			};
+			const store = {
+				getStreamsByMimetype: (mimetype: string) =>
+					Promise.resolve(right(new Map([["any", byMimetype[mimetype]]]))),
+			} as EventStoreRepository;
+
+			const result = await new MetricsService({} as NodeRepository, store, tenantLimits)
+				.getTokenUsage(2026, 3);
+
+			assert(result.isRight());
+			assertEquals(result.value.totalTokens, 1_112);
+			assertEquals(result.value.quotaTokens, 150);
+			assertEquals(result.value.agents, {
+				promptTokens: 1_000,
+				completionTokens: 50,
+				totalTokens: 1_050,
+				cacheReadTokens: 900,
+				cacheWriteTokens: 80,
+			});
+			assertEquals(result.value.embeddings.totalTokens, 20);
+			assertEquals(result.value.ocr.totalTokens, 42);
+		});
+
 		await t.step("includes OCR usage in the monthly totals", async () => {
 			const ocrEvent: AuditEvent = {
 				streamId: "node-1",

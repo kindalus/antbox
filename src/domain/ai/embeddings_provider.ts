@@ -9,6 +9,8 @@ export type { Embedding };
 export interface EmbeddingsResult {
 	embeddings: Embedding[];
 	usage: TokenUsage;
+	/** Model that generated the embeddings, when the provider knows it. */
+	model?: string;
 }
 
 /**

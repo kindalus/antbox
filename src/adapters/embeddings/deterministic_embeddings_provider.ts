@@ -27,6 +27,7 @@ export class DeterministicEmbeddingsProvider implements EmbeddingsProvider {
 		const totalTokens = texts.reduce((sum, t) => sum + Math.ceil(t.length / 4), 0);
 		return Promise.resolve(right({
 			embeddings,
+			model: "deterministic",
 			usage: {
 				promptTokens: totalTokens,
 				completionTokens: 0,

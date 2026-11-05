@@ -583,7 +583,13 @@ function capturingUsageBus() {
 }
 
 describe("AgentsEngine usage recording", () => {
-	const twoTokens = { promptTokens: 1, completionTokens: 1, totalTokens: 2 };
+	const twoTokens = {
+		promptTokens: 1,
+		completionTokens: 1,
+		totalTokens: 2,
+		cacheReadTokens: 0,
+		cacheWriteTokens: 0,
+	};
 
 	it("records a successful run exactly once", async () => {
 		const { events, eventBus } = capturingUsageBus();
@@ -597,6 +603,7 @@ describe("AgentsEngine usage recording", () => {
 		if (result.isLeft()) throw result.value;
 		expect(events.length).toBe(1);
 		expect(events[0].payload.usage).toEqual(result.value.usage);
+		expect(events[0].payload.model).toBe("google/gemini-2.5-flash");
 	});
 
 	it("records the usage of a run that fails after paid model calls", async () => {

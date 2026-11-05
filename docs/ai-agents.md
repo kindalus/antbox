@@ -148,16 +148,21 @@ requests return `401`. API key sessions created before credential-specific owner
 must be recreated; existing individual-user sessions remain compatible.
 
 Queued messages recheck the token limit when their turn begins. The current quota counts recorded
-agent-call tokens only, including the completed model calls of runs that later fail or time out.
-Usage is recorded asynchronously after a model run, so these checks do not reserve tokens for
+agent-call tokens only, including the completed model calls of runs that later fail or time out. It
+counts new input, cache writes, and output, but not cache reads, so resending the same context on
+every model call does not inflate it. Events recorded before the cache breakdown existed count in
+full. Usage is recorded asynchronously after a model run, so these checks do not reserve tokens for
 in-flight calls. Concurrent sessions or delayed audit writes can exceed the configured threshold
 before later requests are blocked.
 
-The token metrics endpoint includes recorded agent, embedding, and OCR usage, and returns an error
-if any usage source cannot be read. Embeddings and OCR currently have no token quota check. RAG
-indexing, RAG queries, and the `?` semantic search path in node queries record embedding usage.
-Model-based OCR records its usage during RAG indexing and when the `OcrModel:ocr` tool runs. The
-displayed combined total therefore differs from quota enforcement.
+The token metrics endpoint returns usage per source in `agents`, `embeddings`, and `ocr`, their
+combined totals, and `quotaTokens`, the value compared with the limit. It returns an error if any
+usage source cannot be read. Embeddings and OCR have no token quota check and keep running after the
+agent quota is exhausted, so `totalTokens` differs from `quotaTokens`. The block applies at 105% of
+the limit. RAG indexing, RAG queries, and the `?` semantic search path in node queries record
+embedding usage. When Gemini cannot count embedding tokens, Antbox logs a warning and records an
+estimate of one token per four characters. Model-based OCR records its usage during RAG indexing and
+when the `OcrModel:ocr` tool runs.
 
 ## Tools
 

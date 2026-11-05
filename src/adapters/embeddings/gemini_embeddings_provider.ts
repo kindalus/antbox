@@ -9,6 +9,19 @@ import type {
 } from "domain/ai/embeddings_provider.ts";
 import { GoogleGenAI } from "@google/genai";
 
+const ESTIMATED_CHARS_PER_TOKEN = 4;
+
+/** Falls back to an estimate so a failed count is never recorded as free usage. */
+export function tokenCountOrEstimate(
+	count: number | undefined,
+	text: string,
+	modelName: string,
+): number {
+	if (count || !text) return count ?? 0;
+	Logger.warn(`Token count unavailable for ${modelName}, estimating from the text length`);
+	return Math.ceil(text.length / ESTIMATED_CHARS_PER_TOKEN);
+}
+
 /**
  * GeminiEmbeddingsProvider - Uses Google text-embedding models.
  *
@@ -82,10 +95,9 @@ export class GeminiEmbeddingsProvider implements EmbeddingsProvider {
 					}),
 				]);
 
-				if (countResponse) {
-					totalTokens += countResponse.totalTokens ?? 0;
-					totalPromptTokens += countResponse.totalTokens ?? 0; // Embeddings models only consume prompt tokens
-				}
+				const tokens = tokenCountOrEstimate(countResponse?.totalTokens, text, this.#modelName);
+				totalTokens += tokens;
+				totalPromptTokens += tokens; // Embeddings models only consume prompt tokens
 
 				if (embedResponse.embeddings && embedResponse.embeddings[0]?.values) {
 					const normalized = this.#normalizeEmbedding(embedResponse.embeddings[0].values);
@@ -102,6 +114,7 @@ export class GeminiEmbeddingsProvider implements EmbeddingsProvider {
 
 			return right({
 				embeddings,
+				model: this.#modelName,
 				usage: {
 					promptTokens: totalPromptTokens,
 					completionTokens: 0,

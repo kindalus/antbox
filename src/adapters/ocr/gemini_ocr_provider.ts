@@ -73,6 +73,7 @@ export class GeminiOCRProvider implements OCRProvider {
 
 			return right({
 				text: response.text ?? "",
+				model: this.#modelName,
 				usage: geminiUsageToTokenUsage(response.usageMetadata),
 			});
 		} catch (error) {

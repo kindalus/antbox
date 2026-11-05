@@ -40,6 +40,7 @@ describe("agent usage deduction loop", () => {
 		eventBus.publish(
 			new AgentInteractionCompletedEvent("user@example.com", "tenant-a", {
 				agentUuid: "agent-1",
+				model: "google/gemini-2.5-flash",
 				usage: { promptTokens: 1_100_000, completionTokens: 0, totalTokens: 1_100_000 },
 				interactionType: "answer",
 			}),
@@ -72,6 +73,7 @@ describe("agent usage deduction loop", () => {
 		eventBus.publish(
 			new AgentInteractionCompletedEvent("user@example.com", "tenant-a", {
 				agentUuid: "agent-1",
+				model: "google/gemini-2.5-flash",
 				usage: { promptTokens: 100, completionTokens: 0, totalTokens: 100 },
 				interactionType: "answer",
 			}),

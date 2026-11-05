@@ -91,7 +91,7 @@ export class RAGService {
 					"unknown", // Or pull from context if available
 					{
 						nodeUuid: "query", // Represents a search query
-						model: "default",
+						model: embeddingOrErr.value.model ?? "default",
 						usage: embeddingOrErr.value.usage,
 						context: "search",
 					},
@@ -214,6 +214,7 @@ export class RAGService {
 						this.#eventBus.publish(
 							new OcrCompletedEvent("system", tenant, {
 								nodeUuid: node.uuid,
+								model: textOrErr.value.model ?? "default",
 								usage: textOrErr.value.usage,
 								context: "indexing",
 							}),
@@ -248,7 +249,7 @@ export class RAGService {
 					tenant,
 					{
 						nodeUuid: uuid,
-						model: "default",
+						model: embeddingsOrErr.value.model ?? "default",
 						usage: embeddingsOrErr.value.usage,
 						context: "indexing",
 					},

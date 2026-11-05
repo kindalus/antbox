@@ -510,13 +510,20 @@ export class AgentsEngine implements IAgentsEngineInternal {
 				},
 			);
 		} finally {
-			this.#publishUsage(authContext, agentUuid, piMessagesUsage(generated), interactionType);
+			this.#publishUsage(
+				authContext,
+				agentUuid,
+				modelString,
+				piMessagesUsage(generated),
+				interactionType,
+			);
 		}
 	}
 
 	#publishUsage(
 		authContext: AuthenticationContext,
 		agentUuid: string,
+		model: string,
 		usage: TokenUsage | undefined,
 		interactionType: "chat" | "answer",
 	): void {
@@ -525,7 +532,7 @@ export class AgentsEngine implements IAgentsEngineInternal {
 			new AgentInteractionCompletedEvent(
 				authContext.principal.email,
 				authContext.tenant,
-				{ agentUuid, usage, interactionType },
+				{ agentUuid, model, usage, interactionType },
 			),
 		);
 	}
@@ -666,7 +673,13 @@ export class AgentsEngine implements IAgentsEngineInternal {
 					userText: text,
 					additionalInstructions: options.instructions,
 				});
-				this.#publishUsage(authContext, agentUuid, result.usage, options.interactionType);
+				this.#publishUsage(
+					authContext,
+					agentUuid,
+					modelString,
+					result.usage,
+					options.interactionType,
+				);
 			} else {
 				result = await this.#runLlmAgent(
 					agentData,

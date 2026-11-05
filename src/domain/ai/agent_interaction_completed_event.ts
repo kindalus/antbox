@@ -8,6 +8,7 @@ export class AgentInteractionCompletedEvent implements Event {
 	readonly occurredOn: Date;
 	readonly payload: {
 		agentUuid: string;
+		model: string;
 		usage: TokenUsage;
 		interactionType: "chat" | "answer";
 	};
@@ -18,6 +19,7 @@ export class AgentInteractionCompletedEvent implements Event {
 		tenant: string,
 		payload: {
 			agentUuid: string;
+			model: string;
 			usage: TokenUsage;
 			interactionType: "chat" | "answer";
 		},

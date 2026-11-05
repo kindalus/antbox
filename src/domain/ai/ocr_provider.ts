@@ -6,6 +6,8 @@ export interface OCRResult {
 	text: string;
 	/** Present only when extraction consumed model tokens. */
 	usage?: TokenUsage;
+	/** Model that extracted the text, when one was used. */
+	model?: string;
 }
 
 /**

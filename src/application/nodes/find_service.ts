@@ -104,7 +104,7 @@ export class FindService {
 				this.context.bus.publish(
 					new EmbeddingsGeneratedEvent(ctx.principal.email, ctx.tenant, {
 						nodeUuid: "query",
-						model: "default",
+						model: embeddingsOrErr.value.model ?? "default",
 						usage: embeddingsOrErr.value.usage,
 						context: "search",
 					}),

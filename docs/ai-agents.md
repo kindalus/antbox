@@ -155,10 +155,9 @@ before later requests are blocked.
 
 The token metrics endpoint includes recorded agent, embedding, and OCR usage, and returns an error
 if any usage source cannot be read. Embeddings and OCR currently have no token quota check. RAG
-indexing and RAG queries record embedding usage; the `?` semantic search path in node queries does
-not yet record its query embeddings. Model-based OCR records its usage during RAG indexing and when
-the `OcrModel:ocr` tool runs. The displayed combined total therefore differs from quota enforcement
-and can understate total embedding consumption.
+indexing, RAG queries, and the `?` semantic search path in node queries record embedding usage.
+Model-based OCR records its usage during RAG indexing and when the `OcrModel:ocr` tool runs. The
+displayed combined total therefore differs from quota enforcement.
 
 ## Tools
 

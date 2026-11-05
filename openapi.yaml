@@ -3080,7 +3080,7 @@ components:
                        - pay-as-you-go
       TokenUsageMetrics:
          type: object
-         description: Recorded agent, embedding, and OCR usage. Agent usage includes the completed model calls of runs that later fail. The current token quota is enforced against agent-call usage only; node-query semantic-search embeddings are not yet included in these metrics.
+         description: Recorded agent, embedding, and OCR usage. Agent usage includes the completed model calls of runs that later fail. The current token quota is enforced against agent-call usage only.
          required:
             - year
             - month

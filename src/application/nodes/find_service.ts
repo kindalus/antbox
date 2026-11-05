@@ -1,3 +1,4 @@
+import { EmbeddingsGeneratedEvent } from "domain/ai/embeddings_generated_event.ts";
 import type { NodeFilters, NodeFilters1D, NodeFilters2D } from "domain/nodes/node_filter.ts";
 import { isNodeFilters2D, NodeFiltersSchema } from "domain/nodes/node_filter.ts";
 import type { NodeFilterResult } from "domain/nodes/node_repository.ts";
@@ -97,6 +98,17 @@ export class FindService {
 				Logger.error("Failed to generate embedding for query:", embeddingsOrErr.value);
 				// Fallback to fulltext search
 				return this.find(ctx, [["fulltext", "match", query]], pageSize, pageToken);
+			}
+
+			if (embeddingsOrErr.value.usage) {
+				this.context.bus.publish(
+					new EmbeddingsGeneratedEvent(ctx.principal.email, ctx.tenant, {
+						nodeUuid: "query",
+						model: "default",
+						usage: embeddingsOrErr.value.usage,
+						context: "search",
+					}),
+				);
 			}
 
 			const queryEmbedding = embeddingsOrErr.value.embeddings[0];

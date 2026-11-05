@@ -15,6 +15,14 @@ Antbox writes node lifecycle events into an event store (`NodeCreated`, `NodeUpd
 
 Both endpoints require `mimetype` query parameter.
 
+Events are stored in one stream per node and mimetype. Pass the node's current mimetype to read its
+audit log. The response also includes that node's updates from `application/octet-stream`, where
+older versions recorded them, sorted by `occurredOn`. `sequence` is only meaningful within a single
+stream, so merged results can repeat a value.
+
+If a file upload changes a node's mimetype, its earlier events stay in the stream of the previous
+mimetype.
+
 ## Examples
 
 ```bash

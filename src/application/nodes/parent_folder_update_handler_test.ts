@@ -430,6 +430,7 @@ describe("ParentFolderUpdateHandler", () => {
 			// Create update changes
 			const changes: NodeUpdateChanges = {
 				uuid: originalChild.uuid,
+				mimetype: "text/plain",
 				oldValues: {
 					title: originalChild.title,
 					parent: originalChild.parent,
@@ -531,6 +532,7 @@ describe("ParentFolderUpdateHandler", () => {
 			// Create move changes
 			const changes: NodeUpdateChanges = {
 				uuid: originalChild.uuid,
+				mimetype: "text/plain",
 				oldValues: {
 					parent: oldParent.uuid,
 					modifiedTime: originalChild.modifiedTime,
@@ -616,6 +618,7 @@ describe("ParentFolderUpdateHandler", () => {
 			// Create update changes that don't include parent info
 			const changes: NodeUpdateChanges = {
 				uuid: child.uuid,
+				mimetype: "text/plain",
 				oldValues: {
 					description: "old description",
 				},

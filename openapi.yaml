@@ -1227,7 +1227,7 @@ paths:
             - audit
          summary: Get audit log for a node
          operationId: getAuditLog
-         description: Returns all audit events for a specific node. Admin-only access.
+         description: Returns the audit events of a node in the stream of the given mimetype, merged with updates recorded in the legacy application/octet-stream stream and sorted by occurredOn. Admin-only access.
          parameters:
             - $ref: "#/components/parameters/UUID"
             - name: mimetype
@@ -4552,11 +4552,9 @@ components:
          type: object
          required:
             - streamId
-            - eventId
             - eventType
             - occurredOn
             - userEmail
-            - tenant
             - payload
             - sequence
          properties:
@@ -4564,10 +4562,6 @@ components:
                type: string
                format: uuid
                description: The UUID of the node this event belongs to
-            eventId:
-               type: string
-               format: uuid
-               description: Unique identifier for this event
             eventType:
                type: string
                description: Type of event (e.g., NodeCreatedEvent, NodeUpdatedEvent, NodeDeletedEvent)
@@ -4583,15 +4577,12 @@ components:
                type: string
                format: email
                description: Email of the user who triggered the event
-            tenant:
-               type: string
-               description: Tenant identifier
             payload:
                type: object
                description: Event-specific payload (NodeMetadata for create/delete, NodeUpdateChanges for update)
             sequence:
                type: integer
-               description: Sequence number of the event in the stream (starts at 0)
+               description: Sequence number of the event in its own stream (starts at 0). Merged audit logs can repeat a value, so order by occurredOn.
       DeletedNodeInfo:
          type: object
          required:

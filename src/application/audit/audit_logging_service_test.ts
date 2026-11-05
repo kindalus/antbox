@@ -13,6 +13,7 @@ import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider.t
 import { NodeService } from "application/nodes/node_service.ts";
 import type { AuthenticationContext } from "application/security/authentication_context.ts";
 import { NodeCreatedEvent } from "domain/nodes/node_created_event.ts";
+import { NodeUpdatedEvent } from "domain/nodes/node_updated_event.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import { Groups } from "domain/users_groups/groups.ts";
 import { Users } from "domain/users_groups/users.ts";
@@ -112,6 +113,87 @@ Deno.test("AuditLoggingService persists AI usage events", async () => {
 			},
 		},
 	);
+});
+
+function adminContext(): AuthenticationContext {
+	return {
+		tenant: "test",
+		mode: "Direct",
+		principal: { email: Users.ROOT_USER_EMAIL, groups: [Groups.ADMINS_GROUP_UUID] },
+	};
+}
+
+function storedEvent(eventType: string, occurredOn: string) {
+	return { eventType, occurredOn, userEmail: "user@example.com", payload: { occurredOn } };
+}
+
+Deno.test("node updates are audited in the node's own mimetype stream", async () => {
+	const repository = new InMemoryEventStoreRepository();
+	const eventBus = new SynchronousEventBus();
+	const audit = new AuditLoggingService(repository, eventBus);
+	const service = new NodeService({
+		repository: new InMemoryNodeRepository(),
+		storage: new InMemoryStorageProvider(),
+		configRepo: new InMemoryConfigurationRepository(),
+		bus: eventBus,
+	});
+	const ctx = adminContext();
+	const parent = await service.create(ctx, {
+		uuid: "audit-update-parent",
+		title: "Parent",
+		parent: Nodes.ROOT_FOLDER_UUID,
+		mimetype: Nodes.FOLDER_MIMETYPE,
+	});
+	if (parent.isLeft()) throw parent.value;
+	const created = await service.createFile(
+		ctx,
+		new File(["%PDF-1.7"], "report.pdf", { type: "application/pdf" }),
+		{ uuid: "audit-updated-pdf", parent: parent.value.uuid },
+	);
+	if (created.isLeft()) throw created.value;
+
+	const updated = await service.update(ctx, created.value.uuid, { title: "Renamed" });
+	if (updated.isLeft()) throw updated.value;
+	await new Promise((resolve) => setTimeout(resolve, 0));
+
+	const events = await audit.get(ctx, created.value.uuid, "application/pdf");
+	if (events.isLeft()) throw events.value;
+	assertEquals(events.value.map((event) => event.eventType), [
+		NodeCreatedEvent.EVENT_ID,
+		NodeUpdatedEvent.EVENT_ID,
+	]);
+	const legacy = await repository.getStream(created.value.uuid, "application/octet-stream");
+	if (legacy.isLeft()) throw legacy.value;
+	assertEquals(legacy.value, []);
+});
+
+Deno.test("audit log merges updates recorded in the legacy octet-stream stream", async () => {
+	const repository = new InMemoryEventStoreRepository();
+	const audit = new AuditLoggingService(repository, new SynchronousEventBus());
+	const legacy = "application/octet-stream";
+	await repository.append("pdf", "application/pdf", storedEvent("A", "2026-01-01T10:00:00.000Z"));
+	await repository.append("pdf", "application/pdf", storedEvent("C", "2026-01-03T10:00:00.000Z"));
+	await repository.append("pdf", legacy, storedEvent("B", "2026-01-02T10:00:00.000Z"));
+	await repository.append("pdf", legacy, storedEvent("D", "2026-01-04T10:00:00.000Z"));
+	await repository.append("other", legacy, storedEvent("X", "2026-01-02T11:00:00.000Z"));
+
+	const events = await audit.get(adminContext(), "pdf", "application/pdf");
+
+	if (events.isLeft()) throw events.value;
+	assertEquals(events.value.map((event) => event.eventType), ["A", "B", "C", "D"]);
+	assertEquals(events.value.every((event) => event.streamId === "pdf"), true);
+});
+
+Deno.test("audit log does not duplicate events of octet-stream nodes", async () => {
+	const repository = new InMemoryEventStoreRepository();
+	const audit = new AuditLoggingService(repository, new SynchronousEventBus());
+	const legacy = "application/octet-stream";
+	await repository.append("bin", legacy, storedEvent("A", "2026-01-01T10:00:00.000Z"));
+
+	const events = await audit.get(adminContext(), "bin", legacy);
+
+	if (events.isLeft()) throw events.value;
+	assertEquals(events.value.map((event) => event.eventType), ["A"]);
 });
 
 Deno.test("created file audit records retain public metadata", async (t) => {

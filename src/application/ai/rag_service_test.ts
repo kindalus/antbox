@@ -325,6 +325,7 @@ describe("RAGService", () => {
 				NodeUpdatedEvent.EVENT_ID,
 				new NodeUpdatedEvent("u", "t", {
 					uuid: "metadata-update",
+					mimetype: "text/plain",
 					oldValues: { description: "Old" },
 					newValues: { description: "New description" },
 				}),
@@ -359,6 +360,7 @@ describe("RAGService", () => {
 				NodeUpdatedEvent.EVENT_ID,
 				new NodeUpdatedEvent("u", "t", {
 					uuid: "content-update",
+					mimetype: "text/plain",
 					oldValues: { size: 50 },
 					newValues: { size: 60 },
 				}),
@@ -392,6 +394,7 @@ describe("RAGService", () => {
 				NodeUpdatedEvent.EVENT_ID,
 				new NodeUpdatedEvent("u", "t", {
 					uuid: "failed-export",
+					mimetype: "text/plain",
 					oldValues: { size: 50 },
 					newValues: { size: 60 },
 				}),
@@ -431,6 +434,7 @@ describe("RAGService", () => {
 				NodeUpdatedEvent.EVENT_ID,
 				new NodeUpdatedEvent("u", "t", {
 					uuid: "failed-ocr",
+					mimetype: "text/plain",
 					oldValues: { size: 50 },
 					newValues: { size: 60 },
 				}),

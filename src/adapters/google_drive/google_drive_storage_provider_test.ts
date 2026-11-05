@@ -345,6 +345,7 @@ describe("GoogleDriveStorageProvider", () => {
 		const handling = handleUpdate(
 			new NodeUpdatedEvent("user@example.com", "tenant", {
 				uuid: "file-001",
+				mimetype: "text/plain",
 				oldValues: { parent: "parent-a" },
 				newValues: { parent: "parent-b" },
 			}),
@@ -399,6 +400,7 @@ describe("GoogleDriveStorageProvider", () => {
 		await handleUpdate(
 			new NodeUpdatedEvent("user@example.com", "tenant", {
 				uuid: "file-001",
+				mimetype: "text/plain",
 				oldValues: { parent: "parent-a", title: "File" },
 				newValues: { parent: "parent-b", title: "Renamed" },
 			}),
@@ -415,6 +417,7 @@ describe("GoogleDriveStorageProvider", () => {
 		await handleUpdate(
 			new NodeUpdatedEvent("user@example.com", "tenant", {
 				uuid: "file-001",
+				mimetype: "text/plain",
 				oldValues: { parent: "parent-b" },
 				newValues: { parent: Nodes.ROOT_FOLDER_UUID },
 			}),
@@ -470,6 +473,7 @@ describe("GoogleDriveStorageProvider", () => {
 		await handleUpdate(
 			new NodeUpdatedEvent("user@example.com", "tenant", {
 				uuid: "file-001",
+				mimetype: "text/plain",
 				oldValues: { parent: "parent-a" },
 				newValues: { parent: "parent-b" },
 			}),
@@ -477,6 +481,7 @@ describe("GoogleDriveStorageProvider", () => {
 		await handleUpdate(
 			new NodeUpdatedEvent("user@example.com", "tenant", {
 				uuid: "file-001",
+				mimetype: "text/plain",
 				oldValues: { parent: "parent-a" },
 				newValues: { parent: Nodes.ROOT_FOLDER_UUID },
 			}),

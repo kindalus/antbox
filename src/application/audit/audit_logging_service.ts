@@ -1,5 +1,5 @@
 import { Logger } from "shared/logger.ts";
-import type { AuditEventDTO } from "domain/audit/audit_event.ts";
+import { type AuditEventDTO, toAuditEventDTO } from "domain/audit/audit_event.ts";
 import type { EventStoreRepository } from "domain/audit/event_store_repository.ts";
 import { NodeCreatedEvent } from "domain/nodes/node_created_event.ts";
 import { NodeDeletedEvent } from "domain/nodes/node_deleted_event.ts";
@@ -13,6 +13,9 @@ import { type Either, left, right } from "shared/either.ts";
 import type { EventBus } from "shared/event_bus.ts";
 import { eventHandlerFunc } from "shared/event_handler.ts";
 import type { AuthenticationContext } from "../security/authentication_context.ts";
+
+/** Updates used to be recorded here regardless of the node's mimetype. */
+const LEGACY_UPDATES_MIMETYPE = "application/octet-stream";
 
 export interface DeletedNodeInfo {
 	uuid: string;
@@ -88,7 +91,7 @@ export class AuditLoggingService {
 	#handleNodeUpdated(event: NodeUpdatedEvent): void {
 		const changes = event.payload;
 
-		this.#appendToRepository(changes.uuid, this.#getMimetypeFromChanges(changes), {
+		this.#appendToRepository(changes.uuid, changes.mimetype, {
 			eventType: NodeUpdatedEvent.EVENT_ID,
 			occurredOn: event.occurredOn.toISOString(),
 			userEmail: event.userEmail,
@@ -121,12 +124,6 @@ export class AuditLoggingService {
 		});
 	}
 
-	#getMimetypeFromChanges(
-		changes: { oldValues: Partial<NodeMetadata>; newValues: Partial<NodeMetadata> },
-	): string {
-		return changes.newValues.mimetype || changes.oldValues.mimetype || "application/octet-stream";
-	}
-
 	#isAdmin(ctx: AuthenticationContext): boolean {
 		return ctx.principal.groups?.includes(Groups.ADMINS_GROUP_UUID) ?? false;
 	}
@@ -146,16 +143,20 @@ export class AuditLoggingService {
 			return left(streamOrErr.value);
 		}
 
-		const events = streamOrErr.value.map((event) => ({
-			streamId: event.streamId,
-			eventType: event.eventType,
-			occurredOn: event.occurredOn,
-			userEmail: event.userEmail,
-			payload: event.payload,
-			sequence: event.sequence,
-		}));
+		if (mimetype === LEGACY_UPDATES_MIMETYPE) {
+			return right(streamOrErr.value.map(toAuditEventDTO));
+		}
 
-		return right(events);
+		const legacyOrErr = await this.repository.getStream(uuid, LEGACY_UPDATES_MIMETYPE);
+		if (legacyOrErr.isLeft()) {
+			return left(legacyOrErr.value);
+		}
+
+		const events = [...streamOrErr.value, ...legacyOrErr.value].sort((a, b) =>
+			Date.parse(a.occurredOn) - Date.parse(b.occurredOn)
+		);
+
+		return right(events.map(toAuditEventDTO));
 	}
 
 	async getDeleted(

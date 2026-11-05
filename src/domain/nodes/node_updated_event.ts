@@ -3,6 +3,8 @@ import type { NodeMetadata } from "./node_metadata.ts";
 
 export interface NodeUpdateChanges {
 	readonly uuid: string;
+	/** The node's current mimetype. oldValues and newValues only carry changed fields. */
+	readonly mimetype: string;
 	readonly oldValues: Partial<NodeMetadata>;
 	readonly newValues: Partial<NodeMetadata>;
 }

@@ -7,8 +7,8 @@ import { left, right } from "shared/either.ts";
 import type { ValidationError } from "shared/validation_error.ts";
 
 interface CalculatedNodeUpdateChanges {
-	changed: Omit<NodeUpdateChanges, "uuid">;
-	requested: Omit<NodeUpdateChanges, "uuid">;
+	changed: Omit<NodeUpdateChanges, "uuid" | "mimetype">;
+	requested: Omit<NodeUpdateChanges, "uuid" | "mimetype">;
 }
 
 export function calculateNodeUpdateChanges(

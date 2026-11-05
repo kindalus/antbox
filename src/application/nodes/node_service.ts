@@ -969,6 +969,7 @@ export class NodeService {
 			// Create NodeUpdateChanges with old and new values
 			const changes: NodeUpdateChanges = {
 				uuid: nodeOrErr.value.uuid,
+				mimetype: nodeOrErr.value.mimetype,
 				oldValues: eventValues.oldValues,
 				newValues: eventValues.newValues,
 			};

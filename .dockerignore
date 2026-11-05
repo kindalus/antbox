@@ -8,3 +8,6 @@ examples
 build
 data
 /*.md
+.config/*/data
+.config/*/antbox*
+.config/*/*.jwk

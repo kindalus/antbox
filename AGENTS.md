@@ -139,6 +139,7 @@ async create(data: NodeMetadata): Promise<Either<ValidationError, Node>>
 - Feature sandboxing/isolation is still needed. Dynamic feature code and AI code tools currently run
   without a dedicated sandbox boundary. The runtime (Bun) has no permission model at all, so dynamic
   features and `run_code` can read files, use the network and spawn processes. The container is the
-  only boundary; see `docs/security-runtime.md`.
+  only boundary; the shell-less distroless images in `build/docker/` are not a sandbox. See
+  `docs/security-runtime.md`.
 - Privilege-elevated feature execution needs follow-up review. Automatic features and `runAs` remain
   powerful and should be revisited with a stricter privilege model.

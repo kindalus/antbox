@@ -2,6 +2,7 @@ import { NodeFiltersSchema } from "domain/nodes/node_filter.ts";
 import { z } from "zod";
 import { ExportAllRequestSchema } from "application/nodes/node_export_all.ts";
 import { AntboxError, BadRequestError, UnknownError } from "shared/antbox_error.ts";
+import type { Either } from "shared/either.ts";
 import { type AntboxTenant } from "./antbox_tenant.ts";
 import { defaultMiddlewareChain } from "./default_middleware_chain.ts";
 import { getAuthenticationContext } from "./get_authentication_context.ts";
@@ -289,6 +290,46 @@ export function exportHandler(tenants: AntboxTenant[]): HttpHandler {
 				.catch(processError);
 		},
 	);
+}
+
+/** Serves GET and HEAD: Oak routes both here, and HEAD is used as an existence check. */
+export function contentMdHandler(tenants: AntboxTenant[]): HttpHandler {
+	return defaultMiddlewareChain(
+		tenants,
+		async (req: Request): Promise<Response> => {
+			const service = getTenant(req, tenants).nodeService;
+			const params = getParams(req);
+			if (!params.uuid) {
+				return new Response("{ uuid } not given", { status: 400 });
+			}
+
+			const response = await service
+				.getContentMd(getAuthenticationContext(req), params.uuid)
+				.then(contentMdResponse)
+				.catch(processError);
+
+			return req.method === "HEAD" ? new Response(null, response) : response;
+		},
+	);
+}
+
+function contentMdResponse(contentOrErr: Either<AntboxError, string>): Response {
+	if (contentOrErr.isLeft()) {
+		// Indexing and permission changes can alter this answer, so it must not be cached.
+		const error = processError(contentOrErr.value);
+		error.headers.set("Cache-Control", "no-store");
+		return error;
+	}
+
+	const bytes = new TextEncoder().encode(contentOrErr.value);
+	return new Response(bytes, {
+		headers: {
+			"Content-Type": "text/markdown; charset=utf-8",
+			"Content-Length": bytes.length.toString(),
+			"X-Content-Type-Options": "nosniff",
+			"Cache-Control": "no-store",
+		},
+	});
 }
 
 export function exportAllHandler(tenants: AntboxTenant[]): HttpHandler {

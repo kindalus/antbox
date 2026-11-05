@@ -98,6 +98,24 @@ Generic article creation requires a non-empty `articleProperties` map, `articleA
 `title`. Unlike `POST /v2/articles`, `POST /v2/nodes` does not generate `articleFid` values or
 derive `title` from `articleTitle`.
 
+### Reading Stored Markdown Content
+
+`GET /v2/nodes/{uuid}/-/content-md` returns the text stored for semantic search as
+`text/markdown; charset=utf-8`, with `X-Content-Type-Options: nosniff` and
+`Cache-Control: no-store`. The body excludes the YAML frontmatter. UUIDs and FID-form identifiers
+are accepted.
+
+`HEAD` on the same path returns the same status and headers without a body, so it can check whether
+a node has content. Neither method reads the file from storage.
+
+The stored text is extracted from the file, so both methods follow the export rules: they require
+**Read** and **Export** permissions on the parent folder. Without **Export**, the response is `403`
+whether or not content exists, so it does not reveal which files have content.
+
+The response is `404` when the node does not exist, is not a file, has no stored content, or only
+has frontmatter stored. Folders, smart folders, articles, and meta nodes are not files, so they
+return `404` regardless of **Export**.
+
 ### Downloading Multiple Files
 
 `POST /v2/nodes/-/export-all` accepts JSON `{"uuids":["file-1","file-2"]}` and returns an

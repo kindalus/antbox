@@ -8,7 +8,7 @@ import { Groups } from "domain/users_groups/groups.ts";
 import { Users } from "domain/users_groups/users.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
-import { ForbiddenError } from "shared/antbox_error.ts";
+import { ForbiddenError, NotFoundError } from "shared/antbox_error.ts";
 import type { AuthenticationContext } from "../security/authentication_context.ts";
 import { NodeService } from "./node_service.ts";
 
@@ -139,6 +139,35 @@ describe("NodeService read contracts", () => {
 
 		expect(result.isRight()).toBe(true);
 		expect(result.right).toEqual({ "public-node": "public content" });
+	});
+
+	it("returns stored markdown under the export rules", async () => {
+		const { repository, service } = createHarness();
+		await createFolder(service, "public-folder", "Public");
+		const file = await service.createFile(
+			adminCtx,
+			new File(["original"], "report.txt", { type: "text/plain" }),
+			{ uuid: "readable-file", parent: "public-folder" },
+		);
+		expect(file.isRight()).toBe(true);
+		await service.create(adminCtx, {
+			uuid: "meta-node",
+			title: "Meta node",
+			parent: "public-folder",
+			mimetype: Nodes.META_NODE_MIMETYPE,
+		});
+		await repository.upsertEmbedding("readable-file", [1], "---\nuuid: x\n---\n\nBody");
+		await repository.upsertEmbedding("meta-node", [1], "---\nuuid: y\n---\n\nMeta body");
+
+		const allowed = await service.getContentMd(adminCtx, "readable-file");
+		const withoutExport = await service.getContentMd(readerCtx, "readable-file");
+		const notAFile = await service.getContentMd(adminCtx, "meta-node");
+		const missing = await service.getContentMd(adminCtx, "missing-node");
+
+		expect(allowed.right).toBe("Body");
+		expect(withoutExport.value).toBeInstanceOf(ForbiddenError);
+		expect((notAFile.value as NotFoundError).errorCode).toBe(NotFoundError.ERROR_CODE);
+		expect(missing.value).toBeInstanceOf(NodeNotFoundError);
 	});
 
 	it("lists folders before files and sorts each group by title", async () => {

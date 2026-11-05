@@ -2094,6 +2094,82 @@ paths:
                         format: binary
             default:
                $ref: "#/components/responses/Error"
+   "/nodes/{uuid}/-/content-md":
+      get:
+         tags:
+            - nodes
+         summary: Get the stored markdown content of a node
+         description: Returns the text stored for semantic search, without its YAML frontmatter. Follows the export rules, so it requires Read and Export on the parent folder, and only file nodes have content. A principal without Export receives 403 whether or not content exists.
+         operationId: getNodeContentMd
+         parameters:
+            - $ref: "#/components/parameters/UUID"
+         responses:
+            "200":
+               description: Markdown body, with nosniff and no-store
+               headers:
+                  X-Content-Type-Options:
+                     schema:
+                        type: string
+                        enum:
+                           - nosniff
+                  Cache-Control:
+                     schema:
+                        type: string
+                        enum:
+                           - no-store
+               content:
+                  text/markdown:
+                     schema:
+                        type: string
+            "403":
+               description: The principal lacks Read or Export permission
+               content:
+                  application/json:
+                     schema:
+                        $ref: "#/components/schemas/AntboxError"
+            "404":
+               description: The node does not exist, is not a file, has no stored content, or only stored frontmatter
+               content:
+                  application/json:
+                     schema:
+                        $ref: "#/components/schemas/AntboxError"
+            default:
+               $ref: "#/components/responses/Error"
+      head:
+         tags:
+            - nodes
+         summary: Check whether a node has stored markdown content
+         description: Returns the same status and headers as GET, without a body. It follows the same permission rules and does not read the file from storage.
+         operationId: checkNodeContentMd
+         parameters:
+            - $ref: "#/components/parameters/UUID"
+         responses:
+            "200":
+               description: The node has markdown content
+               headers:
+                  Content-Type:
+                     schema:
+                        type: string
+                        enum:
+                           - text/markdown; charset=utf-8
+                  Content-Length:
+                     schema:
+                        type: integer
+                        minimum: 1
+                  X-Content-Type-Options:
+                     schema:
+                        type: string
+                        enum:
+                           - nosniff
+                  Cache-Control:
+                     schema:
+                        type: string
+                        enum:
+                           - no-store
+            "403":
+               description: The principal lacks Read or Export permission
+            "404":
+               description: The node does not exist, is not a file, has no stored content, or only stored frontmatter
    "/nodes/{uuid}/-/lock":
       post:
          tags:

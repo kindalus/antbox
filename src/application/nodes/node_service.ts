@@ -20,7 +20,13 @@ import { SmartFolderNodeNotFoundError } from "domain/nodes/smart_folder_node_not
 import { NodesFilters } from "domain/nodes_filters.ts";
 import { Groups } from "domain/users_groups/groups.ts";
 import { Users } from "domain/users_groups/users.ts";
-import { AntboxError, BadRequestError, ForbiddenError, UnknownError } from "shared/antbox_error.ts";
+import {
+	AntboxError,
+	BadRequestError,
+	ForbiddenError,
+	NotFoundError,
+	UnknownError,
+} from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
 import { FidGenerator } from "shared/fid_generator.ts";
 import { UuidGenerator } from "shared/uuid_generator.ts";
@@ -37,6 +43,7 @@ import { NodeLookup } from "./node_lookup.ts";
 import { ParentFolderUpdateHandler } from "./parent_folder_update_handler.ts";
 import { calculateNodeUpdateChanges } from "./node_update_changes.ts";
 import { exportAllFiles } from "./node_export_all.ts";
+import { embeddingMarkdownBody } from "./node_markdown.ts";
 
 interface NodeUpdateOptions {
 	forceEvent?: boolean;
@@ -494,14 +501,46 @@ export class NodeService {
 		if (!Nodes.isFile(node.value)) {
 			return left(new BadRequestError(`Node '${uuid}' is not a file`));
 		}
-		const parent = await this.nodeLookup.getFolder(node.value.parent);
-		if (parent.isLeft()) {
-			return left(
-				new UnknownError(`Parent folder not found for node uuid='${node.value.uuid}'`),
-			);
-		}
-		const allowed = this.authorizationService.isPrincipalAllowedTo(ctx, parent.value, "Export");
+		const allowed = await this.#ensureCanExport(ctx, node.value);
 		return allowed.isLeft() ? left(allowed.value) : right(node.value);
+	}
+
+	async #ensureCanExport(
+		ctx: AuthenticationContext,
+		node: NodeMetadata,
+	): Promise<Either<AntboxError, unknown>> {
+		const parent = await this.nodeLookup.getFolder(node.parent);
+		if (parent.isLeft()) {
+			return left(new UnknownError(`Parent folder not found for node uuid='${node.uuid}'`));
+		}
+		return this.authorizationService.isPrincipalAllowedTo(ctx, parent.value, "Export");
+	}
+
+	/**
+	 * Returns the markdown stored for a file, without its frontmatter.
+	 *
+	 * The text is extracted from the file, so this follows the export rules: Read, file type,
+	 * and Export on the parent. Permissions are checked first, so a principal without Export
+	 * cannot learn whether content exists. Only metadata is read, never the file in storage.
+	 */
+	async getContentMd(
+		ctx: AuthenticationContext,
+		uuid: string,
+	): Promise<Either<AntboxError, string>> {
+		const node = await this.get(ctx, uuid);
+		if (node.isLeft()) return left(node.value);
+
+		const noContent = new NotFoundError(`Node '${uuid}' has no markdown content`);
+		if (!Nodes.isFile(node.value)) return left(noContent);
+
+		const allowed = await this.#ensureCanExport(ctx, node.value);
+		if (allowed.isLeft()) return left(allowed.value);
+
+		const contents = await this.context.repository.getEmbeddingContents([node.value.uuid]);
+		if (contents.isLeft()) return left(contents.value);
+
+		const body = embeddingMarkdownBody(contents.value[node.value.uuid] ?? "");
+		return body ? right(body) : left(noContent);
 	}
 
 	async evaluate(

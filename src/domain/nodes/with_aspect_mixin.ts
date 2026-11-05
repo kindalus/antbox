@@ -38,7 +38,6 @@ export function WithAspectMixin<TBase extends Constructor>(Base: TBase) {
 		protected _properties: NodeProperties = {};
 		protected _related: string[] = [];
 
-		// deno-lint-ignore no-explicit-any
 		constructor(...args: any[]) {
 			super(...args);
 

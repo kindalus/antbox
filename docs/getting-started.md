@@ -9,7 +9,7 @@ This guide walks you through running Antbox locally.
 
 ## Prerequisites
 
-- Deno installed: https://deno.land/
+- Bun 1.4.0 installed: https://bun.sh/
 
 ## Installation
 
@@ -36,7 +36,7 @@ to `$HOME/.local/share/antbox` and can be overridden with `--data-dir` (`-d`). T
 Minimal example (`config.toml`):
 
 ```toml
-engine = "oak"
+engine = "hono"
 port = 7180
 logLevel = "info"
 rootPasswd = "demo"
@@ -97,7 +97,7 @@ tenant files override inline tenants with the same name. Path resolution follows
 
 ## Start the Server
 
-Recommended (uses required Deno flags):
+Recommended:
 
 ```bash
 ./start_server.sh --config-dir /path/to/your/config --data-dir /path/to/your/data
@@ -106,7 +106,7 @@ Recommended (uses required Deno flags):
 Or run directly:
 
 ```bash
-deno run -A --unstable-raw-imports main.ts \
+bun --no-env-file main.ts \
   --config-dir /path/to/your/config --data-dir /path/to/your/data
 ```
 
@@ -114,11 +114,32 @@ You should see:
 
 ```
 WebDAV path cache cleanup started
-Antbox Server (oak) started successfully on http://localhost:7180
+Antbox Server v2.0.0 (hono) started successfully on http://localhost:7180
 - http://localhost:7180/v2 for REST API
 - http://localhost:7180/mcp for MCP
 - http://localhost:7180/webdav for WebDAV
 ```
+
+## Upgrading from Deno
+
+Earlier versions ran on Deno with Oak. The current version runs on Bun with Hono. What changes:
+
+- `engine = "oak"` in `config.toml` still works. Antbox logs a warning and serves it with `hono`.
+  Change the value to `"hono"` to silence it.
+- Configuration, data and SQLite files need no migration.
+- `OTEL_DENO` is gone. Set `OTEL_EXPORTER_OTLP_ENDPOINT` and the standard `OTEL_*` variables. See
+  `docs/observability.md`.
+- The server starts with `--no-env-file`, so a `.env` file is not loaded automatically. Export the
+  variables in the shell or in your service manager.
+- The `deno` field of the admin endpoint is replaced by `runtime`.
+- External adapters cannot use project aliases. They must import Antbox code with relative or
+  absolute paths.
+- Adapters such as `OCRProvider` implementations are unchanged by this migration.
+- Bun drops requests with an unknown HTTP method (for example `FOO`) instead of answering 501.
+- A multipart file part declared as `text/plain; charset=utf-8` is now accepted. Deno rejected it
+  with 400.
+- Bun has no permission flags. Dynamic features can spawn processes, so run Antbox in a container.
+  See `docs/security-runtime.md`.
 
 ## Authentication (Quick Login)
 

@@ -1,4 +1,3 @@
-// deno-lint-ignore no-explicit-any
 type AnyFunction = (...args: any[]) => any;
 
 export interface StubCall {

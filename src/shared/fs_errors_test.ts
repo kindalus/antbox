@@ -46,21 +46,6 @@ describe("fs_errors", () => {
 		expect(isPermissionDeniedError(error)).toBe(true);
 	});
 
-	it("detects the same conditions from the Deno fs API", async () => {
-		const deno = (globalThis as { Deno?: typeof Deno }).Deno;
-		if (!deno) return;
-		expect(isNotFoundError(capture(() => deno.readFileSync(join(dir, "missing"))))).toBe(true);
-		expect(isNotFoundError(await captureAsync(() => deno.readFile(join(dir, "missing")))))
-			.toBe(true);
-		expect(isAlreadyExistsError(capture(() => deno.mkdirSync(dir)))).toBe(true);
-		expect(
-			isPermissionDeniedError(
-				capture(() => deno.writeFileSync("/proc/version", new Uint8Array())),
-			),
-		)
-			.toBe(true);
-	});
-
 	it("detects not supported by code", () => {
 		expect(isNotSupportedError({ code: "ENOTSUP" })).toBe(true);
 		expect(isNotSupportedError({ code: "ENOSYS" })).toBe(true);

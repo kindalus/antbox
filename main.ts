@@ -8,6 +8,7 @@ import { loadConfiguration } from "setup/load_configuration.ts";
 import { startPathCacheCleanup } from "integration/webdav/webdav_path_cache.ts";
 import { APP_VERSION } from "shared/app_metadata.ts";
 import { Logger } from "shared/logger.ts";
+import { isTelemetryEnabled } from "shared/telemetry_bootstrap.ts";
 
 interface CommandOpts {
 	configDir?: string;
@@ -73,6 +74,11 @@ async function startServer(
 	configDir?: string,
 	dataDir?: string,
 ) {
+	if (isTelemetryEnabled()) {
+		const { startTelemetry } = await import("shared/telemetry_bootstrap.ts");
+		await startTelemetry();
+	}
+
 	let tenants;
 	try {
 		tenants = await setupTenants(getTenantSetupConfiguration(config));

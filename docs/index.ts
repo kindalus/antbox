@@ -86,6 +86,10 @@ export const DOCS: DocInfo[] = [
 		description: "Users, groups, and API keys administration",
 	},
 	{
+		uuid: "security-runtime",
+		description: "Runtime isolation and container hardening",
+	},
+	{
 		uuid: "llms",
 		description: "Platform context for LLMs",
 	},

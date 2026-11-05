@@ -5,7 +5,7 @@ import { parse as parseYaml } from "yaml";
 import { APP_NAME, APP_VERSION, SERVER_HEADER_VALUE, setServerHeader } from "./app_metadata.ts";
 
 describe("app_metadata", () => {
-	it("loads app name and version from deno.json", () => {
+	it("loads app name and version from package.json", () => {
 		expect(APP_NAME).toBe("antbox");
 		expect(APP_VERSION.length > 0).toBe(true);
 	});

@@ -44,7 +44,6 @@ export function FolderMixin<TBase extends Constructor>(Base: TBase) {
 		};
 		protected _filters: NodeFilters = [];
 
-		// deno-lint-ignore no-explicit-any
 		constructor(...args: any[]) {
 			super({ ...args[0], mimetype: Nodes.FOLDER_MIMETYPE });
 

@@ -9,17 +9,19 @@ import { loadPiCodingAgent } from "application/ai/pi_coding_agent.ts";
 
 await loadPiCodingAgent();
 
+const source = new URL("../", import.meta.url).href;
+
 async function fixture() {
 	const directory = await fs.mkdtemp(join(tmpdir(), "antbox-"));
 	const modulePath = `${directory}/adapter.ts`;
 	await fs.writeFile(
 		modulePath,
 		`
-import { right } from "shared/either.ts";
-import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository.ts";
-import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider.ts";
-import { InMemoryEventStoreRepository } from "adapters/inmem/inmem_event_store_repository.ts";
-import { InMemoryConfigurationRepository } from "adapters/inmem/inmem_configuration_repository.ts";
+import { right } from "${source}shared/either.ts";
+import { InMemoryNodeRepository } from "${source}adapters/inmem/inmem_node_repository.ts";
+import { InMemoryStorageProvider } from "${source}adapters/inmem/inmem_storage_provider.ts";
+import { InMemoryEventStoreRepository } from "${source}adapters/inmem/inmem_event_store_repository.ts";
+import { InMemoryConfigurationRepository } from "${source}adapters/inmem/inmem_configuration_repository.ts";
 export const closed: string[] = [];
 export default async function build(kind: string, id: string, failClose?: string) {
 	if (kind === "fail") throw new Error("provider initialization failed");

@@ -12,6 +12,10 @@ export interface ListenInfo {
 	port: number;
 }
 
+// Antbox imposes no transport-level limits: tenant quotas bound uploads and handlers may stream
+// for as long as they need.
+const MAX_REQUEST_BODY_SIZE = Number.MAX_SAFE_INTEGER;
+
 /**
  * Starts serving a fetch function and resolves once the socket is listening.
  *
@@ -22,14 +26,17 @@ export function startServer(
 	fetch: (request: Request) => Response | Promise<Response>,
 	options: ServeOptions,
 ): Promise<ListenInfo> {
-	return new Promise((resolve) => {
-		Deno.serve({
-			port: options.port ?? 7180,
-			hostname: options.hostname,
-			signal: options.signal,
-			cert: options.tls?.cert,
-			key: options.tls?.key,
-			onListen: (addr) => resolve({ hostname: addr.hostname, port: addr.port }),
-		}, fetch);
+	const server = Bun.serve({
+		port: options.port ?? 7180,
+		hostname: options.hostname,
+		idleTimeout: 0,
+		maxRequestBodySize: MAX_REQUEST_BODY_SIZE,
+		tls: options.tls ? { cert: options.tls.cert, key: options.tls.key } : undefined,
+		fetch,
 	});
+
+	options.signal?.addEventListener("abort", () => void server.stop(true), { once: true });
+	if (options.signal?.aborted) void server.stop(true);
+
+	return Promise.resolve({ hostname: server.hostname ?? "0.0.0.0", port: server.port ?? 0 });
 }

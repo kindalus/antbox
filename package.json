@@ -1,1 +1,53 @@
-{}
+{
+	"name": "antbox",
+	"version": "2.0.0",
+	"type": "module",
+	"module": "main.ts",
+	"scripts": {
+		"start": "bun --no-env-file main.ts",
+		"test": "bun --no-env-file test --timeout 30000",
+		"test:watch": "bun --no-env-file test --timeout 30000 --watch",
+		"test:coverage": "bun --no-env-file test --timeout 30000 --coverage",
+		"test:services": "bun --no-env-file test --timeout 30000 src/application/ai/agents_service_test.ts src/application/security/api_keys_service_test.ts src/application/aspects/aspects_service_test.ts src/application/features/features_service_test.ts src/application/security/groups_service_test.ts src/application/security/users_service_test.ts src/application/workflows/workflows_service_test.ts src/application/articles/article_service_test.ts",
+		"test-node-repository": "bun --no-env-file ./src/adapters/run_node_repository_tests.ts",
+		"test-storage-provider": "bun --no-env-file ./src/adapters/run_storage_provider_tests.ts",
+		"lint": "oxlint src tools main.ts main_test.ts",
+		"fmt": "dprint fmt",
+		"fmt:check": "dprint check",
+		"typecheck": "tsc --noEmit",
+		"build:antbox": "bun build tools/utils_bundle.ts --target bun --minify --outfile antbox.js && bun tools/generate_antbox_types.ts"
+	},
+	"dependencies": {
+		"@aws-sdk/client-s3": "3.1040.0",
+		"@earendil-works/pi-agent-core": "0.84.1",
+		"@earendil-works/pi-ai": "0.84.1",
+		"@earendil-works/pi-coding-agent": "0.84.1",
+		"@earendil-works/pi-telemetry": "0.84.1",
+		"@google/genai": "1.25.0",
+		"@googleapis/drive": "18.0.0",
+		"@opentelemetry/api": "1.10.0",
+		"@opentelemetry/exporter-trace-otlp-http": "0.300.0",
+		"@opentelemetry/sdk-node": "0.300.0",
+		"@remix-run/multipart-parser": "1.1.1",
+		"commander": "14.0.1",
+		"dompurify": "3.4.17",
+		"fflate": "0.8.3",
+		"hono": "4.13.16",
+		"jose": "6.1.0",
+		"jsdom": "27.0.0",
+		"marked": "16.4.0",
+		"mongodb": "6.20.0",
+		"postgres": "3.4.8",
+		"smol-toml": "1.9.1",
+		"yaml": "2.9.1",
+		"zod": "4.3.6"
+	},
+	"devDependencies": {
+		"@types/bun": "1.4.4",
+		"@types/jsdom": "^30.0.0",
+		"dprint": "0.64.3",
+		"oxlint": "1.91.0",
+		"typescript": "7.0.2"
+	},
+	"trustedDependencies": ["protobufjs"]
+}

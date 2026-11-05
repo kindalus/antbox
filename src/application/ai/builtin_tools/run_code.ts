@@ -67,10 +67,10 @@ export function createRunCodeTool(
 	};
 
 	return async function runCode(code: string): Promise<string> {
+		let moduleUrl: string | undefined;
 		try {
-			// Create a data URL module with the user's code
-			// The code must export a default function
-			const moduleUrl = `data:text/typescript,${encodeURIComponent(code)}`;
+			// A blob URL keeps dotted code intact, which data: module URLs do not on every runtime
+			moduleUrl = URL.createObjectURL(new Blob([code], { type: "application/typescript" }));
 
 			// Dynamically import the module
 			const module = await import(moduleUrl);
@@ -104,6 +104,8 @@ export function createRunCodeTool(
 			};
 
 			return JSON.stringify(errorObj, null, 2);
+		} finally {
+			if (moduleUrl) URL.revokeObjectURL(moduleUrl);
 		}
 	};
 }

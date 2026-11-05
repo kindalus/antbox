@@ -27,7 +27,7 @@ const GOOGLE_DRIVE_FOLDER_MIMETYPE = "application/vnd.google-apps.folder";
  * External setup:
  * - Enable the Google Drive API in your Google Cloud project.
  * - Create a service account, download the JSON key, and add it to a Shared Drive.
- * - Provide the Shared Drive ID and ensure Deno has `--allow-read`/`--allow-net`.
+ * - Provide the Shared Drive ID and ensure the process can read local files and reach the network.
  *
  * @example
  * const storageOrErr = await buildGoogleDriveStorageProvider(

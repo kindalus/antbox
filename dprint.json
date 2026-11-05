@@ -1,0 +1,11 @@
+{
+	"typescript": {
+		"deno": true,
+		"useTabs": true,
+		"lineWidth": 100,
+		"indentWidth": 3
+	},
+	"includes": ["**/*.ts"],
+	"excludes": ["node_modules", "antbox.js", "**/*.d.ts"],
+	"plugins": ["https://plugins.dprint.dev/typescript-0.95.11.wasm"]
+}

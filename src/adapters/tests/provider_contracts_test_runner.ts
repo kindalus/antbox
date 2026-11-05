@@ -7,7 +7,7 @@ const cliArgs = process.argv.slice(2);
 if (cliArgs.length < 2) {
 	Logger.error("This script must be run with command line arguments.");
 	Logger.error(
-		"usage: deno run -A provider_contracts_test_runner.ts <storage|repository> <provider_url>*",
+		"usage: bun provider_contracts_test_runner.ts <storage|repository> <provider_url>*",
 	);
 	process.exit(1);
 }
@@ -19,9 +19,10 @@ const testCasePath = cliArgs[0] === "storage"
 spawnSync(
 	process.env._ ?? process.execPath,
 	[
+		"--no-env-file",
 		"test",
-		"-A",
-		// "--inspect-wait",
+		"--timeout",
+		"30000",
 		testCasePath,
 	],
 	{ env: { TEST_PARAMS: cliArgs.slice(1).join(";") } },

@@ -1,19 +1,22 @@
 # Dockerfile
-FROM denoland/deno:debian-2.7.14
+FROM oven/bun:1.4.0-slim
 
 WORKDIR /app
-RUN groupadd --system antx && useradd --system --gid antx --create-home antx
-COPY --chown=antx:antx . .
+RUN groupadd --system antx && useradd --system --gid antx --home-dir /app antx
 
-ENV DENO_DIR=/app/.deno
-RUN mkdir -p "$DENO_DIR" && chown antx:antx /app "$DENO_DIR"
-USER antx
+COPY package.json bun.lock tsconfig.json ./
+RUN bun install --frozen-lockfile --production
 
-RUN deno cache --frozen \
-	--allow-scripts=npm:@google/genai@1.52.0,npm:protobufjs@7.6.5 \
-	main.ts
+COPY main.ts openapi.yaml ./
+COPY .config ./.config
+COPY docs ./docs
+COPY src ./src
 
+RUN mkdir -p /app/data && chown -R antx:antx /app/data /app/.config
+
+ENV NODE_ENV=production
 ENV PORT=7180
+USER antx
 EXPOSE 7180
 
-CMD ["./start_server.sh", "--sandbox"]
+CMD ["bun", "--no-env-file", "main.ts", "--sandbox"]

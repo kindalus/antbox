@@ -119,7 +119,7 @@ describe("main entry point", () => {
 			await fs.writeFile(join(dir, "antbox.jwks"), JSON.stringify({ keys: [] }));
 			const result = spawnSync(
 				process.execPath,
-				["run", "-A", "--unstable-raw-imports", "main.ts", "--keys", "-c", dir],
+				["--no-env-file", "main.ts", "--keys", "-c", dir],
 				{
 					cwd: fileURLToPath(new URL(".", import.meta.url)),
 					env: { ...process.env, ANTBOX_LOG_LEVEL: "info" },
@@ -160,7 +160,7 @@ describe("main entry point", () => {
 
 		const child = spawn(
 			process.execPath,
-			["run", "-A", "main.ts", "-c", dir, "-d", join(dir, "data")],
+			["--no-env-file", "main.ts", "-c", dir, "-d", join(dir, "data")],
 			{ cwd: repoRoot, stdio: ["ignore", "pipe", "pipe"] },
 		);
 		const exited = new Promise<void>((resolve) => {

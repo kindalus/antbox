@@ -19,7 +19,7 @@ import { RootPasswordSchema, TenantsConfigurationSchema } from "api/http_server_
 
 function runtimeInfo(): { name: string; version: string } {
 	const versions = process.versions as Record<string, string | undefined>;
-	for (const name of ["bun", "deno", "node"]) {
+	for (const name of ["bun", "node"]) {
 		const version = versions[name];
 		if (version) return { name, version };
 	}

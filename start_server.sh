@@ -9,7 +9,6 @@ DATA_DIR=""
 KEYS_FLAG=""
 DEMO_FLAG=""
 SANDBOX_FLAG=""
-DENO_ARGS="--unstable-raw-imports --unstable-otel --allow-net --allow-read --allow-write --allow-env --allow-sys --allow-ffi"
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
@@ -65,30 +64,30 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# Build the deno command
-DENO_CMD="deno run $DENO_ARGS main.ts"
+# Build the bun command
+BUN_CMD="bun --no-env-file main.ts"
 
 # Add flags if specified
 if [[ -n "$KEYS_FLAG" ]]; then
-  DENO_CMD="$DENO_CMD $KEYS_FLAG"
+  BUN_CMD="$BUN_CMD $KEYS_FLAG"
 fi
 
 if [[ -n "$CONFIG_DIR" ]]; then
-  DENO_CMD="$DENO_CMD $CONFIG_DIR"
+  BUN_CMD="$BUN_CMD $CONFIG_DIR"
 fi
 
 if [[ -n "$DATA_DIR" ]]; then
-  DENO_CMD="$DENO_CMD $DATA_DIR"
+  BUN_CMD="$BUN_CMD $DATA_DIR"
 fi
 
 if [[ -n "$DEMO_FLAG" ]]; then
-  DENO_CMD="$DENO_CMD $DEMO_FLAG"
+  BUN_CMD="$BUN_CMD $DEMO_FLAG"
 fi
 
 if [[ -n "$SANDBOX_FLAG" ]]; then
-  DENO_CMD="$DENO_CMD $SANDBOX_FLAG"
+  BUN_CMD="$BUN_CMD $SANDBOX_FLAG"
 fi
 
 # Execute the command
-echo "Executing: $DENO_CMD"
-exec $DENO_CMD
+echo "Executing: $BUN_CMD"
+exec $BUN_CMD

@@ -5,7 +5,7 @@ import { fauxAssistantMessage, fauxProvider, fauxToolCall, Type } from "@earendi
 import { fileURLToPath } from "node:url";
 import { loadSkillInstruction, loadSkills } from "./skills_loader.ts";
 
-it("Pi core loads an Antbox skill progressively in Deno", async () => {
+it("Pi core loads an Antbox skill progressively", async () => {
 	const builtinSkillsDir = fileURLToPath(new URL("./builtin_skills", import.meta.url));
 	const skills = await loadSkills(builtinSkillsDir, undefined, {
 		includeDocumentationSkills: false,

@@ -97,7 +97,8 @@ describe("hono server", () => {
 	});
 
 	it("answers 501 with Allow for methods the server does not know", async () => {
-		const response = await serve()("/v2/nodes", { method: "FOO" });
+		// Bun turns tokens it does not recognise, such as FOO, into GET before the handler sees them
+		const response = await serve()("/v2/nodes", { method: "TRACE" });
 
 		expect(response.status).toBe(501);
 		expect(response.headers.get("Allow")).toBe("HEAD, GET, POST");

@@ -84,7 +84,7 @@ export async function exportAllFiles(
 
 function uniqueArchiveName(title: string, usedNames: Set<string>): string {
 	let name = title.normalize("NFC")
-		// deno-lint-ignore no-control-regex -- Strip unsafe controls from archive filenames.
+		// Strip unsafe controls from archive filenames.
 		.replace(/[\x00-\x1f\x7f/\\:*?"<>|]/g, "_")
 		.replace(/^[.\s]+|[.\s]+$/g, "")
 		.slice(0, 200)

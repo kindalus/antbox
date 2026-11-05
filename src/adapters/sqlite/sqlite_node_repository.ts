@@ -30,7 +30,7 @@ import { type Either, left, right } from "shared/either.ts";
  * @remarks
  * External setup:
  * - For persistent storage, pass `baseFolder` and ensure it is writable.
- * - Deno requires `--allow-read` and `--allow-write` for file access.
+ * - The process needs read and write access to the data path.
  *
  * @example
  * const repoOrErr = await buildSqliteNodeRepository("/var/lib/antbox");

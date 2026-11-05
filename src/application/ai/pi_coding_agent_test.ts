@@ -24,7 +24,7 @@ async function createTestRuntime() {
 }
 
 describe("Pi coding agent compatibility", () => {
-	it("runs and reopens a persisted session in Deno", async () => {
+	it("runs and reopens a persisted session", async () => {
 		const dir = await fs.mkdtemp(join(tmpdir(), "antbox-pi-session-test-"));
 		try {
 			const runtime = await createTestRuntime();

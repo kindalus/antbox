@@ -15,7 +15,7 @@ import { adapt } from "./adapt.ts";
  * @remarks
  * External setup:
  * - Pass the configured tenant list (e.g., from `setupTenants`).
- * - Run Deno with `--allow-net` when serving HTTP.
+ * - The process needs permission to bind the HTTP port.
  *
  * @example
  * const router = loginRouter(tenants);

@@ -19,7 +19,7 @@ It is optimized for tasks such as:
 
 ## 1. System Model (High-Level)
 
-Antbox is a multi-tenant ECM/DAM platform built with Deno + TypeScript.
+Antbox is a multi-tenant ECM/DAM platform built with Bun + TypeScript.
 
 Architecture layers:
 

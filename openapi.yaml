@@ -2527,7 +2527,7 @@ paths:
               required: true
               schema:
                  type: string
-              description: Route parameter name is uuid in the Oak router.
+              description: Route parameter name is uuid in the Hono router.
          responses:
             "200":
                description: User deleted

@@ -10,9 +10,10 @@ Logger.info(`Running StorageProvider contract tests with: ${args.join(" ")}`);
 const child = spawn(
 	process.execPath,
 	[
+		"--no-env-file",
 		"test",
-		"-A",
-		"--unstable-raw-imports",
+		"--timeout",
+		"30000",
 		"./src/adapters/tests/storage_provider_contract_tests.ts",
 	],
 	{ env: { ...process.env, TEST_PARAMS: args.join(";") }, stdio: "inherit" },

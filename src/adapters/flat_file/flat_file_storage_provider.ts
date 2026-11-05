@@ -18,7 +18,7 @@ import { tempPath } from "shared/temp_path.ts";
  * @remarks
  * External setup:
  * - Ensure `baseDir` is writable and persisted.
- * - Deno requires `--allow-read` and `--allow-write` for file access.
+ * - The process needs read and write access to the data path.
  *
  * @example
  * const storageOrErr = await buildFlatFileStorageProvider("/var/lib/antbox");

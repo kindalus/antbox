@@ -18,7 +18,7 @@ describe("loadTemplate", () => {
 
 	it("does not read files outside the templates directory", async () => {
 		expect(await loadTemplate("../templates_handlers")).toBeNull();
-		expect(await loadTemplate("../../../deno")).toBeNull();
+		expect(await loadTemplate("../../../package")).toBeNull();
 		expect(await loadTemplate("../../../../../../../../etc/passwd")).toBeNull();
 	});
 });

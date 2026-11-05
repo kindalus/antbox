@@ -176,7 +176,7 @@ describe("features_handlers", () => {
 			expect(result.value.title).toBe("Raw Upload Feature");
 			expect(result.value.parameters[0].name).toBe("uuids");
 			expect(result.value.parameters[1].name).toBe("suffix");
-			expect(result.value.run).toContain("return undefined;");
+			expect(result.value.run).toMatch(/return( undefined)?;/);
 			expect(result.value.run.startsWith("async function")).toBe(true);
 		});
 

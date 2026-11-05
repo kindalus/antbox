@@ -27,7 +27,7 @@ const AuditStreamSchema = z.array(
  * @remarks
  * External setup:
  * - Ensure `baseDir` is writable and persisted.
- * - Deno requires `--allow-read` and `--allow-write` for file access.
+ * - The process needs read and write access to the data path.
  *
  * @example
  * const storeOrErr = await buildFlatFileEventStoreRepository("/var/lib/antbox");

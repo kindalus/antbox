@@ -20,7 +20,7 @@ import type { EventHandler } from "shared/event_handler.ts";
  * External setup:
  * - Create an S3-compatible bucket and access keys with read/write permissions.
  * - Provide a JSON config file with region, endpoint, bucket, and credentials.
- * - Ensure Deno has `--allow-read` for the config file and `--allow-net` for S3 access.
+ * - Ensure the process can read the config file and reach S3 over the network.
  *
  * @example
  * const storageOrErr = await buildS3StorageProvider("./s3.config.json");

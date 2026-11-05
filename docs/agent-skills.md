@@ -17,7 +17,7 @@ Skills are integrated with these components:
 - `src/setup/setup_tenants.ts`
 - `src/application/ai/agents_engine.ts`
 
-The full `pi-coding-agent` resource loader is not embedded in the Deno server. Antbox remains the
+The full `pi-coding-agent` resource loader is not embedded in the Antbox server. Antbox remains the
 host responsible for discovery and supplies `load_skill` as a Pi `AgentTool`, preserving tenant and
 agent allow-lists without exposing a general filesystem read tool.
 

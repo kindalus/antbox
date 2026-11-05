@@ -27,7 +27,7 @@ import { Logger } from "shared/logger.ts";
  * @remarks
  * External setup:
  * - Ensure `baseDir` is writable and persisted.
- * - Deno requires `--allow-read` and `--allow-write` for file access.
+ * - The process needs read and write access to the data path.
  *
  * @example
  * const repoOrErr = await buildFlatFileStorageProvider("/var/lib/antbox");

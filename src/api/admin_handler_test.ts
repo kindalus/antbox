@@ -270,14 +270,14 @@ async function createAdminRequest(body: BodyInit): Promise<Request> {
 }
 
 describe("adminRuntimeHandler", () => {
-	it("reports the runtime name and version instead of the deno version", async () => {
+	it("reports the runtime name and version and no legacy deno field", async () => {
 		const handler = adminRuntimeHandler([createAdminTenant()]);
 
 		const response = await handler(await createAdminRequest("{}"));
 
 		expect(response.status).toBe(200);
 		const body = await response.json();
-		expect(["bun", "deno", "node"]).toContain(body.runtime.name);
+		expect(["bun", "node"]).toContain(body.runtime.name);
 		expect(body.runtime.version.length > 0).toBe(true);
 		expect(body.deno).toBeUndefined();
 		expect(typeof body.uptime).toBe("number");

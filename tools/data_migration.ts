@@ -34,7 +34,7 @@ function assert<T>(
 async function main() {
 	if (process.argv.slice(2).length === 0) {
 		Logger.error(
-			"Usage: deno run --allow-read --allow-write --allow-ffi tools/data_migration.ts <path/to/config.json>",
+			"Usage: bun tools/data_migration.ts <path/to/config.json>",
 		);
 
 		Logger.info(`

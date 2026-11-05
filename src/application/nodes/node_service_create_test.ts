@@ -19,6 +19,7 @@ import { Left, left, Right, right } from "shared/either.ts";
 import { InMemoryConfigurationRepository } from "adapters/inmem/inmem_configuration_repository.ts";
 import { TenantLimitsGuard } from "application/metrics/tenant_limits_guard.ts";
 import type { EventStoreRepository } from "domain/audit/event_store_repository.ts";
+import { fileMimetype } from "shared/mimetype.ts";
 
 describe("NodeService.create", () => {
 	it("should create a node and persist the metadata", async () => {
@@ -386,7 +387,7 @@ describe("NodeService.createFile", () => {
 			.then((r) => r.right as FileLikeNode);
 
 		expect(node.size).toBe(file.size);
-		expect(node.mimetype).toBe(file.type);
+		expect(node.mimetype).toBe(fileMimetype(file));
 		expect(node.title).toBe(file.name);
 		expect(node.fid).toBeDefined();
 	});
@@ -462,7 +463,7 @@ describe("NodeService.createFile", () => {
 		});
 
 		expect(nodeOrErr.isRight(), errToMsg(nodeOrErr.value)).toBeTruthy();
-		expect(nodeOrErr.right.mimetype).toBe(dummyFile.type);
+		expect(nodeOrErr.right.mimetype).toBe(fileMimetype(dummyFile));
 	});
 
 	it("should not create embeddings for zero-size files", async () => {

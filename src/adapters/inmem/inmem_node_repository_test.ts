@@ -1,9 +1,10 @@
+import { it } from "bdd";
 import { expect } from "expect";
 import { FileNode } from "domain/nodes/file_node.ts";
 import type { NodeLike } from "domain/node_like.ts";
 import { InMemoryNodeRepository } from "./inmem_node_repository.ts";
 
-Deno.test("in-memory repository treats inherited object names as ordinary UUIDs", async () => {
+it("in-memory repository treats inherited object names as ordinary UUIDs", async () => {
 	const repository = new InMemoryNodeRepository();
 	for (const uuid of ["__proto__", "constructor", "toString"]) {
 		expect((await repository.getById(uuid)).isLeft()).toBe(true);
@@ -24,7 +25,7 @@ Deno.test("in-memory repository treats inherited object names as ordinary UUIDs"
 	expect(repository.count).toBe(0);
 });
 
-Deno.test("duplicate additions preserve the node and its embedding", async () => {
+it("duplicate additions preserve the node and its embedding", async () => {
 	const repository = new InMemoryNodeRepository();
 	const original = FileNode.create({
 		uuid: "same_uuid",
@@ -42,7 +43,7 @@ Deno.test("duplicate additions preserve the node and its embedding", async () =>
 	);
 });
 
-Deno.test("touch replaces only the stored timestamp and preserves embeddings", async () => {
+it("touch replaces only the stored timestamp and preserves embeddings", async () => {
 	const repository = new InMemoryNodeRepository();
 	const original = FileNode.create({
 		uuid: "touch_node",
@@ -84,7 +85,7 @@ function mutateSnapshot(node: NodeLike) {
 	node.update({ title: "Unsaved" });
 }
 
-Deno.test("in-memory repository snapshots every node input boundary", async () => {
+it("in-memory repository snapshots every node input boundary", async () => {
 	for (const method of ["constructor", "add", "update", "records"] as const) {
 		const node = snapshotNode();
 		const expected = structuredClone(node.metadata);
@@ -104,7 +105,7 @@ Deno.test("in-memory repository snapshots every node input boundary", async () =
 	}
 });
 
-Deno.test("in-memory reads return independent nested metadata and domain objects", async () => {
+it("in-memory reads return independent nested metadata and domain objects", async () => {
 	const repository = new InMemoryNodeRepository();
 	const node = snapshotNode();
 	await repository.add(node);
@@ -125,7 +126,7 @@ Deno.test("in-memory reads return independent nested metadata and domain objects
 	}
 });
 
-Deno.test("in-memory writes reject unsnapshotable nodes without changing stored state", async () => {
+it("in-memory writes reject unsnapshotable nodes without changing stored state", async () => {
 	const repository = new InMemoryNodeRepository();
 	const original = snapshotNode();
 	await repository.add(original);
@@ -151,7 +152,7 @@ Deno.test("in-memory writes reject unsnapshotable nodes without changing stored 
 	);
 });
 
-Deno.test("in-memory embeddings copy input arrays and reject failed copies atomically", async () => {
+it("in-memory embeddings copy input arrays and reject failed copies atomically", async () => {
 	const repository = new InMemoryNodeRepository();
 	const node = snapshotNode();
 	await repository.add(node);

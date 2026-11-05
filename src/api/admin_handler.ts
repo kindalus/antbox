@@ -1,3 +1,5 @@
+import os from "node:os";
+import process from "node:process";
 import { defaultMiddlewareChain } from "./default_middleware_chain.ts";
 import { getAuthenticationContext } from "./get_authentication_context.ts";
 import {
@@ -15,6 +17,15 @@ import { loadConfiguration } from "setup/load_configuration.ts";
 import { saveTenantConfiguration, withTenantConfigurationLock } from "setup/save_configuration.ts";
 import { RootPasswordSchema, TenantsConfigurationSchema } from "api/http_server_configuration.ts";
 
+function runtimeInfo(): { name: string; version: string } {
+	const versions = process.versions as Record<string, string | undefined>;
+	for (const name of ["bun", "node"]) {
+		const version = versions[name];
+		if (version) return { name, version };
+	}
+	return { name: "unknown", version: "" };
+}
+
 export function adminRuntimeHandler(tenants: AntboxTenant[]): HttpHandler {
 	return defaultMiddlewareChain(tenants, (req: Request): Promise<Response> => {
 		if (!getTenant(req, tenants).isAdminTenant) {
@@ -27,9 +38,9 @@ export function adminRuntimeHandler(tenants: AntboxTenant[]): HttpHandler {
 		}
 
 		return Promise.resolve(sendOK({
-			deno: Deno.version,
-			memory: Deno.memoryUsage(),
-			uptime: Deno.osUptime(),
+			runtime: runtimeInfo(),
+			memory: process.memoryUsage(),
+			uptime: os.uptime(),
 			tenants: tenants.map((t) => t.name),
 		}));
 	});

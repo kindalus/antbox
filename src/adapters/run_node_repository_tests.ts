@@ -1,23 +1,25 @@
+import { spawn } from "node:child_process";
+import process from "node:process";
 import { Logger } from "shared/logger.ts";
 
-const args = Deno.args.length > 0 ? Deno.args : ["inmem/inmem_node_repository.ts"];
+const cliArgs = process.argv.slice(2);
+const args = cliArgs.length > 0 ? cliArgs : ["inmem/inmem_node_repository.ts"];
 
 Logger.info(`Running NodeRepository contract tests with: ${args.join(" ")}`);
 
-const cmd = new Deno.Command(Deno.execPath(), {
-	args: [
+const child = spawn(
+	process.execPath,
+	[
+		"--no-env-file",
 		"test",
-		"-A",
-		"--unstable-raw-imports",
+		"--timeout",
+		"30000",
 		"./src/adapters/tests/node_repository_contract_tests.ts",
 	],
-	env: {
-		...Deno.env.toObject(),
-		TEST_PARAMS: args.join(";"),
-	},
-	stdout: "inherit",
-	stderr: "inherit",
-});
+	{ env: { ...process.env, TEST_PARAMS: args.join(";") }, stdio: "inherit" },
+);
 
-const { code } = await cmd.output();
-Deno.exit(code);
+const code = await new Promise<number>((resolve) => {
+	child.on("close", (exitCode) => resolve(exitCode ?? 1));
+});
+process.exit(code);

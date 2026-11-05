@@ -1,16 +1,23 @@
+import { fileMimetype } from "shared/mimetype.ts";
+import { it } from "bdd";
 import { expect } from "expect";
-import { stub } from "mock";
+import fs from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { stub } from "shared/testing/stub.ts";
 import buildFlatFileStorageProvider from "./flat_file_storage_provider.ts";
 
-Deno.test("flat-file storage preserves existing content after partial write or rename failure", async () => {
-	const directory = await Deno.makeTempDir();
+const realWriteFile = fs.writeFile.bind(fs);
+
+it("flat-file storage preserves existing content after partial write or rename failure", async () => {
+	const directory = await fs.mkdtemp(join(tmpdir(), "antbox-flat-file-"));
 	try {
 		const storage = (await buildFlatFileStorageProvider(directory)).right;
 		const original = new File(["original content"], "original.txt", { type: "text/plain" });
 		expect((await storage.write("test_file", original)).isRight()).toBe(true);
-		const partialWrite = stub(Deno, "writeFile", async (path) => {
-			Deno.writeTextFileSync(path, "partial");
-			throw new Deno.errors.WriteZero("test interrupted write");
+		const partialWrite = stub(fs, "writeFile", async (path) => {
+			await realWriteFile(path, "partial");
+			throw Object.assign(new Error("test interrupted write"), { code: "EIO" });
 		});
 		try {
 			expect((await storage.write("test_file", new File(["replacement"], "new.txt"))).isLeft())
@@ -19,8 +26,8 @@ Deno.test("flat-file storage preserves existing content after partial write or r
 			partialWrite.restore();
 		}
 		expect(await (await storage.read("test_file")).right.text()).toBe("original content");
-		const rename = stub(Deno, "rename", () => {
-			throw new Deno.errors.PermissionDenied("test rename failure");
+		const rename = stub(fs, "rename", () => {
+			throw Object.assign(new Error("test rename failure"), { code: "EACCES" });
 		});
 		try {
 			expect((await storage.write("test_file", new File(["replacement"], "new.txt"))).isLeft())
@@ -29,22 +36,25 @@ Deno.test("flat-file storage preserves existing content after partial write or r
 			rename.restore();
 		}
 		expect(await (await storage.read("test_file")).right.text()).toBe("original content");
-		expect([...Deno.readDirSync(`${directory}/T/E`)].map((entry) => entry.name).sort()).toEqual([
+		expect((await fs.readdir(`${directory}/T/E`)).sort()).toEqual([
 			"test_file",
 			"test_file.mimetype",
 		]);
 	} finally {
-		await Deno.remove(directory, { recursive: true });
+		await fs.rm(directory, { recursive: true, force: true });
 	}
 });
 
-Deno.test("flat-file storage reports a MIME sidecar failure after committing content", async () => {
-	const directory = await Deno.makeTempDir();
+it("flat-file storage reports a MIME sidecar failure after committing content", async () => {
+	const directory = await fs.mkdtemp(join(tmpdir(), "antbox-flat-file-"));
 	try {
 		const storage = (await buildFlatFileStorageProvider(directory)).right;
 		await storage.write("test_file", new File(["original"], "old.txt", { type: "text/plain" }));
-		const mimeWrite = stub(Deno, "writeTextFile", () => {
-			throw new Deno.errors.PermissionDenied("test MIME write failure");
+		const mimeWrite = stub(fs, "writeFile", (path, data) => {
+			if (String(path).endsWith(".mimetype")) {
+				throw Object.assign(new Error("test MIME write failure"), { code: "EACCES" });
+			}
+			return realWriteFile(path, data);
 		});
 		try {
 			expect((await storage.write(
@@ -58,8 +68,8 @@ Deno.test("flat-file storage reports a MIME sidecar failure after committing con
 		}
 		const stored = (await storage.read("test_file")).right;
 		expect(await stored.text()).toBe("replacement");
-		expect(stored.type).toBe("text/plain");
+		expect(fileMimetype(stored)).toBe("text/plain");
 	} finally {
-		await Deno.remove(directory, { recursive: true });
+		await fs.rm(directory, { recursive: true, force: true });
 	}
 });

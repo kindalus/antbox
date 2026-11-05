@@ -1,10 +1,11 @@
 import { describe, it } from "bdd";
 import { expect } from "expect";
-import { parse as parseYaml } from "@std/yaml";
+import fs from "node:fs/promises";
+import { parse as parseYaml } from "yaml";
 import { APP_NAME, APP_VERSION, SERVER_HEADER_VALUE, setServerHeader } from "./app_metadata.ts";
 
 describe("app_metadata", () => {
-	it("loads app name and version from deno.json", () => {
+	it("loads app name and version from package.json", () => {
 		expect(APP_NAME).toBe("antbox");
 		expect(APP_VERSION.length > 0).toBe(true);
 	});
@@ -18,7 +19,7 @@ describe("app_metadata", () => {
 	});
 
 	it("keeps openapi info.version aligned with the app version", async () => {
-		const openApiText = await Deno.readTextFile("openapi.yaml");
+		const openApiText = await fs.readFile("openapi.yaml", "utf8");
 		const openApi = parseYaml(openApiText) as {
 			info?: { version?: string };
 		};

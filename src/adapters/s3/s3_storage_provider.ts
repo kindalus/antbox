@@ -1,8 +1,13 @@
+import { fileMimetype } from "shared/mimetype.ts";
 import type { StorageProvider, WriteFileOpts } from "application/nodes/storage_provider.ts";
-import { S3Client } from "s3";
-import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
+import {
+	DeleteObjectCommand,
+	GetObjectCommand,
+	PutObjectCommand,
+	S3Client,
+} from "@aws-sdk/client-s3";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
-import * as path from "path";
+import path from "node:path";
 import { AntboxError, UnknownError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
 import type { Event } from "shared/event.ts";
@@ -15,7 +20,7 @@ import type { EventHandler } from "shared/event_handler.ts";
  * External setup:
  * - Create an S3-compatible bucket and access keys with read/write permissions.
  * - Provide a JSON config file with region, endpoint, bucket, and credentials.
- * - Ensure Deno has `--allow-read` for the config file and `--allow-net` for S3 access.
+ * - Ensure the process can read the config file and reach S3 over the network.
  *
  * @example
  * const storageOrErr = await buildS3StorageProvider("./s3.config.json");
@@ -34,9 +39,10 @@ export default function buildS3StorageProvider(
 				new S3Client({
 					region: config.region,
 					endpoint: config.endpoint,
-					bucket: config.bucket,
-					accessKeyId: config.credentials.accessKeyId,
-					secretAccessKey: config.credentials.secretAccessKey,
+					credentials: {
+						accessKeyId: config.credentials.accessKeyId,
+						secretAccessKey: config.credentials.secretAccessKey,
+					},
 				}),
 				config.bucket,
 			);
@@ -60,7 +66,7 @@ export class S3StorageProvider implements StorageProvider {
 
 	async delete(uuid: string): Promise<Either<AntboxError, void>> {
 		try {
-			await this.#s3.realS3Client().send(
+			await this.#s3.send(
 				new DeleteObjectCommand({
 					Bucket: this.#bucket,
 					Key: this.#getPath(uuid),
@@ -86,12 +92,12 @@ export class S3StorageProvider implements StorageProvider {
 		opts?: WriteFileOpts | undefined,
 	): Promise<Either<AntboxError, void>> {
 		try {
-			await this.#s3.realS3Client().send(
+			await this.#s3.send(
 				new PutObjectCommand({
 					Bucket: this.#bucket,
 					Key: this.#getPath(uuid),
 					Body: new Uint8Array(await file.arrayBuffer()),
-					ContentType: opts?.mimetype ?? file.type,
+					ContentType: opts?.mimetype ?? fileMimetype(file),
 				}),
 			);
 			return right(undefined);
@@ -103,7 +109,7 @@ export class S3StorageProvider implements StorageProvider {
 	async read(uuid: string): Promise<Either<AntboxError, File>> {
 		try {
 			const name = this.#getPath(uuid);
-			const response = await this.#s3.realS3Client().send(
+			const response = await this.#s3.send(
 				new GetObjectCommand({
 					Bucket: this.#bucket,
 					Key: name,

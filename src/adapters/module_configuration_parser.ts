@@ -8,7 +8,7 @@ import type { Either } from "shared/either.ts";
  * @remarks
  * External setup:
  * - Ensure the module path is resolvable (relative to `adapters/`, absolute, or URL).
- * - Grant Deno permissions for file or network access as required by the module.
+ * - Grant the process the file or network access the module requires.
  *
  * @param cfg Tuple of `[modulePath, ...params]` used to load and call the adapter factory.
  *

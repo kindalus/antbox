@@ -1,3 +1,5 @@
+import { fileResponse } from "shared/file_response.ts";
+import { readFormData } from "shared/multipart.ts";
 import type { AntboxTenant } from "api/antbox_tenant.ts";
 import type { CreateFeatureData } from "application/features/features_service.ts";
 import { defaultMiddlewareChain } from "api/default_middleware_chain.ts";
@@ -62,7 +64,7 @@ export async function parseFeatureUpload(
 	let formData: FormData;
 
 	try {
-		formData = await req.formData();
+		formData = await readFormData(req);
 	} catch {
 		return left(new BadRequestError("Invalid multipart/form-data body"));
 	}
@@ -204,14 +206,10 @@ export function exportFeatureHandler(tenants: AntboxTenant[]): HttpHandler {
 				return processError(fileOrErr.value);
 			}
 
-			const response = new Response(fileOrErr.value);
-			response.headers.set("Content-Type", fileOrErr.value.type);
-			response.headers.set(
-				"Content-Disposition",
-				`attachment; filename="${fileOrErr.value.name}"`,
-			);
-			response.headers.set("Content-Length", fileOrErr.value.size.toString());
-			return response;
+			return await fileResponse(fileOrErr.value, {
+				"Content-Type": "application/javascript",
+				"Content-Disposition": `attachment; filename="${fileOrErr.value.name}"`,
+			});
 		},
 	);
 }

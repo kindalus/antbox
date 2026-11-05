@@ -1,3 +1,4 @@
+import process from "node:process";
 import { left, right } from "shared/either.ts";
 import type { Either } from "shared/either.ts";
 import { AntboxError } from "shared/antbox_error.ts";
@@ -43,10 +44,10 @@ export class GeminiEmbeddingsProvider implements EmbeddingsProvider {
 		apiKey?: string,
 		threshold = 0.6,
 	) {
-		const key = apiKey ?? Deno.env.get("GOOGLE_API_KEY") ?? Deno.env.get("GEMINI_API_KEY");
+		const key = apiKey ?? process.env.GOOGLE_API_KEY ?? process.env.GEMINI_API_KEY;
 		if (!key) {
 			Logger.error("GOOGLE_API_KEY nor GEMINI_API_KEY is set");
-			Deno.exit(1);
+			process.exit(1);
 		}
 		this.#modelName = modelName;
 		this.#threshold = Math.max(0, Math.min(1, threshold));

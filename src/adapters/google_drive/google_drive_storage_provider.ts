@@ -1,3 +1,4 @@
+import { fileMimetype } from "shared/mimetype.ts";
 import { auth, drive, drive_v3 } from "@googleapis/drive";
 import { Logger } from "shared/logger.ts";
 import type {
@@ -26,7 +27,7 @@ const GOOGLE_DRIVE_FOLDER_MIMETYPE = "application/vnd.google-apps.folder";
  * External setup:
  * - Enable the Google Drive API in your Google Cloud project.
  * - Create a service account, download the JSON key, and add it to a Shared Drive.
- * - Provide the Shared Drive ID and ensure Deno has `--allow-read`/`--allow-net`.
+ * - Provide the Shared Drive ID and ensure the process can read local files and reach the network.
  *
  * @example
  * const storageOrErr = await buildGoogleDriveStorageProvider(
@@ -173,11 +174,11 @@ export class GoogleDriveStorageProvider implements StorageProvider {
 				name: opts.title,
 				parents: [parentId],
 				appProperties: { uuid },
-				mimeType: file.type,
+				mimeType: fileMimetype(file),
 			};
 
 			const media = {
-				mimeType: file.type,
+				mimeType: fileMimetype(file),
 				body: Readable.fromWeb(file.stream() as unknown as NodeReadableStream<Uint8Array>),
 			};
 
@@ -206,7 +207,7 @@ export class GoogleDriveStorageProvider implements StorageProvider {
 
 			this.#metadataByUuid.set(uuid, {
 				id,
-				mimeType: file.type,
+				mimeType: fileMimetype(file),
 				name: metadataOrError.isRight() ? metadataOrError.value.name : opts.title,
 				parents: metadataOrError.isRight() ? metadataOrError.value.parents : [parentId],
 			});

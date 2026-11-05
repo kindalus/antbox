@@ -1,3 +1,6 @@
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import fs from "node:fs/promises";
 import { describe, it } from "bdd";
 import { expect } from "expect";
 import {
@@ -21,8 +24,8 @@ async function createTestRuntime() {
 }
 
 describe("Pi coding agent compatibility", () => {
-	it("runs and reopens a persisted session in Deno", async () => {
-		const dir = await Deno.makeTempDir({ prefix: "antbox-pi-session-test-" });
+	it("runs and reopens a persisted session", async () => {
+		const dir = await fs.mkdtemp(join(tmpdir(), "antbox-pi-session-test-"));
 		try {
 			const runtime = await createTestRuntime();
 			const faux = fauxProvider({ provider: "antbox-test" });
@@ -88,7 +91,7 @@ describe("Pi coding agent compatibility", () => {
 			second.session.dispose();
 			expect(faux.state.callCount).toBe(2);
 		} finally {
-			await Deno.remove(dir, { recursive: true });
+			await fs.rm(dir, { recursive: true });
 		}
 	});
 });

@@ -1,4 +1,4 @@
-import denoMetadata from "../../deno.json" with { type: "json" };
+import metadata from "../../package.json" with { type: "json" };
 import { z } from "zod";
 
 const appMetadataSchema = z.object({
@@ -6,7 +6,7 @@ const appMetadataSchema = z.object({
 	version: z.string().min(1),
 });
 
-const appMetadata = appMetadataSchema.parse(denoMetadata);
+const appMetadata = appMetadataSchema.parse(metadata);
 
 export const APP_NAME = appMetadata.name;
 export const APP_VERSION = appMetadata.version;

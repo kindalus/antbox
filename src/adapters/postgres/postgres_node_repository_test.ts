@@ -1,5 +1,6 @@
+import { it } from "bdd";
 import { expect } from "expect";
-import { stub } from "mock";
+import { stub } from "shared/testing/stub.ts";
 import { providerFrom } from "adapters/module_configuration_parser.ts";
 import { left, right } from "shared/either.ts";
 import buildPostgresNodeRepository, {
@@ -7,7 +8,7 @@ import buildPostgresNodeRepository, {
 	PostgresNodeRepository,
 } from "./postgres_node_repository.ts";
 
-Deno.test("PostgreSQL nodes can be loaded through the configured adapter factory", async () => {
+it("PostgreSQL nodes can be loaded through the configured adapter factory", async () => {
 	const initialize = stub(
 		PostgresNodeRepository.prototype,
 		"initialize",
@@ -26,7 +27,7 @@ Deno.test("PostgreSQL nodes can be loaded through the configured adapter factory
 	}
 });
 
-Deno.test("PostgreSQL factory closes connections when initialization fails", async () => {
+it("PostgreSQL factory closes connections when initialization fails", async () => {
 	const error = new PostgresError("initialization failed");
 	const initialize = stub(
 		PostgresNodeRepository.prototype,

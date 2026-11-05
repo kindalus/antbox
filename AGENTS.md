@@ -6,18 +6,20 @@ This file provides guidance to coding agents when working with code in this repo
 
 ```bash
 # Run tests
-deno task test                    # All tests
-deno task test:watch              # Watch mode
-deno task test:coverage           # With coverage report
-deno task test:services           # Core service tests only
+bun run test                      # All tests
+bun run test:watch                # Watch mode
+bun run test:coverage             # With coverage report
+bun run test:services             # Core service tests only
 
 # Adapter integration tests
-deno task test-node-repository    # Test NodeRepository implementations
-deno task test-storage-provider   # Test StorageProvider implementations
+bun run test-node-repository      # Test NodeRepository implementations
+bun run test-storage-provider     # Test StorageProvider implementations
 
 # Lint and format
-deno lint                         # Check code style
-deno fmt                          # Format code (tabs, 100 char width)
+bun run lint                      # Check code style (oxlint)
+bun run fmt                       # Format code (dprint: tabs, 100 char width)
+bun run fmt:check                 # Check formatting without writing
+bun run typecheck                 # Type check (tsc --noEmit)
 
 # Run server
 ./start_server.sh --demo          # Development mode (SQLite + flat-file)
@@ -28,7 +30,7 @@ deno fmt                          # Format code (tabs, 100 char width)
 ## Architecture Overview
 
 Antbox is an open-source, API-first content platform for documents, workflows, and AI, built with
-Deno and TypeScript. It follows **Hexagonal Architecture (Ports & Adapters)** with strict layer
+Bun and TypeScript. It follows **Hexagonal Architecture (Ports & Adapters)** with strict layer
 separation:
 
 ### Layers
@@ -44,7 +46,7 @@ separation:
      `WorkflowInstancesEngine` for state machines)
 
 3. **Adapters** (`src/adapters/`) - Infrastructure implementations
-   - HTTP: Oak framework (`oak/`)
+   - HTTP: Hono framework (`hono/`)
    - Storage: S3, Google Drive, flat-file, in-memory
    - Repositories: SQLite, PostgreSQL, MongoDB, flat-file, in-memory
    - AI Models: Google Gemini, OpenAI, Anthropic, Ollama
@@ -87,7 +89,7 @@ async create(data: NodeMetadata): Promise<Either<ValidationError, Node>>
 ### Entry Points
 
 - `main.ts` - CLI entry point (parses args, loads config, starts server)
-- `src/adapters/oak/server.ts` - Oak HTTP server with 18 API routers
+- `src/adapters/hono/server.ts` - Hono HTTP server with 18 API routers
 - `src/api/authentication_middleware.ts` - JWT, API key, cookie auth
 
 ## Conventions
@@ -95,6 +97,16 @@ async create(data: NodeMetadata): Promise<Either<ValidationError, Node>>
 - When committing changes, use conventional commits and never add Claude references to the commit
   message
 - Only commit on demand
+- Format with `dprint` (`bun run fmt`) and lint with `oxlint` (`bun run lint`)
+- Portability policy: use web standards first (fetch, Request/Response, URL, Web Crypto, streams),
+  then `node:*` modules where no web standard exists. `Bun.*` and `bun:*` are allowed only in
+  `src/adapters/hono/serve.ts` and in test aliases, never in business code
+- Read the type of a file with `shared/mimetype.ts`, never from `File.type` or `Blob.type`: Bun
+  alters those values (for example it appends `;charset=utf-8` to `text/plain`)
+- Never call `req.formData()` directly: Bun derives the type of an uploaded file from its filename
+  extension and ignores the declared Content-Type. Use `readFormData` from `shared/multipart.ts`
+- Never pass a `File` or `Blob` to `new Response`: Bun adds a `Content-Disposition` header and a
+  stream body loses `Content-Length`. Use `fileResponse` from `shared/file_response.ts`
 - TypeScript only (no JavaScript files)
 - Tabs for indentation, 100 character line width
 - Use Zod for all input validation
@@ -112,7 +124,7 @@ async create(data: NodeMetadata): Promise<Either<ValidationError, Node>>
 ## Testing
 
 - Every new handler or service method must have at least one test covering the happy path
-- Run `deno task test` before committing to ensure nothing is broken
+- Run `bun run test` before committing to ensure nothing is broken
 - Tests live next to the code they cover (e.g., `foo_service_test.ts` alongside `foo_service.ts`)
 
 ## Impact Analysis
@@ -125,6 +137,9 @@ async create(data: NodeMetadata): Promise<Either<ValidationError, Node>>
 ## Deferred Hardening
 
 - Feature sandboxing/isolation is still needed. Dynamic feature code and AI code tools currently run
-  without a dedicated sandbox boundary.
+  without a dedicated sandbox boundary. The runtime (Bun) has no permission model at all, so dynamic
+  features and `run_code` can read files, use the network and spawn processes. The container is the
+  only boundary; the shell-less distroless images in `build/docker/` are not a sandbox. See
+  `docs/security-runtime.md`.
 - Privilege-elevated feature execution needs follow-up review. Automatic features and `runAs` remain
   powerful and should be revisited with a stricter privilege model.

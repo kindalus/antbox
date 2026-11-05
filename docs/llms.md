@@ -19,7 +19,7 @@ It is optimized for tasks such as:
 
 ## 1. System Model (High-Level)
 
-Antbox is a multi-tenant ECM/DAM platform built with Deno + TypeScript.
+Antbox is a multi-tenant ECM/DAM platform built with Bun + TypeScript.
 
 Architecture layers:
 
@@ -443,8 +443,8 @@ Rules:
   an existing custom agent
 - `systemPrompt` is optional; when omitted, Antbox supplies a generic agent prompt
 - `tools: true` grants all tools
-- `tools: false`, omitted `tools`, or `tools: []` grant only `load_skill`
-- `tools: ["name"]` grants the listed tools plus `load_skill`
+- `tools: false`, omitted `tools`, or `tools: []` grant only `read`
+- `tools: ["name"]` grants the listed tools plus `read`
 
 ## 8. Search (Structured + Semantic)
 
@@ -499,7 +499,7 @@ Built-in function tools currently available in `AgentsEngine` include:
 - `find_nodes`
 - `get_node`
 - `semantic_search`
-- `load_skill`
+- `read` (confined to the agent's skills)
 
 `run_code` expects ESM code:
 
@@ -584,7 +584,7 @@ High-level behavior:
 - `DELETE /v2/users/{uuid}` route currently names path param as `uuid`, but handler expects `email`.
 - `/v2/docs` returns only entries registered in `docs/index.ts`.
 - in `AgentsEngine`, do not assume non-existent runtime function tools such as
-  `loadSdkDocumentation`; currently rely on `run_code`, retrieval tools, and `load_skill`.
+  `loadSdkDocumentation`; currently rely on `run_code`, retrieval tools, and `read` for skills.
 
 ## 14. Recommended LLM Execution Pattern
 

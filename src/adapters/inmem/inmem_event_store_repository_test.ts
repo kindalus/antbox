@@ -1,7 +1,8 @@
+import { it } from "bdd";
 import { expect } from "expect";
 import { InMemoryEventStoreRepository } from "./inmem_event_store_repository.ts";
 
-Deno.test("in-memory audit history is isolated from appended and returned payloads", async () => {
+it("in-memory audit history is isolated from appended and returned payloads", async () => {
 	const repository = new InMemoryEventStoreRepository();
 	const event = {
 		eventType: "NodeUpdated",

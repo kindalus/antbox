@@ -1,3 +1,6 @@
+import { fileResponse } from "shared/file_response.ts";
+import { readFormData } from "shared/multipart.ts";
+import { fileMimetype } from "shared/mimetype.ts";
 import type { FeatureData } from "domain/configuration/feature_data.ts";
 import type { AuthenticationContext } from "application/security/authentication_context.ts";
 import { type AntboxError, BadRequestError, ForbiddenError } from "shared/antbox_error.ts";
@@ -50,7 +53,7 @@ export async function runFeatureExtension(
 		return new Response(resultOrErr.value.message, { status: errorStatus(resultOrErr.value) });
 	}
 
-	return extensionResponse(feature, resultOrErr.value);
+	return await extensionResponse(feature, resultOrErr.value);
 }
 
 function errorStatus(error: AntboxError): number {
@@ -89,7 +92,7 @@ async function extractParameters(
 		contentType.includes("multipart/form-data")
 	) {
 		try {
-			return right(Object.fromEntries(await request.formData()));
+			return right(Object.fromEntries(await readFormData(request)));
 		} catch {
 			return left(new BadRequestError("Invalid form body"));
 		}
@@ -107,7 +110,7 @@ function safeRequestUrl(request: Request): Readonly<URL> {
 	return url;
 }
 
-function extensionResponse(feature: FeatureData, value: unknown): Response {
+async function extensionResponse(feature: FeatureData, value: unknown): Promise<Response> {
 	if (value instanceof Response) {
 		return value;
 	}
@@ -119,11 +122,9 @@ function extensionResponse(feature: FeatureData, value: unknown): Response {
 	switch (feature.returnType) {
 		case "file": {
 			const file = value as File;
-			return new Response(file, {
-				headers: {
-					"Content-Type": file.type,
-					"Content-Disposition": `attachment; filename="${file.name}"`,
-				},
+			return await fileResponse(file, {
+				"Content-Type": fileMimetype(file),
+				"Content-Disposition": `attachment; filename="${file.name}"`,
 			});
 		}
 		case "array":

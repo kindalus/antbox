@@ -1,3 +1,5 @@
+import { tmpdir } from "node:os";
+import fs from "node:fs/promises";
 import { describe, it } from "bdd";
 import { expect } from "expect";
 import type { AgentData } from "domain/configuration/agent_data.ts";
@@ -19,13 +21,13 @@ const agent: AgentData = {
 
 async function createSkill(root: string): Promise<LoadedSkill> {
 	const skillDir = join(root, "test-skill");
-	await Deno.mkdir(join(skillDir, "references"), { recursive: true });
+	await fs.mkdir(join(skillDir, "references"), { recursive: true });
 	const skillFile = join(skillDir, "SKILL.md");
-	await Deno.writeTextFile(
+	await fs.writeFile(
 		skillFile,
 		"---\nname: test-skill\ndescription: Test skill\n---\nInstructions",
 	);
-	await Deno.writeTextFile(join(skillDir, "references", "note.md"), "Reference");
+	await fs.writeFile(join(skillDir, "references", "note.md"), "Reference");
 	return {
 		frontmatter: { name: "test-skill", description: "Test skill" },
 		skillDir,
@@ -35,7 +37,7 @@ async function createSkill(root: string): Promise<LoadedSkill> {
 
 describe("SessionWorkspaceStore", () => {
 	it("requires matching API key ownership in both directions and rejects legacy unbound key sessions", async () => {
-		const root = await Deno.makeTempDir({ prefix: "antbox-session-owner-test-" });
+		const root = await fs.mkdtemp(join(tmpdir(), "antbox-session-owner-test-"));
 		try {
 			const store = new SessionWorkspaceStore(root);
 			const input = {
@@ -66,12 +68,12 @@ describe("SessionWorkspaceStore", () => {
 					.manifest.apiKeyUuid,
 			).toBe("firstkey");
 		} finally {
-			await Deno.remove(root, { recursive: true });
+			await fs.rm(root, { recursive: true });
 		}
 	});
 
 	it("persists an isolated session snapshot and reopens it for its owner", async () => {
-		const root = await Deno.makeTempDir({ prefix: "antbox-session-workspace-test-" });
+		const root = await fs.mkdtemp(join(tmpdir(), "antbox-session-workspace-test-"));
 		try {
 			const skill = await createSkill(join(root, "source"));
 			const store = new SessionWorkspaceStore(join(root, "sessions"), () => 1000);
@@ -79,7 +81,7 @@ describe("SessionWorkspaceStore", () => {
 				tenant: "tenant-a",
 				userEmail: "user@example.com",
 				agentData: agent,
-				toolNames: ["load_skill", "find_nodes"],
+				toolNames: ["read", "find_nodes"],
 				featureVersions: [{ uuid: "feature-a", modifiedTime: "v1" }],
 				skills: [skill],
 			});
@@ -92,8 +94,9 @@ describe("SessionWorkspaceStore", () => {
 			expect(reopened.manifest.agentData).toEqual(agent);
 			expect(reopened.manifest.expiresAt).toBe(1000 + 24 * 60 * 60 * 1000);
 			expect(
-				await Deno.readTextFile(
+				await fs.readFile(
 					join(reopened.dir, "resources", "skills", "test-skill", "references", "note.md"),
+					"utf-8",
 				),
 			).toBe("Reference");
 			await expect(store.open(workspace.manifest.sessionId, {
@@ -102,12 +105,12 @@ describe("SessionWorkspaceStore", () => {
 				agentUuid: agent.uuid,
 			})).rejects.toThrow("Session not found");
 		} finally {
-			await Deno.remove(root, { recursive: true });
+			await fs.rm(root, { recursive: true });
 		}
 	});
 
 	it("expires exactly 24 hours after creation and removes the workspace", async () => {
-		const root = await Deno.makeTempDir({ prefix: "antbox-session-expiry-test-" });
+		const root = await fs.mkdtemp(join(tmpdir(), "antbox-session-expiry-test-"));
 		let now = 0;
 		try {
 			const store = new SessionWorkspaceStore(join(root, "sessions"), () => now);
@@ -125,14 +128,14 @@ describe("SessionWorkspaceStore", () => {
 				userEmail: "user@example.com",
 				agentUuid: agent.uuid,
 			})).rejects.toThrow("Session expired");
-			await expect(Deno.stat(workspace.dir)).rejects.toThrow();
+			await expect(fs.stat(workspace.dir)).rejects.toThrow();
 		} finally {
-			await Deno.remove(root, { recursive: true });
+			await fs.rm(root, { recursive: true });
 		}
 	});
 
 	it("rejects invalid IDs and skill symlinks", async () => {
-		const root = await Deno.makeTempDir({ prefix: "antbox-session-security-test-" });
+		const root = await fs.mkdtemp(join(tmpdir(), "antbox-session-security-test-"));
 		try {
 			const store = new SessionWorkspaceStore(join(root, "sessions"));
 			await expect(store.open("../escape", {
@@ -142,7 +145,7 @@ describe("SessionWorkspaceStore", () => {
 			})).rejects.toThrow("Invalid session ID");
 
 			const skill = await createSkill(join(root, "source"));
-			await Deno.symlink(join(skill.skillDir, "SKILL.md"), join(skill.skillDir, "link.md"));
+			await fs.symlink(join(skill.skillDir, "SKILL.md"), join(skill.skillDir, "link.md"));
 			await expect(store.create({
 				tenant: "tenant-a",
 				userEmail: "user@example.com",
@@ -152,7 +155,7 @@ describe("SessionWorkspaceStore", () => {
 				skills: [skill],
 			})).rejects.toThrow("do not allow symlinks");
 		} finally {
-			await Deno.remove(root, { recursive: true });
+			await fs.rm(root, { recursive: true });
 		}
 	});
 });

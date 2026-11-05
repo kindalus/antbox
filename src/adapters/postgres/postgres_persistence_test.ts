@@ -1,5 +1,7 @@
+import { it } from "bdd";
+import process from "node:process";
 import { expect } from "expect";
-import postgres from "npm:postgres@3.4.8";
+import postgres from "postgres";
 import { FileNode } from "domain/nodes/file_node.ts";
 import buildConfiguration, {
 	PostgresConfigurationRepository,
@@ -9,12 +11,11 @@ import buildEventStore, {
 } from "./postgres_event_store_repository.ts";
 import { PostgresNodeRepository } from "./postgres_node_repository.ts";
 
-const postgresUrl = Deno.env.get("ANTBOX_TEST_POSTGRES_URL");
+const postgresUrl = process.env.ANTBOX_TEST_POSTGRES_URL;
 
-Deno.test({
-	name: "PostgreSQL persists JSON objects and concurrent audit events across connections",
-	ignore: !postgresUrl,
-	async fn() {
+(postgresUrl ? it : it.skip)(
+	"PostgreSQL persists JSON objects and concurrent audit events across connections",
+	async () => {
 		const sql = postgres(postgresUrl!);
 		const schema = `antbox_test_${crypto.randomUUID().replaceAll("-", "")}`;
 		const scopedUrl = new URL(postgresUrl!);
@@ -124,4 +125,4 @@ Deno.test({
 			await sql.end();
 		}
 	},
-});
+);

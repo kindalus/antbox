@@ -4,7 +4,13 @@ import { type Either, left, right } from "shared/either.ts";
 import { AntboxError } from "shared/antbox_error.ts";
 import type { AuthenticationContext } from "../security/authentication_context.ts";
 import type { AgentData } from "domain/configuration/agent_data.ts";
-import type { FeatureData, FeatureParameter } from "domain/configuration/feature_data.ts";
+import {
+	type FeatureData,
+	type FeatureParameter,
+	isReservedAIToolName,
+	toSnakeCase,
+} from "domain/configuration/feature_data.ts";
+import { Logger } from "shared/logger.ts";
 import type { NodeFilters } from "domain/nodes/node_filter.ts";
 import type { NodeService } from "../nodes/node_service.ts";
 import type { AspectsService } from "../aspects/aspects_service.ts";
@@ -13,11 +19,13 @@ import type { RAGService } from "./rag_service.ts";
 import { NodeServiceProxy } from "../nodes/node_service_proxy.ts";
 import { AspectServiceProxy } from "../aspects/aspect_service_proxy.ts";
 import { createRunCodeTool } from "./builtin_tools/run_code.ts";
-import { type LoadedSkill, loadSkillInstruction } from "./skills_loader.ts";
+import type { LoadedSkill } from "./skills_loader.ts";
+import { createSkillReadTool, SKILL_READ_TOOL_NAME } from "./skill_read_tool.ts";
 import type { FeatureAIToolExecutor } from "./agents_engine_interface.ts";
 import type { FeatureVersion } from "./session_workspace.ts";
 
-const DEFAULT_TOOL_NAME = "load_skill";
+const DEFAULT_TOOL_NAME = SKILL_READ_TOOL_NAME;
+const LEGACY_SKILL_TOOL_NAME = "load_skill";
 
 type AnyAgentTool = AgentTool<TSchema, unknown>;
 
@@ -86,7 +94,8 @@ function selectSealedEntries(
 ): ToolEntry[] | AntboxError {
 	const byName = new Map(all.map((entry) => [entry.name, entry]));
 	const selected: ToolEntry[] = [];
-	for (const name of names) {
+	for (const sealedName of names) {
+		const name = sealedName === LEGACY_SKILL_TOOL_NAME ? DEFAULT_TOOL_NAME : sealedName;
 		const entry = byName.get(name);
 		if (!entry) return new AntboxError("StaleSession", `Session tool '${name}' is unavailable`);
 		selected.push(entry);
@@ -210,34 +219,9 @@ async function buildAllToolEntries(
 		{
 			name: DEFAULT_TOOL_NAME,
 			aliases: [],
-			tool: {
-				name: DEFAULT_TOOL_NAME,
-				label: "Load skill",
-				description: "Load a discovered skill by name to get its full instructions.",
-				parameters: Type.Object({
-					name: Type.String({ minLength: 1, description: "Skill name to load" }),
-				}),
-				execute: async (_id, params) => {
-					const { name } = params as { name: string };
-					const skillName = name.trim();
-					const skill = ctx.skills.find((candidate) =>
-						candidate.frontmatter.name === skillName &&
-						isSkillAllowed(agentData.skills, candidate)
-					);
-					if (!skill) throw new Error(`Skill '${skillName}' not found`);
-
-					const instruction = await loadSkillInstruction(skill.skillFile);
-					if (!instruction) throw new Error(`Failed to load skill '${skillName}'`);
-					const text = [
-						`<skill name="${skill.frontmatter.name}" location="${skill.skillFile}">`,
-						`References are relative to ${skill.skillDir}.`,
-						"",
-						instruction,
-						"</skill>",
-					].join("\n");
-					return { content: [{ type: "text", text }], details: { skillDir: skill.skillDir } };
-				},
-			},
+			tool: await createSkillReadTool(
+				ctx.skills.filter((skill) => isSkillAllowed(agentData.skills, skill)),
+			),
 		},
 	];
 
@@ -261,7 +245,17 @@ async function buildFeatureAITools(
 ): Promise<Either<AntboxError, ToolEntry[]>> {
 	const aiToolsOrErr = await ctx.featuresService.listAITools(authContext);
 	if (aiToolsOrErr.isLeft()) return left(aiToolsOrErr.value);
-	return right(aiToolsOrErr.value.map((feature) => featureToToolEntry(ctx, authContext, feature)));
+	// Built-in tools always win: a feature colliding with one is dropped for every agent.
+	const features = aiToolsOrErr.value.filter((feature) => {
+		if (!isReservedAIToolName(feature.uuid)) return true;
+		Logger.warn(
+			`build_tools: ignoring feature '${feature.uuid}' as AI tool, name '${
+				toSnakeCase(feature.uuid)
+			}' is reserved for a built-in tool`,
+		);
+		return false;
+	});
+	return right(features.map((feature) => featureToToolEntry(ctx, authContext, feature)));
 }
 
 function featureToToolEntry(
@@ -390,15 +384,6 @@ function stringify(value: unknown): string {
 	} catch {
 		return String(value);
 	}
-}
-
-function toSnakeCase(value: string): string {
-	return value
-		.replace(/([a-z0-9])([A-Z])/g, "$1_$2")
-		.replace(/[^a-zA-Z0-9]+/g, "_")
-		.replace(/_+/g, "_")
-		.replace(/^_+|_+$/g, "")
-		.toLowerCase();
 }
 
 function assertUniqueAliases(entries: ToolEntry[]): void {

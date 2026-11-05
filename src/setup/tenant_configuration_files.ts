@@ -1,5 +1,8 @@
+import fs from "node:fs/promises";
+import type { Stats } from "node:fs";
 import { join } from "node:path";
-import { parse } from "toml";
+import { parse } from "smol-toml";
+import { isAlreadyExistsError, isNotFoundError } from "shared/fs_errors.ts";
 import {
 	type TenantConfiguration,
 	TenantConfigurationSchema,
@@ -39,7 +42,7 @@ export async function readTenantConfigurationState(
 	configDir: string,
 ): Promise<TenantConfigurationState> {
 	const configPath = join(configDir, "config.toml");
-	const configText = await Deno.readTextFile(configPath);
+	const configText = await fs.readFile(configPath, "utf8");
 	const rawConfig = parseToml(configText, configPath);
 	const inlineTenants = validateInlineTenants(rawConfig.tenants, configPath);
 	const tenantsDir = await ensureTenantsDirectory(configDir);
@@ -84,24 +87,24 @@ export async function readTenantConfigurationState(
 
 async function ensureTenantsDirectory(configDir: string): Promise<string | undefined> {
 	const tenantsDir = join(configDir, TENANTS_DIRECTORY);
-	let stat: Deno.FileInfo | undefined;
+	let stat: Stats | undefined;
 	try {
-		stat = await Deno.stat(tenantsDir);
+		stat = await fs.stat(tenantsDir);
 	} catch (error) {
-		if (!(error instanceof Deno.errors.NotFound)) {
+		if (!isNotFoundError(error)) {
 			throw configurationError(tenantsDir, `cannot inspect directory: ${error}`);
 		}
 	}
 
 	if (!stat) {
 		try {
-			await Deno.mkdir(tenantsDir, { recursive: true });
+			await fs.mkdir(tenantsDir, { recursive: true });
 			Logger.info(`Created tenant configuration directory: ${tenantsDir}`);
 		} catch (error) {
 			Logger.warn(`Cannot create tenant configuration directory ${tenantsDir}: ${error}`);
 			return undefined;
 		}
-	} else if (!stat.isDirectory) {
+	} else if (!stat.isDirectory()) {
 		throw configurationError(tenantsDir, "path exists but is not a directory");
 	}
 
@@ -112,10 +115,10 @@ async function ensureTenantsDirectory(configDir: string): Promise<string | undef
 async function ensureSample(tenantsDir: string): Promise<void> {
 	const samplePath = join(tenantsDir, TENANT_SAMPLE_FILE);
 	try {
-		await Deno.writeTextFile(samplePath, TENANT_SAMPLE, { createNew: true });
+		await fs.writeFile(samplePath, TENANT_SAMPLE, { flag: "wx" });
 		Logger.info(`Created tenant configuration sample: ${samplePath}`);
 	} catch (error) {
-		if (!(error instanceof Deno.errors.AlreadyExists)) {
+		if (!isAlreadyExistsError(error)) {
 			Logger.warn(`Cannot create tenant configuration sample ${samplePath}: ${error}`);
 		}
 	}
@@ -124,12 +127,10 @@ async function ensureSample(tenantsDir: string): Promise<void> {
 async function readTenantFiles(
 	tenantsDir: string,
 ): Promise<Map<string, TenantFileConfiguration>> {
-	let entries: Deno.DirEntry[];
+	let entries: { name: string }[];
 	try {
-		entries = [];
-		for await (const entry of Deno.readDir(tenantsDir)) {
-			if (entry.isFile && entry.name.endsWith(".toml")) entries.push(entry);
-		}
+		entries = (await fs.readdir(tenantsDir, { withFileTypes: true }))
+			.filter((entry) => entry.isFile() && entry.name.endsWith(".toml"));
 	} catch (error) {
 		throw configurationError(tenantsDir, `cannot read directory: ${error}`);
 	}
@@ -140,7 +141,7 @@ async function readTenantFiles(
 		const path = join(tenantsDir, entry.name);
 		let text: string;
 		try {
-			text = await Deno.readTextFile(path);
+			text = await fs.readFile(path, "utf8");
 		} catch (error) {
 			throw configurationError(path, `cannot read file: ${error}`);
 		}

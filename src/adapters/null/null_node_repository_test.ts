@@ -1,8 +1,9 @@
+import { it } from "bdd";
 import { expect } from "expect";
 import { Users } from "domain/users_groups/users.ts";
 import buildNullNodeRepository from "./null_node_repository.ts";
 
-Deno.test("null node repository builds a valid synthetic node and ignores timestamp writes", async () => {
+it("null node repository builds a valid synthetic node and ignores timestamp writes", async () => {
 	const built = await buildNullNodeRepository();
 	if (built.isLeft()) throw built.value;
 	const repository = built.value;

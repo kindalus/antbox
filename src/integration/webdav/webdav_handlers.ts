@@ -1,3 +1,5 @@
+import { fileResponse } from "shared/file_response.ts";
+import { fileMimetype } from "shared/mimetype.ts";
 import { Logger } from "shared/logger.ts";
 import { type AntboxTenant } from "api/antbox_tenant.ts";
 import { webdavMiddlewareChain } from "./webdav_middleware.ts";
@@ -166,19 +168,20 @@ export function getHandler(tenants: AntboxTenant[]): HttpHandler {
 		}
 
 		const file = fileOrErr.value;
-		return new Response(req.method === "HEAD" ? null : file.stream(), {
-			headers: {
-				"Content-Type": file.type,
-				"Content-Length": file.size.toString(),
-				"X-Content-Type-Options": "nosniff",
-				"Content-Security-Policy":
-					"sandbox; default-src 'none'; base-uri 'none'; form-action 'none'",
-				"Cache-Control": "no-cache, no-store, must-revalidate",
-				"Pragma": "no-cache",
-				"Expires": "0",
-				"ETag": createETagHeader(node),
-			},
-		});
+		const headers = {
+			"Content-Type": fileMimetype(file),
+			"Content-Length": file.size.toString(),
+			"X-Content-Type-Options": "nosniff",
+			"Content-Security-Policy":
+				"sandbox; default-src 'none'; base-uri 'none'; form-action 'none'",
+			"Cache-Control": "no-cache, no-store, must-revalidate",
+			"Pragma": "no-cache",
+			"Expires": "0",
+			"ETag": createETagHeader(node),
+		};
+		return req.method === "HEAD"
+			? new Response(null, { headers })
+			: await fileResponse(file, headers);
 	});
 }
 

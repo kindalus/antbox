@@ -1,4 +1,7 @@
-import { Database } from "jsr:@db/sqlite@0.13.0";
+import fsSync from "node:fs";
+import { DatabaseSync } from "node:sqlite";
+
+import { toSqlValue } from "./bind.ts";
 
 import type { AuditEvent } from "domain/audit/audit_event.ts";
 import type { EventStoreRepository } from "domain/audit/event_store_repository.ts";
@@ -11,7 +14,7 @@ import { type Either, left, right } from "shared/either.ts";
  * @remarks
  * External setup:
  * - For persistent storage, pass `baseFolder` and ensure it is writable.
- * - Deno requires `--allow-read` and `--allow-write` for file access.
+ * - The process needs read and write access to the data path.
  *
  * @example
  * const storeOrErr = await buildSqliteEventStoreRepository("/var/lib/antbox");
@@ -33,15 +36,15 @@ export class SqliteEventStoreError extends AntboxError {
 }
 
 export class SqliteEventStoreRepository implements EventStoreRepository {
-	readonly #db: Database;
+	readonly #db: DatabaseSync;
 	readonly #existingTables: Set<string>;
 
 	constructor(baseFolder?: string) {
 		if (baseFolder) {
-			Deno.mkdirSync(baseFolder, { recursive: true });
-			this.#db = new Database(`${baseFolder}/events.db`);
+			fsSync.mkdirSync(baseFolder, { recursive: true });
+			this.#db = new DatabaseSync(`${baseFolder}/events.db`);
 		} else {
-			this.#db = new Database(":memory:");
+			this.#db = new DatabaseSync(":memory:");
 		}
 
 		this.#existingTables = new Set();
@@ -105,10 +108,9 @@ export class SqliteEventStoreRepository implements EventStoreRepository {
 			const sequence = sequenceRow.nextSeq;
 			const payload = JSON.stringify(event);
 
-			this.#db.exec(
+			this.#db.prepare(
 				`INSERT INTO ${tableName} (stream_id, sequence, payload) VALUES (?, ?, ?)`,
-				[streamId, sequence, payload],
-			);
+			).run(streamId, toSqlValue(sequence), payload);
 
 			return Promise.resolve(right(undefined));
 		} catch (err) {

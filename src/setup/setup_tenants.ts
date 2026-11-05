@@ -43,10 +43,11 @@ import type { TenantLimits } from "domain/metrics/tenant_limits.ts";
 import { NullOCRProvider } from "adapters/ocr/null_ocr_provider.ts";
 
 import { resolve } from "node:path";
-import { fromFileUrl } from "jsr:@std/path@1.1.2";
+import { fileURLToPath } from "node:url";
+import fs from "node:fs/promises";
 import { registerCacheInvalidationHandlers } from "integration/webdav/webdav_cache_invalidation_handler.ts";
 
-const BUILTIN_SKILLS_DIR = fromFileUrl(
+const BUILTIN_SKILLS_DIR = fileURLToPath(
 	new URL("../application/ai/builtin_skills", import.meta.url),
 );
 
@@ -57,7 +58,7 @@ const BUILTIN_SKILLS_DIR = fromFileUrl(
  * External setup:
  * - Configure repository/storage/event store adapters in `ServerConfiguration`.
  * - Ensure JWKS and symmetric key paths or URLs are reachable.
- * - Grant Deno permissions for file, env, and network access required by adapters.
+ * - Grant permissions for file, env, and network access required by adapters.
  *
  * @example
  * const tenants = await setupTenants(config);
@@ -370,7 +371,7 @@ async function loadJwks(
 		}
 
 		const resolvedPath = resolve(jwksPath);
-		const content = await Deno.readTextFile(resolvedPath);
+		const content = await fs.readFile(resolvedPath, "utf8");
 		return {
 			type: "local",
 			jwks: JSON.parse(content),
@@ -395,7 +396,7 @@ async function loadSymmetricKey(keyPath?: string): Promise<string> {
 
 	try {
 		keyPath = resolve(keyPath);
-		const content = await Deno.readTextFile(keyPath);
+		const content = await fs.readFile(keyPath, "utf8");
 		return content.trim();
 	} catch (error) {
 		Logger.error(

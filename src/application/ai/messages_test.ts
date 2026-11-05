@@ -63,7 +63,7 @@ describe("Pi messages", () => {
 		}
 		const call = assistant.content.find((part) => part.type === "toolCall");
 		expect(call?.id).toBe("antbox-tool-1-1");
-		expect(result.toolCallId).toBe(call?.id);
+		expect(result.toolCallId).toBe(call?.id ?? "");
 		expect(result.timestamp).toBe(123);
 	});
 

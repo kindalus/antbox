@@ -1,3 +1,5 @@
+import fs from "node:fs/promises";
+import { isNotFoundError, isNotSupportedError } from "shared/fs_errors.ts";
 import type { AgentMessage, AgentTool } from "@earendil-works/pi-agent-core";
 import type { Api, Message, Model } from "@earendil-works/pi-ai";
 import type { ModelRuntime, SessionManager, ToolDefinition } from "@earendil-works/pi-coding-agent";
@@ -75,7 +77,7 @@ export class PiAgentSessionRunner implements AgentSessionRunner {
 			noPromptTemplates: true,
 			noThemes: true,
 			noContextFiles: true,
-			systemPrompt: buildSystemPrompt(input.systemPrompt, input.skills),
+			systemPrompt: input.systemPrompt,
 			skillsOverride: () => ({
 				skills: input.skills.map((skill) => ({
 					name: skill.frontmatter.name,
@@ -155,45 +157,14 @@ async function secureSessionFile(manager: SessionManager): Promise<void> {
 	const path = manager.getSessionFile();
 	if (!path) return;
 	try {
-		await Deno.chmod(path, 0o600);
+		await fs.chmod(path, 0o600);
 	} catch (error) {
 		if (
-			!(error instanceof Deno.errors.NotFound) && !(error instanceof Deno.errors.NotSupported)
+			!isNotFoundError(error) && !isNotSupportedError(error)
 		) {
 			throw error;
 		}
 	}
-}
-
-function buildSystemPrompt(systemPrompt: string, skills: readonly LoadedSkill[]): string {
-	if (skills.length === 0) return systemPrompt;
-	const entries = skills.map((skill) =>
-		[
-			"  <skill>",
-			`    <name>${escapeXml(skill.frontmatter.name)}</name>`,
-			`    <description>${escapeXml(skill.frontmatter.description)}</description>`,
-			`    <location>${escapeXml(skill.skillFile)}</location>`,
-			"  </skill>",
-		].join("\n")
-	);
-	return [
-		systemPrompt,
-		"",
-		"The following skills provide specialized instructions for specific tasks.",
-		"Use the load_skill tool when a task matches a skill description.",
-		"<available_skills>",
-		...entries,
-		"</available_skills>",
-	].join("\n");
-}
-
-function escapeXml(value: string): string {
-	return value
-		.replaceAll("&", "&amp;")
-		.replaceAll("<", "&lt;")
-		.replaceAll(">", "&gt;")
-		.replaceAll('"', "&quot;")
-		.replaceAll("'", "&apos;");
 }
 
 function timeoutError(): AntboxError {

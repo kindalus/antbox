@@ -12,11 +12,13 @@ import type {
 	VectorSearchResult,
 } from "domain/nodes/node_repository.ts";
 
-import { dirname, join } from "path";
+import fsSync from "node:fs";
+import { dirname, join } from "node:path";
 
 import { AntboxError, UnknownError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
 import { fileExistsSync } from "shared/os_helpers.ts";
+import { tempPath } from "shared/temp_path.ts";
 import { Logger } from "shared/logger.ts";
 
 /**
@@ -25,7 +27,7 @@ import { Logger } from "shared/logger.ts";
  * @remarks
  * External setup:
  * - Ensure `baseDir` is writable and persisted.
- * - Deno requires `--allow-read` and `--allow-write` for file access.
+ * - The process needs read and write access to the data path.
  *
  * @example
  * const repoOrErr = await buildFlatFileStorageProvider("/var/lib/antbox");
@@ -41,15 +43,15 @@ export default function buildFlatFileStorageProvider(
 
 	try {
 		if (!fileExistsSync(baseDir)) {
-			Deno.mkdirSync(baseDir, { recursive: true });
+			fsSync.mkdirSync(baseDir, { recursive: true });
 		}
 
 		let metadata = [];
 		if (fileExistsSync(dbFilePath)) {
-			const data = Deno.readTextFileSync(dbFilePath);
+			const data = fsSync.readFileSync(dbFilePath, "utf-8");
 			metadata = JSON.parse(data);
 
-			Deno.copyFileSync(dbFilePath, dbBackupFilePath);
+			fsSync.copyFileSync(dbFilePath, dbBackupFilePath);
 		}
 
 		return Promise.resolve(
@@ -81,12 +83,12 @@ class FlatFileNodeRepository implements NodeRepository {
 
 	#saveDb(rows: NodeMetadata[]) {
 		const rawData = this.#encoder.encode(JSON.stringify(rows, null, 2));
-		const temporaryPath = Deno.makeTempFileSync({ dir: dirname(this.#dbFilePath) });
+		const temporaryPath = tempPath(dirname(this.#dbFilePath), "");
 		try {
-			Deno.writeFileSync(temporaryPath, rawData);
-			Deno.renameSync(temporaryPath, this.#dbFilePath);
+			fsSync.writeFileSync(temporaryPath, rawData);
+			fsSync.renameSync(temporaryPath, this.#dbFilePath);
 		} catch (error) {
-			Deno.removeSync(temporaryPath);
+			removeQuietly(temporaryPath);
 			throw error;
 		}
 	}
@@ -191,5 +193,13 @@ class FlatFileNodeRepository implements NodeRepository {
 
 	aggregateTotalSize(): Promise<Either<AntboxError, number>> {
 		return this.#base.aggregateTotalSize();
+	}
+}
+
+function removeQuietly(path: string): void {
+	try {
+		fsSync.unlinkSync(path);
+	} catch {
+		// The original failure is the one worth reporting.
 	}
 }

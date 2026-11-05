@@ -21,7 +21,7 @@ The same flow is available as a runnable shell script in
 
 ## Prerequisites
 
-- Deno 2.0+
+- Bun 1.4.0
 - `curl`
 - `jq`
 - macOS or Linux shell

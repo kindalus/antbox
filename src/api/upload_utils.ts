@@ -1,10 +1,11 @@
+import { readFormData } from "shared/multipart.ts";
 import { BadRequestError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
 import { kebabToCamelCase } from "shared/string_utils.ts";
 
 export async function getUploadFormData(req: Request): Promise<Either<BadRequestError, FormData>> {
 	try {
-		return right(await req.formData());
+		return right(await readFormData(req));
 	} catch {
 		return left(new BadRequestError("Invalid form data"));
 	}

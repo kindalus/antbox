@@ -1,4 +1,8 @@
-import { assertEquals } from "jsr:@std/assert@0.224.0";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import fs from "node:fs/promises";
+import { expect } from "expect";
+import { describe, it } from "bdd";
 import { InMemoryEventStoreRepository } from "adapters/inmem/inmem_event_store_repository.ts";
 import { AuditLoggingService } from "./audit_logging_service.ts";
 import { AgentInteractionCompletedEvent } from "domain/ai/agent_interaction_completed_event.ts";
@@ -38,7 +42,7 @@ class SynchronousEventBus implements EventBus {
 	}
 }
 
-Deno.test("AuditLoggingService persists AI usage events", async () => {
+it("AuditLoggingService persists AI usage events", async () => {
 	const repository = new InMemoryEventStoreRepository();
 	const eventBus = new SynchronousEventBus();
 	new AuditLoggingService(repository, eventBus);
@@ -85,37 +89,35 @@ Deno.test("AuditLoggingService persists AI usage events", async () => {
 		throw embeddingEventsOrErr.value;
 	}
 
-	assertEquals(agentEventsOrErr.value.length, 1);
-	assertEquals(agentEventsOrErr.value[0].eventType, AgentInteractionCompletedEvent.EVENT_ID);
-	assertEquals(
+	expect(agentEventsOrErr.value.length).toEqual(1);
+	expect(agentEventsOrErr.value[0].eventType).toEqual(AgentInteractionCompletedEvent.EVENT_ID);
+	expect(
 		agentEventsOrErr.value[0].payload,
-		{
-			agentUuid: "agent-1",
-			model: "google/gemini-2.5-flash",
-			interactionType: "chat",
-			usage: {
-				promptTokens: 10,
-				completionTokens: 5,
-				totalTokens: 15,
-			},
+	).toEqual({
+		agentUuid: "agent-1",
+		model: "google/gemini-2.5-flash",
+		interactionType: "chat",
+		usage: {
+			promptTokens: 10,
+			completionTokens: 5,
+			totalTokens: 15,
 		},
-	);
+	});
 
-	assertEquals(embeddingEventsOrErr.value.length, 1);
-	assertEquals(embeddingEventsOrErr.value[0].eventType, EmbeddingsGeneratedEvent.EVENT_ID);
-	assertEquals(
+	expect(embeddingEventsOrErr.value.length).toEqual(1);
+	expect(embeddingEventsOrErr.value[0].eventType).toEqual(EmbeddingsGeneratedEvent.EVENT_ID);
+	expect(
 		embeddingEventsOrErr.value[0].payload,
-		{
-			nodeUuid: "node-1",
-			model: "default",
-			context: "indexing",
-			usage: {
-				promptTokens: 20,
-				completionTokens: 0,
-				totalTokens: 20,
-			},
+	).toEqual({
+		nodeUuid: "node-1",
+		model: "default",
+		context: "indexing",
+		usage: {
+			promptTokens: 20,
+			completionTokens: 0,
+			totalTokens: 20,
 		},
-	);
+	});
 });
 
 function adminContext(): AuthenticationContext {
@@ -130,7 +132,7 @@ function storedEvent(eventType: string, occurredOn: string) {
 	return { eventType, occurredOn, userEmail: "user@example.com", payload: { occurredOn } };
 }
 
-Deno.test("node updates are audited in the node's own mimetype stream", async () => {
+it("node updates are audited in the node's own mimetype stream", async () => {
 	const repository = new InMemoryEventStoreRepository();
 	const eventBus = new SynchronousEventBus();
 	const audit = new AuditLoggingService(repository, eventBus);
@@ -161,16 +163,16 @@ Deno.test("node updates are audited in the node's own mimetype stream", async ()
 
 	const events = await audit.get(ctx, created.value.uuid, "application/pdf");
 	if (events.isLeft()) throw events.value;
-	assertEquals(events.value.map((event) => event.eventType), [
+	expect(events.value.map((event) => event.eventType)).toEqual([
 		NodeCreatedEvent.EVENT_ID,
 		NodeUpdatedEvent.EVENT_ID,
 	]);
 	const legacy = await repository.getStream(created.value.uuid, "application/octet-stream");
 	if (legacy.isLeft()) throw legacy.value;
-	assertEquals(legacy.value, []);
+	expect(legacy.value).toEqual([]);
 });
 
-Deno.test("audit log merges updates recorded in the legacy octet-stream stream", async () => {
+it("audit log merges updates recorded in the legacy octet-stream stream", async () => {
 	const repository = new InMemoryEventStoreRepository();
 	const audit = new AuditLoggingService(repository, new SynchronousEventBus());
 	const legacy = "application/octet-stream";
@@ -183,11 +185,11 @@ Deno.test("audit log merges updates recorded in the legacy octet-stream stream",
 	const events = await audit.get(adminContext(), "pdf", "application/pdf");
 
 	if (events.isLeft()) throw events.value;
-	assertEquals(events.value.map((event) => event.eventType), ["A", "B", "C", "D"]);
-	assertEquals(events.value.every((event) => event.streamId === "pdf"), true);
+	expect(events.value.map((event) => event.eventType)).toEqual(["A", "B", "C", "D"]);
+	expect(events.value.every((event) => event.streamId === "pdf")).toEqual(true);
 });
 
-Deno.test("audit log does not duplicate events of octet-stream nodes", async () => {
+it("audit log does not duplicate events of octet-stream nodes", async () => {
 	const repository = new InMemoryEventStoreRepository();
 	const audit = new AuditLoggingService(repository, new SynchronousEventBus());
 	const legacy = "application/octet-stream";
@@ -196,10 +198,10 @@ Deno.test("audit log does not duplicate events of octet-stream nodes", async () 
 	const events = await audit.get(adminContext(), "bin", legacy);
 
 	if (events.isLeft()) throw events.value;
-	assertEquals(events.value.map((event) => event.eventType), ["A"]);
+	expect(events.value.map((event) => event.eventType)).toEqual(["A"]);
 });
 
-Deno.test("AuditLoggingService persists OCR usage events", async () => {
+it("AuditLoggingService persists OCR usage events", async () => {
 	const repository = new InMemoryEventStoreRepository();
 	const eventBus = new SynchronousEventBus();
 	new AuditLoggingService(repository, eventBus);
@@ -215,15 +217,17 @@ Deno.test("AuditLoggingService persists OCR usage events", async () => {
 
 	const eventsOrErr = await repository.getStream("node-1", "application/vnd.antbox.ocr-usage");
 	if (eventsOrErr.isLeft()) throw eventsOrErr.value;
-	assertEquals(eventsOrErr.value.length, 1);
-	assertEquals(eventsOrErr.value[0].eventType, OcrCompletedEvent.EVENT_ID);
-	assertEquals(eventsOrErr.value[0].payload, payload);
+	expect(eventsOrErr.value.length).toEqual(1);
+	expect(eventsOrErr.value[0].eventType).toEqual(OcrCompletedEvent.EVENT_ID);
+	expect(eventsOrErr.value[0].payload).toEqual(payload);
 });
 
-Deno.test("created file audit records retain public metadata", async (t) => {
+describe("created file audit records retain public metadata", () => {
 	for (const kind of ["memory", "flat-file"] as const) {
-		await t.step(kind, async () => {
-			const directory = kind === "flat-file" ? await Deno.makeTempDir() : undefined;
+		it(kind, async () => {
+			const directory = kind === "flat-file"
+				? await fs.mkdtemp(join(tmpdir(), "antbox-audit-test-"))
+				: undefined;
 			try {
 				const repository = directory
 					? (await buildFlatFileEventStoreRepository(directory)).right
@@ -263,20 +267,20 @@ Deno.test("created file audit records retain public metadata", async (t) => {
 				const expected = JSON.parse(JSON.stringify(created.value));
 				const events = await audit.get(ctx, created.value.uuid, created.value.mimetype);
 				if (events.isLeft()) throw events.value;
-				assertEquals(events.value.length, 1);
-				assertEquals(events.value[0].eventType, NodeCreatedEvent.EVENT_ID);
-				assertEquals(events.value[0].userEmail, ctx.principal.email);
-				assertEquals(JSON.parse(JSON.stringify(events.value[0].payload)), expected);
+				expect(events.value.length).toEqual(1);
+				expect(events.value[0].eventType).toEqual(NodeCreatedEvent.EVENT_ID);
+				expect(events.value[0].userEmail).toEqual(ctx.principal.email);
+				expect(JSON.parse(JSON.stringify(events.value[0].payload))).toEqual(expected);
 
 				if (directory) {
 					const reloaded = await buildFlatFileEventStoreRepository(directory);
 					if (reloaded.isLeft()) throw reloaded.value;
 					const persisted = await reloaded.value.getStream(created.value.uuid, "text/plain");
 					if (persisted.isLeft()) throw persisted.value;
-					assertEquals(persisted.value[0].payload, expected);
+					expect(persisted.value[0].payload).toEqual(expected);
 				}
 			} finally {
-				if (directory) await Deno.remove(directory, { recursive: true });
+				if (directory) await fs.rm(directory, { recursive: true });
 			}
 		});
 	}

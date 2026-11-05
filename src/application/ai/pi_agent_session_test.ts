@@ -1,3 +1,7 @@
+import process from "node:process";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import fs from "node:fs/promises";
 import { describe, it } from "bdd";
 import { expect } from "expect";
 import type { AgentTool } from "@earendil-works/pi-agent-core";
@@ -17,12 +21,12 @@ const pi = await loadPiCodingAgent();
 
 describe("PiAgentSessionRunner", () => {
 	it("exposes only the supplied Antbox skills to Pi", async () => {
-		const dir = await Deno.makeTempDir({ prefix: "antbox-pi-skills-test-" });
+		const dir = await fs.mkdtemp(join(tmpdir(), "antbox-pi-skills-test-"));
 		try {
 			const skillDir = `${dir}/test-skill`;
-			await Deno.mkdir(skillDir);
+			await fs.mkdir(skillDir);
 			const skillFile = `${skillDir}/SKILL.md`;
-			await Deno.writeTextFile(
+			await fs.writeFile(
 				skillFile,
 				"---\nname: test-skill\ndescription: Test skill\n---\nInstructions",
 			);
@@ -47,7 +51,7 @@ describe("PiAgentSessionRunner", () => {
 				model: faux.getModel(),
 				thinkingLevel: "off",
 				systemPrompt: "Only Antbox resources are allowed.",
-				tools: [],
+				tools: [pi.createReadTool(dir) as never],
 				skills: [{
 					frontmatter: { name: "test-skill", description: "Test skill" },
 					skillDir,
@@ -58,7 +62,7 @@ describe("PiAgentSessionRunner", () => {
 			});
 			expect(output.messages.at(-1)?.role).toBe("assistant");
 		} finally {
-			await Deno.remove(dir, { recursive: true });
+			await fs.rm(dir, { recursive: true });
 		}
 	});
 
@@ -89,10 +93,10 @@ describe("PiAgentSessionRunner", () => {
 				return { content: [{ type: "text", text: "done" }], details: {} };
 			},
 		};
-		const manager = await runner.createInMemoryManager(Deno.cwd());
+		const manager = await runner.createInMemoryManager(process.cwd());
 		const reported: Message[] = [];
 		await expect(runner.run({
-			cwd: Deno.cwd(),
+			cwd: process.cwd(),
 			model: faux.getModel(),
 			thinkingLevel: "off",
 			systemPrompt: "Test timeout",
@@ -129,11 +133,11 @@ describe("PiAgentSessionRunner", () => {
 			parameters,
 			execute: () => Promise.resolve({ content: [{ type: "text", text: "done" }], details: {} }),
 		};
-		const manager = await runner.createInMemoryManager(Deno.cwd());
+		const manager = await runner.createInMemoryManager(process.cwd());
 
 		const reported: Message[] = [];
 		await expect(runner.run({
-			cwd: Deno.cwd(),
+			cwd: process.cwd(),
 			model: faux.getModel(),
 			thinkingLevel: "off",
 			systemPrompt: "Test failure",

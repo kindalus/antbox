@@ -1,3 +1,4 @@
+import { fileResponse } from "shared/file_response.ts";
 import { NodeFiltersSchema } from "domain/nodes/node_filter.ts";
 import { z } from "zod";
 import { ExportAllRequestSchema } from "application/nodes/node_export_all.ts";
@@ -276,23 +277,20 @@ export function exportHandler(tenants: AntboxTenant[]): HttpHandler {
 						return processError(blob.value);
 					}
 
-					const response = new Response(blob.value);
-					response.headers.set("Content-Type", node.value.mimetype!);
-					response.headers.set("Content-length", blob.value.size.toString());
-					response.headers.set("X-Content-Type-Options", "nosniff");
-					response.headers.set(
-						"Content-Security-Policy",
-						"sandbox; default-src 'none'; base-uri 'none'; form-action 'none'",
-					);
-					response.headers.set("Cache-Control", "no-store");
-					return response;
+					return fileResponse(blob.value, {
+						"Content-Type": node.value.mimetype!,
+						"X-Content-Type-Options": "nosniff",
+						"Content-Security-Policy":
+							"sandbox; default-src 'none'; base-uri 'none'; form-action 'none'",
+						"Cache-Control": "no-store",
+					});
 				})
 				.catch(processError);
 		},
 	);
 }
 
-/** Serves GET and HEAD: Oak routes both here, and HEAD is used as an existence check. */
+/** Serves GET and HEAD: the router sends both here, and HEAD is used as an existence check. */
 export function contentMdHandler(tenants: AntboxTenant[]): HttpHandler {
 	return defaultMiddlewareChain(
 		tenants,
@@ -362,13 +360,10 @@ export function exportAllHandler(tenants: AntboxTenant[]): HttpHandler {
 				validation.data.uuids,
 			);
 			if (result.isLeft()) return processError(result.value);
-			return new Response(result.value, {
-				headers: {
-					"Content-Type": "application/zip",
-					"Content-Disposition": 'attachment; filename="antbox-export.zip"',
-					"Content-Length": String(result.value.size),
-					"Cache-Control": "no-store",
-				},
+			return await fileResponse(result.value, {
+				"Content-Type": "application/zip",
+				"Content-Disposition": 'attachment; filename="antbox-export.zip"',
+				"Cache-Control": "no-store",
 			});
 		} catch (error) {
 			return processError(

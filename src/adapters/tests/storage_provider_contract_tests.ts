@@ -1,3 +1,5 @@
+import process from "node:process";
+import { fileMimetype } from "shared/mimetype.ts";
 import { beforeAll, describe, test } from "bdd";
 import { expect } from "expect";
 import { AntboxError } from "shared/antbox_error.ts";
@@ -8,7 +10,7 @@ import { providerFrom } from "../module_configuration_parser.ts";
 let storage: StorageProvider;
 
 beforeAll(async () => {
-	const args = Deno.env.get("TEST_PARAMS")?.split(";");
+	const args = process.env.TEST_PARAMS?.split(";");
 
 	if (!args) {
 		throw new Error("No test arguments provided.");
@@ -29,7 +31,7 @@ describe("write", () => {
 			type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 		});
 		const writeResult = await storage.write(uuid, file, {
-			mimetype: file.type,
+			mimetype: fileMimetype(file),
 			parent: "--parent--",
 			title: "Something Writed",
 		});
@@ -57,7 +59,7 @@ describe("delete", () => {
 			},
 		);
 		const writeResult = await storage.write(uuid, file, {
-			mimetype: file.type,
+			mimetype: fileMimetype(file),
 			parent: "--parent--",
 			title: "Something Will be Deleted",
 		});

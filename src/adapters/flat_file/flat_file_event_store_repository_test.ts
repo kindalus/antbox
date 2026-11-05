@@ -1,5 +1,10 @@
+import { it } from "bdd";
 import { expect } from "expect";
-import { stub } from "mock";
+import fs from "node:fs/promises";
+import fsSync from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { stub } from "shared/testing/stub.ts";
 import buildFlatFileEventStoreRepository from "./flat_file_event_store_repository.ts";
 
 const event = {
@@ -9,16 +14,16 @@ const event = {
 	payload: { value: "original" },
 };
 
-Deno.test("flat-file audit writes preserve memory and disk after write or rename failure", async () => {
-	const directory = await Deno.makeTempDir();
+it("flat-file audit writes preserve memory and disk after write or rename failure", async () => {
+	const directory = await fs.mkdtemp(join(tmpdir(), "antbox-flat-file-"));
 	try {
 		const repository = (await buildFlatFileEventStoreRepository(directory)).right;
 		expect((await repository.append("audit_stream", "text/plain", event)).isRight()).toBe(true);
 		const path = `${directory}/events/text_plain/audit_stream.json`;
-		const before = await Deno.readTextFile(path);
+		const before = await fs.readFile(path, "utf-8");
 		for (const operation of ["writeFileSync", "renameSync"] as const) {
-			const write = stub(Deno, operation, () => {
-				throw new Deno.errors.PermissionDenied("test persistence failure");
+			const write = stub(fsSync, operation, () => {
+				throw Object.assign(new Error("test persistence failure"), { code: "EACCES" });
 			});
 			try {
 				expect((await repository.append("audit_stream", "text/plain", {
@@ -29,40 +34,40 @@ Deno.test("flat-file audit writes preserve memory and disk after write or rename
 				write.restore();
 			}
 			expect((await repository.getStream("audit_stream", "text/plain")).right).toHaveLength(1);
-			expect(await Deno.readTextFile(path)).toBe(before);
+			expect(await fs.readFile(path, "utf-8")).toBe(before);
 		}
 		expect((await repository.append("audit_stream", "text/plain", event)).isRight()).toBe(true);
 		const restored = (await buildFlatFileEventStoreRepository(directory)).right;
 		expect((await restored.getStream("audit_stream", "text/plain")).right.map((e) => e.sequence))
 			.toEqual([0, 1]);
 		expect(
-			[...Deno.readDirSync(`${directory}/events/text_plain`)].map((entry) => entry.name).sort(),
+			fsSync.readdirSync(`${directory}/events/text_plain`).sort(),
 		)
 			.toEqual(["audit_stream.json", "audit_stream.json.backup"]);
 	} finally {
-		await Deno.remove(directory, { recursive: true });
+		await fs.rm(directory, { recursive: true, force: true });
 	}
 });
 
-Deno.test("flat-file audit initialization rejects corrupt streams without changing the file", async () => {
-	const directory = await Deno.makeTempDir();
+it("flat-file audit initialization rejects corrupt streams without changing the file", async () => {
+	const directory = await fs.mkdtemp(join(tmpdir(), "antbox-flat-file-"));
 	try {
-		await Deno.mkdir(`${directory}/events/text_plain`, { recursive: true });
+		await fs.mkdir(`${directory}/events/text_plain`, { recursive: true });
 		const path = `${directory}/events/text_plain/audit_stream.json`;
 		for (const content of ["[incomplete", "null", "{}", "[{}]"]) {
-			await Deno.writeTextFile(path, content);
+			await fs.writeFile(path, content);
 			expect((await buildFlatFileEventStoreRepository(directory)).isLeft()).toBe(true);
-			expect(await Deno.readTextFile(path)).toBe(content);
+			expect(await fs.readFile(path, "utf-8")).toBe(content);
 		}
 	} finally {
-		await Deno.remove(directory, { recursive: true });
+		await fs.rm(directory, { recursive: true, force: true });
 	}
 });
 
-Deno.test("flat-file audit initialization retains additional historical event fields", async () => {
-	const directory = await Deno.makeTempDir();
+it("flat-file audit initialization retains additional historical event fields", async () => {
+	const directory = await fs.mkdtemp(join(tmpdir(), "antbox-flat-file-"));
 	try {
-		await Deno.mkdir(`${directory}/events/text_plain`, { recursive: true });
+		await fs.mkdir(`${directory}/events/text_plain`, { recursive: true });
 		const path = `${directory}/events/text_plain/audit_stream.json`;
 		const historical = {
 			...event,
@@ -71,20 +76,20 @@ Deno.test("flat-file audit initialization retains additional historical event fi
 			eventId: "legacy-event-id",
 			tenant: "legacy-tenant",
 		};
-		await Deno.writeTextFile(path, JSON.stringify([historical]));
+		await fs.writeFile(path, JSON.stringify([historical]));
 		const repository = (await buildFlatFileEventStoreRepository(directory)).right;
 		expect((await repository.getStream("audit_stream", "text/plain")).right).toEqual([
 			historical,
 		]);
 		expect((await repository.append("audit_stream", "text/plain", event)).isRight()).toBe(true);
-		expect(JSON.parse(await Deno.readTextFile(path))[0]).toEqual(historical);
+		expect(JSON.parse(await fs.readFile(path, "utf-8"))[0]).toEqual(historical);
 	} finally {
-		await Deno.remove(directory, { recursive: true });
+		await fs.rm(directory, { recursive: true, force: true });
 	}
 });
 
-Deno.test("flat-file audit payloads remain immutable and noncloneable appends preserve disk", async () => {
-	const directory = await Deno.makeTempDir();
+it("flat-file audit payloads remain immutable and noncloneable appends preserve disk", async () => {
+	const directory = await fs.mkdtemp(join(tmpdir(), "antbox-flat-file-"));
 	try {
 		const repository = (await buildFlatFileEventStoreRepository(directory)).right;
 		const appended = { ...event, payload: { nested: { values: ["original"] } } };
@@ -93,7 +98,7 @@ Deno.test("flat-file audit payloads remain immutable and noncloneable appends pr
 			true,
 		);
 		const path = `${directory}/events/text_plain/audit_stream.json`;
-		const before = await Deno.readTextFile(path);
+		const before = await fs.readFile(path, "utf-8");
 		appended.payload.nested.values.push("after append");
 		const read = (await repository.getStream("audit_stream", "text/plain")).right;
 		expect(read).toEqual([expected]);
@@ -108,9 +113,9 @@ Deno.test("flat-file audit payloads remain immutable and noncloneable appends pr
 			...event,
 			payload: { uncloneable: () => {} },
 		})).isLeft()).toBe(true);
-		expect(await Deno.readTextFile(path)).toBe(before);
+		expect(await fs.readFile(path, "utf-8")).toBe(before);
 		expect((await repository.getStream("audit_stream", "text/plain")).right).toEqual([expected]);
 	} finally {
-		await Deno.remove(directory, { recursive: true });
+		await fs.rm(directory, { recursive: true, force: true });
 	}
 });

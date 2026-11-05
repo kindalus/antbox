@@ -1248,7 +1248,7 @@ describe("FeaturesEngine", () => {
 			expect(ranOnce).toBe(true);
 
 			await new Promise((resolve) => setTimeout(resolve, 200));
-			expect(globalWithMarker.__noopSelfUpdateRuns).toBe(1);
+			expect(globalWithMarker.__noopSelfUpdateRuns as number | undefined).toBe(1);
 		} finally {
 			delete globalWithMarker.__noopSelfUpdateRuns;
 		}

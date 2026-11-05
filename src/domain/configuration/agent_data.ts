@@ -13,7 +13,7 @@ export interface AgentData {
 	readonly description?: string;
 	readonly exposedToUsers: boolean;
 	readonly model?: ModelSelection; // Falls back to the tenant defaultModel if absent
-	readonly tools?: boolean | string[]; // true = all, false/undefined/[] = load_skill only
+	readonly tools?: boolean | string[]; // true = all, false/undefined/[] = read (skills) only
 	readonly skills?: string[]; // optional whitelist of skill names; absent = all loaded skills visible
 	readonly systemPrompt?: string; // optional custom system instruction; defaults if absent
 	readonly createdTime: string;

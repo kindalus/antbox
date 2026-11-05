@@ -28,7 +28,7 @@ type NodeDbModel = NodeMetadata & {
  * @remarks
  * External setup:
  * - Start a MongoDB server and create a database/user with read/write access.
- * - Ensure the process can reach MongoDB (`--allow-net` in Deno).
+ * - Ensure the process can reach MongoDB over the network.
  *
  * @example
  * const repoOrErr = await buildMongodbNodeRepository("mongodb://localhost:27017", "antbox");
@@ -93,7 +93,6 @@ export class MongodbNodeRepository implements NodeRepository {
 
 			return right(this.#toNodeLike(doc as NodeDbModel));
 		} catch (err) {
-			// deno-lint-ignore no-explicit-any
 			return left(new MongodbError((err as any).message));
 		}
 	}
@@ -108,7 +107,6 @@ export class MongodbNodeRepository implements NodeRepository {
 		try {
 			await this.#collection.deleteOne({ uuid });
 		} catch (err) {
-			// deno-lint-ignore no-explicit-any
 			return left(new MongodbError((err as any).message));
 		}
 
@@ -164,7 +162,6 @@ export class MongodbNodeRepository implements NodeRepository {
 				$set: doc,
 			});
 		} catch (err) {
-			// deno-lint-ignore no-explicit-any
 			return left(new MongodbError((err as any).message));
 		}
 
@@ -199,7 +196,6 @@ export class MongodbNodeRepository implements NodeRepository {
 			);
 			return right(undefined);
 		} catch (err) {
-			// deno-lint-ignore no-explicit-any
 			return left(new MongodbError((err as any).message));
 		}
 	}
@@ -233,7 +229,6 @@ export class MongodbNodeRepository implements NodeRepository {
 
 			return right({ nodes: topResults });
 		} catch (err) {
-			// deno-lint-ignore no-explicit-any
 			return left(new MongodbError((err as any).message));
 		}
 	}
@@ -263,7 +258,6 @@ export class MongodbNodeRepository implements NodeRepository {
 
 			return right(contents);
 		} catch (err) {
-			// deno-lint-ignore no-explicit-any
 			return left(new MongodbError((err as any).message));
 		}
 	}
@@ -276,7 +270,6 @@ export class MongodbNodeRepository implements NodeRepository {
 			);
 			return right(undefined);
 		} catch (err) {
-			// deno-lint-ignore no-explicit-any
 			return left(new MongodbError((err as any).message));
 		}
 	}
@@ -295,7 +288,6 @@ export class MongodbNodeRepository implements NodeRepository {
 			const total = result.length > 0 ? (result[0].total as number) : 0;
 			return right(total);
 		} catch (err) {
-			// deno-lint-ignore no-explicit-any
 			return left(new MongodbError((err as any).message));
 		}
 	}

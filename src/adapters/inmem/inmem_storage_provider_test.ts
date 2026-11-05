@@ -1,7 +1,8 @@
+import { it } from "bdd";
 import { expect } from "expect";
 import { InMemoryStorageProvider } from "./inmem_storage_provider.ts";
 
-Deno.test("in-memory storage treats inherited object names as ordinary UUIDs", async () => {
+it("in-memory storage treats inherited object names as ordinary UUIDs", async () => {
 	const storage = new InMemoryStorageProvider();
 	const file = new File(["document content"], "document.txt", { type: "text/plain" });
 	for (const uuid of ["__proto__", "constructor", "toString"]) {

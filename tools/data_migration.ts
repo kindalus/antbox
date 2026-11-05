@@ -1,3 +1,5 @@
+import fs from "node:fs/promises";
+import process from "node:process";
 import { Logger } from "shared/logger.ts";
 import { providerFrom } from "adapters/module_configuration_parser.ts";
 import type { StorageProvider } from "application/nodes/storage_provider.ts";
@@ -30,9 +32,9 @@ function assert<T>(
 }
 
 async function main() {
-	if (Deno.args.length === 0) {
+	if (process.argv.slice(2).length === 0) {
 		Logger.error(
-			"Usage: deno run --allow-read --allow-write --allow-ffi tools/data_migration.ts <path/to/config.json>",
+			"Usage: bun tools/data_migration.ts <path/to/config.json>",
 		);
 
 		Logger.info(`
@@ -50,13 +52,11 @@ async function main() {
             }
         }`);
 
-		Deno.exit(1);
+		process.exit(1);
 	}
 
-	const path = Deno.args[0];
-	const { default: cfg }: { default: MigrationConfig } = await import(path, {
-		with: { type: "json" },
-	});
+	const path = process.argv.slice(2)[0];
+	const cfg: MigrationConfig = JSON.parse(await fs.readFile(path, "utf8"));
 
 	Logger.info("Migrating data using configuration:");
 	Logger.info(JSON.stringify(cfg, null, 2));
@@ -122,7 +122,7 @@ async function migrateConfiguration(
 			const saveOrErr = await dstConfig.save(collection, item);
 			if (saveOrErr.isLeft()) {
 				Logger.error(`Failed to save ${collection} item: ${saveOrErr.value.message}`);
-				Deno.exit(1);
+				process.exit(1);
 			}
 		}
 
@@ -153,7 +153,7 @@ async function migrateChildren(
 				`Failed to migrate node uuid: ${node.uuid} / metadata: ${node.title}`,
 			);
 			Logger.error(voidOrErr.value.message);
-			Deno.exit(1);
+			process.exit(1);
 		}
 
 		Logger.info(`Migrated node metadata: ${node.title}`);
@@ -189,7 +189,7 @@ async function migrateNode(
 		Logger.info(
 			`Failed to read file node uuid: ${node.uuid} / metadata: ${node.title}`,
 		);
-		Deno.exit(1);
+		process.exit(1);
 	}
 
 	const voidOrErr = await dstStorage.write(node.uuid, fileOrErr.value, {
@@ -203,7 +203,7 @@ async function migrateNode(
 		Logger.info(
 			`Failed to write file node uuid: ${node.uuid} / metadata: ${node.title}`,
 		);
-		Deno.exit(1);
+		process.exit(1);
 	}
 
 	Logger.info(`Migrated file node ${node.title}`);

@@ -1,8 +1,11 @@
 import { describe, it } from "bdd";
 import { expect } from "expect";
-import { stub } from "mock";
+import { stub } from "shared/testing/stub.ts";
+import fs from "node:fs/promises";
+import { tmpdir } from "node:os";
+import process from "node:process";
 import { join } from "node:path";
-import { parse, stringify } from "toml";
+import { parse, stringify } from "smol-toml";
 import type { TenantConfiguration } from "api/http_server_configuration.ts";
 import { saveTenantConfiguration, withTenantConfigurationLock } from "./save_configuration.ts";
 
@@ -25,22 +28,22 @@ async function withConfigDir(
 	inlineTenants: TenantConfiguration[],
 	run: (dir: string, tenantsDir: string) => Promise<void>,
 ): Promise<void> {
-	const dir = await Deno.makeTempDir({ prefix: "antbox-save-config-test-" });
+	const dir = await fs.mkdtemp(join(tmpdir(), "antbox-save-config-test-"));
 	const tenantsDir = join(dir, "tenants.d");
 	try {
-		await Deno.mkdir(tenantsDir);
-		await Deno.writeTextFile(
+		await fs.mkdir(tenantsDir);
+		await fs.writeFile(
 			join(dir, "config.toml"),
 			stringify({ engine: "oak", tenants: inlineTenants }),
 		);
 		await run(dir, tenantsDir);
 	} finally {
-		await Deno.remove(dir, { recursive: true });
+		await fs.rm(dir, { recursive: true });
 	}
 }
 
 async function readTenant(path: string): Promise<TenantConfiguration> {
-	return parse(await Deno.readTextFile(path)) as unknown as TenantConfiguration;
+	return parse(await fs.readFile(path, "utf8")) as unknown as TenantConfiguration;
 }
 
 describe("saveTenantConfiguration", () => {
@@ -55,8 +58,12 @@ describe("saveTenantConfiguration", () => {
 			}).catch((error) => error);
 			await entered.promise;
 
-			const readTextFile = Deno.readTextFile;
-			const reads = stub(Deno, "readTextFile", (...args) => readTextFile(...args));
+			const readFile = fs.readFile;
+			const reads = stub(
+				fs,
+				"readFile",
+				((...args: Parameters<typeof readFile>) => readFile(...args)) as typeof fs.readFile,
+			);
 			const second = saveTenantConfiguration(`${dir}/.`, [tenant("default", 3)]);
 			try {
 				await Promise.resolve();
@@ -68,7 +75,7 @@ describe("saveTenantConfiguration", () => {
 			}
 			expect((await first).message).toBe("first reload failed");
 			await second;
-			const stored = parse(await Deno.readTextFile(join(dir, "config.toml"))) as {
+			const stored = parse(await fs.readFile(join(dir, "config.toml"), "utf8")) as unknown as {
 				tenants: TenantConfiguration[];
 			};
 			expect(stored.tenants[0].limits.storage).toBe(3);
@@ -101,15 +108,15 @@ describe("saveTenantConfiguration", () => {
 				tenant("removed-both"),
 			],
 			async (dir, tenantsDir) => {
-				await Deno.writeTextFile(
+				await fs.writeFile(
 					join(tenantsDir, "shadowed.toml"),
 					tenantToml(tenant("shadowed", 2)),
 				);
-				await Deno.writeTextFile(
+				await fs.writeFile(
 					join(tenantsDir, "external.toml"),
 					tenantToml(tenant("external")),
 				);
-				await Deno.writeTextFile(
+				await fs.writeFile(
 					join(tenantsDir, "removed-both.toml"),
 					tenantToml(tenant("removed-both", 2)),
 				);
@@ -130,7 +137,9 @@ describe("saveTenantConfiguration", () => {
 					},
 				);
 
-				const rawConfig = parse(await Deno.readTextFile(join(dir, "config.toml"))) as {
+				const rawConfig = parse(
+					await fs.readFile(join(dir, "config.toml"), "utf8"),
+				) as unknown as {
 					tenants: TenantConfiguration[];
 				};
 				expect(rawConfig.tenants.map(({ name }) => name)).toEqual([
@@ -147,7 +156,7 @@ describe("saveTenantConfiguration", () => {
 					.toBe(6);
 				expect((await readTenant(join(tenantsDir, "new-tenant.toml"))).limits.storage)
 					.toBe(5);
-				await expect(Deno.stat(join(tenantsDir, "removed-both.toml"))).rejects.toThrow();
+				await expect(fs.stat(join(tenantsDir, "removed-both.toml"))).rejects.toThrow();
 				expect(reloads).toBe(1);
 			},
 		);
@@ -162,13 +171,13 @@ describe("saveTenantConfiguration", () => {
 				...tenant("private"),
 				rootPasswd: "test-only-password",
 			});
-			await Deno.writeTextFile(deletedPath, privateConfig, { mode: 0o600 });
-			await Deno.writeTextFile(
+			await fs.writeFile(deletedPath, privateConfig, { mode: 0o600 });
+			await fs.writeFile(
 				externalPath,
 				`# keep this comment\n${tenantToml(tenant("external"))}`,
 			);
-			const originalConfig = await Deno.readTextFile(configPath);
-			const originalExternal = await Deno.readTextFile(externalPath);
+			const originalConfig = await fs.readFile(configPath, "utf8");
+			const originalExternal = await fs.readFile(externalPath, "utf8");
 
 			await expect(saveTenantConfiguration(
 				dir,
@@ -176,13 +185,13 @@ describe("saveTenantConfiguration", () => {
 				() => Promise.reject(new Error("reload failed")),
 			)).rejects.toThrow("reload failed");
 
-			expect(await Deno.readTextFile(configPath)).toBe(originalConfig);
-			expect(await Deno.readTextFile(externalPath)).toBe(originalExternal);
-			expect(await Deno.readTextFile(deletedPath)).toBe(privateConfig);
-			if (Deno.build.os !== "windows") {
-				expect((await Deno.stat(deletedPath)).mode! & 0o777).toBe(0o600);
+			expect(await fs.readFile(configPath, "utf8")).toBe(originalConfig);
+			expect(await fs.readFile(externalPath, "utf8")).toBe(originalExternal);
+			expect(await fs.readFile(deletedPath, "utf8")).toBe(privateConfig);
+			if (process.platform !== "win32") {
+				expect((await fs.stat(deletedPath)).mode! & 0o777).toBe(0o600);
 			}
-			await expect(Deno.stat(join(tenantsDir, "new-tenant.toml"))).rejects.toThrow();
+			await expect(fs.stat(join(tenantsDir, "new-tenant.toml"))).rejects.toThrow();
 		});
 	});
 });

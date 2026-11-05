@@ -1,14 +1,15 @@
+import { it } from "bdd";
+import process from "node:process";
 import { expect } from "expect";
 import { MongoClient, ObjectId } from "mongodb";
 import { FileNode } from "domain/nodes/file_node.ts";
 import buildMongodbNodeRepository, { MongodbNodeRepository } from "./mongodb_node_repository.ts";
 
-const mongodbUrl = Deno.env.get("ANTBOX_TEST_MONGODB_URL");
+const mongodbUrl = process.env.ANTBOX_TEST_MONGODB_URL;
 
-Deno.test({
-	name: "MongoDB preserves legacy nodes while distinguishing UUIDs with identical suffixes",
-	ignore: !mongodbUrl,
-	async fn() {
+(mongodbUrl ? it : it.skip)(
+	"MongoDB preserves legacy nodes while distinguishing UUIDs with identical suffixes",
+	async () => {
 		const client = await new MongoClient(mongodbUrl!).connect();
 		const databaseName = `antbox_test_${crypto.randomUUID().replaceAll("-", "")}`;
 		const database = client.db(databaseName);
@@ -78,4 +79,4 @@ Deno.test({
 			await client.close();
 		}
 	},
-});
+);

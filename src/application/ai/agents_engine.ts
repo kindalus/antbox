@@ -1,3 +1,4 @@
+import process from "node:process";
 import type { AgentMessage, AgentTool } from "@earendil-works/pi-agent-core";
 import type { Api, AssistantMessage, Message, Model } from "@earendil-works/pi-ai";
 import { type Either, left, right } from "shared/either.ts";
@@ -74,7 +75,7 @@ export interface AgentsEngineContext {
 }
 
 function isAgentDebugTraceEnabled(): boolean {
-	const value = Deno.env.get(AGENT_DEBUG_TRACE_ENV)?.trim().toLowerCase();
+	const value = process.env[AGENT_DEBUG_TRACE_ENV]?.trim().toLowerCase();
 	return value === "1" || value === "true" || value === "yes" || value === "on";
 }
 
@@ -449,7 +450,7 @@ export class AgentsEngine implements IAgentsEngineInternal {
 			"chat",
 			"chat_session",
 			{
-				cwd: this.#sessionWorkspace?.root ?? Deno.cwd(),
+				cwd: this.#sessionWorkspace?.root ?? process.cwd(),
 				model,
 				thinkingLevel: thinkingLevel(selection),
 				systemPrompt: instruction,
@@ -748,7 +749,7 @@ export class AgentsEngine implements IAgentsEngineInternal {
 			}),
 		);
 
-		const manager = await this.#sessionRunner.createInMemoryManager(Deno.cwd());
+		const manager = await this.#sessionRunner.createInMemoryManager(process.cwd());
 		const generated = await this.#runRecordingUsage(
 			authContext,
 			agentData.uuid,
@@ -756,7 +757,7 @@ export class AgentsEngine implements IAgentsEngineInternal {
 			interactionType,
 			interactionType,
 			{
-				cwd: Deno.cwd(),
+				cwd: process.cwd(),
 				model,
 				thinkingLevel: modelThinkingLevel,
 				systemPrompt: instruction,

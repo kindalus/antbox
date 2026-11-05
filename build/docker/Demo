@@ -1,21 +1,34 @@
 # Dockerfile
-FROM denoland/deno:debian-2.7.14
+# Build from the repository root: docker build -f build/docker/Demo -t antbox-demo .
+
+# Stage 1: install production dependencies and prepare the writable directories. This stage has a
+# shell, the final one does not.
+FROM oven/bun:1.4.0-slim AS build
 
 WORKDIR /app
-RUN groupadd --system antx && useradd --system --gid antx --create-home antx
-COPY --chown=antx:antx . .
 
-ENV DENO_DIR=/app/.deno
-RUN mkdir -p "$DENO_DIR" && chown antx:antx /app "$DENO_DIR"
-USER antx
+COPY package.json bun.lock tsconfig.json ./
+RUN bun install --frozen-lockfile --production
 
-RUN deno cache --frozen \
-	--allow-scripts=npm:@google/genai@1.52.0,npm:protobufjs@7.6.5 \
-	main.ts
+COPY main.ts openapi.yaml ./
+COPY .config ./.config
+COPY docs ./docs
+COPY src ./src
 
+RUN mkdir -p /app/data /app/.config/demo && chown -R 65532:65532 /app/data /app/.config
+
+# Stage 2: Bun on a distroless base. No shell, no package manager, no coreutils.
+FROM oven/bun:1.4.0-distroless
+
+WORKDIR /app
+
+COPY --from=build --chown=65532:65532 /app /app
+
+ENV NODE_ENV=production
 ENV PORT=7180
+ENV HOME=/tmp
+USER 65532:65532
 EXPOSE 7180
-
-VOLUME [ "/data" ]
-
-CMD ["./start_server.sh", "--demo"]
+VOLUME [ "/app/data", "/app/.config/demo" ]
+ENTRYPOINT ["/usr/local/bin/bun", "--no-env-file", "main.ts"]
+CMD ["--demo", "--data-dir", "/app"]

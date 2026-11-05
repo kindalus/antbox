@@ -1,8 +1,13 @@
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import fsSync from "node:fs";
+import fs from "node:fs/promises";
 import { describe, it } from "bdd";
 import { expect } from "expect";
 import {
 	fauxAssistantMessage,
 	fauxProvider,
+	fauxToolCall,
 	InMemoryCredentialStore,
 	InMemoryModelsStore,
 } from "@earendil-works/pi-ai";
@@ -16,6 +21,7 @@ import { AgentsEngine, type AgentsEngineContext } from "./agents_engine.ts";
 import { PiAgentSessionRunner } from "./pi_agent_session.ts";
 import { loadPiCodingAgent } from "./pi_coding_agent.ts";
 import { SessionWorkspaceStore } from "./session_workspace.ts";
+import type { LoadedSkill } from "./skills_loader.ts";
 import type { AgentModelRuntime } from "./resolve_model.ts";
 import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus.ts";
 import type { AgentsService } from "./agents_service.ts";
@@ -48,6 +54,7 @@ async function buildContext(
 	options: {
 		agent?: Partial<AgentData>;
 		featureState?: { current: FeatureData };
+		skills?: LoadedSkill[];
 	} = {},
 ) {
 	const faux = fauxProvider({ provider: "session-test" });
@@ -96,7 +103,7 @@ async function buildContext(
 		nodeService: {} as NodeService,
 		aspectsService: {} as AspectsService,
 		defaultModel: modelSelection,
-		skills: [],
+		skills: options.skills ?? [],
 		eventBus: new InMemoryEventBus(),
 		modelRuntime,
 		sessionRunner: new PiAgentSessionRunner(codingRuntime, 5_000),
@@ -107,7 +114,7 @@ async function buildContext(
 
 describe("AgentsEngine persisted sessions", () => {
 	it("records usage when a continuation fails", async () => {
-		const root = await Deno.makeTempDir({ prefix: "antbox-session-failed-usage-test-" });
+		const root = await fs.mkdtemp(join(tmpdir(), "antbox-session-failed-usage-test-"));
 		try {
 			const { context, faux } = await buildContext(root);
 			faux.setResponses([fauxAssistantMessage("first-answer")]);
@@ -135,12 +142,12 @@ describe("AgentsEngine persisted sessions", () => {
 			expect(failed.isLeft()).toBe(true);
 			expect(completed).toBe(2);
 		} finally {
-			await Deno.remove(root, { recursive: true });
+			await fs.rm(root, { recursive: true });
 		}
 	});
 
 	it("checks the token limit again when a queued continuation starts", async () => {
-		const root = await Deno.makeTempDir({ prefix: "antbox-session-token-check-test-" });
+		const root = await fs.mkdtemp(join(tmpdir(), "antbox-session-token-check-test-"));
 		try {
 			const { context, faux } = await buildContext(root);
 			faux.setResponses([
@@ -190,12 +197,12 @@ describe("AgentsEngine persisted sessions", () => {
 			if (results[1].isLeft()) expect(results[1].value.errorCode).toBe("ForbiddenError");
 			expect(faux.state.callCount).toBe(2);
 		} finally {
-			await Deno.remove(root, { recursive: true });
+			await fs.rm(root, { recursive: true });
 		}
 	});
 
 	it("keeps sessions private to the API key that created them", async () => {
-		const root = await Deno.makeTempDir({ prefix: "antbox-session-key-owner-test-" });
+		const root = await fs.mkdtemp(join(tmpdir(), "antbox-session-key-owner-test-"));
 		try {
 			const { context, faux } = await buildContext(root);
 			const engine = new AgentsEngine(context);
@@ -238,7 +245,7 @@ describe("AgentsEngine persisted sessions", () => {
 			).toBe(true);
 			expect(faux.state.callCount).toBe(1);
 			await engine.deleteChatSession(otherKey, agent.uuid, created.value.sessionId);
-			expect((await Deno.stat(`${root}/${created.value.sessionId}`)).isDirectory).toBe(true);
+			expect((await fs.stat(`${root}/${created.value.sessionId}`)).isDirectory()).toBe(true);
 			const owned = await engine.continueChatSession(
 				firstKey,
 				agent.uuid,
@@ -248,14 +255,14 @@ describe("AgentsEngine persisted sessions", () => {
 			if (owned.isLeft()) throw owned.value;
 			expect(owned.value.message.parts[0].text).toBe("second-answer");
 			await engine.deleteChatSession(firstKey, agent.uuid, created.value.sessionId);
-			await expect(Deno.stat(`${root}/${created.value.sessionId}`)).rejects.toThrow();
+			await expect(fs.stat(`${root}/${created.value.sessionId}`)).rejects.toThrow();
 		} finally {
-			await Deno.remove(root, { recursive: true });
+			await fs.rm(root, { recursive: true });
 		}
 	});
 
 	it("rejects anonymous persisted sessions before creating or reading any workspace", async () => {
-		const root = await Deno.makeTempDir({ prefix: "antbox-session-anonymous-test-" });
+		const root = await fs.mkdtemp(join(tmpdir(), "antbox-session-anonymous-test-"));
 		try {
 			const { context, faux } = await buildContext(root);
 			const engine = new AgentsEngine(context);
@@ -277,14 +284,14 @@ describe("AgentsEngine persisted sessions", () => {
 				}
 			}
 			expect(faux.state.callCount).toBe(0);
-			expect([...Deno.readDirSync(root)]).toHaveLength(0);
+			expect([...fsSync.readdirSync(root)]).toHaveLength(0);
 		} finally {
-			await Deno.remove(root, { recursive: true });
+			await fs.rm(root, { recursive: true });
 		}
 	});
 
 	it("continues from Pi JSONL after rebuilding the engine", async () => {
-		const root = await Deno.makeTempDir({ prefix: "antbox-engine-session-test-" });
+		const root = await fs.mkdtemp(join(tmpdir(), "antbox-engine-session-test-"));
 		try {
 			const { context, faux } = await buildContext(root);
 			const firstEngine = new AgentsEngine(context);
@@ -315,14 +322,14 @@ describe("AgentsEngine persisted sessions", () => {
 				created.value.sessionId,
 			);
 			expect(deleted.isRight()).toBe(true);
-			await expect(Deno.stat(`${root}/${created.value.sessionId}`)).rejects.toThrow();
+			await expect(fs.stat(`${root}/${created.value.sessionId}`)).rejects.toThrow();
 		} finally {
-			await Deno.remove(root, { recursive: true });
+			await fs.rm(root, { recursive: true });
 		}
 	});
 
 	it("rejects a session when a sealed feature tool changes", async () => {
-		const root = await Deno.makeTempDir({ prefix: "antbox-engine-stale-session-test-" });
+		const root = await fs.mkdtemp(join(tmpdir(), "antbox-engine-stale-session-test-"));
 		const feature: FeatureData = {
 			uuid: "lookupRecords",
 			title: "Lookup records",
@@ -364,7 +371,137 @@ describe("AgentsEngine persisted sessions", () => {
 			expect(continued.isLeft()).toBe(true);
 			if (continued.isLeft()) expect(continued.value.errorCode).toBe("StaleSession");
 		} finally {
-			await Deno.remove(root, { recursive: true });
+			await fs.rm(root, { recursive: true });
 		}
+	});
+
+	describe("skills through the confined read tool", () => {
+		const readCall = (path: string, id: string) =>
+			fauxAssistantMessage(fauxToolCall("read", { path }, { id }), { stopReason: "toolUse" });
+		const toolResultText = (messages: readonly { role: string }[]) =>
+			(messages as Array<
+				{ role: string; isError?: boolean; content?: Array<{ type: string; text?: string }> }
+			>)
+				.filter((message) => message.role === "toolResult")
+				.map((message) => ({
+					isError: message.isError === true,
+					text: (message.content ?? []).map((part) => part.text ?? "").join(""),
+				}));
+
+		async function withSkills(
+			run: (input: {
+				root: string;
+				secret: string;
+				skills: Record<string, LoadedSkill>;
+			}) => Promise<void>,
+		) {
+			const root = await fs.mkdtemp(join(tmpdir(), "antbox-session-skills-test-"));
+			try {
+				const secret = join(root, "secret.key");
+				await fs.writeFile(secret, "TOP-SECRET-KEY");
+				const skills: Record<string, LoadedSkill> = {};
+				for (const name of ["alpha", "beta"]) {
+					const skillDir = join(root, "skills", name);
+					await fs.mkdir(skillDir, { recursive: true });
+					const skillFile = join(skillDir, "SKILL.md");
+					await fs.writeFile(
+						skillFile,
+						`---\nname: ${name}\ndescription: The ${name} skill\n---\nBODY-OF-${name}`,
+					);
+					skills[name] = {
+						frontmatter: { name, description: `The ${name} skill` },
+						skillDir,
+						skillFile,
+					};
+				}
+				await run({ root, secret, skills });
+			} finally {
+				await fs.rm(root, { recursive: true });
+			}
+		}
+
+		it("reads skill files but fails on files outside the skills", async () => {
+			await withSkills(async ({ root, secret, skills }) => {
+				const { context, faux } = await buildContext(join(root, "sessions"), {
+					skills: Object.values(skills),
+				});
+				let results: ReturnType<typeof toolResultText> = [];
+				faux.setResponses([
+					readCall(skills.alpha.skillFile, "1"),
+					readCall(secret, "2"),
+					(ctx) => {
+						results = toolResultText(ctx.messages);
+						return fauxAssistantMessage("done");
+					},
+				]);
+				const answered = await new AgentsEngine(context).answer(authContext, agent.uuid, "go");
+				if (answered.isLeft()) throw answered.value;
+
+				expect(results.length).toBe(2);
+				expect(results[0].isError).toBe(false);
+				expect(results[0].text).toContain("BODY-OF-alpha");
+				expect(results[1].isError).toBe(true);
+				expect(results[1].text).not.toContain("TOP-SECRET-KEY");
+			});
+		});
+
+		it("hides and blocks skills outside the agent allow-list", async () => {
+			await withSkills(async ({ root, skills }) => {
+				const { context, faux } = await buildContext(join(root, "sessions"), {
+					agent: { skills: ["alpha"] },
+					skills: Object.values(skills),
+				});
+				let prompt = "";
+				let results: ReturnType<typeof toolResultText> = [];
+				faux.setResponses([
+					(ctx) => {
+						prompt = ctx.systemPrompt ?? "";
+						return readCall(skills.beta.skillFile, "1");
+					},
+					(ctx) => {
+						results = toolResultText(ctx.messages);
+						return fauxAssistantMessage("done");
+					},
+				]);
+				const answered = await new AgentsEngine(context).answer(authContext, agent.uuid, "go");
+				if (answered.isLeft()) throw answered.value;
+
+				expect(prompt).toContain("<name>alpha</name>");
+				expect(prompt).not.toContain("<name>beta</name>");
+				expect(results[0].isError).toBe(true);
+				expect(results[0].text).not.toContain("BODY-OF-beta");
+			});
+		});
+
+		it("resumes a session sealed with the legacy load_skill tool", async () => {
+			await withSkills(async ({ root, skills }) => {
+				const sessions = join(root, "sessions");
+				const { context, faux } = await buildContext(sessions, {
+					skills: Object.values(skills),
+				});
+				faux.setResponses([
+					fauxAssistantMessage("first-answer"),
+					fauxAssistantMessage("second-answer"),
+				]);
+				const engine = new AgentsEngine(context);
+				const created = await engine.createChatSession(authContext, agent.uuid, "first");
+				if (created.isLeft()) throw created.value;
+
+				const manifestPath = join(sessions, created.value.sessionId, "manifest.json");
+				const manifest = JSON.parse(await fs.readFile(manifestPath, "utf-8"));
+				expect(manifest.toolNames).toEqual(["read"]);
+				manifest.toolNames = ["load_skill"];
+				await fs.writeFile(manifestPath, JSON.stringify(manifest));
+
+				const continued = await engine.continueChatSession(
+					authContext,
+					agent.uuid,
+					created.value.sessionId,
+					"second",
+				);
+				if (continued.isLeft()) throw continued.value;
+				expect(continued.value.message.parts[0].text).toBe("second-answer");
+			});
+		});
 	});
 });

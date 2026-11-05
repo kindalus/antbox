@@ -1,4 +1,5 @@
-import { assert, assertEquals } from "jsr:@std/assert@0.224.0";
+import { expect } from "expect";
+import { describe, it } from "bdd";
 import { left, right } from "shared/either.ts";
 import { MetricsService } from "./metrics_service.ts";
 import type { NodeRepository } from "domain/nodes/node_repository.ts";
@@ -12,9 +13,9 @@ const tenantLimits: TenantLimits = {
 	tokens: 3,
 };
 
-Deno.test("MetricsService", async (t) => {
-	await t.step("getStorageUsage", async (t) => {
-		await t.step("returns aggregated total size in gigabytes", async () => {
+describe("MetricsService", () => {
+	describe("getStorageUsage", () => {
+		it("returns aggregated total size in gigabytes", async () => {
 			const mockNodeRepo = {
 				aggregateTotalSize: () => Promise.resolve(right(1_500_000_000)),
 			} as unknown as NodeRepository;
@@ -26,14 +27,14 @@ Deno.test("MetricsService", async (t) => {
 			);
 			const result = await service.getStorageUsage();
 
-			assert(result.isRight());
+			expect(result.isRight()).toBeTruthy();
 			if (result.isRight()) {
-				assertEquals(result.value.totalGb, 1.5);
-				assertEquals(result.value.limitGb, 25);
+				expect(result.value.totalGb).toEqual(1.5);
+				expect(result.value.limitGb).toEqual(25);
 			}
 		});
 
-		await t.step("returns error if repository fails", async () => {
+		it("returns error if repository fails", async () => {
 			const mockNodeRepo = {
 				aggregateTotalSize: () =>
 					Promise.resolve(left(new AntboxError("DatabaseError", "DB Error"))),
@@ -46,15 +47,15 @@ Deno.test("MetricsService", async (t) => {
 			);
 			const result = await service.getStorageUsage();
 
-			assert(result.isLeft());
+			expect(result.isLeft()).toBeTruthy();
 			if (result.isLeft()) {
-				assertEquals(result.value.message, "DB Error");
+				expect(result.value.message).toEqual("DB Error");
 			}
 		});
 	});
 
-	await t.step("getTokenUsage", async (t) => {
-		await t.step(
+	describe("getTokenUsage", () => {
+		it(
 			"propagates either usage source failure instead of reporting partial totals",
 			async () => {
 				for (
@@ -75,13 +76,13 @@ Deno.test("MetricsService", async (t) => {
 					} as EventStoreRepository;
 					const result = await new MetricsService({} as NodeRepository, store, tenantLimits)
 						.getTokenUsage(2026, 3);
-					assert(result.isLeft());
-					assertEquals(result.value, failure);
+					expect(result.isLeft()).toBeTruthy();
+					expect(result.value).toEqual(failure);
 				}
 			},
 		);
 
-		await t.step("reports usage by source and the value compared with the quota", async () => {
+		it("reports usage by source and the value compared with the quota", async () => {
 			const event = (usage: Record<string, number>): AuditEvent => ({
 				streamId: "any",
 				sequence: 0,
@@ -113,21 +114,21 @@ Deno.test("MetricsService", async (t) => {
 			const result = await new MetricsService({} as NodeRepository, store, tenantLimits)
 				.getTokenUsage(2026, 3);
 
-			assert(result.isRight());
-			assertEquals(result.value.totalTokens, 1_112);
-			assertEquals(result.value.quotaTokens, 150);
-			assertEquals(result.value.agents, {
+			if (result.isLeft()) throw result.value;
+			expect(result.value.totalTokens).toEqual(1_112);
+			expect(result.value.quotaTokens).toEqual(150);
+			expect(result.value.agents).toEqual({
 				promptTokens: 1_000,
 				completionTokens: 50,
 				totalTokens: 1_050,
 				cacheReadTokens: 900,
 				cacheWriteTokens: 80,
 			});
-			assertEquals(result.value.embeddings.totalTokens, 20);
-			assertEquals(result.value.ocr.totalTokens, 42);
+			expect(result.value.embeddings.totalTokens).toEqual(20);
+			expect(result.value.ocr.totalTokens).toEqual(42);
 		});
 
-		await t.step("includes OCR usage in the monthly totals", async () => {
+		it("includes OCR usage in the monthly totals", async () => {
 			const ocrEvent: AuditEvent = {
 				streamId: "node-1",
 				sequence: 0,
@@ -150,13 +151,13 @@ Deno.test("MetricsService", async (t) => {
 			const result = await new MetricsService({} as NodeRepository, store, tenantLimits)
 				.getTokenUsage(2026, 3);
 
-			assert(result.isRight());
-			assertEquals(result.value.promptTokens, 30);
-			assertEquals(result.value.completionTokens, 12);
-			assertEquals(result.value.totalTokens, 42);
+			if (result.isLeft()) throw result.value;
+			expect(result.value.promptTokens).toEqual(30);
+			expect(result.value.completionTokens).toEqual(12);
+			expect(result.value.totalTokens).toEqual(42);
 		});
 
-		await t.step("aggregates tokens correctly for target month", async () => {
+		it("aggregates tokens correctly for target month", async () => {
 			const createEvent = (
 				dateStr: string,
 				prompt: number,
@@ -209,25 +210,25 @@ Deno.test("MetricsService", async (t) => {
 			);
 			const result = await service.getTokenUsage(2026, 3);
 
-			assert(result.isRight());
+			expect(result.isRight()).toBeTruthy();
 			if (result.isRight()) {
-				assertEquals(result.value.promptTokens, 30);
-				assertEquals(result.value.completionTokens, 5);
-				assertEquals(result.value.totalTokens, 35);
-				assertEquals(result.value.year, 2026);
-				assertEquals(result.value.month, 3);
-				assertEquals(result.value.limitMillions, 3);
+				expect(result.value.promptTokens).toEqual(30);
+				expect(result.value.completionTokens).toEqual(5);
+				expect(result.value.totalTokens).toEqual(35);
+				expect(result.value.year).toEqual(2026);
+				expect(result.value.month).toEqual(3);
+				expect(result.value.limitMillions).toEqual(3);
 			}
 		});
 	});
 
-	await t.step("getLimits", async () => {
+	it("getLimits", async () => {
 		const service = new MetricsService(
 			{} as NodeRepository,
 			{} as EventStoreRepository,
 			tenantLimits,
 		);
 
-		assertEquals(service.getLimits(), tenantLimits);
+		expect(service.getLimits()).toEqual(tenantLimits);
 	});
 });

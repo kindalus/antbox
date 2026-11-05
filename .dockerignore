@@ -1,4 +1,13 @@
 .git
+.github
 .DS_Store
 node_modules
 transient
+tasks
+examples
+build
+data
+/*.md
+.config/*/data
+.config/*/antbox*
+.config/*/*.jwk

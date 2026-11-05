@@ -1,0 +1,51 @@
+import { Hono } from "hono";
+import type { AntboxTenant } from "api/antbox_tenant.ts";
+import {
+	answerHandler,
+	chatHandler,
+	continueAgentSessionHandler,
+	createAgentSessionHandler,
+	createOrReplaceAgentHandler,
+	deleteAgentHandler,
+	deleteAgentSessionHandler,
+	getAgentHandler,
+	listAgentsHandler,
+} from "api/agents_handlers.ts";
+import { adapt } from "./adapt.ts";
+
+/**
+ * Builds the agents router for the Hono HTTP adapter.
+ *
+ * @remarks
+ * External setup:
+ * - Pass the configured tenant list (e.g., from `setupTenants`).
+ * - The process needs permission to bind the HTTP port.
+ *
+ * @example
+ * const router = agentsRouter(tenants);
+ * app.route("/", router);
+ */
+export default function (tenants: AntboxTenant[]): Hono {
+	const router = new Hono().basePath("/agents");
+
+	// CRUD operations
+	router.post("/-/upload", adapt(createOrReplaceAgentHandler(tenants)));
+	router.get("/", adapt(listAgentsHandler(tenants)));
+	router.get("/:uuid", adapt(getAgentHandler(tenants)));
+	router.delete("/:uuid", adapt(deleteAgentHandler(tenants)));
+
+	// Execution operations
+	router.post("/:uuid/-/chat", adapt(chatHandler(tenants)));
+	router.post("/:uuid/-/answer", adapt(answerHandler(tenants)));
+	router.post("/:uuid/-/sessions", adapt(createAgentSessionHandler(tenants)));
+	router.post(
+		"/:uuid/-/sessions/:sessionId/messages",
+		adapt(continueAgentSessionHandler(tenants)),
+	);
+	router.delete(
+		"/:uuid/-/sessions/:sessionId",
+		adapt(deleteAgentSessionHandler(tenants)),
+	);
+
+	return router;
+}

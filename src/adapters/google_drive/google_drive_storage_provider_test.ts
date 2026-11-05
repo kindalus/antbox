@@ -1,3 +1,4 @@
+import { fileMimetype } from "shared/mimetype.ts";
 import { describe, it } from "bdd";
 import { expect } from "expect";
 import { InMemoryConfigurationRepository } from "adapters/inmem/inmem_configuration_repository.ts";
@@ -1086,7 +1087,7 @@ describe("GoogleDriveStorageProvider", () => {
 		expect(result.isRight()).toBe(true);
 		if (result.isRight()) {
 			expect(result.value.name).toBe("Proposal.pdf");
-			expect(result.value.type).toBe("application/pdf");
+			expect(fileMimetype(result.value)).toBe("application/pdf");
 			expect(await result.value.arrayBuffer()).toEqual(new Uint8Array([4, 5, 6]).buffer);
 		}
 		expect(calls.export).toHaveLength(1);

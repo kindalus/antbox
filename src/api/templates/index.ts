@@ -1,3 +1,7 @@
+import fs from "node:fs/promises";
+import { isAbsolute, relative, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
 export interface TemplateInfo {
 	uuid: string;
 	description: string;
@@ -27,7 +31,12 @@ const MIMETYPES: Record<ValidExtension, string> = {
 	"json": "application/json",
 };
 
-const TEMPLATES_DIR = "./templates";
+const TEMPLATES_DIR = fileURLToPath(new URL("./", import.meta.url));
+
+function isInside(directory: string, path: string): boolean {
+	const rel = relative(directory, path);
+	return rel !== "" && !rel.startsWith("..") && !isAbsolute(rel);
+}
 
 /**
  * Load template file content by UUID
@@ -35,15 +44,13 @@ const TEMPLATES_DIR = "./templates";
 export async function loadTemplate(
 	uuid: string,
 ): Promise<{ content: string; mimetype: string } | null> {
-	// deno-lint-ignore no-explicit-any
-	let content: any, mimetype: string = "";
+	let content: string | undefined, mimetype: string = "";
 
 	for (const [ext, mime] of Object.entries(MIMETYPES)) {
 		try {
-			content = await import(`${TEMPLATES_DIR}/${uuid}.${ext}`, {
-				with: { type: "text" },
-			});
-			content = content.default ? content.default : content;
+			const path = resolve(TEMPLATES_DIR, `${uuid}.${ext}`);
+			if (!isInside(TEMPLATES_DIR, path)) continue;
+			content = await fs.readFile(path, "utf8");
 			mimetype = mime;
 
 			break;

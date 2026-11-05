@@ -16,7 +16,7 @@ const CONFIG_PATH_PARAMETERS = new Map<string, readonly number[]>([
 ]);
 
 export function getDefaultDataDir(): string {
-	const home = Deno.env.get("HOME") || Deno.env.get("USERPROFILE") || "";
+	const home = process.env.HOME || process.env.USERPROFILE || "";
 	return join(home, ".local", "share", "antbox");
 }
 

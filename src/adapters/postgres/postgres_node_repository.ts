@@ -1,4 +1,5 @@
-import postgres from "npm:postgres@3.4.8";
+import process from "node:process";
+import postgres from "postgres";
 
 import { NodeFactory } from "domain/node_factory.ts";
 import { Logger } from "shared/logger.ts";
@@ -61,7 +62,7 @@ export class PostgresNodeRepository implements NodeRepository {
 	readonly #sql: postgres.Sql;
 
 	constructor(connectionString?: string) {
-		const connStr = connectionString ?? Deno.env.get("DATABASE_URL");
+		const connStr = connectionString ?? process.env.DATABASE_URL;
 		if (!connStr) {
 			throw new Error("DATABASE_URL environment variable is required");
 		}

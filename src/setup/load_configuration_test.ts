@@ -1,7 +1,10 @@
 import { describe, it } from "bdd";
 import { expect } from "expect";
 import { join } from "node:path";
-import { stringify } from "toml";
+import fs from "node:fs/promises";
+import { tmpdir } from "node:os";
+import process from "node:process";
+import { stringify } from "smol-toml";
 import type { TenantConfiguration } from "api/http_server_configuration.ts";
 import { DEFAULT_MCP_MAX_REQUEST_BODY_BYTES } from "api/http_server_configuration.ts";
 import { loadConfiguration } from "./load_configuration.ts";
@@ -28,18 +31,18 @@ async function withConfigDir(
 	config: Record<string, unknown>,
 	run: (dir: string) => Promise<void>,
 ): Promise<void> {
-	const dir = await Deno.makeTempDir({ prefix: "antbox-config-test-" });
+	const dir = await fs.mkdtemp(join(tmpdir(), "antbox-config-test-"));
 	try {
-		await Deno.writeTextFile(join(dir, "config.toml"), stringify(config));
+		await fs.writeFile(join(dir, "config.toml"), stringify(config));
 		await run(dir);
 	} finally {
-		await Deno.remove(dir, { recursive: true });
+		await fs.rm(dir, { recursive: true });
 	}
 }
 
 describe("loadConfiguration", () => {
 	it("generates a private random root password and preserves it on reload", async () => {
-		const dir = await Deno.makeTempDir({ prefix: "antbox-credentials-test-" });
+		const dir = await fs.mkdtemp(join(tmpdir(), "antbox-credentials-test-"));
 		try {
 			const configDir = join(dir, "first");
 			const first = await loadConfiguration(configDir);
@@ -47,19 +50,19 @@ describe("loadConfiguration", () => {
 			expect(first.rootPasswd).toMatch(/^[0-9a-f-]{36}$/);
 			expect(first.rootPasswd).not.toBe(second.rootPasswd);
 			expect((await loadConfiguration(configDir)).rootPasswd).toBe(first.rootPasswd);
-			if (Deno.build.os !== "windows") {
+			if (process.platform !== "win32") {
 				for (const filename of ["config.toml", "antbox.key", "antbox-private.jwk"]) {
-					const stat = await Deno.stat(join(configDir, filename));
+					const stat = await fs.stat(join(configDir, filename));
 					expect(stat.mode! & 0o777).toBe(0o600);
 				}
 			}
 		} finally {
-			await Deno.remove(dir, { recursive: true });
+			await fs.rm(dir, { recursive: true });
 		}
 	});
 
 	it("generates default tenant paths under dataDir", async () => {
-		const dir = await Deno.makeTempDir({ prefix: "antbox-default-config-test-" });
+		const dir = await fs.mkdtemp(join(tmpdir(), "antbox-default-config-test-"));
 		const dataDir = join(dir, "runtime-data");
 		try {
 			const config = await loadConfiguration(join(dir, "config"), dataDir);
@@ -68,9 +71,9 @@ describe("loadConfiguration", () => {
 			expect(tenant.repository[1]).toBe(join(dataDir, "default/repository"));
 			expect(tenant.configurationRepository[1]).toBe(join(dataDir, "default/config"));
 			expect(tenant.eventStoreRepository[1]).toBe(join(dataDir, "default/events"));
-			await expect(Deno.stat(dataDir)).rejects.toThrow();
+			await expect(fs.stat(dataDir)).rejects.toThrow();
 		} finally {
-			await Deno.remove(dir, { recursive: true });
+			await fs.rm(dir, { recursive: true });
 		}
 	});
 
@@ -78,7 +81,7 @@ describe("loadConfiguration", () => {
 		await withConfigDir({ tenants: [tenant("default")] }, async (dir) => {
 			const dataDir = join(dir, "runtime-data");
 			await loadConfiguration(dir, dataDir);
-			await expect(Deno.stat(dataDir)).rejects.toThrow();
+			await expect(fs.stat(dataDir)).rejects.toThrow();
 		});
 	});
 
@@ -87,20 +90,20 @@ describe("loadConfiguration", () => {
 			{ engine: "oak", tenants: [tenant("default"), tenant("zeta")] },
 			async (dir) => {
 				const tenantsDir = join(dir, "tenants.d");
-				await Deno.mkdir(tenantsDir);
-				await Deno.writeTextFile(
+				await fs.mkdir(tenantsDir);
+				await fs.writeFile(
 					join(tenantsDir, "default.toml"),
 					tenantToml("default", "./external-storage"),
 				);
-				await Deno.writeTextFile(
+				await fs.writeFile(
 					join(tenantsDir, "beta.toml"),
 					tenantToml("beta"),
 				);
-				await Deno.writeTextFile(
+				await fs.writeFile(
 					join(tenantsDir, "alpha.toml"),
 					tenantToml("alpha"),
 				);
-				await Deno.writeTextFile(join(tenantsDir, "ignored.txt"), "not toml");
+				await fs.writeFile(join(tenantsDir, "ignored.txt"), "not toml");
 
 				const dataDir = join(dir, "runtime-data");
 				const config = await loadConfiguration(dir, dataDir);
@@ -113,7 +116,7 @@ describe("loadConfiguration", () => {
 				]);
 				expect(config.tenants[0].storage[1]).toBe(join(dataDir, "external-storage"));
 				expect(config.adminTenantName).toBe("default");
-				expect(await Deno.stat(join(tenantsDir, TENANT_SAMPLE_FILE))).toBeDefined();
+				expect(await fs.stat(join(tenantsDir, TENANT_SAMPLE_FILE))).toBeDefined();
 			},
 		);
 	});
@@ -154,8 +157,8 @@ describe("loadConfiguration", () => {
 	it("does not select an admin tenant when all tenants come from tenant files", async () => {
 		await withConfigDir({}, async (dir) => {
 			const tenantsDir = join(dir, "tenants.d");
-			await Deno.mkdir(tenantsDir);
-			await Deno.writeTextFile(
+			await fs.mkdir(tenantsDir);
+			await fs.writeFile(
 				join(tenantsDir, "company.toml"),
 				tenantToml("company"),
 			);
@@ -179,8 +182,8 @@ describe("loadConfiguration", () => {
 	it("rejects tenant files whose names do not match their tenant", async () => {
 		await withConfigDir({ tenants: [tenant("default")] }, async (dir) => {
 			const tenantsDir = join(dir, "tenants.d");
-			await Deno.mkdir(tenantsDir);
-			await Deno.writeTextFile(
+			await fs.mkdir(tenantsDir);
+			await fs.writeFile(
 				join(tenantsDir, "wrong.toml"),
 				tenantToml("company"),
 			);
@@ -192,8 +195,8 @@ describe("loadConfiguration", () => {
 	it("rejects malformed tenant TOML", async () => {
 		await withConfigDir({ tenants: [tenant("default")] }, async (dir) => {
 			const tenantsDir = join(dir, "tenants.d");
-			await Deno.mkdir(tenantsDir);
-			await Deno.writeTextFile(join(tenantsDir, "broken.toml"), "name = [");
+			await fs.mkdir(tenantsDir);
+			await fs.writeFile(join(tenantsDir, "broken.toml"), "name = [");
 
 			await expect(loadConfiguration(dir)).rejects.toThrow("invalid TOML");
 		});
@@ -201,7 +204,7 @@ describe("loadConfiguration", () => {
 
 	it("rejects an existing tenants.d path that is not a readable directory", async () => {
 		await withConfigDir({ tenants: [tenant("default")] }, async (dir) => {
-			await Deno.writeTextFile(join(dir, "tenants.d"), "not a directory");
+			await fs.writeFile(join(dir, "tenants.d"), "not a directory");
 			await expect(loadConfiguration(dir)).rejects.toThrow("is not a directory");
 		});
 	});

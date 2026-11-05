@@ -24,6 +24,8 @@ Rules:
 - Relative-style adapter names (no `./` and no URL) are resolved under `src/adapters/`.
 - Paths beginning with `./` are loaded as explicit module paths.
 - URLs can also be used for remote modules.
+- Adapters outside the project cannot use project aliases such as `domain/*` or `shared/*`. They
+  must import Antbox code with relative or absolute paths.
 
 ## Core adapter slots
 
@@ -126,8 +128,8 @@ single process; use a database adapter for concurrent application instances.
 Use these tasks to run adapter contract checks:
 
 ```bash
-deno task test-node-repository
-deno task test-storage-provider
+bun run test-node-repository
+bun run test-storage-provider
 ```
 
 These tasks execute contract suites using the configured runner scripts in `src/adapters/`.

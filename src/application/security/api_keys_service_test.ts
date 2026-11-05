@@ -1,6 +1,6 @@
 import { describe, it } from "bdd";
 import { expect } from "expect";
-import { stub } from "mock";
+import { stub } from "shared/testing/stub.ts";
 import { InMemoryConfigurationRepository } from "adapters/inmem/inmem_configuration_repository.ts";
 import { ApiKeysService } from "./api_keys_service.ts";
 import type { AuthenticationContext } from "./authentication_context.ts";

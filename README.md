@@ -3,7 +3,7 @@
 **Open-source, API-first content platform for documents, workflows, and AI**
 
 Antbox is an open-source, API-first content platform for managing documents, metadata, workflows,
-search, and AI-powered knowledge across tenant-isolated environments. Built with Deno and
+search, and AI-powered knowledge across tenant-isolated environments. Built with Bun and
 TypeScript, it combines ECM/DAM primitives, workflow orchestration, MCP access for LLM clients,
 custom server-side features, and pluggable infrastructure in a single runtime.
 
@@ -24,7 +24,7 @@ custom server-side features, and pluggable infrastructure in a single runtime.
 
 ### Prerequisites
 
-- [Deno](https://deno.land/) 2.0+
+- [Bun](https://bun.sh/) 1.4.0
 - `jq` (optional, used in examples)
 
 ### Run Demo Server
@@ -138,9 +138,8 @@ environment.
 
 ### OpenTelemetry
 
-The launcher includes Deno's `--unstable-otel` flag. Set `OTEL_DENO=true` and OTLP environment
-variables such as `OTEL_EXPORTER_OTLP_ENDPOINT` to export Deno runtime telemetry, Antbox HTTP route
-spans, and AI model telemetry. See `docs/observability.md` for details.
+Set `OTEL_EXPORTER_OTLP_ENDPOINT` (and any standard `OTEL_*` variable) to export Antbox HTTP route
+spans and AI model telemetry over OTLP. See `docs/observability.md` for details.
 
 ## Configuration
 
@@ -175,7 +174,7 @@ Module configuration format:
 Minimal example of `config.toml`:
 
 ```toml
-engine = "oak"
+engine = "hono"
 port = 7180
 logLevel = "info"
 rootPasswd = "demo"
@@ -303,27 +302,27 @@ Optional tenant selection:
 
 ```bash
 # All tests
-deno task test
+bun run test
 
 # Service-focused tests
-deno task test:services
+bun run test:services
 
 # Watch mode
-deno task test:watch
+bun run test:watch
 
 # Coverage
-deno task test:coverage
+bun run test:coverage
 
 # Adapter contract tests
-deno task test-node-repository
-deno task test-storage-provider
+bun run test-node-repository
+bun run test-storage-provider
 ```
 
 ### Lint and format
 
 ```bash
-deno lint
-deno fmt
+bun run lint
+bun run fmt
 ```
 
 ## Project Structure
@@ -362,7 +361,7 @@ Antbox follows hexagonal architecture (ports and adapters):
 - domain contracts (`src/domain/`)
 - application services/engines (`src/application/`)
 - adapters implementing contracts (`src/adapters/`)
-- transport in API handlers and Oak routing (`src/api/`, `src/adapters/oak/`)
+- transport in API handlers and Hono routing (`src/api/`, `src/adapters/hono/`)
 
 ## License
 

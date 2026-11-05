@@ -8,6 +8,7 @@ import { loadConfiguration } from "setup/load_configuration.ts";
 import { startPathCacheCleanup } from "integration/webdav/webdav_path_cache.ts";
 import { APP_VERSION } from "shared/app_metadata.ts";
 import { Logger } from "shared/logger.ts";
+import { isTelemetryEnabled } from "shared/telemetry_bootstrap.ts";
 
 interface CommandOpts {
 	configDir?: string;
@@ -36,6 +37,19 @@ export function createAdkLogger(): Pick<Logger, "info" | "debug" | "warn" | "err
 	};
 }
 
+/**
+ * Maps engine names from existing configuration files to the adapter that serves them.
+ * `oak` was the engine before the HTTP adapter moved to Hono.
+ */
+export function resolveEngine(engine: string): string {
+	if (engine === "oak") {
+		Logger.warn('engine "oak" is deprecated and now served by "hono"; update config.toml');
+		return "hono";
+	}
+
+	return engine;
+}
+
 function toUrlHost(hostname: string): string {
 	if (hostname.includes(":")) {
 		return `[${hostname}]`;
@@ -50,7 +64,7 @@ function toUrlHost(hostname: string): string {
  * @remarks
  * External setup:
  * - Ensure the `engine` in the config maps to an adapter under `src/adapters/<engine>/server.ts`.
- * - Grant Deno permissions required by the configured adapters (net, env, read/write).
+ * - Grant the runtime permissions required by the configured adapters (net, env, read/write).
  *
  * @example
  * await startServer(config);
@@ -60,12 +74,17 @@ async function startServer(
 	configDir?: string,
 	dataDir?: string,
 ) {
+	if (isTelemetryEnabled()) {
+		const { startTelemetry } = await import("shared/telemetry_bootstrap.ts");
+		await startTelemetry();
+	}
+
 	let tenants;
 	try {
 		tenants = await setupTenants(getTenantSetupConfiguration(config));
 	} catch (err) {
 		console.error("Failed to setup tenants on startup:", err);
-		Deno.exit(-1);
+		process.exit(-1);
 	}
 
 	const reloadFn = async () => {
@@ -78,7 +97,8 @@ async function startServer(
 	startPathCacheCleanup(60000);
 	console.log("WebDAV path cache cleanup started");
 
-	const serverLocation = `adapters/${config.engine}/server.ts`;
+	const engine = resolveEngine(config.engine ?? "hono");
+	const serverLocation = `adapters/${engine}/server.ts`;
 	let startServerFn;
 	try {
 		const setupServer = await import(`./src/${serverLocation}`);
@@ -89,7 +109,7 @@ async function startServer(
 	} catch (error) {
 		console.error(`Failed to load server engine module: ${serverLocation}`);
 		console.error(error);
-		Deno.exit(1);
+		process.exit(1);
 	}
 
 	const port = config.port || PORT;
@@ -101,7 +121,7 @@ async function startServer(
 		const baseUrl = `http://${effectiveHostname}:${effectivePort}`;
 
 		console.log(
-			`Antbox Server v${APP_VERSION} (${config.engine}) started successfully on ${baseUrl}`,
+			`Antbox Server v${APP_VERSION} (${engine}) started successfully on ${baseUrl}`,
 		);
 		console.log(`- ${baseUrl}/v2 for REST API`);
 		console.log(`- ${baseUrl}/mcp for MCP`);
@@ -138,7 +158,7 @@ if (import.meta.main) {
 
 			if (opts.keys) {
 				printServerKeys({ configDir });
-				Deno.exit(0);
+				process.exit(0);
 			}
 
 			const config = await loadConfiguration(configDir, dataDir);

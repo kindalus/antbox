@@ -1,6 +1,6 @@
 import { describe, it } from "bdd";
 import { expect } from "expect";
-import { parse as parseYaml } from "@std/yaml";
+import { parse as parseYaml } from "yaml";
 import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { embeddingMarkdownBody, toEmbeddingMarkdown, toYamlMetadata } from "./node_markdown.ts";
 

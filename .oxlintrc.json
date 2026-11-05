@@ -1,0 +1,15 @@
+{
+	"$schema": "./node_modules/oxlint/configuration_schema.json",
+	"plugins": ["typescript"],
+	"categories": { "correctness": "error" },
+	"ignorePatterns": ["node_modules", "antbox.js"],
+	"rules": {
+		"eslint/require-await": "off",
+		"eslint/no-unused-vars": ["warn", { "caughtErrors": "none", "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }],
+		"eslint/no-unused-expressions": "off",
+		"eslint/no-control-regex": "off",
+		"eslint/no-useless-escape": "off",
+		"eslint/no-unsafe-optional-chaining": "warn",
+		"eslint/no-unused-private-class-members": "warn"
+	}
+}

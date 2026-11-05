@@ -1,3 +1,4 @@
+import { afterAll, beforeAll, describe, it } from "bdd";
 import { expect } from "expect";
 import { InMemoryConfigurationRepository } from "adapters/inmem/inmem_configuration_repository.ts";
 import { BUILTIN_USERS } from "domain/configuration/builtin_users.ts";
@@ -38,14 +39,20 @@ function identifier(value: object): string {
 	return Reflect.get(value, "uuid") ?? Reflect.get(value, "email");
 }
 
-Deno.test("built-in configuration reads cannot change another tenant's definitions", async (t) => {
+describe("built-in configuration reads cannot change another tenant's definitions", () => {
 	const custom = { ...structuredClone(BUILTIN_AGENTS[0]), uuid: "snapshot-custom-agent" };
-	customAgents.push(custom);
-	customAgentRegistry.set(custom.uuid, {
-		data: custom,
-		create() {
-			throw new Error("This test only reads agent configuration");
-		},
+	beforeAll(() => {
+		customAgents.push(custom);
+		customAgentRegistry.set(custom.uuid, {
+			data: custom,
+			create() {
+				throw new Error("This test only reads agent configuration");
+			},
+		});
+	});
+	afterAll(() => {
+		customAgentRegistry.delete(custom.uuid);
+		customAgents.splice(customAgents.indexOf(custom), 1);
 	});
 	const cases: ConfigurationCase[] = [
 		{
@@ -89,42 +96,37 @@ Deno.test("built-in configuration reads cannot change another tenant's definitio
 			list: (repo, ctx) => new WorkflowsService(repo).listWorkflows(ctx),
 		},
 	];
-	try {
-		for (const fixture of cases) {
-			const expected = structuredClone(fixture.builtin);
-			for (const method of ["get", "list"] as const) {
-				await t.step(`${fixture.name} ${method} returns independent nested data`, async () => {
-					const first = new InMemoryConfigurationRepository();
-					const second = new InMemoryConfigurationRepository();
-					try {
-						const result = (await fixture[method](first, admin)).right;
-						const record = Array.isArray(result)
-							? result.find((value) => identifier(value) === identifier(fixture.builtin))!
-							: result;
-						Reflect.set(record, fixture.field, "Unsaved local change");
-						const nested = fixture.nested && Reflect.get(record, fixture.nested);
-						if (Array.isArray(nested)) {
-							if (typeof nested[0] === "object" && nested[0] !== null) {
-								Reflect.set(nested[0], "description", "Unsaved nested change");
-							}
-							nested.push("Unsaved array entry");
+	for (const fixture of cases) {
+		const expected = structuredClone(fixture.builtin);
+		for (const method of ["get", "list"] as const) {
+			it(`${fixture.name} ${method} returns independent nested data`, async () => {
+				const first = new InMemoryConfigurationRepository();
+				const second = new InMemoryConfigurationRepository();
+				try {
+					const result = (await fixture[method](first, admin)).right;
+					const record = Array.isArray(result)
+						? result.find((value) => identifier(value) === identifier(fixture.builtin))!
+						: result;
+					Reflect.set(record, fixture.field, "Unsaved local change");
+					const nested = fixture.nested && Reflect.get(record, fixture.nested);
+					if (Array.isArray(nested)) {
+						if (typeof nested[0] === "object" && nested[0] !== null) {
+							Reflect.set(nested[0], "description", "Unsaved nested change");
 						}
-						const other = { ...admin, tenant: "second" };
-						expect((await fixture.get(second, other)).right).toEqual(expected);
-						expect(
-							(await fixture.list(second, other)).right.find((value) =>
-								identifier(value) === identifier(fixture.builtin)
-							),
-						).toEqual(expected);
-						expect(fixture.builtin).toEqual(expected);
-					} finally {
-						Object.assign(fixture.builtin, structuredClone(expected));
+						nested.push("Unsaved array entry");
 					}
-				});
-			}
+					const other = { ...admin, tenant: "second" };
+					expect((await fixture.get(second, other)).right).toEqual(expected);
+					expect(
+						(await fixture.list(second, other)).right.find((value) =>
+							identifier(value) === identifier(fixture.builtin)
+						),
+					).toEqual(expected);
+					expect(fixture.builtin).toEqual(expected);
+				} finally {
+					Object.assign(fixture.builtin, structuredClone(expected));
+				}
+			});
 		}
-	} finally {
-		customAgentRegistry.delete(custom.uuid);
-		customAgents.splice(customAgents.indexOf(custom), 1);
 	}
 });

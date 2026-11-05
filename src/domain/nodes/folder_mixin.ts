@@ -23,6 +23,8 @@ const FolderValidationSchema = z.object({
 	onCreate: z.array(z.string()).optional(),
 	onUpdate: z.array(z.string()).optional(),
 	onDelete: z.array(z.string()).optional(),
+	onEmbeddingsCreated: z.array(z.string()).optional(),
+	onEmbeddingsUpdated: z.array(z.string()).optional(),
 });
 
 export function FolderMixin<TBase extends Constructor>(Base: TBase) {
@@ -30,6 +32,8 @@ export function FolderMixin<TBase extends Constructor>(Base: TBase) {
 		protected _onCreate: string[] = [];
 		protected _onUpdate: string[] = [];
 		protected _onDelete: string[] = [];
+		protected _onEmbeddingsCreated: string[] = [];
+		protected _onEmbeddingsUpdated: string[] = [];
 		protected _group = undefined as unknown as string;
 
 		protected _permissions: Permissions = {
@@ -49,6 +53,8 @@ export function FolderMixin<TBase extends Constructor>(Base: TBase) {
 			this._onCreate = metadata.onCreate ?? [];
 			this._onUpdate = metadata.onUpdate ?? [];
 			this._onDelete = metadata.onDelete ?? [];
+			this._onEmbeddingsCreated = metadata.onEmbeddingsCreated ?? [];
+			this._onEmbeddingsUpdated = metadata.onEmbeddingsUpdated ?? [];
 
 			if (metadata.group) {
 				this._group = metadata.group;
@@ -91,11 +97,21 @@ export function FolderMixin<TBase extends Constructor>(Base: TBase) {
 			return this._onDelete;
 		}
 
+		get onEmbeddingsCreated(): string[] {
+			return this._onEmbeddingsCreated;
+		}
+
+		get onEmbeddingsUpdated(): string[] {
+			return this._onEmbeddingsUpdated;
+		}
+
 		update(metadata: NodeMetadata): Either<ValidationError, void> {
 			this._group = metadata.group ?? this._group;
 			this._onCreate = metadata.onCreate ?? this._onCreate;
 			this._onUpdate = metadata.onUpdate ?? this._onUpdate;
 			this._onDelete = metadata.onDelete ?? this._onDelete;
+			this._onEmbeddingsCreated = metadata.onEmbeddingsCreated ?? this._onEmbeddingsCreated;
+			this._onEmbeddingsUpdated = metadata.onEmbeddingsUpdated ?? this._onEmbeddingsUpdated;
 			this._filters = metadata.filters !== undefined
 				? resolveFilters(metadata.filters)
 				: this._filters;
@@ -120,6 +136,8 @@ export function FolderMixin<TBase extends Constructor>(Base: TBase) {
 				onCreate: this._onCreate,
 				onUpdate: this._onUpdate,
 				onDelete: this._onDelete,
+				onEmbeddingsCreated: this._onEmbeddingsCreated,
+				onEmbeddingsUpdated: this._onEmbeddingsUpdated,
 				group: this._group,
 				filters: this._filters,
 				permissions: this._permissions,

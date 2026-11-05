@@ -1426,7 +1426,7 @@ describe("FeaturesEngine", () => {
 		expect(updatedRan).toBe(true);
 	});
 
-	it("limits automatic action depth per engine instance", async () => {
+	it("does not count unrelated concurrent actions as recursion, including across engines", async () => {
 		const harness = createHarness();
 		const isolatedHarness = createHarness();
 		const isolatedCtx = { ...adminCtx, tenant: "isolated" };
@@ -1518,13 +1518,13 @@ describe("FeaturesEngine", () => {
 				description: "same-engine-trigger",
 			});
 			await new Promise((resolve) => setTimeout(resolve, 150));
-			expect(globalWithMarker.__automaticActionRuns ?? 0).toBe(0);
+			expect(globalWithMarker.__automaticActionRuns ?? 0).toBe(1);
 
 			await isolatedHarness.nodeService.update(isolatedCtx, "recursive-node", {
 				description: "isolated-engine-trigger",
 			});
 			const isolatedActionRan = await waitFor(async () => {
-				return (globalWithMarker.__automaticActionRuns ?? 0) === 1;
+				return (globalWithMarker.__automaticActionRuns ?? 0) === 2;
 			});
 			expect(isolatedActionRan).toBe(true);
 		} finally {
@@ -1534,6 +1534,126 @@ describe("FeaturesEngine", () => {
 			delete globalWithMarker.__automaticActionRuns;
 			delete globalWithMarker.__releaseRunnableActions;
 		}
+	});
+
+	it("runs five independent folder classifiers concurrently", async () => {
+		const agents = new MockAgentsEngine();
+		let release!: () => void;
+		const gate = new Promise<void>((resolve) => release = resolve);
+		agents.internalAnswerImpl = async () => {
+			await gate;
+			return right({ role: "model", parts: [{ text: "ok" }] });
+		};
+		const harness = createHarness(false, agents);
+		try {
+			await harness.nodeService.create(adminCtx, {
+				uuid: "parallel-inbox",
+				title: "Parallel Inbox",
+				mimetype: Nodes.FOLDER_MIMETYPE,
+				parent: Nodes.ROOT_FOLDER_UUID,
+				onUpdate: ["call_agent agentUuid=classifier runSync=true prompt='Classify'"],
+			});
+			for (let i = 0; i < 5; i++) {
+				await harness.nodeService.createFile(
+					adminCtx,
+					new File(["body"], `${i}.txt`, { type: "text/plain" }),
+					{
+						uuid: `parallel-${i}`,
+						parent: "parallel-inbox",
+					},
+				);
+				await harness.nodeService.update(adminCtx, `parallel-${i}`, {
+					description: "requested",
+				});
+				if (i < 4) expect(await waitFor(async () => agents.calls.length === i + 1)).toBe(true);
+			}
+			expect(await waitFor(async () => agents.calls.length === 5)).toBe(true);
+		} finally {
+			release();
+			await new Promise((resolve) => setTimeout(resolve, 30));
+		}
+	});
+
+	it("bounds causal self-updates even after ancestor actions have returned", async () => {
+		const harness = createHarness();
+		await createFeature(harness, {
+			runOnUpdates: true,
+			run: createFeatureRun({
+				runBody: `
+				const node = await ctx.nodeService.get(args.uuids[0]);
+				const count = Number(node.value.description || 0);
+				if (count < 12) await ctx.nodeService.update(args.uuids[0], { description: String(count + 1) });
+			`,
+			}),
+		});
+		await harness.nodeService.create(adminCtx, {
+			uuid: "causal-loop",
+			title: "Causal Loop",
+			mimetype: Nodes.FOLDER_MIMETYPE,
+			parent: Nodes.ROOT_FOLDER_UUID,
+		});
+		await harness.nodeService.update(adminCtx, "causal-loop", { description: "0" });
+		expect(
+			await waitFor(async () =>
+				(await harness.nodeService.get(adminCtx, "causal-loop")).right.description === "3"
+			),
+		).toBe(true);
+		await new Promise((resolve) => setTimeout(resolve, 100));
+		expect((await harness.nodeService.get(adminCtx, "causal-loop")).right.description).toBe("3");
+		// A new external request starts a new causal chain, even for the same node.
+		await harness.nodeService.update(adminCtx, "causal-loop", { description: "4" });
+		expect(
+			await waitFor(async () =>
+				(await harness.nodeService.get(adminCtx, "causal-loop")).right.description === "7"
+			),
+		).toBe(true);
+	});
+
+	it("runs folder embedding hooks only after embeddings, using the current parent", async () => {
+		const agents = new MockAgentsEngine();
+		const harness = createHarness(false, agents);
+		const hook = "call_agent agentUuid=classifier runSync=true prompt='Classify'";
+		await harness.nodeService.create(adminCtx, {
+			uuid: "embedding-inbox",
+			title: "Embedding Inbox",
+			mimetype: Nodes.FOLDER_MIMETYPE,
+			parent: Nodes.ROOT_FOLDER_UUID,
+			onEmbeddingsCreated: [hook],
+			onEmbeddingsUpdated: [hook],
+		});
+		await harness.nodeService.create(adminCtx, {
+			uuid: "embedding-review",
+			title: "Embedding Review",
+			mimetype: Nodes.FOLDER_MIMETYPE,
+			parent: Nodes.ROOT_FOLDER_UUID,
+		});
+		await harness.nodeService.createFile(
+			adminCtx,
+			new File(["body"], "body.txt", { type: "text/plain" }),
+			{
+				uuid: "embedding-child",
+				parent: "embedding-inbox",
+			},
+		);
+		await harness.nodeService.update(adminCtx, "embedding-child", {
+			description: "metadata only",
+		});
+		await new Promise((resolve) => setTimeout(resolve, 30));
+		expect(agents.calls.length).toBe(0);
+		harness.eventBus.publish(
+			new EmbeddingCreatedEvent(Users.ROOT_USER_EMAIL, adminCtx.tenant, "embedding-child"),
+		);
+		expect(await waitFor(async () => agents.calls.length === 1)).toBe(true);
+		harness.eventBus.publish(
+			new EmbeddingUpdatedEvent(Users.ROOT_USER_EMAIL, adminCtx.tenant, "embedding-child"),
+		);
+		expect(await waitFor(async () => agents.calls.length === 2)).toBe(true);
+		await harness.nodeService.update(adminCtx, "embedding-child", { parent: "embedding-review" });
+		harness.eventBus.publish(
+			new EmbeddingUpdatedEvent(Users.ROOT_USER_EMAIL, adminCtx.tenant, "embedding-child"),
+		);
+		await new Promise((resolve) => setTimeout(resolve, 50));
+		expect(agents.calls.length).toBe(2);
 	});
 
 	it("does not run non-action features from folder onCreate hooks", async () => {

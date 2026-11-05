@@ -857,19 +857,6 @@ export class NodeService {
 			delete safeMetadata.workflowState;
 		}
 
-		const changesOrErr = calculateNodeUpdateChanges(currentMetadata, safeMetadata);
-		if (changesOrErr.isLeft()) {
-			return left(changesOrErr.value);
-		}
-
-		const updateChanges = changesOrErr.value;
-		const hasChangedValues = Object.keys(updateChanges.changed.newValues).length > 0;
-		if (!hasChangedValues && !options.forceEvent) {
-			return right(undefined);
-		}
-
-		const eventValues = hasChangedValues ? updateChanges.changed : updateChanges.requested;
-
 		const voidOrErr = nodeOrErr.value.update(safeMetadata);
 		if (voidOrErr.isLeft()) {
 			return left(voidOrErr.value);
@@ -879,6 +866,22 @@ export class NodeService {
 		if (aspectValidation.isLeft()) {
 			return left(aspectValidation.value);
 		}
+
+		// Compare persisted values after aspect normalization, not transient null tombstones.
+		const changesOrErr = calculateNodeUpdateChanges(
+			currentMetadata,
+			safeMetadata,
+			nodeOrErr.value.metadata,
+		);
+		if (changesOrErr.isLeft()) {
+			return left(changesOrErr.value);
+		}
+		const updateChanges = changesOrErr.value;
+		const hasChangedValues = Object.keys(updateChanges.changed.newValues).length > 0;
+		if (!hasChangedValues && !options.forceEvent) {
+			return right(undefined);
+		}
+		const eventValues = hasChangedValues ? updateChanges.changed : updateChanges.requested;
 
 		// Get the actual parent (which might be different if parent was updated)
 		const actualParentOrErr = await this.nodeLookup.getFolder(

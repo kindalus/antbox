@@ -59,7 +59,16 @@ external resources in uploaded documents. These URLs are for reading files, not 
 
 - `group`
 - `permissions` (group/authenticated/anonymous/advanced)
-- `onCreate`, `onUpdate`, `onDelete` (feature UUIDs)
+- `onCreate`, `onUpdate`, `onDelete` (feature action strings)
+- `onEmbeddingsCreated`, `onEmbeddingsUpdated` (feature action strings, after a child's embeddings
+  are stored; resolved against its current parent)
+
+Embedding hooks also accept built-in actions such as
+`call_agent agentUuid=classifier runSync=true prompt='Classify'`. Configure classification on
+ingestion folders, not review folders, to avoid reclassifying saved results. Runnable recursion is
+limited per feature within its asynchronous causal chain (including queued events), not across
+independent concurrent executions. Each tenant's engine keeps its own context.
+
 - `filters` (NodeFilters)
 
 Changing a folder's `permissions` requires existing Write permission on both that folder and its

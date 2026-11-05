@@ -278,6 +278,8 @@ export interface NodeMetadata {
 	onCreate?: string[];
 	onUpdate?: string[];
 	onDelete?: string[];
+	onEmbeddingsCreated?: string[];
+	onEmbeddingsUpdated?: string[];
 	permissions?: Permissions;
 
 	runManually?: boolean;

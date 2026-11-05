@@ -14,6 +14,7 @@ interface CalculatedNodeUpdateChanges {
 export function calculateNodeUpdateChanges(
 	currentMetadata: NodeMetadata,
 	requestedMetadata: Partial<NodeMetadata>,
+	validatedMetadata?: NodeMetadata,
 ): Either<ValidationError, CalculatedNodeUpdateChanges> {
 	const metadata = comparableMetadata(requestedMetadata);
 	const previewOrErr = NodeFactory.from<NodeLike>(currentMetadata);
@@ -26,7 +27,7 @@ export function calculateNodeUpdateChanges(
 		return left(updatePreviewOrErr.value);
 	}
 
-	const previewMetadata = previewOrErr.value.metadata;
+	const previewMetadata = validatedMetadata ?? previewOrErr.value.metadata;
 	const changedOldValues: Partial<NodeMetadata> = {};
 	const changedNewValues: Partial<NodeMetadata> = {};
 	const requestedOldValues: Partial<NodeMetadata> = {};

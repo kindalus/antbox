@@ -3786,6 +3786,16 @@ components:
                type: array
                items:
                   type: string
+            onEmbeddingsCreated:
+               type: array
+               description: Feature action strings to run after a child's first embeddings are stored.
+               items:
+                  type: string
+            onEmbeddingsUpdated:
+               type: array
+               description: Feature action strings to run after a child's embeddings are refreshed.
+               items:
+                  type: string
             permissions:
                $ref: "#/components/schemas/Permissions"
             properties:
@@ -4077,6 +4087,14 @@ components:
                items:
                   type: string
             onDelete:
+               type: array
+               items:
+                  type: string
+            onEmbeddingsCreated:
+               type: array
+               items:
+                  type: string
+            onEmbeddingsUpdated:
                type: array
                items:
                   type: string

@@ -152,6 +152,61 @@ describe("NodeService", () => {
 			expect(events).toHaveLength(0);
 		});
 
+		for (const initial of [undefined, "old value"]) {
+			it(`clears optional properties once without emitting repeated null updates (${initial})`, async () => {
+				const configRepo = new InMemoryConfigurationRepository();
+				const bus = new InMemoryEventBus();
+				const events: NodeUpdatedEvent[] = [];
+				bus.subscribe(NodeUpdatedEvent.EVENT_ID, {
+					handle: (event) => {
+						events.push(event as NodeUpdatedEvent);
+					},
+				});
+				const service = nodeService({ bus, configRepo });
+				await createAspect(configRepo, "optional", "Optional", [{
+					name: "note",
+					title: "Note",
+					type: "string",
+				}]);
+				const node = (await service.create(authCtx, {
+					title: "Optional Node",
+					mimetype: Nodes.FOLDER_MIMETYPE,
+					parent: Nodes.ROOT_FOLDER_UUID,
+					aspects: ["optional"],
+					properties: initial === undefined ? {} : { "optional:note": initial },
+				})).right;
+				for (let i = 0; i < 2; i++) {
+					const before = (await service.get(authCtx, node.uuid)).right;
+					expect(
+						(await service.update(authCtx, node.uuid, {
+							properties: { "optional:note": null },
+						})).isRight(),
+					).toBe(true);
+					await flushEventBus();
+					const after = (await service.get(authCtx, node.uuid)).right;
+					expect(after.properties).toEqual({});
+					if (initial === undefined || i > 0) {
+						expect(after.modifiedTime).toBe(before.modifiedTime);
+					}
+				}
+				expect(events.length).toBe(initial === undefined ? 0 : 1);
+				if (initial !== undefined) {
+					expect(events[0].payload.newValues).toEqual({ properties: {} });
+				}
+				const previous = events.length;
+				expect(
+					(await service.update(
+						authCtx,
+						node.uuid,
+						{ properties: { "optional:note": null } },
+						{ forceEvent: true },
+					)).isRight(),
+				).toBe(true);
+				await flushEventBus();
+				expect(events.length).toBe(previous + 1);
+			});
+		}
+
 		it("should return error if node is not found", async () => {
 			const service = nodeService();
 			const updateOrErr = await service.update(authCtx, "not-found", {

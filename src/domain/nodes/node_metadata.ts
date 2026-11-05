@@ -95,6 +95,10 @@ export interface NodeMetadata {
 	onUpdate?: string[];
 	/** Feature UUIDs to run when a node is deleted in this folder */
 	onDelete?: string[];
+	/** Feature UUIDs to run after a child's first embeddings are stored */
+	onEmbeddingsCreated?: string[];
+	/** Feature UUIDs to run after a child's embeddings are refreshed */
+	onEmbeddingsUpdated?: string[];
 
 	// ============================================================================
 	// SmartFolderNode / FolderNode FIELDS

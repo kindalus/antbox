@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import { Logger } from "shared/logger.ts";
 import { kebabToCamelCase } from "shared/string_utils.ts";
 import type { FeatureData } from "domain/configuration/feature_data.ts";
@@ -46,7 +47,7 @@ type AutomaticTriggerName =
 	| "onDelete"
 	| "onEmbeddingsCreated"
 	| "onEmbeddingsUpdated";
-type FolderHookName = "onCreate" | "onUpdate" | "onDelete";
+type FolderHookName = AutomaticTriggerName;
 
 export interface FeaturesEngineContext {
 	featuresService: FeaturesService;
@@ -60,7 +61,7 @@ export interface FeaturesEngineContext {
 
 /** Executes features as actions, AI tools, extensions, and event handlers. */
 export class FeaturesEngine {
-	readonly #actionDepth = new Map<string, number>();
+	readonly #actionDepth = new AsyncLocalStorage<ReadonlyMap<string, number>>();
 
 	readonly #featuresService: FeaturesService;
 	readonly #nodeService: NodeService;
@@ -105,11 +106,21 @@ export class FeaturesEngine {
 		});
 
 		ctx.eventBus.subscribe(NodeUpdatedEvent.EVENT_ID, {
-			handle: (evt: NodeUpdatedEvent) => this.#runOnUpdatedFolderHooks(evt),
+			handle: (evt: NodeUpdatedEvent) => this.#runStoredNodeFolderHooks(evt, "onUpdate"),
 		});
 
 		ctx.eventBus.subscribe(NodeDeletedEvent.EVENT_ID, {
 			handle: (evt: NodeDeletedEvent) => this.#runOnDeleteFolderHooks(evt),
+		});
+
+		ctx.eventBus.subscribe(EmbeddingCreatedEvent.EVENT_ID, {
+			handle: (evt: EmbeddingCreatedEvent) =>
+				this.#runStoredNodeFolderHooks(evt, "onEmbeddingsCreated"),
+		});
+
+		ctx.eventBus.subscribe(EmbeddingUpdatedEvent.EVENT_ID, {
+			handle: (evt: EmbeddingUpdatedEvent) =>
+				this.#runStoredNodeFolderHooks(evt, "onEmbeddingsUpdated"),
 		});
 	}
 
@@ -162,12 +173,9 @@ export class FeaturesEngine {
 			.map((node) => node.uuid!);
 
 		try {
-			this.#incrementActionDepth(feature.uuid);
 			return await this.#run(ctx, feature.uuid, { ...params, uuids });
 		} catch (error) {
 			return left(new UnknownError(`Action error: ${(error as Error).message}`));
-		} finally {
-			this.#decrementActionDepth(feature.uuid);
 		}
 	}
 
@@ -231,17 +239,8 @@ export class FeaturesEngine {
 		});
 	}
 
-	#decrementActionDepth(featureUuid: string): void {
-		const depth = this.#actionDepth.get(featureUuid) ?? 0;
-		if (depth > 1) {
-			this.#actionDepth.set(featureUuid, depth - 1);
-		} else {
-			this.#actionDepth.delete(featureUuid);
-		}
-	}
-
-	#incrementActionDepth(featureUuid: string): void {
-		this.#actionDepth.set(featureUuid, (this.#actionDepth.get(featureUuid) ?? 0) + 1);
+	#runnableDepth(featureUuid: string): number {
+		return this.#actionDepth.getStore()?.get(featureUuid) ?? 0;
 	}
 
 	async #getAutomaticActions(
@@ -283,9 +282,9 @@ export class FeaturesEngine {
 			return;
 		}
 
-		if ((this.#actionDepth.get(feature.uuid) ?? 0) > MAX_RUNNABLE_DEPTH) {
+		if (this.#runnableDepth(feature.uuid) >= MAX_RUNNABLE_DEPTH) {
 			Logger.warn(
-				`Skipping folder ${hookName} feature ${feature.uuid}: max runnable depth (${MAX_RUNNABLE_DEPTH}) exceeded`,
+				`Skipping folder ${hookName} feature ${feature.uuid} for node ${node.uuid}: max runnable depth (${MAX_RUNNABLE_DEPTH}) exceeded`,
 			);
 			return;
 		}
@@ -317,23 +316,18 @@ export class FeaturesEngine {
 			return;
 		}
 
-		if ((this.#actionDepth.get(feature.uuid) ?? 0) > MAX_RUNNABLE_DEPTH) {
+		if (this.#runnableDepth(feature.uuid) >= MAX_RUNNABLE_DEPTH) {
 			Logger.warn(
-				`Skipping automatic ${triggerName} feature ${feature.uuid}: max runnable depth (${MAX_RUNNABLE_DEPTH}) exceeded`,
+				`Skipping automatic ${triggerName} feature ${feature.uuid} for node ${node.uuid}: max runnable depth (${MAX_RUNNABLE_DEPTH}) exceeded`,
 			);
 			return;
 		}
 
-		try {
-			this.#incrementActionDepth(feature.uuid);
-			const result = await this.#run(ctx, feature.uuid, { uuids: [node.uuid] });
-			if (result.isLeft()) {
-				Logger.warn(
-					`Skipping automatic ${triggerName} feature ${feature.uuid} for node ${node.uuid}: ${result.value.message}`,
-				);
-			}
-		} finally {
-			this.#decrementActionDepth(feature.uuid);
+		const result = await this.#run(ctx, feature.uuid, { uuids: [node.uuid] });
+		if (result.isLeft()) {
+			Logger.warn(
+				`Skipping automatic ${triggerName} feature ${feature.uuid} for node ${node.uuid}: ${result.value.message}`,
+			);
 		}
 	}
 
@@ -353,6 +347,29 @@ export class FeaturesEngine {
 	}
 
 	async #run<T>(
+		ctx: AuthenticationContext,
+		uuid: string,
+		params: Record<string, unknown>,
+		requestUrl?: Readonly<URL>,
+	): Promise<Either<AntboxError, T>> {
+		const depth = this.#runnableDepth(uuid);
+		if (depth >= MAX_RUNNABLE_DEPTH) {
+			return left(
+				new BadRequestError(
+					`Feature ${uuid}: max runnable depth (${MAX_RUNNABLE_DEPTH}) exceeded`,
+				),
+			);
+		}
+		// Immutable ancestry survives queued events after their originating action returns.
+		const ancestry = new Map(this.#actionDepth.getStore());
+		ancestry.set(uuid, depth + 1);
+		return this.#actionDepth.run(
+			ancestry,
+			() => this.#runFeature<T>(ctx, uuid, params, requestUrl),
+		);
+	}
+
+	async #runFeature<T>(
 		ctx: AuthenticationContext,
 		uuid: string,
 		params: Record<string, unknown>,
@@ -561,7 +578,10 @@ export class FeaturesEngine {
 		await this.#runFolderHooks(evt.tenant, evt.userEmail, evt.payload, "onCreate");
 	}
 
-	async #runOnUpdatedFolderHooks(evt: NodeUpdatedEvent): Promise<void> {
+	async #runStoredNodeFolderHooks(
+		evt: NodeUpdatedEvent | EmbeddingCreatedEvent | EmbeddingUpdatedEvent,
+		hookName: FolderHookName,
+	): Promise<void> {
 		const nodeOrErr = await this.#nodeService.get(
 			this.#actionContext(evt.tenant, Users.ROOT_USER_EMAIL),
 			evt.payload.uuid,
@@ -570,7 +590,7 @@ export class FeaturesEngine {
 			return;
 		}
 
-		await this.#runFolderHooks(evt.tenant, evt.userEmail, nodeOrErr.value, "onUpdate");
+		await this.#runFolderHooks(evt.tenant, evt.userEmail, nodeOrErr.value, hookName);
 	}
 
 	async #runOnEmbeddingsCreated(evt: EmbeddingCreatedEvent): Promise<void> {

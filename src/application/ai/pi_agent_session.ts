@@ -18,6 +18,8 @@ export interface PiAgentSessionRunInput {
 	readonly sessionManager: SessionManager;
 	readonly initialMessages?: readonly AgentMessage[];
 	readonly userText: string;
+	/** Receives the messages generated before a failed run, so their usage is not lost. */
+	readonly onFailure?: (messages: Message[]) => void;
 }
 
 export interface PiAgentSessionRunOutput {
@@ -114,6 +116,8 @@ export class PiAgentSessionRunner implements AgentSessionRunner {
 		const { session } = created;
 		if (input.initialMessages) session.agent.state.messages = [...input.initialMessages];
 		const initialMessageCount = session.agent.state.messages.length;
+		const generatedMessages = () =>
+			session.agent.state.messages.slice(initialMessageCount + 1) as Message[];
 		let timedOut = false;
 		const timeout = setTimeout(() => {
 			timedOut = true;
@@ -123,7 +127,7 @@ export class PiAgentSessionRunner implements AgentSessionRunner {
 			await session.prompt(input.userText);
 			if (timedOut) throw timeoutError();
 			if (session.agent.state.errorMessage) throw new Error(session.agent.state.errorMessage);
-			const messages = session.agent.state.messages.slice(initialMessageCount + 1) as Message[];
+			const messages = generatedMessages();
 			const final = messages.at(-1);
 			if (
 				final?.role !== "assistant" || final.stopReason === "error" ||
@@ -133,6 +137,7 @@ export class PiAgentSessionRunner implements AgentSessionRunner {
 			}
 			return { messages };
 		} catch (error) {
+			input.onFailure?.(generatedMessages());
 			if (timedOut) throw timeoutError();
 			throw error;
 		} finally {

@@ -10,7 +10,7 @@ describe("TextOCRProvider", () => {
 		const result = await provider.ocr(file);
 		expect(result.isRight()).toBe(true);
 		if (result.isRight()) {
-			expect(result.value).toBe("Hello, world!");
+			expect(result.value.text).toBe("Hello, world!");
 		}
 	});
 
@@ -20,7 +20,7 @@ describe("TextOCRProvider", () => {
 		const result = await provider.ocr(file);
 		expect(result.isRight()).toBe(true);
 		if (result.isRight()) {
-			expect(result.value).toBe(content);
+			expect(result.value.text).toBe(content);
 		}
 	});
 
@@ -30,7 +30,7 @@ describe("TextOCRProvider", () => {
 		const result = await provider.ocr(file);
 		expect(result.isRight()).toBe(true);
 		if (result.isRight()) {
-			expect(result.value).toBe(content);
+			expect(result.value.text).toBe(content);
 		}
 	});
 
@@ -48,7 +48,7 @@ describe("TextOCRProvider", () => {
 		const result = await provider.ocr(file);
 		expect(result.isRight()).toBe(true);
 		if (result.isRight()) {
-			expect(result.value).toBe("");
+			expect(result.value.text).toBe("");
 		}
 	});
 });

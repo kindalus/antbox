@@ -13,6 +13,7 @@ import { NodeDeletedEvent } from "domain/nodes/node_deleted_event.ts";
 import { EmbeddingCreatedEvent } from "domain/nodes/embedding_created_event.ts";
 import { EmbeddingUpdatedEvent } from "domain/nodes/embedding_updated_event.ts";
 import { EmbeddingsGeneratedEvent } from "domain/ai/embeddings_generated_event.ts";
+import { OcrCompletedEvent } from "domain/ai/ocr_completed_event.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { createElevatedContext } from "application/security/elevated_context.ts";
@@ -208,7 +209,16 @@ export class RAGService {
 				if (textOrErr.isLeft()) {
 					Logger.warn(`RAGService: OCR failed for ${node.uuid}: ${textOrErr.value.message}`);
 				} else {
-					bodyContent = textOrErr.value;
+					bodyContent = textOrErr.value.text;
+					if (textOrErr.value.usage) {
+						this.#eventBus.publish(
+							new OcrCompletedEvent("system", tenant, {
+								nodeUuid: node.uuid,
+								usage: textOrErr.value.usage,
+								context: "indexing",
+							}),
+						);
+					}
 				}
 			}
 		} else if (contentChanged) {

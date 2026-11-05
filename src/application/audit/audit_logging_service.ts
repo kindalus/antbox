@@ -7,6 +7,7 @@ import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { NodeUpdatedEvent } from "domain/nodes/node_updated_event.ts";
 import { AgentInteractionCompletedEvent } from "domain/ai/agent_interaction_completed_event.ts";
 import { EmbeddingsGeneratedEvent } from "domain/ai/embeddings_generated_event.ts";
+import { OcrCompletedEvent } from "domain/ai/ocr_completed_event.ts";
 import { Groups } from "domain/users_groups/groups.ts";
 import { type AntboxError, ForbiddenError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
@@ -57,6 +58,11 @@ export class AuditLoggingService {
 			EmbeddingsGeneratedEvent.EVENT_ID,
 			eventHandlerFunc((e: EmbeddingsGeneratedEvent) => this.#handleEmbeddingsGenerated(e)),
 		);
+
+		this.eventBus.subscribe(
+			OcrCompletedEvent.EVENT_ID,
+			eventHandlerFunc((e: OcrCompletedEvent) => this.#handleOcrCompleted(e)),
+		);
 	}
 
 	#handleAgentInteraction(event: AgentInteractionCompletedEvent): void {
@@ -71,6 +77,15 @@ export class AuditLoggingService {
 	#handleEmbeddingsGenerated(event: EmbeddingsGeneratedEvent): void {
 		this.#appendToRepository(event.payload.nodeUuid, "application/vnd.antbox.embeddings-usage", {
 			eventType: EmbeddingsGeneratedEvent.EVENT_ID,
+			occurredOn: event.occurredOn.toISOString(),
+			userEmail: event.userEmail,
+			payload: event.payload,
+		});
+	}
+
+	#handleOcrCompleted(event: OcrCompletedEvent): void {
+		this.#appendToRepository(event.payload.nodeUuid, "application/vnd.antbox.ocr-usage", {
+			eventType: OcrCompletedEvent.EVENT_ID,
 			occurredOn: event.occurredOn.toISOString(),
 			userEmail: event.userEmail,
 			payload: event.payload,

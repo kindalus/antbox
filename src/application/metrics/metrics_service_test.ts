@@ -61,6 +61,7 @@ Deno.test("MetricsService", async (t) => {
 					const failedType of [
 						"application/vnd.antbox.agent-usage",
 						"application/vnd.antbox.embeddings-usage",
+						"application/vnd.antbox.ocr-usage",
 					]
 				) {
 					const failure = new AntboxError("DatabaseError", "Usage database unavailable");
@@ -79,6 +80,35 @@ Deno.test("MetricsService", async (t) => {
 				}
 			},
 		);
+
+		await t.step("includes OCR usage in the monthly totals", async () => {
+			const ocrEvent: AuditEvent = {
+				streamId: "node-1",
+				sequence: 0,
+				eventType: "OcrCompletedEvent",
+				userEmail: "system",
+				occurredOn: "2026-03-10T00:00:00.000Z",
+				payload: { usage: { promptTokens: 30, completionTokens: 12, totalTokens: 42 } },
+			};
+			const store = {
+				getStreamsByMimetype: (mimetype: string) =>
+					Promise.resolve(right(
+						new Map(
+							mimetype === "application/vnd.antbox.ocr-usage"
+								? [["node-1", [ocrEvent]]]
+								: [],
+						),
+					)),
+			} as EventStoreRepository;
+
+			const result = await new MetricsService({} as NodeRepository, store, tenantLimits)
+				.getTokenUsage(2026, 3);
+
+			assert(result.isRight());
+			assertEquals(result.value.promptTokens, 30);
+			assertEquals(result.value.completionTokens, 12);
+			assertEquals(result.value.totalTokens, 42);
+		});
 
 		await t.step("aggregates tokens correctly for target month", async () => {
 			const createEvent = (

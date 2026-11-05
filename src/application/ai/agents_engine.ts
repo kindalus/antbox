@@ -18,7 +18,7 @@ import type { RAGService } from "./rag_service.ts";
 import type { TenantLimitsEnforcer } from "application/metrics/tenant_limits_guard.ts";
 import { getCustomAgent } from "application/ai/custom_agents/index.ts";
 import type { AgentModelRuntime } from "./resolve_model.ts";
-import type { AgentSessionRunner } from "./pi_agent_session.ts";
+import type { AgentSessionRunner, PiAgentSessionRunInput } from "./pi_agent_session.ts";
 import { buildToolSet, type BuiltToolSet } from "./build_tools.ts";
 import {
 	chatHistoryToPiMessages,
@@ -442,28 +442,21 @@ export class AgentsEngine implements IAgentsEngineInternal {
 			);
 		}
 		const instruction = this.#buildInstruction(manifest.agentData);
-		const generated = await withTelemetrySpan(
-			"antbox.ai.generate_text",
+		const generated = await this.#runRecordingUsage(
+			authContext,
+			manifest.agentUuid,
+			modelString,
+			"chat",
+			"chat_session",
 			{
-				"antbox.tenant": authContext.tenant,
-				"antbox.agent.uuid": manifest.agentUuid,
-				"antbox.ai.interaction_type": "chat_session",
-				"gen_ai.operation.name": "agent_run",
-				"gen_ai.request.model": modelString,
-			},
-			async (span) => {
-				const output = await this.#sessionRunner.run({
-					cwd: this.#sessionWorkspace?.root ?? Deno.cwd(),
-					model,
-					thinkingLevel: thinkingLevel(selection),
-					systemPrompt: instruction,
-					tools,
-					skills,
-					sessionManager,
-					userText: text,
-				});
-				setTelemetryUsageAttributes(span, piMessagesUsage(output.messages));
-				return output.messages;
+				cwd: this.#sessionWorkspace?.root ?? Deno.cwd(),
+				model,
+				thinkingLevel: thinkingLevel(selection),
+				systemPrompt: instruction,
+				tools,
+				skills,
+				sessionManager,
+				userText: text,
 			},
 		);
 		const usage = piMessagesUsage(generated);
@@ -471,24 +464,70 @@ export class AgentsEngine implements IAgentsEngineInternal {
 		const final = messages.findLast((message) => message.role === "model");
 		if (!final) throw new AntboxError("IncompleteAgentRun", FALLBACK_FINAL_ANSWER);
 		const message = { ...final, usage: usage ?? final.usage };
-		if (usage) {
-			this.#eventBus.publish(
-				new AgentInteractionCompletedEvent(
-					authContext.principal.email,
-					authContext.tenant,
-					{
-						agentUuid: manifest.agentUuid,
-						usage,
-						interactionType: "chat",
-					},
-				),
-			);
-		}
 		return {
 			sessionId: manifest.sessionId,
 			expiresAt: manifest.expiresAt,
 			message,
 		};
+	}
+
+	/**
+	 * Runs a Pi session and records its usage whether it succeeds or fails, because the
+	 * provider bills every completed model call even when the run ends without an answer.
+	 */
+	async #runRecordingUsage(
+		authContext: AuthenticationContext,
+		agentUuid: string,
+		modelString: string,
+		interactionType: "chat" | "answer",
+		telemetryInteractionType: string,
+		input: PiAgentSessionRunInput,
+	): Promise<Message[]> {
+		let generated: Message[] = [];
+		try {
+			return await withTelemetrySpan(
+				"antbox.ai.generate_text",
+				{
+					"antbox.tenant": authContext.tenant,
+					"antbox.agent.uuid": agentUuid,
+					"antbox.ai.interaction_type": telemetryInteractionType,
+					"gen_ai.operation.name": "agent_run",
+					"gen_ai.request.model": modelString,
+				},
+				async (span) => {
+					try {
+						const output = await this.#sessionRunner.run({
+							...input,
+							onFailure: (messages) => {
+								generated = messages;
+							},
+						});
+						generated = output.messages;
+						return output.messages;
+					} finally {
+						setTelemetryUsageAttributes(span, piMessagesUsage(generated));
+					}
+				},
+			);
+		} finally {
+			this.#publishUsage(authContext, agentUuid, piMessagesUsage(generated), interactionType);
+		}
+	}
+
+	#publishUsage(
+		authContext: AuthenticationContext,
+		agentUuid: string,
+		usage: TokenUsage | undefined,
+		interactionType: "chat" | "answer",
+	): void {
+		if (!usage) return;
+		this.#eventBus.publish(
+			new AgentInteractionCompletedEvent(
+				authContext.principal.email,
+				authContext.tenant,
+				{ agentUuid, usage, interactionType },
+			),
+		);
 	}
 
 	#assertFeatureVersions(
@@ -627,6 +666,7 @@ export class AgentsEngine implements IAgentsEngineInternal {
 					userText: text,
 					additionalInstructions: options.instructions,
 				});
+				this.#publishUsage(authContext, agentUuid, result.usage, options.interactionType);
 			} else {
 				result = await this.#runLlmAgent(
 					agentData,
@@ -643,20 +683,6 @@ export class AgentsEngine implements IAgentsEngineInternal {
 			}
 
 			result = ensureTerminalModelMessage(result);
-
-			if (result.usage) {
-				this.#eventBus.publish(
-					new AgentInteractionCompletedEvent(
-						authContext.principal.email,
-						authContext.tenant,
-						{
-							agentUuid,
-							usage: result.usage,
-							interactionType: options.interactionType,
-						},
-					),
-				);
-			}
 
 			return right(result);
 		} catch (error) {
@@ -710,29 +736,22 @@ export class AgentsEngine implements IAgentsEngineInternal {
 		);
 
 		const manager = await this.#sessionRunner.createInMemoryManager(Deno.cwd());
-		const generated = await withTelemetrySpan(
-			"antbox.ai.generate_text",
+		const generated = await this.#runRecordingUsage(
+			authContext,
+			agentData.uuid,
+			modelString,
+			interactionType,
+			interactionType,
 			{
-				"antbox.tenant": authContext.tenant,
-				"antbox.agent.uuid": agentData.uuid,
-				"antbox.ai.interaction_type": interactionType,
-				"gen_ai.operation.name": "agent_run",
-				"gen_ai.request.model": modelString,
-			},
-			async (span) => {
-				const output = await this.#sessionRunner.run({
-					cwd: Deno.cwd(),
-					model,
-					thinkingLevel: modelThinkingLevel,
-					systemPrompt: instruction,
-					tools,
-					skills: this.#selectSkills(agentData.skills),
-					sessionManager: manager,
-					initialMessages: historyMessages,
-					userText,
-				});
-				setTelemetryUsageAttributes(span, piMessagesUsage(output.messages));
-				return output.messages;
+				cwd: Deno.cwd(),
+				model,
+				thinkingLevel: modelThinkingLevel,
+				systemPrompt: instruction,
+				tools,
+				skills: this.#selectSkills(agentData.skills),
+				sessionManager: manager,
+				initialMessages: historyMessages,
+				userText,
 			},
 		);
 

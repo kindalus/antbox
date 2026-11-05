@@ -2,8 +2,24 @@ import { left, right } from "shared/either.ts";
 import type { Either } from "shared/either.ts";
 import { AntboxError } from "shared/antbox_error.ts";
 import { Logger } from "shared/logger.ts";
-import type { OCRProvider } from "domain/ai/ocr_provider.ts";
-import { GoogleGenAI } from "@google/genai";
+import type { TokenUsage } from "domain/ai/chat_message.ts";
+import type { OCRProvider, OCRResult } from "domain/ai/ocr_provider.ts";
+import { type GenerateContentResponseUsageMetadata, GoogleGenAI } from "@google/genai";
+
+/** Maps Gemini usage the way Pi does: thinking tokens are billed as output. */
+export function geminiUsageToTokenUsage(
+	metadata: GenerateContentResponseUsageMetadata | undefined,
+): TokenUsage | undefined {
+	if (!metadata) return undefined;
+	const promptTokens = metadata.promptTokenCount ?? 0;
+	const completionTokens = (metadata.candidatesTokenCount ?? 0) +
+		(metadata.thoughtsTokenCount ?? 0);
+	return {
+		promptTokens,
+		completionTokens,
+		totalTokens: metadata.totalTokenCount ?? promptTokens + completionTokens,
+	};
+}
 
 /**
  * GeminiOCRProvider - Uses Google Gemini multimodal models for OCR.
@@ -30,7 +46,7 @@ export class GeminiOCRProvider implements OCRProvider {
 		this.#client = new GoogleGenAI({ apiKey: key });
 	}
 
-	async ocr(file: File): Promise<Either<AntboxError, string>> {
+	async ocr(file: File): Promise<Either<AntboxError, OCRResult>> {
 		try {
 			const base64Data = await this.#fileToBase64(file);
 
@@ -55,7 +71,10 @@ export class GeminiOCRProvider implements OCRProvider {
 				],
 			});
 
-			return right(response.text ?? "");
+			return right({
+				text: response.text ?? "",
+				usage: geminiUsageToTokenUsage(response.usageMetadata),
+			});
 		} catch (error) {
 			return left(
 				new AntboxError(

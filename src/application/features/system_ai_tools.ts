@@ -1,4 +1,5 @@
 import { loadTemplate, TEMPLATES } from "api/templates/index.ts";
+import { OcrCompletedEvent } from "domain/ai/ocr_completed_event.ts";
 import type { OCRProvider } from "domain/ai/ocr_provider.ts";
 import type { NodeFilters } from "domain/nodes/node_filter.ts";
 import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
@@ -8,10 +9,12 @@ import type { AuthenticationContext } from "../security/authentication_context.t
 import type { NodeService } from "../nodes/node_service.ts";
 import { type AntboxError, BadRequestError, UnknownError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
+import type { EventBus } from "shared/event_bus.ts";
 
 interface SystemAIToolContext {
 	nodeService: NodeService;
 	ocrProvider?: OCRProvider;
+	eventBus: EventBus;
 }
 
 export async function runSystemAITool<T>(
@@ -77,7 +80,21 @@ export async function runSystemAITool<T>(
 					return left(fileOrErr.value);
 				}
 
-				result = await dependencies.ocrProvider.ocr(fileOrErr.value);
+				const ocrOrErr = await dependencies.ocrProvider.ocr(fileOrErr.value);
+				if (ocrOrErr.isLeft()) {
+					return left(ocrOrErr.value);
+				}
+
+				if (ocrOrErr.value.usage) {
+					dependencies.eventBus.publish(
+						new OcrCompletedEvent(ctx.principal.email, ctx.tenant, {
+							nodeUuid: args.uuid as string,
+							usage: ocrOrErr.value.usage,
+							context: "tool",
+						}),
+					);
+				}
+				result = right(ocrOrErr.value.text);
 				break;
 			}
 			case "Templates:list":

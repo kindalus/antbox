@@ -3,6 +3,7 @@ import { InMemoryEventStoreRepository } from "adapters/inmem/inmem_event_store_r
 import { AuditLoggingService } from "./audit_logging_service.ts";
 import { AgentInteractionCompletedEvent } from "domain/ai/agent_interaction_completed_event.ts";
 import { EmbeddingsGeneratedEvent } from "domain/ai/embeddings_generated_event.ts";
+import { OcrCompletedEvent } from "domain/ai/ocr_completed_event.ts";
 import type { Event } from "shared/event.ts";
 import type { EventBus } from "shared/event_bus.ts";
 import type { EventHandler } from "shared/event_handler.ts";
@@ -194,6 +195,26 @@ Deno.test("audit log does not duplicate events of octet-stream nodes", async () 
 
 	if (events.isLeft()) throw events.value;
 	assertEquals(events.value.map((event) => event.eventType), ["A"]);
+});
+
+Deno.test("AuditLoggingService persists OCR usage events", async () => {
+	const repository = new InMemoryEventStoreRepository();
+	const eventBus = new SynchronousEventBus();
+	new AuditLoggingService(repository, eventBus);
+	const payload = {
+		nodeUuid: "node-1",
+		context: "indexing" as const,
+		usage: { promptTokens: 30, completionTokens: 12, totalTokens: 42 },
+	};
+
+	eventBus.publish(new OcrCompletedEvent("system", "tenant-a", payload));
+	await Promise.resolve();
+
+	const eventsOrErr = await repository.getStream("node-1", "application/vnd.antbox.ocr-usage");
+	if (eventsOrErr.isLeft()) throw eventsOrErr.value;
+	assertEquals(eventsOrErr.value.length, 1);
+	assertEquals(eventsOrErr.value[0].eventType, OcrCompletedEvent.EVENT_ID);
+	assertEquals(eventsOrErr.value[0].payload, payload);
 });
 
 Deno.test("created file audit records retain public metadata", async (t) => {

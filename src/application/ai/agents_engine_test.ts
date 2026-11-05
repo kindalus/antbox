@@ -19,6 +19,7 @@ import type { FeatureData } from "domain/configuration/feature_data.ts";
 import type { AuthenticationContext } from "application/security/authentication_context.ts";
 import { FeaturesEngine } from "application/features/features_engine.ts";
 import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus.ts";
+import { AgentInteractionCompletedEvent } from "domain/ai/agent_interaction_completed_event.ts";
 import { customAgentRegistry } from "./custom_agents/index.ts";
 import type {
 	AgentSessionRunner,
@@ -557,5 +558,75 @@ describe("AgentsEngine", () => {
 				expect(result.value.errorCode).toBe("NotFound");
 			}
 		});
+	});
+});
+
+class FailingAfterPaidCallRunner extends CoreTestSessionRunner {
+	override run(input: PiAgentSessionRunInput): Promise<PiAgentSessionRunOutput> {
+		input.onFailure?.([withUsage(fauxAssistantMessage("partial"))]);
+		return Promise.reject(new Error("provider down"));
+	}
+}
+
+function capturingUsageBus() {
+	const events: AgentInteractionCompletedEvent[] = [];
+	return {
+		events,
+		eventBus: {
+			publish(event: unknown) {
+				if (event instanceof AgentInteractionCompletedEvent) events.push(event);
+			},
+			subscribe() {},
+			unsubscribe() {},
+		},
+	};
+}
+
+describe("AgentsEngine usage recording", () => {
+	const twoTokens = { promptTokens: 1, completionTokens: 1, totalTokens: 2 };
+
+	it("records a successful run exactly once", async () => {
+		const { events, eventBus } = capturingUsageBus();
+		const engine = new AgentsEngine(makeContext({
+			eventBus,
+			modelRuntime: makeTextRuntime("done"),
+		}));
+
+		const result = await engine.answer(mockAuthContext, "test-agent", "hi");
+
+		if (result.isLeft()) throw result.value;
+		expect(events.length).toBe(1);
+		expect(events[0].payload.usage).toEqual(result.value.usage);
+	});
+
+	it("records the usage of a run that fails after paid model calls", async () => {
+		const { events, eventBus } = capturingUsageBus();
+		const modelRuntime = makeTextRuntime("unused");
+		const engine = new AgentsEngine(makeContext({
+			eventBus,
+			modelRuntime,
+			sessionRunner: new FailingAfterPaidCallRunner(modelRuntime),
+		}));
+
+		const result = await engine.chat(mockAuthContext, "test-agent", "hi");
+
+		expect(result.isLeft()).toBe(true);
+		expect(events.length).toBe(1);
+		expect(events[0].payload.usage).toEqual(twoTokens);
+		expect(events[0].payload.interactionType).toBe("chat");
+	});
+
+	it("records the usage of a run that ends without a final answer", async () => {
+		const { events, eventBus } = capturingUsageBus();
+		const engine = new AgentsEngine(makeContext({
+			eventBus,
+			modelRuntime: makeRuntime([withUsage(fauxAssistantMessage(""))]),
+		}));
+
+		const result = await engine.answer(mockAuthContext, "test-agent", "hi");
+
+		expect(result.isLeft()).toBe(true);
+		expect(events.length).toBe(1);
+		expect(events[0].payload.usage.totalTokens).toBeGreaterThan(0);
 	});
 });

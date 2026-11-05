@@ -148,15 +148,17 @@ requests return `401`. API key sessions created before credential-specific owner
 must be recreated; existing individual-user sessions remain compatible.
 
 Queued messages recheck the token limit when their turn begins. The current quota counts recorded
-agent-call tokens only. Usage is recorded asynchronously after a model run, so these checks do not
-reserve tokens for in-flight calls. Concurrent sessions or delayed audit writes can exceed the
-configured threshold before later requests are blocked.
+agent-call tokens only, including the completed model calls of runs that later fail or time out.
+Usage is recorded asynchronously after a model run, so these checks do not reserve tokens for
+in-flight calls. Concurrent sessions or delayed audit writes can exceed the configured threshold
+before later requests are blocked.
 
-The token metrics endpoint includes recorded agent and embedding usage, and returns an error if
-either usage source cannot be read. Embeddings currently have no token quota check. RAG indexing and
-RAG queries record embedding usage; the `?` semantic search path in node queries does not yet record
-its query embeddings. The displayed combined total therefore differs from quota enforcement and can
-understate total embedding consumption.
+The token metrics endpoint includes recorded agent, embedding, and OCR usage, and returns an error
+if any usage source cannot be read. Embeddings and OCR currently have no token quota check. RAG
+indexing and RAG queries record embedding usage; the `?` semantic search path in node queries does
+not yet record its query embeddings. Model-based OCR records its usage during RAG indexing and when
+the `OcrModel:ocr` tool runs. The displayed combined total therefore differs from quota enforcement
+and can understate total embedding consumption.
 
 ## Tools
 

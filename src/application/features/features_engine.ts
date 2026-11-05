@@ -69,6 +69,7 @@ export class FeaturesEngine {
 	readonly #aspectsService?: AspectsService;
 	readonly #ocrProvider?: OCRProvider;
 	readonly #ragService?: RAGService;
+	readonly #eventBus: EventBus;
 
 	constructor(ctx: FeaturesEngineContext) {
 		this.#featuresService = ctx.featuresService;
@@ -77,6 +78,7 @@ export class FeaturesEngine {
 		this.#aspectsService = ctx.aspectsService;
 		this.#ocrProvider = ctx.ocrProvider;
 		this.#ragService = ctx.ragService;
+		this.#eventBus = ctx.eventBus;
 
 		// Register event handlers for domain-wide triggers
 		// AUTOMATIC TRIGGERS
@@ -210,6 +212,7 @@ export class FeaturesEngine {
 			return runSystemAITool(ctx, uuid, parameters, {
 				nodeService: this.#nodeService,
 				ocrProvider: this.#ocrProvider,
+				eventBus: this.#eventBus,
 			});
 		}
 

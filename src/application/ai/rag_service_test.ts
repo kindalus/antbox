@@ -4,6 +4,8 @@ import { RAG_TOP_K, RAGService } from "./rag_service.ts";
 import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository.ts";
 import { DeterministicEmbeddingsProvider } from "adapters/embeddings/deterministic_embeddings_provider.ts";
 import { TextOCRProvider } from "adapters/ocr/text_ocr_provider.ts";
+import { OcrCompletedEvent } from "domain/ai/ocr_completed_event.ts";
+import type { OCRResult } from "domain/ai/ocr_provider.ts";
 import { NullOCRProvider } from "adapters/ocr/null_ocr_provider.ts";
 import { FileNode } from "domain/nodes/file_node.ts";
 import { FolderNode } from "domain/nodes/folder_node.ts";
@@ -24,8 +26,11 @@ import type { Node } from "domain/nodes/node.ts";
 
 class CapturingEventBus implements EventBus {
 	private handlers = new Map<string, EventHandler<Event>[]>();
+	readonly published: Event[] = [];
 
-	async publish() {}
+	async publish(event: Event) {
+		this.published.push(event);
+	}
 
 	subscribe(eventId: string, handler: EventHandler<Event>) {
 		if (!this.handlers.has(eventId)) {
@@ -89,14 +94,23 @@ class MockNodeService {
 class CountingOCRProvider {
 	public calls = 0;
 
-	ocr(_file: File): Promise<import("shared/either.ts").Either<AntboxError, string>> {
+	ocr(_file: File): Promise<import("shared/either.ts").Either<AntboxError, OCRResult>> {
 		this.calls += 1;
-		return Promise.resolve(right("counted"));
+		return Promise.resolve(right({ text: "counted" }));
+	}
+}
+
+class MeteredOCRProvider {
+	ocr(_file: File): Promise<import("shared/either.ts").Either<AntboxError, OCRResult>> {
+		return Promise.resolve(right({
+			text: "scanned text",
+			usage: { promptTokens: 30, completionTokens: 12, totalTokens: 42 },
+		}));
 	}
 }
 
 class FailingOCRProvider {
-	ocr(_file: File): Promise<import("shared/either.ts").Either<AntboxError, string>> {
+	ocr(_file: File): Promise<import("shared/either.ts").Either<AntboxError, OCRResult>> {
 		return Promise.resolve(
 			left({ errorCode: "OCRFailed", message: "OCR failed" } as AntboxError),
 		);
@@ -406,6 +420,45 @@ describe("RAGService", () => {
 				expect(contents.value["failed-export"]).toContain("Previously extracted content");
 			}
 			expect(mockNodeService.exportCalls).toEqual(["failed-export"]);
+		});
+
+		it("records OCR usage when extracting file content", async () => {
+			const mockNodeService = new MockNodeService();
+			const bus = new CapturingEventBus();
+			const repository = new InMemoryNodeRepository();
+			new RAGService(
+				bus,
+				repository,
+				mockNodeService as unknown as NodeService,
+				new DeterministicEmbeddingsProvider(128),
+				new MeteredOCRProvider(),
+			);
+
+			const node = makeFileNode("metered-ocr", "application/pdf", 60);
+			await repository.add(node);
+			mockNodeService.setNode(node);
+			mockNodeService.setFile("metered-ocr", "binary", "application/pdf");
+
+			await bus.fire(
+				NodeUpdatedEvent.EVENT_ID,
+				new NodeUpdatedEvent("u", "tenant-a", {
+					uuid: "metered-ocr",
+					mimetype: "application/pdf",
+					oldValues: { size: 50 },
+					newValues: { size: 60 },
+				}),
+			);
+
+			const events = bus.published.filter((event) => event instanceof OcrCompletedEvent);
+			expect(events.length).toBe(1);
+			expect((events[0] as OcrCompletedEvent).payload).toEqual({
+				nodeUuid: "metered-ocr",
+				context: "indexing",
+				usage: { promptTokens: 30, completionTokens: 12, totalTokens: 42 },
+			});
+			const contents = await repository.getEmbeddingContents(["metered-ocr"]);
+			if (contents.isLeft()) throw contents.value;
+			expect(contents.value["metered-ocr"]).toContain("scanned text");
 		});
 
 		it("preserves stored content when OCR of an updated file fails", async () => {

@@ -106,6 +106,39 @@ async function buildContext(
 }
 
 describe("AgentsEngine persisted sessions", () => {
+	it("records usage when a continuation fails", async () => {
+		const root = await Deno.makeTempDir({ prefix: "antbox-session-failed-usage-test-" });
+		try {
+			const { context, faux } = await buildContext(root);
+			faux.setResponses([fauxAssistantMessage("first-answer")]);
+			let completed = 0;
+			const engine = new AgentsEngine({
+				...context,
+				eventBus: {
+					publish(event) {
+						if (event instanceof AgentInteractionCompletedEvent) completed++;
+					},
+					subscribe() {},
+					unsubscribe() {},
+				},
+			});
+			const created = await engine.createChatSession(authContext, agent.uuid, "first-question");
+			if (created.isLeft()) throw created.value;
+
+			const failed = await engine.continueChatSession(
+				authContext,
+				agent.uuid,
+				created.value.sessionId,
+				"second-question",
+			);
+
+			expect(failed.isLeft()).toBe(true);
+			expect(completed).toBe(2);
+		} finally {
+			await Deno.remove(root, { recursive: true });
+		}
+	});
+
 	it("checks the token limit again when a queued continuation starts", async () => {
 		const root = await Deno.makeTempDir({ prefix: "antbox-session-token-check-test-" });
 		try {

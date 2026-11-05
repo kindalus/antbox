@@ -72,6 +72,13 @@ export class MetricsService {
 		if (embedStreamsOrErr.isLeft()) return left(embedStreamsOrErr.value);
 		this.#aggregateTokens(metrics, embedStreamsOrErr.value, year, month);
 
+		// 3. Fetch OCR usage
+		const ocrStreamsOrErr = await this.#eventStore.getStreamsByMimetype(
+			"application/vnd.antbox.ocr-usage",
+		);
+		if (ocrStreamsOrErr.isLeft()) return left(ocrStreamsOrErr.value);
+		this.#aggregateTokens(metrics, ocrStreamsOrErr.value, year, month);
+
 		return right(metrics);
 	}
 

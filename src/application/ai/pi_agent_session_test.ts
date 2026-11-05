@@ -7,6 +7,7 @@ import {
 	fauxToolCall,
 	InMemoryCredentialStore,
 	InMemoryModelsStore,
+	type Message,
 	Type,
 } from "@earendil-works/pi-ai";
 import { PiAgentSessionRunner } from "./pi_agent_session.ts";
@@ -89,6 +90,7 @@ describe("PiAgentSessionRunner", () => {
 			},
 		};
 		const manager = await runner.createInMemoryManager(Deno.cwd());
+		const reported: Message[] = [];
 		await expect(runner.run({
 			cwd: Deno.cwd(),
 			model: faux.getModel(),
@@ -98,6 +100,53 @@ describe("PiAgentSessionRunner", () => {
 			skills: [],
 			sessionManager: manager,
 			userText: "run",
+			onFailure: (messages) => reported.push(...messages),
 		})).rejects.toThrow("exceeded five minutes");
+		expect(reported.some((message) => message.role === "assistant")).toBe(true);
+	});
+
+	it("reports the messages generated before a provider failure", async () => {
+		const faux = fauxProvider({ provider: "failure-test" });
+		faux.setResponses([
+			fauxAssistantMessage(
+				fauxToolCall("noop_tool", {}, { id: "noop-call" }),
+				{ stopReason: "toolUse" },
+			),
+		]);
+		const runtime = await pi.ModelRuntime.create({
+			credentials: new InMemoryCredentialStore(),
+			modelsPath: null,
+			modelsStore: new InMemoryModelsStore(),
+			refreshOnCreate: false,
+		});
+		runtime.registerNativeProvider(faux.provider);
+		const runner = new PiAgentSessionRunner(runtime, 1_000);
+		const parameters = Type.Object({});
+		const noopTool: AgentTool<typeof parameters> = {
+			name: "noop_tool",
+			label: "Noop tool",
+			description: "Completes immediately",
+			parameters,
+			execute: () => Promise.resolve({ content: [{ type: "text", text: "done" }], details: {} }),
+		};
+		const manager = await runner.createInMemoryManager(Deno.cwd());
+
+		const reported: Message[] = [];
+		await expect(runner.run({
+			cwd: Deno.cwd(),
+			model: faux.getModel(),
+			thinkingLevel: "off",
+			systemPrompt: "Test failure",
+			tools: [noopTool],
+			skills: [],
+			sessionManager: manager,
+			userText: "run",
+			onFailure: (messages) => reported.push(...messages),
+		})).rejects.toThrow("No more faux responses queued");
+
+		const assistants = reported.filter((message) => message.role === "assistant");
+		expect(faux.state.callCount).toBe(2);
+		expect(assistants.length).toBe(2);
+		expect(assistants[0].usage.totalTokens).toBeGreaterThan(0);
 	});
 });

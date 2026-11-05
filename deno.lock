@@ -52,6 +52,7 @@
     "npm:docxtemplater@3.69.3": "3.69.3",
     "npm:dompurify@3.4.17": "3.4.17",
     "npm:fflate@0.8.3": "0.8.3",
+    "npm:hono@4.13.16": "4.13.16",
     "npm:jose@6.1.0": "6.1.0",
     "npm:jsdom@27.0.0": "27.0.0",
     "npm:marked@16.4.0": "16.4.0",
@@ -60,6 +61,8 @@
     "npm:pizzip@3.2.0": "3.2.0",
     "npm:postgres@3.4.8": "3.4.8",
     "npm:signal-exit@3.0.7": "3.0.7",
+    "npm:smol-toml@1.9.1": "1.9.1",
+    "npm:yaml@2.9.1": "2.9.1",
     "npm:zod@4.3.6": "4.3.6"
   },
   "jsr": {
@@ -782,14 +785,14 @@
     "@csstools/color-helpers@6.1.2": {
       "integrity": "sha512-grhRy3OKmniaAEKXMjua5z/EODX0MSqBGjunw8+j/3HQjOnahs2AGhvEOIYVUWcU6ScApbhLhVrQTX8XqrMrow=="
     },
-    "@csstools/css-calc@3.4.3_@csstools+css-parser-algorithms@4.0.2__@csstools+css-tokenizer@4.0.2_@csstools+css-tokenizer@4.0.2": {
+    "@csstools/css-calc@3.4.3_@csstools+css-parser-algorithms@4.0.2_@csstools+css-tokenizer@4.0.2": {
       "integrity": "sha512-iex20d8CHVkyvg6B7UKV7uHnI2Bqo9g+EFfT9E0y+GvTvhZ/DwONJ+9aKb1dlqm0ZiGsL5RXjp0fCoJYnkeDjA==",
       "dependencies": [
         "@csstools/css-parser-algorithms",
         "@csstools/css-tokenizer"
       ]
     },
-    "@csstools/css-color-parser@4.2.6_@csstools+css-parser-algorithms@4.0.2__@csstools+css-tokenizer@4.0.2_@csstools+css-tokenizer@4.0.2": {
+    "@csstools/css-color-parser@4.2.6_@csstools+css-parser-algorithms@4.0.2_@csstools+css-tokenizer@4.0.2": {
       "integrity": "sha512-iiPQ3iRWwnJkeEn6RIu6SJPr7hYrLz6XZ9s/QZl+2/LI5KQVjpl2fdmDSZKuD4xP6GMmMPgHFFXg6k1Wkz0Trg==",
       "dependencies": [
         "@csstools/color-helpers",
@@ -824,7 +827,7 @@
         "diff",
         "ignore",
         "typebox",
-        "yaml"
+        "yaml@2.9.0"
       ]
     },
     "@earendil-works/pi-ai@0.84.1_zod@4.3.6": {
@@ -874,7 +877,7 @@
         "semver",
         "typebox",
         "undici",
-        "yaml"
+        "yaml@2.9.0"
       ],
       "optionalDependencies": [
         "@mariozechner/clipboard"
@@ -1085,7 +1088,8 @@
       "dependencies": [
         "@smithy/types",
         "tslib"
-      ]
+      ],
+      "deprecated": true
     },
     "@smithy/credential-provider-imds@4.5.2": {
       "integrity": "sha512-A9uSdn72ozbRUSit0eib0TW7nXuNPlaeM0zcGkJ+nE6tFcSDbnmtwoxbTCFBukVQcszDAyvsd7+rTduPTXpygg==",
@@ -1334,7 +1338,8 @@
         "@smithy/types",
         "@smithy/util-stream",
         "tslib"
-      ]
+      ],
+      "deprecated": true
     },
     "@smithy/types@4.17.2": {
       "integrity": "sha512-FOKpVZob9MPTn2znRzGrnsMHv7BOsKVw3XiP/cOyYLDVZ9qKp4nifIiSCuUU/fIj5Vu0UOAxCFr+qRAtG0NUkA==",
@@ -1898,6 +1903,9 @@
     "highlight.js@10.7.3": {
       "integrity": "sha512-tzcUFauisWKNHaRkN4Wjl/ZA07gENAjFl3J/c480dprkGTg5EQstgaNFqBfUqCq54kZRIEcreTsAgF/m2quD7A=="
     },
+    "hono@4.13.16": {
+      "integrity": "sha512-AOLOEhvrV+iH92xXCnFr/5+3KjPKcI3xP63XJtX5spAnkznPdHijlIsUTpi7/9EhWqrTCekw5c5zh1K+YsVw7A=="
+    },
     "hosted-git-info@9.0.3": {
       "integrity": "sha512-Hc+ghLoSt6QaYZUv0WBiIvmMDZuZZ7oaDvdH8MbfOO4lOsxdXLEvuC6ePoGs9H1X9oCLyq6+NVN0MKqD+ydxyg==",
       "dependencies": [
@@ -2276,6 +2284,9 @@
     "signal-exit@4.1.0": {
       "integrity": "sha512-bzyZ1e88w9O1iNJbKnOlvYTrWPDl46O1bG0D3XInv+9tkPrxrN8jUUTiFlDkkmKWgn1M6CfIA13SuGqOa9Korw=="
     },
+    "smol-toml@1.9.1": {
+      "integrity": "sha512-j7WyPdf0CJoutMzMoPLF/bVXHtKZIT9Rb4eGeEbWw8X2t5oirjPgpL+OpaENZrILYaXqYwnVH+qgUwVbl+pUJQ=="
+    },
     "source-map-js@1.2.2": {
       "integrity": "sha512-KGj/8Y43x35aZVDtt+J4mK1hoLGHULMYfSkODJNQjNDC3oW1PqPoxMwo0pLUsWM/UEGzON/NxeHywEfNXNP3Vw=="
     },
@@ -2458,6 +2469,10 @@
       "integrity": "sha512-2AvhNX3mb8zd6Zy7INTtSpl1F15HW6Wnqj0srWlkKLcpYl/gMIMJiyuGq2KeI2YFxUPjdlB+3Lc10seMLtL4cA==",
       "bin": true
     },
+    "yaml@2.9.1": {
+      "integrity": "sha512-3NxN8+78OdzbT7C/WjGsyfPAtJaN3FNDsWxv7Y7mcDsT/oOmgW8BpyQQFFBnvZE3j9Y2Sdz1ULFLezL7Eb2yFw==",
+      "bin": true
+    },
     "zod-to-json-schema@3.25.2_zod@4.3.6": {
       "integrity": "sha512-O/PgfnpT1xKSDeQYSCfRI5Gy3hPf91mKVDuYLUHZJMiDFptvP41MSnWofm8dnCm0256ZNfZIM7DSzuSMAFnjHA==",
       "dependencies": [
@@ -2489,10 +2504,14 @@
       "npm:commander@14.0.1",
       "npm:dompurify@3.4.17",
       "npm:fflate@0.8.3",
+      "npm:hono@4.13.16",
       "npm:jose@6.1.0",
       "npm:jsdom@27.0.0",
       "npm:marked@16.4.0",
       "npm:mongodb@6.20.0",
+      "npm:postgres@3.4.8",
+      "npm:smol-toml@1.9.1",
+      "npm:yaml@2.9.1",
       "npm:zod@4.3.6"
     ]
   }

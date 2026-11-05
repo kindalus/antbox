@@ -1,4 +1,4 @@
-import { type Context, Router } from "@oak/oak";
+import { type Context, Hono } from "hono";
 import type { AntboxTenant } from "api/antbox_tenant.ts";
 import { adapt } from "./adapt.ts";
 import {
@@ -15,23 +15,21 @@ import {
 } from "integration/webdav/webdav_handlers.ts";
 
 /**
- * Builds the WebDAV router for the Oak HTTP adapter.
+ * Builds the WebDAV router for the Hono HTTP adapter.
  *
  * @remarks
  * External setup:
  * - Pass the configured tenant list (e.g., from `setupTenants`).
- * - Run Deno with `--allow-net` when serving HTTP.
  *
  * @example
  * const router = webdavRouter(tenants);
- * app.use(router.routes(), router.allowedMethods());
+ * app.route("/", router);
  */
-export default function (tenants: AntboxTenant[]): Router {
-	const handlers = {
+export default function (tenants: AntboxTenant[]): Hono {
+	const handlers: Record<string, (ctx: Context) => Promise<Response>> = {
 		OPTIONS: adapt(optionsHandler(tenants)),
 		PROPFIND: adapt(propfindHandler(tenants)),
 		GET: adapt(getHandler(tenants)),
-		HEAD: adapt(getHandler(tenants)),
 		PUT: adapt(putHandler(tenants)),
 		DELETE: adapt(deleteHandler(tenants)),
 		MKCOL: adapt(mkcolHandler(tenants)),
@@ -41,21 +39,14 @@ export default function (tenants: AntboxTenant[]): Router {
 		UNLOCK: adapt(unlockHandler(tenants)),
 	};
 
-	// deno-lint-ignore no-explicit-any
-	const router = new Router({ prefix: "/webdav", methods: Object.keys(handlers) as any });
+	const router = new Hono().basePath("/webdav");
 
-	router.options("/(.*)", adapt(optionsHandler(tenants)));
-
-	router.all("/(.*)", async (ctx: Context) => {
-		const handler = handlers[ctx.request.method as keyof typeof handlers];
-
-		if (handler) {
-			return await handler(ctx);
-		}
-
-		ctx.response.status = 405;
-		ctx.response.body = "Method Not Allowed";
-	});
+	// HEAD is dispatched as GET by Hono, and the handler still sees method HEAD.
+	router.on(
+		Object.keys(handlers),
+		"/*",
+		(ctx) => handlers[ctx.req.method === "HEAD" ? "GET" : ctx.req.method](ctx),
+	);
 
 	return router;
 }

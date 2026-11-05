@@ -1,4 +1,4 @@
-import { Application } from "@oak/oak";
+import type { Hono } from "hono";
 import { describe, it } from "bdd";
 import { expect } from "expect";
 import { strFromU8, unzipSync } from "fflate";
@@ -15,7 +15,7 @@ import { Users } from "domain/users_groups/users.ts";
 import { left, right } from "shared/either.ts";
 import { UnknownError } from "shared/antbox_error.ts";
 import nodesRouter from "./nodes_v2_router.ts";
-import setupOakServer from "./server.ts";
+import setupHonoServer from "./server.ts";
 
 async function tenant(
 	name: string,
@@ -71,11 +71,8 @@ async function tenant(
 	} as unknown as AntboxTenant;
 }
 
-function app(tenants: AntboxTenant[]) {
-	const application = new Application();
-	const router = nodesRouter(tenants);
-	application.use(router.routes(), router.allowedMethods());
-	return application;
+function app(tenants: AntboxTenant[]): Hono {
+	return nodesRouter(tenants);
 }
 
 function request(body: string, name = "first", authenticated = true) {
@@ -97,8 +94,7 @@ describe("nodes v2 bulk export", () => {
 			await tenant("second", "second tenant"),
 		]);
 		for (const name of ["first", "second"]) {
-			const response = await application.handle(request('{"uuids":["file"]}', name));
-			if (!response) throw new Error("No response from Oak");
+			const response = await application.fetch(request('{"uuids":["file"]}', name));
 			expect(response.status).toBe(200);
 			expect(response.headers.get("Content-Type")).toBe("application/zip");
 			expect(response.headers.get("Content-Disposition")).toBe(
@@ -125,8 +121,7 @@ describe("nodes v2 bulk export", () => {
 		]
 	) {
 		it(`rejects invalid input ${body}`, async () => {
-			const response = await app([await tenant("first", "a")]).handle(request(body));
-			if (!response) throw new Error("No response from Oak");
+			const response = await app([await tenant("first", "a")]).fetch(request(body));
 			expect(response.status).toBe(400);
 			expect((await response.json()).errorCode).toBe("BadRequestError");
 		});
@@ -135,8 +130,7 @@ describe("nodes v2 bulk export", () => {
 	it("requires a JSON content type", async () => {
 		const req = request('{"uuids":["file"]}');
 		req.headers.set("Content-Type", "text/plain");
-		const response = await app([await tenant("first", "a")]).handle(req);
-		if (!response) throw new Error("No response from Oak");
+		const response = await app([await tenant("first", "a")]).fetch(req);
 		expect(response.status).toBe(400);
 		await response.json();
 	});
@@ -147,17 +141,15 @@ describe("nodes v2 bulk export", () => {
 			"X-Principal",
 			JSON.stringify({ email: Users.ROOT_USER_EMAIL, groups: [Groups.ADMINS_GROUP_UUID] }),
 		);
-		const response = await app([await tenant("first", "a")]).handle(req);
-		if (!response) throw new Error("No response from Oak");
+		const response = await app([await tenant("first", "a")]).fetch(req);
 		expect(response.status).toBe(401);
 		expect((await response.json()).errorCode).toBe("UnauthorizedError");
 	});
 
 	it("returns 403 when an authenticated principal can read but cannot export", async () => {
-		const response = await app([await tenant("first", "a", false)]).handle(
+		const response = await app([await tenant("first", "a", false)]).fetch(
 			request('{"uuids":["file"]}'),
 		);
-		if (!response) throw new Error("No response from Oak");
 		expect(response.status).toBe(403);
 		expect((await response.json()).errorCode).toBe("ForbiddenError");
 	});
@@ -166,8 +158,7 @@ describe("nodes v2 bulk export", () => {
 		const storage = new InMemoryStorageProvider();
 		const first = await tenant("first", "a", true, storage);
 		storage.read = () => Promise.resolve(left(new UnknownError("Storage unavailable")));
-		const response = await app([first]).handle(request('{"uuids":["file"]}'));
-		if (!response) throw new Error("No response from Oak");
+		const response = await app([first]).fetch(request('{"uuids":["file"]}'));
 		expect(response.status).toBe(500);
 		expect(response.headers.get("Content-Disposition")).toBeNull();
 		expect((await response.json()).errorCode).toBe("UnknownError");
@@ -175,10 +166,9 @@ describe("nodes v2 bulk export", () => {
 
 	for (const [uuid, status] of [["files", 400], ["missing", 404]] as const) {
 		it(`maps batch failure ${uuid} to ${status}`, async () => {
-			const response = await app([await tenant("first", "a")]).handle(
+			const response = await app([await tenant("first", "a")]).fetch(
 				request(JSON.stringify({ uuids: ["file", uuid] })),
 			);
-			if (!response) throw new Error("No response from Oak");
 			expect(response.status).toBe(status);
 			await response.json();
 		});
@@ -234,7 +224,7 @@ describe("nodes v2 content-md over a real HTTP server", () => {
 			return readContents(uuids);
 		};
 		const abortController = new AbortController();
-		const start = setupOakServer(tenants, async () => {});
+		const start = setupHonoServer(tenants, async () => {});
 		const { port } = await start({ port: 0, signal: abortController.signal } as never) as {
 			port: number;
 		};

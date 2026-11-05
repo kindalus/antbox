@@ -1,15 +1,12 @@
-import { Application } from "@oak/oak";
+import type { Hono } from "hono";
 import { describe, it } from "bdd";
 import { expect } from "expect";
 import type { AuthenticationContext } from "application/security/authentication_context.ts";
 import type { AntboxTenant } from "api/antbox_tenant.ts";
 import extensionsRouter from "./extensions_v2_router.ts";
 
-function makeApp(tenant: AntboxTenant): Application {
-	const app = new Application();
-	const router = extensionsRouter([tenant]);
-	app.use(router.routes(), router.allowedMethods());
-	return app;
+function makeApp(tenant: AntboxTenant): Hono {
+	return extensionsRouter([tenant]);
 }
 
 type RunExtension = AntboxTenant["featuresEngine"]["runExtension"];
@@ -41,7 +38,7 @@ describe("extensions v2 router", () => {
 			});
 		});
 
-		const response = await makeApp(tenant).handle(
+		const response = await makeApp(tenant).fetch(
 			new Request("http://localhost/extensions/calculate-total", {
 				method: "POST",
 				headers: { "content-type": "application/json" },
@@ -49,7 +46,6 @@ describe("extensions v2 router", () => {
 			}),
 		);
 
-		if (!response) throw new Error("Oak application did not return a response");
 		expect(response.status).toBe(202);
 		expect(response.headers.get("x-extension")).toBe("executed");
 		expect(await response.json()).toEqual({ accepted: true });
@@ -74,11 +70,10 @@ describe("extensions v2 router", () => {
 			);
 		});
 
-		const response = await makeApp(tenant).handle(
+		const response = await makeApp(tenant).fetch(
 			new Request("http://localhost/extensions/report-status?period=monthly"),
 		);
 
-		if (!response) throw new Error("Oak application did not return a response");
 		expect(response.status).toBe(200);
 		expect(await response.text()).toBe("extension result");
 		expect(observedUuid).toBe("reportStatus");

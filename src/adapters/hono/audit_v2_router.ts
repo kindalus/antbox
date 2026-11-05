@@ -1,10 +1,10 @@
-import { Router } from "@oak/oak";
+import { Hono } from "hono";
 import type { AntboxTenant } from "api/antbox_tenant.ts";
 import { getAuditLogHandler, getDeletedNodesHandler } from "api/audit_handlers.ts";
 import { adapt } from "./adapt.ts";
 
 /**
- * Builds the audit router for the Oak HTTP adapter.
+ * Builds the audit router for the Hono HTTP adapter.
  *
  * @remarks
  * External setup:
@@ -13,10 +13,10 @@ import { adapt } from "./adapt.ts";
  *
  * @example
  * const router = auditRouter(tenants);
- * app.use(router.routes(), router.allowedMethods());
+ * app.route("/", router);
  */
 export default function (tenants: AntboxTenant[]) {
-	const auditRouter = new Router({ prefix: "/audit" });
+	const auditRouter = new Hono().basePath("/audit");
 
 	auditRouter.get("/:uuid", adapt(getAuditLogHandler(tenants)));
 	auditRouter.get("/-/deleted", adapt(getDeletedNodesHandler(tenants)));

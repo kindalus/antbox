@@ -1,4 +1,4 @@
-import { Router } from "@oak/oak";
+import { Hono } from "hono";
 import type { AntboxTenant } from "api/antbox_tenant.ts";
 import {
 	createUserPreferencesHandler,
@@ -9,8 +9,8 @@ import {
 } from "api/user_preferences_handlers.ts";
 import { adapt } from "./adapt.ts";
 
-export default function (tenants: AntboxTenant[]): Router {
-	const router = new Router({ prefix: "/user-preferences" });
+export default function (tenants: AntboxTenant[]): Hono {
+	const router = new Hono().basePath("/user-preferences");
 
 	router.post("/", adapt(createUserPreferencesHandler(tenants)));
 	router.get("/", adapt(getUserPreferencesHandler(tenants)));

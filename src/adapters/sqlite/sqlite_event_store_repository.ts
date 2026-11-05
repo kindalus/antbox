@@ -1,6 +1,8 @@
 import fsSync from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 
+import { toSqlValue } from "./bind.ts";
+
 import type { AuditEvent } from "domain/audit/audit_event.ts";
 import type { EventStoreRepository } from "domain/audit/event_store_repository.ts";
 import { AntboxError } from "shared/antbox_error.ts";
@@ -108,7 +110,7 @@ export class SqliteEventStoreRepository implements EventStoreRepository {
 
 			this.#db.prepare(
 				`INSERT INTO ${tableName} (stream_id, sequence, payload) VALUES (?, ?, ?)`,
-			).run(streamId, sequence, payload);
+			).run(streamId, toSqlValue(sequence), payload);
 
 			return Promise.resolve(right(undefined));
 		} catch (err) {

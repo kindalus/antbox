@@ -4,7 +4,8 @@ export type BindValue = SQLInputValue | boolean | undefined;
 
 export function toSqlValue(value: BindValue): SQLInputValue {
 	if (value === undefined) return null;
-	if (typeof value === "boolean") return value ? 1 : 0;
+	if (typeof value === "boolean") return value ? 1n : 0n;
+	if (typeof value === "number" && Number.isSafeInteger(value)) return BigInt(value);
 	return value;
 }
 

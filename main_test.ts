@@ -11,7 +11,7 @@ import { stringify } from "smol-toml";
 
 import type { ServerConfiguration } from "api/http_server_configuration.ts";
 import { MCP_PROTOCOL_VERSION } from "adapters/mcp/mcp_server.ts";
-import { createAdkLogger, getTenantSetupConfiguration } from "./main.ts";
+import { createAdkLogger, getTenantSetupConfiguration, resolveEngine } from "./main.ts";
 
 async function reservePort(): Promise<number> {
 	const server = createServer();
@@ -25,7 +25,7 @@ async function reservePort(): Promise<number> {
 describe("getTenantSetupConfiguration", () => {
 	it("preserves global auth settings for tenant setup", () => {
 		const config: ServerConfiguration = {
-			engine: "oak",
+			engine: "hono",
 			port: 7180,
 			rootPasswd: "demo",
 			key: "./.config/antbox.key",
@@ -44,6 +44,41 @@ describe("getTenantSetupConfiguration", () => {
 		};
 
 		expect(getTenantSetupConfiguration(config)).toEqual(config);
+	});
+});
+
+describe("resolveEngine", () => {
+	it("serves the legacy oak engine with hono and logs a deprecation warning", () => {
+		const originalWarn = console.warn;
+		const messages: unknown[][] = [];
+		console.warn = (...args: unknown[]) => {
+			messages.push(args);
+		};
+
+		try {
+			expect(resolveEngine("oak")).toBe("hono");
+		} finally {
+			console.warn = originalWarn;
+		}
+
+		expect(messages).toHaveLength(1);
+		expect(String(messages[0]?.join(" "))).toContain("deprecated");
+	});
+
+	it("leaves other engines untouched without warning", () => {
+		const originalWarn = console.warn;
+		let warned = false;
+		console.warn = () => {
+			warned = true;
+		};
+
+		try {
+			expect(resolveEngine("hono")).toBe("hono");
+		} finally {
+			console.warn = originalWarn;
+		}
+
+		expect(warned).toBe(false);
 	});
 });
 
@@ -166,6 +201,8 @@ describe("main entry point", () => {
 				}
 				await new Promise((resolve) => setTimeout(resolve, 100));
 			}
+
+			expect(stdoutText).toContain("(hono) started successfully");
 
 			const base = `http://localhost:${port}/mcp`;
 			const allowlisted = await fetch(base, {

@@ -1,7 +1,7 @@
 import fsSync from "node:fs";
 import { DatabaseSync, type SQLOutputValue } from "node:sqlite";
 
-import { type BindValue, toSqlValues } from "./bind.ts";
+import { type BindValue, toSqlValue, toSqlValues } from "./bind.ts";
 
 import { NodeFactory } from "domain/node_factory.ts";
 import { Logger } from "shared/logger.ts";
@@ -178,7 +178,7 @@ export class SqliteNodeRepository implements NodeRepository {
 					 ORDER BY similarity DESC
 					 LIMIT ?`,
 				)
-				.all(queryVectorJson, topK) as {
+				.all(queryVectorJson, toSqlValue(topK)) as {
 					body: string;
 					embedding_content_md: string | null;
 					similarity: number;
@@ -410,7 +410,7 @@ export class SqliteNodeRepository implements NodeRepository {
 	): Promise<NodeFilterResult> {
 		const rows = this.#db
 			.prepare("SELECT body FROM nodes LIMIT ? OFFSET ?")
-			.all(pageSize, offset) as { body: string }[];
+			.all(toSqlValue(pageSize), toSqlValue(offset)) as { body: string }[];
 
 		const nodes = rows
 			.map((row) => {

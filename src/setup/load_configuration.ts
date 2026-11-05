@@ -55,7 +55,7 @@ export async function loadConfiguration(
 
 	const configPath = join(dir, "config.toml");
 	if (!fileExistsSync(configPath)) {
-		const defaultConfig = `engine = "oak"
+		const defaultConfig = `engine = "hono"
 port = 7180
 logLevel = "info"
 rootPasswd = "${crypto.randomUUID()}"

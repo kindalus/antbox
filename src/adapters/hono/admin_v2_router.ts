@@ -1,4 +1,4 @@
-import { Router } from "@oak/oak";
+import { Hono } from "hono";
 import type { AntboxTenant } from "api/antbox_tenant.ts";
 import {
 	adminReloadHandler,
@@ -13,8 +13,8 @@ export default function (
 	reload: () => Promise<void>,
 	configDir?: string,
 	dataDir?: string,
-): Router {
-	const router = new Router({ prefix: "/admin" });
+): Hono {
+	const router = new Hono().basePath("/admin");
 	router.get("/runtime", adapt(adminRuntimeHandler(tenants)));
 	router.post("/reload", adapt(adminReloadHandler(tenants, reload, configDir)));
 	router.get("/tenants", adapt(adminTenantsGetHandler(tenants, configDir, dataDir)));

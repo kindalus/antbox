@@ -1,4 +1,4 @@
-import { Router } from "@oak/oak";
+import { Hono } from "hono";
 import type { AntboxTenant } from "api/antbox_tenant.ts";
 import {
 	challengeHandler,
@@ -10,7 +10,7 @@ import {
 import { adapt } from "./adapt.ts";
 
 /**
- * Builds the login router for the Oak HTTP adapter.
+ * Builds the login router for the Hono HTTP adapter.
  *
  * @remarks
  * External setup:
@@ -19,10 +19,10 @@ import { adapt } from "./adapt.ts";
  *
  * @example
  * const router = loginRouter(tenants);
- * app.use(router.routes(), router.allowedMethods());
+ * app.route("/", router);
  */
 export default function (tenants: AntboxTenant[]) {
-	const loginRouter = new Router();
+	const loginRouter = new Hono();
 
 	loginRouter.post("/challenge", adapt(challengeHandler(tenants)));
 	loginRouter.post("/login", adapt(externalLoginHandler(tenants)));

@@ -1,10 +1,10 @@
-import { Router } from "@oak/oak";
+import { Hono } from "hono";
 import type { AntboxTenant } from "api/antbox_tenant.ts";
 import { apiExplorerHandler, getDocHandler, listDocsHandler } from "api/docs_handlers.ts";
 import { adapt } from "./adapt.ts";
 
 /**
- * Builds the docs router for the Oak HTTP adapter.
+ * Builds the docs router for the Hono HTTP adapter.
  *
  * @remarks
  * External setup:
@@ -13,10 +13,10 @@ import { adapt } from "./adapt.ts";
  *
  * @example
  * const router = docsRouter(tenants);
- * app.use(router.routes(), router.allowedMethods());
+ * app.route("/", router);
  */
-export default function (tenants: AntboxTenant[]): Router {
-	const router = new Router({ prefix: "/docs" });
+export default function (tenants: AntboxTenant[]): Hono {
+	const router = new Hono().basePath("/docs");
 
 	// Docs operations
 	router.get("/", adapt(listDocsHandler(tenants)));

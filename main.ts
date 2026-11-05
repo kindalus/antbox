@@ -36,6 +36,19 @@ export function createAdkLogger(): Pick<Logger, "info" | "debug" | "warn" | "err
 	};
 }
 
+/**
+ * Maps engine names from existing configuration files to the adapter that serves them.
+ * `oak` was the engine before the HTTP adapter moved to Hono.
+ */
+export function resolveEngine(engine: string): string {
+	if (engine === "oak") {
+		Logger.warn('engine "oak" is deprecated and now served by "hono"; update config.toml');
+		return "hono";
+	}
+
+	return engine;
+}
+
 function toUrlHost(hostname: string): string {
 	if (hostname.includes(":")) {
 		return `[${hostname}]`;
@@ -78,7 +91,8 @@ async function startServer(
 	startPathCacheCleanup(60000);
 	console.log("WebDAV path cache cleanup started");
 
-	const serverLocation = `adapters/${config.engine}/server.ts`;
+	const engine = resolveEngine(config.engine ?? "hono");
+	const serverLocation = `adapters/${engine}/server.ts`;
 	let startServerFn;
 	try {
 		const setupServer = await import(`./src/${serverLocation}`);
@@ -101,7 +115,7 @@ async function startServer(
 		const baseUrl = `http://${effectiveHostname}:${effectivePort}`;
 
 		console.log(
-			`Antbox Server v${APP_VERSION} (${config.engine}) started successfully on ${baseUrl}`,
+			`Antbox Server v${APP_VERSION} (${engine}) started successfully on ${baseUrl}`,
 		);
 		console.log(`- ${baseUrl}/v2 for REST API`);
 		console.log(`- ${baseUrl}/mcp for MCP`);

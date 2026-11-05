@@ -1,4 +1,4 @@
-import { Router } from "@oak/oak";
+import { Hono } from "hono";
 import type { AntboxTenant } from "api/antbox_tenant.ts";
 import {
 	breadcrumbsHandler,
@@ -22,7 +22,7 @@ import {
 import { adapt } from "./adapt.ts";
 
 /**
- * Builds the nodes router for the Oak HTTP adapter.
+ * Builds the nodes router for the Hono HTTP adapter.
  *
  * @remarks
  * External setup:
@@ -31,10 +31,10 @@ import { adapt } from "./adapt.ts";
  *
  * @example
  * const router = nodesRouter(tenants);
- * app.use(router.routes(), router.allowedMethods());
+ * app.route("/", router);
  */
-export default function (tenants: AntboxTenant[]): Router {
-	const router = new Router({ prefix: "/nodes" });
+export default function (tenants: AntboxTenant[]): Hono {
+	const router = new Hono().basePath("/nodes");
 
 	// Core node operations
 	router.get("/", adapt(listHandler(tenants)));

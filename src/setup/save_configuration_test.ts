@@ -13,9 +13,7 @@ function tenant(name: string, storage = 1): TenantConfiguration {
 	return {
 		name,
 		storage: ["inmem/inmem_storage_provider.ts"],
-		repository: ["inmem/inmem_node_repository.ts"],
-		configurationRepository: ["inmem/inmem_configuration_repository.ts"],
-		eventStoreRepository: ["inmem/inmem_event_store_repository.ts"],
+		database: ["inmem"],
 		limits: { storage, tokens: 0 },
 	};
 }

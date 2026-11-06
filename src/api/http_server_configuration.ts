@@ -59,15 +59,84 @@ export interface McpHttpOptions {
 	maxRequestBodyBytes?: number;
 }
 
-export const TenantConfigurationSchema = z.object({
+export const DATABASE_KINDS = ["postgres", "sqlite", "mongodb", "inmem"] as const;
+
+export type DatabaseKind = (typeof DATABASE_KINDS)[number];
+
+/** `[kind, ...params]`; every repository of that backend receives exactly these params. */
+export type DatabaseConfiguration = [kind: DatabaseKind, ...params: string[]];
+
+const DATABASE_PARAMETER_COUNTS: Record<DatabaseKind, readonly [min: number, max: number]> = {
+	postgres: [0, 1],
+	sqlite: [0, 1],
+	mongodb: [2, 2],
+	inmem: [0, 0],
+};
+
+export const DatabaseConfigurationSchema = z.tuple([
+	z.enum(DATABASE_KINDS, { error: `kind must be one of ${DATABASE_KINDS.join(", ")}` }),
+]).rest(z.string()).superRefine((value, ctx) => {
+	const [min, max] = DATABASE_PARAMETER_COUNTS[value[0]] ?? [0, 0];
+	const count = value.length - 1;
+	if (count < min || count > max) {
+		const expected = min === max ? `${min}` : `${min} or ${max}`;
+		ctx.addIssue({
+			code: z.ZodIssueCode.custom,
+			message: `${value[0]} takes ${expected} parameter(s), got ${count}`,
+		});
+	}
+});
+
+const LEGACY_DATABASE_KEYS = ["repository", "configurationRepository", "eventStoreRepository"];
+
+/**
+ * Suggests the `database` entry replacing a legacy `repository` entry, when it can be derived.
+ * Connection strings carry credentials and this text reaches logs and HTTP responses, so they
+ * are never echoed.
+ */
+function suggestDatabase(repository: unknown): string | undefined {
+	if (!Array.isArray(repository) || typeof repository[0] !== "string") return undefined;
+	const [module, ...params] = repository as string[];
+	const kind = module.split("/")[0];
+	let database: string[];
+	if (kind === "sqlite") {
+		const folder = params[0]?.replace(/[\\/]+$/, "").replace(/(^|[\\/])repository$/, "");
+		database = folder === undefined ? [kind] : [kind, folder || "."];
+	} else if (kind === "inmem") {
+		database = [kind];
+	} else if (kind === "postgres") {
+		database = [kind, "<connection string>"];
+	} else if (kind === "mongodb") {
+		database = [kind, "<url>", "<dbname>"];
+	} else return undefined;
+	return `[${database.map((item) => JSON.stringify(item)).join(", ")}]`;
+}
+
+/** Refuses the pre-`database` keys, which `z.object` would otherwise silently strip. */
+const refuseLegacyDatabaseKeys = z.unknown().superRefine((value, ctx) => {
+	if (typeof value !== "object" || value === null) return;
+	const tenant = value as Record<string, unknown>;
+	const found = LEGACY_DATABASE_KEYS.filter((key) => key in tenant);
+	if (found.length === 0) return;
+	const suggestion = suggestDatabase(tenant.repository);
+	const replacement = suggestion
+		? `database = ${suggestion}`
+		: `database = ["<postgres|sqlite|mongodb|inmem>", ...]`;
+	ctx.addIssue({
+		code: z.ZodIssueCode.custom,
+		message: `tenant "${tenant.name}" uses ${found.join(", ")}, which ${
+			found.length === 1 ? "is" : "are"
+		} no longer supported; use ${replacement} instead`,
+	});
+});
+
+const TenantObjectSchema = z.object({
 	name: TenantNameSchema,
 	rootPasswd: RootPasswordSchema.optional(),
 	key: OptionalNonEmptyStringSchema,
 	jwks: OptionalNonEmptyStringSchema,
 	storage: ModuleConfigurationSchema,
-	repository: ModuleConfigurationSchema,
-	configurationRepository: ModuleConfigurationSchema,
-	eventStoreRepository: ModuleConfigurationSchema,
+	database: DatabaseConfigurationSchema,
 	ai: AIConfigurationSchema.optional(),
 	limits: TenantLimitsSchema,
 }).superRefine((value, ctx) => {
@@ -93,6 +162,8 @@ export const TenantConfigurationSchema = z.object({
 		});
 	}
 });
+
+export const TenantConfigurationSchema = refuseLegacyDatabaseKeys.pipe(TenantObjectSchema);
 
 export const TenantsConfigurationSchema = z.array(TenantConfigurationSchema).min(1).superRefine(
 	(tenants, ctx) => {
@@ -150,9 +221,7 @@ export interface TenantConfiguration {
 	key?: string;
 	jwks?: string;
 	storage: ModuleConfiguration;
-	repository: ModuleConfiguration;
-	configurationRepository: ModuleConfiguration;
-	eventStoreRepository: ModuleConfiguration;
+	database: DatabaseConfiguration;
 	ai?: AIConfiguration;
 	limits: TenantLimits;
 }

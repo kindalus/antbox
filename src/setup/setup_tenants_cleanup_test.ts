@@ -4,7 +4,12 @@ import fs from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setupTenants } from "./setup_tenants.ts";
-import type { ServerConfiguration, TenantConfiguration } from "api/http_server_configuration.ts";
+import type {
+	ModuleConfiguration,
+	ServerConfiguration,
+	TenantConfiguration,
+} from "api/http_server_configuration.ts";
+import { providerFrom } from "adapters/module_configuration_parser.ts";
 import { loadPiCodingAgent } from "application/ai/pi_coding_agent.ts";
 
 await loadPiCodingAgent();
@@ -38,12 +43,26 @@ export default async function build(kind: string, id: string, failClose?: string
 	);
 	await fs.writeFile(`${directory}/jwks.json`, JSON.stringify({ keys: [] }));
 	const adapter = await import(modulePath) as { closed: string[] };
+	const kinds: Record<string, string> = {
+		"inmem/inmem_node_repository.ts": "repository",
+		"inmem/inmem_event_store_repository.ts": "events",
+		"inmem/inmem_configuration_repository.ts": "configuration",
+	};
+	// Database modules are redirected to the recording adapter; the tenant name rides in params.
+	const load = ((cfg?: ModuleConfiguration) => {
+		const kind = cfg && kinds[cfg[0]];
+		if (!cfg || !kind) return providerFrom(cfg);
+		const [, name, fail] = cfg;
+		return providerFrom([
+			modulePath,
+			fail && kind === "events" ? "fail" : kind,
+			`${name}:${kind}`,
+		]);
+	}) as typeof providerFrom;
 	const tenant = (name: string): TenantConfiguration => ({
 		name,
-		repository: [modulePath, "repository", `${name}:repository`],
+		database: ["inmem", name],
 		storage: [modulePath, "storage", `${name}:storage`, "fail-close"],
-		eventStoreRepository: [modulePath, "events", `${name}:events`],
-		configurationRepository: [modulePath, "configuration", `${name}:configuration`],
 		limits: { storage: 10, tokens: 0 },
 	});
 	const configuration = (tenants: TenantConfiguration[]): ServerConfiguration => ({
@@ -52,19 +71,24 @@ export default async function build(kind: string, id: string, failClose?: string
 		jwks: `${directory}/jwks.json`,
 		tenants,
 	});
-	return { directory, modulePath, adapter, tenant, configuration };
+	return { directory, modulePath, adapter, tenant, configuration, load };
 }
 
 describe("setupTenants cleanup", () => {
 	it("failed tenant setup closes new providers in reverse order and keeps the original error", async () => {
 		const test = await fixture();
 		try {
-			await setupTenants(test.configuration([test.tenant("already-active")]));
+			await setupTenants(test.configuration([test.tenant("already-active")]), test.load);
 			expect(test.adapter.closed).toEqual([]);
-			await expect(setupTenants(test.configuration([
-				test.tenant("first"),
-				{ ...test.tenant("second"), eventStoreRepository: [test.modulePath, "fail"] },
-			]))).rejects.toThrow("provider initialization failed");
+			await expect(setupTenants(
+				test.configuration([
+					test.tenant("first"),
+					{ ...test.tenant("second"), database: ["inmem", "second", "fail"] },
+				]),
+				test.load,
+			)).rejects.toThrow(
+				"provider initialization failed",
+			);
 			expect(test.adapter.closed).toEqual([
 				"second:storage",
 				"second:repository",
@@ -81,10 +105,13 @@ describe("setupTenants cleanup", () => {
 	it("invalid tenant key files reject setup and close earlier tenant providers", async () => {
 		const test = await fixture();
 		try {
-			await expect(setupTenants(test.configuration([
-				test.tenant("first"),
-				{ ...test.tenant("second"), key: `${test.directory}/missing.key` },
-			]))).rejects.toThrow();
+			await expect(setupTenants(
+				test.configuration([
+					test.tenant("first"),
+					{ ...test.tenant("second"), key: `${test.directory}/missing.key` },
+				]),
+				test.load,
+			)).rejects.toThrow();
 			expect(test.adapter.closed).toEqual([
 				"first:configuration",
 				"first:events",

@@ -72,9 +72,7 @@ describe("multipart uploads over a real socket", () => {
 			tenants: [{
 				name: "default",
 				storage: ["inmem/inmem_storage_provider.ts"],
-				repository: ["inmem/inmem_node_repository.ts"],
-				configurationRepository: ["inmem/inmem_configuration_repository.ts"],
-				eventStoreRepository: ["inmem/inmem_event_store_repository.ts"],
+				database: ["inmem"],
 				limits: { storage: 10, tokens: 0 },
 			}],
 		});

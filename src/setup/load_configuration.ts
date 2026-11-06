@@ -67,9 +67,7 @@ mcpMaxRequestBodyBytes = ${DEFAULT_MCP_MAX_REQUEST_BODY_BYTES}
 [[tenants]]
 name = "default"
 storage = ["flat_file/flat_file_storage_provider.ts", "default/storage"]
-repository = ["sqlite/sqlite_node_repository.ts", "default/repository"]
-configurationRepository = ["sqlite/sqlite_configuration_repository.ts", "default/config"]
-eventStoreRepository = ["sqlite/sqlite_event_store_repository.ts", "default/events"]
+database = ["sqlite", "default"]
 
 [tenants.limits]
 storage = "pay-as-you-go"

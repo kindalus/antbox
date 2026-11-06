@@ -3,12 +3,9 @@ import { isAbsolute, join, resolve } from "node:path";
 
 const DATA_PATH_PARAMETERS = new Map<string, readonly number[]>([
 	["flat_file/flat_file_storage_provider.ts", [1]],
-	["flat_file/flat_file_node_repository.ts", [1]],
-	["flat_file/flat_file_event_store_repository.ts", [1]],
-	["sqlite/sqlite_node_repository.ts", [1]],
-	["sqlite/sqlite_configuration_repository.ts", [1]],
-	["sqlite/sqlite_event_store_repository.ts", [1]],
 ]);
+
+const DATABASE_DATA_PATH_PARAMETERS = new Map<string, readonly number[]>([["sqlite", [1]]]);
 
 const CONFIG_PATH_PARAMETERS = new Map<string, readonly number[]>([
 	["google_drive/google_drive_storage_provider.ts", [1]],
@@ -44,21 +41,10 @@ export function resolveTenantConfigurationPaths(
 		(value) => resolveDataPath(dataDir, value),
 	);
 	resolveModulePaths(
-		tenant.repository,
-		DATA_PATH_PARAMETERS,
+		tenant.database,
+		DATABASE_DATA_PATH_PARAMETERS,
 		(value) => resolveDataPath(dataDir, value),
 	);
-	resolveModulePaths(
-		tenant.configurationRepository,
-		DATA_PATH_PARAMETERS,
-		(value) => resolveDataPath(dataDir, value),
-	);
-	resolveModulePaths(
-		tenant.eventStoreRepository,
-		DATA_PATH_PARAMETERS,
-		(value) => resolveDataPath(dataDir, value),
-	);
-
 	resolveModulePaths(
 		tenant.storage,
 		CONFIG_PATH_PARAMETERS,

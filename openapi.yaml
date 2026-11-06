@@ -3029,14 +3029,31 @@ components:
                   - type: string
                     enum:
                        - pay-as-you-go
+      DatabaseConfiguration:
+         type: array
+         minItems: 1
+         maxItems: 3
+         description: |
+            `[kind, ...params]`. The node, configuration and event store repositories of that
+            backend all receive exactly these parameters.
+
+            - `["postgres"]` or `["postgres", "<connection string>"]` (falls back to DATABASE_URL)
+            - `["sqlite"]` (in memory) or `["sqlite", "<folder>"]` (`nodes.db`, `config.db` and
+              `events.db`; relative folders resolve against the data directory)
+            - `["mongodb", "<url>", "<dbname>"]`
+            - `["inmem"]`
+
+            The legacy `repository`, `configurationRepository` and `eventStoreRepository` keys are
+            rejected.
+         items:
+            type: string
+         example: ["sqlite", "./data"]
       TenantConfiguration:
          type: object
          required:
             - name
             - storage
-            - repository
-            - configurationRepository
-            - eventStoreRepository
+            - database
             - limits
          properties:
             name:
@@ -3057,12 +3074,8 @@ components:
                description: Path or URL to JWKS file
             storage:
                $ref: "#/components/schemas/ModuleConfiguration"
-            repository:
-               $ref: "#/components/schemas/ModuleConfiguration"
-            configurationRepository:
-               $ref: "#/components/schemas/ModuleConfiguration"
-            eventStoreRepository:
-               $ref: "#/components/schemas/ModuleConfiguration"
+            database:
+               $ref: "#/components/schemas/DatabaseConfiguration"
             ai:
                $ref: "#/components/schemas/AIConfiguration"
             limits:

@@ -63,7 +63,7 @@ organizations that need self-hosting, tenant isolation, and storage choice.
 | **Multi-provider AI**    | `@ai-sdk/google`, `@ai-sdk/openai`, `@ai-sdk/anthropic`, and OpenAI-compatible/Ollama resolution are present        |
 | **Container assets**     | Docker build files exist under `build/docker/Demo` and `build/docker/Sandbox`                                       |
 | **Testing footprint**    | 64 `*_test.ts` files are present; no disabled test files were found in the current tree                             |
-| **Adapters**             | SQLite, PostgreSQL, MongoDB, flat-file, in-memory repositories; S3, Google Drive, flat-file, null/in-memory storage |
+| **Adapters**             | SQLite, PostgreSQL, MongoDB, in-memory repositories; S3, Google Drive, flat-file, null/in-memory storage |
 | **Observability**        | OpenTelemetry docs and instrumentation exist for HTTP and AI spans                                                  |
 | **MCP**                  | HTTP JSON-RPC MCP endpoint exposes tools and curated resources for LLM clients                                      |
 

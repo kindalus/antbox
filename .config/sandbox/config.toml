@@ -7,9 +7,7 @@ jwks = "../antbox.jwks"
 [[tenants]]
 name = "sandbox"
 storage = ["inmem/inmem_storage_provider.ts"]
-repository = ["sqlite/sqlite_node_repository.ts"]
-configurationRepository = ["sqlite/sqlite_configuration_repository.ts"]
-eventStoreRepository = ["sqlite/sqlite_event_store_repository.ts"]
+database = ["sqlite"]
 
 [tenants.limits]
 storage = "pay-as-you-go"

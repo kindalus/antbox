@@ -45,10 +45,8 @@ rootPasswd = "demo"
 name = "local"
 
 # Required for every tenant
-repository = ["inmem/inmem_node_repository.ts"]
 storage = ["inmem/inmem_storage_provider.ts"]
-configurationRepository = ["sqlite/sqlite_configuration_repository.ts", "local/config"]
-eventStoreRepository = ["inmem/inmem_event_store_repository.ts"]
+database = ["sqlite", "local"]
 
 [tenants.limits]
 storage = "pay-as-you-go"
@@ -57,8 +55,13 @@ tokens = 0
 
 Notes:
 
-- `repository`, `storage`, `configurationRepository`, and `eventStoreRepository` are required for
-  every tenant.
+- `storage` and `database` are required for every tenant. `database` is
+  `["postgres", "<connection string>"]`, `["sqlite", "<folder>"]`, `["mongodb", "<url>", "<dbname>"]`,
+  or `["inmem"]`; nodes, configuration, and events all use that backend. See `docs/adapters.md`.
+- The `repository`, `configurationRepository`, and `eventStoreRepository` keys are no longer
+  accepted. See "Migrating from separate repository entries" in `docs/adapters.md` for the
+  replacement and the SQLite file moves (`<folder>/repository/nodes.db` becomes
+  `<folder>/nodes.db`, and likewise `config/config.db` and `events/events.db`).
 - `limits` is required for every tenant.
 - `rootPasswd`, `key`, and `jwks` can be defined globally and inherited by tenants, or overridden
   per tenant.
@@ -66,7 +69,7 @@ Notes:
   one before upgrading. The `demo` password in this example is for local use.
 - If `key` and `jwks` are not provided anywhere, the server will default to loading them from the
   configuration directory or generate them if they don't exist.
-- Relative flat-file and SQLite paths resolve against `dataDir`; absolute paths are preserved.
+- Relative flat-file storage and SQLite paths resolve against `dataDir`; absolute paths are preserved.
 - Relative data paths containing a `..` segment are rejected.
 - Relative keys, JWKS, skills, S3 configuration, and Google credentials resolve against `configDir`.
 - When AI is disabled, `limits.tokens` must be `0`.
@@ -80,10 +83,8 @@ For larger installations, place one tenant in each `<config-dir>/tenants.d/<name
 
 ```toml
 name = "company-a"
-repository = ["inmem/inmem_node_repository.ts"]
 storage = ["inmem/inmem_storage_provider.ts"]
-configurationRepository = ["sqlite/sqlite_configuration_repository.ts", "company-a/config"]
-eventStoreRepository = ["inmem/inmem_event_store_repository.ts"]
+database = ["sqlite", "company-a"]
 
 [limits]
 storage = "pay-as-you-go"
@@ -208,7 +209,7 @@ curl "http://localhost:7180/v2/nodes?parent=--root--" \
   [folder fields](./nodes-and-aspects.md#folder-fields).
 - Back up existing data and review
   [repository data compatibility](./adapters.md#existing-repository-data), particularly PostgreSQL
-  JSON values, duplicate MongoDB UUIDs, and invalid flat-file audit streams. Stricter node and
+  JSON values and duplicate MongoDB UUIDs. Stricter node and
   aspect validation can also expose malformed historical records; repairs are not applied
   automatically.
 - Review the remaining [dependency advisories](./dependency-audit.md) and

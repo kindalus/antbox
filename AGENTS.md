@@ -48,7 +48,7 @@ separation:
 3. **Adapters** (`src/adapters/`) - Infrastructure implementations
    - HTTP: Hono framework (`hono/`)
    - Storage: S3, Google Drive, flat-file, in-memory
-   - Repositories: SQLite, PostgreSQL, MongoDB, flat-file, in-memory
+   - Repositories: SQLite, PostgreSQL, MongoDB, in-memory
    - AI Models: Google Gemini, OpenAI, Anthropic, Ollama
 
 4. **API** (`src/api/`) - HTTP handlers and middleware
@@ -81,10 +81,10 @@ async create(data: NodeMetadata): Promise<Either<ValidationError, Node>>
 
 | Interface                 | Purpose                                        | Implementations                             |
 | ------------------------- | ---------------------------------------------- | ------------------------------------------- |
-| `NodeRepository`          | Node metadata persistence                      | sqlite, postgres, mongodb, flat_file, inmem |
+| `NodeRepository`          | Node metadata persistence                      | sqlite, postgres, mongodb, inmem            |
 | `StorageProvider`         | File blob storage                              | s3, google_drive, flat_file, inmem, null    |
 | `ConfigurationRepository` | System config (users, groups, workflows, etc.) | sqlite, postgres, mongodb, inmem            |
-| `EventStoreRepository`    | Immutable audit log                            | sqlite, postgres, mongodb, flat_file, inmem |
+| `EventStoreRepository`    | Immutable audit log                            | sqlite, postgres, mongodb, inmem            |
 
 ### Entry Points
 

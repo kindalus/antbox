@@ -1,7 +1,7 @@
 import { describe, it } from "bdd";
 import { expect } from "expect";
 import { exportJWK, generateKeyPair, SignJWT } from "jose";
-import { basename } from "node:path";
+import { basename, join } from "node:path";
 import { tmpdir } from "node:os";
 import fs from "node:fs/promises";
 import process from "node:process";
@@ -10,6 +10,8 @@ import { tempPath } from "shared/temp_path.ts";
 import type { AuthenticationContext } from "application/security/authentication_context.ts";
 import { ADMINS_GROUP_UUID } from "domain/configuration/builtin_groups.ts";
 import type { ServerConfiguration, TenantConfiguration } from "api/http_server_configuration.ts";
+import { stringify } from "smol-toml";
+import { loadConfiguration } from "./load_configuration.ts";
 import { setupTenants } from "./setup_tenants.ts";
 import { loadPiCodingAgent } from "application/ai/pi_coding_agent.ts";
 
@@ -38,26 +40,6 @@ describe("setupTenants", () => {
 		);
 
 		return { jwksPath, privateKey };
-	}
-
-	async function createConfigRepositoryModule() {
-		const adaptersDir = `${process.cwd()}/src/adapters`;
-		const modulePath = tempPath(adaptersDir, ".tmp-setup-tenants-") + ".ts";
-		const relativeModulePath = `./${basename(modulePath)}`;
-
-		await fs.writeFile(
-			modulePath,
-			[
-				'import { InMemoryConfigurationRepository } from "./inmem/inmem_configuration_repository.ts";',
-				'import { right } from "../shared/either.ts";',
-				"",
-				"export default function buildInMemoryConfigurationRepository() {",
-				"\treturn Promise.resolve(right(new InMemoryConfigurationRepository()));",
-				"}",
-			].join("\n"),
-		);
-
-		return { modulePath, relativeModulePath };
 	}
 
 	async function createStorageProviderModule() {
@@ -108,13 +90,11 @@ describe("setupTenants", () => {
 			.sign(privateKey);
 	}
 
-	function createTenantConfig(name: string, configurationRepository: string): TenantConfiguration {
+	function createTenantConfig(name: string): TenantConfiguration {
 		return {
 			name,
 			storage: ["inmem/inmem_storage_provider.ts"],
-			repository: ["inmem/inmem_node_repository.ts"],
-			configurationRepository: [configurationRepository],
-			eventStoreRepository: ["inmem/inmem_event_store_repository.ts"],
+			database: ["inmem"],
 			limits: {
 				storage: 10,
 				tokens: 0,
@@ -124,7 +104,6 @@ describe("setupTenants", () => {
 
 	it("sets up multiple tenants that share adapter modules", async () => {
 		const { jwksPath } = await createJwksFile();
-		const { modulePath, relativeModulePath } = await createConfigRepositoryModule();
 
 		try {
 			const config: ServerConfiguration = {
@@ -132,15 +111,14 @@ describe("setupTenants", () => {
 				key: "c2VydmVyLXNlY3JldA==",
 				jwks: jwksPath,
 				tenants: [
-					createTenantConfig("tenant-a", relativeModulePath),
-					createTenantConfig("tenant-b", relativeModulePath),
+					createTenantConfig("tenant-a"),
+					createTenantConfig("tenant-b"),
 				],
 			};
 
 			const tenants = await setupTenants(config);
 			expect(tenants.map(({ name }) => name)).toEqual(["tenant-a", "tenant-b"]);
 		} finally {
-			await fs.unlink(modulePath);
 			await fs.unlink(jwksPath);
 		}
 	});
@@ -153,7 +131,7 @@ describe("setupTenants", () => {
 					rootPasswd,
 					key: "c2VydmVyLXNlY3JldA==",
 					jwks: jwksPath,
-					tenants: [createTenantConfig("tenant-a", "inmem/inmem_configuration_repository.ts")],
+					tenants: [createTenantConfig("tenant-a")],
 				})).rejects.toThrow("rootPasswd");
 			}
 			await expect(setupTenants({
@@ -161,7 +139,7 @@ describe("setupTenants", () => {
 				key: "c2VydmVyLXNlY3JldA==",
 				jwks: jwksPath,
 				tenants: [{
-					...createTenantConfig("tenant-a", "inmem/inmem_configuration_repository.ts"),
+					...createTenantConfig("tenant-a"),
 					rootPasswd: "",
 				}],
 			})).rejects.toThrow("rootPasswd");
@@ -172,14 +150,13 @@ describe("setupTenants", () => {
 
 	it("inherits global rootPasswd, key, and jwks when tenant values are absent", async () => {
 		const { jwksPath, privateKey } = await createJwksFile();
-		const { modulePath, relativeModulePath } = await createConfigRepositoryModule();
 
 		try {
 			const config: ServerConfiguration = {
 				rootPasswd: "global-root",
 				key: "c2VydmVyLXNlY3JldA==",
 				jwks: jwksPath,
-				tenants: [createTenantConfig("tenant-a", relativeModulePath)],
+				tenants: [createTenantConfig("tenant-a")],
 			};
 
 			const [tenant] = await setupTenants(config);
@@ -205,15 +182,12 @@ describe("setupTenants", () => {
 				expect(principalOrErr.value.email).toBe("john.doe@example.com");
 			}
 		} finally {
-			await fs.unlink(modulePath);
 			await fs.unlink(jwksPath);
 		}
 	});
 
 	it("registers storage provider listeners during tenant setup", async () => {
 		const { jwksPath } = await createJwksFile();
-		const { modulePath: configModulePath, relativeModulePath: configModule } =
-			await createConfigRepositoryModule();
 		const { modulePath: storageModulePath, relativeModulePath: storageModule } =
 			await createStorageProviderModule();
 
@@ -223,7 +197,7 @@ describe("setupTenants", () => {
 				key: "c2VydmVyLXNlY3JldA==",
 				jwks: jwksPath,
 				tenants: [{
-					...createTenantConfig("tenant-storage-listeners", configModule),
+					...createTenantConfig("tenant-storage-listeners"),
 					storage: [storageModule],
 				}],
 			};
@@ -233,7 +207,6 @@ describe("setupTenants", () => {
 			const storageModuleExports = await import(`file://${storageModulePath}`);
 			expect(storageModuleExports.wasListenerRegistered()).toBe(true);
 		} finally {
-			await fs.unlink(configModulePath);
 			await fs.unlink(storageModulePath);
 			await fs.unlink(jwksPath);
 		}
@@ -241,7 +214,6 @@ describe("setupTenants", () => {
 
 	it("rejects non-zero token limits when AI is disabled", async () => {
 		const { jwksPath } = await createJwksFile();
-		const { modulePath, relativeModulePath } = await createConfigRepositoryModule();
 
 		try {
 			const config: ServerConfiguration = {
@@ -249,7 +221,7 @@ describe("setupTenants", () => {
 				key: "c2VydmVyLXNlY3JldA==",
 				jwks: jwksPath,
 				tenants: [{
-					...createTenantConfig("tenant-invalid-ai-disabled", relativeModulePath),
+					...createTenantConfig("tenant-invalid-ai-disabled"),
 					limits: {
 						storage: 10,
 						tokens: 1,
@@ -261,14 +233,12 @@ describe("setupTenants", () => {
 				"Tenant tenant-invalid-ai-disabled: tokens limit must be 0 when AI is disabled",
 			);
 		} finally {
-			await fs.unlink(modulePath);
 			await fs.unlink(jwksPath);
 		}
 	});
 
 	it("rejects zero token limits when AI is enabled", async () => {
 		const { jwksPath } = await createJwksFile();
-		const { modulePath, relativeModulePath } = await createConfigRepositoryModule();
 
 		try {
 			const config: ServerConfiguration = {
@@ -276,7 +246,7 @@ describe("setupTenants", () => {
 				key: "c2VydmVyLXNlY3JldA==",
 				jwks: jwksPath,
 				tenants: [{
-					...createTenantConfig("tenant-invalid-ai-enabled", relativeModulePath),
+					...createTenantConfig("tenant-invalid-ai-enabled"),
 					ai: {
 						enabled: true,
 						defaultModel: ["google/gemini-2.5-flash"],
@@ -292,7 +262,6 @@ describe("setupTenants", () => {
 				"Tenant tenant-invalid-ai-enabled: tokens limit must be greater than 0 when AI is enabled",
 			);
 		} finally {
-			await fs.unlink(modulePath);
 			await fs.unlink(jwksPath);
 		}
 	});
@@ -300,7 +269,6 @@ describe("setupTenants", () => {
 	it("prefers tenant auth values over global ones", async () => {
 		const globalJwks = await createJwksFile();
 		const tenantJwks = await createJwksFile();
-		const { modulePath, relativeModulePath } = await createConfigRepositoryModule();
 
 		try {
 			const config: ServerConfiguration = {
@@ -308,7 +276,7 @@ describe("setupTenants", () => {
 				key: "Z2xvYmFsLXNlY3JldA==",
 				jwks: globalJwks.jwksPath,
 				tenants: [{
-					...createTenantConfig("tenant-b", relativeModulePath),
+					...createTenantConfig("tenant-b"),
 					rootPasswd: "tenant-root",
 					key: "dGVuYW50LXNlY3JldA==",
 					jwks: tenantJwks.jwksPath,
@@ -340,38 +308,58 @@ describe("setupTenants", () => {
 			);
 			expect(globalPrincipalOrErr.isLeft()).toBe(true);
 		} finally {
-			await fs.unlink(modulePath);
 			await fs.unlink(globalJwks.jwksPath);
 			await fs.unlink(tenantJwks.jwksPath);
 		}
 	});
 
-	it("rejects tenants that omit required repository configuration at runtime", async () => {
-		const { jwksPath } = await createJwksFile();
-		const { modulePath, relativeModulePath } = await createConfigRepositoryModule();
-
+	it("boots a sqlite tenant from config.toml with all three databases in one folder", async () => {
+		const dir = await fs.mkdtemp(join(tmpdir(), "antbox-sqlite-e2e-"));
 		try {
-			const config = {
+			const configDir = join(dir, "config");
+			const dataDir = join(dir, "data");
+			await fs.mkdir(configDir);
+			await fs.writeFile(
+				join(configDir, "config.toml"),
+				stringify({
+					rootPasswd: "root",
+					tenants: [{
+						name: "default",
+						storage: ["inmem/inmem_storage_provider.ts"],
+						database: ["sqlite", "db"],
+						limits: { storage: 10, tokens: 0 },
+					}],
+				}),
+			);
+
+			const config = await loadConfiguration(configDir, dataDir);
+			expect(config.tenants[0].database).toEqual(["sqlite", join(dataDir, "db")]);
+			await setupTenants(config);
+
+			expect((await fs.readdir(join(dataDir, "db"))).filter((f) => f.endsWith(".db")).sort())
+				.toEqual(["config.db", "events.db", "nodes.db"]);
+		} finally {
+			await fs.rm(dir, { recursive: true });
+		}
+	});
+
+	it("refuses to start on a legacy sqlite layout without touching it", async () => {
+		const { jwksPath } = await createJwksFile();
+		const folder = await fs.mkdtemp(join(tmpdir(), "antbox-legacy-"));
+		try {
+			await fs.mkdir(join(folder, "repository"));
+			await fs.writeFile(join(folder, "repository", "nodes.db"), "x");
+
+			await expect(setupTenants({
 				rootPasswd: "global-root",
 				key: "c2VydmVyLXNlY3JldA==",
 				jwks: jwksPath,
-				tenants: [{
-					name: "broken-tenant",
-					storage: ["inmem/inmem_storage_provider.ts"],
-					configurationRepository: [relativeModulePath],
-					eventStoreRepository: ["inmem/inmem_event_store_repository.ts"],
-					limits: {
-						storage: 10,
-						tokens: 0,
-					},
-				} as unknown as TenantConfiguration],
-			} as ServerConfiguration;
-
-			await expect(setupTenants(config)).rejects.toThrow(
-				"Tenant broken-tenant: repository is required but not configured",
-			);
+				tenants: [{ ...createTenantConfig("legacy"), database: ["sqlite", folder] }],
+			})).rejects.toThrow(`mv ${folder}/repository/nodes.db* ${folder}/`);
+			expect((await fs.readdir(folder, { recursive: true })).sort())
+				.toEqual(["repository", "repository/nodes.db"]);
 		} finally {
-			await fs.unlink(modulePath);
+			await fs.rm(folder, { recursive: true });
 			await fs.unlink(jwksPath);
 		}
 	});

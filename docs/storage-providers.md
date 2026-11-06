@@ -17,12 +17,12 @@ Adapters are configured using module arrays in `config.toml`:
 [[tenants]]
 name = "default"
 
-repository = ["inmem/inmem_node_repository.ts"]
 storage = ["inmem/inmem_storage_provider.ts"]
-eventStoreRepository = ["inmem/inmem_event_store_repository.ts"]
+database = ["inmem"]
 ```
 
-Each array is `[modulePath, ...params]`. If the path does not start with `./` or `http`, it is
+`storage` is `[modulePath, ...params]`. `database` is `[kind, ...params]` and covers nodes,
+configuration, and events (see `docs/adapters.md`). If the storage module path does not start with `./` or `http`, it is
 resolved under the `adapters/` import (mapped to `src/adapters/`).
 
 ## Built-in Storage Providers
@@ -89,7 +89,7 @@ Permission, missing-bucket, and network failures return errors so node metadata 
 
 ## Related Adapters
 
-- **Repositories**: `inmem`, `flat_file`, `sqlite`, `postgres`, `mongodb`
+- **Databases**: `inmem`, `sqlite`, `postgres`, `mongodb`
 - **AI retrieval**: configure `[tenants.ai]` with an `embeddingProvider`; semantic search also
   requires a repository that supports embeddings
 

@@ -11,10 +11,10 @@ import { OcrCompletedEvent } from "domain/ai/ocr_completed_event.ts";
 import type { Event } from "shared/event.ts";
 import type { EventBus } from "shared/event_bus.ts";
 import type { EventHandler } from "shared/event_handler.ts";
-import buildFlatFileEventStoreRepository from "adapters/flat_file/flat_file_event_store_repository.ts";
 import { InMemoryConfigurationRepository } from "adapters/inmem/inmem_configuration_repository.ts";
 import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository.ts";
 import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider.ts";
+import buildSqliteEventStoreRepository from "adapters/sqlite/sqlite_event_store_repository.ts";
 import { NodeService } from "application/nodes/node_service.ts";
 import type { AuthenticationContext } from "application/security/authentication_context.ts";
 import { NodeCreatedEvent } from "domain/nodes/node_created_event.ts";
@@ -223,14 +223,14 @@ it("AuditLoggingService persists OCR usage events", async () => {
 });
 
 describe("created file audit records retain public metadata", () => {
-	for (const kind of ["memory", "flat-file"] as const) {
+	for (const kind of ["memory", "sqlite"] as const) {
 		it(kind, async () => {
-			const directory = kind === "flat-file"
+			const directory = kind === "sqlite"
 				? await fs.mkdtemp(join(tmpdir(), "antbox-audit-test-"))
 				: undefined;
 			try {
 				const repository = directory
-					? (await buildFlatFileEventStoreRepository(directory)).right
+					? (await buildSqliteEventStoreRepository(directory)).right
 					: new InMemoryEventStoreRepository();
 				const eventBus = new SynchronousEventBus();
 				const audit = new AuditLoggingService(repository, eventBus);
@@ -273,7 +273,7 @@ describe("created file audit records retain public metadata", () => {
 				expect(JSON.parse(JSON.stringify(events.value[0].payload))).toEqual(expected);
 
 				if (directory) {
-					const reloaded = await buildFlatFileEventStoreRepository(directory);
+					const reloaded = await buildSqliteEventStoreRepository(directory);
 					if (reloaded.isLeft()) throw reloaded.value;
 					const persisted = await reloaded.value.getStream(created.value.uuid, "text/plain");
 					if (persisted.isLeft()) throw persisted.value;

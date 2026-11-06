@@ -14,9 +14,7 @@ export const TENANT_SAMPLE_FILE = "tenant.toml.sample";
 
 export const TENANT_SAMPLE = `name = "tenant"
 storage = ["flat_file/flat_file_storage_provider.ts", "tenant/storage"]
-repository = ["sqlite/sqlite_node_repository.ts", "tenant/repository"]
-configurationRepository = ["sqlite/sqlite_configuration_repository.ts", "tenant/configuration"]
-eventStoreRepository = ["sqlite/sqlite_event_store_repository.ts", "tenant/events"]
+database = ["sqlite", "tenant"]
 
 [limits]
 storage = "pay-as-you-go"

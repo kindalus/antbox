@@ -33,9 +33,7 @@ describe("getTenantSetupConfiguration", () => {
 			tenants: [{
 				name: "demox",
 				storage: ["inmem/inmem_storage_provider.ts"],
-				repository: ["inmem/inmem_node_repository.ts"],
-				configurationRepository: ["./src/adapters/.tmp-test-config.ts"],
-				eventStoreRepository: ["inmem/inmem_event_store_repository.ts"],
+				database: ["inmem"],
 				limits: {
 					storage: 10,
 					tokens: 0,
@@ -150,9 +148,7 @@ describe("main entry point", () => {
 			tenants: [{
 				name: "default",
 				storage: ["inmem/inmem_storage_provider.ts"],
-				repository: ["inmem/inmem_node_repository.ts"],
-				configurationRepository: ["inmem/inmem_configuration_repository.ts"],
-				eventStoreRepository: ["inmem/inmem_event_store_repository.ts"],
+				database: ["inmem"],
 				limits: { storage: 10, tokens: 0 },
 			}],
 		};

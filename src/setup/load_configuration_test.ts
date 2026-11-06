@@ -16,9 +16,7 @@ function tenant(name: string, storagePath?: string): TenantConfiguration {
 		storage: storagePath
 			? ["flat_file/flat_file_storage_provider.ts", storagePath]
 			: ["inmem/inmem_storage_provider.ts"],
-		repository: ["inmem/inmem_node_repository.ts"],
-		configurationRepository: ["inmem/inmem_configuration_repository.ts"],
-		eventStoreRepository: ["inmem/inmem_event_store_repository.ts"],
+		database: ["inmem"],
 		limits: { storage: 10, tokens: 0 },
 	};
 }
@@ -68,9 +66,7 @@ describe("loadConfiguration", () => {
 			const config = await loadConfiguration(join(dir, "config"), dataDir);
 			const tenant = config.tenants[0];
 			expect(tenant.storage[1]).toBe(join(dataDir, "default/storage"));
-			expect(tenant.repository[1]).toBe(join(dataDir, "default/repository"));
-			expect(tenant.configurationRepository[1]).toBe(join(dataDir, "default/config"));
-			expect(tenant.eventStoreRepository[1]).toBe(join(dataDir, "default/events"));
+			expect(tenant.database).toEqual(["sqlite", join(dataDir, "default")]);
 			await expect(fs.stat(dataDir)).rejects.toThrow();
 		} finally {
 			await fs.rm(dir, { recursive: true });
@@ -255,6 +251,52 @@ describe("loadConfiguration", () => {
 			{ mcpAllowedOrigins: [""], tenants: [tenant("default")] },
 			async (dir) => {
 				await expect(loadConfiguration(dir)).rejects.toThrow("mcpAllowedOrigins");
+			},
+		);
+	});
+
+	it("refuses legacy repository keys in config.toml and names the replacement", async () => {
+		const { database: _database, ...base } = tenant("acme");
+		const legacy = {
+			...base,
+			repository: ["sqlite/sqlite_node_repository.ts", "acme/repository"],
+			configurationRepository: ["sqlite/sqlite_configuration_repository.ts", "acme/config"],
+			eventStoreRepository: ["sqlite/sqlite_event_store_repository.ts", "acme/events"],
+		};
+		await withConfigDir({ tenants: [legacy] }, async (dir) => {
+			await expect(loadConfiguration(dir)).rejects.toThrow(
+				`Invalid configuration at ${join(dir, "config.toml")} tenant 0: tenant "acme" uses ` +
+					"repository, configurationRepository, eventStoreRepository, which are no longer " +
+					'supported; use database = ["sqlite", "acme"] instead',
+			);
+		});
+	});
+
+	it("refuses legacy repository keys in tenant files", async () => {
+		await withConfigDir({ tenants: [tenant("default")] }, async (dir) => {
+			const tenantsDir = join(dir, "tenants.d");
+			await fs.mkdir(tenantsDir);
+			const { database: _database, ...base } = tenant("company");
+			await fs.writeFile(
+				join(tenantsDir, "company.toml"),
+				stringify({
+					...base,
+					repository: ["sqlite/sqlite_node_repository.ts", "company/repository"],
+				}),
+			);
+
+			await expect(loadConfiguration(dir)).rejects.toThrow(
+				`Invalid configuration at ${join(tenantsDir, "company.toml")}: tenant "company" uses ` +
+					'repository, which is no longer supported; use database = ["sqlite", "company"] instead',
+			);
+		});
+	});
+
+	it("rejects flat_file as a database kind", async () => {
+		await withConfigDir(
+			{ tenants: [{ ...tenant("default"), database: ["flat_file", "x"] }] },
+			async (dir) => {
+				await expect(loadConfiguration(dir)).rejects.toThrow("kind must be one of");
 			},
 		);
 	});

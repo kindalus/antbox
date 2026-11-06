@@ -17,7 +17,7 @@ custom server-side features, and pluggable infrastructure in a single runtime.
 - **Workflows** - Workflow definitions + runtime instances with transitions
 - **Multi-Tenant** - Tenant-level isolation for repositories, storage, and keys
 - **Pluggable Storage** - S3, Google Drive, flat-file, in-memory, null
-- **Pluggable Repositories** - SQLite, PostgreSQL, MongoDB, flat-file, in-memory
+- **Pluggable Databases** - SQLite, PostgreSQL, MongoDB, in-memory
 - **Security** - JWT, API keys, group-based authorization, and audit endpoints
 
 ## Quick Start
@@ -157,16 +157,21 @@ You can override the configuration directory using `-c, --config-dir`. Persisten
 stored under `$HOME/.local/share/antbox` by default and can be overridden with `-d, --data-dir`.
 Antbox creates only the data subdirectories that configured adapters actually use.
 
-Each tenant defines these core adapters:
+Each tenant defines two persistence entries:
 
-- `storage`
-- `repository`
-- `configurationRepository`
-- `eventStoreRepository`
+- `storage`: a module entry, `["module/path.ts", "param1", "param2"]`
+- `database`: one entry for nodes, configuration, and events, `[kind, ...params]`
 
-Module configuration format:
+Database kinds:
 
-- `["module/path.ts", "param1", "param2"]`
+- `["postgres", "<connection string>"]` (the string may be omitted to use `DATABASE_URL`)
+- `["sqlite", "./data"]` (stores `nodes.db`, `config.db`, and `events.db` in that folder; without a
+  folder the databases live in memory)
+- `["mongodb", "<url>", "<dbname>"]`
+- `["inmem"]`
+
+Other rules:
+
 - every tenant must define `limits`
 - when AI is disabled, set `limits.tokens = 0`
 - when AI is enabled, `limits.tokens` must be greater than `0` or `"pay-as-you-go"`
@@ -182,9 +187,7 @@ rootPasswd = "demo"
 [[tenants]]
 name = "demo"
 storage = ["flat_file/flat_file_storage_provider.ts", "demo/storage"]
-repository = ["sqlite/sqlite_node_repository.ts", "demo/repository"]
-configurationRepository = ["sqlite/sqlite_configuration_repository.ts", "demo/config"]
-eventStoreRepository = ["sqlite/sqlite_event_store_repository.ts", "demo/events"]
+database = ["sqlite", "demo"]
 
 [tenants.limits]
 storage = "pay-as-you-go"
@@ -201,16 +204,14 @@ one tenant without the `tenants` prefix:
 ```toml
 name = "company-a"
 storage = ["flat_file/flat_file_storage_provider.ts", "company-a/storage"]
-repository = ["sqlite/sqlite_node_repository.ts", "company-a/repository"]
-configurationRepository = ["sqlite/sqlite_configuration_repository.ts", "company-a/config"]
-eventStoreRepository = ["sqlite/sqlite_event_store_repository.ts", "company-a/events"]
+database = ["sqlite", "company-a"]
 
 [limits]
 storage = "pay-as-you-go"
 tokens = 0
 ```
 
-Only regular `.toml` files are loaded. The filename must match `name`. Relative flat-file, SQLite,
+Only regular `.toml` files are loaded. The filename must match `name`. Relative flat-file storage, SQLite,
 and session paths resolve from `dataDir`; keys, JWKS, skills, S3 configuration, and Google
 credentials resolve from `configDir`. A tenant file overrides an inline tenant with the same name.
 Tenant names may contain lowercase letters, numbers, and internal hyphens only.

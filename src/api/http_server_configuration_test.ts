@@ -11,9 +11,7 @@ describe("TenantConfigurationSchema", () => {
 		return {
 			name: "tenant-a",
 			storage: ["inmem/inmem_storage_provider.ts"],
-			repository: ["inmem/inmem_node_repository.ts"],
-			configurationRepository: ["inmem/inmem_configuration_repository.ts"],
-			eventStoreRepository: ["inmem/inmem_event_store_repository.ts"],
+			database: ["inmem"],
 			limits: {
 				storage: 25,
 				tokens: 0,
@@ -160,5 +158,104 @@ describe("TenantConfigurationSchema", () => {
 		const result = TenantsConfigurationSchema.safeParse([tenant, tenant]);
 
 		expect(result.success).toBe(false);
+	});
+
+	it("accepts every database kind with its parameters", () => {
+		for (
+			const database of [
+				["postgres"],
+				["postgres", "postgres://u:p@localhost/antbox"],
+				["sqlite"],
+				["sqlite", "./data"],
+				["mongodb", "mongodb://localhost:27017", "antbox"],
+				["inmem"],
+			]
+		) {
+			const result = TenantConfigurationSchema.safeParse({ ...makeTenantConfig(), database });
+			expect(result.success).toBe(true);
+			if (result.success) expect<string[]>(result.data.database).toEqual(database);
+		}
+	});
+
+	it("rejects unknown database kinds, including flat_file", () => {
+		for (const kind of ["flat_file", "mysql", "sqlite/sqlite_node_repository.ts"]) {
+			const result = TenantConfigurationSchema.safeParse({
+				...makeTenantConfig(),
+				database: [kind],
+			});
+			expect(result.success).toBe(false);
+			if (!result.success) {
+				expect(result.error.issues[0].message).toContain("postgres, sqlite, mongodb, inmem");
+			}
+		}
+		expect(TenantConfigurationSchema.safeParse({ ...makeTenantConfig(), database: [] }).success)
+			.toBe(false);
+	});
+
+	it("rejects wrong database parameter counts", () => {
+		for (
+			const database of [
+				["postgres", "a", "b"],
+				["sqlite", "a", "b"],
+				["mongodb"],
+				["mongodb", "mongodb://localhost:27017"],
+				["mongodb", "a", "b", "c"],
+				["inmem", "a"],
+			]
+		) {
+			expect(TenantConfigurationSchema.safeParse({ ...makeTenantConfig(), database }).success)
+				.toBe(false);
+		}
+	});
+
+	it("refuses the legacy repository keys and suggests the replacement", () => {
+		const { database: _database, ...base } = makeTenantConfig();
+		const legacy = {
+			...base,
+			name: "acme",
+			repository: ["sqlite/sqlite_node_repository.ts", "./data/repository"],
+			configurationRepository: ["sqlite/sqlite_configuration_repository.ts", "./data/config"],
+			eventStoreRepository: ["sqlite/sqlite_event_store_repository.ts", "./data/events"],
+		};
+		const result = TenantConfigurationSchema.safeParse(legacy);
+		expect(result.success).toBe(false);
+		if (!result.success) {
+			expect(result.error.issues.map((issue) => issue.message)).toEqual([
+				'tenant "acme" uses repository, configurationRepository, eventStoreRepository, ' +
+				'which are no longer supported; use database = ["sqlite", "./data"] instead',
+			]);
+		}
+	});
+
+	it("refuses legacy keys even next to a database entry and derives other backends", () => {
+		const message = (repository: string[]) => {
+			const result = TenantConfigurationSchema.safeParse({
+				...makeTenantConfig(),
+				repository,
+			});
+			return result.success ? undefined : result.error.issues[0].message;
+		};
+
+		expect(message(["inmem/inmem_node_repository.ts"])).toContain(
+			'tenant "tenant-a" uses repository, which is no longer supported; ' +
+				'use database = ["inmem"] instead',
+		);
+		const postgresMessage = message([
+			"postgres/postgres_node_repository.ts",
+			"postgres://user:s3cret@h/db",
+		]);
+		expect(postgresMessage).toContain('database = ["postgres", "<connection string>"]');
+		expect(postgresMessage).not.toContain("s3cret");
+		const mongoMessage = message([
+			"mongodb/mongodb_node_repository.ts",
+			"mongodb://user:s3cret@h:27017",
+			"antbox",
+		]);
+		expect(mongoMessage).toContain('database = ["mongodb", "<url>", "<dbname>"]');
+		expect(mongoMessage).not.toContain("s3cret");
+		expect(message(["sqlite/sqlite_node_repository.ts"])).toContain('database = ["sqlite"]');
+		expect(message(["flat_file/flat_file_node_repository.ts", "x"])).toContain(
+			'database = ["<postgres|sqlite|mongodb|inmem>", ...]',
+		);
 	});
 });

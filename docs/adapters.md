@@ -14,10 +14,11 @@ Each adapter setting is an array where the first value is the module path and re
 constructor parameters:
 
 ```toml
-repository = ["inmem/inmem_node_repository.ts"]
 storage = ["flat_file/flat_file_storage_provider.ts", "/var/lib/antbox/storage"]
-eventStoreRepository = ["inmem/inmem_event_store_repository.ts"]
 ```
+
+Persistence of nodes, configuration, and events uses a single `database` entry instead, described
+below.
 
 Rules:
 
@@ -27,19 +28,35 @@ Rules:
 - Adapters outside the project cannot use project aliases such as `domain/*` or `shared/*`. They
   must import Antbox code with relative or absolute paths.
 
+## Database
+
+Nodes, configuration (users, groups, features, agents, workflows), and the audit event store always
+live in the same backend, so a tenant declares them with one `database = [kind, ...params]` entry.
+Each of the three repositories of that backend receives exactly the parameters shown:
+
+```toml
+database = ["postgres", "postgres://user:pass@localhost:5432/antbox"] # string optional: DATABASE_URL
+database = ["sqlite", "./data"]  # nodes.db, config.db, events.db in ./data; no folder: in memory
+database = ["mongodb", "mongodb://localhost:27017", "antbox"]
+database = ["inmem"]
+```
+
+Valid kinds are `postgres`, `sqlite`, `mongodb`, and `inmem`. `flat_file` exists only as a storage
+provider, not as a database kind. Relative SQLite folders resolve from the data directory.
+There is no way to mix backends within one tenant. The old `repository`, `configurationRepository`,
+and `eventStoreRepository` keys are rejected at startup.
+
 ## Core adapter slots
 
-Per tenant, the main adapter slots are:
+Per tenant, the main settings are:
 
-- `repository` - node metadata persistence (`NodeRepository`)
+- `database` - nodes, configuration, and event store persistence
 - `storage` - file blob storage (`StorageProvider`)
-- `eventStoreRepository` - audit/event persistence (required)
-- `configurationRepository` - config entities (users, groups, features, agents, workflows)
 - `embeddingProvider` and `ocrProvider` under `[tenants.ai]` when AI features are enabled
 
 ## Common built-ins
 
-- repositories: `inmem`, `flat_file`, `mongodb`, `sqlite`, `postgres`
+- database: `postgres`, `sqlite`, `mongodb`, `inmem`
 - storage: `inmem`, `flat_file`, `google_drive`, `s3`
 - embeddings: deterministic and provider-backed adapters (for example Gemini)
 - OCR: null/text and provider-backed OCR adapters
@@ -50,6 +67,37 @@ Google Drive note:
   **Shared Drive ID**
 - the adapter is Shared Drive-only; normal My Drive folder IDs are not supported
 - see `docs/google-drive.md` for setup steps
+
+## Migrating from separate repository entries
+
+Replace the three keys with one `database` entry:
+
+```toml
+# before
+repository = ["sqlite/sqlite_node_repository.ts", "./data/repository"]
+configurationRepository = ["sqlite/sqlite_configuration_repository.ts", "./data/config"]
+eventStoreRepository = ["sqlite/sqlite_event_store_repository.ts", "./data/events"]
+
+# after
+database = ["sqlite", "./data"]
+```
+
+SQLite files now share one folder. Stop Antbox and move them before starting, otherwise it would
+open empty databases (Antbox refuses to start and prints these moves if it finds the old layout):
+
+```sh
+mv ./data/repository/nodes.db* ./data/
+mv ./data/config/config.db* ./data/
+mv ./data/events/events.db* ./data/
+```
+
+The `*` also moves the `-wal` and `-shm` files next to each database.
+
+Nothing is moved automatically.
+
+The `flat_file` node and event repositories were removed. Tenants that used them must migrate their
+data to one of the database kinds above with a release that still ships those adapters, because the
+current code cannot read that data.
 
 ## Existing repository data
 
@@ -100,28 +148,15 @@ creates a unique `uuid` index. Duplicate UUIDs, including multiple documents wit
 index creation. Review and repair those records before starting the adapter; initialization does not
 discard them.
 
-### Flat-file audit streams
-
-Audit stream writes replace their JSON file atomically before updating the in-memory stream. A
-failed write leaves the previous stream intact. Startup now fails when an existing stream cannot be
-read, parsed, or validated as audit events, preserving that file for repair instead of silently
-skipping its history. Historical extra event fields remain intact. Restore a verified backup or
-repair the affected file before restarting the tenant. Flat-file repositories are intended for a
-single process; use a database adapter for concurrent application instances.
-
 ## Remaining adapter limits
 
-- The flat-file node repository keeps embeddings and their Markdown content only in memory. Node
-  metadata survives restart, but embeddings must be regenerated before semantic search can return
-  those nodes again.
 - MongoDB vector search loads every node with an embedding and calculates similarity in the
   application. `topK` limits the returned results, not the scan or transfer; memory and query cost
   grow with the embedded collection.
 - SQLite, PostgreSQL, and MongoDB event stores replace MIME-type punctuation with underscores in
   table or collection names. For example, `application/x+a` and `application/x-a` share a namespace.
-  Flat-file event directories replace `/` with `_` and decode every `_` as `/`, so MIME types
-  containing underscores reload under a different key. These naming formats need a migration to
-  preserve distinct MIME types; existing event names are not rewritten automatically.
+  These naming formats need a migration to preserve distinct MIME types; existing event names are
+  not rewritten automatically.
 
 ## Validation scripts
 

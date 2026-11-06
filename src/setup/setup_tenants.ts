@@ -13,6 +13,7 @@ import type { NodeRepository } from "domain/nodes/node_repository.ts";
 import type { EventStoreRepository } from "domain/audit/event_store_repository.ts";
 import type { ConfigurationRepository } from "domain/configuration/configuration_repository.ts";
 import { RootPasswordSchema } from "api/http_server_configuration.ts";
+import { assertNoLegacySqliteLayout, databaseModules } from "./database_configuration.ts";
 import { providerFrom } from "adapters/module_configuration_parser.ts";
 import { FeaturesService } from "application/features/features_service.ts";
 import { FeaturesEngine } from "application/features/features_engine.ts";
@@ -65,6 +66,7 @@ const BUILTIN_SKILLS_DIR = fileURLToPath(
  */
 export async function setupTenants(
 	cfg: ServerConfiguration,
+	load: typeof providerFrom = providerFrom,
 ): Promise<AntboxTenant[]> {
 	const adminTenantName = cfg.adminTenantName === undefined
 		? cfg.tenants.find((tenant) => tenant.name === "default")?.name ?? cfg.tenants[0]?.name
@@ -72,7 +74,7 @@ export async function setupTenants(
 	const tenants: AntboxTenant[] = [];
 	const providers = new Set<unknown>();
 	const loadProvider = async <T>(configuration?: ModuleConfiguration): Promise<T | undefined> => {
-		const provider = await providerFrom<T>(configuration);
+		const provider = await load<T>(configuration);
 		if (provider) providers.add(provider);
 		return provider;
 	};
@@ -113,13 +115,15 @@ async function setupTenant(
 	const symmetricKey = await loadSymmetricKey(cfg.key ?? serverCfg.key);
 
 	const externalJwks = await loadJwks(cfg.jwks ?? serverCfg.jwks);
-	const nodeRepository = await loadProvider<NodeRepository>(cfg.repository);
+	assertNoLegacySqliteLayout(cfg.name, cfg.database);
+	const modules = databaseModules(cfg.database);
+	const nodeRepository = await loadProvider<NodeRepository>(modules.repository);
 	const storage = await loadProvider<StorageProvider>(cfg.storage);
 	const eventStoreRepository = await loadProvider<EventStoreRepository>(
-		cfg.eventStoreRepository,
+		modules.eventStoreRepository,
 	);
 	const configRepo = await loadProvider<ConfigurationRepository>(
-		cfg.configurationRepository,
+		modules.configurationRepository,
 	);
 
 	// Validate all required repositories are configured

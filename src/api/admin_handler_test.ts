@@ -11,6 +11,7 @@ import type { TenantConfiguration } from "./http_server_configuration.ts";
 import {
 	adminReloadHandler,
 	adminRuntimeHandler,
+	adminTenantsGetHandler,
 	adminTenantsUpdateHandler,
 } from "./admin_handler.ts";
 import { saveTenantConfiguration } from "setup/save_configuration.ts";
@@ -115,6 +116,51 @@ describe("adminTenantsUpdateHandler", () => {
 		}
 	});
 
+	it("keeps the database entry when saving and reading a tenant", async () => {
+		const configDir = await fs.mkdtemp(join(tmpdir(), "admin-database-test-"));
+		try {
+			await fs.writeFile(
+				join(configDir, "config.toml"),
+				stringify({
+					engine: "oak",
+					rootPasswd: "test-root",
+					key: "antbox.key",
+					jwks: "antbox.jwks",
+					tenants: [tenantConfig("default")],
+				}),
+			);
+			const database: TenantConfiguration["database"] = [
+				"mongodb",
+				"mongodb://localhost:27017",
+				"company",
+			];
+			const handler = adminTenantsUpdateHandler(
+				[createAdminTenant()],
+				() => Promise.resolve(),
+				configDir,
+			);
+
+			const saved = await handler(
+				await createAdminRequest(JSON.stringify([
+					tenantConfig("default"),
+					{ ...tenantConfig("company"), database },
+				])),
+			);
+			expect(saved.status).toBe(200);
+			expect(await fs.readFile(join(configDir, "tenants.d", "company.toml"), "utf8"))
+				.toContain('database = [ "mongodb", "mongodb://localhost:27017", "company" ]');
+
+			const read = await adminTenantsGetHandler([createAdminTenant()], configDir)(
+				await createAdminRequest(undefined, "GET"),
+			);
+			const tenants = await read.json() as TenantConfiguration[];
+			expect(tenants.find((t) => t.name === "company")?.database).toEqual(database);
+			expect(tenants.find((t) => t.name === "default")?.database).toEqual(["inmem"]);
+		} finally {
+			await fs.rm(configDir, { recursive: true });
+		}
+	});
+
 	it("rejects removing a tenant's only root password before saving", async () => {
 		const configDir = await fs.mkdtemp(join(tmpdir(), "admin-password-test-"));
 		try {
@@ -180,9 +226,7 @@ describe("adminTenantsUpdateHandler", () => {
 				name: "default",
 				key: "",
 				storage: ["inmem/inmem_storage_provider.ts"],
-				repository: ["inmem/inmem_node_repository.ts"],
-				configurationRepository: ["inmem/inmem_configuration_repository.ts"],
-				eventStoreRepository: ["inmem/inmem_event_store_repository.ts"],
+				database: ["inmem"],
 				limits: {
 					storage: 10,
 					tokens: 0,
@@ -210,9 +254,7 @@ describe("adminTenantsUpdateHandler", () => {
 				name: "default",
 				jwks: "",
 				storage: ["inmem/inmem_storage_provider.ts"],
-				repository: ["inmem/inmem_node_repository.ts"],
-				configurationRepository: ["inmem/inmem_configuration_repository.ts"],
-				eventStoreRepository: ["inmem/inmem_event_store_repository.ts"],
+				database: ["inmem"],
 				limits: {
 					storage: 10,
 					tokens: 0,
@@ -231,9 +273,7 @@ function tenantConfig(name: string): TenantConfiguration {
 	return {
 		name,
 		storage: ["inmem/inmem_storage_provider.ts"],
-		repository: ["inmem/inmem_node_repository.ts"],
-		configurationRepository: ["inmem/inmem_configuration_repository.ts"],
-		eventStoreRepository: ["inmem/inmem_event_store_repository.ts"],
+		database: ["inmem"],
 		limits: { storage: 10, tokens: 0 },
 	};
 }
@@ -249,7 +289,7 @@ function createAdminTenant(isAdminTenant = true): AntboxTenant {
 	} as unknown as AntboxTenant;
 }
 
-async function createAdminRequest(body: BodyInit): Promise<Request> {
+async function createAdminRequest(body?: BodyInit, method = "PUT"): Promise<Request> {
 	const token = await new SignJWT({})
 		.setProtectedHeader({ alg: "HS256" })
 		.setIssuedAt()
@@ -259,7 +299,7 @@ async function createAdminRequest(body: BodyInit): Promise<Request> {
 		.sign(new TextEncoder().encode(TEST_SYMMETRIC_KEY));
 
 	return new Request("http://localhost/v2/admin/tenants", {
-		method: "PUT",
+		method,
 		body,
 		headers: {
 			Authorization: `Bearer ${token}`,

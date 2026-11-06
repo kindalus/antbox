@@ -15,7 +15,7 @@ storage provider, keys, and optional AI components.
 ```
 +---------------------------------------------------------------------------------------+
 |                                       Adapters                                        |
-|  HTTP (hono) | WebDAV | Storage (inmem/flat_file/gdrive/s3) | Repos (inmem/flat_file/sqlite/postgres/mongodb) |
+|  HTTP (hono) | WebDAV | Storage (inmem/flat_file/gdrive/s3) | Database (inmem/sqlite/postgres/mongodb) |
 |  AI/OCR/Embeddings Providers | External JWKS | Docs/OpenAPI                             |
 +----------------------------------^--------------------^-------------------------------+
                                     |                    |

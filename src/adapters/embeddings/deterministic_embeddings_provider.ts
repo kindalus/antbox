@@ -1,6 +1,7 @@
 import { right } from "shared/either.ts";
 import type { Either } from "shared/either.ts";
 import type { AntboxError } from "shared/antbox_error.ts";
+import { EMBEDDING_DIMENSIONS } from "domain/nodes/embedding.ts";
 import type {
 	Embedding,
 	EmbeddingsProvider,
@@ -17,7 +18,7 @@ export class DeterministicEmbeddingsProvider implements EmbeddingsProvider {
 	readonly #dimensions: number;
 	readonly #threshold: number;
 
-	constructor(dimensions = 1536, threshold = 0.5) {
+	constructor(dimensions = EMBEDDING_DIMENSIONS, threshold = 0.5) {
 		this.#dimensions = dimensions;
 		this.#threshold = Math.max(0, Math.min(1, threshold));
 	}
@@ -77,7 +78,7 @@ export default function buildDeterministicEmbeddingsProvider(
 	dimensions?: string,
 	threshold?: string,
 ): Promise<Either<AntboxError, DeterministicEmbeddingsProvider>> {
-	const dims = dimensions ? parseInt(dimensions, 10) : 1536;
+	const dims = dimensions ? parseInt(dimensions, 10) : EMBEDDING_DIMENSIONS;
 	const parsedThreshold = threshold ? parseFloat(threshold) : 0.5;
 	return Promise.resolve(right(new DeterministicEmbeddingsProvider(dims, parsedThreshold)));
 }

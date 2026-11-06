@@ -1,3 +1,4 @@
+import { EMBEDDING_DIMENSIONS } from "domain/nodes/embedding.ts";
 import { describe, it } from "bdd";
 import { expect } from "expect";
 import { DeterministicEmbeddingsProvider } from "./deterministic_embeddings_provider.ts";
@@ -59,12 +60,12 @@ describe("DeterministicEmbeddingsProvider", () => {
 		}
 	});
 
-	it("uses default dimension of 1536", async () => {
+	it("uses the stored embedding dimension by default", async () => {
 		const defaultProvider = new DeterministicEmbeddingsProvider();
 		const result = await defaultProvider.embed(["test"]);
 		expect(result.isRight()).toBe(true);
 		if (result.isRight()) {
-			expect(result.value.embeddings[0]).toHaveLength(1536);
+			expect(result.value.embeddings[0]).toHaveLength(EMBEDDING_DIMENSIONS);
 		}
 	});
 

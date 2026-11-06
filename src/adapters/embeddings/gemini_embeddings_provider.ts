@@ -9,6 +9,7 @@ import type {
 	EmbeddingsResult,
 } from "domain/ai/embeddings_provider.ts";
 import { GoogleGenAI } from "@google/genai";
+import { EMBEDDING_DIMENSIONS } from "domain/nodes/embedding.ts";
 
 const ESTIMATED_CHARS_PER_TOKEN = 4;
 
@@ -91,7 +92,7 @@ export class GeminiEmbeddingsProvider implements EmbeddingsProvider {
 						contents: text,
 						config: {
 							taskType: "RETRIEVAL_DOCUMENT",
-							outputDimensionality: 768,
+							outputDimensionality: EMBEDDING_DIMENSIONS,
 						},
 					}),
 				]);

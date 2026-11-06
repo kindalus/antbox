@@ -1,3 +1,4 @@
+import { EMBEDDING_DIMENSIONS } from "domain/nodes/embedding.ts";
 import process from "node:process";
 import { afterAll, beforeAll, describe, test } from "bdd";
 import { expect } from "expect";
@@ -255,7 +256,10 @@ describe("touch", () => {
 		}).right;
 		expect((await repo.add(node)).isRight()).toBe(true);
 		const before = structuredClone((await repo.getById(uuid)).right.metadata);
-		const embedding = Array.from({ length: 1536 }, (_, index) => index === 0 ? 1 : 0);
+		const embedding = Array.from(
+			{ length: EMBEDDING_DIMENSIONS },
+			(_, index) => index === 0 ? 1 : 0,
+		);
 		if (repo.supportsEmbeddings()) {
 			expect((await repo.upsertEmbedding(uuid, embedding, "Retained embedding")).isRight()).toBe(
 				true,

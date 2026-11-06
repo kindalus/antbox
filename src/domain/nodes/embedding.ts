@@ -5,6 +5,12 @@
 export type Embedding = number[];
 
 /**
+ * Length of every stored embedding. Providers must emit this size: repositories with a fixed
+ * vector column, such as Postgres, reject any other.
+ */
+export const EMBEDDING_DIMENSIONS = 768;
+
+/**
  * List of MIME types supported for embedding generation
  * Files with these types will have their text content extracted and embedded
  */

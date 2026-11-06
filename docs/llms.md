@@ -56,7 +56,7 @@ eventStoreRepository = ["sqlite/sqlite_event_store_repository.ts", "default/even
 enabled = true
 defaultModel = ["google/gemini-2.5-flash"]
 sessionsPath = "default/ai-sessions"
-embeddingProvider = ["embeddings/deterministic_embeddings_provider.ts", "1536"]
+embeddingProvider = ["embeddings/deterministic_embeddings_provider.ts", "768"]
 ocrProvider = ["ocr/null_ocr_provider.ts"]
 skillsPath = "./skills"
 ```

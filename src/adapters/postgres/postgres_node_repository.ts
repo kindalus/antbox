@@ -4,7 +4,7 @@ import postgres from "postgres";
 import { NodeFactory } from "domain/node_factory.ts";
 import { Logger } from "shared/logger.ts";
 import type { NodeLike } from "domain/node_like.ts";
-import type { Embedding } from "domain/nodes/embedding.ts";
+import { type Embedding, EMBEDDING_DIMENSIONS } from "domain/nodes/embedding.ts";
 import {
 	type FilterOperator,
 	isNodeFilters2D,
@@ -76,7 +76,7 @@ export class PostgresNodeRepository implements NodeRepository {
 			await this.#sql`CREATE EXTENSION IF NOT EXISTS vector`;
 
 			// Create nodes table with embedding column
-			await this.#sql`
+			await this.#sql.unsafe(`
 				CREATE TABLE IF NOT EXISTS nodes (
 					uuid TEXT PRIMARY KEY,
 					fid TEXT NOT NULL,
@@ -84,15 +84,17 @@ export class PostgresNodeRepository implements NodeRepository {
 					parent TEXT,
 					mimetype TEXT,
 					body JSONB NOT NULL,
-					embedding vector(1536),
+					embedding vector(${EMBEDDING_DIMENSIONS}),
 					embedding_content_md TEXT
 				)
-			`;
+			`);
 
 			await this.#sql`
 				ALTER TABLE nodes
 				ADD COLUMN IF NOT EXISTS embedding_content_md TEXT
 			`;
+
+			await this.#migrateEmbeddingDimensions();
 
 			// Create indexes
 			await this.#sql`
@@ -125,6 +127,39 @@ export class PostgresNodeRepository implements NodeRepository {
 			const error = err as Error;
 			return left(new PostgresError(error.message));
 		}
+	}
+
+	/**
+	 * Resizes an embedding column created with another dimension. Its vectors cannot be compared
+	 * with the ones providers emit now, so they are dropped; those nodes are indexed again when
+	 * they next change.
+	 */
+	async #migrateEmbeddingDimensions(): Promise<void> {
+		await this.#sql.begin(async (sql) => {
+			await sql.unsafe(
+				"SELECT pg_advisory_xact_lock(hashtext('antbox_nodes_embedding_dimensions'))",
+			);
+			const [column] = await sql.unsafe<{ dimensions: number }[]>(`
+				SELECT atttypmod AS dimensions
+				FROM pg_attribute
+				WHERE attrelid = 'nodes'::regclass
+					AND attname = 'embedding'
+					AND atttypid = 'vector'::regtype
+					AND NOT attisdropped
+			`);
+			if (!column || column.dimensions === EMBEDDING_DIMENSIONS) return;
+
+			const [{ count }] = await sql.unsafe<{ count: string }[]>(
+				"SELECT count(*) FROM nodes WHERE embedding IS NOT NULL",
+			);
+			Logger.warn(
+				`PostgresNodeRepository: resizing embeddings from ${column.dimensions} to ${EMBEDDING_DIMENSIONS} dimensions, discarding ${count} stored vectors`,
+			);
+			await sql.unsafe("DROP INDEX IF EXISTS idx_nodes_embedding");
+			await sql.unsafe(
+				`ALTER TABLE nodes ALTER COLUMN embedding TYPE vector(${EMBEDDING_DIMENSIONS}) USING NULL`,
+			);
+		});
 	}
 
 	supportsEmbeddings(): boolean {

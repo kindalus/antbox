@@ -37,7 +37,7 @@ let embeddingsProvider: DeterministicEmbeddingsProvider;
 
 beforeAll(async () => {
 	// Setup AI components
-	embeddingsProvider = new DeterministicEmbeddingsProvider(1536);
+	embeddingsProvider = new DeterministicEmbeddingsProvider();
 	const ocrProvider = new NullOCRProvider();
 	const repository = new InMemoryNodeRepository();
 	const storage = new InMemoryStorageProvider();

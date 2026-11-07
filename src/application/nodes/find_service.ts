@@ -1,6 +1,7 @@
 import { EmbeddingsGeneratedEvent } from "domain/ai/embeddings_generated_event.ts";
 import type { NodeFilters, NodeFilters1D, NodeFilters2D } from "domain/nodes/node_filter.ts";
 import { isNodeFilters2D, NodeFiltersSchema } from "domain/nodes/node_filter.ts";
+import { withFulltextQueries } from "domain/nodes/fulltext.ts";
 import type { NodeFilterResult } from "domain/nodes/node_repository.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import { NodesFilters } from "domain/nodes_filters.ts";
@@ -62,7 +63,9 @@ export class FindService {
 		if (!parsed.success) {
 			return left(new BadRequestError("Invalid node filters"));
 		}
-		const normalizedFilters = isNodeFilters2D(parsed.data) ? parsed.data : [parsed.data];
+		const normalizedFilters = withFulltextQueries(
+			isNodeFilters2D(parsed.data) ? parsed.data : [parsed.data],
+		);
 		const processedFilters = await this.#resolveFilters(ctx, normalizedFilters);
 		return right(await this.context.repository.filter(processedFilters, pageSize, pageToken));
 	}

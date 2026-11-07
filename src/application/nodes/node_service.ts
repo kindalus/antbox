@@ -45,6 +45,7 @@ import { ParentFolderUpdateHandler } from "./parent_folder_update_handler.ts";
 import { calculateNodeUpdateChanges } from "./node_update_changes.ts";
 import { exportAllFiles } from "./node_export_all.ts";
 import { embeddingMarkdownBody } from "./node_markdown.ts";
+import { fulltextOf } from "domain/nodes/fulltext.ts";
 
 interface NodeUpdateOptions {
 	forceEvent?: boolean;
@@ -1129,24 +1130,7 @@ export class NodeService {
 
 		fulltext.push(...await this.nodeAspectRules.searchableValues(node));
 
-		const parts = fulltext
-			.join(" ")
-			.toLocaleLowerCase()
-			.replace(/[áàâäãå]/g, "a")
-			.replace(/[ç]/g, "c")
-			.replace(/[éèêë]/g, "e")
-			.replace(/[íìîï]/g, "i")
-			.replace(/ñ/g, "n")
-			.replace(/[óòôöõ]/g, "o")
-			.replace(/[úùûü]/g, "u")
-			.replace(/[ýÿ]/g, "y")
-			.replace(/[\W\._]/g, " ")
-			.replace(/(^|\s)\w{1,2}\s/g, " ")
-			.replace(/\s+/g, " ")
-			.trim()
-			.split(" ");
-
-		return Array.from(new Set(parts)).join(" ");
+		return fulltextOf(fulltext);
 	}
 
 	#mapAntboxMimetypes(mimetype: string): string {

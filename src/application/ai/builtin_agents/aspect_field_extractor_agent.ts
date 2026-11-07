@@ -11,13 +11,13 @@ Your goal is to extract structured property values from a document, returning a 
 ## Input
 
 You will receive:
-1. **Document content** in markdown format
+1. **Document content** in markdown format. It starts with YAML frontmatter holding the node's metadata (title, description, tags, ...); the extracted document text, when available, follows it
 2. **Aspect definition** as a JSON object with a \`properties\` array
 
 Each property in the aspect definition has:
-- \`name\`: the property identifier
+- \`name\`: the property identifier (kebab-case); use it unchanged as the key in your answer
 - \`title\`: human-readable label
-- \`type\`: one of "string", "number", "boolean", "date", "array"
+- \`type\`: one of "string", "number", "boolean", "date", "uuid", "object", "array"
 - \`arrayType\`: (if type is "array") element type \u2014 "string", "number", or "uuid"
 - \`validationList\`: (optional) array of allowed string or numeric values \u2014 you MUST pick from this list if present
 - \`validationRegex\`: (optional) regex the value must match
@@ -31,6 +31,8 @@ Each property in the aspect definition has:
    - \`number\`: return a numeric value
    - \`boolean\`: return true or false
    - \`date\`: return an ISO 8601 date string (e.g., "2024-03-15")
+   - \`uuid\`: return the identifier of an existing Antbox node, only if the content states it exactly; never invent one
+   - \`object\`: return a JSON object
    - \`array\`: return an array of the specified \`arrayType\`
 3. If a property has a \`validationList\`, you MUST choose an exact value from that list, preserving its JSON type. If no value in the list matches the content, omit the property.
 4. If a property has a \`validationRegex\`, the extracted value must match the regex pattern. If you cannot extract a conforming value, omit the property.
@@ -54,23 +56,23 @@ Each property in the aspect definition has:
 \`\`\`json
 {
   "properties": [
-    {"name": "invoiceNumber", "title": "Invoice Number", "type": "string"},
-    {"name": "issueDate", "title": "Issue Date", "type": "date"},
+    {"name": "invoice-number", "title": "Invoice Number", "type": "string"},
+    {"name": "issue-date", "title": "Issue Date", "type": "date"},
     {"name": "vendor", "title": "Vendor", "type": "string"},
-    {"name": "totalAmount", "title": "Total Amount", "type": "number"},
+    {"name": "total-amount", "title": "Total Amount", "type": "number"},
     {"name": "status", "title": "Status", "type": "string", "validationList": ["Draft", "Sent", "Paid", "Overdue"]},
     {"name": "items", "title": "Items", "type": "array", "arrayType": "string"},
-    {"name": "approvedBy", "title": "Approved By", "type": "string"}
+    {"name": "approved-by", "title": "Approved By", "type": "string"}
   ]
 }
 \`\`\`
 
 **Expected output:**
 \`\`\`json
-{"invoiceNumber":"2024-0042","issueDate":"2024-03-15","vendor":"Acme Supplies Ltd.","totalAmount":1250,"status":"Paid","items":["Paper (500 sheets)","Toner cartridge","Stapler"]}
+{"invoice-number":"2024-0042","issue-date":"2024-03-15","vendor":"Acme Supplies Ltd.","total-amount":1250,"status":"Paid","items":["Paper (500 sheets)","Toner cartridge","Stapler"]}
 \`\`\`
 
-Note: \`approvedBy\` is omitted because the document does not mention an approver.
+Note: \`approved-by\` is omitted because the document does not mention an approver.
 `;
 
 export const ASPECT_FIELD_EXTRACTOR_AGENT: AgentData = {

@@ -166,8 +166,11 @@ Minimal aspect file:
 ```
 
 The create response contains the resolved aspect UUID. Use that UUID in node `aspects` and
-`properties` keys. `validationList` accepts string enum values for string fields and numeric enum
-values for number fields.
+`properties` keys. `title` needs at least 3 characters; `filters` is required (`[]` when omitted)
+and, like `validationFilters`, accepts only filter arrays without `fulltext`. There is no update
+endpoint: uploading the same `uuid` again replaces the aspect. `validationList` is checked only for
+`string`, `number` and `array<string>` properties, with a strict type match (`100` is not `"100"`).
+See `nodes-and-aspects` for every validation rule.
 
 ### Attribute an aspect to a node
 
@@ -187,8 +190,12 @@ Critical rules:
 
 - property keys must be prefixed: `${aspectUuid}:${propertyName}`
 - aspect property names must be kebab-case: `/^[a-z][a-z0-9-]{2,}$/`
-- when `aspects` changes, properties not belonging to selected aspects are dropped
-- readonly aspect properties cannot be overridden by regular updates
+- on every create and update, `properties` keeps only the keys declared by the node's current
+  aspects; a node without aspects gets `properties: {}`
+- on update, supplied properties are merged into the stored ones; `null` removes a key or resets
+  it to its `defaultValue`
+- readonly aspect properties can only be set on create or in the update that adds the aspect;
+  later updates silently discard new values (the stored value, if any, is kept)
 - uuid/uuid[] aspect properties are existence-validated against nodes
 
 ## 6. Features: Generation with Action/Extension/AI Tool Focus
@@ -266,6 +273,8 @@ Required in `module.default`:
 - `authenticationContext`
 - `nodeService` (`NodeServiceProxy`)
 - `logger` (`Logger.instance(...)` scoped to the feature and tenant)
+- `requestUrl` (optional `Readonly<URL>`, HTTP extensions only, without query parameters or
+  credentials)
 
 Best practice for generation:
 
@@ -519,7 +528,7 @@ export default async function ({ nodes, aspects, custom }) {
 `nodes` SDK methods:
 
 - `copy`, `create`, `createFile`, `delete`, `duplicate`, `export`, `exportAll`, `evaluate`
-- `find`, `get`, `list`, `breadcrumbs`
+- `find`, `semanticQuery`, `get`, `getEmbeddingContents`, `list`, `breadcrumbs`
 - `update`, `updateFile`, `lock`, `unlock`
 
 `aspects` SDK methods:

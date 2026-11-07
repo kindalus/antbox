@@ -26,9 +26,11 @@ All node types share these fields:
 - `mimetype`, `parent`, `owner`
 - `createdTime`, `modifiedTime`
 - `tags`
-- `aspects`, `properties`, `related`
 - `locked`, `lockedBy`, `unlockAuthorizedGroups`
 - `workflowInstanceUuid`, `workflowState`
+
+Files, folders, meta nodes, and articles also have `aspects`, `properties`, and `related`. Smart
+folders do not: they cannot carry aspects.
 
 `locked`, `lockedBy`, and `unlockAuthorizedGroups` are output-only metadata. Use the lock and unlock
 operations to change lock state; creation and metadata updates ignore those fields. Copies start
@@ -153,24 +155,52 @@ curl --fail-with-body "$BASE_URL/v2/nodes/-/export-all" \
 ## Aspects
 
 Aspects are **configuration records**, not nodes. They define reusable metadata schemas that can be
-applied to nodes.
+applied to nodes. They have no node mimetype and are not returned by node searches.
 
-Note: creating, updating, or deleting aspects is restricted to admins. Listing and fetching aspects
-is available to all users.
+### Aspect Endpoints
+
+| Method and path                   | Access | Description                                       |
+| --------------------------------- | ------ | ------------------------------------------------- |
+| `GET /v2/aspects`                 | all    | List built-in and custom aspects, sorted by title |
+| `GET /v2/aspects/{uuid}`          | all    | Get one aspect                                    |
+| `POST /v2/aspects/-/upload`       | admin  | Create or replace an aspect from a JSON file      |
+| `DELETE /v2/aspects/{uuid}`       | admin  | Delete an aspect                                  |
+| `GET /v2/aspects/{uuid}/-/export` | all    | Download the aspect as `<uuid>.json`              |
+
+There is no update endpoint. Upload the full aspect again with the same `uuid` to change it: the
+upload replaces the stored aspect (no merge) and resets both `createdTime` and `modifiedTime`.
+
+The upload is `multipart/form-data` with the JSON file in the `file` field:
+
+```bash
+curl --fail-with-body "$BASE_URL/v2/aspects/-/upload" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Tenant: $TENANT" \
+  -F "file=@./book.json;type=application/json"
+```
+
+The `uuid` comes from the JSON `uuid` field. When it is missing, Antbox uses the uploaded file name
+without its last extension, with spaces replaced by `-` (`book.json` becomes `book`). The result
+must match `^([a-z][a-z0-9-]{3,}|--[a-z][a-z0-9-]+--)$`: kebab-case with at least 4 characters.
+The `--name--` form is the convention for built-in aspects; upload does not block it, but do not use
+it for your own aspects.
 
 ### AspectData
 
 ```ts
 interface AspectData {
-	uuid: string; // generated on create
-	title: string;
+	uuid: string; // from the JSON "uuid" or the uploaded file name, see above
+	title: string; // at least 3 characters
 	description?: string;
-	filters: NodeFilters; // enforced constraints for nodes using the aspect
-	properties: AspectProperty[];
+	filters: NodeFilters; // required; [] when omitted on upload
+	properties: AspectProperty[]; // [] when omitted on upload
 	createdTime: string;
 	modifiedTime: string;
 }
 ```
+
+`filters` and `validationFilters` accept only filter arrays (1D for AND, 2D for OR), not filter
+strings. They are checked against one node at a time, so `fulltext` filters are rejected in both.
 
 ### AspectProperty
 
@@ -178,7 +208,7 @@ interface AspectData {
 interface AspectProperty {
 	name: string; // kebab-case, /^[a-z][a-z0-9-]{2,}$/
 	title: string;
-	type: "uuid" | "string" | "number" | "boolean" | "object" | "array" | "date" | "file";
+	type: "uuid" | "string" | "number" | "boolean" | "object" | "array" | "date";
 	arrayType?: "string" | "number" | "uuid";
 	contentType?: string;
 	readonly?: boolean;
@@ -194,9 +224,31 @@ interface AspectProperty {
 Array properties require arrays. When `arrayType` is present, every element must have that type;
 UUID values use Antbox identifiers and must reference existing nodes. Invalid UUID shapes are
 rejected before reference lookups. Optional properties may be absent, `null`, or an empty string.
+An empty string passes validation for every type (including `number`, `boolean`, and `date`) and is
+stored as-is: it is not treated as missing, so `defaultValue` is not applied, and on a `number`
+property it behaves inconsistently in range filters. To clear a value, set it to `null`.
 Date properties accept ISO dates (`2026-10-22`) and ISO timestamps, including UTC, explicit offsets,
 or local time (`2026-10-22T12:30`). Invalid calendar dates and ambiguous numeric strings are
-rejected. Object properties require JSON objects rather than arrays or scalar values.
+rejected. Object properties require JSON objects rather than arrays or scalar values. `string`,
+`number`, and `boolean` values must already have that JSON type; they are not coerced.
+
+Validation fields:
+
+- `required`: the value cannot be absent, `null`, or an empty string.
+- `validationList`: checked only for `string`, `number`, and `array` with `arrayType: "string"`;
+  ignored for other types, including `array` of numbers. Matching is strict: `100` does not match
+  `"100"`. Each element of an array must be in the list.
+- `validationRegex`: checked only for `string` and `array` with `arrayType: "string"` (each
+  element). It must be a valid JavaScript regular expression. Upload does not check it, and an
+  invalid one makes validation throw, so creating or updating a node with that aspect fails with
+  an unexpected error.
+- `validationFilters`: checked only for `uuid` and `array` with `arrayType: "uuid"`. Every
+  referenced node must satisfy the filters. Filters on `@` (parent folder) fields are ignored.
+- `readonly`: the value can only be set when the node is created or in the update that adds the
+  aspect to the node. In any later update, the supplied value is replaced by the stored one; when
+  nothing is stored, the key is dropped (or set to `defaultValue`). The update still succeeds, so
+  the write is silently discarded.
+- `defaultValue`: applied when the value is absent or `null` (not when it is an empty string).
 
 Existing records are not repaired automatically. Stored metadata with malformed collection shapes,
 invalid aspect UUIDs or objects, or non-ISO dates may need correction before the next edit passes
@@ -209,8 +261,11 @@ existing nodes. Searchable object and array values are indexed as JSON text. See
 
 ### Example Aspect
 
+Save as `book.json` and upload it with `POST /v2/aspects/-/upload`:
+
 ```json
 {
+	"uuid": "book",
 	"title": "Book",
 	"description": "Metadata for books",
 	"filters": [],
@@ -229,10 +284,63 @@ all nodes.
 
 ```json
 {
-	"aspects": ["<aspect-uuid>"],
+	"aspects": ["book"],
 	"properties": {
-		"<aspect-uuid>:author": "Jane Doe",
-		"<aspect-uuid>:isbn": "978-1-2345-6789-0"
+		"book:author": "Jane Doe",
+		"book:isbn": "978-1-2345-6789-0"
 	}
 }
 ```
+
+On every create and update, `properties` is reduced to the keys declared by the node's current
+aspects; other keys are dropped. A node without aspects always has `properties: {}`.
+
+On update, the supplied `properties` are merged into the stored ones, so omitted keys keep their
+values. Setting a key to `null` removes it, or resets it to the property's `defaultValue` when
+there is one. Removing an aspect from `aspects` drops its properties.
+
+### Changing or Deleting an Aspect
+
+- Re-uploading an aspect does not re-validate or reindex the nodes that use it. The new rules apply
+  on each node's next update, which can then fail validation.
+- Deleting an aspect does not change the nodes that use it. Their next update fails with
+  `Aspect(s) not found: <uuid>` unless that update also removes the uuid from `aspects`. Creating a
+  node with a missing aspect fails the same way.
+
+### Filling Aspects with AI (`auto_tag`)
+
+`auto_tag` is a built-in action, run manually. It needs AI to be configured for the tenant.
+
+```bash
+curl --fail-with-body "$BASE_URL/v2/actions/auto_tag/-/run" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Tenant: $TENANT" \
+  -H "Content-Type: application/json" \
+  -d '{"uuids":["node-1"],"parameters":{"aspects":["book"]}}'
+```
+
+Both `uuids` (nodes) and `aspects` (aspect uuids) are required, non-empty string arrays. For each
+readable node and each aspect, `auto_tag`:
+
+1. reads the node's stored content markdown. Every node has one: its frontmatter (the node's
+   metadata), followed by the text extracted from the file once AI indexing has processed it.
+   Nodes without extracted text are tagged from their metadata alone;
+2. sends that markdown and the aspect definition to the built-in `--aspect-field-extractor--`
+   agent;
+3. keeps only the returned keys that are property names declared by the aspect. When none is left,
+   the node is skipped for that aspect: it is not updated and the aspect is not added;
+4. updates the node, adding the aspect to `aspects` if needed and merging the values into
+   `properties`. The update goes through the usual validation.
+
+Each aspect is one update, validated as a whole. If a required property was not extracted and has
+no stored or default value, an extracted value has the wrong type or is not allowed, a `uuid` value
+does not reference an existing node, or the node does not satisfy the aspect's `filters`, the update
+is rejected and every value extracted for that aspect is lost. When the node already has the
+aspect, extracted values for `readonly` properties are ignored. An aspect with an invalid
+`validationRegex` makes validation throw instead of failing cleanly, which stops the whole action
+with an error (updates already made are kept).
+
+Values are not coerced. Missing parameters or an unavailable agents engine return an error. Any
+other failure (unreadable node, missing aspect, agent error, unparsable answer, rejected update) is
+only logged and the next node or aspect is processed: the action still reports success. Check the
+nodes afterwards to see which were updated.

@@ -214,5 +214,5 @@ curl -sS -X POST "$BASE_URL/mcp" \
   -H "X-Tenant: $TENANT" \
   -H "Authorization: Bearer $MCP_TOKEN" \
   -H "Content-Type: application/json" \
-  -d "{\"jsonrpc\":\"2.0\",\"id\":5,\"method\":\"tools/call\",\"params\":{\"name\":\"nodes.find\",\"arguments\":{\"filters\":[[\"parent\",\"==\",\"root\"]],\"pageSize\":10,\"pageToken\":1},$META}}"
+  -d "{\"jsonrpc\":\"2.0\",\"id\":5,\"method\":\"tools/call\",\"params\":{\"name\":\"nodes.find\",\"arguments\":{\"filters\":[[\"parent\",\"==\",\"--root--\"]],\"pageSize\":10,\"pageToken\":1},$META}}"
 ```

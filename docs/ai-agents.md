@@ -56,7 +56,8 @@ Tool rules:
 Every tenant exposes built-in agents such as:
 
 - `--rag-agent--`
-- `--aspect-field-extractor--`
+- `--aspect-field-extractor--` (used by the built-in `auto_tag` action, see
+  [Filling Aspects with AI](nodes-and-aspects.md#filling-aspects-with-ai-auto_tag))
 - `--code-writer--`
 
 Built-in agents can be listed and fetched, but cannot be updated or deleted.

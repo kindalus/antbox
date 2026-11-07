@@ -17,7 +17,7 @@ import type { AspectsService } from "../aspects/aspects_service.ts";
 import type { FeaturesService } from "../features/features_service.ts";
 import { NodeServiceProxy } from "../nodes/node_service_proxy.ts";
 import { AspectServiceProxy } from "../aspects/aspect_service_proxy.ts";
-import { createRunCodeTool } from "./builtin_tools/run_code.ts";
+import { createRunCodeTool, RUN_CODE_DESCRIPTION } from "./builtin_tools/run_code.ts";
 import type { LoadedSkill } from "./skills_loader.ts";
 import { createSkillReadTool, SKILL_READ_TOOL_NAME } from "./skill_read_tool.ts";
 import type { FeatureAIToolExecutor } from "./agents_engine_interface.ts";
@@ -129,8 +129,7 @@ async function buildAllToolEntries(
 			tool: {
 				name: "run_code",
 				label: "Run code",
-				description:
-					"Execute JavaScript/TypeScript code for advanced multi-step workflows involving nodes and aspects.",
+				description: RUN_CODE_DESCRIPTION,
 				parameters: Type.Object({
 					code: Type.String({
 						minLength: 1,
@@ -152,7 +151,7 @@ async function buildAllToolEntries(
 				name: "find_nodes",
 				label: "Find nodes",
 				description:
-					'Find nodes by plain-text search, or by structured filters as a JSON-encoded array of [field, operator, value] tuples (e.g. \'[["title","contains","policy"]]\').',
+					'Find nodes. filters is either a JSON-encoded array of [field, operator, value] tuples (1D = AND, 2D = OR; e.g. \'[["title","match","policy"],["tags","contains","urgent"]]\') or a string: "?text" runs a semantic search, filter notation such as "inv-uuid:status == open, size > 1000" is parsed as filters, and any other text runs a full-text search. In notation, == / != / in values and booleans stay text (so "inv-uuid:amount == 100" or "inv-uuid:paid == true" match nothing); use the JSON array form for typed values. Use "match" for text fields and "contains" only on arrays such as tags and aspects: on strings its result differs per database. Aspect properties are keyed "aspectUuid:propertyName"; a field starting with "@" filters on the parent folder (e.g. ["@title","==","Invoices"]). To list aspect definitions, use run_code with its aspects SDK.',
 				parameters: Type.Object({
 					filters: Type.String({
 						minLength: 1,

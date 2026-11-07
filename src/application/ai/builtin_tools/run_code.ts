@@ -10,23 +10,23 @@ export interface RunCodeSDKs {
 
 export type RunCodeFunction = (code: string) => Promise<string>;
 
-/**
- * FeatureData definition for the run_code tool
- */
-export const RUN_CODE_TOOL: Partial<FeatureData> = {
-	uuid: "run_code",
-	title: "run_code",
-	description:
-		`Execute JavaScript/TypeScript code to interact with the platform. The code must be an ESM (ECMAScript Module) that exports a single default async function.
+/** Description shown to agents for the run_code tool. */
+export const RUN_CODE_DESCRIPTION =
+	`Execute JavaScript/TypeScript code for advanced multi-step workflows involving nodes and aspects. The code must be an ESM (ECMAScript Module) that exports a single default async function.
 
 The function receives an object with three SDKs: { nodes, aspects, custom }
+- nodes: NodeServiceProxy (find, get, list, create, update, ...)
+- aspects: AspectServiceProxy (listAspects, get), the only way to read aspect definitions
+- custom: reserved, currently empty
+Every SDK call returns an Either: check isLeft() before reading value. Read the sdk-consumer skill for full signatures.
 The function must return a Promise<string>
 
 Example:
 export default async function({ nodes, aspects, custom }) {
   // Find all aspects
-  const allAspects = await aspects.listAspects();
-  const targetAspect = allAspects.find(a => a.title.includes('Cliente'));
+  const aspectsOrErr = await aspects.listAspects();
+  if (aspectsOrErr.isLeft()) return JSON.stringify({ error: aspectsOrErr.value.message });
+  const targetAspect = aspectsOrErr.value.find(a => a.title.includes('Cliente'));
 
   if (!targetAspect) return JSON.stringify({ error: 'Aspect not found' });
 
@@ -35,7 +35,15 @@ export default async function({ nodes, aspects, custom }) {
   if (result.isLeft()) return JSON.stringify({ error: result.value.message });
 
   return JSON.stringify({ count: result.value.nodes.length, nodes: result.value.nodes });
-}`,
+}`;
+
+/**
+ * FeatureData definition for the run_code tool
+ */
+export const RUN_CODE_TOOL: Partial<FeatureData> = {
+	uuid: "run_code",
+	title: "run_code",
+	description: RUN_CODE_DESCRIPTION,
 	parameters: [
 		{
 			name: "code",

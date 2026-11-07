@@ -97,6 +97,10 @@ export default {
 - `ctx.logger` (`Logger` instance scoped to the feature/tenant)
 - `ctx.requestUrl` (`Readonly<URL>`, HTTP extensions only)
 
+There is no aspects SDK in a feature context: read aspect definitions with `GET /v2/aspects`, or
+use the agents' `run_code` tool, which is the only place that receives `aspects`. Aspect values are
+still read and written through `ctx.nodeService` (node `aspects` and `properties`).
+
 `ctx.requestUrl` comes from the URL received by the HTTP adapter. Antbox does not use `Forwarded` or
 `X-Forwarded-*` to build it. It contains the actual `origin` and `pathname`, including any mounted
 prefix visible to Antbox. Antbox removes user info, query parameters, and fragments before running
@@ -184,6 +188,8 @@ curl -sS -X POST "$BASE_URL/v2/features/-/upload" \
 - List actions: `GET /v2/actions`
 - Run action: `POST /v2/actions/{uuid}/-/run` with body `{ uuids: [...], parameters?: {...} }`
 - Every action must declare a required `uuids` parameter as `array<string>` in `parameters`
+- Built-in action `auto_tag` fills aspect properties with AI; see
+  [Filling Aspects with AI](nodes-and-aspects.md#filling-aspects-with-ai-auto_tag)
 
 Automatic triggers (all require `exposeAction: true`):
 

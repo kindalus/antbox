@@ -39,21 +39,29 @@ The function receives:
 - `export(uuid)`
 - `exportAll(uuids)` — returns a ZIP `File` (100 distinct identifiers / 100 MiB limit)
 - `evaluate(uuid)`
-- `find(filters, pageSize?, pageToken?)`
+- `find(filters, pageSize?, pageToken?)` — `{ nodes, pageSize, pageToken, scores? }`
+- `semanticQuery(text)` — top 10 `RagDocument`s (`uuid`, `title`, `content`, `score`)
 - `get(uuid)`
+- `getEmbeddingContents(uuids)` — stored markdown keyed by readable node UUID
 - `list(parent?)`
-- `breadcrumbs(uuid)`
-- `update(uuid, metadata)`
-- `updateFile(uuid, file)`
-- `lock(uuid, unlockAuthorizedGroups?)`
-- `unlock(uuid)`
+- `breadcrumbs(uuid)` — `{ uuid, title }[]`
+- `update(uuid, metadata)` — no value on success; call `get` to read the node
+- `updateFile(uuid, file)` — no value on success
+- `lock(uuid, unlockAuthorizedGroups?)`, `unlock(uuid)` — no value on success
 
-`find` accepts either normal filters or semantic query string (`"?query text"`).
+`find` accepts filter arrays, a semantic query string (`"?query text"`), filter notation
+(`"inv-uuid:status == open"`), or other text, which runs a full-text search. `pageToken` is the
+page number: request `pageToken + 1` until a page has fewer than `pageSize` nodes.
 
 ## `aspects` SDK methods
 
-- `listAspects()`
+- `listAspects()` — `Either` with every aspect, sorted by title
 - `get(uuid)`
+
+Both are read-only: aspects are configuration records, not nodes, and only admins create, replace,
+or delete them over REST (see `nodes-and-aspects`). `aspects` exists only in `run_code`; feature
+`run(ctx, args)` receives `authenticationContext`, `nodeService`, `logger`, and an optional
+`requestUrl`, but no aspects SDK.
 
 ## Error handling (`Either`)
 
@@ -79,4 +87,9 @@ return JSON.stringify(nodeOrErr.value);
 
 - proxies bind the current authentication context.
 - code cannot inject arbitrary credentials to bypass platform ACL checks.
-- node and aspect permissions are enforced exactly as regular API calls.
+- node and aspect permissions are checked by the same services as regular API calls, with one
+  difference for stored text. `GET /v2/nodes/{uuid}/-/content-md` requires **Read** and **Export**
+  on the parent folder, but `getEmbeddingContents`, `semanticQuery` (and the `semantic_search`
+  tool), and the built-in `auto_tag` and `call_agent` actions return a node's stored markdown,
+  including the text extracted from the file, with **Read** only. `export` and `exportAll` still
+  require **Export**.

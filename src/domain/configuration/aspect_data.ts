@@ -11,7 +11,7 @@ export interface AspectProperty {
 	 */
 	name: string;
 	title: string;
-	type: "uuid" | "string" | "number" | "boolean" | "object" | "array" | "date" | "file";
+	type: "uuid" | "string" | "number" | "boolean" | "object" | "array" | "date";
 	arrayType?: "string" | "number" | "uuid";
 	contentType?: string;
 	readonly?: boolean;

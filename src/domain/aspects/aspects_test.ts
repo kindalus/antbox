@@ -413,7 +413,6 @@ describe("Aspects", () => {
 				{ name: "uuid-prop", title: "UUID Property", type: "uuid" },
 				{ name: "object_prop", title: "Object Property", type: "object" },
 				{ name: "array_prop", title: "Array Property", type: "array" },
-				{ name: "file_prop", title: "File Property", type: "file" },
 			];
 
 			const aspect = createMockAspectData(properties);
@@ -423,7 +422,6 @@ describe("Aspects", () => {
 				[`${aspect.uuid}:uuid-prop`]: "some-uuid",
 				[`${aspect.uuid}:object_prop`]: { key: "value" },
 				[`${aspect.uuid}:array_prop`]: [1, 2, 3],
-				[`${aspect.uuid}:file_prop`]: "file-reference",
 			});
 
 			const result = specification.isSatisfiedBy(node);

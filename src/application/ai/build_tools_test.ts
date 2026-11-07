@@ -47,6 +47,14 @@ describe("buildToolSet", () => {
 		expect((built.value.tools[0].parameters as { type?: string }).type).toBe("object");
 	});
 
+	it("describes the run_code SDK contract to the model", async () => {
+		const built = await buildToolSet(context(), agent({ tools: ["run_code"] }), authContext);
+		if (built.isLeft()) throw built.value;
+		const runCode = built.value.tools.find((tool) => tool.name === "run_code");
+		expect(runCode?.description).toContain("{ nodes, aspects, custom }");
+		expect(runCode?.description).toContain("isLeft()");
+	});
+
 	it("loads only skills allowed for the agent", async () => {
 		const builtinSkillsDir = fileURLToPath(new URL("./builtin_skills", import.meta.url));
 		const skills = await loadSkills(builtinSkillsDir, undefined, {

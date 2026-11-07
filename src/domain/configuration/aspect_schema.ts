@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { Aspects } from "domain/aspects/aspects.ts";
+import type { AspectProperty } from "domain/configuration/aspect_data.ts";
 import {
 	FULLTEXT_FILTER_ERROR,
 	hasFulltextFilter,
@@ -28,6 +30,48 @@ const AspectPropertySchema = z.object({
 	validationFilters: NodeFiltersSchema.optional(),
 	required: z.boolean().optional(),
 	defaultValue: z.union([z.string(), z.number(), z.boolean()]).optional(),
+}).superRefine((property, ctx) => {
+	const regexError = property.validationRegex === undefined
+		? undefined
+		: Aspects.regexError(property.validationRegex);
+	if (regexError) {
+		ctx.addIssue({
+			code: "custom",
+			path: ["validationRegex"],
+			message:
+				`validationRegex of property '${property.name}' is not a valid JavaScript regular expression: ${regexError}`,
+		});
+	}
+
+	// A default that breaks the property's own rules would make every node without a value invalid.
+	if (property.defaultValue === undefined || regexError) return;
+	const valid = Aspects.validateValue(property as AspectProperty, property.defaultValue);
+	const reason = property.defaultValue === "" && property.type !== "string"
+		? `an empty string is not a ${property.type} value`
+		: valid.isLeft()
+		? valid.value.message
+		: undefined;
+	if (reason) {
+		ctx.addIssue({
+			code: "custom",
+			path: ["defaultValue"],
+			message: `defaultValue of property '${property.name}' is invalid: ${reason}`,
+		});
+	}
+});
+
+const AspectPropertiesSchema = z.array(AspectPropertySchema).superRefine((properties, ctx) => {
+	const seen = new Set<string>();
+	for (const [index, property] of properties.entries()) {
+		if (seen.has(property.name)) {
+			ctx.addIssue({
+				code: "custom",
+				path: [index, "name"],
+				message: `Duplicate property name '${property.name}'`,
+			});
+		}
+		seen.add(property.name);
+	}
 });
 
 // Schema for AspectData
@@ -39,7 +83,7 @@ export const AspectDataSchema = z.object({
 	title: z.string().min(3, "Aspect title must be at least 3 characters"),
 	description: z.string().optional(),
 	filters: NodeFiltersSchema,
-	properties: z.array(AspectPropertySchema),
+	properties: AspectPropertiesSchema,
 	createdTime: z.string(),
 	modifiedTime: z.string(),
 });

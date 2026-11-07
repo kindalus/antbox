@@ -250,6 +250,70 @@ describe("FeaturesEngine", () => {
 		}
 	});
 
+	it("feature filters evaluate @ conditions against the node's parent folder", async () => {
+		const harness = createHarness();
+		for (const [uuid, title] of [["invoices-folder", "Invoices"], ["other-folder", "Other"]]) {
+			await harness.nodeService.create(adminCtx, {
+				uuid,
+				title,
+				mimetype: Nodes.FOLDER_MIMETYPE,
+				parent: Nodes.ROOT_FOLDER_UUID,
+			});
+		}
+		for (
+			const [uuid, parent] of [["in-invoices", "invoices-folder"], ["in-other", "other-folder"]]
+		) {
+			await harness.nodeService.createFile(
+				adminCtx,
+				new File(["content"], `${uuid}.txt`, { type: "text/plain" }),
+				{ uuid, title: `${uuid}.txt`, mimetype: "text/plain", parent },
+			);
+		}
+
+		const filters: FeatureData["filters"] = [
+			["@title", "==", "Invoices"],
+			["mimetype", "==", "text/plain"],
+		];
+		const manual = await createFeature(harness, {
+			filters,
+			run: createFeatureRun({ runBody: "return { uuids: args.uuids };" }),
+		});
+		const result = await harness.engine.runAction<{ uuids: string[] }>(
+			adminCtx,
+			manual,
+			["in-invoices", "in-other"],
+		);
+		expect(result.isRight()).toBe(true);
+		if (result.isRight()) expect(result.value.uuids).toEqual(["in-invoices"]);
+
+		await createFeature(harness, {
+			filters,
+			runOnCreates: true,
+			runManually: false,
+			run: createFeatureRun({
+				runBody: `
+					await ctx.nodeService.update(args.uuids[0], { description: "tagged" });
+					return {};
+				`,
+			}),
+		});
+		for (
+			const [uuid, parent] of [["new-invoice", "invoices-folder"], ["new-other", "other-folder"]]
+		) {
+			await harness.nodeService.createFile(
+				adminCtx,
+				new File(["content"], `${uuid}.txt`, { type: "text/plain" }),
+				{ uuid, title: `${uuid}.txt`, mimetype: "text/plain", parent },
+			);
+		}
+		const tagged = (uuid: string) => async () => {
+			const node = await harness.nodeService.get(adminCtx, uuid);
+			return node.isRight() && node.value.description === "tagged";
+		};
+		expect(await waitFor(tagged("new-invoice"), 1200)).toBe(true);
+		expect(await tagged("new-other")()).toBe(false);
+	});
+
 	it("runAction rejects features not exposed as action", async () => {
 		const harness = createHarness();
 		const featureUuid = await createFeature(harness, {

@@ -586,4 +586,135 @@ describe("AspectsService", () => {
 			}
 		});
 	});
+
+	describe("property validation at upload", () => {
+		const property = (overrides: Partial<AspectProperty>): AspectProperty => ({
+			name: "field",
+			title: "Field",
+			type: "string",
+			...overrides,
+		});
+
+		const create = (properties: AspectProperty[]) =>
+			new AspectsService(new InMemoryConfigurationRepository()).createAspect(
+				adminCtx,
+				createAspectInput({ properties }),
+			);
+
+		it("rejects a validationRegex that is not a valid JavaScript regular expression", async () => {
+			const result = await create([property({ validationRegex: "[unclosed" })]);
+
+			expect(result.isLeft()).toBe(true);
+			expect(errorMessage(result.value)).toContain("properties.0.validationRegex");
+			expect(errorMessage(result.value)).toContain("property 'field'");
+		});
+
+		it("rejects an invalid validationRegex on update and keeps the stored aspect", async () => {
+			const repo = new InMemoryConfigurationRepository();
+			const service = new AspectsService(repo);
+			const created = await service.createAspect(
+				adminCtx,
+				createAspectInput({ properties: [property({ validationRegex: "^a" })] }),
+			);
+			if (created.isLeft()) throw created.value;
+
+			const updated = await service.updateAspect(adminCtx, created.value.uuid, {
+				properties: [property({ validationRegex: "(" })],
+			});
+
+			expect(updated.isLeft()).toBe(true);
+			expect((await service.getAspect(adminCtx, created.value.uuid)).right.properties[0])
+				.toMatchObject({ validationRegex: "^a" });
+		});
+
+		it("rejects a defaultValue that does not satisfy the property rules", async () => {
+			for (
+				const invalid of [
+					property({ type: "number", defaultValue: "abc" }),
+					property({ type: "number", defaultValue: "" }),
+					property({ type: "boolean", defaultValue: 1 }),
+					property({ type: "date", defaultValue: "yesterday" }),
+					property({ type: "uuid", defaultValue: "not a uuid!" }),
+					property({ type: "array", arrayType: "string", defaultValue: "a" }),
+					property({ type: "object", defaultValue: "a" }),
+					property({ validationList: ["a", "b"], defaultValue: "c" }),
+					property({ type: "number", validationList: [1, 2], defaultValue: 3 }),
+					property({ validationRegex: "^[0-9]+$", defaultValue: "abc" }),
+				]
+			) {
+				const result = await create([invalid]);
+				expect(result.isLeft(), JSON.stringify(invalid)).toBe(true);
+				expect(errorMessage(result.value)).toContain("properties.0.defaultValue");
+			}
+		});
+
+		it("accepts a defaultValue that satisfies the property rules", async () => {
+			for (
+				const valid of [
+					property({ type: "number", defaultValue: 0 }),
+					property({ type: "boolean", defaultValue: false }),
+					property({ type: "date", defaultValue: "2026-01-31" }),
+					property({ validationList: ["a", "b"], defaultValue: "b" }),
+					property({ validationRegex: "^[0-9]+$", defaultValue: "42" }),
+					property({ defaultValue: "" }),
+				]
+			) {
+				const result = await create([valid]);
+				expect(result.isRight(), errorMessage(result.value)).toBe(true);
+			}
+		});
+
+		it("stores only the declared aspect and property fields", async () => {
+			const repo = new InMemoryConfigurationRepository();
+			const service = new AspectsService(repo);
+			const input = {
+				...createAspectInput({
+					description: "Kept",
+					properties: [{
+						...property({ searchable: true, required: true, defaultValue: "x" }),
+						unknownPropertyKey: "dropped",
+					} as AspectProperty],
+				}),
+				unknownAspectKey: "dropped",
+			};
+
+			const created = await service.createAspect(adminCtx, input);
+			if (created.isLeft()) throw created.value;
+			const stored = (await repo.get("aspects", created.value.uuid)).right;
+
+			expect(created.value).not.toHaveProperty("unknownAspectKey");
+			expect(stored).not.toHaveProperty("unknownAspectKey");
+			expect(stored.description).toBe("Kept");
+			expect(stored.properties[0]).toEqual({
+				name: "field",
+				title: "Field",
+				type: "string",
+				searchable: true,
+				required: true,
+				defaultValue: "x",
+			});
+
+			const updated = await service.updateAspect(adminCtx, created.value.uuid, {
+				title: "Updated title",
+				unknownAspectKey: "dropped",
+			} as Partial<CreateAspectData>);
+			if (updated.isLeft()) throw updated.value;
+			expect((await repo.get("aspects", created.value.uuid)).right)
+				.not.toHaveProperty("unknownAspectKey");
+		});
+
+		it("rejects two properties with the same name", async () => {
+			const result = await create([
+				property({ title: "First" }),
+				property({ title: "Second" }),
+			]);
+
+			expect(result.isLeft()).toBe(true);
+			expect(errorMessage(result.value)).toContain("field");
+		});
+	});
 });
+
+function errorMessage(value: unknown): string | undefined {
+	return value instanceof Error ? value.message : undefined;
+}

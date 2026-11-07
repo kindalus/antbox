@@ -1,4 +1,4 @@
-import { type Either, right } from "shared/either.ts";
+import { type Either, left, right } from "shared/either.ts";
 import { ValidationError } from "shared/validation_error.ts";
 import { Node } from "./node.ts";
 import { type NodeMetadata } from "./node_metadata.ts";
@@ -9,9 +9,11 @@ export class MetaNode extends WithAspectMixin(Node) {
 	static create(
 		metadata: Partial<NodeMetadata>,
 	): Either<ValidationError, MetaNode> {
-		const node = new MetaNode(metadata);
-
-		return right(node);
+		try {
+			return right(new MetaNode(metadata));
+		} catch (err) {
+			return left(err as ValidationError);
+		}
 	}
 
 	constructor(metadata: Partial<NodeMetadata> = {}) {

@@ -136,8 +136,9 @@ const filterFns: Record<Exclude<FilterOperator, "match">, FilterFn> = {
 	in: <T>(a: T, b: T) => (b as T[])?.includes(a as never),
 	"not-in": <T>(a: T, b: T) => !(b as T[])?.includes(a),
 
+	// The contains family applies only to arrays: a non-array value contains nothing.
 	contains: contains,
-	"contains-all": <T>(a: T, b: T) => (b as T[]).every((v) => contains(a, v)),
+	"contains-all": <T>(a: T, b: T) => Array.isArray(a) && (b as T[]).every((v) => contains(a, v)),
 
 	"contains-any": <T>(a: T, b: T) => (b as T[]).some((v) => contains(a, v)),
 
@@ -146,9 +147,7 @@ const filterFns: Record<Exclude<FilterOperator, "match">, FilterFn> = {
 };
 
 function contains(value: unknown, target: unknown): boolean {
-	if (Array.isArray(value)) return value.includes(target);
-	const text = searchText(target);
-	return typeof value === "string" && text !== undefined && value.includes(text);
+	return Array.isArray(value) && value.includes(target);
 }
 
 function isOrderedValue(value: unknown): value is string | number {

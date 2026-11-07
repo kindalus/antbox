@@ -22,7 +22,8 @@ import type { NodeFilterResult } from "domain/nodes/node_repository.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import { SmartFolderNode } from "domain/nodes/smart_folder_node.ts";
 import { SmartFolderNodeNotFoundError } from "domain/nodes/smart_folder_node_not_found_error.ts";
-import { NodesFilters } from "domain/nodes_filters.ts";
+import type { FolderNode } from "domain/nodes/folder_node.ts";
+import type { ValidationResult } from "shared/specification.ts";
 import { Groups } from "domain/users_groups/groups.ts";
 import { Users } from "domain/users_groups/users.ts";
 import {
@@ -46,6 +47,7 @@ import { NodeAspectRules } from "./node_aspect_rules.ts";
 import { NodeLocking } from "./node_locking.ts";
 import { NodeLookup } from "./node_lookup.ts";
 import { ParentFolderUpdateHandler } from "./parent_folder_update_handler.ts";
+import { filtersSatisfiedBy } from "./parent_filters.ts";
 import { calculateNodeUpdateChanges } from "./node_update_changes.ts";
 import { exportAllFiles } from "./node_export_all.ts";
 import { embeddingMarkdownBody, toEmbeddingMarkdown } from "./node_markdown.ts";
@@ -123,6 +125,27 @@ export class NodeService {
 		return this.#copyNode(ctx, uuid, parent, title);
 	}
 
+	/**
+	 * Checks one node against filters, resolving `@field` conditions against its parent folder as
+	 * searches do. The parent is read without permission checks, like the search resolution.
+	 */
+	filtersSatisfiedBy(
+		filters: NodeFilters,
+		node: NodeLike | NodeMetadata,
+	): Promise<ValidationResult> {
+		return filtersSatisfiedBy(filters, node as NodeLike, (uuid) => this.nodeLookup.get(uuid));
+	}
+
+	/** Child filters of a folder, whose `@` conditions read that same folder. */
+	#childFiltersSatisfiedBy(folder: FolderNode, node: NodeLike): Promise<ValidationResult> {
+		return filtersSatisfiedBy(
+			folder.filters,
+			node,
+			(uuid) =>
+				uuid === folder.uuid ? Promise.resolve(right(folder)) : this.nodeLookup.get(uuid),
+		);
+	}
+
 	async #createNodeInRepository(
 		ctx: AuthenticationContext,
 		metadata: Partial<NodeMetadata>,
@@ -193,8 +216,8 @@ export class NodeService {
 			return left(aspectValidation.value);
 		}
 
-		const filtersSatisfied = NodesFilters.satisfiedBy(
-			parentOrErr.value.filters,
+		const filtersSatisfied = await this.#childFiltersSatisfiedBy(
+			parentOrErr.value,
 			nodeOrErr.value,
 		);
 		if (filtersSatisfied.isLeft()) {
@@ -1002,10 +1025,10 @@ export class NodeService {
 			}
 		}
 
-		const filtersSatisfied = NodesFilters.satisfiedBy(
-			actualParentOrErr.value.filters,
+		const filtersSatisfied = (await this.#childFiltersSatisfiedBy(
+			actualParentOrErr.value,
 			nodeOrErr.value,
-		).isRight();
+		)).isRight();
 		if (!filtersSatisfied) {
 			return left(new BadRequestError("Node does not satisfy parent filters"));
 		}
@@ -1016,11 +1039,12 @@ export class NodeService {
 			if (hasFulltextFilter(nodeOrErr.value.filters)) {
 				return left(new BadRequestError(FULLTEXT_FILTER_ERROR));
 			}
-			const children = await this.nodeLookup.listChildren(nodeOrErr.value.uuid);
-			const specification = NodesFilters.nodeSpecificationFrom(nodeOrErr.value.filters);
+			const folder = nodeOrErr.value;
+			const children = await this.nodeLookup.listChildren(folder.uuid);
 
 			for (const child of children) {
-				const childFiltersSatisfied = specification.isSatisfiedBy(child).isRight();
+				const childFiltersSatisfied = (await this.#childFiltersSatisfiedBy(folder, child))
+					.isRight();
 				if (!childFiltersSatisfied) {
 					return left(
 						new BadRequestError(

@@ -658,6 +658,25 @@ describe("Aspects", () => {
 		});
 	});
 
+	describe("invalid stored validationRegex", () => {
+		it("returns a validation error instead of throwing", () => {
+			const property: AspectProperty = {
+				name: "code",
+				title: "Code",
+				type: "string",
+				validationRegex: "[unclosed",
+			};
+			const aspect = createMockAspectData([property]);
+			const node = createMockAspectableNode({ [Aspects.propertyName(aspect, property)]: "x" });
+
+			const result = Aspects.specificationFrom(aspect).isSatisfiedBy(node);
+
+			expect(result.isLeft()).toBe(true);
+			expect(result.value).toBeInstanceOf(ValidationError);
+			expect((result.value as ValidationError).message).toContain("validationRegex");
+		});
+	});
+
 	describe("class behavior", () => {
 		it("should not be instantiable", () => {
 			// The constructor is private, so this should cause a TypeScript error

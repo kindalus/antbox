@@ -7,6 +7,9 @@ import { AspectsService } from "application/aspects/aspects_service.ts";
 import type { AuthenticationContext } from "application/security/authentication_context.ts";
 import type { AspectProperty } from "domain/configuration/aspect_data.ts";
 import { FileNode } from "domain/nodes/file_node.ts";
+import { MetaNode } from "domain/nodes/meta_node.ts";
+import { PropertyRequiredError } from "domain/nodes/property_errors.ts";
+import { ValidationError } from "shared/validation_error.ts";
 import { Groups } from "domain/users_groups/groups.ts";
 import { Users } from "domain/users_groups/users.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
@@ -113,4 +116,146 @@ it("searchable aspect properties survive save and update and are searchable", as
 	});
 	expect(invalid.isLeft()).toBe(true);
 	expect((await aspects.getAspect(admin, "catalog")).right.properties[0].searchable).toBe(true);
+});
+
+async function aspectFixture(properties: AspectProperty[]) {
+	const configRepo = new InMemoryConfigurationRepository();
+	const repository = new InMemoryNodeRepository();
+	const now = new Date().toISOString();
+	// Saved directly so the fixture can hold aspects that upload validation would reject.
+	await configRepo.save("aspects", {
+		uuid: "rules",
+		title: "Rules",
+		filters: [],
+		properties,
+		createdTime: now,
+		modifiedTime: now,
+	});
+	const service = new NodeService({
+		configRepo,
+		repository,
+		storage: new InMemoryStorageProvider(),
+		bus: { publish() {}, subscribe() {}, unsubscribe() {} },
+	});
+	const folder = await service.create(admin, {
+		title: "Folder",
+		parent: Nodes.ROOT_FOLDER_UUID,
+		mimetype: Nodes.FOLDER_MIMETYPE,
+	});
+	if (folder.isLeft()) throw folder.value;
+	const parent = folder.value.uuid;
+	const create = (properties: Record<string, unknown>) =>
+		service.create(admin, {
+			title: "Item",
+			parent,
+			mimetype: Nodes.META_NODE_MIMETYPE,
+			aspects: ["rules"],
+			properties,
+		});
+	const update = (uuid: string, properties: Record<string, unknown>) =>
+		service.update(admin, uuid, { properties });
+	const stored = async (uuid: string) =>
+		(await repository.getById(uuid)).right.metadata.properties ?? {};
+	return { repository, parent, create, update, stored };
+}
+
+it("an invalid stored validationRegex fails validation instead of throwing", async () => {
+	const { create, update } = await aspectFixture([
+		{ name: "code", title: "Code", type: "string", validationRegex: "[unclosed" },
+	]);
+
+	const created = await create({ "rules:code": "x" });
+	expect(created.isLeft()).toBe(true);
+	expect(created.value).toBeInstanceOf(ValidationError);
+	expect((created.value as ValidationError).message).toContain("validationRegex");
+
+	const empty = await create({});
+	if (empty.isLeft()) throw empty.value;
+	const updated = await update(empty.value.uuid, { "rules:code": "x" });
+	expect(updated.isLeft()).toBe(true);
+	expect(updated.value).toBeInstanceOf(ValidationError);
+});
+
+it("readonly properties are write-once: settable on update until a value is stored", async () => {
+	const { create, update, stored } = await aspectFixture([
+		{ name: "code", title: "Code", type: "string", readonly: true },
+		{ name: "note", title: "Note", type: "string" },
+	]);
+	const node = await create({ "rules:note": "first" });
+	if (node.isLeft()) throw node.value;
+
+	expect((await update(node.value.uuid, { "rules:code": "A" })).isRight()).toBe(true);
+	expect((await stored(node.value.uuid))["rules:code"]).toBe("A");
+
+	expect((await update(node.value.uuid, { "rules:code": "B" })).isRight()).toBe(true);
+	expect((await update(node.value.uuid, { "rules:code": null })).isRight()).toBe(true);
+	expect(await stored(node.value.uuid)).toEqual({ "rules:code": "A", "rules:note": "first" });
+
+	const createdWithValue = await create({ "rules:code": "C" });
+	if (createdWithValue.isLeft()) throw createdWithValue.value;
+	expect((await stored(createdWithValue.value.uuid))["rules:code"]).toBe("C");
+});
+
+it("an empty string in a typed property means no value, while strings keep it", async () => {
+	const typed: AspectProperty[] = [
+		{ name: "amount", title: "Amount", type: "number" },
+		{ name: "flag", title: "Flag", type: "boolean" },
+		{ name: "day", title: "Day", type: "date" },
+		{ name: "ref", title: "Ref", type: "uuid" },
+		{ name: "list", title: "List", type: "array", arrayType: "string" },
+		{ name: "data", title: "Data", type: "object" },
+	];
+	const { create, update, stored } = await aspectFixture([
+		...typed,
+		{ name: "count", title: "Count", type: "number", defaultValue: 7 },
+		{ name: "text", title: "Text", type: "string" },
+	]);
+	const empty = Object.fromEntries(
+		[...typed.map((p) => p.name), "count", "text"].map((name) => [`rules:${name}`, ""]),
+	);
+
+	const node = await create(empty);
+	if (node.isLeft()) throw node.value;
+	expect(await stored(node.value.uuid)).toEqual({ "rules:count": 7, "rules:text": "" });
+
+	const filled = await update(node.value.uuid, { "rules:amount": 3, "rules:count": 9 });
+	if (filled.isLeft()) throw filled.value;
+	expect((await update(node.value.uuid, { "rules:amount": "", "rules:count": "" })).isRight())
+		.toBe(true);
+	expect(await stored(node.value.uuid)).toEqual({ "rules:count": 7, "rules:text": "" });
+});
+
+it("an empty string does not satisfy a required typed property", async () => {
+	const { create } = await aspectFixture([
+		{ name: "amount", title: "Amount", type: "number", required: true },
+	]);
+
+	const result = await create({ "rules:amount": "" });
+
+	expect(result.isLeft()).toBe(true);
+	expect((result.value as ValidationError).has(PropertyRequiredError.ERROR_CODE)).toBe(true);
+});
+
+it("stored empty strings in typed properties are cleaned on the next update", async () => {
+	const { repository, parent, update, stored } = await aspectFixture([
+		{ name: "amount", title: "Amount", type: "number" },
+		{ name: "count", title: "Count", type: "number", defaultValue: 7 },
+		{ name: "frozen", title: "Frozen", type: "number", readonly: true },
+		{ name: "note", title: "Note", type: "string" },
+	]);
+	const legacy = MetaNode.create({
+		title: "Legacy",
+		owner: admin.principal.email,
+		parent,
+		aspects: ["rules"],
+		properties: { "rules:amount": "", "rules:count": "", "rules:frozen": "", "rules:note": "" },
+	}).right;
+	expect((await repository.add(legacy)).isRight()).toBe(true);
+
+	const result = await update(legacy.uuid, { "rules:note": "edited" });
+	expect(result.isRight(), result.isLeft() ? result.value.message : undefined).toBe(true);
+	expect(await stored(legacy.uuid)).toEqual({ "rules:count": 7, "rules:note": "edited" });
+
+	expect((await update(legacy.uuid, { "rules:frozen": 5 })).isRight()).toBe(true);
+	expect((await stored(legacy.uuid))["rules:frozen"]).toBe(5);
 });

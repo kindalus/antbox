@@ -28,7 +28,7 @@ describe("NodesFilters", () => {
 	});
 
 	it("handles contains filters on incompatible field values without throwing", () => {
-		for (const value of [8, true, {}, null, undefined]) {
+		for (const value of [8, true, {}, null, undefined, "8", "a 8 b"]) {
 			const node = { properties: { value } } as unknown as NodeLike;
 			for (const operator of ["contains", "contains-all", "contains-any"] as const) {
 				const target = operator === "contains" ? "8" : ["8"];
@@ -45,13 +45,39 @@ describe("NodesFilters", () => {
 					.toBe(true);
 			}
 		}
-		for (const value of ["annual report", ["annual", "report"]]) {
+		for (
+			const [value, expected] of [["annual report", false], [
+				["annual", "report"],
+				true,
+			]] as const
+		) {
 			const node = { properties: { value } } as unknown as NodeLike;
 			expect(
 				NodesFilters.satisfiedBy([["properties.value", "contains", "report"]], node).isRight(),
 			)
-				.toBe(true);
+				.toBe(expected);
 		}
+	});
+
+	it("applies the contains operators only to arrays", () => {
+		const satisfied = (value: unknown, filter: [string, unknown]) =>
+			NodesFilters.satisfiedBy(
+				[["properties.value", filter[0], filter[1]]] as never,
+				{ properties: { value } } as unknown as NodeLike,
+			).isRight();
+
+		for (const value of ["report", "annual report", 3, true, { report: 1 }, null, undefined]) {
+			expect(satisfied(value, ["contains", "report"])).toBe(false);
+			expect(satisfied(value, ["contains-all", ["report"]])).toBe(false);
+			expect(satisfied(value, ["contains-all", []])).toBe(false);
+			expect(satisfied(value, ["contains-any", ["report"]])).toBe(false);
+			expect(satisfied(value, ["not-contains", "report"])).toBe(true);
+			expect(satisfied(value, ["contains-none", ["report"]])).toBe(true);
+			expect(satisfied(value, ["contains-none", []])).toBe(true);
+		}
+
+		expect(satisfied([], ["contains-all", []])).toBe(true);
+		expect(satisfied(["report"], ["not-contains", "report"])).toBe(false);
 	});
 
 	it("contains-none rejects any overlap and accepts an empty exclusion list", () => {

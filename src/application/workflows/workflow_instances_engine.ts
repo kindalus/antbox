@@ -19,8 +19,6 @@ import type { NodeService } from "../nodes/node_service.ts";
 import type { FeaturesEngine } from "../features/features_engine.ts";
 import type { WorkflowsService } from "./workflows_service.ts";
 import type { WorkflowInstancesService } from "./workflow_instances_service.ts";
-import type { NodeLike } from "domain/node_like.ts";
-import { NodesFilters } from "domain/nodes_filters.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import { Users } from "domain/users_groups/users.ts";
 import { Groups } from "domain/users_groups/groups.ts";
@@ -153,10 +151,7 @@ export class WorkflowInstancesEngine {
 		}
 
 		// Check if node matches workflow filters
-		const result = NodesFilters.satisfiedBy(
-			workflowDef.filters,
-			node as unknown as NodeLike,
-		);
+		const result = await this.#nodeService.filtersSatisfiedBy(workflowDef.filters, node);
 		if (result.isLeft()) {
 			return left(new BadRequestError(result.value.message));
 		}
@@ -340,9 +335,9 @@ export class WorkflowInstancesEngine {
 		}
 
 		// Check if nodes can transition to new state
-		const nodeSatisfies = NodesFilters.satisfiedBy(
+		const nodeSatisfies = await this.#nodeService.filtersSatisfiedBy(
 			transition.filters ?? [],
-			node as unknown as NodeLike,
+			node,
 		);
 		if (nodeSatisfies.isLeft()) {
 			return left(new BadRequestError(nodeSatisfies.value.message));

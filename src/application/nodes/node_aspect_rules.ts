@@ -2,13 +2,11 @@ import { Aspects } from "domain/aspects/aspects.ts";
 import type { AspectData, AspectProperty } from "domain/configuration/aspect_data.ts";
 import type { ConfigurationRepository } from "domain/configuration/configuration_repository.ts";
 import type { AspectableNode, NodeLike } from "domain/node_like.ts";
-import type { NodeFilter, NodeFilters2D } from "domain/nodes/node_filter.ts";
-import { isNodeFilters2D } from "domain/nodes/node_filter.ts";
 import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import type { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import type { NodeProperties } from "domain/nodes/node_properties.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
-import { NodesFilters } from "domain/nodes_filters.ts";
+import { cachedGetNode, filtersSatisfiedBy } from "./parent_filters.ts";
 import { type AntboxError, BadRequestError } from "shared/antbox_error.ts";
 import type { Either } from "shared/either.ts";
 import { left, right } from "shared/either.ts";
@@ -74,8 +72,10 @@ export class NodeAspectRules {
 			.filter((result) => result.isLeft())
 			.flatMap((result) => result.value.errors);
 
+		// One lookup of the parent folder serves the @ filters of every aspect.
+		const getNode = cachedGetNode(this.getNode);
 		for (const aspect of aspects) {
-			if (NodesFilters.satisfiedBy(aspect.filters, node).isLeft()) {
+			if ((await filtersSatisfiedBy(aspect.filters, node, getNode)).isLeft()) {
 				errors.push(new BadRequestError(`Aspect '${aspect.uuid}' does not apply to node`));
 			}
 		}
@@ -96,19 +96,21 @@ export class NodeAspectRules {
 			return metadata;
 		}
 
-		const readonlyProperties = new Set(
+		const readonlyProperties = new Map(
 			aspectsOrErr.value.flatMap((aspect) =>
 				this.#propertiesWithQualifiedNames(aspect)
 					.filter((property) => property.readonly)
-					.map((property) => property.name)
+					.map((property) => [property.name, property] as const)
 			),
 		);
 		const currentProperties = (node as AspectableNode).properties || {};
+		// Readonly is write-once: a stored value wins, but a property without one can still be set.
 		const safeProperties = Object.fromEntries(
-			Object.entries(metadata.properties).map(([key, value]) => [
-				key,
-				readonlyProperties.has(key) ? currentProperties[key] : value,
-			]),
+			Object.entries(metadata.properties).map(([key, value]) => {
+				const property = readonlyProperties.get(key);
+				const stored = currentProperties[key];
+				return [key, property && !Aspects.isEmptyValue(property, stored) ? stored : value];
+			}),
 		);
 
 		return { ...metadata, properties: safeProperties };
@@ -191,17 +193,13 @@ export class NodeAspectRules {
 		}
 
 		if (property.validationFilters?.length) {
-			let filters: NodeFilters2D = isNodeFilters2D(property.validationFilters)
-				? property.validationFilters
-				: [property.validationFilters];
-			// Dynamic @ filters require repository resolution and cannot be checked directly.
-			filters = filters.map((group) =>
-				group.filter((filter: NodeFilter) => !filter[0].startsWith("@"))
-			) as NodeFilters2D;
-
-			const specification = NodesFilters.nodeSpecificationFrom(filters);
-			const errors = nodesOrErrs
-				.map((result) => specification.isSatisfiedBy(result.right))
+			// @ conditions read the parent folder of each referenced node.
+			const filters = property.validationFilters;
+			const getNode = cachedGetNode(this.getNode);
+			const results = await Promise.all(
+				nodesOrErrs.map((result) => filtersSatisfiedBy(filters, result.right, getNode)),
+			);
+			const errors = results
 				.filter((result) => result.isLeft())
 				.flatMap((result) => (result.value as ValidationError).errors);
 			if (errors.length) {
@@ -218,7 +216,10 @@ export class NodeAspectRules {
 		property: AspectProperty,
 		key: string,
 	): void {
-		const value = current[key] ?? property.defaultValue;
+		// An empty string in a non-string property is no value, like null: it falls back to the default.
+		const value = Aspects.isEmptyValue(property, current[key])
+			? property.defaultValue
+			: current[key];
 		if (value !== undefined) {
 			accepted[key] = value;
 		}

@@ -201,6 +201,9 @@ interface AspectData {
 
 `filters` and `validationFilters` accept only filter arrays (1D for AND, 2D for OR), not filter
 strings. They are checked against one node at a time, so `fulltext` filters are rejected in both.
+`@field` conditions are checked against that node's parent folder, for example
+`["@aspects", "contains", "reseller"]` limits an aspect to nodes in folders with the `reseller`
+aspect (see [Parent-folder filters](node-querying.md#parent-folder-filters-field)).
 
 ### AspectProperty
 
@@ -224,10 +227,11 @@ interface AspectProperty {
 Array properties require arrays. When `arrayType` is present, every element must have that type;
 UUID values use Antbox identifiers and must reference existing nodes. Invalid UUID shapes are
 rejected before reference lookups. Optional properties may be absent, `null`, or an empty string.
-An empty string passes validation for every type (including `number`, `boolean`, and `date`) and is
-stored as-is: it is not treated as missing, so `defaultValue` is not applied, and on a `number`
-property it behaves inconsistently in range filters. To clear a value, set it to `null`.
-Date properties accept ISO dates (`2026-10-22`) and ISO timestamps, including UTC, explicit offsets,
+In a property of any type other than `string` (`number`, `boolean`, `date`, `uuid`, `array`,
+`object`), an empty string means "no value", exactly like `null`: on create and update it is
+removed, or replaced by `defaultValue` when there is one, and a `required` property then fails. A
+node that already stores `""` in such a property is cleaned the same way on its next update. In a
+`string` property, `""` is kept as a value. Date properties accept ISO dates (`2026-10-22`) and ISO timestamps, including UTC, explicit offsets,
 or local time (`2026-10-22T12:30`). Invalid calendar dates and ambiguous numeric strings are
 rejected. Object properties require JSON objects rather than arrays or scalar values. `string`,
 `number`, and `boolean` values must already have that JSON type; they are not coerced.
@@ -239,16 +243,24 @@ Validation fields:
   ignored for other types, including `array` of numbers. Matching is strict: `100` does not match
   `"100"`. Each element of an array must be in the list.
 - `validationRegex`: checked only for `string` and `array` with `arrayType: "string"` (each
-  element). It must be a valid JavaScript regular expression. Upload does not check it, and an
-  invalid one makes validation throw, so creating or updating a node with that aspect fails with
-  an unexpected error.
+  element). It must be a valid JavaScript regular expression: upload rejects one that does not
+  compile. An aspect stored with an invalid pattern before this check makes every create or update
+  that gives the property a value fail with a validation error until the aspect is fixed.
 - `validationFilters`: checked only for `uuid` and `array` with `arrayType: "uuid"`. Every
-  referenced node must satisfy the filters. Filters on `@` (parent folder) fields are ignored.
-- `readonly`: the value can only be set when the node is created or in the update that adds the
-  aspect to the node. In any later update, the supplied value is replaced by the stored one; when
-  nothing is stored, the key is dropped (or set to `defaultValue`). The update still succeeds, so
-  the write is silently discarded.
-- `defaultValue`: applied when the value is absent or `null` (not when it is an empty string).
+  referenced node must satisfy the filters. `@` (parent folder) conditions are checked against the
+  parent folder of each referenced node.
+- `readonly`: write-once. The value can be set on create, and on any update while the node has no
+  stored value for it (absent, `null`, or `""` in a non-`string` property). Once a value is stored,
+  later updates keep it: the supplied value, including `null`, is replaced by the stored one. The
+  update still succeeds, so that write is silently discarded.
+- `defaultValue`: applied when the value is absent, `null`, or `""` in a non-`string` property.
+  Upload rejects a default that breaks the property's own rules: its `type` (and `arrayType`, so
+  `array` and `object` properties cannot have a default), `validationList` and `validationRegex`.
+  An empty string is not a valid default for non-`string` types. A `uuid` default is checked for
+  shape only, not for an existing node.
+
+Upload also rejects an aspect with two properties of the same `name`, and stores only the fields
+listed in `AspectData` and `AspectProperty` above: other keys are dropped.
 
 Existing records are not repaired automatically. Stored metadata with malformed collection shapes,
 invalid aspect UUIDs or objects, or non-ISO dates may need correction before the next edit passes
@@ -296,8 +308,9 @@ On every create and update, `properties` is reduced to the keys declared by the 
 aspects; other keys are dropped. A node without aspects always has `properties: {}`.
 
 On update, the supplied `properties` are merged into the stored ones, so omitted keys keep their
-values. Setting a key to `null` removes it, or resets it to the property's `defaultValue` when
-there is one. Removing an aspect from `aspects` drops its properties.
+values. Setting a key to `null` (or to `""` in a non-`string` property) removes it, or resets it to
+the property's `defaultValue` when there is one; a `readonly` property that has a stored value keeps
+it. Removing an aspect from `aspects` drops its properties.
 
 ### Changing or Deleting an Aspect
 
@@ -335,10 +348,10 @@ readable node and each aspect, `auto_tag`:
 Each aspect is one update, validated as a whole. If a required property was not extracted and has
 no stored or default value, an extracted value has the wrong type or is not allowed, a `uuid` value
 does not reference an existing node, or the node does not satisfy the aspect's `filters`, the update
-is rejected and every value extracted for that aspect is lost. When the node already has the
-aspect, extracted values for `readonly` properties are ignored. An aspect with an invalid
-`validationRegex` makes validation throw instead of failing cleanly, which stops the whole action
-with an error (updates already made are kept).
+is rejected and every value extracted for that aspect is lost. Extracted values for `readonly`
+properties that already have a stored value are ignored. An aspect stored with an invalid
+`validationRegex` rejects an update that gives that property a value, like any other validation
+failure.
 
 Values are not coerced. Missing parameters or an unavailable agents engine return an error. Any
 other failure (unreadable node, missing aspect, agent error, unparsable answer, rejected update) is

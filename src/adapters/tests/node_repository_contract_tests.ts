@@ -4,7 +4,7 @@ import { afterAll, beforeAll, describe, test } from "bdd";
 import { expect } from "expect";
 import { providerFrom } from "../module_configuration_parser.ts";
 import { type FtsOptions, type NodeRepository } from "domain/nodes/node_repository.ts";
-import type { NodeFilters2D } from "domain/nodes/node_filter.ts";
+import type { NodeFilter, NodeFilters2D } from "domain/nodes/node_filter.ts";
 import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { FolderNode } from "domain/nodes/folder_node.ts";
 import { FileNode } from "domain/nodes/file_node.ts";
@@ -143,6 +143,59 @@ describe("filter", () => {
 				expect(result.nodes.map((node) => node.uuid)).toEqual([uuids[2]]);
 			}
 		}
+	});
+});
+
+describe("contains operators on non-array values", () => {
+	const values: Record<string, unknown> = {
+		"cna-array": ["x", "y"],
+		"cna-empty-array": [],
+		"cna-string": "x",
+		"cna-substring": "axb",
+		"cna-json-text": '["x"]',
+		"cna-number": 5,
+		"cna-boolean": true,
+		"cna-object": { x: "x" },
+		"cna-missing": undefined,
+	};
+	const ids = Object.keys(values);
+	const all = [...ids].sort();
+	const except = (...excluded: string[]) => all.filter((id) => !excluded.includes(id));
+
+	beforeAll(async () => {
+		for (const [uuid, value] of Object.entries(values)) {
+			await addFile(uuid, {
+				aspects: ["cna"],
+				properties: value === undefined ? {} : { "cna:value": value },
+			});
+		}
+	});
+
+	const found = async (filter: NodeFilter) => {
+		const result = await repo.filter([["uuid", "in", ids], filter], 100);
+		return result.nodes.map((node) => node.uuid).sort();
+	};
+
+	test("contains, contains-all and contains-any match only arrays", async () => {
+		expect(await found(["cna:value", "contains", "x"])).toEqual(["cna-array"]);
+		expect(await found(["cna:value", "contains", 5])).toEqual([]);
+		expect(await found(["cna:value", "contains", true])).toEqual([]);
+		expect(await found(["cna:value", "contains-all", ["x"]])).toEqual(["cna-array"]);
+		expect(await found(["cna:value", "contains-all", []])).toEqual([
+			"cna-array",
+			"cna-empty-array",
+		]);
+		expect(await found(["cna:value", "contains-any", ["x", 5, true]])).toEqual(["cna-array"]);
+		expect(await found(["title", "contains", "cna-string"])).toEqual([]);
+	});
+
+	test("not-contains and contains-none accept every non-array value", async () => {
+		expect(await found(["cna:value", "not-contains", "x"])).toEqual(except("cna-array"));
+		expect(await found(["cna:value", "not-contains", 5])).toEqual(all);
+		expect(await found(["cna:value", "contains-none", ["x"]])).toEqual(except("cna-array"));
+		expect(await found(["cna:value", "contains-none", [5, true]])).toEqual(all);
+		expect(await found(["cna:value", "contains-none", []])).toEqual(all);
+		expect(await found(["title", "not-contains", "cna-string"])).toEqual(all);
 	});
 });
 

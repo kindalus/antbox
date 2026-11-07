@@ -718,9 +718,12 @@ export class SqliteNodeRepository implements NodeRepository {
 		) return "FALSE";
 		if (Array.isArray(value) && value.length === 0) {
 			if (operator === "in" || operator === "contains-any") return "FALSE";
-			if (
-				operator === "not-in" || operator === "contains-all" || operator === "contains-none"
-			) return "TRUE";
+			if (operator === "not-in" || operator === "contains-none") return "TRUE";
+		}
+
+		if (isContainsOperator(operator)) {
+			// Read from the body even for promoted columns, which are never arrays.
+			return containsToSql(operator, `?${params.push(`$.${field}`)}`, value, params);
 		}
 
 		const promotedColumns = ["uuid", "fid", "title", "parent", "mimetype"];
@@ -748,7 +751,52 @@ function buildJsonEachEqualsClause(value: unknown, params: BindValue[]): string 
 	return `json_each.atom = ?`;
 }
 
-const operatorMap: Record<FilterOperator, SqlBuilder> = {
+type ContainsOperator =
+	| "contains"
+	| "not-contains"
+	| "contains-all"
+	| "contains-any"
+	| "contains-none";
+
+function isContainsOperator(operator: FilterOperator): operator is ContainsOperator {
+	return operator === "contains" || operator === "not-contains" || operator === "contains-all" ||
+		operator === "contains-any" || operator === "contains-none";
+}
+
+/**
+ * The contains family applies only to arrays: a value that is not a JSON array contains nothing,
+ * so it never satisfies contains, contains-all or contains-any and always satisfies not-contains
+ * and contains-none. `path` is the bind placeholder of the JSON path.
+ */
+function containsToSql(
+	operator: ContainsOperator,
+	path: string,
+	value: unknown,
+	params: BindValue[],
+): string {
+	// IS keeps a missing path (NULL json_type) false rather than NULL, so NOT (...) stays true.
+	const isArray = `json_type(body, ${path}) IS 'array'`;
+	const has = (target: unknown) =>
+		`EXISTS (SELECT 1 FROM json_each(body, ${path}) WHERE ${
+			buildJsonEachEqualsClause(target, params)
+		})`;
+	const values = Array.isArray(value) ? value : [value];
+
+	switch (operator) {
+		case "contains":
+			return `(${isArray} AND ${has(value)})`;
+		case "not-contains":
+			return `NOT (${isArray} AND ${has(value)})`;
+		case "contains-all":
+			return `(${[isArray, ...values.map(has)].join(" AND ")})`;
+		case "contains-any":
+			return `(${isArray} AND (${values.map(has).join(" OR ")}))`;
+		case "contains-none":
+			return `NOT (${isArray} AND (${values.map(has).join(" OR ")}))`;
+	}
+}
+
+const operatorMap: Record<Exclude<FilterOperator, ContainsOperator>, SqlBuilder> = {
 	"==": (col, val, params) => {
 		params.push(val as BindValue);
 		return `${col} = ?`;
@@ -789,38 +837,6 @@ const operatorMap: Record<FilterOperator, SqlBuilder> = {
 		const pattern = String(val).trim().replaceAll(/[\\%_]/g, "\\$&").replaceAll(/\s+/g, "%");
 		params.push(`%${pattern}%`);
 		return `${col} LIKE ? ESCAPE '\\'`;
-	},
-	contains: (col, val, params) => {
-		const comparison = buildJsonEachEqualsClause(val, params);
-		return `EXISTS (SELECT 1 FROM json_each(${col}) WHERE ${comparison})`;
-	},
-	"not-contains": (col, val, params) => {
-		const comparison = buildJsonEachEqualsClause(val, params);
-		return `NOT EXISTS (SELECT 1 FROM json_each(${col}) WHERE ${comparison})`;
-	},
-	"contains-all": (col, val, params) => {
-		const values = [...(val as unknown[])];
-		const conditions = values.map((v) => {
-			const comparison = buildJsonEachEqualsClause(v, params);
-			return `EXISTS (SELECT 1 FROM json_each(${col}) WHERE ${comparison})`;
-		});
-		return `(${conditions.join(" AND ")})`;
-	},
-	"contains-any": (col, val, params) => {
-		const values = val as unknown[];
-		const conditions = values.map((v) => {
-			const comparison = buildJsonEachEqualsClause(v, params);
-			return `EXISTS (SELECT 1 FROM json_each(${col}) WHERE ${comparison})`;
-		});
-		return `(${conditions.join(" OR ")})`;
-	},
-	"contains-none": (col, val, params) => {
-		const values = val as unknown[];
-		const conditions = values.map((v) => {
-			const comparison = buildJsonEachEqualsClause(v, params);
-			return `NOT EXISTS (SELECT 1 FROM json_each(${col}) WHERE ${comparison})`;
-		});
-		return `(${conditions.join(" AND ")})`;
 	},
 };
 

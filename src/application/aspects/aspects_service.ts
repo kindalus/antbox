@@ -38,16 +38,7 @@ export class AspectsService {
 			modifiedTime: now,
 		};
 
-		// Validate with Zod schema
-		const validation = AspectDataSchema.safeParse(aspectData);
-		if (!validation.success) {
-			const errors = validation.error.issues.map((e) =>
-				new BadRequestError(`${e.path.join(".")}: ${e.message}`)
-			);
-			return left(ValidationError.from(...errors));
-		}
-
-		return this.configRepo.save("aspects", aspectData);
+		return this.#validateAndSave(aspectData);
 	}
 
 	async getAspect(
@@ -106,16 +97,20 @@ export class AspectsService {
 			modifiedTime: new Date().toISOString(),
 		};
 
-		// Validate with Zod schema
-		const validation = AspectDataSchema.safeParse(updatedData);
+		return this.#validateAndSave(updatedData);
+	}
+
+	/** Saves the schema-parsed aspect, so keys the schema does not declare are never stored. */
+	#validateAndSave(data: AspectData): Promise<Either<AntboxError, AspectData>> {
+		const validation = AspectDataSchema.safeParse(data);
 		if (!validation.success) {
 			const errors = validation.error.issues.map((e) =>
 				new BadRequestError(`${e.path.join(".")}: ${e.message}`)
 			);
-			return left(ValidationError.from(...errors));
+			return Promise.resolve(left(ValidationError.from(...errors)));
 		}
 
-		return this.configRepo.save("aspects", updatedData);
+		return this.configRepo.save("aspects", validation.data as AspectData);
 	}
 
 	async deleteAspect(

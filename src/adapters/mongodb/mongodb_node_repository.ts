@@ -554,9 +554,8 @@ function toMongoFilter(filter: NodeFilter): Filter<NodeDbModel> {
 	) return { $expr: false };
 	if (Array.isArray(value) && value.length === 0) {
 		if (operator === "in" || operator === "contains-any") return { $expr: false };
-		if (operator === "not-in" || operator === "contains-all" || operator === "contains-none") {
-			return {};
-		}
+		if (operator === "not-in" || operator === "contains-none") return {};
+		if (operator === "contains-all") return { [field]: { $type: "array" } };
 	}
 	const filterOperator = operatorMap[operator];
 	return filterOperator([field, operator, value]);
@@ -571,13 +570,13 @@ const operatorMap: Record<FilterOperator, (f: NodeFilter) => Filter<NodeDbModel>
 	"<=": ([f, _o, v]) => ({ [f]: { $lte: v } }),
 	in: ([f, _o, v]) => ({ $or: (v as unknown[]).map((value) => ({ [f]: { $eq: value } })) }),
 	"not-in": ([f, _o, v]) => ({ $and: (v as unknown[]).map((value) => ({ [f]: { $ne: value } })) }),
-	contains: ([f, _o, v]) => ({ [f]: { $eq: v } }),
-	"not-contains": ([f, _o, v]) => ({ [f]: { $ne: v } }),
+	contains: ([f, _o, v]) => arrayContains(f, v),
+	"not-contains": ([f, _o, v]) => ({ $nor: [arrayContains(f, v)] }),
 	"contains-all": ([f, _o, v]) => ({
-		$and: (v as unknown[]).map((value) => ({ [f]: { $eq: value } })),
+		$and: (v as unknown[]).map((value) => arrayContains(f, value)),
 	}),
 	"contains-none": ([f, _o, v]) => ({
-		$and: (v as unknown[]).map((value) => ({ [f]: { $ne: value } })),
+		$nor: (v as unknown[]).map((value) => arrayContains(f, value)),
 	}),
 	match: ([f, _o, v]) => ({
 		[f]: {
@@ -590,6 +589,14 @@ const operatorMap: Record<FilterOperator, (f: NodeFilter) => Filter<NodeDbModel>
 		},
 	}),
 	"contains-any": ([f, _o, v]) => ({
-		$or: (v as unknown[]).map((value) => ({ [f]: { $eq: value } })),
+		$or: (v as unknown[]).map((value) => arrayContains(f, value)),
 	}),
 };
+
+/**
+ * The contains family applies only to arrays. `$elemMatch` matches array elements only, unlike
+ * `$eq`, which also matches a scalar field equal to the value or a whole array equal to it.
+ */
+function arrayContains(field: string, value: unknown): Filter<NodeDbModel> {
+	return { [field]: { $elemMatch: { $eq: value } } };
+}

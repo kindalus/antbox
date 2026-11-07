@@ -165,9 +165,11 @@ export class FeaturesEngine {
 		nodes: NodeMetadata[],
 		params?: Record<string, unknown>,
 	): Promise<Either<AntboxError, T>> {
-		const specification = NodesFilters.nodeSpecificationFrom(feature.filters || []);
+		const matches = await Promise.all(
+			nodes.map((node) => this.#nodeService.filtersSatisfiedBy(feature.filters || [], node)),
+		);
 		const uuids = nodes
-			.filter((node) => specification.isSatisfiedBy(node as NodeLike).isRight())
+			.filter((_node, index) => matches[index].isRight())
 			.map((node) => node.uuid!);
 
 		try {
@@ -302,10 +304,7 @@ export class FeaturesEngine {
 		node: NodeMetadata,
 		triggerName: AutomaticTriggerName,
 	): Promise<void> {
-		const filterOrErr = NodesFilters.satisfiedBy(
-			feature.filters || [],
-			node as unknown as NodeLike,
-		);
+		const filterOrErr = await this.#nodeService.filtersSatisfiedBy(feature.filters || [], node);
 		if (filterOrErr.isLeft() || !filterOrErr.value) {
 			return;
 		}

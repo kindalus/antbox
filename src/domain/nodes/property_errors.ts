@@ -64,3 +64,14 @@ export class PropertyDoesNotMatchRegexError extends AntboxError {
 		);
 	}
 }
+
+export class PropertyInvalidRegexError extends AntboxError {
+	static ERROR_CODE = "PropertyInvalidRegexError";
+
+	constructor(property: string, regex: string, reason: string) {
+		super(
+			PropertyInvalidRegexError.ERROR_CODE,
+			`Property ${property} has an invalid validationRegex '${regex}': ${reason}`,
+		);
+	}
+}

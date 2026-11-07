@@ -141,6 +141,8 @@ type FilterOperator =
 	| "match"
 	| "in"
 	| "not-in"
+	// The contains family applies only to arrays: a non-array or missing value never satisfies
+	// contains/contains-all/contains-any and always satisfies not-contains/contains-none.
 	| "contains"
 	| "contains-all"
 	| "contains-any"
@@ -233,6 +235,8 @@ interface AspectData {
 	description?: string;
 	properties: AspectProperty[];
 	// Required ([] when omitted on upload). Arrays only, no filter strings, no "fulltext".
+	// "@field" conditions read the node's parent folder, as in searches (also in folder, feature
+	// and workflow filters), e.g. [["@aspects", "contains", "reseller"]].
 	filters: NodeFilters1D | NodeFilters2D;
 	createdTime: string;
 	modifiedTime: string;
@@ -244,20 +248,23 @@ interface AspectProperty {
 	type: "uuid" | "string" | "number" | "boolean" | "object" | "array" | "date";
 	arrayType?: "string" | "number" | "uuid";
 	contentType?: string;
-	// Set only on create or in the update that adds the aspect; later writes are silently
-	// discarded (stored value kept; when nothing is stored, key dropped or set to defaultValue).
+	// Write-once: settable on create or on any update while nothing is stored; once a value is
+	// stored, later writes are silently discarded (the stored value is kept).
 	readonly?: boolean;
 	searchable?: boolean;
 	required?: boolean;
-	validationRegex?: string; // string and array<string> only; must be a valid JS regex
+	validationRegex?: string; // string and array<string> only; upload rejects an invalid JS regex
 	validationList?: Array<string | number>; // string, number, array<string> only; strict type match
 	// uuid and array<uuid> only, checked against the referenced nodes. Arrays only, no
-	// "fulltext"; filters on "@" fields are ignored.
+	// "fulltext"; "@" fields are checked against each referenced node's parent folder.
 	validationFilters?: NodeFilters1D | NodeFilters2D;
-	defaultValue?: string | number | boolean; // used when the value is missing or null
+	// Used when the value is missing, null or "" (non-string types). Upload rejects a default that
+	// breaks the property's type, validationList or validationRegex (so none for array/object).
+	defaultValue?: string | number | boolean;
 }
-// An empty string "" passes validation for every type, is stored as-is and gets no defaultValue
-// (but fails `required`). To clear a value, set it to null.
+// In a non-string property, "" means no value, like null: it is removed or replaced by
+// defaultValue, and fails `required`. A string property keeps "". Upload rejects duplicate
+// property names and drops keys not listed above.
 ```
 
 ## Common Types

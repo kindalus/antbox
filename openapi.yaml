@@ -955,7 +955,7 @@ paths:
             - aspects
          summary: Create or replace an aspect
          operationId: createAspect
-         description: Upload an aspect JSON file as multipart/form-data in the `file` field. If the payload omits `uuid`, the server uses the uploaded file name without the last extension and replaces spaces with `-`. Admin only. When an aspect with that uuid already exists, it is replaced entirely (there is no separate update endpoint) and its `createdTime` and `modifiedTime` are reset. Nodes that use the aspect are not re-validated.
+         description: Upload an aspect JSON file as multipart/form-data in the `file` field. If the payload omits `uuid`, the server uses the uploaded file name without the last extension and replaces spaces with `-`. Admin only. When an aspect with that uuid already exists, it is replaced entirely (there is no separate update endpoint) and its `createdTime` and `modifiedTime` are reset. Nodes that use the aspect are not re-validated. Only the fields of the Aspect and AspectProperty schemas are stored; other keys are dropped. Two properties with the same `name`, an invalid `validationRegex`, or a `defaultValue` that breaks its property's rules are rejected with 400.
          requestBody:
             required: true
             content:
@@ -3528,7 +3528,7 @@ components:
                description: MIME type hint for string content (e.g., "text/markdown", "text/html")
             readonly:
                type: boolean
-               description: The value can only be set when the node is created or in the update that adds the aspect. Later updates silently discard new values (the stored value is kept; with none stored, the key is dropped or set to defaultValue).
+               description: Write-once. The value can be set on create and on any update while the node has no stored value for it (absent, null, or "" in a non-string property). Once a value is stored, later updates silently keep it.
             searchable:
                type: boolean
                description: Whether the property should be indexed for search
@@ -3536,14 +3536,14 @@ components:
                type: boolean
                description: Whether the property is required
             defaultValue:
-               description: Default value for the property
+               description: Default value, applied when the value is absent, null, or "" in a non-string property. Upload rejects a default that does not satisfy the property's own type (and arrayType, so array and object properties cannot have one), validationList and validationRegex; "" is not a valid default for non-string types.
                oneOf:
                   - type: string
                   - type: number
                   - type: boolean
             validationRegex:
                type: string
-               description: Regex pattern for string or array<string> validation
+               description: JavaScript regular expression for string or array<string> validation. Upload rejects a pattern that does not compile.
             validationList:
                type: array
                description: List of allowed values for string, number, or array<string> properties
@@ -3553,7 +3553,7 @@ components:
                      - type: number
             validationFilters:
                $ref: "#/components/schemas/NodeFilters"
-               description: For uuid and array<uuid> properties - filters every referenced node must satisfy. fulltext filters are rejected; filters on `@` (parent folder) fields are ignored.
+               description: For uuid and array<uuid> properties - filters every referenced node must satisfy. fulltext filters are rejected; `@` (parent folder) conditions are checked against the parent folder of each referenced node.
       AnswerOptions:
          type: object
          properties:
@@ -3902,7 +3902,11 @@ components:
                nullable: true
       FilterOperator:
          type: string
-         description: The comparison or logical operator for filtering.
+         description: >-
+            The comparison or logical operator for filtering. The contains family (`contains`,
+            `contains-all`, `contains-any`, `not-contains`, `contains-none`) applies only to
+            arrays: a non-array or missing value never satisfies `contains`, `contains-all` or
+            `contains-any`, and always satisfies `not-contains` and `contains-none`.
          enum:
             - "=="
             - "<="
@@ -3944,7 +3948,10 @@ components:
             A single filter tuple #: [field: string, operator: FilterOperator, value: unknown].
             `["fulltext", "match", "<text>"]` is a full-text search (see findNodes); it is accepted
             in searches and smart folders, and rejected in folder, aspect, feature and workflow
-            filters, which are checked against one node at a time.
+            filters, which are checked against one node at a time. A field starting with `@`
+            (e.g. `@aspects`) is checked against the parent folder of the node, in searches and in
+            single-node filters alike; the root folder is the parent of top-level nodes, and the
+            condition fails when the parent cannot be loaded.
          # A tuple (fixed-length array with a schema per position), OpenAPI 3.1 / JSON Schema 2020-12
          prefixItems:
             - type: string # field: string
@@ -4076,7 +4083,7 @@ components:
             properties:
                type: object
                additionalProperties: true
-               description: Aspect properties keyed as `<aspect-uuid>:<property-name>`.
+               description: Aspect properties keyed as `<aspect-uuid>:<property-name>`. In a non-string property, `""` means no value, like null.
             tags:
                type: array
                items:
@@ -4396,7 +4403,7 @@ components:
             properties:
                type: object
                additionalProperties: true
-               description: Aspect properties keyed as `<aspect-uuid>:<property-name>`.
+               description: Aspect properties keyed as `<aspect-uuid>:<property-name>`. In a non-string property, `""` means no value, like null.
             articleProperties:
                $ref: "#/components/schemas/ArticlePropertiesMap"
                description: Localized article fields. Required and non-empty for article nodes.
@@ -4810,7 +4817,7 @@ components:
             properties:
                type: object
                additionalProperties: true
-               description: Aspect properties keyed as `<aspect-uuid>:<property-name>`.
+               description: Aspect properties keyed as `<aspect-uuid>:<property-name>`. In a non-string property, `""` means no value, like null.
             parent:
                type: string
                description: Parent folder UUID
@@ -4878,7 +4885,7 @@ components:
             properties:
                type: object
                additionalProperties: true
-               description: Aspect properties keyed as `<aspect-uuid>:<property-name>`.
+               description: Aspect properties keyed as `<aspect-uuid>:<property-name>`. In a non-string property, `""` means no value, like null.
             parent:
                type: string
                description: Parent folder UUID

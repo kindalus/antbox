@@ -107,10 +107,11 @@ than query syntax. On `fulltext`, `match` is a full-text search (next section). 
 operators (`in`, `not-in`, `contains-all`, `contains-any`, `contains-none`) require array values.
 `contains-none` succeeds only when none of the supplied values is present.
 
-Use `match` for text and the `contains` family only on array fields such as `tags`, `aspects`,
-`related` or array properties. On a non-array value the result depends on the repository (the
-in-memory one does a substring test; SQLite logs an error and returns no nodes), so never use
-`contains` on a string field.
+The `contains` family applies only to array fields such as `tags`, `aspects`, `related` or array
+properties; use `match` for text. A field whose value is not an array (a string, number, boolean,
+object, or a missing field) contains nothing, in every repository: it never satisfies `contains`,
+`contains-all` (even with an empty list) or `contains-any`, and always satisfies `not-contains` and
+`contains-none`. So `["title", "contains", "report"]` matches no node.
 
 In the filter string notation (`"size > 1000, mimetype == application/pdf | …"`), values are text,
 except an unquoted number after `<`, `<=`, `>` or `>=`, which is a number: `size > 1000` compares
@@ -136,9 +137,18 @@ run first as a folder query (the `@` removed, restricted to folders, the root fo
 to the uuids of any `parent` filter in the group). The group then becomes `parent in [those
 folders]` plus its other filters; when no folder matches, the group matches no nodes.
 
-`@` filters are resolved only in searches (`find`, `find_nodes`, smart folders). In filters checked
-against one node, such as an aspect's `filters`, `@title` is read as an ordinary field that nodes do
-not have, so do not use them there (in `validationFilters` they are ignored).
+Filters checked against one node follow the same rule: in each AND group, the `@` conditions are
+checked (with the `@` removed) against the node's parent folder and the other conditions against
+the node, and the groups are OR-ed. This applies to aspect `filters`, folder child filters, feature
+`filters`, workflow and transition `filters`, and aspect `validationFilters` (where the node is each
+referenced node, so `@` reads that node's parent). The root folder, which is not stored, is the
+parent of top-level nodes. When the parent cannot be loaded, the `@` conditions fail. The parent
+is read without permission checks, as in searches. In a folder's own child filters the parent is
+that folder, so `["@title", "==", "Inbox"]` there only holds in the folder titled `Inbox`.
+
+For example, an aspect with
+`[["mimetype", "==", "application/vnd.antbox.metanode"], ["@aspects", "contains", "reseller"]]`
+applies only to metanodes whose parent folder has the `reseller` aspect.
 
 An empty filter list accepts every node allowed by the caller's permissions. An empty AND group
 inside an OR expression is also unconditional. A parent filter that matches no folders returns no

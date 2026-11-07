@@ -12,6 +12,11 @@ import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import type { NodeService } from "application/nodes/node_service.ts";
 import type { FeaturesEngine } from "application/features/features_engine.ts";
 import type { WorkflowData } from "domain/configuration/workflow_data.ts";
+import type { NodeLike } from "domain/node_like.ts";
+import type { NodeFilters } from "domain/nodes/node_filter.ts";
+import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
+import { Nodes } from "domain/nodes/nodes.ts";
+import { filtersSatisfiedBy } from "application/nodes/parent_filters.ts";
 
 // ============================================================================
 // TEST CONTEXTS
@@ -45,6 +50,8 @@ interface NodeServiceStub {
 	unlockCalls: string[];
 	updateCalls: Array<{ uuid: string; metadata: Partial<NodeMetadata>; email: string }>;
 	updateFileCalls: Array<{ uuid: string; file: File }>;
+	/** Other stored nodes, such as the parent folder that `@` filters read. */
+	nodes: Record<string, NodeMetadata>;
 	service: NodeService;
 }
 
@@ -78,10 +85,18 @@ function makeNodeServiceStub(metadata: Partial<NodeMetadata> = {}): NodeServiceS
 		unlockCalls: [],
 		updateCalls: [],
 		updateFileCalls: [],
+		nodes: {},
 		service: null as unknown as NodeService,
 	};
 
 	stub.service = {
+		filtersSatisfiedBy: (filters: NodeFilters, node: NodeLike) =>
+			filtersSatisfiedBy(filters, node, (uuid) => {
+				const found = stub.nodes[uuid];
+				return Promise.resolve(
+					found ? right(found as unknown as NodeLike) : left(new NodeNotFoundError(uuid)),
+				);
+			}),
 		get: (_ctx: AuthenticationContext, _uuid: string) =>
 			Promise.resolve(right(stub.nodeMetadata)),
 		lock: (_ctx: AuthenticationContext, uuid: string, groups: string[]) => {
@@ -254,6 +269,36 @@ describe("WorkflowInstancesEngine", () => {
 			const result = await engine.startWorkflow(ownerCtx, "node-001", def.uuid);
 
 			expect(result.isLeft()).toBe(true);
+		});
+
+		it("evaluates @ workflow and transition filters against the node's parent folder", async () => {
+			for (const [title, started] of [["Approvals", true], ["Other", false]] as const) {
+				const { engine, workflowsService, nodeStub } = makeHarness({ parent: "folder-1" });
+				nodeStub.nodes["folder-1"] = {
+					...nodeStub.nodeMetadata,
+					uuid: "folder-1",
+					title,
+					mimetype: Nodes.FOLDER_MIMETYPE,
+					parent: Nodes.ROOT_FOLDER_UUID,
+				};
+				const def = await createWorkflowDef(workflowsService, {
+					filters: [["@title", "==", "Approvals"], ["mimetype", "==", "application/pdf"]],
+				});
+
+				const result = await engine.startWorkflow(ownerCtx, "node-001", def.uuid);
+				expect(result.isRight(), title).toBe(started);
+			}
+
+			const { engine, workflowsService, nodeStub } = makeHarness();
+			const states = structuredClone(BASE_WORKFLOW.states);
+			states[0].transitions![0].filters = [["@uuid", "==", Nodes.ROOT_FOLDER_UUID]];
+			const def = await createWorkflowDef(workflowsService, { states });
+			const instance = await engine.startWorkflow(ownerCtx, "node-001", def.uuid);
+			if (instance.isLeft()) throw instance.value;
+			// node-001 lives in the root folder, which matches the transition's @uuid filter.
+			expect(nodeStub.nodeMetadata.parent).toBe(Nodes.ROOT_FOLDER_UUID);
+			expect((await engine.transition(ownerCtx, instance.value.uuid, "submit")).isRight())
+				.toBe(true);
 		});
 
 		it("should lock the node when starting the workflow", async () => {

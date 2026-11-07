@@ -850,9 +850,9 @@ export class PostgresNodeRepository implements NodeRepository {
 			if (operator === "in" || operator === "contains-any") {
 				return { clause: "FALSE", newParamIndex: paramIndex };
 			}
-			if (
-				operator === "not-in" || operator === "contains-all" || operator === "contains-none"
-			) return { clause: "TRUE", newParamIndex: paramIndex };
+			if (operator === "not-in" || operator === "contains-none") {
+				return { clause: "TRUE", newParamIndex: paramIndex };
+			}
 		}
 
 		const usesJsonPath = operator !== "==" && (
@@ -866,6 +866,8 @@ export class PostgresNodeRepository implements NodeRepository {
 			: "";
 		const jsonValue = `jsonb_extract_path(body, ${jsonPath})`;
 		const textValue = `jsonb_extract_path_text(body, ${jsonPath})`;
+		// The contains family applies only to arrays: a non-array (or missing) value contains nothing.
+		const isArray = `COALESCE(jsonb_typeof(${jsonValue}), '') = 'array'`;
 
 		switch (operator) {
 			case "==": {
@@ -964,7 +966,7 @@ export class PostgresNodeRepository implements NodeRepository {
 			case "contains": {
 				params.push(JSON.stringify([value]));
 				return {
-					clause: `${jsonValue} @> $${paramIndex}::text::jsonb`,
+					clause: `(${isArray} AND ${jsonValue} @> $${paramIndex}::text::jsonb)`,
 					newParamIndex: paramIndex + 1,
 				};
 			}
@@ -972,7 +974,7 @@ export class PostgresNodeRepository implements NodeRepository {
 			case "not-contains": {
 				params.push(JSON.stringify([value]));
 				return {
-					clause: `NOT (${jsonValue} @> $${paramIndex}::text::jsonb)`,
+					clause: `NOT (${isArray} AND ${jsonValue} @> $${paramIndex}::text::jsonb)`,
 					newParamIndex: paramIndex + 1,
 				};
 			}
@@ -981,7 +983,7 @@ export class PostgresNodeRepository implements NodeRepository {
 				const values = value as unknown[];
 				params.push(JSON.stringify(values));
 				return {
-					clause: `${jsonValue} @> $${paramIndex}::text::jsonb`,
+					clause: `(${isArray} AND ${jsonValue} @> $${paramIndex}::text::jsonb)`,
 					newParamIndex: paramIndex + 1,
 				};
 			}
@@ -993,7 +995,7 @@ export class PostgresNodeRepository implements NodeRepository {
 					return `${jsonValue} @> $${paramIndex + i}::text::jsonb`;
 				});
 				return {
-					clause: `(${conditions.join(" OR ")})`,
+					clause: `(${isArray} AND (${conditions.join(" OR ")}))`,
 					newParamIndex: paramIndex + values.length,
 				};
 			}
@@ -1002,10 +1004,10 @@ export class PostgresNodeRepository implements NodeRepository {
 				const values = value as unknown[];
 				const conditions = values.map((v, i) => {
 					params.push(JSON.stringify([v]));
-					return `NOT (${jsonValue} @> $${paramIndex + i}::text::jsonb)`;
+					return `${jsonValue} @> $${paramIndex + i}::text::jsonb`;
 				});
 				return {
-					clause: `(${conditions.join(" AND ")})`,
+					clause: `NOT (${isArray} AND (${conditions.join(" OR ")}))`,
 					newParamIndex: paramIndex + values.length,
 				};
 			}

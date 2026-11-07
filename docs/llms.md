@@ -194,8 +194,12 @@ Critical rules:
   aspects; a node without aspects gets `properties: {}`
 - on update, supplied properties are merged into the stored ones; `null` removes a key or resets
   it to its `defaultValue`
-- readonly aspect properties can only be set on create or in the update that adds the aspect;
-  later updates silently discard new values (the stored value, if any, is kept)
+- in a non-string property (number, boolean, date, uuid, array, object), `""` means no value, like
+  `null`; in a string property `""` is kept
+- readonly aspect properties are write-once: settable on create or on any update while nothing is
+  stored; once a value is stored, later updates silently keep it
+- aspect upload rejects an invalid `validationRegex`, a `defaultValue` that breaks the property's
+  own rules, and duplicate property names; unknown keys are dropped
 - uuid/uuid[] aspect properties are existence-validated against nodes
 
 ## 6. Features: Generation with Action/Extension/AI Tool Focus
@@ -472,12 +476,17 @@ Supported operators:
 - `==`, `!=`, `<`, `<=`, `>`, `>=`
 - `in`, `not-in`
 - `match`
-- `contains`, `contains-all`, `contains-any`, `not-contains`, `contains-none`
+- `contains`, `contains-all`, `contains-any`, `not-contains`, `contains-none` (arrays only: a
+  non-array or missing value never satisfies `contains`, `contains-all` or `contains-any`, and
+  always satisfies `not-contains` and `contains-none`)
 
 Filter shape semantics:
 
 - 1D array of tuples -> AND
 - 2D array (`[[...], [...]]`) -> OR across groups, AND inside each group
+- a field starting with `@` (e.g. `["@aspects", "contains", "reseller"]`) is checked against the
+  node's parent folder (the root folder for top-level nodes), in searches and in aspect, folder,
+  feature, workflow and `validationFilters` filters alike
 
 Full-text search: `["fulltext", "match", "annual report"]`, or a `filters` string that is not filter
 notation, searches title, description, tags, searchable aspect properties and, with AI indexing,

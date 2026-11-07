@@ -3416,6 +3416,9 @@ components:
             systemPrompt:
                type: string
                description: Optional system prompt for the agent. Defaults to a generic Antbox assistant prompt when omitted.
+            aspectCatalog:
+               type: boolean
+               description: When true, a compact catalog of the tenant's aspects (UUIDs, property names, types, allowed values) is appended to the system prompt on every turn, so the agent can turn the user's vocabulary into `find_documents` filters. The built-in RAG Agent has it enabled.
             createdTime:
                type: string
                format: date-time
@@ -3455,6 +3458,9 @@ components:
             systemPrompt:
                type: string
                description: Optional system prompt for the agent. Defaults to a generic Antbox assistant prompt when omitted.
+            aspectCatalog:
+               type: boolean
+               description: When true, a compact catalog of the tenant's aspects (UUIDs, property names, types, allowed values) is appended to the system prompt on every turn, so the agent can turn the user's vocabulary into `find_documents` filters. The built-in RAG Agent has it enabled.
       ApiKey:
          type: object
          description: API Key configuration data for programmatic access.

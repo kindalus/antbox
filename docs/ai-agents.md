@@ -25,6 +25,7 @@ interface AgentData {
 	tools?: boolean | string[]; // true = all, false/undefined/[] = read only
 	skills?: string[]; // optional allow-list of discovered skill names
 	systemPrompt?: string; // defaults to a generic Antbox assistant prompt when omitted
+	aspectCatalog?: boolean; // append the tenant's aspect catalog to the prompt on every turn
 	createdTime: string;
 	modifiedTime: string;
 }
@@ -61,6 +62,34 @@ Every tenant exposes built-in agents such as:
 - `--code-writer--`
 
 Built-in agents can be listed and fetched, but cannot be updated or deleted.
+
+### RAG Agent
+
+`--rag-agent--` is exposed to every user and answers from the documents the user can read. Its only
+search tool is `find_documents` (plus `read`); it never gets `run_code`, because it reads untrusted
+document text and there is no sandbox. It has `aspectCatalog: true`, so every turn its system prompt
+ends with a compact catalog of the tenant's aspects, which maps the user's vocabulary to filters:
+
+```text
+## Aspect catalog
+Aspects classify nodes. Select an aspect with ["aspects","contains","<uuid>"] and filter its properties as "<uuid>:<property>". Listed values are the only valid ones; use them exactly.
+- invoice (Invoice)
+  - status "Estado": string ["Open", "Closed"] (required)
+  - amount: number
+  - lines: array<string>
+```
+
+Each aspect is `uuid (title)`; each property is `name "title": type<arrayType> [allowed values]
+(required)`, with the title only when it says more than the name and at most 30 listed values.
+Descriptions, filters and regexes are left out, and the catalog stops at about 3000 tokens. It is
+built from `listAspects` with the caller's context; when listing fails the turn runs without it.
+Custom agents can set `aspectCatalog: true` too.
+
+The prompt tells the agent to answer attribute questions (status, dates, amounts, "how many",
+"list") with `filters`, meaning questions with `query`, and mixed ones with both in one call; to say
+which filters or query it used; to retry once before saying nothing was found; to give exact counts
+only from `total` in `filters` mode; to cite title and uuid; and to make at most 5 tool calls per
+request.
 
 ## Endpoints
 
@@ -173,7 +202,29 @@ Current built-in function tools include:
 - `find_nodes`
 - `get_node`
 - `semantic_search`
+- `find_documents`
 - `read` (Pi's file reader, confined to the agent's skills; see `agent-skills`)
+
+`find_documents` is read-only and needs `filters`, `query`, or both (never neither). It returns the
+matching nodes the user can read with their stored text, so one call replaces a search followed by
+one read per node:
+
+- `filters` alone (`mode: "filters"`): the nodes that match, with `total`, the exact number of
+  matching readable nodes.
+- `query` alone or with `filters` (`mode: "semantic"`): ranked by meaning within the filters, with
+  the same relevance threshold as `semantic_search`. `total` counts the results above the threshold
+  within the first 50 (`totalIsLowerBound` when it reaches 50).
+- When the tenant has no embeddings or semantic search fails, the query runs as a full-text search
+  within the filters (`mode: "fulltext"`, explained in `notice`).
+
+Filters use the [node filter](node-querying.md) JSON form, as an array or a JSON string, including
+`aspectUuid:property` fields and `@` parent filters; a `fulltext` filter is rejected in favour of
+`query`. `limit` defaults to 10 (at most 20), `include_content` to true, and `max_chars_per_node` to
+4000 (at most 8000). Each node has `uuid`, `title`, `mimetype`, `parent`, `description`, `tags`,
+`aspects`, `properties`, `score` (ranked modes) and `content`, the stored text without the metadata
+frontmatter, cut with a `[truncated: …]` marker and `contentTruncated: true`. The text of the whole
+page is read in one batched call. Permissions follow `semantic_search`: Read on the node is enough to
+get its text.
 
 Feature-backed AI tools are also available when configured for the tenant and included in the
 agent's `tools` allow-list. `read` is always available for agents. The names of the built-in tools are reserved and cannot be

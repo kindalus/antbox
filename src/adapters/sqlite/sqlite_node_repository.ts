@@ -652,6 +652,20 @@ export class SqliteNodeRepository implements NodeRepository {
 		}
 	}
 
+	countMatching(filters: NodeFilters): Promise<Either<AntboxError, number>> {
+		try {
+			const params: BindValue[] = [];
+			const where = filters.length === 0 ? "TRUE" : this.#whereClause(filters, params);
+			const row = this.#db
+				.prepare(`SELECT COUNT(*) AS total FROM nodes WHERE ${where}`)
+				.get(...toSqlValues(params)) as { total: number | bigint };
+			return Promise.resolve(right(Number(row.total)));
+		} catch (err) {
+			Logger.error("Count error:", err);
+			return Promise.resolve(left(new SqliteError(String(err))));
+		}
+	}
+
 	#findAll(
 		pageSize: number,
 		offset: number,

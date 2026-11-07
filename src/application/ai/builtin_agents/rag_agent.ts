@@ -3,23 +3,30 @@ import type { AgentData } from "domain/configuration/agent_data.ts";
 /**
  * Built-in prompt-driven RAG Agent
  *
- * This agent now runs as a regular LLM agent using the standard Antbox tool loop.
- * It is instructed to prefer semantic search before answering when conversation context
- * is insufficient, and to use retrieval tools to ground its response in Antbox data.
+ * A regular LLM agent on the standard Antbox tool loop. It answers from Antbox content found with
+ * find_documents, which searches by attributes and by meaning and returns the text in one call.
+ * The aspect catalog appended to its prompt maps the user's vocabulary to filters. It never gets
+ * run_code: it is exposed to every user and reads untrusted document text.
  */
 export const RAG_AGENT_UUID = "--rag-agent--";
 
 const SYSTEM_PROMPT = [
-	"You are Antbox's built-in retrieval-augmented assistant for knowledge discovery and document analysis.",
-	"Use available conversation context when it is clearly sufficient to answer the user's question.",
-	"You may only call tools that are available in your current toolset. For this agent, the only tools you may call are semantic_search and read. Never call run_code, find_nodes, get_node, or any other tool that is not listed as available.",
-	"Before answering, if the current conversation does not already contain applicable context, use the semantic_search tool to retrieve relevant Antbox content.",
-	"Use semantic_search at most three times per user request. If three semantic_search calls do not provide enough usable Antbox data to answer, stop searching and tell the user that you could not find enough information.",
-	"For questions that require exact counts, totals, aggregates, or structured database queries, only provide an exact answer if retrieved content explicitly supports it. Otherwise explain that semantic search did not return enough information to compute the exact result.",
-	"Ground your answer in retrieved Antbox data whenever possible and clearly say when you could not find enough information.",
-	"Focus on grounding every answer in actual platform data, citing sources with titles and UUIDs, and being transparent about what you searched and found.",
-	"Do not invent facts that are not supported by conversation context or retrieved Antbox content.",
-].join(" ");
+	"You are Antbox's built-in retrieval assistant. You answer questions from documents stored in Antbox.",
+	"",
+	"Tools: call only find_documents, and read for skill files. Never call any other tool.",
+	"",
+	"How to answer:",
+	"1. If the conversation already contains what you need, answer without searching.",
+	"2. Otherwise map the question to the Aspect catalog below before searching.",
+	'- Attribute questions (status, dates, amounts, supplier, customer, type, "how many", "which", "list") use filters. Write them as a JSON array: ["aspects","contains","<aspect uuid>"] plus "<aspect uuid>:<property>" conditions, using the exact listed values (for example "open invoices" -> [["aspects","contains","invoice"],["invoice:status","!=","Closed"]]).',
+	"- Questions about meaning or topics use query.",
+	"- Mixed questions use filters and query together in one call.",
+	"3. Tell the user which filters and/or query you used.",
+	"4. If filters return nothing, retry once with relaxed filters or with a query before concluding there is nothing. Never say something does not exist without saying what you searched.",
+	'5. Give exact counts only from total when mode is "filters". In "semantic" and "fulltext" modes total is approximate; say so.',
+	"6. Base every statement on retrieved content or the conversation. Cite sources by title and uuid. Do not invent facts.",
+	"7. Use at most 5 tool calls per user request; if you still lack information, say what is missing.",
+].join("\n");
 
 const ragAgent: AgentData = {
 	uuid: RAG_AGENT_UUID,
@@ -28,7 +35,8 @@ const ragAgent: AgentData = {
 		"Retrieval-augmented assistant for knowledge discovery and document analysis within Antbox ECM",
 	exposedToUsers: true,
 	model: ["default"],
-	tools: ["semantic_search"],
+	tools: ["find_documents"],
+	aspectCatalog: true,
 	systemPrompt: SYSTEM_PROMPT,
 	createdTime: "2024-01-01T00:00:00.000Z",
 	modifiedTime: "2024-01-01T00:00:00.000Z",

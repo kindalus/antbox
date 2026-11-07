@@ -456,6 +456,8 @@ Rules:
 - `tools: true` grants all tools
 - `tools: false`, omitted `tools`, or `tools: []` grant only `read`
 - `tools: ["name"]` grants the listed tools plus `read`
+- `aspectCatalog: true` appends a compact catalog of the tenant's aspects to the system prompt on
+  every turn (on for the built-in RAG Agent)
 
 ## 8. Search (Structured + Semantic)
 
@@ -522,7 +524,13 @@ Built-in function tools currently available in `AgentsEngine` include:
 - `find_nodes`
 - `get_node`
 - `semantic_search`
+- `find_documents` (read-only: `filters` and/or `query` in one call, returns the readable nodes
+  with their stored text and, with filters only, the exact `total`; see `ai-agents`)
 - `read` (confined to the agent's skills)
+
+The built-in RAG Agent (`--rag-agent--`) uses only `find_documents` and `read`, with the tenant's
+aspect catalog appended to its prompt (`aspectCatalog: true`): attribute questions become filters,
+meaning questions a query, and exact counts come only from `total` in `filters` mode.
 
 `run_code` expects ESM code:
 
@@ -537,7 +545,7 @@ export default async function ({ nodes, aspects, custom }) {
 `nodes` SDK methods:
 
 - `copy`, `create`, `createFile`, `delete`, `duplicate`, `export`, `exportAll`, `evaluate`
-- `find`, `semanticQuery`, `get`, `getEmbeddingContents`, `list`, `breadcrumbs`
+- `find`, `semanticQuery`, `findDocuments`, `get`, `getEmbeddingContents`, `list`, `breadcrumbs`
 - `update`, `updateFile`, `lock`, `unlock`
 
 `aspects` SDK methods:

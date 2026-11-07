@@ -761,6 +761,22 @@ export class PostgresNodeRepository implements NodeRepository {
 		}
 	}
 
+	async countMatching(filters: NodeFilters): Promise<Either<AntboxError, number>> {
+		try {
+			const { whereClause, params } = filters.length === 0
+				? { whereClause: "TRUE", params: [] }
+				: this.#buildFilterQuery(filters);
+			const rows = await this.#sql.unsafe<{ total: string | number }[]>(
+				`SELECT COUNT(*) AS total FROM nodes WHERE ${whereClause}`,
+				params as (string | number | boolean | null)[],
+			);
+			return right(Number(rows[0]?.total ?? 0));
+		} catch (err) {
+			Logger.error("Count error:", err);
+			return left(new PostgresError(String(err)));
+		}
+	}
+
 	async #findAll(
 		pageSize: number,
 		offset: number,

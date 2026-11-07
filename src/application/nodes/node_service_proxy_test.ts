@@ -131,6 +131,30 @@ describe("NodeServiceProxy", () => {
 		expect(result.right).toEqual({ "visible-document": "DU - Nota de Valor - Secção Geral" });
 	});
 
+	it("finds documents with the immutable bound principal", async () => {
+		const service = createService();
+		await createFolder(service, "public-docs", "public", true);
+		await createFolder(service, "private-docs", "private", false);
+		await createNode(service, "public-doc", "public-docs");
+		await createNode(service, "private-doc", "private-docs");
+		const ctx: AuthenticationContext = {
+			mode: "Direct",
+			tenant: "test",
+			principal: { email: "reader@example.com", groups: ["readers"] },
+		};
+		const proxy = new NodeServiceProxy(service, ctx);
+		ctx.principal.groups.push(Groups.ADMINS_GROUP_UUID);
+
+		const result = await proxy.findDocuments({
+			filters: [["mimetype", "==", Nodes.META_NODE_MIMETYPE]],
+		});
+
+		expect(result.isRight()).toBe(true);
+		expect(result.right.mode).toBe("filters");
+		expect(result.right.total).toBe(1);
+		expect(result.right.nodes.map((node) => node.uuid)).toEqual(["public-doc"]);
+	});
+
 	it("returns an error when semantic query is unavailable", async () => {
 		const proxy = new NodeServiceProxy(createService(), adminCtx);
 

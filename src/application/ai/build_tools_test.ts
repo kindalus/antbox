@@ -1,9 +1,15 @@
 import { describe, it } from "bdd";
 import { expect } from "expect";
 import { fileURLToPath } from "node:url";
-import { buildToolSet, type BuildToolSetContext } from "./build_tools.ts";
+import { validateToolArguments } from "@earendil-works/pi-ai";
+import {
+	buildToolSet,
+	type BuildToolSetContext,
+	FIND_DOCUMENTS_DESCRIPTION,
+} from "./build_tools.ts";
 import { loadSkills } from "./skills_loader.ts";
-import { right } from "shared/either.ts";
+import { BadRequestError } from "shared/antbox_error.ts";
+import { left, right } from "shared/either.ts";
 import type { AgentData } from "domain/configuration/agent_data.ts";
 import { type FeatureData, RESERVED_AI_TOOL_NAMES } from "domain/configuration/feature_data.ts";
 import type { AuthenticationContext } from "application/security/authentication_context.ts";
@@ -53,6 +59,96 @@ describe("buildToolSet", () => {
 		const runCode = built.value.tools.find((tool) => tool.name === "run_code");
 		expect(runCode?.description).toContain("{ nodes, aspects, custom }");
 		expect(runCode?.description).toContain("isLeft()");
+	});
+
+	it("registers find_documents as a thin adapter over NodeService.findDocuments", async () => {
+		const received: unknown[] = [];
+		const ctx = context({
+			nodeService: {
+				findDocuments: (ctx: AuthenticationContext, options: unknown) => {
+					received.push({ email: ctx.principal.email, options });
+					return Promise.resolve(right({ mode: "filters", total: 0, returned: 0, nodes: [] }));
+				},
+			} as unknown as BuildToolSetContext["nodeService"],
+		});
+		const built = await buildToolSet(ctx, agent({ tools: ["find_documents"] }), authContext);
+		if (built.isLeft()) throw built.value;
+		expect(built.value.toolNames).toEqual(["find_documents", "read"]);
+		const tool = built.value.tools.find((candidate) => candidate.name === "find_documents");
+		if (!tool) throw new Error("find_documents missing");
+		expect(tool.description).toBe(FIND_DOCUMENTS_DESCRIPTION);
+		expect(tool.description).toContain("exact total");
+		expect(tool.description).toContain('"aspectUuid:propertyName"');
+		const properties = (tool.parameters as { properties: Record<string, unknown> }).properties;
+		expect(Object.keys(properties).sort()).toEqual([
+			"filters",
+			"include_content",
+			"limit",
+			"max_chars_per_node",
+			"query",
+		]);
+
+		const filters = [["aspects", "contains", "invoice"]];
+		// The agent loop validates arguments first: both filter forms must pass unchanged.
+		for (
+			const args of [{ filters }, { filters: [filters] }, { filters: JSON.stringify(filters) }]
+		) {
+			const call = {
+				type: "toolCall",
+				id: "c",
+				name: "find_documents",
+				arguments: args,
+			} as const;
+			expect(validateToolArguments(tool, call)).toEqual(args);
+		}
+		const result = await tool.execute("call", { filters, query: "late", limit: 5 });
+		await tool.execute("call", {
+			filters: JSON.stringify(filters),
+			include_content: false,
+			max_chars_per_node: 100,
+		});
+		expect(received).toEqual([
+			{
+				email: "user@example.com",
+				options: {
+					filters,
+					query: "late",
+					limit: 5,
+					includeContent: undefined,
+					maxCharsPerNode: undefined,
+				},
+			},
+			{
+				email: "user@example.com",
+				options: {
+					filters,
+					query: undefined,
+					limit: undefined,
+					includeContent: false,
+					maxCharsPerNode: 100,
+				},
+			},
+		]);
+		expect(result.content).toEqual([{
+			type: "text",
+			text: '{"mode":"filters","total":0,"returned":0,"nodes":[]}',
+		}]);
+		await expect(tool.execute("call", { filters: "[not json" })).rejects.toThrow(
+			"filters must be an array",
+		);
+	});
+
+	it("reports find_documents service errors as tool errors", async () => {
+		const ctx = context({
+			nodeService: {
+				findDocuments: () =>
+					Promise.resolve(left(new BadRequestError("find_documents needs a query"))),
+			} as unknown as BuildToolSetContext["nodeService"],
+		});
+		const built = await buildToolSet(ctx, agent({ tools: ["find_documents"] }), authContext);
+		if (built.isLeft()) throw built.value;
+		const tool = built.value.tools.find((candidate) => candidate.name === "find_documents");
+		await expect(tool!.execute("call", {})).rejects.toThrow("find_documents needs a query");
 	});
 
 	it("loads only skills allowed for the agent", async () => {

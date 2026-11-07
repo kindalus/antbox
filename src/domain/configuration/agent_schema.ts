@@ -14,6 +14,7 @@ export const AgentDataSchema = z.object({
 	skills: z.array(z.string()).optional(),
 	systemPrompt: z.string().trim().min(1, "systemPrompt must not be empty when provided")
 		.optional(),
+	aspectCatalog: z.boolean().optional(),
 	createdTime: z.string(),
 	modifiedTime: z.string(),
 });

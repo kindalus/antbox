@@ -41,6 +41,10 @@ The function receives:
 - `evaluate(uuid)`
 - `find(filters, pageSize?, pageToken?)` — `{ nodes, pageSize, pageToken, scores? }`
 - `semanticQuery(text)` — top 10 `RagDocument`s (`uuid`, `title`, `content`, `score`)
+- `findDocuments({ filters?, query?, limit?, includeContent?, maxCharsPerNode? })` — the readable
+  nodes matching filters and/or ranked by a query, with their stored text, in one call:
+  `{ mode, total, totalIsLowerBound?, returned, notice?, nodes }`. Backs the `find_documents` tool;
+  see [AI Agents](ai-agents.md#tools)
 - `get(uuid)`
 - `getEmbeddingContents(uuids)` — stored markdown keyed by readable node UUID
 - `list(parent?)`
@@ -89,7 +93,7 @@ return JSON.stringify(nodeOrErr.value);
 - code cannot inject arbitrary credentials to bypass platform ACL checks.
 - node and aspect permissions are checked by the same services as regular API calls, with one
   difference for stored text. `GET /v2/nodes/{uuid}/-/content-md` requires **Read** and **Export**
-  on the parent folder, but `getEmbeddingContents`, `semanticQuery` (and the `semantic_search`
-  tool), and the built-in `auto_tag` and `call_agent` actions return a node's stored markdown,
+  on the parent folder, but `getEmbeddingContents`, `semanticQuery` and `findDocuments` (and the
+  `semantic_search` and `find_documents` tools), and the built-in `auto_tag` and `call_agent` actions return a node's stored markdown,
   including the text extracted from the file, with **Read** only. `export` and `exportAll` still
   require **Export**.

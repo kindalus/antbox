@@ -165,6 +165,14 @@ export class MongodbNodeRepository implements NodeRepository {
 		};
 	}
 
+	async countMatching(filters: NodeFilters): Promise<Either<AntboxError, number>> {
+		try {
+			return right(await this.#collection.countDocuments(buildMongoQuery(filters)));
+		} catch (err) {
+			return left(new MongodbError((err as Error).message));
+		}
+	}
+
 	async getByFid(fid: string): Promise<Either<NodeNotFoundError, NodeLike>> {
 		const result = await this.filter([["fid", "==", fid]], 1, 1);
 

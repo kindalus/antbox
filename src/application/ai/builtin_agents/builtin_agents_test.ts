@@ -21,18 +21,28 @@ describe("builtin agents schema validation", () => {
 		expect(result.success).toBe(true);
 	});
 
-	it("RAG agent metadata stays prompt-driven and retrieval-focused", () => {
+	it("RAG agent searches with find_documents only and gets the aspect catalog", () => {
 		expect(ragAgent.exposedToUsers).toBe(true);
-		expect(ragAgent.systemPrompt?.length ?? 0).toBeGreaterThan(0);
-		expect(ragAgent.systemPrompt).toContain("semantic_search");
-		expect(ragAgent.systemPrompt).toContain("read");
-		expect(ragAgent.systemPrompt).toContain("Before answering");
-		expect(ragAgent.systemPrompt).toContain("only tools you may call");
-		expect(ragAgent.systemPrompt).toContain("Never call run_code");
-		expect(ragAgent.systemPrompt).toContain("at most three times");
-		expect(ragAgent.systemPrompt).toContain("could not find enough information");
-		expect(ragAgent.systemPrompt).toContain("exact counts, totals, aggregates");
 		expect(ragAgent.model).toEqual(["default"]);
-		expect(ragAgent.tools).toEqual(["semantic_search"]);
+		expect(ragAgent.tools).toEqual(["find_documents"]);
+		expect(ragAgent.tools).not.toContain("semantic_search");
+		expect(ragAgent.tools).not.toContain("run_code");
+		expect(ragAgent.aspectCatalog).toBe(true);
+		// The session manifest stores agents through the schema, which must keep the flag.
+		expect(AgentDataSchema.parse(ragAgent).aspectCatalog).toBe(true);
+	});
+
+	it("RAG agent prompt maps questions to filters or a query and bounds its claims", () => {
+		const prompt = ragAgent.systemPrompt ?? "";
+		expect(prompt).toContain("call only find_documents, and read");
+		expect(prompt).not.toContain("semantic_search");
+		expect(prompt).not.toContain("run_code");
+		expect(prompt).toContain("Aspect catalog");
+		expect(prompt).toContain("filters");
+		expect(prompt).toContain("exact listed values");
+		expect(prompt).toContain("retry once");
+		expect(prompt).toContain('exact counts only from total when mode is "filters"');
+		expect(prompt).toContain("Cite sources by title and uuid");
+		expect(prompt).toContain("at most 5 tool calls");
 	});
 });

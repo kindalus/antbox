@@ -221,6 +221,13 @@ export class InMemoryNodeRepository implements NodeRepository {
 		return Promise.resolve({ nodes, pageSize, pageToken });
 	}
 
+	countMatching(filters: NodeFilters): Promise<Either<AntboxError, number>> {
+		const spec = NodesFilters.nodeSpecificationFrom(filters);
+		const total = Object.values(this.#data)
+			.filter((entry) => spec.isSatisfiedBy(entry.node).isRight()).length;
+		return Promise.resolve(right(total));
+	}
+
 	supportsEmbeddings(): boolean {
 		return true;
 	}

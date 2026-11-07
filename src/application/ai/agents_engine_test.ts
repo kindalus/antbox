@@ -21,6 +21,7 @@ import { FeaturesEngine } from "application/features/features_engine.ts";
 import { InMemoryEventBus } from "adapters/inmem/inmem_event_bus.ts";
 import { AgentInteractionCompletedEvent } from "domain/ai/agent_interaction_completed_event.ts";
 import { customAgentRegistry } from "./custom_agents/index.ts";
+import { ragAgent } from "./builtin_agents/rag_agent.ts";
 import type {
 	AgentSessionRunner,
 	PiAgentSessionRunInput,
@@ -309,6 +310,7 @@ describe("AgentsEngine", () => {
 					"find_nodes",
 					"get_node",
 					"semantic_search",
+					"find_documents",
 					"read",
 				]);
 			}
@@ -633,5 +635,81 @@ describe("AgentsEngine usage recording", () => {
 		expect(result.isLeft()).toBe(true);
 		expect(events.length).toBe(1);
 		expect(events[0].payload.usage.totalTokens).toBeGreaterThan(0);
+	});
+});
+
+describe("AgentsEngine aspect catalog", () => {
+	const invoiceAspect = {
+		uuid: "invoice",
+		title: "Invoice",
+		filters: [],
+		properties: [{
+			name: "status",
+			title: "Status",
+			type: "string",
+			validationList: ["Open", "Closed"],
+			required: true,
+		}],
+		createdTime: "2026-01-01T00:00:00.000Z",
+		modifiedTime: "2026-01-01T00:00:00.000Z",
+	};
+
+	function capture(agentData: AgentData, listAspects: () => Promise<unknown>) {
+		const prompts: string[] = [];
+		const seen: AuthenticationContext[] = [];
+		const runtime = makeTextRuntime("Answer");
+		const runner = new CoreTestSessionRunner(runtime);
+		const run = runner.run.bind(runner);
+		runner.run = (input) => {
+			prompts.push(input.systemPrompt);
+			return run(input);
+		};
+		const engine = new AgentsEngine(makeContext({
+			agentsService: {
+				getAgent: async () => right(agentData),
+			} as unknown as import("./agents_service.ts").AgentsService,
+			aspectsService: {
+				listAspects: (ctx: AuthenticationContext) => {
+					seen.push(ctx);
+					return listAspects();
+				},
+			} as unknown as import("application/aspects/aspects_service.ts").AspectsService,
+			modelRuntime: runtime,
+			sessionRunner: runner,
+		}));
+		return { engine, prompts, seen };
+	}
+
+	it("appends the user's aspects to the RAG Agent prompt", async () => {
+		const { engine, prompts, seen } = capture(ragAgent, async () => right([invoiceAspect]));
+		const result = await engine.answer(mockAuthContext, ragAgent.uuid, "open invoices?");
+		expect(result.isRight()).toBe(true);
+		expect(seen.map((ctx) => ctx.principal.email)).toEqual([mockAuthContext.principal.email]);
+		expect(prompts[0]).toStartWith(ragAgent.systemPrompt!);
+		expect(prompts[0]).toContain("## Aspect catalog\nAspects classify nodes.");
+		expect(prompts[0]).toContain(
+			'- invoice (Invoice)\n  - status: string ["Open", "Closed"] (required)',
+		);
+	});
+
+	it("leaves the catalog out for agents without the flag", async () => {
+		const { engine, prompts, seen } = capture(makeAgent(), async () => right([invoiceAspect]));
+		expect((await engine.answer(mockAuthContext, "test-agent", "hi")).isRight()).toBe(true);
+		expect(seen).toHaveLength(0);
+		expect(prompts[0]).not.toContain("Aspect catalog");
+	});
+
+	it("still answers without the catalog when listing aspects fails", async () => {
+		const failures = [
+			async () => left(new AntboxErrorClass("ConfigError", "repository down")),
+			() => Promise.reject(new Error("boom")),
+		];
+		for (const failing of failures) {
+			const { engine, prompts } = capture(makeAgent({ aspectCatalog: true }), failing);
+			const result = await engine.answer(mockAuthContext, "test-agent", "hi");
+			expect(result.isRight()).toBe(true);
+			expect(prompts[0]).toStartWith("You are helpful.");
+			expect(prompts[0]).not.toContain("Aspect catalog");
+		}
 	});
 });

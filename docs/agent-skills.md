@@ -94,7 +94,7 @@ Every agent receives a `read` tool. It is Pi's file reader, confined to the agen
 - no skill scripts are executed; only file reading happens
 
 The name `read` is reserved. A feature exposed as an AI tool cannot use it (nor `run_code`,
-`find_nodes`, `get_node` or `semantic_search`): creating or updating such a feature is rejected,
+`find_nodes`, `get_node`, `semantic_search` or `find_documents`): creating or updating such a feature is rejected,
 and a stored feature that collides is ignored as an AI tool, with a warning in the log.
 
 ## Documentation skills

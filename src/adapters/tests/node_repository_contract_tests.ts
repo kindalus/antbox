@@ -146,6 +146,43 @@ describe("filter", () => {
 	});
 });
 
+describe("countMatching", () => {
+	const counted = async (filters: NodeFilter[] | NodeFilters2D) => {
+		const result = await repo.countMatching(filters);
+		expect(result.isRight()).toBe(true);
+		return result.right;
+	};
+
+	test("counts every matching node regardless of pagination", async () => {
+		const own: NodeFilter = ["uuid", "in", uuids];
+		expect(await counted([own])).toBe(4);
+		expect(await counted([own, ["mimetype", "==", Nodes.FOLDER_MIMETYPE]])).toBe(2);
+		expect((await repo.filter([own], 1)).nodes).toHaveLength(1);
+	});
+
+	test("matches filter() for OR groups, aspects and aspect properties", async () => {
+		const cases: (NodeFilter[] | NodeFilters2D)[] = [
+			[[["mimetype", "==", "image/jpeg"]], [["title", "==", "Folder 1"]]],
+			[["aspects", "contains", "finance"]],
+			[["properties.finance:owner's-code", "contains-all", ["paid", "approved"]]],
+			[["title", "match", "essay"]],
+		];
+		for (const filters of cases) {
+			const all = await repo.filter(filters, 1000);
+			expect(await counted(filters)).toBe(all.nodes.length);
+		}
+	});
+
+	test("an impossible filter counts none and empty filters count every node", async () => {
+		expect(await counted([[["uuid", "in", []]]])).toBe(0);
+		expect(await counted([["aspects", "contains-any", []]])).toBe(0);
+		expect(await counted([["fulltext", "match", "Essay"]])).toBe(0);
+		const all = (await repo.filter([], 1000)).nodes.length;
+		expect(await counted([])).toBe(all);
+		expect(await counted([[]])).toBe(all);
+	});
+});
+
 describe("contains operators on non-array values", () => {
 	const values: Record<string, unknown> = {
 		"cna-array": ["x", "y"],

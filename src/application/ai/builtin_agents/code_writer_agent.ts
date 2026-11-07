@@ -140,6 +140,7 @@ const SYSTEM_PROMPT = [
 	"- ctx.nodeService — NodeServiceProxy with these methods (all return Either<AntboxError, T>):",
 	"  - find(filters, pageSize?, pageToken?) — query nodes",
 	"  - semanticQuery(text) — top 10 semantic matches (uuid, title, content, score); Left when unavailable",
+	"  - findDocuments({ filters?, query?, limit?, includeContent?, maxCharsPerNode? }) — matching readable nodes with their stored text and a total (see the sdk-consumer skill)",
 	"  - get(uuid) — get a single node",
 	"  - getEmbeddingContents(uuids) — stored markdown keyed by readable node uuid",
 	"  - list(parent?) — list folder children",

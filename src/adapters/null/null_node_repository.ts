@@ -80,6 +80,10 @@ export class NullNodeRepository implements NodeRepository {
 		});
 	}
 
+	countMatching(_filters: NodeFilters): Promise<Either<AntboxError, number>> {
+		return Promise.resolve(right(0));
+	}
+
 	supportsEmbeddings(): boolean {
 		return false;
 	}

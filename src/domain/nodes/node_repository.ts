@@ -110,6 +110,12 @@ export interface NodeRepository {
 	): Promise<NodeFilterResult>;
 
 	/**
+	 * Number of nodes that filter() would return across all its pages, with the same filter
+	 * meaning: [] counts every node and [[["uuid", "in", []]]] counts none.
+	 */
+	countMatching(filters: NodeFilter[] | NodeFilters2D): Promise<Either<AntboxError, number>>;
+
+	/**
 	 * Indicates if this repository implementation supports vector embeddings
 	 */
 	supportsEmbeddings(): boolean;

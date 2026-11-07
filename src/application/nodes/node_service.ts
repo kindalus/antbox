@@ -41,6 +41,7 @@ import { AuthorizationService } from "../security/authorization_service.ts";
 import { GroupsService } from "../security/groups_service.ts";
 import { z } from "zod";
 import { FindService } from "./find_service.ts";
+import type { FindDocumentsOptions, FindDocumentsResult } from "./find_documents.ts";
 import type { NodeServiceContext } from "./node_service_context.ts";
 
 import { NodeAspectRules } from "./node_aspect_rules.ts";
@@ -654,6 +655,17 @@ export class NodeService {
 		topK: number,
 	): Promise<Either<AntboxError, RagDocument[]>> {
 		return this.findService.semanticDocuments(ctx, text, topK);
+	}
+
+	/**
+	 * Readable nodes matching filters and/or a query, with their stored text, in one call.
+	 * See FindService.findDocuments.
+	 */
+	findDocuments(
+		ctx: AuthenticationContext,
+		options: FindDocumentsOptions,
+	): Promise<Either<AntboxError, FindDocumentsResult>> {
+		return this.findService.findDocuments(ctx, options);
 	}
 
 	/**

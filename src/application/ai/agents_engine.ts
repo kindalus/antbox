@@ -20,6 +20,7 @@ import { getCustomAgent } from "application/ai/custom_agents/index.ts";
 import type { AgentModelRuntime } from "./resolve_model.ts";
 import type { AgentSessionRunner, PiAgentSessionRunInput } from "./pi_agent_session.ts";
 import { buildToolSet, type BuiltToolSet } from "./build_tools.ts";
+import { formatAspectCatalog } from "./aspect_catalog.ts";
 import {
 	chatHistoryToPiMessages,
 	piMessagesToChatMessages,
@@ -436,7 +437,7 @@ export class AgentsEngine implements IAgentsEngineInternal {
 				`Provider '${model.provider}' is not configured`,
 			);
 		}
-		const instruction = this.#buildInstruction(manifest.agentData);
+		const instruction = await this.#buildInstruction(manifest.agentData, authContext);
 		const generated = await this.#runRecordingUsage(
 			authContext,
 			manifest.agentUuid,
@@ -729,7 +730,11 @@ export class AgentsEngine implements IAgentsEngineInternal {
 			);
 		}
 
-		const instruction = this.#buildInstruction(agentData, additionalInstructions);
+		const instruction = await this.#buildInstruction(
+			agentData,
+			authContext,
+			additionalInstructions,
+		);
 		debugLogger?.debug(
 			"agent_debug_trace_start",
 			JSON.stringify({
@@ -786,11 +791,17 @@ export class AgentsEngine implements IAgentsEngineInternal {
 			: agentData.model;
 	}
 
-	#buildInstruction(
+	async #buildInstruction(
 		agentData: AgentData,
+		authContext: AuthenticationContext,
 		additionalInstructions?: string,
-	): string {
+	): Promise<string> {
 		let instruction = resolveAgentSystemPrompt(agentData.systemPrompt);
+
+		if (agentData.aspectCatalog) {
+			const catalog = await this.#aspectCatalog(authContext);
+			if (catalog) instruction += `\n\n${catalog}`;
+		}
 
 		if (additionalInstructions) {
 			instruction += `\n\n**INSTRUCTIONS**\n\n${additionalInstructions}`;
@@ -799,6 +810,18 @@ export class AgentsEngine implements IAgentsEngineInternal {
 		instruction += `\n\n${formatTodayInstruction(this.#now())}`;
 
 		return instruction;
+	}
+
+	/** The aspects the principal can see, or undefined when they cannot be listed. */
+	async #aspectCatalog(authContext: AuthenticationContext): Promise<string | undefined> {
+		try {
+			const aspectsOrErr = await this.#aspectsService.listAspects(authContext);
+			if (aspectsOrErr.isRight()) return formatAspectCatalog(aspectsOrErr.value);
+			Logger.warn("AgentsEngine: aspect catalog unavailable:", aspectsOrErr.value.message);
+		} catch (error) {
+			Logger.warn("AgentsEngine: aspect catalog unavailable:", redactError(error).message);
+		}
+		return undefined;
 	}
 
 	#selectSkills(allowList?: string[]): LoadedSkill[] {

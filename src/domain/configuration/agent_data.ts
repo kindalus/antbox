@@ -16,6 +16,8 @@ export interface AgentData {
 	readonly tools?: boolean | string[]; // true = all, false/undefined/[] = read (skills) only
 	readonly skills?: string[]; // optional whitelist of skill names; absent = all loaded skills visible
 	readonly systemPrompt?: string; // optional custom system instruction; defaults if absent
+	/** Append a compact catalog of the tenant's aspects to the system prompt on every turn. */
+	readonly aspectCatalog?: boolean;
 	readonly createdTime: string;
 	readonly modifiedTime: string;
 }

@@ -43,6 +43,32 @@ function parseFindFilters(input: string): NodeFilters | string {
 	}
 }
 
+/**
+ * `find_documents` filters arrive as structured arrays, or JSON strings from models that encode
+ * nested arrays. Anything else is passed through so the service rejects it with a clear message.
+ */
+function parseDocumentFilters(input: unknown): NodeFilters | undefined {
+	if (input === undefined || input === null) return undefined;
+	if (typeof input !== "string") return input as NodeFilters;
+	try {
+		return JSON.parse(input) as NodeFilters;
+	} catch {
+		throw new Error("filters must be an array of [field, operator, value] tuples or its JSON");
+	}
+}
+
+export const FIND_DOCUMENTS_DESCRIPTION = [
+	"Find documents and read their text in one call. Read-only; returns only nodes you can read.",
+	"Give filters, a query, or both:",
+	"filters alone lists the nodes that match them and returns the exact total (use it for status, dates, amounts, people, 'how many', 'which', 'list');",
+	"query alone ranks nodes by meaning (semantic search, full-text when unavailable);",
+	"filters plus query ranks by meaning only among the nodes that match the filters.",
+	'Filters are [field, operator, value] tuples, 1D = AND, 2D = OR. Operators: == != < <= > >= in not-in match contains contains-all contains-any not-contains contains-none. Aspect properties are "aspectUuid:propertyName" (e.g. ["invoice:status","==","Open"]) and need ["aspects","contains","aspectUuid"]; use the exact validationList values. "match" is for text fields; contains operators apply only to arrays such as tags and aspects. A field starting with "@" filters on the parent folder (e.g. ["@title","==","Invoices"]).',
+	'Result: { mode: "filters" | "semantic" | "fulltext", total, totalIsLowerBound?, returned, notice?, nodes: [{ uuid, title, mimetype, parent, description?, tags?, aspects?, properties?, score?, content?, contentTruncated? }] }.',
+	"total is exact only in filters mode; in semantic and fulltext modes it counts the relevant results within the first 50.",
+	"content is the node's stored text (without metadata), truncated to max_chars_per_node.",
+].join(" ");
+
 export interface BuildToolSetContext {
 	readonly nodeService: NodeService;
 	readonly aspectsService: AspectsService;
@@ -151,7 +177,7 @@ async function buildAllToolEntries(
 				name: "find_nodes",
 				label: "Find nodes",
 				description:
-					'Find nodes. filters is either a JSON-encoded array of [field, operator, value] tuples (1D = AND, 2D = OR; e.g. \'[["title","match","policy"],["tags","contains","urgent"]]\') or a string: "?text" runs a semantic search, filter notation such as "inv-uuid:status == open, size > 1000" is parsed as filters, and any other text runs a full-text search. In notation, == / != / in values and booleans stay text (so "inv-uuid:amount == 100" or "inv-uuid:paid == true" match nothing); use the JSON array form for typed values. Use "match" for text fields; the contains operators apply only to arrays such as tags and aspects (a non-array value never contains anything, so ["title","contains",…] matches no node). Aspect properties are keyed "aspectUuid:propertyName"; a field starting with "@" filters on the parent folder (e.g. ["@title","==","Invoices"]), here and in aspect, folder, feature and workflow filters. To list aspect definitions, use run_code with its aspects SDK.',
+					'Find nodes. filters is either a JSON-encoded array of [field, operator, value] tuples (1D = AND, 2D = OR; e.g. \'[["title","match","policy"],["tags","contains","urgent"]]\') or a string: "?text" runs a semantic search, filter notation such as "inv-uuid:status == open, size > 1000" is parsed as filters, and any other text runs a full-text search. In notation, == / != / in values and booleans stay text (so "inv-uuid:amount == 100" or "inv-uuid:paid == true" match nothing); use the JSON array form for typed values. Use "match" for text fields; the contains operators apply only to arrays such as tags and aspects (a non-array value never contains anything, so ["title","contains",…] matches no node). Aspect properties are keyed "aspectUuid:propertyName"; a field starting with "@" filters on the parent folder (e.g. ["@title","==","Invoices"]), here and in aspect, folder, feature and workflow filters. To list aspect definitions, use run_code with its aspects SDK. Returns metadata pages without text or a total; find_documents, when available, returns both.',
 				parameters: Type.Object({
 					filters: Type.String({
 						minLength: 1,
@@ -198,7 +224,8 @@ async function buildAllToolEntries(
 			tool: {
 				name: "semantic_search",
 				label: "Semantic search",
-				description: "Run semantic search over indexed node content.",
+				description:
+					"Run semantic search over indexed node content: the top 10 readable nodes closest in meaning, with their text. It cannot filter by attributes or count; when find_documents is available, use it for that.",
 				parameters: Type.Object({ query: Type.String({ minLength: 1 }) }),
 				execute: async (_id, params) => {
 					const { query } = params as { query: string };
@@ -210,6 +237,65 @@ async function buildAllToolEntries(
 					}
 					const value = Array.isArray(result.value) ? { results: result.value } : result.value;
 					return jsonToolResult(value);
+				},
+			},
+		},
+		{
+			name: "find_documents",
+			aliases: [],
+			tool: {
+				name: "find_documents",
+				label: "Find documents",
+				description: FIND_DOCUMENTS_DESCRIPTION,
+				parameters: Type.Object({
+					filters: Type.Optional(
+						Type.Union([
+							Type.Array(Type.Array(Type.Any()), {
+								description:
+									'Node filters: [field, operator, value] tuples (1D = AND) or a list of such lists (2D = OR), e.g. [["aspects","contains","invoice"],["invoice:status","!=","Closed"]]',
+							}),
+							Type.String({
+								minLength: 1,
+								description: "The same filters as a JSON-encoded array",
+							}),
+						]),
+					),
+					query: Type.Optional(
+						Type.String({
+							minLength: 1,
+							description: "Natural-language text to rank the matching nodes by meaning",
+						}),
+					),
+					limit: Type.Optional(
+						Type.Integer({ minimum: 1, description: "Nodes to return, default 10, max 20" }),
+					),
+					include_content: Type.Optional(
+						Type.Boolean({ description: "Return each node's stored text, default true" }),
+					),
+					max_chars_per_node: Type.Optional(
+						Type.Integer({
+							minimum: 1,
+							description: "Characters of text per node, default 4000, max 8000",
+						}),
+					),
+				}),
+				execute: async (_id, params) => {
+					const { filters, query, limit, include_content, max_chars_per_node } = params as {
+						filters?: unknown;
+						query?: string;
+						limit?: number;
+						include_content?: boolean;
+						max_chars_per_node?: number;
+					};
+					const result = await nodeProxy.findDocuments({
+						filters: parseDocumentFilters(filters),
+						query,
+						limit,
+						includeContent: include_content,
+						maxCharsPerNode: max_chars_per_node,
+					});
+					if (result.isLeft()) throw new Error(result.value.message);
+					return jsonToolResult(result.value);
 				},
 			},
 		},

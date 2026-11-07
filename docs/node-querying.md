@@ -229,6 +229,13 @@ Only `?` searches fall back to fulltext, and only when semantic search is unavai
 `semanticQuery` and the agents' `semantic_search` tool never fall back: they return a Left
 (`"Service not available"` when the tenant has no semantic search, otherwise the error).
 
+The agents' `find_documents` tool (`findDocuments` in the SDK) combines both kinds of search: its
+`filters` are resolved like any other search (permissions, `@` parent filters), and its `query`
+ranks the matching nodes by meaning with the same threshold. When semantic search is unavailable
+or fails, the query runs as a full-text search within the same filters and the result says so
+(`mode: "fulltext"`). With filters only, it returns the exact number of matching readable nodes.
+See [AI Agents](ai-agents.md#tools).
+
 ### Semantic index
 
 Node creations and updates are indexed in the background through a queue with two concurrent jobs

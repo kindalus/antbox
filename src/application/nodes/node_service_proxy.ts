@@ -2,6 +2,7 @@ import { AuthenticationContext } from "application/security/authentication_conte
 import { NodeService } from "application/nodes/node_service.ts";
 
 import { NodeMetadata } from "domain/nodes/node_metadata.ts";
+import type { FindDocumentsOptions } from "application/nodes/find_documents.ts";
 import { left, right } from "shared/either.ts";
 import { Logger } from "shared/logger.ts";
 
@@ -76,6 +77,12 @@ export class NodeServiceProxy {
 		const TOP_K = 10;
 		const res = await this.#nodeService.semanticDocuments(this.#ctx, text, TOP_K);
 		return res.isLeft() ? left(res.value) : right(res.value);
+	}
+
+	/** Readable nodes matching filters and/or a query, with their stored text, in one call. */
+	findDocuments(options: FindDocumentsOptions) {
+		Logger.instance("NodeServiceProxy.findDocuments").debug(JSON.stringify(options));
+		return this.#nodeService.findDocuments(this.#ctx, options);
 	}
 
 	get(uuid: string) {

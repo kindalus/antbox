@@ -1,8 +1,9 @@
 import { EmbeddingsGeneratedEvent } from "domain/ai/embeddings_generated_event.ts";
 import type { NodeFilters, NodeFilters1D, NodeFilters2D } from "domain/nodes/node_filter.ts";
-import { isNodeFilters2D, NodeFiltersSchema } from "domain/nodes/node_filter.ts";
+import { hasFulltextFilter, isNodeFilters2D, NodeFiltersSchema } from "domain/nodes/node_filter.ts";
 import { isFulltextFilter } from "domain/nodes/fulltext.ts";
 import type { NodeFilterResult, VectorSearchResult } from "domain/nodes/node_repository.ts";
+import type { NodeLike } from "domain/node_like.ts";
 import type { RagDocument } from "domain/ai/rag_document.ts";
 import { applyRelevanceThreshold } from "application/ai/relevance_threshold.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
@@ -14,6 +15,19 @@ import type { AuthenticationContext } from "../security/authentication_context.t
 import type { AuthorizationService } from "../security/authorization_service.ts";
 import type { NodeServiceContext } from "./node_service_context.ts";
 import { createRootFolder } from "./root_folder.ts";
+import { embeddingMarkdownBody } from "./node_markdown.ts";
+import {
+	FIND_DOCUMENTS_DEFAULT_LIMIT,
+	FIND_DOCUMENTS_DEFAULT_MAX_CHARS,
+	FIND_DOCUMENTS_MAX_CHARS,
+	FIND_DOCUMENTS_MAX_LIMIT,
+	FIND_DOCUMENTS_SEARCH_WINDOW,
+	type FindDocumentsMode,
+	type FindDocumentsOptions,
+	FindDocumentsOptionsSchema,
+	type FindDocumentsResult,
+	type FoundDocument,
+} from "./find_documents.ts";
 
 /** Finds nodes while applying permissions, dynamic filters, and semantic ranking. */
 export class FindService {
@@ -107,6 +121,137 @@ export class FindService {
 	}
 
 	/**
+	 * Readable nodes that match the filters, ranked by meaning (or by full-text relevance when
+	 * semantic search is unavailable) when a query is given, with their stored text. One call
+	 * returns everything an agent needs, so it never has to fetch each node afterwards.
+	 *
+	 * The filters are combined with the Read permission filters and "@" parent filters exactly as
+	 * in find(). Content follows the same rule as getContents(): Read on the node is enough.
+	 */
+	async findDocuments(
+		ctx: AuthenticationContext,
+		options: FindDocumentsOptions,
+	): Promise<Either<AntboxError, FindDocumentsResult>> {
+		const parsed = FindDocumentsOptionsSchema.safeParse(options);
+		if (!parsed.success) {
+			const issue = parsed.error.issues[0];
+			const path = issue?.path.join(".");
+			return left(
+				new BadRequestError(
+					`Invalid find_documents options: ${path ? `${path}: ` : ""}${
+						issue?.message ?? "invalid value"
+					}`,
+				),
+			);
+		}
+
+		const query = parsed.data.query?.trim() || undefined;
+		const filters = parsed.data.filters
+			? isNodeFilters2D(parsed.data.filters) ? parsed.data.filters : [parsed.data.filters]
+			: [];
+		const hasFilters = filters.some((group) => group.length > 0);
+		if (!query && !hasFilters) {
+			return left(new BadRequestError("find_documents needs a query, filters, or both"));
+		}
+		if (hasFulltextFilter(filters)) {
+			return left(
+				new BadRequestError("Use query instead of a fulltext filter in find_documents"),
+			);
+		}
+
+		const limit = Math.min(
+			parsed.data.limit ?? FIND_DOCUMENTS_DEFAULT_LIMIT,
+			FIND_DOCUMENTS_MAX_LIMIT,
+		);
+		const maxChars = Math.min(
+			parsed.data.maxCharsPerNode ?? FIND_DOCUMENTS_DEFAULT_MAX_CHARS,
+			FIND_DOCUMENTS_MAX_CHARS,
+		);
+		const resolved = await this.#resolveFilters(ctx, hasFilters ? filters : [[]]);
+
+		const hitsOrErr = query
+			? await this.#searchDocuments(ctx, query, resolved, limit)
+			: await this.#filterDocuments(resolved, limit);
+		if (hitsOrErr.isLeft()) return left(hitsOrErr.value);
+
+		const { hits, ...summary } = hitsOrErr.value;
+		let contents: Record<string, string> = {};
+		if (parsed.data.includeContent !== false && hits.length > 0) {
+			// One batched read for the whole page. Every hit already passed the Read filters.
+			const contentsOrErr = await this.context.repository.getContents(
+				hits.map(({ node }) => node.uuid),
+			);
+			if (contentsOrErr.isLeft()) return left(contentsOrErr.value);
+			contents = contentsOrErr.value;
+		}
+
+		return right({
+			...summary,
+			returned: hits.length,
+			nodes: hits.map(({ node, score }) =>
+				toFoundDocument(node, score, contents[node.uuid], maxChars)
+			),
+		});
+	}
+
+	async #filterDocuments(
+		filters: NodeFilters2D,
+		limit: number,
+	): Promise<Either<AntboxError, DocumentHits>> {
+		const [totalOrErr, page] = await Promise.all([
+			this.context.repository.countMatching(filters),
+			this.context.repository.filter(filters, limit, 1),
+		]);
+		if (totalOrErr.isLeft()) return left(totalOrErr.value);
+
+		return right({
+			mode: "filters",
+			total: totalOrErr.value,
+			hits: page.nodes.map((node) => ({ node })),
+		});
+	}
+
+	/** Semantic ranking within the filters, falling back to full-text search within them. */
+	async #searchDocuments(
+		ctx: AuthenticationContext,
+		query: string,
+		filters: NodeFilters2D,
+		limit: number,
+	): Promise<Either<AntboxError, DocumentHits>> {
+		let notice = "Semantic search is not available for this tenant; used full-text search.";
+		if (this.supportsSemanticSearch()) {
+			try {
+				const rankedOrErr = await this.#rankByMeaning(
+					ctx,
+					query,
+					FIND_DOCUMENTS_SEARCH_WINDOW,
+					filters,
+				);
+				if (rankedOrErr.isRight()) {
+					return right(windowedHits("semantic", rankedOrErr.value, limit));
+				}
+				Logger.error("find_documents semantic search failed:", rankedOrErr.value);
+			} catch (error) {
+				Logger.error("find_documents semantic search failed:", error);
+			}
+			notice = "Semantic search failed; used full-text search.";
+		}
+
+		const ftsOrErr = await this.context.repository.fts(query, {
+			filters,
+			pageSize: FIND_DOCUMENTS_SEARCH_WINDOW,
+			pageToken: 1,
+		});
+		if (ftsOrErr.isLeft()) return left(ftsOrErr.value);
+
+		const ranked = ftsOrErr.value.nodes.map((node) => ({
+			node,
+			score: ftsOrErr.value.scores[node.uuid] ?? 0,
+		}));
+		return right({ ...windowedHits("fulltext", ranked, limit), notice });
+	}
+
+	/**
 	 * Performs semantic search using the provided query string. Falls back to fulltext search when
 	 * semantic search is unavailable or fails.
 	 */
@@ -159,6 +304,7 @@ export class FindService {
 		ctx: AuthenticationContext,
 		text: string,
 		topK: number,
+		resolvedFilters?: NodeFilters2D,
 	): Promise<Either<AntboxError, VectorSearchResult["nodes"]>> {
 		const provider = this.context.embeddingsProvider;
 		if (!provider || !this.context.repository.supportsEmbeddings()) {
@@ -179,7 +325,7 @@ export class FindService {
 			);
 		}
 
-		const filters = await this.#resolveFilters(ctx, [[]]);
+		const filters = resolvedFilters ?? await this.#resolveFilters(ctx, [[]]);
 		const searchOrErr = await this.context.repository.vectorSearch(
 			embeddingsOrErr.value.embeddings[0],
 			topK,
@@ -261,6 +407,54 @@ export class FindService {
 		const cleanFilters = filters.filter((f) => f[0] !== "parent");
 		return [...cleanFilters, ["parent", "in", parentList]];
 	}
+}
+
+interface DocumentHits {
+	mode: FindDocumentsMode;
+	total: number;
+	totalIsLowerBound?: boolean;
+	notice?: string;
+	hits: Array<{ node: NodeLike; score?: number }>;
+}
+
+/** The first `limit` of the ranked results; total counts the whole search window. */
+function windowedHits(
+	mode: FindDocumentsMode,
+	ranked: Array<{ node: NodeLike; score: number }>,
+	limit: number,
+): DocumentHits {
+	return {
+		mode,
+		total: ranked.length,
+		...(ranked.length >= FIND_DOCUMENTS_SEARCH_WINDOW ? { totalIsLowerBound: true } : {}),
+		hits: ranked.slice(0, limit),
+	};
+}
+
+function toFoundDocument(
+	node: NodeLike,
+	score: number | undefined,
+	markdown: string | undefined,
+	maxChars: number,
+): FoundDocument {
+	const { uuid, title, mimetype, parent, description, tags, aspects, properties } = node.metadata;
+	const found: FoundDocument = { uuid, title, mimetype, parent };
+	if (description) found.description = description;
+	if (tags?.length) found.tags = tags;
+	if (aspects?.length) found.aspects = aspects;
+	if (properties && Object.keys(properties).length) found.properties = properties;
+	if (score !== undefined) found.score = Math.round(score * 1000) / 1000;
+
+	const body = markdown === undefined ? "" : embeddingMarkdownBody(markdown);
+	if (body.length > maxChars) {
+		found.content = `${
+			body.slice(0, maxChars)
+		}\n\n[truncated: first ${maxChars} of ${body.length} characters]`;
+		found.contentTruncated = true;
+	} else if (body) {
+		found.content = body;
+	}
+	return found;
 }
 
 /**

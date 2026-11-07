@@ -69,6 +69,59 @@ interface NodeServiceProxy {
 	/** Semantic search over indexed content (top 10). Left is a string when unavailable. */
 	semanticQuery(text: string): Promise<Either<unknown, RagDocument[]>>;
 
+	/**
+	 * Readable nodes matching filters and/or ranked by a query, with their stored text, in one
+	 * call. Needs filters, query, or both (Left otherwise). Filters use the find() array form.
+	 *
+	 * mode "filters" (no query): total is the exact number of matching readable nodes.
+	 * mode "semantic": ranked by meaning within the filters; total counts the results above the
+	 *   relevance threshold within the first 50 (totalIsLowerBound when it reaches 50).
+	 * mode "fulltext": semantic search unavailable or failed; full-text within the filters,
+	 *   explained in notice.
+	 *
+	 * limit defaults to 10 (max 20). content is the stored text without the metadata frontmatter,
+	 * at most maxCharsPerNode characters (default 4000, max 8000), with a "[truncated: …]" marker.
+	 *
+	 * @example How many open invoices, and the first 10 with their text
+	 * nodes.findDocuments({
+	 *   filters: [["aspects", "contains", "invoice"], ["invoice:status", "!=", "Closed"]],
+	 * })
+	 *
+	 * @example Meaning within an aspect
+	 * nodes.findDocuments({ filters: [["aspects", "contains", "contract"]], query: "late delivery penalties" })
+	 */
+	findDocuments(options: {
+		filters?: NodeFilters;
+		query?: string;
+		limit?: number;
+		includeContent?: boolean;
+		maxCharsPerNode?: number;
+	}): Promise<
+		Either<
+			AntboxError,
+			{
+				mode: "filters" | "semantic" | "fulltext";
+				total: number;
+				totalIsLowerBound?: boolean;
+				returned: number;
+				notice?: string;
+				nodes: Array<{
+					uuid: string;
+					title: string;
+					mimetype: string;
+					parent: string;
+					description?: string;
+					tags?: string[];
+					aspects?: string[];
+					properties?: Record<string, unknown>;
+					score?: number;
+					content?: string;
+					contentTruncated?: boolean;
+				}>;
+			}
+		>
+	>;
+
 	/** Get a single node by UUID */
 	get(uuid: string): Promise<Either<AntboxError, NodeMetadata>>;
 

@@ -80,6 +80,7 @@ export const RESERVED_AI_TOOL_NAMES: readonly string[] = [
 	"find_nodes",
 	"get_node",
 	"semantic_search",
+	"find_documents",
 	"read",
 ];
 

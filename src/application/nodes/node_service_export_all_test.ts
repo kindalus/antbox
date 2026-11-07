@@ -199,7 +199,7 @@ describe("NodeService.exportAll", () => {
 			},
 		});
 		await addFile(service, "file-a", "a.txt", "a", "restricted");
-		const proxy = new NodeServiceProxy(service, undefined, {
+		const proxy = new NodeServiceProxy(service, {
 			...admin,
 			principal: { email: "reader@example.com", groups: ["readers"] },
 		});

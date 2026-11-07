@@ -20,6 +20,27 @@ export interface VectorSearchResult {
 	}>;
 }
 
+/** Indexing outcome stored per node. A node without a status (null) has never been processed. */
+export type EmbeddingStatus = "indexed" | "failed" | "skipped";
+
+export interface EmbeddingStatusRecord {
+	status: EmbeddingStatus | null;
+	/** Last indexing error, kept while the status is "failed". */
+	error?: string;
+	/** ISO time of the last status change. */
+	at?: string;
+}
+
+export type EmbeddingStatusCounts = Record<EmbeddingStatus | "pending", number>;
+
+export interface VectorSearchOptions {
+	/**
+	 * Applied before the topK cut, with the same meaning as in filter():
+	 * [] matches every node and [[["uuid", "in", []]]] matches none.
+	 */
+	filters?: NodeFilters2D;
+}
+
 export interface NodeRepository {
 	delete(uuid: string): Promise<Either<NodeNotFoundError, void>>;
 	update(node: NodeLike): Promise<Either<NodeNotFoundError, void>>;
@@ -59,18 +80,39 @@ export interface NodeRepository {
 	/**
 	 * Search for similar nodes using vector similarity
 	 * @param queryVector The query vector to search with
-	 * @param topK Number of top results to return
+	 * @param topK Number of top results to return, counted after options.filters
+	 * @param options Filters applied before the topK cut
 	 */
 	vectorSearch(
 		queryVector: Embedding,
 		topK: number,
+		options?: VectorSearchOptions,
 	): Promise<Either<AntboxError, VectorSearchResult>>;
 
 	/**
-	 * Delete the embedding for a node
+	 * Delete the embedding, its content and its status for a node
 	 * @param uuid The node UUID
 	 */
 	deleteEmbedding(uuid: string): Promise<Either<AntboxError, void>>;
+
+	/**
+	 * Record an indexing outcome other than "indexed", which upsertEmbedding sets.
+	 * "failed" keeps any stored vector; "skipped" removes the vector and its content.
+	 * update() and touch() never change the status.
+	 */
+	setEmbeddingStatus(
+		uuid: string,
+		status: "failed" | "skipped",
+		error?: string,
+	): Promise<Either<AntboxError, void>>;
+
+	/** Statuses of the given nodes. Unknown uuids are left out. */
+	getEmbeddingStatuses(
+		uuids: string[],
+	): Promise<Either<AntboxError, Record<string, EmbeddingStatusRecord>>>;
+
+	/** Number of nodes per status; nodes without a status are counted as pending. */
+	countEmbeddingStatuses(): Promise<Either<AntboxError, EmbeddingStatusCounts>>;
 
 	/**
 	 * Calculates the total size of all stored files in bytes.

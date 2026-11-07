@@ -194,17 +194,15 @@ function makeSemanticSearchContext(
 				right(makeAgent({ uuid, tools: ["semantic_search"], ...agentOverrides })),
 		} as unknown as import("./agents_service.ts").AgentsService,
 		nodeService: {
-			find: async () => right({ nodes: [{ uuid: "tax-doc" }] }),
-		} as unknown as import("application/nodes/node_service.ts").NodeService,
-		ragService: {
-			query: async () =>
+			supportsSemanticSearch: () => true,
+			semanticDocuments: async () =>
 				right([{
 					uuid: "tax-doc",
 					title: "tax-payment.pdf",
 					content: "Pagamento ao Estado. Montante: 100 AOA.",
 					score: 0.9,
 				}]),
-		} as unknown as import("./rag_service.ts").RAGService,
+		} as unknown as import("application/nodes/node_service.ts").NodeService,
 		modelRuntime,
 		...contextOverrides,
 	});

@@ -25,7 +25,6 @@ import type { AuthenticationContext } from "../security/authentication_context.t
 import { NodeService } from "../nodes/node_service.ts";
 import { NodeServiceProxy } from "../nodes/node_service_proxy.ts";
 import type { FeaturesService } from "./features_service.ts";
-import { RAGService } from "../ai/rag_service.ts";
 import { validateFeatureParameters } from "./feature_parameters.ts";
 import { runSystemAITool } from "./system_ai_tools.ts";
 import { runFeatureExtension } from "./feature_extension.ts";
@@ -55,7 +54,6 @@ export interface FeaturesEngineContext {
 	agentsEngine?: AgentAnswerExecutor;
 	aspectsService?: AspectsService;
 	ocrProvider?: OCRProvider;
-	ragService?: RAGService;
 	eventBus: EventBus;
 }
 
@@ -68,7 +66,6 @@ export class FeaturesEngine {
 	readonly #agentsEngine?: AgentAnswerExecutor;
 	readonly #aspectsService?: AspectsService;
 	readonly #ocrProvider?: OCRProvider;
-	readonly #ragService?: RAGService;
 	readonly #eventBus: EventBus;
 
 	constructor(ctx: FeaturesEngineContext) {
@@ -77,7 +74,6 @@ export class FeaturesEngine {
 		this.#agentsEngine = ctx.agentsEngine;
 		this.#aspectsService = ctx.aspectsService;
 		this.#ocrProvider = ctx.ocrProvider;
-		this.#ragService = ctx.ragService;
 		this.#eventBus = ctx.eventBus;
 
 		// Register event handlers for domain-wide triggers
@@ -409,7 +405,7 @@ export class FeaturesEngine {
 
 		const runContext: RunContext = {
 			authenticationContext: authContext,
-			nodeService: new NodeServiceProxy(this.#nodeService, this.#ragService, authContext),
+			nodeService: new NodeServiceProxy(this.#nodeService, authContext),
 			logger: Logger.instance(`feature=${feature.uuid}`, `tenant=${authContext.tenant}`),
 			...(requestUrl ? { requestUrl } : {}),
 		};

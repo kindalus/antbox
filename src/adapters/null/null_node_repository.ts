@@ -5,8 +5,11 @@ import type { NodeLike } from "domain/node_like.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import { Users } from "domain/users_groups/users.ts";
 import type {
+	EmbeddingStatusCounts,
+	EmbeddingStatusRecord,
 	NodeFilterResult,
 	NodeRepository,
+	VectorSearchOptions,
 	VectorSearchResult,
 } from "domain/nodes/node_repository.ts";
 import { AntboxError } from "shared/antbox_error.ts";
@@ -72,12 +75,31 @@ export class NullNodeRepository implements NodeRepository {
 	vectorSearch(
 		_queryVector: Embedding,
 		_topK: number,
+		_options?: VectorSearchOptions,
 	): Promise<Either<AntboxError, VectorSearchResult>> {
 		return Promise.resolve(right({ nodes: [] }));
 	}
 
 	deleteEmbedding(_uuid: string): Promise<Either<AntboxError, void>> {
 		return Promise.resolve(right(undefined));
+	}
+
+	setEmbeddingStatus(
+		_uuid: string,
+		_status: "failed" | "skipped",
+		_error?: string,
+	): Promise<Either<AntboxError, void>> {
+		return Promise.resolve(right(undefined));
+	}
+
+	getEmbeddingStatuses(
+		_uuids: string[],
+	): Promise<Either<AntboxError, Record<string, EmbeddingStatusRecord>>> {
+		return Promise.resolve(right({}));
+	}
+
+	countEmbeddingStatuses(): Promise<Either<AntboxError, EmbeddingStatusCounts>> {
+		return Promise.resolve(right({ indexed: 0, failed: 0, skipped: 0, pending: 0 }));
 	}
 
 	aggregateTotalSize(): Promise<Either<AntboxError, number>> {

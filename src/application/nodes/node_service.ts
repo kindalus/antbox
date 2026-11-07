@@ -46,6 +46,7 @@ import { calculateNodeUpdateChanges } from "./node_update_changes.ts";
 import { exportAllFiles } from "./node_export_all.ts";
 import { embeddingMarkdownBody } from "./node_markdown.ts";
 import { fulltextOf } from "domain/nodes/fulltext.ts";
+import type { RagDocument } from "domain/ai/rag_document.ts";
 
 interface NodeUpdateOptions {
 	forceEvent?: boolean;
@@ -600,6 +601,20 @@ export class NodeService {
 		>
 	> {
 		return this.findService.find(ctx, filters, pageSize, pageToken);
+	}
+
+	/** True when the tenant can embed queries and store vectors. */
+	supportsSemanticSearch(): boolean {
+		return this.findService.supportsSemanticSearch();
+	}
+
+	/** Readable documents closest in meaning to the text, with their indexed content. */
+	semanticDocuments(
+		ctx: AuthenticationContext,
+		text: string,
+		topK: number,
+	): Promise<Either<AntboxError, RagDocument[]>> {
+		return this.findService.semanticDocuments(ctx, text, topK);
 	}
 
 	async getEmbeddingContents(

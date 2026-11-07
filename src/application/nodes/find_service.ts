@@ -2,7 +2,9 @@ import { EmbeddingsGeneratedEvent } from "domain/ai/embeddings_generated_event.t
 import type { NodeFilters, NodeFilters1D, NodeFilters2D } from "domain/nodes/node_filter.ts";
 import { isNodeFilters2D, NodeFiltersSchema } from "domain/nodes/node_filter.ts";
 import { withFulltextQueries } from "domain/nodes/fulltext.ts";
-import type { NodeFilterResult } from "domain/nodes/node_repository.ts";
+import type { NodeFilterResult, VectorSearchResult } from "domain/nodes/node_repository.ts";
+import type { RagDocument } from "domain/ai/rag_document.ts";
+import { applyRelevanceThreshold } from "application/ai/relevance_threshold.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import { NodesFilters } from "domain/nodes_filters.ts";
 import { AntboxError, BadRequestError } from "shared/antbox_error.ts";
@@ -70,8 +72,34 @@ export class FindService {
 		return right(await this.context.repository.filter(processedFilters, pageSize, pageToken));
 	}
 
+	/** True when the tenant can embed queries and store vectors. */
+	supportsSemanticSearch(): boolean {
+		return this.context.repository.supportsEmbeddings() && !!this.context.embeddingsProvider;
+	}
+
 	/**
-	 * Performs semantic search using the provided query string.
+	 * Documents readable by the principal that are closest in meaning to the text, with their
+	 * indexed content. Used by the agents' semantic_search tool.
+	 */
+	async semanticDocuments(
+		ctx: AuthenticationContext,
+		text: string,
+		topK: number,
+	): Promise<Either<AntboxError, RagDocument[]>> {
+		const rankedOrErr = await this.#rankByMeaning(ctx, text, topK);
+		if (rankedOrErr.isLeft()) return left(rankedOrErr.value);
+
+		return right(rankedOrErr.value.map(({ node, score, content }) => ({
+			uuid: node.uuid,
+			title: node.title,
+			content,
+			score,
+		})));
+	}
+
+	/**
+	 * Performs semantic search using the provided query string. Falls back to fulltext search when
+	 * semantic search is unavailable or fails.
 	 */
 	async #performSemanticSearch(
 		ctx: AuthenticationContext,
@@ -84,91 +112,75 @@ export class FindService {
 			NodeFilterResult & { scores?: Record<string, number> }
 		>
 	> {
-		// Check if repository supports embeddings and embedding model is available
-		if (!this.context.repository.supportsEmbeddings() || !this.context.embeddingsProvider) {
+		if (!this.supportsSemanticSearch()) {
 			Logger.warn(
 				"Semantic search requested but AI features not available, falling back to fulltext search",
 			);
 			return this.find(ctx, [["fulltext", "match", query]], pageSize, pageToken);
 		}
 
-		const threshold = this.context.embeddingsProvider.relevanceThreshold();
-
+		let rankedOrErr: Either<AntboxError, VectorSearchResult["nodes"]>;
 		try {
-			// Generate embedding for query using embedding model
-			const embeddingsOrErr = await this.context.embeddingsProvider.embed([query]);
-			if (embeddingsOrErr.isLeft()) {
-				Logger.error("Failed to generate embedding for query:", embeddingsOrErr.value);
-				// Fallback to fulltext search
-				return this.find(ctx, [["fulltext", "match", query]], pageSize, pageToken);
-			}
-
-			if (embeddingsOrErr.value.usage) {
-				this.context.bus.publish(
-					new EmbeddingsGeneratedEvent(ctx.principal.email, ctx.tenant, {
-						nodeUuid: "query",
-						model: embeddingsOrErr.value.model ?? "default",
-						usage: embeddingsOrErr.value.usage,
-						context: "search",
-					}),
-				);
-			}
-
-			const queryEmbedding = embeddingsOrErr.value.embeddings[0];
-
-			// Search using repository's vector search
-			const topK = Math.max(100, pageSize * pageToken);
-			const searchOrErr = await this.context.repository.vectorSearch(queryEmbedding, topK);
-
-			if (searchOrErr.isLeft()) {
-				Logger.error("Vector search failed:", searchOrErr.value);
-				// Fallback to fulltext search
-				return this.find(ctx, [["fulltext", "match", query]], pageSize, pageToken);
-			}
-
-			const results = searchOrErr.value.nodes.filter((result) => result.score >= threshold);
-			const uuids = results.map((r) => r.node.uuid);
-			const scores: Record<string, number> = {};
-			for (const result of results) {
-				scores[result.node.uuid] = result.score;
-			}
-
-			// If no results, return empty
-			if (uuids.length === 0) {
-				return right({
-					nodes: [],
-					pageSize,
-					pageToken,
-				});
-			}
-
-			const processedFilters = await this.#resolveFilters(ctx, [[["uuid", "in", uuids]]]);
-			const r = await this.context.repository.filter(
-				processedFilters,
-				Number.MAX_SAFE_INTEGER,
-				1,
-			);
-
-			// Sort results by score (semantic relevance)
-			r.nodes.sort((a, b) => (scores[b.uuid] ?? 0) - (scores[a.uuid] ?? 0));
-
-			const firstIndex = (pageToken - 1) * pageSize;
-			const nodes = r.nodes.slice(firstIndex, firstIndex + pageSize);
-			const pageScores = Object.fromEntries(
-				nodes.map((node) => [node.uuid, scores[node.uuid]]),
-			);
-
-			return right({
-				nodes,
-				pageSize,
-				pageToken,
-				scores: pageScores,
-			});
+			rankedOrErr = await this.#rankByMeaning(ctx, query, pageSize * pageToken);
 		} catch (error) {
 			Logger.error("Semantic search failed:", error);
-			// Fallback to fulltext search
 			return this.find(ctx, [["fulltext", "match", query]], pageSize, pageToken);
 		}
+		if (rankedOrErr.isLeft()) {
+			Logger.error("Semantic search failed:", rankedOrErr.value);
+			return this.find(ctx, [["fulltext", "match", query]], pageSize, pageToken);
+		}
+
+		const firstIndex = (pageToken - 1) * pageSize;
+		const page = rankedOrErr.value.slice(firstIndex, firstIndex + pageSize);
+
+		return right({
+			nodes: page.map((result) => result.node),
+			pageSize,
+			pageToken,
+			scores: Object.fromEntries(page.map((result) => [result.node.uuid, result.score])),
+		});
+	}
+
+	/**
+	 * Embeds the text and returns the topK readable nodes closest to it, best first. Permissions
+	 * are applied by the repository before the topK cut, then the relevance threshold.
+	 */
+	async #rankByMeaning(
+		ctx: AuthenticationContext,
+		text: string,
+		topK: number,
+	): Promise<Either<AntboxError, VectorSearchResult["nodes"]>> {
+		const provider = this.context.embeddingsProvider;
+		if (!provider || !this.context.repository.supportsEmbeddings()) {
+			return left(new BadRequestError("Semantic search is not available for this tenant"));
+		}
+
+		const embeddingsOrErr = await provider.embed([text]);
+		if (embeddingsOrErr.isLeft()) return left(embeddingsOrErr.value);
+
+		if (embeddingsOrErr.value.usage) {
+			this.context.bus.publish(
+				new EmbeddingsGeneratedEvent(ctx.principal.email, ctx.tenant, {
+					nodeUuid: "query",
+					model: embeddingsOrErr.value.model ?? "default",
+					usage: embeddingsOrErr.value.usage,
+					context: "search",
+				}),
+			);
+		}
+
+		const filters = await this.#resolveFilters(ctx, [[]]);
+		const searchOrErr = await this.context.repository.vectorSearch(
+			embeddingsOrErr.value.embeddings[0],
+			topK,
+			{ filters },
+		);
+		if (searchOrErr.isLeft()) return left(searchOrErr.value);
+
+		return right(
+			applyRelevanceThreshold(searchOrErr.value.nodes, provider.relevanceThreshold()).results,
+		);
 	}
 
 	async #resolveFilters(

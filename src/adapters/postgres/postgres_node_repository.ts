@@ -15,8 +15,12 @@ import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import { DuplicatedNodeError } from "domain/nodes/duplicated_node_error.ts";
 import type {
+	EmbeddingStatus,
+	EmbeddingStatusCounts,
+	EmbeddingStatusRecord,
 	NodeFilterResult,
 	NodeRepository,
+	VectorSearchOptions,
 	VectorSearchResult,
 } from "domain/nodes/node_repository.ts";
 import { AntboxError } from "shared/antbox_error.ts";
@@ -58,8 +62,13 @@ export default async function buildPostgresNodeRepository(
  * const repo = new PostgresNodeRepository("postgres://user:pass@host/db");
  * await repo.initialize();
  */
+/** Highest hnsw.ef_search pgvector accepts. */
+const MAX_EF_SEARCH = 1000;
+
 export class PostgresNodeRepository implements NodeRepository {
 	readonly #sql: postgres.Sql;
+	/** pgvector 0.8+ keeps scanning the HNSW index until filtered queries fill their LIMIT. */
+	#iterativeScan = false;
 
 	constructor(connectionString?: string) {
 		const connStr = connectionString ?? process.env.DATABASE_URL;
@@ -91,10 +100,28 @@ export class PostgresNodeRepository implements NodeRepository {
 
 			await this.#sql`
 				ALTER TABLE nodes
-				ADD COLUMN IF NOT EXISTS embedding_content_md TEXT
+				ADD COLUMN IF NOT EXISTS embedding_content_md TEXT,
+				ADD COLUMN IF NOT EXISTS embedding_status TEXT,
+				ADD COLUMN IF NOT EXISTS embedding_error TEXT,
+				ADD COLUMN IF NOT EXISTS embedding_status_at TEXT
 			`;
 
 			await this.#migrateEmbeddingDimensions();
+
+			await this.#sql`
+				UPDATE nodes SET embedding_status = 'indexed'
+				WHERE embedding IS NOT NULL AND embedding_status IS NULL
+			`;
+
+			await this.#sql`
+				CREATE INDEX IF NOT EXISTS idx_nodes_embedding_status
+				ON nodes (embedding_status)
+			`;
+
+			const [extension] = await this.#sql<{ extversion: string }[]>`
+				SELECT extversion FROM pg_extension WHERE extname = 'vector'
+			`;
+			this.#iterativeScan = isAtLeast(extension?.extversion ?? "0", [0, 8]);
 
 			// Create indexes
 			await this.#sql`
@@ -131,8 +158,8 @@ export class PostgresNodeRepository implements NodeRepository {
 
 	/**
 	 * Resizes an embedding column created with another dimension. Its vectors cannot be compared
-	 * with the ones providers emit now, so they are dropped; those nodes are indexed again when
-	 * they next change.
+	 * with the ones providers emit now, so they are dropped and their status reset to pending;
+	 * a "missing" reindex embeds them again.
 	 */
 	async #migrateEmbeddingDimensions(): Promise<void> {
 		await this.#sql.begin(async (sql) => {
@@ -159,6 +186,9 @@ export class PostgresNodeRepository implements NodeRepository {
 			await sql.unsafe(
 				`ALTER TABLE nodes ALTER COLUMN embedding TYPE vector(${EMBEDDING_DIMENSIONS}) USING NULL`,
 			);
+			await sql.unsafe(
+				"UPDATE nodes SET embedding_status = NULL, embedding_error = NULL, embedding_status_at = NULL WHERE embedding_status IS NOT NULL",
+			);
 		});
 	}
 
@@ -177,7 +207,10 @@ export class PostgresNodeRepository implements NodeRepository {
 				UPDATE nodes
 				SET
 					embedding = ${vectorStr}::vector,
-					embedding_content_md = ${contentMd}
+					embedding_content_md = ${contentMd},
+					embedding_status = 'indexed',
+					embedding_error = NULL,
+					embedding_status_at = ${new Date().toISOString()}
 				WHERE uuid = ${uuid}
 			`;
 			return right(undefined);
@@ -190,24 +223,53 @@ export class PostgresNodeRepository implements NodeRepository {
 	async vectorSearch(
 		queryVector: Embedding,
 		topK: number,
+		options: VectorSearchOptions = {},
 	): Promise<Either<AntboxError, VectorSearchResult>> {
 		try {
-			const vectorStr = `[${queryVector.join(",")}]`;
+			const filters = options.filters ?? [];
+			const { whereClause, params } = filters.length
+				? this.#buildFilterQuery(filters)
+				: { whereClause: "TRUE", params: [] as unknown[] };
+			const vectorParam = params.length + 1;
+			const efSearch = Math.min(MAX_EF_SEARCH, Math.max(40, Math.ceil(topK)));
+			const query = (exactScan: boolean) =>
+				this.#sql.begin(async (sql) => {
+					await sql.unsafe(`SET LOCAL hnsw.ef_search = ${efSearch}`);
+					if (this.#iterativeScan) {
+						await sql.unsafe("SET LOCAL hnsw.iterative_scan = strict_order");
+					}
+					if (exactScan) await sql.unsafe("SET LOCAL enable_indexscan = off");
 
-			const rows = await this.#sql<{
-				body: NodeMetadata;
-				score: number;
-				embedding_content_md: string | null;
-			}[]>`
-				SELECT
-					body,
-					embedding_content_md,
-					1 - (embedding <=> ${vectorStr}::vector) as score
-				FROM nodes
-				WHERE embedding IS NOT NULL
-				ORDER BY embedding <=> ${vectorStr}::vector
-				LIMIT ${topK}
-			`;
+					return await sql.unsafe<{
+						body: NodeMetadata;
+						score: number;
+						embedding_content_md: string | null;
+					}[]>(
+						`SELECT
+							body,
+							embedding_content_md,
+							1 - (embedding <=> $${vectorParam}::vector) AS score
+						FROM nodes
+						WHERE embedding IS NOT NULL AND ${whereClause}
+						ORDER BY embedding <=> $${vectorParam}::vector
+						LIMIT $${vectorParam + 1}`,
+						[...params, `[${queryVector.join(",")}]`, topK] as (
+							| string
+							| number
+							| boolean
+							| null
+						)[],
+					);
+				});
+
+			// HNSW examines at most ef_search candidates before the WHERE clause runs. pgvector 0.8+
+			// keeps scanning (up to hnsw.max_scan_tuples); older versions need an exact scan.
+			const needsExact = filters.length > 0 || topK > MAX_EF_SEARCH;
+			let rows = await query(needsExact && !this.#iterativeScan);
+			if (needsExact && this.#iterativeScan && rows.length < topK) {
+				// The iterative scan may stop early; an exact scan guarantees the filtered topK.
+				rows = await query(true);
+			}
 
 			const nodes: VectorSearchResult["nodes"] = [];
 
@@ -216,7 +278,7 @@ export class PostgresNodeRepository implements NodeRepository {
 				if (nodeResult.isRight()) {
 					nodes.push({
 						node: nodeResult.right,
-						score: row.score,
+						score: Number(row.score),
 						content: row.embedding_content_md ?? "",
 					});
 				}
@@ -268,13 +330,87 @@ export class PostgresNodeRepository implements NodeRepository {
 				UPDATE nodes
 				SET
 					embedding = NULL,
-					embedding_content_md = NULL
+					embedding_content_md = NULL,
+					embedding_status = NULL,
+					embedding_error = NULL,
+					embedding_status_at = NULL
 				WHERE uuid = ${uuid}
 			`;
 			return right(undefined);
 		} catch (err) {
 			const error = err as Error;
 			return left(new PostgresError(error.message));
+		}
+	}
+
+	async setEmbeddingStatus(
+		uuid: string,
+		status: "failed" | "skipped",
+		error?: string,
+	): Promise<Either<AntboxError, void>> {
+		try {
+			const at = new Date().toISOString();
+			const rows = status === "skipped"
+				? await this.#sql`
+					UPDATE nodes
+					SET embedding = NULL, embedding_content_md = NULL, embedding_status = 'skipped',
+						embedding_error = NULL, embedding_status_at = ${at}
+					WHERE uuid = ${uuid}
+					RETURNING uuid
+				`
+				: await this.#sql`
+					UPDATE nodes
+					SET embedding_status = 'failed', embedding_error = ${error ?? null},
+						embedding_status_at = ${at}
+					WHERE uuid = ${uuid}
+					RETURNING uuid
+				`;
+			return rows.length ? right(undefined) : left(new NodeNotFoundError(uuid));
+		} catch (err) {
+			return left(new PostgresError((err as Error).message));
+		}
+	}
+
+	async getEmbeddingStatuses(
+		uuids: string[],
+	): Promise<Either<AntboxError, Record<string, EmbeddingStatusRecord>>> {
+		if (uuids.length === 0) return right({});
+		try {
+			const rows = await this.#sql<{
+				uuid: string;
+				embedding_status: EmbeddingStatus | null;
+				embedding_error: string | null;
+				embedding_status_at: string | null;
+			}[]>`
+				SELECT uuid, embedding_status, embedding_error, embedding_status_at
+				FROM nodes
+				WHERE uuid IN ${this.#sql(uuids)}
+			`;
+
+			const statuses: Record<string, EmbeddingStatusRecord> = {};
+			for (const row of rows) {
+				statuses[row.uuid] = {
+					status: row.embedding_status,
+					...(row.embedding_error ? { error: row.embedding_error } : {}),
+					...(row.embedding_status_at ? { at: row.embedding_status_at } : {}),
+				};
+			}
+			return right(statuses);
+		} catch (err) {
+			return left(new PostgresError((err as Error).message));
+		}
+	}
+
+	async countEmbeddingStatuses(): Promise<Either<AntboxError, EmbeddingStatusCounts>> {
+		try {
+			const rows = await this.#sql<{ status: EmbeddingStatus | null; n: string }[]>`
+				SELECT embedding_status AS status, count(*) AS n FROM nodes GROUP BY embedding_status
+			`;
+			const counts: EmbeddingStatusCounts = { indexed: 0, failed: 0, skipped: 0, pending: 0 };
+			for (const row of rows) counts[row.status ?? "pending"] += Number(row.n);
+			return right(counts);
+		} catch (err) {
+			return left(new PostgresError((err as Error).message));
 		}
 	}
 
@@ -738,4 +874,10 @@ function normalizeFieldName(field: string): string {
 		return `properties.${field}`;
 	}
 	return field;
+}
+
+/** True when a dotted version such as "0.8.1" is at least the given major and minor. */
+function isAtLeast(version: string, [major, minor]: [number, number]): boolean {
+	const [vMajor = 0, vMinor = 0] = version.split(".").map((part) => parseInt(part, 10) || 0);
+	return vMajor > major || (vMajor === major && vMinor >= minor);
 }

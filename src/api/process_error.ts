@@ -41,6 +41,7 @@ export function processError({ errorCode, message }: AntboxError): Response {
 		case UserExistsError.ERROR_CODE:
 		case DuplicatedNodeError.ERROR_CODE:
 		case "StaleSession":
+		case "ReindexInProgress":
 			return sendConflict(body);
 
 		case ForbiddenError.ERROR_CODE:

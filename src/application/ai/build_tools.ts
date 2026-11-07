@@ -15,7 +15,6 @@ import type { NodeFilters } from "domain/nodes/node_filter.ts";
 import type { NodeService } from "../nodes/node_service.ts";
 import type { AspectsService } from "../aspects/aspects_service.ts";
 import type { FeaturesService } from "../features/features_service.ts";
-import type { RAGService } from "./rag_service.ts";
 import { NodeServiceProxy } from "../nodes/node_service_proxy.ts";
 import { AspectServiceProxy } from "../aspects/aspect_service_proxy.ts";
 import { createRunCodeTool } from "./builtin_tools/run_code.ts";
@@ -48,7 +47,6 @@ export interface BuildToolSetContext {
 	readonly nodeService: NodeService;
 	readonly aspectsService: AspectsService;
 	readonly featuresService: FeaturesService;
-	readonly ragService?: RAGService;
 	readonly skills: LoadedSkill[];
 	readonly featureAIToolExecutor?: FeatureAIToolExecutor;
 }
@@ -120,7 +118,7 @@ async function buildAllToolEntries(
 	agentData: AgentData,
 	authContext: AuthenticationContext,
 ): Promise<Either<AntboxError, ToolEntry[]>> {
-	const nodeProxy = new NodeServiceProxy(ctx.nodeService, ctx.ragService, authContext);
+	const nodeProxy = new NodeServiceProxy(ctx.nodeService, authContext);
 	const aspectProxy = new AspectServiceProxy(ctx.aspectsService, authContext);
 	const runCode = createRunCodeTool(nodeProxy, aspectProxy, {});
 

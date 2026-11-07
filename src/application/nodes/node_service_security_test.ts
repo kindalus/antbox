@@ -113,7 +113,7 @@ describe("NodeService authorization and validation before side effects", () => {
 		const { service } = setup();
 		await folder(service, "read-only-folder", ["Read"]);
 		await file(service, "read-only-folder");
-		const proxy = new NodeServiceProxy(service, undefined, user);
+		const proxy = new NodeServiceProxy(service, user);
 		const metadata = (await proxy.get("content")).right;
 		metadata.tags!.push("unsaved");
 		expect((await proxy.update("content", { tags: metadata.tags })).value).toBeInstanceOf(

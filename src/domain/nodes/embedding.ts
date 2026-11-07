@@ -22,6 +22,8 @@ export const EMBEDDINGS_SUPPORTED_MIMETYPES = [
 	"application/msword", // .doc
 	"application/vnd.openxmlformats-officedocument.wordprocessingml.document", // .docx
 	"application/rtf", // .rtf
+	"text/csv",
+	"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", // .xlsx
 ] as const;
 
 export type EmbeddingsSupportedMimetype = typeof EMBEDDINGS_SUPPORTED_MIMETYPES[number];
@@ -32,5 +34,6 @@ export type EmbeddingsSupportedMimetype = typeof EMBEDDINGS_SUPPORTED_MIMETYPES[
  * @returns true if the mimetype is supported
  */
 export function isEmbeddingsSupportedMimetype(mimetype: string): boolean {
-	return EMBEDDINGS_SUPPORTED_MIMETYPES.includes(mimetype as EmbeddingsSupportedMimetype);
+	const base = mimetype.split(";")[0].trim().toLowerCase();
+	return EMBEDDINGS_SUPPORTED_MIMETYPES.includes(base as EmbeddingsSupportedMimetype);
 }

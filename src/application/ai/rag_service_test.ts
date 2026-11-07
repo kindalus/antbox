@@ -1,27 +1,31 @@
 import { describe, it } from "bdd";
 import { expect } from "expect";
-import { RAG_TOP_K, RAGService } from "./rag_service.ts";
+import { RAGService, type RAGServiceOptions } from "./rag_service.ts";
 import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository.ts";
 import { DeterministicEmbeddingsProvider } from "adapters/embeddings/deterministic_embeddings_provider.ts";
 import { TextOCRProvider } from "adapters/ocr/text_ocr_provider.ts";
 import { OcrCompletedEvent } from "domain/ai/ocr_completed_event.ts";
-import type { OCRResult } from "domain/ai/ocr_provider.ts";
+import type { OCRProvider, OCRResult } from "domain/ai/ocr_provider.ts";
+import type { EmbeddingsProvider, EmbeddingsResult } from "domain/ai/embeddings_provider.ts";
+import { TransientAIError } from "domain/ai/ai_provider_errors.ts";
 import { NullOCRProvider } from "adapters/ocr/null_ocr_provider.ts";
 import { FileNode } from "domain/nodes/file_node.ts";
 import { FolderNode } from "domain/nodes/folder_node.ts";
 import { NodeCreatedEvent } from "domain/nodes/node_created_event.ts";
 import { NodeUpdatedEvent } from "domain/nodes/node_updated_event.ts";
 import { NodeDeletedEvent } from "domain/nodes/node_deleted_event.ts";
-import { left, right } from "shared/either.ts";
-import type { AntboxError } from "shared/antbox_error.ts";
+import { EmbeddingCreatedEvent } from "domain/nodes/embedding_created_event.ts";
+import { EmbeddingUpdatedEvent } from "domain/nodes/embedding_updated_event.ts";
+import { type Either, left, right } from "shared/either.ts";
+import { AntboxError } from "shared/antbox_error.ts";
 import type { EventBus } from "shared/event_bus.ts";
 import type { EventHandler } from "shared/event_handler.ts";
 import type { Event } from "shared/event.ts";
 import type { NodeService } from "application/nodes/node_service.ts";
-import type { Node } from "domain/nodes/node.ts";
+import type { NodeLike } from "domain/node_like.ts";
 
 // ============================================================================
-// CAPTURING EVENT BUS — allows test to fire events at subscribed handlers
+// TEST DOUBLES
 // ============================================================================
 
 class CapturingEventBus implements EventBus {
@@ -48,74 +52,60 @@ class CapturingEventBus implements EventBus {
 	}
 }
 
-// ============================================================================
-// MOCK NODE SERVICE
-// ============================================================================
-
 class MockNodeService {
 	private files = new Map<string, File>();
-	private nodes = new Map<string, Node>();
 	readonly exportCalls: string[] = [];
 
-	async export(
-		_ctx: unknown,
-		uuid: string,
-	): Promise<import("shared/either.ts").Either<AntboxError, File>> {
+	async export(_ctx: unknown, uuid: string): Promise<Either<AntboxError, File>> {
 		this.exportCalls.push(uuid);
 		const file = this.files.get(uuid);
 		if (!file) {
-			return left({ errorCode: "NotFound", message: `File not found: ${uuid}` } as AntboxError);
+			return left(new AntboxError("NotFound", `File not found: ${uuid}`));
 		}
 		return right(file);
-	}
-
-	async get(
-		_ctx: unknown,
-		uuid: string,
-	): Promise<import("shared/either.ts").Either<AntboxError, Node>> {
-		const node = this.nodes.get(uuid);
-		if (!node) {
-			return left(
-				{ errorCode: "NotFound", message: `Node not found: ${uuid}` } as AntboxError,
-			);
-		}
-		return right(node);
 	}
 
 	setFile(uuid: string, content: string, mimetype: string) {
 		this.files.set(uuid, new File([content], `${uuid}.txt`, { type: mimetype }));
 	}
+}
 
-	setNode(node: Node) {
-		this.nodes.set(node.uuid, node);
+class ScriptedOCRProvider implements OCRProvider {
+	calls = 0;
+	gate?: Promise<void>;
+
+	constructor(private readonly results: Either<AntboxError, OCRResult>[] = []) {}
+
+	async ocr(_file: File): Promise<Either<AntboxError, OCRResult>> {
+		this.calls++;
+		if (this.gate) await this.gate;
+		return this.results[this.calls - 1] ?? this.results.at(-1) ?? right({ text: "scanned" });
 	}
 }
 
-class CountingOCRProvider {
-	public calls = 0;
+class ScriptedEmbeddingsProvider implements EmbeddingsProvider {
+	calls = 0;
+	readonly texts: string[] = [];
+	readonly #inner = new DeterministicEmbeddingsProvider(128);
 
-	ocr(_file: File): Promise<import("shared/either.ts").Either<AntboxError, OCRResult>> {
-		this.calls += 1;
-		return Promise.resolve(right({ text: "counted" }));
+	constructor(private readonly failures: AntboxError[] = []) {}
+
+	embed(texts: string[]): Promise<Either<AntboxError, EmbeddingsResult>> {
+		this.calls++;
+		this.texts.push(...texts);
+		const failure = this.failures[this.calls - 1];
+		return failure ? Promise.resolve(left(failure)) : this.#inner.embed(texts);
+	}
+
+	relevanceThreshold(): number {
+		return 0.5;
 	}
 }
 
-class MeteredOCRProvider {
-	ocr(_file: File): Promise<import("shared/either.ts").Either<AntboxError, OCRResult>> {
-		return Promise.resolve(right({
-			text: "scanned text",
-			model: "gemini-flash-latest",
-			usage: { promptTokens: 30, completionTokens: 12, totalTokens: 42 },
-		}));
-	}
-}
-
-class FailingOCRProvider {
-	ocr(_file: File): Promise<import("shared/either.ts").Either<AntboxError, OCRResult>> {
-		return Promise.resolve(
-			left({ errorCode: "OCRFailed", message: "OCR failed" } as AntboxError),
-		);
-	}
+function deferred() {
+	let resolve!: () => void;
+	const promise = new Promise<void>((r) => (resolve = r));
+	return { promise, resolve };
 }
 
 // ============================================================================
@@ -149,24 +139,45 @@ function makeFolderNode(uuid: string) {
 	return result.right;
 }
 
-function buildService(
-	mockNodeService: MockNodeService,
-	bus: CapturingEventBus,
-	repository = new InMemoryNodeRepository(),
-	useTextOCR = true,
-) {
-	const embeddingsProvider = new DeterministicEmbeddingsProvider(128);
-	const ocrProvider = useTextOCR ? new TextOCRProvider() : new NullOCRProvider();
+interface Setup {
+	ocr?: OCRProvider;
+	embeddings?: EmbeddingsProvider;
+	options?: RAGServiceOptions;
+}
 
+function setup({ ocr, embeddings, options }: Setup = {}) {
+	const nodeService = new MockNodeService();
+	const bus = new CapturingEventBus();
+	const repository = new InMemoryNodeRepository();
 	const service = new RAGService(
 		bus,
 		repository,
-		mockNodeService as unknown as NodeService,
-		embeddingsProvider,
-		ocrProvider,
+		nodeService as unknown as NodeService,
+		embeddings ?? new DeterministicEmbeddingsProvider(128),
+		ocr ?? new TextOCRProvider(),
+		{ retry: { sleep: () => Promise.resolve() }, ...options },
 	);
 
-	return { service, repository };
+	const created = async (node: NodeLike) => {
+		await bus.fire(NodeCreatedEvent.EVENT_ID, new NodeCreatedEvent("u@test.com", "t", node));
+	};
+	const updated = async (uuid: string, mimetype: string, newValues: Record<string, unknown>) => {
+		await bus.fire(
+			NodeUpdatedEvent.EVENT_ID,
+			new NodeUpdatedEvent("u@test.com", "t", {
+				uuid,
+				mimetype,
+				oldValues: {},
+				newValues,
+			}),
+		);
+	};
+	const content = async (uuid: string) =>
+		(await repository.getEmbeddingContents([uuid])).right[uuid];
+	const status = async (uuid: string) =>
+		(await repository.getEmbeddingStatuses([uuid])).right[uuid];
+
+	return { service, repository, bus, nodeService, created, updated, content, status };
 }
 
 // ============================================================================
@@ -174,115 +185,101 @@ function buildService(
 // ============================================================================
 
 describe("RAGService", () => {
-	describe("constants", () => {
-		it("exports RAG_TOP_K > 0", () => {
-			expect(RAG_TOP_K).toBeGreaterThan(0);
-		});
-	});
-
 	describe("indexing — NodeCreated", () => {
 		it("stores embedding for FileNode with supported mimetype", async () => {
-			const mockNodeService = new MockNodeService();
-			const bus = new CapturingEventBus();
-			const repository = new InMemoryNodeRepository();
-			buildService(mockNodeService, bus, repository);
-
+			const t = setup();
 			const node = makeFileNode("file-1", "text/plain", 50);
-			await repository.add(node);
-			mockNodeService.setFile("file-1", "Hello indexing world", "text/plain");
+			await t.repository.add(node);
+			t.nodeService.setFile("file-1", "Hello indexing world", "text/plain");
 
-			await bus.fire(NodeCreatedEvent.EVENT_ID, new NodeCreatedEvent("u", "t", node));
+			await t.created(node);
+			await t.service.idle();
 
-			const search = await repository.vectorSearch(new Array(128).fill(0), 10);
-			expect(search.isRight()).toBe(true);
-			if (search.isRight()) {
-				const hit = search.value.nodes.find((n) => n.node.uuid === "file-1");
-				expect(hit).toBeDefined();
-				if (hit) {
-					expect(hit.content).toContain("---");
-					expect(hit.content).toContain("uuid: file-1");
-					expect(hit.content).toContain("Hello indexing world");
-				}
-			}
+			const md = await t.content("file-1");
+			expect(md).toContain("---");
+			expect(md).toContain("uuid: file-1");
+			expect(md).toContain("Hello indexing world");
+			expect((await t.status("file-1")).status).toBe("indexed");
+		});
+
+		it("treats a mimetype with parameters as its base type", async () => {
+			const t = setup();
+			const node = makeFileNode("charset-file", "text/plain;charset=utf-8", 50);
+			await t.repository.add(node);
+			t.nodeService.setFile("charset-file", "Charset content", "text/plain");
+
+			await t.created(node);
+			await t.service.idle();
+
+			expect(await t.content("charset-file")).toContain("Charset content");
 		});
 
 		it("stores embedding for FileNode with zero size using metadata only", async () => {
-			const mockNodeService = new MockNodeService();
-			const bus = new CapturingEventBus();
-			const repository = new InMemoryNodeRepository();
-			buildService(mockNodeService, bus, repository);
-
+			const t = setup();
 			const node = makeFileNode("empty-file", "text/plain", 0);
-			await repository.add(node);
+			await t.repository.add(node);
 
-			await bus.fire(NodeCreatedEvent.EVENT_ID, new NodeCreatedEvent("u", "t", node));
+			await t.created(node);
+			await t.service.idle();
 
-			const search = await repository.vectorSearch(new Array(128).fill(0), 10);
-			expect(search.isRight()).toBe(true);
-			if (search.isRight()) {
-				const hit = search.value.nodes.find((n) => n.node.uuid === "empty-file");
-				expect(hit).toBeDefined();
-				if (hit) {
-					expect(hit.content).toContain("---");
-					expect(hit.content).toContain("uuid: empty-file");
-					expect(hit.content).not.toContain("**Content**");
-				}
-			}
+			const md = await t.content("empty-file");
+			expect(md).toContain("uuid: empty-file");
+			expect(t.nodeService.exportCalls).toEqual([]);
 		});
 
-		it("stores embedding for unsupported file mimetype with metadata fallback", async () => {
-			const mockNodeService = new MockNodeService();
-			const bus = new CapturingEventBus();
-			const repository = new InMemoryNodeRepository();
-			buildService(mockNodeService, bus, repository);
-
+		it("skips unsupported file types without OCR or embedding", async () => {
+			const ocr = new ScriptedOCRProvider();
+			const embeddings = new ScriptedEmbeddingsProvider();
+			const t = setup({ ocr, embeddings });
 			const node = makeFileNode("image-file", "image/jpeg", 1000);
-			await repository.add(node);
+			await t.repository.add(node);
+			await t.repository.upsertEmbedding("image-file", new Array(128).fill(0.1), "old");
 
-			await bus.fire(NodeCreatedEvent.EVENT_ID, new NodeCreatedEvent("u", "t", node));
+			await t.created(node);
+			await t.service.idle();
 
-			const search = await repository.vectorSearch(new Array(128).fill(0), 10);
-			expect(search.isRight()).toBe(true);
-			if (search.isRight()) {
-				const hit = search.value.nodes.find((n) => n.node.uuid === "image-file");
-				expect(hit).toBeDefined();
-				if (hit) {
-					expect(hit.content).toContain("---");
-					expect(hit.content).toContain("mimetype: image/jpeg");
-				}
+			expect(ocr.calls).toBe(0);
+			expect(embeddings.calls).toBe(0);
+			expect(t.nodeService.exportCalls).toEqual([]);
+			expect(await t.content("image-file")).toBeUndefined();
+			expect((await t.status("image-file")).status).toBe("skipped");
+			expect(t.bus.published.some((e) => e instanceof EmbeddingCreatedEvent)).toBe(false);
+		});
+
+		it("indexes csv and xlsx files", async () => {
+			const ocr = new ScriptedOCRProvider();
+			const t = setup({ ocr });
+			for (
+				const [uuid, mimetype] of [
+					["csv-file", "text/csv"],
+					["xlsx-file", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"],
+				]
+			) {
+				const node = makeFileNode(uuid, mimetype, 10);
+				await t.repository.add(node);
+				t.nodeService.setFile(uuid, "a,b", mimetype);
+				await t.created(node);
 			}
+			await t.service.idle();
+
+			expect((await t.status("csv-file")).status).toBe("indexed");
+			expect((await t.status("xlsx-file")).status).toBe("indexed");
 		});
 
 		it("stores embedding for FolderNode from metadata (no OCR)", async () => {
-			const mockNodeService = new MockNodeService();
-			const bus = new CapturingEventBus();
-			const repository = new InMemoryNodeRepository();
-			buildService(mockNodeService, bus, repository);
-
+			const t = setup();
 			const folder = makeFolderNode("folder-1");
-			await repository.add(folder);
+			await t.repository.add(folder);
 
-			await bus.fire(NodeCreatedEvent.EVENT_ID, new NodeCreatedEvent("u", "t", folder));
+			await t.created(folder);
+			await t.service.idle();
 
-			const search = await repository.vectorSearch(new Array(128).fill(0), 10);
-			expect(search.isRight()).toBe(true);
-			if (search.isRight()) {
-				const hit = search.value.nodes.find((n) => n.node.uuid === "folder-1");
-				expect(hit).toBeDefined();
-				if (hit) {
-					expect(hit.content).toContain("---");
-					expect(hit.content).toContain("uuid: folder-1");
-					expect(hit.content).not.toContain("**Content**");
-				}
-			}
+			expect(await t.content("folder-1")).toContain("uuid: folder-1");
+			expect(t.nodeService.exportCalls).toEqual([]);
 		});
 
 		it("includes aspects and properties in stored markdown frontmatter", async () => {
-			const mockNodeService = new MockNodeService();
-			const bus = new CapturingEventBus();
-			const repository = new InMemoryNodeRepository();
-			buildService(mockNodeService, bus, repository);
-
+			const t = setup();
 			const node = FileNode.create({
 				uuid: "aspect-file",
 				title: "aspect-file.txt",
@@ -296,151 +293,122 @@ describe("RAGService", () => {
 					"finance:amount": 99.5,
 					"invoice:number": "INV-2026-001",
 				},
-			});
+			}).right;
+			await t.repository.add(node);
+			t.nodeService.setFile("aspect-file", "Aspect content", "text/plain");
 
-			expect(node.isRight()).toBe(true);
-			await repository.add(node.right);
-			mockNodeService.setFile("aspect-file", "Aspect content", "text/plain");
+			await t.created(node);
+			await t.service.idle();
 
-			await bus.fire(NodeCreatedEvent.EVENT_ID, new NodeCreatedEvent("u", "t", node.right));
+			const md = await t.content("aspect-file");
+			expect(md).toContain("aspects:");
+			expect(md).toContain("invoice:number");
+			expect(md).toContain("Aspect content");
+		});
 
-			const search = await repository.vectorSearch(new Array(128).fill(0), 10);
-			expect(search.isRight()).toBe(true);
-			if (search.isRight()) {
-				const hit = search.value.nodes.find((n) => n.node.uuid === "aspect-file");
-				expect(hit).toBeDefined();
-				if (hit) {
-					expect(hit.content).toContain("aspects:");
-					expect(hit.content).toContain("finance");
-					expect(hit.content).toContain("invoice:number");
-					expect(hit.content).toContain("Aspect content");
-				}
-			}
+		it("publishes EmbeddingCreated for a node without an embedding", async () => {
+			const t = setup();
+			const folder = makeFolderNode("created-event");
+			await t.repository.add(folder);
+
+			await t.created(folder);
+			await t.service.idle();
+
+			const events = t.bus.published.filter((e) => e instanceof EmbeddingCreatedEvent);
+			expect(events).toHaveLength(1);
+			expect(t.bus.published.some((e) => e instanceof EmbeddingUpdatedEvent)).toBe(false);
 		});
 	});
 
 	describe("indexing — NodeUpdated", () => {
 		it("reuses stored file content for metadata-only updates", async () => {
-			const mockNodeService = new MockNodeService();
-			const bus = new CapturingEventBus();
-			const repository = new InMemoryNodeRepository();
-			buildService(mockNodeService, bus, repository);
-
+			const t = setup();
 			const node = makeFileNode("metadata-update", "text/plain", 50);
-			await repository.add(node);
-			await repository.upsertEmbedding(
+			await t.repository.add(node);
+			await t.repository.upsertEmbedding(
 				"metadata-update",
 				new Array(128).fill(0),
 				"---\nuuid: metadata-update\ndescription: Old\n---\n\nStored content",
 			);
 			expect(node.update({ description: "New description" }).isRight()).toBe(true);
-			mockNodeService.setNode(node);
+			await t.repository.update(node);
 
-			await bus.fire(
-				NodeUpdatedEvent.EVENT_ID,
-				new NodeUpdatedEvent("u", "t", {
-					uuid: "metadata-update",
-					mimetype: "text/plain",
-					oldValues: { description: "Old" },
-					newValues: { description: "New description" },
-				}),
-			);
+			await t.updated("metadata-update", "text/plain", { description: "New description" });
+			await t.service.idle();
 
-			const contents = await repository.getEmbeddingContents(["metadata-update"]);
-			expect(contents.isRight()).toBe(true);
-			if (contents.isRight()) {
-				expect(contents.value["metadata-update"]).toContain("description: New description");
-				expect(contents.value["metadata-update"]).toContain("Stored content");
-			}
-			expect(mockNodeService.exportCalls).toEqual([]);
+			const md = await t.content("metadata-update");
+			expect(md).toContain("description: New description");
+			expect(md).toContain("Stored content");
+			expect(t.nodeService.exportCalls).toEqual([]);
+			const events = t.bus.published.filter((e) => e instanceof EmbeddingUpdatedEvent);
+			expect(events).toHaveLength(1);
 		});
 
 		it("extracts new content when the file size is updated", async () => {
-			const mockNodeService = new MockNodeService();
-			const bus = new CapturingEventBus();
-			const repository = new InMemoryNodeRepository();
-			buildService(mockNodeService, bus, repository);
-
+			const t = setup();
 			const node = makeFileNode("content-update", "text/plain", 60);
-			await repository.add(node);
-			await repository.upsertEmbedding(
+			await t.repository.add(node);
+			await t.repository.upsertEmbedding(
 				"content-update",
 				new Array(128).fill(0),
 				"---\nuuid: content-update\n---\n\nOld content",
 			);
-			mockNodeService.setNode(node);
-			mockNodeService.setFile("content-update", "New content", "text/plain");
+			t.nodeService.setFile("content-update", "New content", "text/plain");
 
-			await bus.fire(
-				NodeUpdatedEvent.EVENT_ID,
-				new NodeUpdatedEvent("u", "t", {
-					uuid: "content-update",
-					mimetype: "text/plain",
-					oldValues: { size: 50 },
-					newValues: { size: 60 },
-				}),
-			);
+			await t.updated("content-update", "text/plain", { size: 60 });
+			await t.service.idle();
 
-			const contents = await repository.getEmbeddingContents(["content-update"]);
-			expect(contents.isRight()).toBe(true);
-			if (contents.isRight()) {
-				expect(contents.value["content-update"]).toContain("New content");
-				expect(contents.value["content-update"]).not.toContain("Old content");
-			}
-			expect(mockNodeService.exportCalls).toEqual(["content-update"]);
+			const md = await t.content("content-update");
+			expect(md).toContain("New content");
+			expect(md).not.toContain("Old content");
+			expect(t.nodeService.exportCalls).toEqual(["content-update"]);
 		});
 
-		it("preserves stored content when exporting an updated file fails", async () => {
-			const mockNodeService = new MockNodeService();
-			const bus = new CapturingEventBus();
-			const repository = new InMemoryNodeRepository();
-			buildService(mockNodeService, bus, repository);
+		it("drops the embedding when an update makes the file type unsupported", async () => {
+			const t = setup();
+			const node = makeFileNode("type-change", "text/plain", 60);
+			await t.repository.add(node);
+			await t.repository.upsertEmbedding("type-change", new Array(128).fill(0), "old");
+			await t.repository.update(makeFileNode("type-change", "application/zip", 60));
 
+			await t.updated("type-change", "application/zip", { mimetype: "application/zip" });
+			await t.service.idle();
+
+			expect(await t.content("type-change")).toBeUndefined();
+			expect((await t.status("type-change")).status).toBe("skipped");
+		});
+
+		it("keeps stored content and marks failed when exporting an updated file fails", async () => {
+			const t = setup();
 			const node = makeFileNode("failed-export", "text/plain", 60);
-			await repository.add(node);
-			await repository.upsertEmbedding(
+			await t.repository.add(node);
+			await t.repository.upsertEmbedding(
 				"failed-export",
 				new Array(128).fill(0),
 				"---\nuuid: failed-export\n---\n\nPreviously extracted content",
 			);
-			mockNodeService.setNode(node);
 
-			await bus.fire(
-				NodeUpdatedEvent.EVENT_ID,
-				new NodeUpdatedEvent("u", "t", {
-					uuid: "failed-export",
-					mimetype: "text/plain",
-					oldValues: { size: 50 },
-					newValues: { size: 60 },
-				}),
-			);
+			await t.updated("failed-export", "text/plain", { size: 60 });
+			await t.service.idle();
 
-			const contents = await repository.getEmbeddingContents(["failed-export"]);
-			expect(contents.isRight()).toBe(true);
-			if (contents.isRight()) {
-				expect(contents.value["failed-export"]).toContain("Previously extracted content");
-			}
-			expect(mockNodeService.exportCalls).toEqual(["failed-export"]);
+			expect(await t.content("failed-export")).toContain("Previously extracted content");
+			const record = await t.status("failed-export");
+			expect(record.status).toBe("failed");
+			expect(record.error).toContain("export");
 		});
 
 		it("records OCR usage when extracting file content", async () => {
-			const mockNodeService = new MockNodeService();
-			const bus = new CapturingEventBus();
-			const repository = new InMemoryNodeRepository();
-			new RAGService(
-				bus,
-				repository,
-				mockNodeService as unknown as NodeService,
-				new DeterministicEmbeddingsProvider(128),
-				new MeteredOCRProvider(),
-			);
-
+			const ocr = new ScriptedOCRProvider([right({
+				text: "scanned text",
+				model: "gemini-flash-latest",
+				usage: { promptTokens: 30, completionTokens: 12, totalTokens: 42 },
+			})]);
+			const t = setup({ ocr });
 			const node = makeFileNode("metered-ocr", "application/pdf", 60);
-			await repository.add(node);
-			mockNodeService.setNode(node);
-			mockNodeService.setFile("metered-ocr", "binary", "application/pdf");
+			await t.repository.add(node);
+			t.nodeService.setFile("metered-ocr", "binary", "application/pdf");
 
-			await bus.fire(
+			await t.bus.fire(
 				NodeUpdatedEvent.EVENT_ID,
 				new NodeUpdatedEvent("u", "tenant-a", {
 					uuid: "metered-ocr",
@@ -449,182 +417,321 @@ describe("RAGService", () => {
 					newValues: { size: 60 },
 				}),
 			);
+			await t.service.idle();
 
-			const events = bus.published.filter((event) => event instanceof OcrCompletedEvent);
+			const events = t.bus.published.filter((event) => event instanceof OcrCompletedEvent);
 			expect(events.length).toBe(1);
+			expect((events[0] as OcrCompletedEvent).tenant).toBe("tenant-a");
 			expect((events[0] as OcrCompletedEvent).payload).toEqual({
 				nodeUuid: "metered-ocr",
 				model: "gemini-flash-latest",
 				context: "indexing",
 				usage: { promptTokens: 30, completionTokens: 12, totalTokens: 42 },
 			});
-			const contents = await repository.getEmbeddingContents(["metered-ocr"]);
-			if (contents.isLeft()) throw contents.value;
-			expect(contents.value["metered-ocr"]).toContain("scanned text");
+			expect(await t.content("metered-ocr")).toContain("scanned text");
 		});
 
-		it("preserves stored content when OCR of an updated file fails", async () => {
-			const mockNodeService = new MockNodeService();
-			const bus = new CapturingEventBus();
-			const repository = new InMemoryNodeRepository();
-			new RAGService(
-				bus,
-				repository,
-				mockNodeService as unknown as NodeService,
-				new DeterministicEmbeddingsProvider(128),
-				new FailingOCRProvider(),
-			);
-
+		it("keeps stored content and marks failed when OCR of an updated file fails", async () => {
+			const ocr = new ScriptedOCRProvider([left(new AntboxError("OCRFailed", "unreadable"))]);
+			const t = setup({ ocr });
 			const node = makeFileNode("failed-ocr", "application/pdf", 60);
-			await repository.add(node);
-			await repository.upsertEmbedding(
+			await t.repository.add(node);
+			await t.repository.upsertEmbedding(
 				"failed-ocr",
 				new Array(128).fill(0),
 				"---\nuuid: failed-ocr\n---\n\nPreviously OCRed content",
 			);
-			mockNodeService.setNode(node);
-			mockNodeService.setFile("failed-ocr", "unreadable", "application/pdf");
+			t.nodeService.setFile("failed-ocr", "unreadable", "application/pdf");
 
-			await bus.fire(
-				NodeUpdatedEvent.EVENT_ID,
-				new NodeUpdatedEvent("u", "t", {
-					uuid: "failed-ocr",
-					mimetype: "text/plain",
-					oldValues: { size: 50 },
-					newValues: { size: 60 },
-				}),
-			);
+			await t.updated("failed-ocr", "application/pdf", { size: 60 });
+			await t.service.idle();
 
-			const contents = await repository.getEmbeddingContents(["failed-ocr"]);
-			expect(contents.isRight()).toBe(true);
-			if (contents.isRight()) {
-				expect(contents.value["failed-ocr"]).toContain("Previously OCRed content");
+			expect(await t.content("failed-ocr")).toContain("Previously OCRed content");
+			const record = await t.status("failed-ocr");
+			expect(record.status).toBe("failed");
+			expect(record.error).toBe("ocr: unreadable");
+			expect(ocr.calls).toBe(1);
+		});
+	});
+
+	describe("retries and failures", () => {
+		it("retries transient embedding errors and ends indexed", async () => {
+			const embeddings = new ScriptedEmbeddingsProvider([
+				new TransientAIError("429 Too Many Requests"),
+				new TransientAIError("429 Too Many Requests"),
+			]);
+			const t = setup({ embeddings });
+			const folder = makeFolderNode("flaky");
+			await t.repository.add(folder);
+
+			await t.created(folder);
+			await t.service.idle();
+
+			expect(embeddings.calls).toBe(3);
+			expect((await t.status("flaky")).status).toBe("indexed");
+		});
+
+		it("does not retry permanent embedding errors and marks the node failed", async () => {
+			const embeddings = new ScriptedEmbeddingsProvider([
+				new AntboxError("GeminiEmbeddingsError", "400 invalid argument"),
+			]);
+			const t = setup({ embeddings });
+			const folder = makeFolderNode("broken");
+			await t.repository.add(folder);
+
+			await t.created(folder);
+			await t.service.idle();
+
+			expect(embeddings.calls).toBe(1);
+			const record = await t.status("broken");
+			expect(record.status).toBe("failed");
+			expect(record.error).toContain("400 invalid argument");
+			expect(await t.content("broken")).toBeUndefined();
+			expect(t.bus.published.some((e) => e instanceof EmbeddingCreatedEvent)).toBe(false);
+		});
+
+		it("retries transient OCR errors", async () => {
+			const ocr = new ScriptedOCRProvider([
+				left(new TransientAIError("503 unavailable")),
+				right({ text: "second try" }),
+			]);
+			const t = setup({ ocr });
+			const node = makeFileNode("flaky-ocr", "application/pdf", 10);
+			await t.repository.add(node);
+			t.nodeService.setFile("flaky-ocr", "pdf", "application/pdf");
+
+			await t.created(node);
+			await t.service.idle();
+
+			expect(ocr.calls).toBe(2);
+			expect(await t.content("flaky-ocr")).toContain("second try");
+			expect((await t.status("flaky-ocr")).status).toBe("indexed");
+		});
+
+		it("stores a metadata embedding and marks failed when OCR keeps failing", async () => {
+			const ocr = new ScriptedOCRProvider([left(new AntboxError("OCRFailed", "bad pdf"))]);
+			const t = setup({ ocr });
+			const node = makeFileNode("ocr-fails", "application/pdf", 10);
+			await t.repository.add(node);
+			t.nodeService.setFile("ocr-fails", "pdf", "application/pdf");
+
+			await t.created(node);
+			await t.service.idle();
+
+			expect(await t.content("ocr-fails")).toContain("uuid: ocr-fails");
+			const record = await t.status("ocr-fails");
+			expect(record.status).toBe("failed");
+			expect(record.error).toBe("ocr: bad pdf");
+		});
+	});
+
+	describe("queue", () => {
+		it("runs at most two indexing jobs at once", async () => {
+			let running = 0;
+			let peak = 0;
+			const ocr: OCRProvider = {
+				async ocr() {
+					running++;
+					peak = Math.max(peak, running);
+					await new Promise((r) => setTimeout(r, 5));
+					running--;
+					return right({ text: "x" });
+				},
+			};
+			const t = setup({ ocr });
+			for (let i = 0; i < 6; i++) {
+				const node = makeFileNode(`parallel-${i}`, "application/pdf", 10);
+				await t.repository.add(node);
+				t.nodeService.setFile(node.uuid, "pdf", "application/pdf");
+				await t.created(node);
 			}
-			expect(mockNodeService.exportCalls).toEqual(["failed-ocr"]);
+			await t.service.idle();
+
+			expect(peak).toBe(2);
+		});
+
+		it("a metadata update right after creation keeps one OCR and the final metadata", async () => {
+			const ocr = new ScriptedOCRProvider();
+			const gate = deferred();
+			ocr.gate = gate.promise;
+			const t = setup({ ocr });
+			const node = makeFileNode("create-update", "application/pdf", 10);
+			await t.repository.add(node);
+			t.nodeService.setFile("create-update", "pdf", "application/pdf");
+
+			await t.created(node);
+			expect(node.update({ description: "Final description" }).isRight()).toBe(true);
+			await t.repository.update(node);
+			await t.updated("create-update", "application/pdf", { description: "Final description" });
+			gate.resolve();
+			await t.service.idle();
+
+			expect(ocr.calls).toBe(1);
+			const md = await t.content("create-update");
+			expect(md).toContain("description: Final description");
+			expect(md).toContain("scanned");
+		});
+
+		it("stores nothing for a node deleted before its job runs", async () => {
+			const ocr = new ScriptedOCRProvider();
+			const gate = deferred();
+			ocr.gate = gate.promise;
+			const t = setup({ ocr });
+			const blocker = makeFileNode("blocker", "application/pdf", 10);
+			await t.repository.add(blocker);
+			t.nodeService.setFile("blocker", "pdf", "application/pdf");
+			const other = makeFileNode("blocker-2", "application/pdf", 10);
+			await t.repository.add(other);
+			t.nodeService.setFile("blocker-2", "pdf", "application/pdf");
+			const doomed = makeFolderNode("doomed");
+			await t.repository.add(doomed);
+
+			await t.created(blocker);
+			await t.created(other);
+			await t.created(doomed);
+			await t.repository.delete("doomed");
+			await t.bus.fire(
+				NodeDeletedEvent.EVENT_ID,
+				new NodeDeletedEvent("u", "t", doomed.metadata),
+			);
+			gate.resolve();
+			await t.service.idle();
+
+			expect(await t.content("doomed")).toBeUndefined();
+			expect(t.bus.published.filter((e) => e instanceof EmbeddingCreatedEvent)).toHaveLength(2);
 		});
 	});
 
 	describe("indexing — NodeDeleted", () => {
 		it("removes embedding when node is deleted", async () => {
-			const mockNodeService = new MockNodeService();
-			const bus = new CapturingEventBus();
-			const repository = new InMemoryNodeRepository();
-			buildService(mockNodeService, bus, repository);
-
+			const t = setup();
 			const folder = makeFolderNode("delete-me");
-			await repository.add(folder);
+			await t.repository.add(folder);
+			await t.created(folder);
+			await t.service.idle();
 
-			await bus.fire(NodeCreatedEvent.EVENT_ID, new NodeCreatedEvent("u", "t", folder));
-
-			await bus.fire(
+			await t.bus.fire(
 				NodeDeletedEvent.EVENT_ID,
-				new NodeDeletedEvent("u", "t", {
-					uuid: "delete-me",
-					fid: "delete-me",
-					title: "delete-me",
-					parent: "root",
-					mimetype: "inode/directory",
-					owner: "u",
-					createdTime: new Date().toISOString(),
-					modifiedTime: new Date().toISOString(),
-				}),
+				new NodeDeletedEvent("u", "t", folder.metadata),
 			);
+			await t.service.idle();
 
-			const search = await repository.vectorSearch(new Array(128).fill(0), 10);
-			expect(search.isRight()).toBe(true);
-			if (search.isRight()) {
-				expect(search.value.nodes.some((n) => n.node.uuid === "delete-me")).toBe(false);
-			}
+			expect(await t.content("delete-me")).toBeUndefined();
+			expect((await t.status("delete-me")).status).toBeNull();
 		});
 	});
 
-	describe("query", () => {
-		it("returns RagDocument[] with uuid, title, score, content", async () => {
-			const mockNodeService = new MockNodeService();
-			const bus = new CapturingEventBus();
-			const repository = new InMemoryNodeRepository();
-			const embeddingsProvider = new DeterministicEmbeddingsProvider(128);
-			const service = new RAGService(
-				bus,
-				repository,
-				mockNodeService as unknown as NodeService,
-				embeddingsProvider,
-				new NullOCRProvider(),
-			);
+	describe("reindex", () => {
+		async function seed() {
+			const embeddings = new ScriptedEmbeddingsProvider();
+			const ocr = new ScriptedOCRProvider();
+			const t = setup({
+				embeddings,
+				ocr,
+				options: { retry: { sleep: () => Promise.resolve() } },
+			});
+			const vector = new Array(128).fill(0.1);
 
-			const folder = makeFolderNode("query-folder");
-			await repository.add(folder);
-			await bus.fire(NodeCreatedEvent.EVENT_ID, new NodeCreatedEvent("u", "t", folder));
+			await t.repository.add(makeFolderNode("indexed"));
+			await t.repository.upsertEmbedding("indexed", vector, "---\nuuid: indexed\n---");
+			await t.repository.add(makeFolderNode("pending"));
+			await t.repository.add(makeFileNode("failed", "application/pdf", 10));
+			t.nodeService.setFile("failed", "pdf", "application/pdf");
+			await t.repository.upsertEmbedding("failed", vector, "---\nuuid: failed\n---");
+			await t.repository.setEmbeddingStatus("failed", "failed", "ocr: timeout");
+			await t.repository.add(makeFileNode("photo", "image/jpeg", 10));
+			await t.repository.upsertEmbedding("photo", vector, "---\nuuid: photo\n---");
 
-			const result = await service.query("test query", 5, 0.0);
-			expect(result.isRight()).toBe(true);
-			if (result.isRight()) {
-				expect(result.value.length).toBeGreaterThan(0);
-				const doc = result.value[0];
-				expect(doc.uuid).toBe("query-folder");
-				expect(doc.title).toBeDefined();
-				expect(doc.score).toBeGreaterThanOrEqual(0);
-				expect(typeof doc.content).toBe("string");
-				expect(doc.content).toContain("---");
-				expect(doc.content).toContain("uuid: query-folder");
-			}
+			return { t, embeddings, ocr };
+		}
+
+		it("missing indexes pending and failed nodes, skips unsupported files, publishes no events", async () => {
+			const { t, embeddings, ocr } = await seed();
+
+			const result = await t.service.reindex({ mode: "missing", tenant: "t", actor: "admin" });
+			expect(result.right).toEqual({ mode: "missing", queued: 2 });
+			await t.service.idle();
+
+			expect(embeddings.texts.some((text) => text.includes("uuid: pending"))).toBe(true);
+			expect(embeddings.texts.some((text) => text.includes("uuid: failed"))).toBe(true);
+			expect(embeddings.texts.some((text) => text.includes("uuid: indexed"))).toBe(false);
+			expect(ocr.calls).toBe(1);
+			expect((await t.status("pending")).status).toBe("indexed");
+			expect((await t.status("failed")).status).toBe("indexed");
+			expect((await t.status("photo")).status).toBe("skipped");
+			expect(await t.content("photo")).toBeUndefined();
+			expect(
+				t.bus.published.some((e) =>
+					e instanceof EmbeddingCreatedEvent || e instanceof EmbeddingUpdatedEvent
+				),
+			).toBe(false);
 		});
 
-		it("does not call OCR in semantic query path", async () => {
-			const mockNodeService = new MockNodeService();
-			const bus = new CapturingEventBus();
-			const repository = new InMemoryNodeRepository();
-			const embeddingsProvider = new DeterministicEmbeddingsProvider(128);
-			const ocrProvider = new CountingOCRProvider();
-			const service = new RAGService(
-				bus,
-				repository,
-				mockNodeService as unknown as NodeService,
-				embeddingsProvider,
-				ocrProvider,
-			);
+		it("all re-embeds every eligible node", async () => {
+			const { t, embeddings } = await seed();
 
-			const folder = makeFolderNode("query-no-ocr");
-			await repository.add(folder);
+			const result = await t.service.reindex({ mode: "all", tenant: "t", actor: "admin" });
+			expect(result.right).toEqual({ mode: "all", queued: 3 });
+			await t.service.idle();
 
-			const contentMd = "---\nuuid: query-no-ocr\ntitle: query-no-ocr\n---";
-			const embeddingOrErr = await embeddingsProvider.embed([contentMd]);
-			expect(embeddingOrErr.isRight()).toBe(true);
-			if (embeddingOrErr.isRight()) {
-				await repository.upsertEmbedding(
-					"query-no-ocr",
-					embeddingOrErr.value.embeddings[0],
-					contentMd,
-				);
-			}
-
-			const result = await service.query("query-no-ocr", 5, 0.0);
-			expect(result.isRight()).toBe(true);
-			expect(ocrProvider.calls).toBe(0);
+			expect(embeddings.texts.some((text) => text.includes("uuid: indexed"))).toBe(true);
+			expect((await t.status("photo")).status).toBe("skipped");
 		});
 
-		it("returns empty array when nothing passes threshold=1.0", async () => {
-			const mockNodeService = new MockNodeService();
-			const bus = new CapturingEventBus();
-			const repository = new InMemoryNodeRepository();
-			const embeddingsProvider = new DeterministicEmbeddingsProvider(128);
-			const service = new RAGService(
-				bus,
-				repository,
-				mockNodeService as unknown as NodeService,
-				embeddingsProvider,
-				new NullOCRProvider(),
-			);
+		it("refuses a second reindex while one is running", async () => {
+			const { t, ocr } = await seed();
+			const gate = deferred();
+			ocr.gate = gate.promise;
 
-			const folder = makeFolderNode("strict-folder");
-			await repository.add(folder);
-			await bus.fire(NodeCreatedEvent.EVENT_ID, new NodeCreatedEvent("u", "t", folder));
+			const first = await t.service.reindex({ mode: "missing", tenant: "t", actor: "admin" });
+			expect(first.isRight()).toBe(true);
+			const second = await t.service.reindex({ mode: "all", tenant: "t", actor: "admin" });
+			expect(second.isLeft()).toBe(true);
+			expect(second.value).toBeInstanceOf(AntboxError);
+			expect((second.value as AntboxError).errorCode).toBe("ReindexInProgress");
 
-			const result = await service.query("totally unrelated query zzz", 5, 1.0);
-			expect(result.isRight()).toBe(true);
-			if (result.isRight()) {
-				expect(result.value).toHaveLength(0);
-			}
+			gate.resolve();
+			await t.service.idle();
+			const third = await t.service.reindex({ mode: "missing", tenant: "t", actor: "admin" });
+			expect(third.isRight()).toBe(true);
+			await t.service.idle();
+		});
+
+		it("reports counts, the last job and recent failures", async () => {
+			const embeddings = new ScriptedEmbeddingsProvider([
+				new AntboxError("GeminiEmbeddingsError", "400 bad"),
+			]);
+			const t = setup({ embeddings });
+			await t.repository.add(makeFolderNode("will-fail"));
+
+			await t.service.reindex({ mode: "missing", tenant: "t", actor: "admin" });
+			await t.service.idle();
+
+			const status = (await t.service.status()).right;
+			expect(status.enabled).toBe(true);
+			expect(status.counts).toEqual({ indexed: 0, failed: 1, skipped: 0, pending: 0 });
+			expect(status.job?.mode).toBe("missing");
+			expect(status.job?.queued).toBe(1);
+			expect(status.job?.done).toBe(1);
+			expect(status.job?.failed).toBe(1);
+			expect(typeof status.job?.finishedAt).toBe("string");
+			expect(status.failures).toHaveLength(1);
+			expect(status.failures[0].uuid).toBe("will-fail");
+			expect(status.failures[0].error).toContain("400 bad");
+		});
+	});
+
+	describe("null OCR", () => {
+		it("indexes metadata when the OCR provider extracts nothing", async () => {
+			const t = setup({ ocr: new NullOCRProvider() });
+			const node = makeFileNode("null-ocr", "application/pdf", 10);
+			await t.repository.add(node);
+			t.nodeService.setFile("null-ocr", "pdf", "application/pdf");
+
+			await t.created(node);
+			await t.service.idle();
+
+			expect(await t.content("null-ocr")).toContain("uuid: null-ocr");
 		});
 	});
 });

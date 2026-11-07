@@ -10,6 +10,7 @@ import type {
 } from "domain/ai/embeddings_provider.ts";
 import { GoogleGenAI } from "@google/genai";
 import { EMBEDDING_DIMENSIONS } from "domain/nodes/embedding.ts";
+import { aiErrorFrom } from "domain/ai/ai_provider_errors.ts";
 
 const ESTIMATED_CHARS_PER_TOKEN = 4;
 
@@ -108,7 +109,7 @@ export class GeminiEmbeddingsProvider implements EmbeddingsProvider {
 					return left(
 						new AntboxError(
 							"GeminiEmbeddingsError",
-							`No embedding values returned for text: ${text.substring(0, 50)}...`,
+							`No embedding values returned for a text of ${text.length} characters`,
 						),
 					);
 				}
@@ -125,10 +126,7 @@ export class GeminiEmbeddingsProvider implements EmbeddingsProvider {
 			});
 		} catch (error) {
 			return left(
-				new AntboxError(
-					"GeminiEmbeddingsError",
-					`Failed to generate embeddings: ${error}`,
-				),
+				aiErrorFrom(error, "GeminiEmbeddingsError", "Failed to generate embeddings"),
 			);
 		}
 	}

@@ -1,6 +1,5 @@
 import { AuthenticationContext } from "application/security/authentication_context.ts";
 import { NodeService } from "application/nodes/node_service.ts";
-import { RAGService } from "application/ai/rag_service.ts";
 
 import { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { left, right } from "shared/either.ts";
@@ -14,16 +13,13 @@ import { Logger } from "shared/logger.ts";
  */
 export class NodeServiceProxy {
 	readonly #nodeService: NodeService;
-	readonly #ragService?: RAGService;
 	readonly #ctx: AuthenticationContext;
 
 	constructor(
 		nodeService: NodeService,
-		ragService: RAGService | undefined,
 		authenticationContext: AuthenticationContext,
 	) {
 		this.#nodeService = nodeService;
-		this.#ragService = ragService;
 		this.#ctx = {
 			tenant: authenticationContext.tenant,
 			mode: authenticationContext.mode,
@@ -73,26 +69,13 @@ export class NodeServiceProxy {
 
 	async semanticQuery(text: string) {
 		Logger.instance("NodeServiceProxy.semanticQuery").debug(JSON.stringify(text));
-		if (!this.#ragService) {
+		if (!this.#nodeService.supportsSemanticSearch()) {
 			return left("Service not available");
 		}
 
 		const TOP_K = 10;
-		const res = await this.#ragService.query(text, TOP_K);
-
-		if (res.isLeft()) {
-			return left(res.value);
-		}
-
-		const uuids = res.value.map((result) => result.uuid);
-		const valid = await this.#nodeService.find(this.#ctx, [["uuid", "in", uuids]]);
-
-		if (valid.isLeft()) {
-			return left(valid.value);
-		}
-
-		const permittedUuids = new Set(valid.value.nodes.map((node) => node.uuid));
-		return right(res.value.filter((result) => permittedUuids.has(result.uuid)));
+		const res = await this.#nodeService.semanticDocuments(this.#ctx, text, TOP_K);
+		return res.isLeft() ? left(res.value) : right(res.value);
 	}
 
 	get(uuid: string) {

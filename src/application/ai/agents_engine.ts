@@ -15,7 +15,6 @@ import type { AspectsService } from "../aspects/aspects_service.ts";
 import type { FeaturesService } from "application/features/features_service.ts";
 import { NodeServiceProxy } from "../nodes/node_service_proxy.ts";
 import { type LoadedSkill } from "./skills_loader.ts";
-import type { RAGService } from "./rag_service.ts";
 import type { TenantLimitsEnforcer } from "application/metrics/tenant_limits_guard.ts";
 import { getCustomAgent } from "application/ai/custom_agents/index.ts";
 import type { AgentModelRuntime } from "./resolve_model.ts";
@@ -63,7 +62,6 @@ export interface AgentsEngineContext {
 	readonly featuresService: FeaturesService;
 	readonly nodeService: NodeService;
 	readonly aspectsService: AspectsService;
-	readonly ragService?: RAGService;
 	readonly defaultModel: ModelSelection;
 	readonly skills: LoadedSkill[];
 	readonly eventBus: EventBus;
@@ -144,7 +142,6 @@ export class AgentsEngine implements IAgentsEngineInternal {
 	readonly #aspectsService: AspectsService;
 	readonly #defaultModel: ModelSelection;
 	readonly #skills: LoadedSkill[];
-	readonly #ragService?: RAGService;
 	readonly #eventBus: EventBus;
 	readonly #tenantLimitsGuard?: TenantLimitsEnforcer;
 	readonly #modelRuntime: AgentModelRuntime;
@@ -161,7 +158,6 @@ export class AgentsEngine implements IAgentsEngineInternal {
 		this.#aspectsService = ctx.aspectsService;
 		this.#defaultModel = ctx.defaultModel;
 		this.#skills = ctx.skills;
-		this.#ragService = ctx.ragService;
 		this.#eventBus = ctx.eventBus;
 		this.#tenantLimitsGuard = ctx.tenantLimitsGuard;
 		this.#modelRuntime = ctx.modelRuntime;
@@ -183,7 +179,6 @@ export class AgentsEngine implements IAgentsEngineInternal {
 				nodeService: this.#nodeService,
 				aspectsService: this.#aspectsService,
 				featuresService: this.#featuresService,
-				ragService: this.#ragService,
 				skills: this.#skills,
 				featureAIToolExecutor: this.#featureAIToolExecutor,
 			},
@@ -415,7 +410,6 @@ export class AgentsEngine implements IAgentsEngineInternal {
 				nodeService: this.#nodeService,
 				aspectsService: this.#aspectsService,
 				featuresService: this.#featuresService,
-				ragService: this.#ragService,
 				skills: [...skills],
 				featureAIToolExecutor: this.#featureAIToolExecutor,
 			},
@@ -660,7 +654,7 @@ export class AgentsEngine implements IAgentsEngineInternal {
 			if (customAgent) {
 				const created = customAgent.create({
 					sdk: {
-						nodes: new NodeServiceProxy(this.#nodeService, this.#ragService, authContext),
+						nodes: new NodeServiceProxy(this.#nodeService, authContext),
 					},
 					authContext,
 					defaultModel: modelName(this.#defaultModel),

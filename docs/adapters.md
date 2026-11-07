@@ -150,9 +150,19 @@ discard them.
 
 ## Remaining adapter limits
 
-- MongoDB vector search loads every node with an embedding and calculates similarity in the
-  application. `topK` limits the returned results, not the scan or transfer; memory and query cost
-  grow with the embedded collection.
+- MongoDB vector search loads every node with an embedding that passes the permission filter and
+  calculates similarity in the application; only the content of the returned `topK` is read.
+  Memory and query cost grow with the embedded collection. Atlas `$vectorSearch` is not used.
+- SQLite vector search needs the `sqlite-vec` extension, installed from npm with a binary per
+  platform (`sqlite-vec-linux-x64`, `-linux-arm64`, `-darwin-x64`, `-darwin-arm64`,
+  `-windows-x64`). The repository fails to start when the binary cannot be loaded. Embeddings are
+  stored as float32 BLOBs; JSON embeddings written by earlier versions are converted on startup.
+  Search compares every embedded node that passes the filters (no vec0 index), so permissions
+  apply before the `topK` cut.
+- PostgreSQL vector search sets `hnsw.ef_search` to the requested `topK` (at most 1000). With
+  pgvector 0.8 or later it uses `hnsw.iterative_scan` for filtered searches and falls back to an
+  exact scan when that returns fewer than `topK` rows; earlier versions always use an exact scan for
+  filtered searches.
 - SQLite, PostgreSQL, and MongoDB event stores replace MIME-type punctuation with underscores in
   table or collection names. For example, `application/x+a` and `application/x-a` share a namespace.
   These naming formats need a migration to preserve distinct MIME types; existing event names are

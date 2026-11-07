@@ -5,8 +5,12 @@ import type { NodeFilters } from "domain/nodes/node_filter.ts";
 import type { NodeLike } from "domain/node_like.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import type {
+	EmbeddingStatus,
+	EmbeddingStatusCounts,
+	EmbeddingStatusRecord,
 	NodeFilterResult,
 	NodeRepository,
+	VectorSearchOptions,
 	VectorSearchResult,
 } from "domain/nodes/node_repository.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
@@ -36,6 +40,9 @@ interface NodeWithEmbedding {
 	node: NodeLike;
 	embedding?: Embedding;
 	contentMd?: string;
+	status?: EmbeddingStatus;
+	statusError?: string;
+	statusAt?: string;
 }
 
 export class InMemoryNodeRepository implements NodeRepository {
@@ -100,11 +107,7 @@ export class InMemoryNodeRepository implements NodeRepository {
 		const snapshot = this.#snapshot(node);
 		if (snapshot.isLeft()) return Promise.resolve(left(snapshot.value));
 
-		this.#data[node.uuid] = {
-			node: snapshot.value,
-			embedding: existing.embedding,
-			contentMd: existing.contentMd,
-		};
+		this.#data[node.uuid] = { ...existing, node: snapshot.value };
 		return Promise.resolve(right(undefined));
 	}
 
@@ -191,17 +194,22 @@ export class InMemoryNodeRepository implements NodeRepository {
 			return Promise.resolve(left(new UnknownError((error as Error).message)));
 		}
 		entry.contentMd = contentMd;
+		entry.status = "indexed";
+		entry.statusError = undefined;
+		entry.statusAt = new Date().toISOString();
 		return Promise.resolve(right(undefined));
 	}
 
 	vectorSearch(
 		queryVector: Embedding,
 		topK: number,
+		options: VectorSearchOptions = {},
 	): Promise<Either<AntboxError, VectorSearchResult>> {
 		const results: VectorSearchResult["nodes"] = [];
+		const spec = NodesFilters.nodeSpecificationFrom(options.filters ?? []);
 
 		for (const entry of Object.values(this.#data)) {
-			if (entry.embedding) {
+			if (entry.embedding && spec.isSatisfiedBy(entry.node).isRight()) {
 				const score = this.#cosineSimilarity(queryVector, entry.embedding);
 				results.push({
 					node: entry.node,
@@ -225,8 +233,53 @@ export class InMemoryNodeRepository implements NodeRepository {
 		if (entry) {
 			entry.embedding = undefined;
 			entry.contentMd = undefined;
+			entry.status = undefined;
+			entry.statusError = undefined;
+			entry.statusAt = undefined;
 		}
 		return Promise.resolve(right(undefined));
+	}
+
+	setEmbeddingStatus(
+		uuid: string,
+		status: "failed" | "skipped",
+		error?: string,
+	): Promise<Either<AntboxError, void>> {
+		const entry = this.#data[uuid];
+		if (!entry) return Promise.resolve(left(new NodeNotFoundError(uuid)));
+
+		if (status === "skipped") {
+			entry.embedding = undefined;
+			entry.contentMd = undefined;
+		}
+		entry.status = status;
+		entry.statusError = status === "failed" ? error : undefined;
+		entry.statusAt = new Date().toISOString();
+		return Promise.resolve(right(undefined));
+	}
+
+	getEmbeddingStatuses(
+		uuids: string[],
+	): Promise<Either<AntboxError, Record<string, EmbeddingStatusRecord>>> {
+		const statuses: Record<string, EmbeddingStatusRecord> = Object.create(null);
+		for (const uuid of uuids) {
+			const entry = this.#data[uuid];
+			if (!entry) continue;
+			statuses[uuid] = {
+				status: entry.status ?? null,
+				...(entry.statusError ? { error: entry.statusError } : {}),
+				...(entry.statusAt ? { at: entry.statusAt } : {}),
+			};
+		}
+		return Promise.resolve(right(statuses));
+	}
+
+	countEmbeddingStatuses(): Promise<Either<AntboxError, EmbeddingStatusCounts>> {
+		const counts: EmbeddingStatusCounts = { indexed: 0, failed: 0, skipped: 0, pending: 0 };
+		for (const entry of Object.values(this.#data)) {
+			counts[entry.status ?? "pending"]++;
+		}
+		return Promise.resolve(right(counts));
 	}
 
 	aggregateTotalSize(): Promise<Either<AntboxError, number>> {

@@ -1,5 +1,7 @@
 import fsSync from "node:fs";
-import { DatabaseSync, type SQLOutputValue } from "node:sqlite";
+import process from "node:process";
+import { DatabaseSync } from "node:sqlite";
+import { getLoadablePath } from "sqlite-vec";
 
 import { type BindValue, toSqlValue, toSqlValues } from "./bind.ts";
 
@@ -12,13 +14,18 @@ import {
 	isNodeFilters2D,
 	type NodeFilter,
 	type NodeFilters,
+	type NodeFilters2D,
 } from "domain/nodes/node_filter.ts";
 import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import { DuplicatedNodeError } from "domain/nodes/duplicated_node_error.ts";
 import type {
+	EmbeddingStatus,
+	EmbeddingStatusCounts,
+	EmbeddingStatusRecord,
 	NodeFilterResult,
 	NodeRepository,
+	VectorSearchOptions,
 	VectorSearchResult,
 } from "domain/nodes/node_repository.ts";
 import { AntboxError } from "shared/antbox_error.ts";
@@ -41,7 +48,13 @@ import { type Either, left, right } from "shared/either.ts";
 export default function buildSqliteNodeRepository(
 	baseFolder?: string,
 ): Promise<Either<AntboxError, NodeRepository>> {
-	return Promise.resolve(right(new SqliteNodeRepository(baseFolder)));
+	try {
+		return Promise.resolve(right(new SqliteNodeRepository(baseFolder)));
+	} catch (error) {
+		return Promise.resolve(
+			left(new SqliteError(error instanceof Error ? error.message : String(error))),
+		);
+	}
 }
 
 export class SqliteError extends AntboxError {
@@ -51,15 +64,30 @@ export class SqliteError extends AntboxError {
 	}
 }
 
+/**
+ * SQLite NodeRepository. Embeddings are float32 BLOBs compared with the sqlite-vec extension by
+ * brute force, so filters apply before the topK cut.
+ *
+ * @throws when the sqlite-vec extension cannot be loaded for this platform.
+ */
 export class SqliteNodeRepository implements NodeRepository {
 	readonly #db: DatabaseSync;
 
 	constructor(baseFolder?: string) {
-		if (baseFolder) {
-			fsSync.mkdirSync(baseFolder, { recursive: true });
-			this.#db = new DatabaseSync(`${baseFolder}/nodes.db`);
-		} else {
-			this.#db = new DatabaseSync(":memory:");
+		const path = baseFolder ? `${baseFolder}/nodes.db` : ":memory:";
+		if (baseFolder) fsSync.mkdirSync(baseFolder, { recursive: true });
+		this.#db = new DatabaseSync(path, { allowExtension: true });
+
+		try {
+			this.#db.loadExtension(getLoadablePath());
+		} catch (error) {
+			this.#db.close();
+			const reason = error instanceof Error ? error.message : String(error);
+			throw new Error(
+				`SqliteNodeRepository: cannot load the sqlite-vec extension for ` +
+					`${process.platform}-${process.arch} (${reason}). ` +
+					"Install the dependencies with the optional package for this platform.",
+			);
 		}
 
 		this.#initialize();
@@ -81,63 +109,67 @@ export class SqliteNodeRepository implements NodeRepository {
 			);
 		`);
 
-		this.#ensureEmbeddingContentColumn();
+		this.#ensureColumns();
+		this.#migrateJsonEmbeddings();
+		this.#db.exec(
+			"UPDATE nodes SET embedding_status = 'indexed' WHERE embedding IS NOT NULL AND embedding_status IS NULL",
+		);
 
 		this.#db.exec("CREATE INDEX IF NOT EXISTS idx_nodes_fid ON nodes(fid);");
 		this.#db.exec("CREATE INDEX IF NOT EXISTS idx_nodes_parent ON nodes(parent);");
 		this.#db.exec("CREATE INDEX IF NOT EXISTS idx_nodes_mimetype ON nodes(mimetype);");
-
-		this.#db.function("cosine_similarity", this.#cosineSimilarityFn);
+		this.#db.exec(
+			"CREATE INDEX IF NOT EXISTS idx_nodes_embedding_status ON nodes(embedding_status);",
+		);
 	}
 
-	#ensureEmbeddingContentColumn(): void {
-		const columns = this.#db.prepare("PRAGMA table_info(nodes)").all() as Array<{
-			name: string;
-		}>;
+	#ensureColumns(): void {
+		const columns = new Set(
+			(this.#db.prepare("PRAGMA table_info(nodes)").all() as Array<{ name: string }>)
+				.map((column) => column.name),
+		);
 
-		if (!columns.some((column) => column.name === "embedding_content_md")) {
-			this.#db.exec("ALTER TABLE nodes ADD COLUMN embedding_content_md TEXT");
-		}
-	}
-
-	#cosineSimilarityFn = (vectorAJson: SQLOutputValue, vectorBJson: SQLOutputValue): number => {
-		if (
-			typeof vectorAJson !== "string" || typeof vectorBJson !== "string" || !vectorAJson ||
-			!vectorBJson
+		for (
+			const column of [
+				"embedding_content_md",
+				"embedding_status",
+				"embedding_error",
+				"embedding_status_at",
+			]
 		) {
-			return 0;
+			if (!columns.has(column)) this.#db.exec(`ALTER TABLE nodes ADD COLUMN ${column} TEXT`);
 		}
+	}
 
+	/** Converts embeddings stored as JSON text by earlier versions into float32 BLOBs. */
+	#migrateJsonEmbeddings(): void {
 		try {
-			const vectorA: number[] = JSON.parse(vectorAJson);
-			const vectorB: number[] = JSON.parse(vectorBJson);
-
-			if (vectorA.length !== vectorB.length) {
-				return 0;
-			}
-
-			let dotProduct = 0;
-			let magnitudeA = 0;
-			let magnitudeB = 0;
-
-			for (let i = 0; i < vectorA.length; i++) {
-				dotProduct += vectorA[i] * vectorB[i];
-				magnitudeA += vectorA[i] * vectorA[i];
-				magnitudeB += vectorB[i] * vectorB[i];
-			}
-
-			magnitudeA = Math.sqrt(magnitudeA);
-			magnitudeB = Math.sqrt(magnitudeB);
-
-			if (magnitudeA === 0 || magnitudeB === 0) {
-				return 0;
-			}
-
-			return dotProduct / (magnitudeA * magnitudeB);
-		} catch {
-			return 0;
+			this.#db.exec(
+				"UPDATE nodes SET embedding = vec_f32(embedding) WHERE typeof(embedding) = 'text'",
+			);
+			return;
+		} catch (error) {
+			Logger.warn("SqliteNodeRepository: converting embeddings one by one", error);
 		}
-	};
+
+		const rows = this.#db.prepare(
+			"SELECT uuid FROM nodes WHERE typeof(embedding) = 'text'",
+		).all() as { uuid: string }[];
+		const convert = this.#db.prepare(
+			"UPDATE nodes SET embedding = vec_f32(embedding) WHERE uuid = ?",
+		);
+		const discard = this.#db.prepare(
+			"UPDATE nodes SET embedding = NULL, embedding_status = NULL WHERE uuid = ?",
+		);
+		for (const { uuid } of rows) {
+			try {
+				convert.run(uuid);
+			} catch {
+				Logger.warn(`SqliteNodeRepository: discarding unreadable embedding of ${uuid}`);
+				discard.run(uuid);
+			}
+		}
+	}
 
 	supportsEmbeddings(): boolean {
 		return true;
@@ -149,10 +181,11 @@ export class SqliteNodeRepository implements NodeRepository {
 		contentMd: string,
 	): Promise<Either<AntboxError, void>> {
 		try {
-			const embeddingJson = JSON.stringify(embedding);
 			this.#db.prepare(
-				"UPDATE nodes SET embedding = ?, embedding_content_md = ? WHERE uuid = ?",
-			).run(embeddingJson, contentMd, uuid);
+				`UPDATE nodes SET embedding = vec_f32(?), embedding_content_md = ?,
+					embedding_status = 'indexed', embedding_error = NULL, embedding_status_at = ?
+				WHERE uuid = ?`,
+			).run(JSON.stringify(embedding), contentMd, new Date().toISOString(), uuid);
 			return Promise.resolve(right(undefined));
 		} catch (err) {
 			const error = err as Error;
@@ -160,61 +193,132 @@ export class SqliteNodeRepository implements NodeRepository {
 		}
 	}
 
-	async vectorSearch(
+	vectorSearch(
 		queryVector: Embedding,
 		topK: number,
+		options: VectorSearchOptions = {},
 	): Promise<Either<AntboxError, VectorSearchResult>> {
 		try {
-			const queryVectorJson = JSON.stringify(queryVector);
+			const params: BindValue[] = [JSON.stringify(queryVector), queryVector.length];
+			const filters = options.filters ?? [];
+			const where = filters.length ? ` AND ${this.#whereClause(filters, params)}` : "";
+			params.push(topK);
 
 			const rows = this.#db
 				.prepare(
 					`SELECT
 						body,
 						embedding_content_md,
-						cosine_similarity(embedding, ?) as similarity
+						COALESCE(1 - vec_distance_cosine(embedding, vec_f32(?)), 0) AS score
 					 FROM nodes
-					 WHERE embedding IS NOT NULL
-					 ORDER BY similarity DESC
+					 WHERE embedding IS NOT NULL AND vec_length(embedding) = ?${where}
+					 ORDER BY score DESC
 					 LIMIT ?`,
 				)
-				.all(queryVectorJson, toSqlValue(topK)) as {
+				.all(...toSqlValues(params)) as {
 					body: string;
 					embedding_content_md: string | null;
-					similarity: number;
+					score: number;
 				}[];
 
 			const nodes: VectorSearchResult["nodes"] = [];
 
 			for (const row of rows) {
-				const metadata = JSON.parse(row.body) as NodeMetadata;
-				const nodeResult = NodeFactory.from(metadata);
-
+				const nodeResult = NodeFactory.from(JSON.parse(row.body) as NodeMetadata);
 				if (nodeResult.isRight()) {
 					nodes.push({
 						node: nodeResult.right,
-						score: row.similarity,
+						score: row.score,
 						content: row.embedding_content_md ?? "",
 					});
 				}
 			}
 
-			return right({ nodes });
+			return Promise.resolve(right({ nodes }));
 		} catch (err) {
-			const error = err as Error;
-			return left(new SqliteError(error.message));
+			return Promise.resolve(left(new SqliteError((err as Error).message)));
 		}
 	}
 
 	deleteEmbedding(uuid: string): Promise<Either<AntboxError, void>> {
 		try {
 			this.#db.prepare(
-				"UPDATE nodes SET embedding = NULL, embedding_content_md = NULL WHERE uuid = ?",
+				`UPDATE nodes SET embedding = NULL, embedding_content_md = NULL, embedding_status = NULL,
+					embedding_error = NULL, embedding_status_at = NULL
+				WHERE uuid = ?`,
 			).run(uuid);
 			return Promise.resolve(right(undefined));
 		} catch (err) {
 			const error = err as Error;
 			return Promise.resolve(left(new SqliteError(error.message)));
+		}
+	}
+
+	setEmbeddingStatus(
+		uuid: string,
+		status: "failed" | "skipped",
+		error?: string,
+	): Promise<Either<AntboxError, void>> {
+		try {
+			const at = new Date().toISOString();
+			const row = status === "skipped"
+				? this.#db.prepare(
+					`UPDATE nodes SET embedding = NULL, embedding_content_md = NULL,
+						embedding_status = 'skipped', embedding_error = NULL, embedding_status_at = ?
+					WHERE uuid = ? RETURNING uuid`,
+				).get(at, uuid)
+				: this.#db.prepare(
+					`UPDATE nodes SET embedding_status = 'failed', embedding_error = ?,
+						embedding_status_at = ?
+					WHERE uuid = ? RETURNING uuid`,
+				).get(error ?? null, at, uuid);
+			return Promise.resolve(row ? right(undefined) : left(new NodeNotFoundError(uuid)));
+		} catch (err) {
+			return Promise.resolve(left(new SqliteError((err as Error).message)));
+		}
+	}
+
+	getEmbeddingStatuses(
+		uuids: string[],
+	): Promise<Either<AntboxError, Record<string, EmbeddingStatusRecord>>> {
+		if (uuids.length === 0) return Promise.resolve(right({}));
+		try {
+			const placeholders = uuids.map(() => "?").join(", ");
+			const rows = this.#db.prepare(
+				`SELECT uuid, embedding_status, embedding_error, embedding_status_at
+				FROM nodes WHERE uuid IN (${placeholders})`,
+			).all(...uuids) as {
+				uuid: string;
+				embedding_status: EmbeddingStatus | null;
+				embedding_error: string | null;
+				embedding_status_at: string | null;
+			}[];
+
+			const statuses: Record<string, EmbeddingStatusRecord> = {};
+			for (const row of rows) {
+				statuses[row.uuid] = {
+					status: row.embedding_status,
+					...(row.embedding_error ? { error: row.embedding_error } : {}),
+					...(row.embedding_status_at ? { at: row.embedding_status_at } : {}),
+				};
+			}
+			return Promise.resolve(right(statuses));
+		} catch (err) {
+			return Promise.resolve(left(new SqliteError((err as Error).message)));
+		}
+	}
+
+	countEmbeddingStatuses(): Promise<Either<AntboxError, EmbeddingStatusCounts>> {
+		try {
+			const rows = this.#db.prepare(
+				"SELECT embedding_status AS status, count(*) AS n FROM nodes GROUP BY embedding_status",
+			).all() as { status: EmbeddingStatus | null; n: number }[];
+
+			const counts: EmbeddingStatusCounts = { indexed: 0, failed: 0, skipped: 0, pending: 0 };
+			for (const row of rows) counts[row.status ?? "pending"] += Number(row.n);
+			return Promise.resolve(right(counts));
+		} catch (err) {
+			return Promise.resolve(left(new SqliteError((err as Error).message)));
 		}
 	}
 
@@ -433,7 +537,17 @@ export class SqliteNodeRepository implements NodeRepository {
 		offset: number,
 	): { sql: string; params: BindValue[] } {
 		const params: BindValue[] = [];
+		const whereClause = this.#whereClause(filters, params);
+		params.push(pageSize, offset);
 
+		return {
+			sql: `SELECT body FROM nodes WHERE ${whereClause} LIMIT ? OFFSET ?`,
+			params,
+		};
+	}
+
+	/** SQL condition for the filters; its bind values are appended to params in order. */
+	#whereClause(filters: NodeFilters | NodeFilters2D, params: BindValue[]): string {
 		const orFilters = isNodeFilters2D(filters) ? filters : [filters];
 
 		const orClauses = orFilters.map((andFilters) => {
@@ -445,14 +559,7 @@ export class SqliteNodeRepository implements NodeRepository {
 			return andClauses.length > 1 ? `(${andClauses.join(" AND ")})` : (andClauses[0] ?? "TRUE");
 		});
 
-		const whereClause = orClauses.length > 1 ? `(${orClauses.join(" OR ")})` : orClauses[0];
-
-		params.push(pageSize, offset);
-
-		return {
-			sql: `SELECT body FROM nodes WHERE ${whereClause} LIMIT ? OFFSET ?`,
-			params,
-		};
+		return orClauses.length > 1 ? `(${orClauses.join(" OR ")})` : (orClauses[0] ?? "TRUE");
 	}
 
 	#filterToSql(filter: NodeFilter, params: BindValue[]): string {

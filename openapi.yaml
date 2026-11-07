@@ -1995,6 +1995,82 @@ paths:
                            $ref: "#/components/schemas/NodeMetadata"
             default:
                $ref: "#/components/responses/Error"
+   "/nodes/-/embeddings/reindex":
+      post:
+         tags:
+            - nodes
+         summary: Reindex the tenant's nodes for semantic search
+         operationId: reindexEmbeddings
+         description: >-
+            Queues nodes for semantic indexing and returns at once; progress is reported by
+            GET /nodes/-/embeddings/status. "missing" (the default) takes nodes that were never
+            indexed or whose last indexing failed; "all" takes every node that can have an
+            embedding. In both modes, files whose type is not supported lose their embedding.
+            Reindexing runs OCR and embeddings, which count towards the tenant's token usage, and
+            does not publish EmbeddingCreated or EmbeddingUpdated events, so onEmbeddings* hooks
+            do not run. Only one reindex runs at a time per tenant. Requires the tenant root user
+            or membership in the admins group.
+         security:
+            - bearerAuth: []
+            - cookieAuth: []
+            - apiKeyHeader: []
+            - apiKeyQuery: []
+         requestBody:
+            required: false
+            content:
+               application/json:
+                  schema:
+                     $ref: "#/components/schemas/EmbeddingsReindexRequest"
+         responses:
+            "202":
+               description: Reindex started
+               content:
+                  application/json:
+                     schema:
+                        $ref: "#/components/schemas/EmbeddingsReindexResponse"
+            "400":
+               description: Invalid mode, invalid JSON, or semantic search not enabled for the tenant
+               content:
+                  application/json:
+                     schema:
+                        $ref: "#/components/schemas/AntboxError"
+            "403":
+               description: Administrator access required
+            "409":
+               description: A reindex is already running for this tenant
+               content:
+                  application/json:
+                     schema:
+                        $ref: "#/components/schemas/AntboxError"
+            default:
+               $ref: "#/components/responses/Error"
+   "/nodes/-/embeddings/status":
+      get:
+         tags:
+            - nodes
+         summary: Get the tenant's semantic index status
+         operationId: getEmbeddingsStatus
+         description: >-
+            Returns how many nodes are indexed, failed, skipped or still pending, the last reindex
+            job and the most recent indexing failures since the server started. Tenants without
+            semantic search answer with enabled false only. Requires the tenant root user or
+            membership in the admins group.
+         security:
+            - bearerAuth: []
+            - cookieAuth: []
+            - apiKeyHeader: []
+            - apiKeyQuery: []
+         responses:
+            "200":
+               description: Semantic index status
+               content:
+                  application/json:
+                     schema:
+                        $ref: "#/components/schemas/EmbeddingsStatus"
+            "403":
+               description: Administrator access required
+            default:
+               $ref: "#/components/responses/Error"
    "/nodes/-/export-all":
       post:
          tags:
@@ -3080,6 +3156,110 @@ components:
                $ref: "#/components/schemas/AIConfiguration"
             limits:
                $ref: "#/components/schemas/TenantLimits"
+      EmbeddingsReindexRequest:
+         type: object
+         properties:
+            mode:
+               type: string
+               enum:
+                  - missing
+                  - all
+               default: missing
+               description: missing reindexes never indexed and failed nodes; all reindexes every eligible node.
+      EmbeddingsReindexResponse:
+         type: object
+         required:
+            - mode
+            - queued
+         properties:
+            mode:
+               type: string
+               enum:
+                  - missing
+                  - all
+            queued:
+               type: integer
+               minimum: 0
+               description: Nodes queued for indexing
+      EmbeddingsStatus:
+         type: object
+         required:
+            - enabled
+         properties:
+            enabled:
+               type: boolean
+               description: False when the tenant has no embeddings provider or its repository cannot store vectors; no other field is then present.
+            counts:
+               type: object
+               required:
+                  - indexed
+                  - failed
+                  - skipped
+                  - pending
+               properties:
+                  indexed:
+                     type: integer
+                     minimum: 0
+                  failed:
+                     type: integer
+                     minimum: 0
+                     description: Last indexing failed. A failed OCR keeps an embedding of the metadata.
+                  skipped:
+                     type: integer
+                     minimum: 0
+                     description: Files whose type is not supported for embeddings
+                  pending:
+                     type: integer
+                     minimum: 0
+                     description: Never processed
+            job:
+               nullable: true
+               type: object
+               required:
+                  - mode
+                  - startedAt
+                  - queued
+                  - done
+                  - failed
+               properties:
+                  mode:
+                     type: string
+                     enum:
+                        - missing
+                        - all
+                  startedAt:
+                     type: string
+                     format: date-time
+                  finishedAt:
+                     type: string
+                     format: date-time
+                     description: Absent while the job is running
+                  queued:
+                     type: integer
+                     minimum: 0
+                  done:
+                     type: integer
+                     minimum: 0
+                  failed:
+                     type: integer
+                     minimum: 0
+            failures:
+               type: array
+               description: Most recent indexing failures since the server started, newest first (at most 50)
+               items:
+                  type: object
+                  required:
+                     - uuid
+                     - error
+                     - at
+                  properties:
+                     uuid:
+                        type: string
+                     error:
+                        type: string
+                     at:
+                        type: string
+                        format: date-time
       StorageUsageMetrics:
          type: object
          required:

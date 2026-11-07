@@ -19,6 +19,7 @@ import {
 	updateFileHandler,
 	updateHandler,
 } from "api/nodes_handlers.ts";
+import { getEmbeddingsStatusHandler, reindexEmbeddingsHandler } from "api/embeddings_handlers.ts";
 import { adapt } from "./adapt.ts";
 
 /**
@@ -41,6 +42,10 @@ export default function (tenants: AntboxTenant[]): Hono {
 	router.post("/", adapt(createHandler(tenants)));
 	router.post("/-/upload", adapt(createFileHandler(tenants)));
 	router.post("/-/export-all", adapt(exportAllHandler(tenants)));
+
+	// Semantic search index (tenant admins)
+	router.post("/-/embeddings/reindex", adapt(reindexEmbeddingsHandler(tenants)));
+	router.get("/-/embeddings/status", adapt(getEmbeddingsStatusHandler(tenants)));
 
 	router.get("/:uuid", adapt(getHandler(tenants)));
 	router.patch("/:uuid", adapt(updateHandler(tenants)));

@@ -2,6 +2,61 @@ import { describe, it } from "bdd";
 import { expect } from "expect";
 import { FileNode } from "domain/nodes/file_node.ts";
 import { SqliteNodeRepository } from "./sqlite_node_repository.ts";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
+
+describe("SqliteNodeRepository embedding status migration", () => {
+	it("adds the status columns to an old database and marks stored vectors as indexed", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "antbox-sqlite-status-"));
+		try {
+			const old = new DatabaseSync(join(dir, "nodes.db"));
+			old.exec(`
+				CREATE TABLE nodes (
+					uuid TEXT PRIMARY KEY,
+					fid TEXT GENERATED ALWAYS AS (json_extract(body, '$.fid')) STORED,
+					title TEXT GENERATED ALWAYS AS (json_extract(body, '$.title')) STORED,
+					parent TEXT GENERATED ALWAYS AS (json_extract(body, '$.parent')) STORED,
+					mimetype TEXT GENERATED ALWAYS AS (json_extract(body, '$.mimetype')) STORED,
+					body JSON NOT NULL,
+					embedding JSON,
+					embedding_content_md TEXT
+				);
+			`);
+			for (const [uuid, embedding] of [["with-vector", "[1,0]"], ["without-vector", null]]) {
+				const node = FileNode.create({
+					uuid: uuid as string,
+					title: `${uuid}.pdf`,
+					mimetype: "application/pdf",
+					owner: "tester@antbox.io",
+				}).right;
+				old.prepare("INSERT INTO nodes (uuid, body, embedding) VALUES (?, ?, ?)").run(
+					uuid as string,
+					JSON.stringify(node.metadata),
+					embedding,
+				);
+			}
+			old.close();
+
+			for (let run = 0; run < 2; run++) {
+				const repo = new SqliteNodeRepository(dir);
+				try {
+					const statuses = (await repo.getEmbeddingStatuses(["with-vector", "without-vector"]))
+						.right;
+					expect(statuses["with-vector"].status).toBe("indexed");
+					expect(statuses["without-vector"].status).toBeNull();
+					const counts = (await repo.countEmbeddingStatuses()).right;
+					expect(counts).toEqual({ indexed: 1, failed: 0, skipped: 0, pending: 1 });
+				} finally {
+					repo.close();
+				}
+			}
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	});
+});
 
 describe("SqliteNodeRepository", () => {
 	it("treats filter fields as data, including quotes in property names", async () => {

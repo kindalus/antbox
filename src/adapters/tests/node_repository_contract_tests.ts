@@ -287,6 +287,174 @@ describe("touch", () => {
 	});
 });
 
+function unitVector(angle: number): number[] {
+	const vector = new Array(EMBEDDING_DIMENSIONS).fill(0);
+	vector[0] = Math.cos(angle);
+	vector[1] = Math.sin(angle);
+	return vector;
+}
+
+async function addFolder(uuid: string, aspects: string[]): Promise<void> {
+	const node = FolderNode.create({
+		uuid,
+		title: uuid,
+		owner: "tester@antbox.io",
+		group: "testers",
+		aspects,
+	}).right;
+	expect((await repo.add(node)).isRight()).toBe(true);
+}
+
+describe("vectorSearch with filters", () => {
+	const query = unitVector(0);
+	const hidden = Array.from({ length: 60 }, (_, i) => `vs-hidden-${i}`);
+	const allowed = Array.from({ length: 45 }, (_, i) => `vs-allowed-${i}`);
+
+	beforeAll(async () => {
+		if (!repo.supportsEmbeddings()) return;
+		for (const [i, uuid] of hidden.entries()) {
+			await addFolder(uuid, ["vs-hidden"]);
+			await repo.upsertEmbedding(uuid, unitVector(0.001 * i), `hidden ${i}`);
+		}
+		for (const [i, uuid] of allowed.entries()) {
+			await addFolder(uuid, ["vs-allowed"]);
+			await repo.upsertEmbedding(uuid, unitVector(0.5 + 0.01 * i), `allowed ${i}`);
+		}
+	});
+
+	test("returns only nodes that pass the filters, best first", async () => {
+		if (!repo.supportsEmbeddings()) return;
+		const result = await repo.vectorSearch(query, 5, {
+			filters: [[["aspects", "contains", "vs-allowed"]]],
+		});
+		expect(result.right.nodes.map((n) => n.node.uuid)).toEqual(allowed.slice(0, 5));
+		const scores = result.right.nodes.map((n) => n.score);
+		expect([...scores].sort((a, b) => b - a)).toEqual(scores);
+		expect(result.right.nodes[0].content).toBe("allowed 0");
+	});
+
+	test("applies topK after the filters", async () => {
+		if (!repo.supportsEmbeddings()) return;
+		const result = await repo.vectorSearch(query, 45, {
+			filters: [[["aspects", "contains", "vs-allowed"]]],
+		});
+		expect(result.right.nodes.map((n) => n.node.uuid)).toEqual(allowed);
+	});
+
+	test("an impossible filter returns nothing and no filter returns every node", async () => {
+		if (!repo.supportsEmbeddings()) return;
+		const none = await repo.vectorSearch(query, 10, { filters: [[["uuid", "in", []]]] });
+		expect(none.right.nodes).toHaveLength(0);
+		const all = await repo.vectorSearch(query, 10, { filters: [] });
+		expect(all.right.nodes).toHaveLength(10);
+		expect(all.right.nodes.map((n) => n.node.uuid)).toContain(hidden[0]);
+		const noOptions = await repo.vectorSearch(query, 10);
+		expect(noOptions.right.nodes.map((n) => n.node.uuid)).toEqual(
+			all.right.nodes.map((n) => n.node.uuid),
+		);
+	});
+});
+
+describe("embedding status", () => {
+	const vector = unitVector(1);
+	const counts = async () => (await repo.countEmbeddingStatuses()).right;
+	const status = async (uuid: string) => (await repo.getEmbeddingStatuses([uuid])).right[uuid];
+
+	test("a new node is pending and an indexed node is indexed", async () => {
+		if (!repo.supportsEmbeddings()) return;
+		const before = await counts();
+		await addFolder("status-indexed", []);
+		expect((await status("status-indexed")).status).toBeNull();
+		expect((await counts()).pending).toBe(before.pending + 1);
+
+		expect((await repo.upsertEmbedding("status-indexed", vector, "content")).isRight()).toBe(
+			true,
+		);
+		const record = await status("status-indexed");
+		expect(record.status).toBe("indexed");
+		expect(record.error).toBeUndefined();
+		expect(typeof record.at).toBe("string");
+		const after = await counts();
+		expect(after.indexed).toBe(before.indexed + 1);
+		expect(after.pending).toBe(before.pending);
+	});
+
+	test("failed keeps the vector and stores the error", async () => {
+		if (!repo.supportsEmbeddings()) return;
+		await addFolder("status-failed", ["status-failed"]);
+		await repo.upsertEmbedding("status-failed", vector, "kept content");
+		expect((await repo.setEmbeddingStatus("status-failed", "failed", "ocr: boom")).isRight())
+			.toBe(true);
+
+		const record = await status("status-failed");
+		expect(record.status).toBe("failed");
+		expect(record.error).toBe("ocr: boom");
+		expect((await repo.getEmbeddingContents(["status-failed"])).right["status-failed"]).toBe(
+			"kept content",
+		);
+		const found = await repo.vectorSearch(vector, 1, {
+			filters: [[["aspects", "contains", "status-failed"]]],
+		});
+		expect(found.right.nodes.map((n) => n.node.uuid)).toEqual(["status-failed"]);
+	});
+
+	test("skipped removes the vector and the content", async () => {
+		if (!repo.supportsEmbeddings()) return;
+		await addFolder("status-skipped", ["status-skipped"]);
+		await repo.upsertEmbedding("status-skipped", vector, "content");
+		expect((await repo.setEmbeddingStatus("status-skipped", "skipped")).isRight()).toBe(true);
+
+		expect((await status("status-skipped")).status).toBe("skipped");
+		expect((await repo.getEmbeddingContents(["status-skipped"])).right["status-skipped"])
+			.toBeUndefined();
+		const found = await repo.vectorSearch(vector, 1, {
+			filters: [[["aspects", "contains", "status-skipped"]]],
+		});
+		expect(found.right.nodes).toHaveLength(0);
+	});
+
+	test("deleteEmbedding clears the vector, the content and the status", async () => {
+		if (!repo.supportsEmbeddings()) return;
+		await addFolder("status-deleted", []);
+		await repo.upsertEmbedding("status-deleted", vector, "content");
+		await repo.setEmbeddingStatus("status-deleted", "failed", "boom");
+		expect((await repo.deleteEmbedding("status-deleted")).isRight()).toBe(true);
+
+		const record = await status("status-deleted");
+		expect(record.status).toBeNull();
+		expect(record.error).toBeUndefined();
+		expect((await repo.getEmbeddingContents(["status-deleted"])).right["status-deleted"])
+			.toBeUndefined();
+	});
+
+	test("update and touch keep the status and the vector", async () => {
+		if (!repo.supportsEmbeddings()) return;
+		await addFolder("status-preserved", ["status-preserved"]);
+		await repo.upsertEmbedding("status-preserved", vector, "content");
+		await repo.setEmbeddingStatus("status-preserved", "failed", "ocr: kept");
+
+		const node = (await repo.getById("status-preserved")).right;
+		expect(node.update({ title: "Renamed" }).isRight()).toBe(true);
+		expect((await repo.update(node)).isRight()).toBe(true);
+		expect((await repo.touch("status-preserved")).isRight()).toBe(true);
+
+		const record = await status("status-preserved");
+		expect(record.status).toBe("failed");
+		expect(record.error).toBe("ocr: kept");
+		const found = await repo.vectorSearch(vector, 1, {
+			filters: [[["aspects", "contains", "status-preserved"]]],
+		});
+		expect(found.right.nodes.map((n) => n.node.uuid)).toEqual(["status-preserved"]);
+		expect(found.right.nodes[0].node.title).toBe("Renamed");
+	});
+
+	test("unknown nodes are left out of the statuses", async () => {
+		if (!repo.supportsEmbeddings()) return;
+		const result = await repo.getEmbeddingStatuses(["missing-node"]);
+		expect(result.right).toEqual({});
+	});
+});
+
 async function cleanDb() {
 	const nodes = await repo.filter([], 1_000_000);
 	await Promise.allSettled(nodes.nodes.map((n) => repo.delete(n.uuid)));

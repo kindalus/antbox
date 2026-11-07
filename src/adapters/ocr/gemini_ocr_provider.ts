@@ -2,11 +2,12 @@ import { fileMimetype } from "shared/mimetype.ts";
 import process from "node:process";
 import { left, right } from "shared/either.ts";
 import type { Either } from "shared/either.ts";
-import { AntboxError } from "shared/antbox_error.ts";
+import type { AntboxError } from "shared/antbox_error.ts";
 import { Logger } from "shared/logger.ts";
 import type { TokenUsage } from "domain/ai/chat_message.ts";
 import type { OCRProvider, OCRResult } from "domain/ai/ocr_provider.ts";
 import { type GenerateContentResponseUsageMetadata, GoogleGenAI } from "@google/genai";
+import { aiErrorFrom } from "domain/ai/ai_provider_errors.ts";
 
 /** Maps Gemini usage the way Pi does: thinking tokens are billed as output. */
 export function geminiUsageToTokenUsage(
@@ -79,12 +80,7 @@ export class GeminiOCRProvider implements OCRProvider {
 				usage: geminiUsageToTokenUsage(response.usageMetadata),
 			});
 		} catch (error) {
-			return left(
-				new AntboxError(
-					"GeminiOCRError",
-					`OCR failed for file ${file.name}: ${error}`,
-				),
-			);
+			return left(aiErrorFrom(error, "GeminiOCRError", `OCR failed for file ${file.name}`));
 		}
 	}
 

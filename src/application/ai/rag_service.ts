@@ -2,11 +2,10 @@ import { type Either, left, right } from "shared/either.ts";
 import { AntboxError } from "shared/antbox_error.ts";
 import { Logger } from "shared/logger.ts";
 import type { EventBus } from "shared/event_bus.ts";
-import type { NodeRepository } from "domain/nodes/node_repository.ts";
+import type { EmbeddingStatusCounts, NodeRepository } from "domain/nodes/node_repository.ts";
 import type { NodeService } from "application/nodes/node_service.ts";
 import type { EmbeddingsProvider } from "domain/ai/embeddings_provider.ts";
 import type { OCRProvider } from "domain/ai/ocr_provider.ts";
-import type { RagDocument } from "domain/ai/rag_document.ts";
 import { NodeCreatedEvent } from "domain/nodes/node_created_event.ts";
 import { NodeUpdatedEvent } from "domain/nodes/node_updated_event.ts";
 import { NodeDeletedEvent } from "domain/nodes/node_deleted_event.ts";
@@ -14,19 +13,85 @@ import { EmbeddingCreatedEvent } from "domain/nodes/embedding_created_event.ts";
 import { EmbeddingUpdatedEvent } from "domain/nodes/embedding_updated_event.ts";
 import { EmbeddingsGeneratedEvent } from "domain/ai/embeddings_generated_event.ts";
 import { OcrCompletedEvent } from "domain/ai/ocr_completed_event.ts";
+import { isEmbeddingsSupportedMimetype } from "domain/nodes/embedding.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { createElevatedContext } from "application/security/elevated_context.ts";
 import { embeddingMarkdownBody, toEmbeddingMarkdown } from "application/nodes/node_markdown.ts";
+import { IndexingQueue } from "./indexing_queue.ts";
+import { type RetryOptions, withRetry } from "./retry.ts";
 
-/** Default number of top results to retrieve */
-export const RAG_TOP_K = 5;
+export type ReindexMode = "missing" | "all";
+
+export interface RAGServiceOptions {
+	/** Indexing jobs running at the same time in this tenant. */
+	concurrency?: number;
+	retry?: RetryOptions;
+}
+
+export interface ReindexRequest {
+	mode: ReindexMode;
+	tenant: string;
+	actor: string;
+}
+
+export interface ReindexJobStatus {
+	mode: ReindexMode;
+	startedAt: string;
+	finishedAt?: string;
+	queued: number;
+	done: number;
+	failed: number;
+}
+
+export interface IndexingFailure {
+	uuid: string;
+	error: string;
+	at: string;
+}
+
+export interface EmbeddingsIndexStatus {
+	enabled: true;
+	counts: EmbeddingStatusCounts;
+	job: ReindexJobStatus | null;
+	failures: IndexingFailure[];
+}
+
+export class ReindexInProgressError extends AntboxError {
+	static ERROR_CODE = "ReindexInProgress";
+
+	constructor() {
+		super(ReindexInProgressError.ERROR_CODE, "A reindex is already running for this tenant");
+	}
+}
+
+interface IndexRequest {
+	/** Extract the file text again instead of reusing the stored body. */
+	contentChanged: boolean;
+	/** Publish EmbeddingCreated/Updated, which run onEmbeddings* hooks. Reindexing does not. */
+	publish: boolean;
+	tenant: string;
+	actor: string;
+}
+
+type Outcome = "indexed" | "failed" | "skipped" | "gone";
+
+interface ActiveJob extends ReindexJobStatus {
+	remaining: Set<string>;
+	enumerating: boolean;
+}
+
+const DEFAULT_CONCURRENCY = 2;
+const MAX_FAILURES = 50;
+const REINDEX_PAGE_SIZE = 200;
 
 /**
- * RAGService - Handles both embedding indexing and semantic query.
+ * RAGService - Indexes node content for semantic search.
  *
- * Indexing: Subscribes to node events → build markdown payload → embed → store vector + content.
- * Query: Embed query → vectorSearch → return RagDocument[] using stored markdown content.
+ * Node events and reindex requests go through one queue per tenant. Each job reads the node when
+ * it runs, so it always indexes the latest version. File types outside
+ * EMBEDDINGS_SUPPORTED_MIMETYPES get no OCR and no embedding. OCR and embedding calls are retried
+ * on transient provider errors; the outcome is stored as the node's embedding status.
  */
 export class RAGService {
 	readonly #repository: NodeRepository;
@@ -34,6 +99,10 @@ export class RAGService {
 	readonly #embeddingsProvider: EmbeddingsProvider;
 	readonly #ocrProvider: OCRProvider;
 	readonly #eventBus: EventBus;
+	readonly #retry: RetryOptions;
+	readonly #queue: IndexingQueue<IndexRequest>;
+	readonly #failures: IndexingFailure[] = [];
+	#job?: ActiveJob;
 
 	constructor(
 		eventBus: EventBus,
@@ -41,243 +110,299 @@ export class RAGService {
 		nodeService: NodeService,
 		embeddingsProvider: EmbeddingsProvider,
 		ocrProvider: OCRProvider,
+		options: RAGServiceOptions = {},
 	) {
 		this.#repository = repository;
 		this.#nodeService = nodeService;
 		this.#embeddingsProvider = embeddingsProvider;
 		this.#ocrProvider = ocrProvider;
 		this.#eventBus = eventBus;
+		this.#retry = options.retry ?? {};
+		this.#queue = new IndexingQueue(
+			(uuid, request) => this.#runJob(uuid, request),
+			(a, b) => ({
+				contentChanged: a.contentChanged || b.contentChanged,
+				publish: a.publish || b.publish,
+				tenant: b.tenant,
+				actor: b.actor,
+			}),
+			options.concurrency ?? DEFAULT_CONCURRENCY,
+		);
 
 		if (!repository.supportsEmbeddings()) {
 			return;
 		}
 
 		eventBus.subscribe(NodeCreatedEvent.EVENT_ID, {
-			handle: (evt: NodeCreatedEvent) => this.#handleNodeCreated(evt),
+			handle: (evt: NodeCreatedEvent) =>
+				this.#queue.enqueue(evt.payload.uuid, {
+					contentChanged: true,
+					publish: true,
+					tenant: evt.tenant,
+					actor: evt.userEmail,
+				}),
 		});
 
 		eventBus.subscribe(NodeUpdatedEvent.EVENT_ID, {
-			handle: (evt: NodeUpdatedEvent) => this.#handleNodeUpdated(evt),
+			handle: (evt: NodeUpdatedEvent) =>
+				this.#queue.enqueue(evt.payload.uuid, {
+					contentChanged: Object.hasOwn(evt.payload.newValues, "size") ||
+						Object.hasOwn(evt.payload.newValues, "mimetype"),
+					publish: true,
+					tenant: evt.tenant,
+					actor: evt.userEmail,
+				}),
 		});
 
 		eventBus.subscribe(NodeDeletedEvent.EVENT_ID, {
-			handle: (evt: NodeDeletedEvent) => this.#handleNodeDeleted(evt),
+			handle: (evt: NodeDeletedEvent) => this.#handleNodeDeleted(evt.payload.uuid),
 		});
 	}
 
+	/** Resolves when no indexing job is pending or running. */
+	idle(): Promise<void> {
+		return this.#queue.idle();
+	}
+
 	/**
-	 * Query the RAG index for documents semantically similar to the given text.
-	 * @param text The query text
-	 * @param topK Maximum number of results to return
-	 * @param threshold Minimum similarity score [0, 1]
-	 * @returns Array of matching documents ordered by score descending
+	 * Queues the tenant's nodes for indexing without publishing embedding events.
+	 *
+	 * "missing" takes nodes that were never indexed or whose last indexing failed; "all" takes every
+	 * node that can have an embedding. In both modes, files of unsupported types lose their
+	 * embedding.
 	 */
-	async query(
-		text: string,
-		topK = RAG_TOP_K,
-		threshold?: number,
-	): Promise<Either<AntboxError, RagDocument[]>> {
-		const actualThreshold = threshold ?? this.#embeddingsProvider.relevanceThreshold();
+	async reindex(
+		request: ReindexRequest,
+	): Promise<Either<AntboxError, { mode: ReindexMode; queued: number }>> {
+		if (this.#job && !this.#job.finishedAt) return left(new ReindexInProgressError());
 
-		const embeddingOrErr = await this.#embeddingsProvider.embed([text]);
-		if (embeddingOrErr.isLeft()) {
-			return left(embeddingOrErr.value);
+		const job: ActiveJob = {
+			mode: request.mode,
+			startedAt: new Date().toISOString(),
+			queued: 0,
+			done: 0,
+			failed: 0,
+			remaining: new Set(),
+			enumerating: true,
+		};
+		this.#job = job;
+
+		try {
+			// Collect every node first: offset paging is unstable while jobs update rows.
+			const nodes: NodeMetadata[] = [];
+			for (let page = 1;; page++) {
+				const result = await this.#repository.filter([], REINDEX_PAGE_SIZE, page);
+				nodes.push(...result.nodes.map((node) => node.metadata));
+				if (result.nodes.length < REINDEX_PAGE_SIZE) break;
+			}
+
+			for (let i = 0; i < nodes.length; i += REINDEX_PAGE_SIZE) {
+				const batch = nodes.slice(i, i + REINDEX_PAGE_SIZE);
+				const statusesOrErr = await this.#repository.getEmbeddingStatuses(
+					batch.map((node) => node.uuid),
+				);
+				if (statusesOrErr.isLeft()) return left(statusesOrErr.value);
+
+				for (const node of batch) {
+					const status = statusesOrErr.value[node.uuid]?.status ?? null;
+					if (!this.#isEmbeddable(node)) {
+						if (status !== "skipped") {
+							await this.#repository.setEmbeddingStatus(node.uuid, "skipped");
+						}
+						continue;
+					}
+					if (request.mode === "missing" && status === "indexed") continue;
+
+					job.remaining.add(node.uuid);
+					job.queued++;
+					this.#queue.enqueue(node.uuid, {
+						contentChanged: status !== "indexed",
+						publish: false,
+						tenant: request.tenant,
+						actor: request.actor,
+					});
+				}
+			}
+
+			return right({ mode: request.mode, queued: job.queued });
+		} finally {
+			job.enumerating = false;
+			this.#finishJobIfDone(job);
+		}
+	}
+
+	async status(): Promise<Either<AntboxError, EmbeddingsIndexStatus>> {
+		const countsOrErr = await this.#repository.countEmbeddingStatuses();
+		if (countsOrErr.isLeft()) return left(countsOrErr.value);
+
+		let job: ReindexJobStatus | null = null;
+		if (this.#job) {
+			const { remaining: _remaining, enumerating: _enumerating, ...rest } = this.#job;
+			job = rest;
 		}
 
-		if (embeddingOrErr.value.usage) {
-			this.#eventBus.publish(
-				new EmbeddingsGeneratedEvent(
-					"system", // RAG query runs as system
-					"unknown", // Or pull from context if available
-					{
-						nodeUuid: "query", // Represents a search query
-						model: embeddingOrErr.value.model ?? "default",
-						usage: embeddingOrErr.value.usage,
-						context: "search",
-					},
-				),
-			);
-		}
-
-		const queryVector = embeddingOrErr.value.embeddings[0];
-
-		const searchOrErr = await this.#repository.vectorSearch(queryVector, topK);
-		if (searchOrErr.isLeft()) {
-			return left(searchOrErr.value);
-		}
-
-		const candidates = searchOrErr.value.nodes.filter((r) => r.score >= actualThreshold);
-		const contentMdOrErr = await this.#repository.getEmbeddingContents(
-			candidates.map(({ node }) => node.uuid),
-		);
-		if (contentMdOrErr.isLeft()) {
-			return left(contentMdOrErr.value);
-		}
-
-		const docs: RagDocument[] = candidates.map(({ node, score }) => ({
-			uuid: node.uuid,
-			title: node.title,
-			content: contentMdOrErr.value[node.uuid] ?? "",
-			score,
-		}));
-
-		return right(docs);
+		return right({
+			enabled: true,
+			counts: countsOrErr.value,
+			job,
+			failures: [...this.#failures].reverse(),
+		});
 	}
 
 	// ========================================================================
 	// PRIVATE — INDEXING
 	// ========================================================================
 
-	async #handleNodeCreated(event: NodeCreatedEvent): Promise<void> {
-		const node = event.payload;
+	async #handleNodeDeleted(uuid: string): Promise<void> {
+		this.#queue.cancel(uuid);
+		this.#recordJobOutcome(uuid, "gone");
 
-		let success: boolean;
-		if (Nodes.isFile(node)) {
-			success = await this.#indexFile(node, event.tenant);
-		} else {
-			success = await this.#indexNodeMetadata(node, event.tenant);
-		}
-
-		if (success) {
-			this.#eventBus.publish(
-				new EmbeddingCreatedEvent(event.userEmail, event.tenant, node.uuid),
+		const deleteOrErr = await this.#repository.deleteEmbedding(uuid);
+		if (deleteOrErr.isLeft()) {
+			Logger.error(
+				`RAGService: delete embedding failed for ${uuid}: ${deleteOrErr.value.message}`,
 			);
 		}
 	}
 
-	async #handleNodeUpdated(event: NodeUpdatedEvent): Promise<void> {
-		const nodeOrErr = await this.#nodeService.get(
-			createElevatedContext(event.tenant),
-			event.payload.uuid,
+	async #runJob(uuid: string, request: IndexRequest): Promise<void> {
+		let outcome: Outcome = "failed";
+		try {
+			outcome = await this.#index(uuid, request);
+		} finally {
+			this.#recordJobOutcome(uuid, outcome);
+		}
+	}
+
+	async #index(uuid: string, request: IndexRequest): Promise<Outcome> {
+		const nodeOrErr = await this.#repository.getById(uuid);
+		if (nodeOrErr.isLeft()) return "gone";
+		const node = nodeOrErr.value.metadata;
+
+		if (!this.#isEmbeddable(node)) {
+			await this.#repository.setEmbeddingStatus(uuid, "skipped");
+			return "skipped";
+		}
+
+		const previousOrErr = await this.#repository.getEmbeddingContents([uuid]);
+		const previousMarkdown = previousOrErr.isRight() ? previousOrErr.value[uuid] : undefined;
+
+		const { body, problem } = Nodes.isFile(node)
+			? await this.#fileBody(node, previousMarkdown, request)
+			: { body: "", problem: undefined };
+
+		const markdown = toEmbeddingMarkdown(node, body);
+		const embeddingsOrErr = await withRetry(
+			() => this.#embeddingsProvider.embed([markdown]),
+			this.#retry,
 		);
-
-		if (nodeOrErr.isLeft()) {
-			Logger.error(`RAGService: failed to get node ${event.payload.uuid} for re-indexing`);
-			return;
-		}
-
-		const node = nodeOrErr.value;
-
-		let success: boolean;
-		if (Nodes.isFile(node)) {
-			const contentChanged = Object.hasOwn(event.payload.newValues, "size");
-			success = await this.#indexFile(node, event.tenant, contentChanged);
-		} else {
-			success = await this.#indexNodeMetadata(node, event.tenant);
-		}
-
-		if (success) {
-			this.#eventBus.publish(
-				new EmbeddingUpdatedEvent(event.userEmail, event.tenant, node.uuid),
-			);
-		}
-	}
-
-	async #handleNodeDeleted(event: NodeDeletedEvent): Promise<void> {
-		await this.#deleteEmbedding(event.payload.uuid);
-	}
-
-	async #indexFile(
-		node: NodeMetadata,
-		tenant: string,
-		contentChanged = true,
-	): Promise<boolean> {
-		const contentsOrErr = await this.#repository.getEmbeddingContents([node.uuid]);
-		const previousMarkdown = contentsOrErr.isRight() ? contentsOrErr.value[node.uuid] : undefined;
-		const previousBody = previousMarkdown === undefined
-			? undefined
-			: embeddingMarkdownBody(previousMarkdown);
-
-		if (contentsOrErr.isLeft()) {
-			Logger.warn(`RAGService: failed to get stored content for ${node.uuid}`);
-			if (!contentChanged) {
-				return false;
-			}
-		}
-
-		let bodyContent = previousBody ?? "";
-		const needsExtraction = previousBody === undefined || contentChanged;
-
-		if (needsExtraction && (node.size ?? 0) > 0) {
-			const fileOrErr = await this.#nodeService.export(createElevatedContext(tenant), node.uuid);
-			if (fileOrErr.isLeft()) {
-				Logger.warn(
-					`RAGService: failed to export file ${node.uuid}, using stored content if available`,
-				);
-			} else {
-				const textOrErr = await this.#ocrProvider.ocr(fileOrErr.value);
-				if (textOrErr.isLeft()) {
-					Logger.warn(`RAGService: OCR failed for ${node.uuid}: ${textOrErr.value.message}`);
-				} else {
-					bodyContent = textOrErr.value.text;
-					if (textOrErr.value.usage) {
-						this.#eventBus.publish(
-							new OcrCompletedEvent("system", tenant, {
-								nodeUuid: node.uuid,
-								model: textOrErr.value.model ?? "default",
-								usage: textOrErr.value.usage,
-								context: "indexing",
-							}),
-						);
-					}
-				}
-			}
-		} else if (contentChanged) {
-			bodyContent = "";
-		}
-
-		const markdown = toEmbeddingMarkdown(node, bodyContent);
-		return this.#generateAndStore(node.uuid, markdown, tenant);
-	}
-
-	async #indexNodeMetadata(metadata: NodeMetadata, tenant: string): Promise<boolean> {
-		const markdown = toEmbeddingMarkdown(metadata);
-		return this.#generateAndStore(metadata.uuid, markdown, tenant);
-	}
-
-	async #generateAndStore(uuid: string, text: string, tenant: string): Promise<boolean> {
-		const embeddingsOrErr = await this.#embeddingsProvider.embed([text]);
 		if (embeddingsOrErr.isLeft()) {
-			Logger.error(`RAGService: embedding failed for ${uuid}: ${embeddingsOrErr.value.message}`);
-			return false;
+			return this.#fail(uuid, embeddingsOrErr.value.message);
 		}
 
 		if (embeddingsOrErr.value.usage) {
 			this.#eventBus.publish(
-				new EmbeddingsGeneratedEvent(
-					"system",
-					tenant,
-					{
-						nodeUuid: uuid,
-						model: embeddingsOrErr.value.model ?? "default",
-						usage: embeddingsOrErr.value.usage,
-						context: "indexing",
-					},
-				),
+				new EmbeddingsGeneratedEvent("system", request.tenant, {
+					nodeUuid: uuid,
+					model: embeddingsOrErr.value.model ?? "default",
+					usage: embeddingsOrErr.value.usage,
+					context: "indexing",
+				}),
 			);
 		}
 
 		const storeOrErr = await this.#repository.upsertEmbedding(
 			uuid,
 			embeddingsOrErr.value.embeddings[0],
-			text,
+			markdown,
 		);
 		if (storeOrErr.isLeft()) {
-			Logger.error(
-				`RAGService: store embedding failed for ${uuid}: ${storeOrErr.value.message}`,
-			);
-			return false;
+			return this.#fail(uuid, `store: ${storeOrErr.value.message}`);
 		}
 
-		return true;
+		if (request.publish) {
+			this.#eventBus.publish(
+				previousMarkdown === undefined
+					? new EmbeddingCreatedEvent(request.actor, request.tenant, uuid)
+					: new EmbeddingUpdatedEvent(request.actor, request.tenant, uuid),
+			);
+		}
+
+		// The metadata embedding is stored; a failed extraction is kept for the next reindex.
+		return problem ? this.#fail(uuid, problem) : "indexed";
 	}
 
-	async #deleteEmbedding(uuid: string): Promise<void> {
-		const deleteOrErr = await this.#repository.deleteEmbedding(uuid);
-		if (deleteOrErr.isLeft()) {
-			Logger.error(
-				`RAGService: delete embedding failed for ${uuid}: ${deleteOrErr.value.message}`,
+	/** File text to embed: the stored body, or a fresh extraction when the content changed. */
+	async #fileBody(
+		node: NodeMetadata,
+		previousMarkdown: string | undefined,
+		request: IndexRequest,
+	): Promise<{ body: string; problem?: string }> {
+		const previousBody = previousMarkdown === undefined
+			? undefined
+			: embeddingMarkdownBody(previousMarkdown);
+		const needsExtraction = previousBody === undefined || request.contentChanged;
+
+		if (!needsExtraction) return { body: previousBody ?? "" };
+		if ((node.size ?? 0) === 0) return { body: "" };
+
+		const fileOrErr = await this.#nodeService.export(
+			createElevatedContext(request.tenant),
+			node.uuid,
+		);
+		if (fileOrErr.isLeft()) {
+			return { body: previousBody ?? "", problem: `export: ${fileOrErr.value.message}` };
+		}
+
+		const textOrErr = await withRetry(() => this.#ocrProvider.ocr(fileOrErr.value), this.#retry);
+		if (textOrErr.isLeft()) {
+			return { body: previousBody ?? "", problem: `ocr: ${textOrErr.value.message}` };
+		}
+
+		if (textOrErr.value.usage) {
+			this.#eventBus.publish(
+				new OcrCompletedEvent("system", request.tenant, {
+					nodeUuid: node.uuid,
+					model: textOrErr.value.model ?? "default",
+					usage: textOrErr.value.usage,
+					context: "indexing",
+				}),
 			);
+		}
+
+		return { body: textOrErr.value.text };
+	}
+
+	#isEmbeddable(node: NodeMetadata): boolean {
+		return !Nodes.isFile(node) || isEmbeddingsSupportedMimetype(node.mimetype);
+	}
+
+	async #fail(uuid: string, error: string): Promise<Outcome> {
+		Logger.warn(`RAGService: indexing failed for ${uuid}: ${error}`);
+		this.#failures.push({ uuid, error, at: new Date().toISOString() });
+		if (this.#failures.length > MAX_FAILURES) this.#failures.shift();
+
+		const statusOrErr = await this.#repository.setEmbeddingStatus(uuid, "failed", error);
+		if (statusOrErr.isLeft()) {
+			Logger.error(
+				`RAGService: cannot record the failure of ${uuid}: ${statusOrErr.value.message}`,
+			);
+		}
+		return "failed";
+	}
+
+	#recordJobOutcome(uuid: string, outcome: Outcome): void {
+		const job = this.#job;
+		if (!job || job.finishedAt || !job.remaining.delete(uuid)) return;
+
+		job.done++;
+		if (outcome === "failed") job.failed++;
+		this.#finishJobIfDone(job);
+	}
+
+	#finishJobIfDone(job: ActiveJob): void {
+		if (!job.enumerating && job.remaining.size === 0 && !job.finishedAt) {
+			job.finishedAt = new Date().toISOString();
 		}
 	}
 }

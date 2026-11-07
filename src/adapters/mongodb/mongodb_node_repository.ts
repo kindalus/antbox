@@ -8,8 +8,12 @@ import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import { DuplicatedNodeError } from "domain/nodes/duplicated_node_error.ts";
 import type {
+	EmbeddingStatus,
+	EmbeddingStatusCounts,
+	EmbeddingStatusRecord,
 	NodeFilterResult,
 	NodeRepository,
+	VectorSearchOptions,
 	VectorSearchResult,
 } from "domain/nodes/node_repository.ts";
 import { AntboxError, UnknownError } from "shared/antbox_error.ts";
@@ -20,6 +24,9 @@ type NodeDbModel = NodeMetadata & {
 	_id: string | ObjectId;
 	embedding?: Embedding;
 	embeddingContentMd?: string;
+	embeddingStatus?: EmbeddingStatus;
+	embeddingError?: string;
+	embeddingStatusAt?: string;
 };
 
 /**
@@ -43,8 +50,13 @@ export default async function buildMongodbNodeRepository(
 	const client = new MongoClient(url);
 	try {
 		await client.connect();
-		await client.db(dbname).collection(MongodbNodeRepository.COLLECTION_NAME)
-			.createIndex({ uuid: 1 }, { unique: true });
+		const collection = client.db(dbname).collection(MongodbNodeRepository.COLLECTION_NAME);
+		await collection.createIndex({ uuid: 1 }, { unique: true });
+		await collection.createIndex({ embeddingStatus: 1 });
+		await collection.updateMany(
+			{ embedding: { $exists: true }, embeddingStatus: { $exists: false } },
+			{ $set: { embeddingStatus: "indexed" } },
+		);
 		return right(new MongodbNodeRepository(client, dbname));
 	} catch (err) {
 		await client.close();
@@ -192,7 +204,15 @@ export class MongodbNodeRepository implements NodeRepository {
 		try {
 			await this.#collection.updateOne(
 				{ uuid },
-				{ $set: { embedding, embeddingContentMd: contentMd } },
+				{
+					$set: {
+						embedding,
+						embeddingContentMd: contentMd,
+						embeddingStatus: "indexed",
+						embeddingStatusAt: new Date().toISOString(),
+					},
+					$unset: { embeddingError: "" },
+				},
 			);
 			return right(undefined);
 		} catch (err) {
@@ -203,31 +223,35 @@ export class MongodbNodeRepository implements NodeRepository {
 	async vectorSearch(
 		queryVector: Embedding,
 		topK: number,
+		options: VectorSearchOptions = {},
 	): Promise<Either<AntboxError, VectorSearchResult>> {
 		try {
+			// Scores are computed here: $vectorSearch only exists on Atlas. Content is loaded only
+			// for the topK documents.
 			const docs = await this.#collection
-				.find({ embedding: { $exists: true } })
+				.find(
+					{ $and: [{ embedding: { $exists: true } }, buildMongoQuery(options.filters ?? [])] },
+					{ projection: { embeddingContentMd: 0 } },
+				)
 				.toArray();
 
-			const results: VectorSearchResult["nodes"] = [];
+			const scored = docs
+				.map((doc) => doc as unknown as NodeDbModel)
+				.filter((doc) => doc.embedding)
+				.map((doc) => ({ doc, score: this.#cosineSimilarity(queryVector, doc.embedding!) }))
+				.sort((a, b) => b.score - a.score)
+				.slice(0, topK);
 
-			for (const doc of docs) {
-				const dbDoc = doc as unknown as NodeDbModel;
-				if (dbDoc.embedding) {
-					const score = this.#cosineSimilarity(queryVector, dbDoc.embedding);
-					const node = this.#toNodeLike(dbDoc);
-					results.push({
-						node,
-						score,
-						content: dbDoc.embeddingContentMd ?? "",
-					});
-				}
-			}
+			const contents = await this.getEmbeddingContents(scored.map(({ doc }) => doc.uuid));
+			if (contents.isLeft()) return left(contents.value);
 
-			results.sort((a, b) => b.score - a.score);
-			const topResults = results.slice(0, topK);
-
-			return right({ nodes: topResults });
+			return right({
+				nodes: scored.map(({ doc, score }) => ({
+					node: this.#toNodeLike(doc),
+					score,
+					content: contents.value[doc.uuid] ?? "",
+				})),
+			});
 		} catch (err) {
 			return left(new MongodbError((err as any).message));
 		}
@@ -266,9 +290,83 @@ export class MongodbNodeRepository implements NodeRepository {
 		try {
 			await this.#collection.updateOne(
 				{ uuid },
-				{ $unset: { embedding: "", embeddingContentMd: "" } },
+				{
+					$unset: {
+						embedding: "",
+						embeddingContentMd: "",
+						embeddingStatus: "",
+						embeddingError: "",
+						embeddingStatusAt: "",
+					},
+				},
 			);
 			return right(undefined);
+		} catch (err) {
+			return left(new MongodbError((err as any).message));
+		}
+	}
+
+	async setEmbeddingStatus(
+		uuid: string,
+		status: "failed" | "skipped",
+		error?: string,
+	): Promise<Either<AntboxError, void>> {
+		try {
+			const at = new Date().toISOString();
+			const result = status === "skipped"
+				? await this.#collection.updateOne({ uuid }, {
+					$set: { embeddingStatus: "skipped", embeddingStatusAt: at },
+					$unset: { embedding: "", embeddingContentMd: "", embeddingError: "" },
+				})
+				: await this.#collection.updateOne({ uuid }, {
+					$set: {
+						embeddingStatus: "failed",
+						embeddingStatusAt: at,
+						embeddingError: error ?? "",
+					},
+				});
+			return result.matchedCount ? right(undefined) : left(new NodeNotFoundError(uuid));
+		} catch (err) {
+			return left(new MongodbError((err as any).message));
+		}
+	}
+
+	async getEmbeddingStatuses(
+		uuids: string[],
+	): Promise<Either<AntboxError, Record<string, EmbeddingStatusRecord>>> {
+		if (uuids.length === 0) return right({});
+		try {
+			const docs = await this.#collection.find(
+				{ uuid: { $in: uuids } },
+				{
+					projection: { uuid: 1, embeddingStatus: 1, embeddingError: 1, embeddingStatusAt: 1 },
+				},
+			).toArray();
+
+			const statuses: Record<string, EmbeddingStatusRecord> = Object.create(null);
+			for (const doc of docs as unknown as NodeDbModel[]) {
+				statuses[doc.uuid] = {
+					status: doc.embeddingStatus ?? null,
+					...(doc.embeddingError ? { error: doc.embeddingError } : {}),
+					...(doc.embeddingStatusAt ? { at: doc.embeddingStatusAt } : {}),
+				};
+			}
+			return right(statuses);
+		} catch (err) {
+			return left(new MongodbError((err as any).message));
+		}
+	}
+
+	async countEmbeddingStatuses(): Promise<Either<AntboxError, EmbeddingStatusCounts>> {
+		try {
+			const groups = await this.#collection.aggregate<
+				{ _id: EmbeddingStatus | null; n: number }
+			>([
+				{ $group: { _id: { $ifNull: ["$embeddingStatus", null] }, n: { $sum: 1 } } },
+			]).toArray();
+			const counts: EmbeddingStatusCounts = { indexed: 0, failed: 0, skipped: 0, pending: 0 };
+			for (const group of groups) counts[group._id ?? "pending"] += group.n;
+			return right(counts);
 		} catch (err) {
 			return left(new MongodbError((err as any).message));
 		}

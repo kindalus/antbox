@@ -8,6 +8,7 @@ import type { AuthenticationContext } from "../security/authentication_context.t
 import { NodeService } from "./node_service.ts";
 import type { NodeServiceContext } from "./node_service_context.ts";
 import { InMemoryNodeRepository } from "adapters/inmem/inmem_node_repository.ts";
+import { SqliteNodeRepository } from "adapters/sqlite/sqlite_node_repository.ts";
 import { InMemoryStorageProvider } from "adapters/inmem/inmem_storage_provider.ts";
 import { InMemoryConfigurationRepository } from "adapters/inmem/inmem_configuration_repository.ts";
 import { SmartFolderNodeNotFoundError } from "domain/nodes/smart_folder_node_not_found_error.ts";
@@ -239,6 +240,39 @@ describe("NodeService", () => {
 		});
 	});
 });
+
+for (
+	const [name, makeRepository] of [
+		["in-memory", () => new InMemoryNodeRepository()],
+		["sqlite", () => new SqliteNodeRepository()],
+	] as const
+) {
+	describe(`NodeService filter strings with numbers (${name})`, () => {
+		const configRepo = new InMemoryConfigurationRepository();
+		const service = nodeService({ configRepo, repository: makeRepository() });
+
+		beforeAll(async () => {
+			await seedAspects(configRepo);
+			await loadData(service);
+		});
+
+		const amounts = async (filters: string) => {
+			const result = await service.find(authCtx, filters);
+			expect(result.isRight()).toBe(true);
+			return result.right.nodes
+				.map((node) => (node as AspectableNode).properties["ope-aspect:amount"])
+				.sort();
+		};
+
+		it("compares unquoted numbers numerically", async () => {
+			expect(await amounts("ope-aspect:amount > 2500")).toEqual([3000, 4500, 5000]);
+			expect(await amounts("ope-aspect:amount <= 2300")).toEqual([1500, 2300]);
+			expect(await amounts("ope-aspect:amount >= 1500, ope-aspect:amount < 3000"))
+				.toEqual([1500, 2300]);
+		});
+	});
+}
+
 function errToMsg(err: unknown): string {
 	if (err instanceof Error) {
 		return err.message;

@@ -120,4 +120,20 @@ describe("Node filter validation", () => {
 			expect(NodesFilters.parse(text).isLeft()).toBe(true);
 		}
 	});
+
+	it("reads unquoted numbers as numbers only in range comparisons", () => {
+		expect(NodesFilters.parse("size > 1000").right).toEqual([[["size", ">", 1000]]]);
+		expect(NodesFilters.parse("size >= -2.5").right).toEqual([[["size", ">=", -2.5]]]);
+		expect(NodesFilters.parse("size < 10, size <= 20").right).toEqual([[
+			["size", "<", 10],
+			["size", "<=", 20],
+		]]);
+		expect(NodesFilters.parse('size > "1000"').right).toEqual([[["size", ">", "1000"]]]);
+		expect(NodesFilters.parse("createdTime >= 2026-06-03").right).toEqual([[
+			["createdTime", ">=", "2026-06-03"],
+		]]);
+		expect(NodesFilters.parse("nif:number == 5002568772").right).toEqual([[
+			["nif:number", "==", "5002568772"],
+		]]);
+	});
 });

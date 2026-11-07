@@ -106,6 +106,11 @@ than query syntax. On `fulltext`, `match` is a full-text search (next section). 
 operators (`in`, `not-in`, `contains-all`, `contains-any`, `contains-none`) require array values.
 `contains-none` succeeds only when none of the supplied values is present.
 
+In the filter string notation (`"size > 1000, mimetype == application/pdf | …"`), values are text,
+except an unquoted number after `<`, `<=`, `>` or `>=`, which is a number: `size > 1000` compares
+numerically, `size > "1000"` compares as text. `==` and `!=` always compare text, so a value such as
+a NIF stored as a string still matches.
+
 An empty filter list accepts every node allowed by the caller's permissions. An empty AND group
 inside an OR expression is also unconditional. A parent filter that matches no folders returns no
 nodes.

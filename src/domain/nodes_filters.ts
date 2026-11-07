@@ -303,9 +303,18 @@ function parseValue(valueStr: string, operator: FilterOperator): unknown {
 		return valueStr.substring(1, valueStr.length - 1);
 	}
 
+	// An unquoted number compared with a range operator is a number, so `size > 1000` compares
+	// numerically. Other operators keep the text: values such as NIFs are stored as strings.
+	if (RANGE_OPERATORS.has(operator) && NUMBER.test(valueStr)) {
+		return Number(valueStr);
+	}
+
 	// Otherwise, it's a simple unquoted string value
 	return valueStr;
 }
+
+const RANGE_OPERATORS = new Set<FilterOperator>([">", ">=", "<", "<="]);
+const NUMBER = /^-?\d+(\.\d+)?$/;
 
 /**
  * Parses a single filter expression (e.g., "aspects contains-all (factura,coisas)").

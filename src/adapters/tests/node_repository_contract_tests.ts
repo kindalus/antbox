@@ -3,7 +3,9 @@ import process from "node:process";
 import { afterAll, beforeAll, describe, test } from "bdd";
 import { expect } from "expect";
 import { providerFrom } from "../module_configuration_parser.ts";
-import { type NodeRepository } from "domain/nodes/node_repository.ts";
+import { type FtsOptions, type NodeRepository } from "domain/nodes/node_repository.ts";
+import type { NodeFilters2D } from "domain/nodes/node_filter.ts";
+import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { FolderNode } from "domain/nodes/folder_node.ts";
 import { FileNode } from "domain/nodes/file_node.ts";
 import { UuidGenerator } from "shared/uuid_generator.ts";
@@ -12,6 +14,8 @@ import type { Either } from "shared/either.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 
 let repo: NodeRepository;
+/** Adapter folder of the repository under test, such as "sqlite" or "inmem". */
+let engine = "";
 const uuids = Array.from({ length: 4 }, () => UuidGenerator.generate());
 
 beforeAll(async () => {
@@ -21,6 +25,7 @@ beforeAll(async () => {
 	}
 
 	const [modulePath, ...params] = args;
+	engine = modulePath.split("/").at(-2) ?? "";
 
 	repo = (await providerFrom<NodeRepository>([modulePath, ...params]))!;
 	if (!repo) {
@@ -101,13 +106,20 @@ describe("filter", () => {
 		expect(result.nodes.map((node) => node.uuid)).toEqual([uuids[2]]);
 	});
 
-	test("matches literal punctuation and ordered words without query syntax", async () => {
-		for (const query of ["%_", "(a+)+$", "[invoice]", "INVOICE ready"]) {
-			const result = await repo.filter([["fulltext", "match", query]]);
+	test("matches literal punctuation in title match filters", async () => {
+		for (const query of ["Essay.pdf", "say.p", "ESSAY"]) {
+			const result = await repo.filter([["title", "match", query]]);
 			expect(result.nodes.map((node) => node.uuid)).toEqual([uuids[2]]);
 		}
-		const missing = await repo.filter([["fulltext", "match", "[missing]"]]);
-		expect(missing.nodes).toHaveLength(0);
+		for (const query of ["%_", "(a+)+$", "[invoice]"]) {
+			const result = await repo.filter([["title", "match", query]]);
+			expect(result.nodes).toHaveLength(0);
+		}
+	});
+
+	test("does not run fulltext match filters, which go through fts", async () => {
+		const result = await repo.filter([["fulltext", "match", "Essay"]]);
+		expect(result.nodes).toHaveLength(0);
 	});
 
 	test("handles empty filter sets without invalid SQL", async () => {
@@ -260,10 +272,11 @@ describe("touch", () => {
 			{ length: EMBEDDING_DIMENSIONS },
 			(_, index) => index === 0 ? 1 : 0,
 		);
+		expect((await repo.saveContent(uuid, { markdown: "Retained embedding" })).isRight()).toBe(
+			true,
+		);
 		if (repo.supportsEmbeddings()) {
-			expect((await repo.upsertEmbedding(uuid, embedding, "Retained embedding")).isRight()).toBe(
-				true,
-			);
+			expect((await repo.upsertEmbedding(uuid, embedding)).isRight()).toBe(true);
 		}
 
 		expect((await repo.touch(uuid)).isRight()).toBe(true);
@@ -271,8 +284,8 @@ describe("touch", () => {
 		const after = (await repo.getById(uuid)).right.metadata;
 		expect(after.modifiedTime).not.toBe(before.modifiedTime);
 		expect({ ...after, modifiedTime: before.modifiedTime }).toEqual(before);
+		expect((await repo.getContents([uuid])).right[uuid]).toBe("Retained embedding");
 		if (repo.supportsEmbeddings()) {
-			expect((await repo.getEmbeddingContents([uuid])).right[uuid]).toBe("Retained embedding");
 			const nearest = (await repo.vectorSearch(embedding, 1)).right.nodes[0];
 			expect(nearest.node.uuid).toBe(uuid);
 			expect(nearest.score).toBeCloseTo(1);
@@ -292,6 +305,11 @@ function unitVector(angle: number): number[] {
 	vector[0] = Math.cos(angle);
 	vector[1] = Math.sin(angle);
 	return vector;
+}
+
+async function embed(uuid: string, vector: number[], markdown: string): Promise<void> {
+	expect((await repo.saveContent(uuid, { markdown })).isRight()).toBe(true);
+	expect((await repo.upsertEmbedding(uuid, vector)).isRight()).toBe(true);
 }
 
 async function addFolder(uuid: string, aspects: string[]): Promise<void> {
@@ -314,11 +332,11 @@ describe("vectorSearch with filters", () => {
 		if (!repo.supportsEmbeddings()) return;
 		for (const [i, uuid] of hidden.entries()) {
 			await addFolder(uuid, ["vs-hidden"]);
-			await repo.upsertEmbedding(uuid, unitVector(0.001 * i), `hidden ${i}`);
+			await embed(uuid, unitVector(0.001 * i), `hidden ${i}`);
 		}
 		for (const [i, uuid] of allowed.entries()) {
 			await addFolder(uuid, ["vs-allowed"]);
-			await repo.upsertEmbedding(uuid, unitVector(0.5 + 0.01 * i), `allowed ${i}`);
+			await embed(uuid, unitVector(0.5 + 0.01 * i), `allowed ${i}`);
 		}
 	});
 
@@ -367,9 +385,7 @@ describe("embedding status", () => {
 		expect((await status("status-indexed")).status).toBeNull();
 		expect((await counts()).pending).toBe(before.pending + 1);
 
-		expect((await repo.upsertEmbedding("status-indexed", vector, "content")).isRight()).toBe(
-			true,
-		);
+		expect((await repo.upsertEmbedding("status-indexed", vector)).isRight()).toBe(true);
 		const record = await status("status-indexed");
 		expect(record.status).toBe("indexed");
 		expect(record.error).toBeUndefined();
@@ -382,14 +398,14 @@ describe("embedding status", () => {
 	test("failed keeps the vector and stores the error", async () => {
 		if (!repo.supportsEmbeddings()) return;
 		await addFolder("status-failed", ["status-failed"]);
-		await repo.upsertEmbedding("status-failed", vector, "kept content");
+		await embed("status-failed", vector, "kept content");
 		expect((await repo.setEmbeddingStatus("status-failed", "failed", "ocr: boom")).isRight())
 			.toBe(true);
 
 		const record = await status("status-failed");
 		expect(record.status).toBe("failed");
 		expect(record.error).toBe("ocr: boom");
-		expect((await repo.getEmbeddingContents(["status-failed"])).right["status-failed"]).toBe(
+		expect((await repo.getContents(["status-failed"])).right["status-failed"]).toBe(
 			"kept content",
 		);
 		const found = await repo.vectorSearch(vector, 1, {
@@ -398,39 +414,47 @@ describe("embedding status", () => {
 		expect(found.right.nodes.map((n) => n.node.uuid)).toEqual(["status-failed"]);
 	});
 
-	test("skipped removes the vector and the content", async () => {
+	test("skipped removes the vector and keeps the content searchable", async () => {
 		if (!repo.supportsEmbeddings()) return;
 		await addFolder("status-skipped", ["status-skipped"]);
-		await repo.upsertEmbedding("status-skipped", vector, "content");
+		await embed("status-skipped", vector, "content");
+		await repo.saveContent("status-skipped", {
+			markdown: "content",
+			searchMeta: "Skippedmarker report",
+		});
 		expect((await repo.setEmbeddingStatus("status-skipped", "skipped")).isRight()).toBe(true);
 
 		expect((await status("status-skipped")).status).toBe("skipped");
-		expect((await repo.getEmbeddingContents(["status-skipped"])).right["status-skipped"])
-			.toBeUndefined();
+		expect((await repo.getContents(["status-skipped"])).right["status-skipped"]).toBe("content");
+		const searched = await repo.fts("skippedmarker", { pageSize: 10, pageToken: 1 });
+		expect(searched.right.nodes.map((node) => node.uuid)).toEqual(["status-skipped"]);
 		const found = await repo.vectorSearch(vector, 1, {
 			filters: [[["aspects", "contains", "status-skipped"]]],
 		});
 		expect(found.right.nodes).toHaveLength(0);
 	});
 
-	test("deleteEmbedding clears the vector, the content and the status", async () => {
+	test("deleteEmbedding clears the vector and the status and keeps the content", async () => {
 		if (!repo.supportsEmbeddings()) return;
-		await addFolder("status-deleted", []);
-		await repo.upsertEmbedding("status-deleted", vector, "content");
+		await addFolder("status-deleted", ["status-deleted"]);
+		await embed("status-deleted", vector, "content");
 		await repo.setEmbeddingStatus("status-deleted", "failed", "boom");
 		expect((await repo.deleteEmbedding("status-deleted")).isRight()).toBe(true);
 
 		const record = await status("status-deleted");
 		expect(record.status).toBeNull();
 		expect(record.error).toBeUndefined();
-		expect((await repo.getEmbeddingContents(["status-deleted"])).right["status-deleted"])
-			.toBeUndefined();
+		expect((await repo.getContents(["status-deleted"])).right["status-deleted"]).toBe("content");
+		const found = await repo.vectorSearch(vector, 1, {
+			filters: [[["aspects", "contains", "status-deleted"]]],
+		});
+		expect(found.right.nodes).toHaveLength(0);
 	});
 
 	test("update and touch keep the status and the vector", async () => {
 		if (!repo.supportsEmbeddings()) return;
 		await addFolder("status-preserved", ["status-preserved"]);
-		await repo.upsertEmbedding("status-preserved", vector, "content");
+		await embed("status-preserved", vector, "content");
 		await repo.setEmbeddingStatus("status-preserved", "failed", "ocr: kept");
 
 		const node = (await repo.getById("status-preserved")).right;
@@ -454,6 +478,274 @@ describe("embedding status", () => {
 		expect(result.right).toEqual({});
 	});
 });
+
+describe("saveContent", () => {
+	test("stores the markdown and updates only the given search fields", async () => {
+		await addFile("content-partial", { title: "Partial content" });
+		const save = (content: Parameters<NodeRepository["saveContent"]>[1]) =>
+			repo.saveContent("content-partial", content);
+		const found = async (query: string) =>
+			(await repo.fts(query, { pageSize: 10, pageToken: 1 })).right.nodes.map((n) => n.uuid);
+
+		expect(
+			(await save({ markdown: "m1", searchMeta: "Quokkameta", searchBody: "wombatbody" }))
+				.isRight(),
+		).toBe(true);
+		expect((await repo.getContents(["content-partial"])).right["content-partial"]).toBe("m1");
+
+		expect((await save({ markdown: "m2" })).isRight()).toBe(true);
+		expect((await repo.getContents(["content-partial"])).right["content-partial"]).toBe("m2");
+		expect(await found("quokkameta")).toEqual(["content-partial"]);
+		expect(await found("wombatbody")).toEqual(["content-partial"]);
+
+		expect((await save({ markdown: "m3", searchBody: "" })).isRight()).toBe(true);
+		expect(await found("wombatbody")).toEqual([]);
+		expect(await found("quokkameta")).toEqual(["content-partial"]);
+
+		expect((await save({ markdown: "m4", searchMeta: "Platypusmeta" })).isRight()).toBe(true);
+		expect(await found("quokkameta")).toEqual([]);
+		expect(await found("platypusmeta")).toEqual(["content-partial"]);
+	});
+
+	test("returns an error for a missing node", async () => {
+		const result = await repo.saveContent("content-missing", { markdown: "x", searchMeta: "x" });
+		expect(result.isLeft()).toBe(true);
+		expect((await repo.getById("content-missing")).isLeft()).toBe(true);
+		expect((await repo.fts("x", { pageSize: 10, pageToken: 1 })).right.nodes).toHaveLength(0);
+	});
+
+	test("lists nodes until their searchMeta is stored", async () => {
+		await addFile("content-pending", { title: "Pending content" });
+		const pending = async () => (await repo.listWithoutSearchContent(1_000_000)).right;
+		expect(await pending()).toContain("content-pending");
+
+		await repo.saveContent("content-pending", { markdown: "only markdown" });
+		expect(await pending()).toContain("content-pending");
+
+		await repo.saveContent("content-pending", { markdown: "md", searchMeta: "Pending content" });
+		expect(await pending()).not.toContain("content-pending");
+		expect((await repo.listWithoutSearchContent(1)).right.length).toBeLessThanOrEqual(1);
+	});
+});
+
+describe("fts", () => {
+	const page = { pageSize: 100, pageToken: 1 };
+	const search = async (query: string, options: Partial<FtsOptions> = {}) => {
+		const result = await repo.fts(query, { ...page, ...options });
+		expect(result.isRight(), JSON.stringify(result.value)).toBe(true);
+		return result.right;
+	};
+	const found = async (query: string, options: Partial<FtsOptions> = {}) =>
+		(await search(query, options)).nodes.map((node) => node.uuid);
+
+	beforeAll(async () => {
+		await addSearchable("fts-invoice", "Annual invoice Zanzibar", "", ["fts"]);
+		await addSearchable(
+			"fts-report",
+			"Relatório de Acção disciplinar quarterly",
+			"The board approved the zanzibar budget",
+			["fts"],
+		);
+		await addSearchable("fts-tagged", "Untitled tagged node", "", ["fts"], ["gazebo"]);
+		await addSearchable(
+			"fts-stemmed",
+			"Facturas de vendas pendentes",
+			"Lista das vendas do mês",
+			["fts"],
+		);
+		await addSearchable(
+			"fts-weights-body",
+			"Ordinary weights document",
+			"marmalade appears only in this body",
+			["fts-weights"],
+		);
+		await addSearchable("fts-weights-title", "Marmalade recipe", "", ["fts-weights"]);
+		for (let i = 0; i < 25; i++) {
+			await addSearchable(
+				`fts-page-${String(i).padStart(2, "0")}`,
+				`Paginated kiwifruit ${i}`,
+				"",
+				[i % 5 === 0 ? "fts-page-hidden" : "fts-page-allowed"],
+			);
+		}
+	});
+
+	test("finds nodes by title, tags and body", async () => {
+		expect(await found("annual")).toEqual(["fts-invoice"]);
+		expect(await found("gazebo")).toEqual(["fts-tagged"]);
+		expect(await found("budget")).toEqual(["fts-report"]);
+		expect((await found("zanzibar")).sort()).toEqual(["fts-invoice", "fts-report"]);
+	});
+
+	test("ignores accents and case", async () => {
+		expect(await found("relatorio")).toEqual(["fts-report"]);
+		expect(await found("RELATÓRIO acção")).toEqual(["fts-report"]);
+		expect(await found("accao")).toEqual(["fts-report"]);
+	});
+
+	test("returns a score for every node", async () => {
+		const result = await search("zanzibar");
+		expect(Object.keys(result.scores).sort()).toEqual(["fts-invoice", "fts-report"]);
+		for (const score of Object.values(result.scores)) {
+			expect(score).toBeGreaterThan(0);
+			expect(score).toBeLessThanOrEqual(1);
+		}
+	});
+
+	test("applies the filters before pagination", async () => {
+		const filters = [[["aspects", "contains", "fts-page-allowed"]]] as NodeFilters2D;
+		const pages: string[][] = [];
+		for (let pageToken = 1; pageToken <= 3; pageToken++) {
+			pages.push(await found("kiwifruit", { filters, pageSize: 8, pageToken }));
+		}
+		expect(pages.map((p) => p.length)).toEqual([8, 8, 4]);
+		const all = pages.flat();
+		expect(new Set(all).size).toBe(20);
+		expect(all.every((uuid) => Number(uuid.slice(-2)) % 5 !== 0)).toBe(true);
+
+		const result = await search("kiwifruit", { filters, pageSize: 8, pageToken: 2 });
+		expect(result.pageSize).toBe(8);
+		expect(result.pageToken).toBe(2);
+	});
+
+	test("an impossible filter returns nothing and no filter returns everything", async () => {
+		expect(await found("kiwifruit", { filters: [[["uuid", "in", []]]] })).toEqual([]);
+		expect(await found("kiwifruit", { filters: [] })).toHaveLength(25);
+		expect(await found("kiwifruit", { filters: [[]] })).toHaveLength(25);
+		const either = await found("kiwifruit", {
+			filters: [[["uuid", "==", "fts-page-01"]], [["uuid", "==", "fts-page-02"]]],
+		});
+		expect(either.sort()).toEqual(["fts-page-01", "fts-page-02"]);
+	});
+
+	test("paginates past the last match", async () => {
+		expect(await found("kiwifruit", { pageSize: 10, pageToken: 3 })).toHaveLength(5);
+		expect(await found("kiwifruit", { pageSize: 10, pageToken: 4 })).toHaveLength(0);
+	});
+
+	test("a deleted node is no longer found", async () => {
+		await addSearchable("fts-deleted", "Ephemeral xylophone", "", ["fts"]);
+		expect(await found("xylophone")).toEqual(["fts-deleted"]);
+		expect((await repo.delete("fts-deleted")).isRight()).toBe(true);
+		expect(await found("xylophone")).toEqual([]);
+		expect((await repo.listWithoutSearchContent(1_000_000)).right).not.toContain("fts-deleted");
+	});
+
+	test("an updated or touched node keeps its search content", async () => {
+		await addSearchable("fts-updated", "Original hippogriff", "", ["fts"]);
+		const node = (await repo.getById("fts-updated")).right;
+		node.update({ title: "Renamed hippogriff" });
+		expect((await repo.update(node)).isRight()).toBe(true);
+		expect((await repo.touch("fts-updated")).isRight()).toBe(true);
+		const result = await search("hippogriff");
+		expect(result.nodes.map((n) => n.uuid)).toEqual(["fts-updated"]);
+		expect(result.nodes[0].title).toBe("Renamed hippogriff");
+	});
+
+	test("never interprets search syntax in the query", async () => {
+		const syntaxOnly = [
+			'"',
+			"*",
+			":",
+			"&",
+			"|",
+			"!",
+			"(",
+			")",
+			"-",
+			"'",
+			"\\",
+			'" * : & | ! ( ) -',
+			"%_",
+			"",
+			"   ",
+		];
+		for (const query of syntaxOnly) {
+			const result = await repo.fts(query, page);
+			expect(result.isRight(), `${query}: ${JSON.stringify(result.value)}`).toBe(true);
+			expect(result.right.nodes).toHaveLength(0);
+		}
+		for (
+			const query of ["NOT", "OR", "AND", "NEAR(a b)", "a OR b", "x AND NOT y", "search_meta:x"]
+		) {
+			const result = await repo.fts(query, page);
+			expect(result.isRight(), `${query}: ${JSON.stringify(result.value)}`).toBe(true);
+		}
+
+		const withSyntax = [
+			"annual*",
+			'"annual',
+			"annual:",
+			"(annual)",
+			"-annual",
+			"annual & invoice",
+			"annual | invoice",
+			"!annual",
+			"annual:*",
+			"'annual'",
+			"annual\\",
+		];
+		for (const query of withSyntax) {
+			expect(await found(query), query).toEqual(["fts-invoice"]);
+		}
+	});
+
+	test("requires every word", async () => {
+		expect(await found("annual zanzibar")).toEqual(["fts-invoice"]);
+		expect(await found("annual budget")).toEqual([]);
+		expect(await found("quarterly board zanzibar")).toEqual(["fts-report"]);
+	});
+
+	test("matches word prefixes but not the middle of a word", async () => {
+		if (engine !== "sqlite" && engine !== "postgres") return;
+		expect(await found("zanz")).toHaveLength(2);
+		expect(await found("annu invo")).toEqual(["fts-invoice"]);
+		expect(await found("nzibar")).toEqual([]);
+	});
+
+	test("stems Portuguese words", async () => {
+		if (engine !== "postgres" && engine !== "mongodb") return;
+		expect(await found("factura")).toEqual(["fts-stemmed"]);
+		expect(await found("venda")).toEqual(["fts-stemmed"]);
+		expect(await found("pendente")).toEqual(["fts-stemmed"]);
+	});
+
+	test("ranks a match in the metadata above one in the body", async () => {
+		if (engine === "inmem") return;
+		const result = await search("marmalade");
+		expect(result.nodes.map((n) => n.uuid)).toEqual(["fts-weights-title", "fts-weights-body"]);
+		expect(result.scores["fts-weights-title"]).toBeGreaterThan(result.scores["fts-weights-body"]);
+	});
+});
+
+async function addFile(uuid: string, metadata: Partial<NodeMetadata> = {}): Promise<void> {
+	const node = FileNode.create({
+		uuid,
+		title: uuid,
+		mimetype: "text/plain",
+		owner: "tester@antbox.io",
+		group: "testers",
+		...metadata,
+	}).right;
+	expect((await repo.add(node)).isRight()).toBe(true);
+}
+
+/** A node whose searchMeta is its title and tags, as NodeService stores it. */
+async function addSearchable(
+	uuid: string,
+	title: string,
+	body: string,
+	aspects: string[],
+	tags: string[] = [],
+): Promise<void> {
+	await addFile(uuid, { title, aspects, tags });
+	const saved = await repo.saveContent(uuid, {
+		markdown: `---\ntitle: ${title}\n---\n\n${body}`,
+		searchMeta: [title, ...tags].join("\n"),
+		searchBody: body,
+	});
+	expect(saved.isRight()).toBe(true);
+}
 
 async function cleanDb() {
 	const nodes = await repo.filter([], 1_000_000);
@@ -489,7 +781,6 @@ async function populateDb() {
 			group,
 			aspects: ["finance", "document"],
 			properties: { "finance:owner's-code": ["paid", "approved"] },
-			fulltext: "Cost 10%_off (a+)+$ [invoice]\nreview-ready",
 		}),
 		FileNode.create({
 			uuid: uuids[3],

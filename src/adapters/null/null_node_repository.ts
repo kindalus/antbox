@@ -7,6 +7,9 @@ import { Users } from "domain/users_groups/users.ts";
 import type {
 	EmbeddingStatusCounts,
 	EmbeddingStatusRecord,
+	FtsOptions,
+	FtsResult,
+	NodeContent,
 	NodeFilterResult,
 	NodeRepository,
 	VectorSearchOptions,
@@ -44,8 +47,25 @@ export class NullNodeRepository implements NodeRepository {
 		return Promise.resolve(right(this.#nullNode));
 	}
 
-	getEmbeddingContents(_uuids: string[]): Promise<Either<AntboxError, Record<string, string>>> {
+	getContents(_uuids: string[]): Promise<Either<AntboxError, Record<string, string>>> {
 		return Promise.resolve(right({}));
+	}
+
+	saveContent(_uuid: string, _content: NodeContent): Promise<Either<AntboxError, void>> {
+		return Promise.resolve(right(undefined));
+	}
+
+	fts(_query: string, options: FtsOptions): Promise<Either<AntboxError, FtsResult>> {
+		return Promise.resolve(right({
+			nodes: [],
+			pageSize: options.pageSize,
+			pageToken: options.pageToken,
+			scores: {},
+		}));
+	}
+
+	listWithoutSearchContent(_limit: number): Promise<Either<AntboxError, string[]>> {
+		return Promise.resolve(right([]));
 	}
 
 	filter(
@@ -64,11 +84,7 @@ export class NullNodeRepository implements NodeRepository {
 		return false;
 	}
 
-	upsertEmbedding(
-		_uuid: string,
-		_embedding: Embedding,
-		_contentMd: string,
-	): Promise<Either<AntboxError, void>> {
+	upsertEmbedding(_uuid: string, _embedding: Embedding): Promise<Either<AntboxError, void>> {
 		return Promise.resolve(right(undefined));
 	}
 

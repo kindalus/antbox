@@ -63,7 +63,6 @@ export function calculateNodeUpdateChanges(
 function comparableMetadata(metadata: Partial<NodeMetadata>): Partial<NodeMetadata> {
 	const comparable: Partial<NodeMetadata> = { ...metadata };
 	delete comparable.modifiedTime;
-	delete comparable.fulltext;
 
 	for (const key of Object.keys(comparable) as (keyof NodeMetadata)[]) {
 		if (key !== "properties" && comparable[key] === undefined) {

@@ -43,8 +43,6 @@ export interface NodeMetadata {
 	modifiedTime: string;
 	/** Email of the user who owns this node */
 	owner: string;
-	/** Extracted text content for search indexing */
-	fulltext?: string;
 	/** User-defined tags for categorization */
 	tags?: string[];
 	/** Whether the node is currently locked */

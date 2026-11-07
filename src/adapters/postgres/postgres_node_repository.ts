@@ -14,10 +14,14 @@ import {
 import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import { DuplicatedNodeError } from "domain/nodes/duplicated_node_error.ts";
+import { fulltextTerms, isFulltextFilter } from "domain/nodes/fulltext.ts";
 import type {
 	EmbeddingStatus,
 	EmbeddingStatusCounts,
 	EmbeddingStatusRecord,
+	FtsOptions,
+	FtsResult,
+	NodeContent,
 	NodeFilterResult,
 	NodeRepository,
 	VectorSearchOptions,
@@ -64,11 +68,16 @@ export default async function buildPostgresNodeRepository(
  */
 /** Highest hnsw.ef_search pgvector accepts. */
 const MAX_EF_SEARCH = 1000;
+/** Portuguese with unaccent; created by initialize() when the unaccent extension is available. */
+const ANTBOX_SEARCH_CONFIG = "antbox_pt";
+const FALLBACK_SEARCH_CONFIG = "portuguese";
 
 export class PostgresNodeRepository implements NodeRepository {
 	readonly #sql: postgres.Sql;
 	/** pgvector 0.8+ keeps scanning the HNSW index until filtered queries fill their LIMIT. */
 	#iterativeScan = false;
+	/** Text search configuration of the search_vector column. */
+	#searchConfig = FALLBACK_SEARCH_CONFIG;
 
 	constructor(connectionString?: string) {
 		const connStr = connectionString ?? process.env.DATABASE_URL;
@@ -107,6 +116,7 @@ export class PostgresNodeRepository implements NodeRepository {
 			`;
 
 			await this.#migrateEmbeddingDimensions();
+			await this.#initializeSearch();
 
 			await this.#sql`
 				UPDATE nodes SET embedding_status = 'indexed'
@@ -192,22 +202,174 @@ export class PostgresNodeRepository implements NodeRepository {
 		});
 	}
 
+	/**
+	 * Full-text search: search_meta and search_body feed a generated tsvector (weights A and B)
+	 * with a GIN index. The antbox_pt configuration is portuguese with unaccent before the stemmer;
+	 * without the unaccent extension the plain portuguese configuration is used and accents count.
+	 * An existing column keeps the configuration it was created with.
+	 */
+	async #initializeSearch(): Promise<void> {
+		await this.#sql`
+			ALTER TABLE nodes
+			ADD COLUMN IF NOT EXISTS search_meta TEXT,
+			ADD COLUMN IF NOT EXISTS search_body TEXT
+		`;
+
+		const [column] = await this.#sql<{ expression: string }[]>`
+			SELECT pg_get_expr(d.adbin, d.adrelid) AS expression
+			FROM pg_attribute a
+			JOIN pg_attrdef d ON d.adrelid = a.attrelid AND d.adnum = a.attnum
+			WHERE a.attrelid = 'nodes'::regclass AND a.attname = 'search_vector' AND NOT a.attisdropped
+		`;
+		if (column) {
+			// The configuration as it resolves now, e.g. 'antbox_pt' or 'other_schema.antbox_pt'.
+			this.#searchConfig = /'([^']+)'::regconfig/.exec(column.expression)?.[1] ??
+				FALLBACK_SEARCH_CONFIG;
+			return;
+		}
+
+		this.#searchConfig = await this.#createSearchConfig();
+		await this.#sql.begin(async (sql) => {
+			await sql.unsafe("SELECT pg_advisory_xact_lock(hashtext('antbox_nodes_search_vector'))");
+			await sql.unsafe(`
+				ALTER TABLE nodes ADD COLUMN IF NOT EXISTS search_vector tsvector
+				GENERATED ALWAYS AS (
+					setweight(to_tsvector('${this.#searchConfig}'::regconfig, coalesce(search_meta, '')), 'A') ||
+					setweight(to_tsvector('${this.#searchConfig}'::regconfig, coalesce(search_body, '')), 'B')
+				) STORED
+			`);
+			await sql.unsafe(
+				"CREATE INDEX IF NOT EXISTS idx_nodes_search_vector ON nodes USING GIN (search_vector)",
+			);
+		});
+	}
+
+	/** Creates antbox_pt, or returns the portuguese configuration when unaccent is unavailable. */
+	async #createSearchConfig(): Promise<string> {
+		try {
+			await this.#sql`CREATE EXTENSION IF NOT EXISTS unaccent`;
+			await this.#sql.begin(async (sql) => {
+				await sql.unsafe("SELECT pg_advisory_xact_lock(hashtext('antbox_search_config'))");
+				const [existing] = await sql.unsafe(
+					`SELECT 1 FROM pg_ts_config
+					WHERE cfgname = '${ANTBOX_SEARCH_CONFIG}' AND pg_ts_config_is_visible(oid)`,
+				);
+				if (existing) return;
+				await sql.unsafe(
+					`CREATE TEXT SEARCH CONFIGURATION ${ANTBOX_SEARCH_CONFIG} (COPY = portuguese)`,
+				);
+				await sql.unsafe(
+					`ALTER TEXT SEARCH CONFIGURATION ${ANTBOX_SEARCH_CONFIG}
+					ALTER MAPPING FOR hword, hword_part, word WITH unaccent, portuguese_stem`,
+				);
+			});
+			return ANTBOX_SEARCH_CONFIG;
+		} catch (error) {
+			Logger.warn(
+				`PostgresNodeRepository: cannot set up the unaccent search configuration ` +
+					`(${(error as Error).message}); full-text search uses '${FALLBACK_SEARCH_CONFIG}' ` +
+					"and accents must match",
+			);
+			return FALLBACK_SEARCH_CONFIG;
+		}
+	}
+
 	supportsEmbeddings(): boolean {
 		return true;
 	}
 
-	async upsertEmbedding(
-		uuid: string,
-		embedding: Embedding,
-		contentMd: string,
-	): Promise<Either<AntboxError, void>> {
+	async saveContent(uuid: string, content: NodeContent): Promise<Either<AntboxError, void>> {
+		try {
+			const sql = this.#sql;
+			const rows = await sql`
+				UPDATE nodes
+				SET embedding_content_md = ${content.markdown}
+				${content.searchMeta === undefined ? sql`` : sql`, search_meta = ${content.searchMeta}`}
+				${content.searchBody === undefined ? sql`` : sql`, search_body = ${content.searchBody}`}
+				WHERE uuid = ${uuid}
+				RETURNING uuid
+			`;
+			return rows.length ? right(undefined) : left(new NodeNotFoundError(uuid));
+		} catch (err) {
+			return left(new PostgresError((err as Error).message));
+		}
+	}
+
+	/**
+	 * The query text goes through the same configuration as the stored text (parser, unaccent,
+	 * stemmer, stop words). Each resulting lexeme becomes a prefix term and all are required, so
+	 * no tsquery operator in the text is ever interpreted. Ranked by ts_rank_cd with searchMeta
+	 * weighted 1.0 and searchBody 0.1, normalized to rank / (rank + 1).
+	 */
+	async fts(query: string, options: FtsOptions): Promise<Either<AntboxError, FtsResult>> {
+		const { pageSize, pageToken } = options;
+		if (fulltextTerms(query).length === 0) {
+			return right({ nodes: [], pageSize, pageToken, scores: {} });
+		}
+
+		try {
+			const filters = options.filters ?? [];
+			const { whereClause, params } = filters.length
+				? this.#buildFilterQuery(filters)
+				: { whereClause: "TRUE", params: [] as unknown[] };
+			const queryParam = params.length + 1;
+			const config = `'${this.#searchConfig}'::regconfig`;
+
+			const rows = await this.#sql.unsafe<{ body: NodeMetadata; rank: number }[]>(
+				`WITH search AS (
+					SELECT string_agg(
+						'''' || replace(replace(lexeme, '\\', '\\\\'), '''', '''''') || ''':*',
+						' & '
+					)::tsquery AS query
+					FROM unnest(to_tsvector(${config}, $${queryParam}::text))
+				)
+				SELECT nodes.body, ts_rank_cd('{0.1, 0.2, 0.1, 1.0}', nodes.search_vector, search.query, 32)
+					AS rank
+				FROM nodes, search
+				WHERE nodes.search_vector @@ search.query AND ${whereClause}
+				ORDER BY rank DESC, nodes.uuid
+				LIMIT $${queryParam + 1} OFFSET $${queryParam + 2}`,
+				[...params, query, pageSize, pageSize * (pageToken - 1)] as (
+					| string
+					| number
+					| boolean
+					| null
+				)[],
+			);
+
+			const nodes: NodeLike[] = [];
+			const scores: Record<string, number> = {};
+			for (const row of rows) {
+				const nodeOrErr = NodeFactory.from(row.body);
+				if (nodeOrErr.isLeft()) continue;
+				nodes.push(nodeOrErr.value);
+				scores[nodeOrErr.value.uuid] = Number(row.rank);
+			}
+
+			return right({ nodes, pageSize, pageToken, scores });
+		} catch (err) {
+			return left(new PostgresError((err as Error).message));
+		}
+	}
+
+	async listWithoutSearchContent(limit: number): Promise<Either<AntboxError, string[]>> {
+		try {
+			const rows = await this.#sql<{ uuid: string }[]>`
+				SELECT uuid FROM nodes WHERE search_meta IS NULL ORDER BY uuid LIMIT ${limit}
+			`;
+			return right(rows.map((row) => row.uuid));
+		} catch (err) {
+			return left(new PostgresError((err as Error).message));
+		}
+	}
+
+	async upsertEmbedding(uuid: string, embedding: Embedding): Promise<Either<AntboxError, void>> {
 		try {
 			const vectorStr = `[${embedding.join(",")}]`;
 			await this.#sql`
 				UPDATE nodes
 				SET
 					embedding = ${vectorStr}::vector,
-					embedding_content_md = ${contentMd},
 					embedding_status = 'indexed',
 					embedding_error = NULL,
 					embedding_status_at = ${new Date().toISOString()}
@@ -291,9 +453,7 @@ export class PostgresNodeRepository implements NodeRepository {
 		}
 	}
 
-	async getEmbeddingContents(
-		uuids: string[],
-	): Promise<Either<AntboxError, Record<string, string>>> {
+	async getContents(uuids: string[]): Promise<Either<AntboxError, Record<string, string>>> {
 		if (uuids.length === 0) {
 			return right({});
 		}
@@ -330,7 +490,6 @@ export class PostgresNodeRepository implements NodeRepository {
 				UPDATE nodes
 				SET
 					embedding = NULL,
-					embedding_content_md = NULL,
 					embedding_status = NULL,
 					embedding_error = NULL,
 					embedding_status_at = NULL
@@ -353,7 +512,7 @@ export class PostgresNodeRepository implements NodeRepository {
 			const rows = status === "skipped"
 				? await this.#sql`
 					UPDATE nodes
-					SET embedding = NULL, embedding_content_md = NULL, embedding_status = 'skipped',
+					SET embedding = NULL, embedding_status = 'skipped',
 						embedding_error = NULL, embedding_status_at = ${at}
 					WHERE uuid = ${uuid}
 					RETURNING uuid
@@ -658,6 +817,7 @@ export class PostgresNodeRepository implements NodeRepository {
 	): { clause: string; newParamIndex: number } {
 		const [rawField, operator, value] = filter;
 		const field = normalizeFieldName(rawField);
+		if (isFulltextFilter(filter)) return { clause: "FALSE", newParamIndex: paramIndex };
 
 		// Promoted columns use direct SQL, others use JSONB
 		const promotedColumns = ["uuid", "fid", "title", "parent", "mimetype"];

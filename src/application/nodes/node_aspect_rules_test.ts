@@ -55,7 +55,7 @@ it("aspect UUID validation rejects malformed values before repository lookup", a
 	expect(lookups).toBe(0);
 });
 
-it("searchable aspect properties survive save and update and populate fulltext", async () => {
+it("searchable aspect properties survive save and update and are searchable", async () => {
 	const configRepo = new InMemoryConfigurationRepository();
 	const aspects = new AspectsService(configRepo);
 	const property: AspectProperty = {
@@ -103,10 +103,11 @@ it("searchable aspect properties survive save and update and populate fulltext",
 		},
 	});
 	if (node.isLeft()) throw node.value;
-	expect(node.value.fulltext).toContain("uniquesearchmarker");
-	expect(node.value.fulltext).toContain("structuredmarker");
-	expect((await service.find(admin, "UniqueSearchMarker")).right.nodes.map((n) => n.uuid))
-		.toEqual([node.value.uuid]);
+	expect("fulltext" in node.value).toBe(false);
+	for (const query of ["UniqueSearchMarker", "structuredmarker"]) {
+		expect((await service.find(admin, query)).right.nodes.map((n) => n.uuid))
+			.toEqual([node.value.uuid]);
+	}
 	const invalid = await aspects.updateAspect(admin, "catalog", {
 		properties: [{ ...property, searchable: "yes" as unknown as boolean }],
 	});

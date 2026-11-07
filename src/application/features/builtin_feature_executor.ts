@@ -118,7 +118,7 @@ async function buildCallAgentPrompt(
 		.filter((nodeOrErr) => nodeOrErr.isRight())
 		.map((nodeOrErr) => nodeOrErr.value);
 
-	const contentsOrErr = await nodeService.getEmbeddingContents(
+	const contentsOrErr = await nodeService.getContents(
 		ctx,
 		nodes.map((node) => node.uuid),
 	);
@@ -184,7 +184,7 @@ async function runAutoTagFeature(
 	}
 
 	for (const uuid of uuids) {
-		const contentsOrErr = await dependencies.nodeService.getEmbeddingContents(ctx, [uuid]);
+		const contentsOrErr = await dependencies.nodeService.getContents(ctx, [uuid]);
 		if (contentsOrErr.isLeft()) {
 			Logger.warn(`Auto-tag: failed to get embedding contents for node ${uuid}, skipping`);
 			continue;

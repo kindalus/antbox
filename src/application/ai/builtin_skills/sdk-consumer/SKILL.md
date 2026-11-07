@@ -118,7 +118,6 @@ interface NodeMetadata {
 	description?: string;
 	mimetype: string;
 	size?: number; // bytes, file nodes only
-	fulltext?: string; // extracted text, file nodes only
 	parent: string;
 	createdTime: string; // ISO 8601
 	modifiedTime: string; // ISO 8601

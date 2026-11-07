@@ -19,10 +19,14 @@ import {
 import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import { DuplicatedNodeError } from "domain/nodes/duplicated_node_error.ts";
+import { fulltextTerms, isFulltextFilter } from "domain/nodes/fulltext.ts";
 import type {
 	EmbeddingStatus,
 	EmbeddingStatusCounts,
 	EmbeddingStatusRecord,
+	FtsOptions,
+	FtsResult,
+	NodeContent,
 	NodeFilterResult,
 	NodeRepository,
 	VectorSearchOptions,
@@ -115,12 +119,60 @@ export class SqliteNodeRepository implements NodeRepository {
 			"UPDATE nodes SET embedding_status = 'indexed' WHERE embedding IS NOT NULL AND embedding_status IS NULL",
 		);
 
+		this.#initializeSearch();
+
 		this.#db.exec("CREATE INDEX IF NOT EXISTS idx_nodes_fid ON nodes(fid);");
 		this.#db.exec("CREATE INDEX IF NOT EXISTS idx_nodes_parent ON nodes(parent);");
 		this.#db.exec("CREATE INDEX IF NOT EXISTS idx_nodes_mimetype ON nodes(mimetype);");
 		this.#db.exec(
 			"CREATE INDEX IF NOT EXISTS idx_nodes_embedding_status ON nodes(embedding_status);",
 		);
+	}
+
+	/**
+	 * Full-text search: nodes_search holds the text and nodes_fts is an FTS5 index over it. The
+	 * INTEGER PRIMARY KEY gives the index a rowid that VACUUM keeps. Triggers keep the index in step
+	 * with nodes_search and remove the search row with its node. A node without a nodes_search row,
+	 * or with a NULL search_meta, has not been migrated yet.
+	 */
+	#initializeSearch(): void {
+		this.#db.exec(`
+			CREATE TABLE IF NOT EXISTS nodes_search (
+				id INTEGER PRIMARY KEY,
+				uuid TEXT NOT NULL UNIQUE,
+				search_meta TEXT,
+				search_body TEXT NOT NULL DEFAULT ''
+			);
+
+			CREATE VIRTUAL TABLE IF NOT EXISTS nodes_fts USING fts5(
+				search_meta,
+				search_body,
+				content = 'nodes_search',
+				content_rowid = 'id',
+				tokenize = 'unicode61 remove_diacritics 2'
+			);
+
+			CREATE TRIGGER IF NOT EXISTS nodes_search_after_insert AFTER INSERT ON nodes_search BEGIN
+				INSERT INTO nodes_fts (rowid, search_meta, search_body)
+				VALUES (new.id, new.search_meta, new.search_body);
+			END;
+
+			CREATE TRIGGER IF NOT EXISTS nodes_search_after_delete AFTER DELETE ON nodes_search BEGIN
+				INSERT INTO nodes_fts (nodes_fts, rowid, search_meta, search_body)
+				VALUES ('delete', old.id, old.search_meta, old.search_body);
+			END;
+
+			CREATE TRIGGER IF NOT EXISTS nodes_search_after_update AFTER UPDATE ON nodes_search BEGIN
+				INSERT INTO nodes_fts (nodes_fts, rowid, search_meta, search_body)
+				VALUES ('delete', old.id, old.search_meta, old.search_body);
+				INSERT INTO nodes_fts (rowid, search_meta, search_body)
+				VALUES (new.id, new.search_meta, new.search_body);
+			END;
+
+			CREATE TRIGGER IF NOT EXISTS nodes_after_delete_search AFTER DELETE ON nodes BEGIN
+				DELETE FROM nodes_search WHERE uuid = old.uuid;
+			END;
+		`);
 	}
 
 	#ensureColumns(): void {
@@ -175,17 +227,13 @@ export class SqliteNodeRepository implements NodeRepository {
 		return true;
 	}
 
-	upsertEmbedding(
-		uuid: string,
-		embedding: Embedding,
-		contentMd: string,
-	): Promise<Either<AntboxError, void>> {
+	upsertEmbedding(uuid: string, embedding: Embedding): Promise<Either<AntboxError, void>> {
 		try {
 			this.#db.prepare(
-				`UPDATE nodes SET embedding = vec_f32(?), embedding_content_md = ?,
+				`UPDATE nodes SET embedding = vec_f32(?),
 					embedding_status = 'indexed', embedding_error = NULL, embedding_status_at = ?
 				WHERE uuid = ?`,
-			).run(JSON.stringify(embedding), contentMd, new Date().toISOString(), uuid);
+			).run(JSON.stringify(embedding), new Date().toISOString(), uuid);
 			return Promise.resolve(right(undefined));
 		} catch (err) {
 			const error = err as Error;
@@ -243,7 +291,7 @@ export class SqliteNodeRepository implements NodeRepository {
 	deleteEmbedding(uuid: string): Promise<Either<AntboxError, void>> {
 		try {
 			this.#db.prepare(
-				`UPDATE nodes SET embedding = NULL, embedding_content_md = NULL, embedding_status = NULL,
+				`UPDATE nodes SET embedding = NULL, embedding_status = NULL,
 					embedding_error = NULL, embedding_status_at = NULL
 				WHERE uuid = ?`,
 			).run(uuid);
@@ -263,7 +311,7 @@ export class SqliteNodeRepository implements NodeRepository {
 			const at = new Date().toISOString();
 			const row = status === "skipped"
 				? this.#db.prepare(
-					`UPDATE nodes SET embedding = NULL, embedding_content_md = NULL,
+					`UPDATE nodes SET embedding = NULL,
 						embedding_status = 'skipped', embedding_error = NULL, embedding_status_at = ?
 					WHERE uuid = ? RETURNING uuid`,
 				).get(at, uuid)
@@ -397,7 +445,104 @@ export class SqliteNodeRepository implements NodeRepository {
 		}
 	}
 
-	getEmbeddingContents(uuids: string[]): Promise<Either<AntboxError, Record<string, string>>> {
+	saveContent(uuid: string, content: NodeContent): Promise<Either<AntboxError, void>> {
+		try {
+			this.#db.exec("BEGIN IMMEDIATE");
+			try {
+				const row = this.#db.prepare(
+					"UPDATE nodes SET embedding_content_md = ? WHERE uuid = ? RETURNING uuid",
+				).get(content.markdown, uuid);
+				if (!row) {
+					this.#db.exec("ROLLBACK");
+					return Promise.resolve(left(new NodeNotFoundError(uuid)));
+				}
+
+				const updates: string[] = [];
+				if (content.searchMeta !== undefined) {
+					updates.push("search_meta = excluded.search_meta");
+				}
+				if (content.searchBody !== undefined) {
+					updates.push("search_body = excluded.search_body");
+				}
+				this.#db.prepare(
+					`INSERT INTO nodes_search (uuid, search_meta, search_body) VALUES (?, ?, ?)
+					ON CONFLICT (uuid) DO ${
+						updates.length ? `UPDATE SET ${updates.join(", ")}` : "NOTHING"
+					}`,
+				).run(uuid, content.searchMeta ?? null, content.searchBody ?? "");
+
+				this.#db.exec("COMMIT");
+			} catch (error) {
+				this.#db.exec("ROLLBACK");
+				throw error;
+			}
+			return Promise.resolve(right(undefined));
+		} catch (err) {
+			return Promise.resolve(left(new SqliteError((err as Error).message)));
+		}
+	}
+
+	/**
+	 * FTS5 query: every word is a quoted prefix phrase, so all words are required, each matches the
+	 * start of a token, and no FTS5 operator in the text is ever interpreted. Ranked by bm25 with
+	 * searchMeta weighted 10 and searchBody 1; the score is -bm25 / (1 - bm25), in [0, 1).
+	 */
+	fts(query: string, options: FtsOptions): Promise<Either<AntboxError, FtsResult>> {
+		const { pageSize, pageToken } = options;
+		const empty = { nodes: [], pageSize, pageToken, scores: {} };
+		const terms = fulltextTerms(query);
+		if (terms.length === 0) return Promise.resolve(right(empty));
+
+		try {
+			const params: BindValue[] = [terms.map((term) => `"${term}"*`).join(" ")];
+			const filters = options.filters ?? [];
+			const where = filters.length ? `WHERE ${this.#whereClause(filters, params)}` : "";
+			params.push(pageSize, pageSize * (pageToken - 1));
+
+			const rows = this.#db.prepare(
+				`SELECT nodes.body AS body, matches.rank AS rank
+				FROM nodes
+				JOIN (
+					SELECT nodes_search.uuid AS match_uuid, -bm25(nodes_fts, 10.0, 1.0) AS rank
+					FROM nodes_fts JOIN nodes_search ON nodes_search.id = nodes_fts.rowid
+					WHERE nodes_fts MATCH ?
+				) AS matches ON matches.match_uuid = nodes.uuid
+				${where}
+				ORDER BY matches.rank DESC, nodes.uuid
+				LIMIT ? OFFSET ?`,
+			).all(...toSqlValues(params)) as { body: string; rank: number }[];
+
+			const nodes: NodeLike[] = [];
+			const scores: Record<string, number> = {};
+			for (const row of rows) {
+				const nodeOrErr = NodeFactory.from(JSON.parse(row.body) as NodeMetadata);
+				if (nodeOrErr.isLeft()) continue;
+				const rank = Math.max(0, Number(row.rank));
+				nodes.push(nodeOrErr.value);
+				scores[nodeOrErr.value.uuid] = rank / (1 + rank);
+			}
+
+			return Promise.resolve(right({ nodes, pageSize, pageToken, scores }));
+		} catch (err) {
+			return Promise.resolve(left(new SqliteError((err as Error).message)));
+		}
+	}
+
+	listWithoutSearchContent(limit: number): Promise<Either<AntboxError, string[]>> {
+		try {
+			const rows = this.#db.prepare(
+				`SELECT uuid FROM nodes
+				WHERE uuid NOT IN (SELECT uuid FROM nodes_search WHERE search_meta IS NOT NULL)
+				ORDER BY uuid
+				LIMIT ?`,
+			).all(toSqlValue(limit)) as { uuid: string }[];
+			return Promise.resolve(right(rows.map((row) => row.uuid)));
+		} catch (err) {
+			return Promise.resolve(left(new SqliteError((err as Error).message)));
+		}
+	}
+
+	getContents(uuids: string[]): Promise<Either<AntboxError, Record<string, string>>> {
 		if (uuids.length === 0) {
 			return Promise.resolve(right({}));
 		}
@@ -565,6 +710,7 @@ export class SqliteNodeRepository implements NodeRepository {
 	#filterToSql(filter: NodeFilter, params: BindValue[]): string {
 		const [rawField, operator, value] = filter;
 		const field = normalizeFieldName(rawField);
+		if (isFulltextFilter(filter)) return "FALSE";
 		if (
 			([">", ">=", "<", "<="].includes(operator) &&
 				typeof value !== "string" && typeof value !== "number") ||

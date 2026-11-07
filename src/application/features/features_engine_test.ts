@@ -291,11 +291,10 @@ describe("FeaturesEngine", () => {
 				parent: "agent-folder",
 			},
 		);
-		await harness.repository.upsertEmbedding(
-			"agent-file",
-			[1],
-			"---\nuuid: agent-file\ntitle: agent.txt\n---\n\nEmbedded node content",
-		);
+		await harness.repository.saveContent("agent-file", {
+			markdown: "---\nuuid: agent-file\ntitle: agent.txt\n---\n\nEmbedded node content",
+		});
+		await harness.repository.upsertEmbedding("agent-file", [1]);
 
 		const result = await harness.engine.runAction<{
 			status: "completed";
@@ -325,7 +324,28 @@ describe("FeaturesEngine", () => {
 		expect(agentsEngine.calls[0].text).toContain("Embedded node content");
 	});
 
-	it("runAction falls back to metadata when embedded content is unavailable", async () => {
+	it("runAction sends the stored frontmatter when no text was extracted", async () => {
+		const agentsEngine = new MockAgentsEngine();
+		const harness = createHarness(false, agentsEngine);
+		await harness.nodeService.create(adminCtx, {
+			uuid: "frontmatter-node",
+			title: "Frontmatter Node",
+			description: "Metadata only node",
+			mimetype: Nodes.FOLDER_MIMETYPE,
+			parent: Nodes.ROOT_FOLDER_UUID,
+		});
+
+		const result = await harness.engine.runAction(adminCtx, CALL_AGENT_FEATURE_UUID, [
+			"frontmatter-node",
+		], { agentUuid: "--rag-agent--", prompt: "Summarize metadata", runSync: true });
+
+		expect(result.isRight()).toBe(true);
+		expect(agentsEngine.calls[0].text).not.toContain("[ metadata for node 0 ]");
+		expect(agentsEngine.calls[0].text).toContain("---\nuuid: frontmatter-node");
+		expect(agentsEngine.calls[0].text).toContain("description: Metadata only node");
+	});
+
+	it("runAction falls back to metadata when stored content is unavailable", async () => {
 		const agentsEngine = new MockAgentsEngine();
 		const harness = createHarness(false, agentsEngine);
 
@@ -343,6 +363,9 @@ describe("FeaturesEngine", () => {
 			mimetype: Nodes.FOLDER_MIMETYPE,
 			parent: "metadata-folder",
 		});
+		// Re-adding the records drops their content, like nodes the search migration has not reached.
+		const records = harness.repository.records;
+		harness.repository.records = records;
 
 		const result = await harness.engine.runAction<{
 			status: "completed";
@@ -428,11 +451,10 @@ describe("FeaturesEngine", () => {
 			mimetype: Nodes.FOLDER_MIMETYPE,
 			parent: Nodes.ROOT_FOLDER_UUID,
 		});
-		await harness.repository.upsertEmbedding(
-			"invoice-node",
-			[1],
-			"---\nuuid: invoice-node\ntitle: Invoice Node\n---\n\nInvoice INV-123 total 42",
-		);
+		await harness.repository.saveContent("invoice-node", {
+			markdown: "---\nuuid: invoice-node\ntitle: Invoice Node\n---\n\nInvoice INV-123 total 42",
+		});
+		await harness.repository.upsertEmbedding("invoice-node", [1]);
 
 		const result = await harness.engine.runAction<void>(
 			adminCtx,
@@ -457,7 +479,7 @@ describe("FeaturesEngine", () => {
 		}
 	});
 
-	it("auto tag skips nodes with no embedding content", async () => {
+	it("auto tag skips nodes with no stored content", async () => {
 		const agentsEngine = new MockAgentsEngine();
 		const harness = createHarness(false, agentsEngine);
 		await createInvoiceAspect(harness);
@@ -468,6 +490,9 @@ describe("FeaturesEngine", () => {
 			mimetype: Nodes.FOLDER_MIMETYPE,
 			parent: Nodes.ROOT_FOLDER_UUID,
 		});
+		// Re-adding the records drops their content, like nodes the search migration has not reached.
+		const records = harness.repository.records;
+		harness.repository.records = records;
 
 		const result = await harness.engine.runAction<void>(
 			adminCtx,
@@ -500,7 +525,8 @@ describe("FeaturesEngine", () => {
 			mimetype: Nodes.FOLDER_MIMETYPE,
 			parent: Nodes.ROOT_FOLDER_UUID,
 		});
-		await harness.repository.upsertEmbedding("invalid-json-node", [1], "Invoice content");
+		await harness.repository.saveContent("invalid-json-node", { markdown: "Invoice content" });
+		await harness.repository.upsertEmbedding("invalid-json-node", [1]);
 
 		const result = await harness.engine.runAction<void>(
 			adminCtx,
@@ -538,7 +564,10 @@ describe("FeaturesEngine", () => {
 			mimetype: Nodes.FOLDER_MIMETYPE,
 			parent: Nodes.ROOT_FOLDER_UUID,
 		});
-		await harness.repository.upsertEmbedding("hallucinated-fields-node", [1], "Invoice content");
+		await harness.repository.saveContent("hallucinated-fields-node", {
+			markdown: "Invoice content",
+		});
+		await harness.repository.upsertEmbedding("hallucinated-fields-node", [1]);
 
 		const result = await harness.engine.runAction<void>(
 			adminCtx,

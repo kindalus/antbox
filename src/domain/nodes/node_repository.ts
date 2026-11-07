@@ -41,6 +41,31 @@ export interface VectorSearchOptions {
 	filters?: NodeFilters2D;
 }
 
+/** Text stored for a node besides its metadata: the markdown and the full-text search fields. */
+export interface NodeContent {
+	/** Markdown with the full YAML frontmatter and the extracted body, if any. */
+	markdown: string;
+	/** Searchable metadata as plain text: title, description, tags, searchable aspect values. */
+	searchMeta?: string;
+	/** Extracted file text without frontmatter. Empty until text extraction runs. */
+	searchBody?: string;
+}
+
+export interface FtsOptions {
+	/**
+	 * Applied before pagination, with the same meaning as in filter():
+	 * [] matches every node and [[["uuid", "in", []]]] matches none.
+	 */
+	filters?: NodeFilters2D;
+	pageSize: number;
+	pageToken: number;
+}
+
+export interface FtsResult extends NodeFilterResult {
+	/** Relevance per returned node, in [0, 1]. Comparable only within one repository. */
+	scores: Record<string, number>;
+}
+
 export interface NodeRepository {
 	delete(uuid: string): Promise<Either<NodeNotFoundError, void>>;
 	update(node: NodeLike): Promise<Either<NodeNotFoundError, void>>;
@@ -53,7 +78,31 @@ export interface NodeRepository {
 	add(node: NodeLike): Promise<Either<DuplicatedNodeError, void>>;
 	getByFid(fid: string): Promise<Either<NodeNotFoundError, NodeLike>>;
 	getById(uuid: string): Promise<Either<NodeNotFoundError, NodeLike>>;
-	getEmbeddingContents(uuids: string[]): Promise<Either<AntboxError, Record<string, string>>>;
+	/** Stored markdown of the given nodes. Nodes without markdown are left out. */
+	getContents(uuids: string[]): Promise<Either<AntboxError, Record<string, string>>>;
+
+	/**
+	 * Store a node's markdown and full-text search fields. Omitted search fields keep their
+	 * stored value. Never changes the embedding vector or its status. Missing nodes return Left.
+	 * The content is removed with the node.
+	 */
+	saveContent(uuid: string, content: NodeContent): Promise<Either<AntboxError, void>>;
+
+	/**
+	 * Full-text search over searchMeta and searchBody with the repository's native engine, best
+	 * match first. A match in searchMeta ranks above one in searchBody. The query is plain text:
+	 * search syntax in it is never interpreted, and a query without words matches nothing.
+	 * options.filters, including permissions, apply before pagination.
+	 */
+	fts(query: string, options: FtsOptions): Promise<Either<AntboxError, FtsResult>>;
+
+	/** Up to limit uuids of nodes whose searchMeta was never stored, for the startup migration. */
+	listWithoutSearchContent(limit: number): Promise<Either<AntboxError, string[]>>;
+
+	/**
+	 * Filters nodes by their metadata. `["fulltext", "match", …]` filters are not supported here
+	 * and match nothing; full-text search goes through fts().
+	 */
 	filter(
 		filters: NodeFilter[] | NodeFilters2D,
 		pageSize?: number,
@@ -66,16 +115,10 @@ export interface NodeRepository {
 	supportsEmbeddings(): boolean;
 
 	/**
-	 * Store or update a vector embedding for a node
-	 * @param uuid The node UUID
-	 * @param embedding The vector embedding to store
-	 * @param contentMd Markdown content (with YAML frontmatter) used for embedding
+	 * Store or update a vector embedding for a node and mark it "indexed". The markdown it was
+	 * computed from is stored separately with saveContent.
 	 */
-	upsertEmbedding(
-		uuid: string,
-		embedding: Embedding,
-		contentMd: string,
-	): Promise<Either<AntboxError, void>>;
+	upsertEmbedding(uuid: string, embedding: Embedding): Promise<Either<AntboxError, void>>;
 
 	/**
 	 * Search for similar nodes using vector similarity
@@ -89,15 +132,13 @@ export interface NodeRepository {
 		options?: VectorSearchOptions,
 	): Promise<Either<AntboxError, VectorSearchResult>>;
 
-	/**
-	 * Delete the embedding, its content and its status for a node
-	 * @param uuid The node UUID
-	 */
+	/** Delete the embedding vector and its status. The stored content stays until the node goes. */
 	deleteEmbedding(uuid: string): Promise<Either<AntboxError, void>>;
 
 	/**
 	 * Record an indexing outcome other than "indexed", which upsertEmbedding sets.
-	 * "failed" keeps any stored vector; "skipped" removes the vector and its content.
+	 * "failed" keeps any stored vector; "skipped" removes the vector. Both keep the stored content,
+	 * so the node stays searchable by its metadata.
 	 * update() and touch() never change the status.
 	 */
 	setEmbeddingStatus(

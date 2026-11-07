@@ -11,6 +11,9 @@ import type {
 	EmbeddingStatus,
 	EmbeddingStatusCounts,
 	EmbeddingStatusRecord,
+	FtsOptions,
+	FtsResult,
+	NodeContent,
 	NodeFilterResult,
 	NodeRepository,
 	VectorSearchOptions,
@@ -19,11 +22,15 @@ import type {
 import { AntboxError, UnknownError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
 import { isNodeFilters2D, type NodeFilter } from "domain/nodes/node_filter.ts";
+import { fulltextTerms, isFulltextFilter } from "domain/nodes/fulltext.ts";
 
 type NodeDbModel = NodeMetadata & {
 	_id: string | ObjectId;
 	embedding?: Embedding;
+	/** The node's markdown; the name predates full-text search. */
 	embeddingContentMd?: string;
+	searchMeta?: string;
+	searchBody?: string;
 	embeddingStatus?: EmbeddingStatus;
 	embeddingError?: string;
 	embeddingStatusAt?: string;
@@ -53,6 +60,13 @@ export default async function buildMongodbNodeRepository(
 		const collection = client.db(dbname).collection(MongodbNodeRepository.COLLECTION_NAME);
 		await collection.createIndex({ uuid: 1 }, { unique: true });
 		await collection.createIndex({ embeddingStatus: 1 });
+		await collection.createIndex({ searchMeta: "text", searchBody: "text" }, {
+			name: "nodes_fts",
+			weights: { searchMeta: 10, searchBody: 1 },
+			default_language: "portuguese",
+			// A node field called "language" must not change the index language.
+			language_override: "_ftsLanguage",
+		});
 		await collection.updateMany(
 			{ embedding: { $exists: true }, embeddingStatus: { $exists: false } },
 			{ $set: { embeddingStatus: "indexed" } },
@@ -196,18 +210,90 @@ export class MongodbNodeRepository implements NodeRepository {
 		return true;
 	}
 
-	async upsertEmbedding(
-		uuid: string,
-		embedding: Embedding,
-		contentMd: string,
-	): Promise<Either<AntboxError, void>> {
+	async saveContent(uuid: string, content: NodeContent): Promise<Either<AntboxError, void>> {
+		try {
+			const result = await this.#collection.updateOne({ uuid }, {
+				$set: {
+					embeddingContentMd: content.markdown,
+					...(content.searchMeta === undefined ? {} : { searchMeta: content.searchMeta }),
+					...(content.searchBody === undefined ? {} : { searchBody: content.searchBody }),
+				},
+			});
+			return result.matchedCount ? right(undefined) : left(new NodeNotFoundError(uuid));
+		} catch (err) {
+			return left(new MongodbError((err as Error).message));
+		}
+	}
+
+	/**
+	 * $text query where every word is a quoted phrase, so all words are required and no $text
+	 * operator (negation, phrases) in the text is ever interpreted. A document matches a word when
+	 * one of its words has the same Portuguese stem and its text contains the query word, ignoring
+	 * case and accents: "factura" finds "facturas" but "facturas" does not find "factura".
+	 * Prefixes and parts of words do not match. Ranked by textScore (searchMeta weighs 10,
+	 * searchBody 1), normalized to score / (score + 1).
+	 */
+	async fts(query: string, options: FtsOptions): Promise<Either<AntboxError, FtsResult>> {
+		const { pageSize, pageToken } = options;
+		const terms = fulltextTerms(query);
+		if (terms.length === 0) return right({ nodes: [], pageSize, pageToken, scores: {} });
+
+		try {
+			const filters = options.filters ?? [];
+			const docs = await this.#collection.find(
+				{
+					$text: { $search: terms.map((term) => `"${term}"`).join(" ") },
+					...(filters.length ? { $and: [buildMongoQuery(filters)] } : {}),
+				},
+				{
+					projection: {
+						embedding: 0,
+						embeddingContentMd: 0,
+						searchBody: 0,
+						searchMeta: 0,
+						score: { $meta: "textScore" },
+					},
+					sort: { score: { $meta: "textScore" }, uuid: 1 },
+					skip: pageSize * (pageToken - 1),
+					limit: pageSize,
+				},
+			).toArray();
+
+			const nodes: NodeLike[] = [];
+			const scores: Record<string, number> = {};
+			for (const doc of docs as unknown as Array<NodeDbModel & { score: number }>) {
+				const { score, ...metadata } = doc;
+				const nodeOrErr = NodeFactory.from(metadata as unknown as NodeMetadata);
+				if (nodeOrErr.isLeft()) continue;
+				nodes.push(nodeOrErr.value);
+				scores[nodeOrErr.value.uuid] = score / (1 + score);
+			}
+
+			return right({ nodes, pageSize, pageToken, scores });
+		} catch (err) {
+			return left(new MongodbError((err as Error).message));
+		}
+	}
+
+	async listWithoutSearchContent(limit: number): Promise<Either<AntboxError, string[]>> {
+		try {
+			const docs = await this.#collection.find(
+				{ searchMeta: { $not: { $type: "string" } } },
+				{ projection: { uuid: 1 }, sort: { uuid: 1 }, limit },
+			).toArray();
+			return right(docs.map((doc) => doc.uuid));
+		} catch (err) {
+			return left(new MongodbError((err as Error).message));
+		}
+	}
+
+	async upsertEmbedding(uuid: string, embedding: Embedding): Promise<Either<AntboxError, void>> {
 		try {
 			await this.#collection.updateOne(
 				{ uuid },
 				{
 					$set: {
 						embedding,
-						embeddingContentMd: contentMd,
 						embeddingStatus: "indexed",
 						embeddingStatusAt: new Date().toISOString(),
 					},
@@ -231,7 +317,7 @@ export class MongodbNodeRepository implements NodeRepository {
 			const docs = await this.#collection
 				.find(
 					{ $and: [{ embedding: { $exists: true } }, buildMongoQuery(options.filters ?? [])] },
-					{ projection: { embeddingContentMd: 0 } },
+					{ projection: { embeddingContentMd: 0, searchMeta: 0, searchBody: 0 } },
 				)
 				.toArray();
 
@@ -242,7 +328,7 @@ export class MongodbNodeRepository implements NodeRepository {
 				.sort((a, b) => b.score - a.score)
 				.slice(0, topK);
 
-			const contents = await this.getEmbeddingContents(scored.map(({ doc }) => doc.uuid));
+			const contents = await this.getContents(scored.map(({ doc }) => doc.uuid));
 			if (contents.isLeft()) return left(contents.value);
 
 			return right({
@@ -257,9 +343,7 @@ export class MongodbNodeRepository implements NodeRepository {
 		}
 	}
 
-	async getEmbeddingContents(
-		uuids: string[],
-	): Promise<Either<AntboxError, Record<string, string>>> {
+	async getContents(uuids: string[]): Promise<Either<AntboxError, Record<string, string>>> {
 		if (uuids.length === 0) {
 			return right({});
 		}
@@ -293,7 +377,6 @@ export class MongodbNodeRepository implements NodeRepository {
 				{
 					$unset: {
 						embedding: "",
-						embeddingContentMd: "",
 						embeddingStatus: "",
 						embeddingError: "",
 						embeddingStatusAt: "",
@@ -316,7 +399,7 @@ export class MongodbNodeRepository implements NodeRepository {
 			const result = status === "skipped"
 				? await this.#collection.updateOne({ uuid }, {
 					$set: { embeddingStatus: "skipped", embeddingStatusAt: at },
-					$unset: { embedding: "", embeddingContentMd: "", embeddingError: "" },
+					$unset: { embedding: "", embeddingError: "" },
 				})
 				: await this.#collection.updateOne({ uuid }, {
 					$set: {
@@ -463,7 +546,7 @@ function toMongoFilter(filter: NodeFilter): Filter<NodeDbModel> {
 	const field = !rawField.startsWith("properties.") && rawField.includes(":")
 		? `properties.${rawField}`
 		: rawField;
-	if (field.startsWith("$")) return { $expr: false };
+	if (field.startsWith("$") || isFulltextFilter(filter)) return { $expr: false };
 	if (
 		([">", ">=", "<", "<="].includes(operator) &&
 			typeof value !== "string" && typeof value !== "number") ||

@@ -91,7 +91,8 @@ async function build(threshold: number) {
 			parent,
 		});
 		expect(result.isRight()).toBe(true);
-		await repository.upsertEmbedding(uuid, vectorWithScore(score), `content of ${uuid}`);
+		await repository.saveContent(uuid, { markdown: `content of ${uuid}` });
+		await repository.upsertEmbedding(uuid, vectorWithScore(score));
 	};
 
 	return { service, repository, events, folder, doc };

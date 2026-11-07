@@ -197,6 +197,8 @@ async function setupTenant(
 		tenantLimitsGuard,
 	});
 
+	startSearchMigration(cfg.name, nodeService);
+
 	// Create RAGService with event-driven indexing (requires embeddings support)
 	let ragService: RAGService | undefined;
 	if (embeddingsProvider && ocrProvider && nodeRepository.supportsEmbeddings()) {
@@ -329,6 +331,27 @@ async function setupTenant(
 		agentsEngine,
 		workflowInstancesEngine,
 	};
+}
+
+/**
+ * Makes nodes created before full-text search searchable, in the background and without AI.
+ * Until it ends, nodes not yet migrated are missing from text searches.
+ */
+function startSearchMigration(tenant: string, nodeService: NodeService): void {
+	const startedAt = Date.now();
+	nodeService.migrateSearchContent()
+		.then((migratedOrErr) => {
+			if (migratedOrErr.isLeft()) {
+				Logger.error(`Tenant ${tenant}: search migration failed:`, migratedOrErr.value);
+			} else if (migratedOrErr.value > 0) {
+				Logger.info(
+					`Tenant ${tenant}: search migration stored ${migratedOrErr.value} nodes in ${
+						Date.now() - startedAt
+					} ms`,
+				);
+			}
+		})
+		.catch((error) => Logger.error(`Tenant ${tenant}: search migration failed:`, error));
 }
 
 function validateTenantLimits(cfg: TenantConfiguration): void {

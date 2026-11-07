@@ -8,7 +8,7 @@ import { EmbeddingsGeneratedEvent } from "domain/ai/embeddings_generated_event.t
 import { FileNode } from "domain/nodes/file_node.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
 import { left, right } from "shared/either.ts";
-import { AntboxError } from "shared/antbox_error.ts";
+import { AntboxError, BadRequestError } from "shared/antbox_error.ts";
 import type { Event } from "shared/event.ts";
 import { FindService } from "./find_service.ts";
 import type { NodeServiceContext } from "./node_service_context.ts";
@@ -160,5 +160,112 @@ describe("FindService semantic search usage", () => {
 		expect(result.isRight()).toBe(true);
 		expect(embedCalls.count).toBe(1);
 		expect(published).toEqual([]);
+	});
+});
+
+describe("FindService full-text search", () => {
+	const reader: AuthenticationContext = {
+		tenant: "default",
+		mode: "Direct",
+		principal: { email: "reader@antbox.io", groups: ["readers"] },
+	};
+
+	function setup() {
+		const repository = new InMemoryNodeRepository();
+		const calls = { fts: [] as Array<[string, unknown]>, filter: 0 };
+		const fts = repository.fts.bind(repository);
+		repository.fts = (query, options) => {
+			calls.fts.push([query, options.filters]);
+			return fts(query, options);
+		};
+		const filter = repository.filter.bind(repository);
+		repository.filter = (filters, pageSize, pageToken) => {
+			calls.filter++;
+			return filter(filters, pageSize, pageToken);
+		};
+		const service = new FindService(
+			{ repository } as unknown as NodeServiceContext,
+			new AuthorizationService(),
+		);
+		return { repository, service, calls };
+	}
+
+	async function addSearchable(repository: InMemoryNodeRepository, uuid: string, title: string) {
+		const file = FileNode.create({
+			uuid,
+			title,
+			mimetype: "text/plain",
+			owner: Users.ROOT_USER_EMAIL,
+			parent: Nodes.ROOT_FOLDER_UUID,
+		}).right;
+		await repository.add(file);
+		await repository.saveContent(uuid, { markdown: title, searchMeta: title });
+	}
+
+	it("uses filter() when no group searches text", async () => {
+		const { service, calls } = setup();
+		const result = await service.find(ctx, [["title", "==", "x"]]);
+		expect(result.isRight()).toBe(true);
+		expect(calls).toEqual({ fts: [], filter: 1 });
+		expect(result.right.scores).toBeUndefined();
+	});
+
+	it("uses fts() with the other filters when every group searches the same text", async () => {
+		const { repository, service, calls } = setup();
+		await addSearchable(repository, "annual-report", "Annual report");
+		await addSearchable(repository, "annual-budget", "Annual budget");
+
+		const result = await service.find(ctx, [
+			[["fulltext", "match", "annual"], ["title", "!=", "Annual budget"]],
+			[["fulltext", "match", " annual "], ["uuid", "==", "annual-budget"]],
+		]);
+		expect(result.isRight()).toBe(true);
+		expect(calls.filter).toBe(0);
+		expect(calls.fts).toEqual([["annual", [
+			[["title", "!=", "Annual budget"]],
+			[["uuid", "==", "annual-budget"]],
+		]]]);
+		expect(result.right.nodes.map((node) => node.uuid).sort()).toEqual([
+			"annual-budget",
+			"annual-report",
+		]);
+		expect(result.right.scores).toEqual({ "annual-budget": 1, "annual-report": 1 });
+	});
+
+	it("keeps the query in every permission group of a non-admin principal", async () => {
+		const { service, calls } = setup();
+		const result = await service.find(reader, [["fulltext", "match", "annual"]]);
+		expect(result.isRight()).toBe(true);
+		expect(calls.fts).toHaveLength(1);
+		const [query, filters] = calls.fts[0];
+		expect(query).toBe("annual");
+		expect((filters as unknown[]).length).toBeGreaterThan(1);
+		expect(JSON.stringify(filters)).not.toContain("fulltext");
+	});
+
+	it("rejects text searches that only some groups have or that differ between groups", async () => {
+		const { service, calls } = setup();
+		const invalid = [
+			[[["fulltext", "match", "annual"]], [["title", "==", "x"]]],
+			[[["fulltext", "match", "annual"]], [["fulltext", "match", "budget"]]],
+			[[["fulltext", "match", { $ne: null }]]],
+		];
+		for (const filters of invalid) {
+			const result = await service.find(ctx, filters as never);
+			expect(result.isLeft()).toBe(true);
+			expect(result.value).toBeInstanceOf(BadRequestError);
+		}
+		expect(calls).toEqual({ fts: [], filter: 0 });
+	});
+
+	it("searches text given as a plain string and as a semantic query without AI", async () => {
+		const { repository, service, calls } = setup();
+		await addSearchable(repository, "annual-report", "Annual report");
+		for (const query of ["annual", "?annual"]) {
+			const result = await service.find(ctx, query);
+			expect(result.right.nodes.map((node) => node.uuid)).toEqual(["annual-report"]);
+			expect(result.right.scores).toEqual({ "annual-report": 1 });
+		}
+		expect(calls.fts.map(([query]) => query)).toEqual(["annual", "annual"]);
 	});
 });

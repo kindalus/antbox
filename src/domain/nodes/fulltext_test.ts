@@ -1,6 +1,12 @@
 import { describe, it } from "bdd";
 import { expect } from "expect";
-import { fulltextOf, fulltextQuery, withFulltextQueries } from "./fulltext.ts";
+import {
+	fulltextMatches,
+	fulltextOf,
+	fulltextQuery,
+	fulltextTerms,
+	isFulltextFilter,
+} from "./fulltext.ts";
 
 describe("fulltextOf", () => {
 	it("lowercases, removes accents and punctuation, and drops repeated words", () => {
@@ -37,18 +43,41 @@ describe("fulltextQuery", () => {
 	});
 });
 
-describe("withFulltextQueries", () => {
-	it("changes only fulltext match filters", () => {
-		expect(
-			withFulltextQueries([[
-				["fulltext", "match", "Acção"],
-				["title", "match", "Acção"],
-				["fulltext", "==", "Acção"],
-			]]),
-		).toEqual([[
-			["fulltext", "match", "accao"],
-			["title", "match", "Acção"],
-			["fulltext", "==", "Acção"],
-		]]);
+describe("fulltextMatches", () => {
+	it("finds the cleaned words in order, ignoring accents, case and short words", () => {
+		const texts = ["Relatório de Acção", "factura de venda"];
+		expect(fulltextMatches("acção relatorio", texts)).toBe(false);
+		expect(fulltextMatches("RELATORIO accao", texts)).toBe(true);
+		expect(fulltextMatches("fact vend", texts)).toBe(true);
+		expect(fulltextMatches("ac", texts)).toBe(true);
+		expect(fulltextMatches("de", texts)).toBe(false);
+		expect(fulltextMatches("compra", texts)).toBe(false);
+	});
+
+	it("matches nothing for a query without words", () => {
+		for (const query of ["", "  ", "%_", '"*:&|!()-']) {
+			expect(fulltextMatches(query, ["anything at all"])).toBe(false);
+		}
+	});
+});
+
+describe("fulltextTerms", () => {
+	it("keeps letters, numbers and marks and drops every operator", () => {
+		expect(fulltextTerms('"fact*" & (venda | -2024): ação!')).toEqual([
+			"fact",
+			"venda",
+			"2024",
+			"ação",
+		]);
+		expect(fulltextTerms('" * : & | ! ( ) -')).toEqual([]);
+		expect(fulltextTerms("́ á")).toEqual(["á"]);
+	});
+});
+
+describe("isFulltextFilter", () => {
+	it("recognizes only fulltext match filters", () => {
+		expect(isFulltextFilter(["fulltext", "match", "x"])).toBe(true);
+		expect(isFulltextFilter(["title", "match", "x"])).toBe(false);
+		expect(isFulltextFilter(["fulltext", "==", "x"])).toBe(false);
 	});
 });

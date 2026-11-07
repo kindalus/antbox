@@ -86,6 +86,8 @@ export class NodesFilters {
 
 	static #nodeFilterToPredicate(filter: NodeFilter): (n: NodeLike) => boolean {
 		const [field, operator, target] = filter;
+		// Nodes have no fulltext field; full-text search runs in the repository (fts).
+		if (field === "fulltext" && operator === "match") return () => false;
 		const satisfiesFn = operator === "match" ? matchTerms(target) : filterFns[operator];
 
 		if (!satisfiesFn) {

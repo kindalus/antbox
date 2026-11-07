@@ -16,8 +16,9 @@ it("in-memory repository treats inherited object names as ordinary UUIDs", async
 		}).right;
 		expect((await repository.add(node)).isRight()).toBe(true);
 		expect((await repository.getById(uuid)).right.uuid).toBe(uuid);
-		await repository.upsertEmbedding(uuid, [1, 0], "document content");
-		expect((await repository.getEmbeddingContents([uuid])).right[uuid]).toBe("document content");
+		await repository.saveContent(uuid, { markdown: "document content" });
+		await repository.upsertEmbedding(uuid, [1, 0]);
+		expect((await repository.getContents([uuid])).right[uuid]).toBe("document content");
 		expect(repository.data[uuid].uuid).toBe(uuid);
 		expect((await repository.delete(uuid)).isRight()).toBe(true);
 		expect((await repository.getById(uuid)).isLeft()).toBe(true);
@@ -35,10 +36,11 @@ it("duplicate additions preserve the node and its embedding", async () => {
 	}).right;
 	const replacement = FileNode.create({ ...original.metadata, title: "Replacement" }).right;
 	await repository.add(original);
-	await repository.upsertEmbedding(original.uuid, [1, 0], "original content");
+	await repository.saveContent(original.uuid, { markdown: "original content" });
+	await repository.upsertEmbedding(original.uuid, [1, 0]);
 	expect((await repository.add(replacement)).isLeft()).toBe(true);
 	expect((await repository.getById(original.uuid)).right.title).toBe("Original");
-	expect((await repository.getEmbeddingContents([original.uuid])).right[original.uuid]).toBe(
+	expect((await repository.getContents([original.uuid])).right[original.uuid]).toBe(
 		"original content",
 	);
 });
@@ -54,12 +56,13 @@ it("touch replaces only the stored timestamp and preserves embeddings", async ()
 		tags: ["current"],
 	}).right;
 	await repository.add(original);
-	await repository.upsertEmbedding(original.uuid, [1, 0], "current embedding");
+	await repository.saveContent(original.uuid, { markdown: "current embedding" });
+	await repository.upsertEmbedding(original.uuid, [1, 0]);
 	expect((await repository.touch(original.uuid)).isRight()).toBe(true);
 	const stored = (await repository.getById(original.uuid)).right;
 	expect(stored.modifiedTime).not.toBe(original.modifiedTime);
 	expect({ ...stored.metadata, modifiedTime: original.modifiedTime }).toEqual(original.metadata);
-	expect((await repository.getEmbeddingContents([original.uuid])).right[original.uuid]).toBe(
+	expect((await repository.getContents([original.uuid])).right[original.uuid]).toBe(
 		"current embedding",
 	);
 	expect((await repository.touch("absent_node")).isLeft()).toBe(true);
@@ -109,7 +112,8 @@ it("in-memory reads return independent nested metadata and domain objects", asyn
 	const repository = new InMemoryNodeRepository();
 	const node = snapshotNode();
 	await repository.add(node);
-	await repository.upsertEmbedding(node.uuid, [1, 0], "original content");
+	await repository.saveContent(node.uuid, { markdown: "original content" });
+	await repository.upsertEmbedding(node.uuid, [1, 0]);
 	const reads: Array<() => Promise<NodeLike> | NodeLike> = [
 		async () => (await repository.getById(node.uuid)).right,
 		async () => (await repository.getByFid(node.fid)).right,
@@ -130,7 +134,8 @@ it("in-memory writes reject unsnapshotable nodes without changing stored state",
 	const repository = new InMemoryNodeRepository();
 	const original = snapshotNode();
 	await repository.add(original);
-	await repository.upsertEmbedding(original.uuid, [1, 0], "original content");
+	await repository.saveContent(original.uuid, { markdown: "original content" });
+	await repository.upsertEmbedding(original.uuid, [1, 0]);
 	for (const uuid of [original.uuid, "new_node"]) {
 		const invalid = snapshotNode(uuid);
 		invalid.properties["custom:callback"] = () => undefined;
@@ -147,7 +152,7 @@ it("in-memory writes reject unsnapshotable nodes without changing stored state",
 	}).toThrow();
 	expect(repository.count).toBe(1);
 	expect((await repository.getById(original.uuid)).right.metadata).toEqual(original.metadata);
-	expect((await repository.getEmbeddingContents([original.uuid])).right[original.uuid]).toBe(
+	expect((await repository.getContents([original.uuid])).right[original.uuid]).toBe(
 		"original content",
 	);
 });
@@ -157,11 +162,12 @@ it("in-memory embeddings copy input arrays and reject failed copies atomically",
 	const node = snapshotNode();
 	await repository.add(node);
 	const embedding = [1, 0];
-	await repository.upsertEmbedding(node.uuid, embedding, "original content");
+	await repository.saveContent(node.uuid, { markdown: "original content" });
+	await repository.upsertEmbedding(node.uuid, embedding);
 	embedding[0] = 0;
 	embedding[1] = 1;
 	const invalid = [() => undefined] as unknown as number[];
-	expect((await repository.upsertEmbedding(node.uuid, invalid, "replacement")).isLeft()).toBe(
+	expect((await repository.upsertEmbedding(node.uuid, invalid)).isLeft()).toBe(
 		true,
 	);
 	const result = (await repository.vectorSearch([1, 0], 1)).right.nodes[0];

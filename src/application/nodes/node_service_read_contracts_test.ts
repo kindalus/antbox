@@ -127,10 +127,12 @@ describe("NodeService read contracts", () => {
 			parent: "private-folder",
 			mimetype: Nodes.META_NODE_MIMETYPE,
 		});
-		await repository.upsertEmbedding("public-node", [1], "public content");
-		await repository.upsertEmbedding("private-node", [1], "private content");
+		await repository.saveContent("public-node", { markdown: "public content" });
+		await repository.upsertEmbedding("public-node", [1]);
+		await repository.saveContent("private-node", { markdown: "private content" });
+		await repository.upsertEmbedding("private-node", [1]);
 
-		const result = await service.getEmbeddingContents(readerCtx, [
+		const result = await service.getContents(readerCtx, [
 			"public-node",
 			"private-node",
 			"missing-node",
@@ -156,8 +158,10 @@ describe("NodeService read contracts", () => {
 			parent: "public-folder",
 			mimetype: Nodes.META_NODE_MIMETYPE,
 		});
-		await repository.upsertEmbedding("readable-file", [1], "---\nuuid: x\n---\n\nBody");
-		await repository.upsertEmbedding("meta-node", [1], "---\nuuid: y\n---\n\nMeta body");
+		await repository.saveContent("readable-file", { markdown: "---\nuuid: x\n---\n\nBody" });
+		await repository.upsertEmbedding("readable-file", [1]);
+		await repository.saveContent("meta-node", { markdown: "---\nuuid: y\n---\n\nMeta body" });
+		await repository.upsertEmbedding("meta-node", [1]);
 
 		const allowed = await service.getContentMd(adminCtx, "readable-file");
 		const withoutExport = await service.getContentMd(readerCtx, "readable-file");

@@ -64,7 +64,7 @@ const fileNode = (uuid: string) =>
 		const embedded = await new DeterministicEmbeddingsProvider().embed(["some text"]);
 		const [vector] = embedded.right.embeddings;
 
-		expect((await repository.upsertEmbedding(node.uuid, vector, "Body")).isRight()).toBe(true);
+		expect((await repository.upsertEmbedding(node.uuid, vector)).isRight()).toBe(true);
 
 		const found = await repository.vectorSearch(vector, 1);
 		expect(found.right.nodes[0].node.uuid).toBe(node.uuid);
@@ -87,7 +87,7 @@ const fileNode = (uuid: string) =>
 		const repository = await open(url);
 
 		expect((await repository.getById(node.uuid)).isRight()).toBe(true);
-		expect((await repository.getEmbeddingContents([node.uuid])).right[node.uuid]).toBe(
+		expect((await repository.getContents([node.uuid])).right[node.uuid]).toBe(
 			"Stored body",
 		);
 		const [{ stale }] = await admin`SELECT count(*)::int AS stale FROM ${nodes}
@@ -95,7 +95,7 @@ const fileNode = (uuid: string) =>
 		expect(stale).toBe(0);
 
 		const vector = unit(EMBEDDING_DIMENSIONS);
-		expect((await repository.upsertEmbedding(node.uuid, vector, "New body")).isRight()).toBe(
+		expect((await repository.upsertEmbedding(node.uuid, vector)).isRight()).toBe(
 			true,
 		);
 		expect((await repository.vectorSearch(vector, 1)).right.nodes).toHaveLength(1);
@@ -107,7 +107,8 @@ const fileNode = (uuid: string) =>
 		const node = fileNode("stable_node");
 		const vector = unit(EMBEDDING_DIMENSIONS);
 		await repository.add(node);
-		await repository.upsertEmbedding(node.uuid, vector, "Body");
+		await repository.saveContent(node.uuid, { markdown: "Body" });
+		await repository.upsertEmbedding(node.uuid, vector);
 
 		const again = await open(url);
 

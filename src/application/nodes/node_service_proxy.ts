@@ -82,8 +82,9 @@ export class NodeServiceProxy {
 		return this.#nodeService.get(this.#ctx, uuid);
 	}
 
+	/** Stored markdown of the readable nodes. Keeps its name for existing feature code. */
 	getEmbeddingContents(uuids: string[]) {
-		return this.#nodeService.getEmbeddingContents(this.#ctx, uuids);
+		return this.#nodeService.getContents(this.#ctx, uuids);
 	}
 
 	list(parent?: string) {

@@ -21,11 +21,12 @@ const mongodbUrl = process.env.ANTBOX_TEST_MONGODB_URL;
 				mimetype: "text/plain",
 				owner: "tester@antbox.io",
 				aspects: ["safe"],
-				fulltext: "before\0after",
 			}).right;
 			await database.collection("nodes").insertOne({
 				_id: new ObjectId("313233340000000000000000"),
 				...original.metadata,
+				// Written by versions before full-text search; kept so a rollback can still search.
+				fulltext: "before\0after",
 			});
 			repository = (await buildMongodbNodeRepository(mongodbUrl!, databaseName))
 				.right as MongodbNodeRepository;
@@ -47,15 +48,22 @@ const mongodbUrl = process.env.ANTBOX_TEST_MONGODB_URL;
 				}]]]))
 					.nodes,
 			).toHaveLength(0);
-			expect((await repository.filter([["fulltext", "match", "before\0after"]])).nodes)
-				.toHaveLength(2);
+			expect((await repository.filter([["fulltext", "match", "before"]])).nodes).toHaveLength(0);
+			const nul = await repository.fts("before\0after", { pageSize: 10, pageToken: 1 });
+			expect(nul.right.nodes).toHaveLength(0);
+			expect((await repository.listWithoutSearchContent(10)).right).toEqual([
+				"alpha1234",
+				"beta1234",
+			]);
 
-			await repository.upsertEmbedding(original.uuid, [1, 0], "legacy content");
-			await repository.upsertEmbedding(other.uuid, [0, 1], "other content");
+			await repository.saveContent(original.uuid, { markdown: "legacy content" });
+			await repository.upsertEmbedding(original.uuid, [1, 0]);
+			await repository.saveContent(other.uuid, { markdown: "other content" });
+			await repository.upsertEmbedding(other.uuid, [0, 1]);
 			expect((await repository.touch(original.uuid)).isRight()).toBe(true);
 			expect((await database.collection("nodes").findOne({ uuid: original.uuid }))?._id)
 				.toEqual(new ObjectId("313233340000000000000000"));
-			expect((await repository.getEmbeddingContents([original.uuid, other.uuid])).right).toEqual(
+			expect((await repository.getContents([original.uuid, other.uuid])).right).toEqual(
 				{
 					alpha1234: "legacy content",
 					beta1234: "other content",
@@ -66,9 +74,13 @@ const mongodbUrl = process.env.ANTBOX_TEST_MONGODB_URL;
 			);
 			expect((await repository.getById(original.uuid)).right.title).toBe("Legacy document");
 			expect((await repository.getById(other.uuid)).right.title).toBe("Updated document");
+			await repository.update((await repository.getById(original.uuid)).right);
+			const legacy = await database.collection("nodes").findOne({ uuid: original.uuid });
+			expect(legacy?.fulltext).toBe("before\0after");
+			expect("fulltext" in (await repository.getById(original.uuid)).right.metadata).toBe(false);
 			await repository.deleteEmbedding(original.uuid);
-			expect((await repository.getEmbeddingContents([original.uuid, other.uuid])).right).toEqual(
-				{ beta1234: "other content" },
+			expect((await repository.getContents([original.uuid, other.uuid])).right).toEqual(
+				{ alpha1234: "legacy content", beta1234: "other content" },
 			);
 			await repository.delete(original.uuid);
 			expect((await repository.getById(original.uuid)).isLeft()).toBe(true);

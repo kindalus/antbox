@@ -148,6 +148,37 @@ creates a unique `uuid` index. Duplicate UUIDs, including multiple documents wit
 index creation. Review and repair those records before starting the adapter; initialization does not
 discard them.
 
+### Full-text search
+
+Each node repository keeps a full-text index of the node's searchable metadata and extracted body
+next to the node, and runs `fulltext match` with the database's own engine. See
+[Full-text search](node-querying.md#full-text-search) for the matching rules of each database.
+
+- **SQLite:** an FTS5 table (`nodes_fts`, tokenizer `unicode61 remove_diacritics 2`) over
+  `nodes_search`, kept in step by triggers. Deleting a node deletes its search row. Each query word
+  becomes a quoted prefix phrase; ranking is `bm25` with the metadata weighted 10 and the body 1.
+- **PostgreSQL:** `search_meta` and `search_body` columns feed a generated `search_vector` with a
+  GIN index. Startup runs `CREATE EXTENSION IF NOT EXISTS unaccent` and creates the `antbox_pt`
+  text search configuration (Portuguese with `unaccent` before the stemmer). The database user needs
+  permission to create the extension, or an administrator must create it first; otherwise a warning
+  is logged and the plain `portuguese` configuration is used, so accents must match. A column keeps
+  the configuration it was created with; to switch, drop `search_vector` and restart. The query
+  text goes through the same configuration, and each word becomes a required prefix term.
+  Ranking is `ts_rank_cd` with the metadata weighted 1.0 and the body 0.1.
+- **MongoDB:** a text index `nodes_fts` on `searchMeta` (weight 10) and `searchBody` (weight 1) with
+  `default_language: "portuguese"` and `language_override: "_ftsLanguage"`, so a node field called
+  `language` does not change the index language. MongoDB allows one text index per collection.
+  Each query word is sent as a quoted phrase, which makes every word required; there is no prefix
+  matching.
+- **In-memory:** keeps the earlier `match` behaviour on the cleaned metadata and body: words in
+  order, anywhere inside words, accents and words shorter than three letters ignored. No ranking.
+
+On startup each tenant indexes, in the background and without AI, the nodes that have no search
+metadata yet. The markdown is rebuilt from the current metadata and the body already stored, and
+that body becomes searchable. Running again only handles what is missing. The legacy `fulltext`
+value stays in each node's stored JSON, ignored, so an older version still finds those nodes after
+a rollback; a node saved by this version no longer carries it (MongoDB keeps it).
+
 ## Remaining adapter limits
 
 - MongoDB vector search loads every node with an embedding that passes the permission filter and

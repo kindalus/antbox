@@ -21,6 +21,12 @@ describe("NodesFilters", () => {
 		}
 	});
 
+	it("never satisfies fulltext match filters, which only searches support", () => {
+		const node = { title: "Annual report", fulltext: "annual report" } as unknown as NodeLike;
+		expect(NodesFilters.satisfiedBy([["fulltext", "match", "annual"]], node).isLeft()).toBe(true);
+		expect(NodesFilters.satisfiedBy([["title", "match", "annual"]], node).isRight()).toBe(true);
+	});
+
 	it("handles contains filters on incompatible field values without throwing", () => {
 		for (const value of [8, true, {}, null, undefined]) {
 			const node = { properties: { value } } as unknown as NodeLike;

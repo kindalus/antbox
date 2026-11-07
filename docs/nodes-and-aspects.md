@@ -25,7 +25,7 @@ All node types share these fields:
 - `uuid`, `fid`, `title`, `description`
 - `mimetype`, `parent`, `owner`
 - `createdTime`, `modifiedTime`
-- `tags`, `fulltext`
+- `tags`
 - `aspects`, `properties`, `related`
 - `locked`, `lockedBy`, `unlockAuthorizedGroups`
 - `workflowInstanceUuid`, `workflowState`
@@ -202,9 +202,10 @@ Existing records are not repaired automatically. Stored metadata with malformed 
 invalid aspect UUIDs or objects, or non-ISO dates may need correction before the next edit passes
 validation. Back up affected records before repairing them.
 
-`searchable` is an optional boolean. When enabled, the property's value contributes to the node's
-fulltext when that node is created or updated. Changing an aspect does not reindex existing nodes.
-Searchable object and array values are indexed as JSON text.
+`searchable` is an optional boolean. When enabled, the property's value is part of the node's
+full-text search metadata when that node is created or updated. Changing an aspect does not reindex
+existing nodes. Searchable object and array values are indexed as JSON text. See
+[Full-text search](node-querying.md#full-text-search).
 
 ### Example Aspect
 

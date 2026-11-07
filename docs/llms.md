@@ -470,6 +470,13 @@ Filter shape semantics:
 - 1D array of tuples -> AND
 - 2D array (`[[...], [...]]`) -> OR across groups, AND inside each group
 
+Full-text search: `["fulltext", "match", "annual report"]`, or a `filters` string that is not filter
+notation, searches title, description, tags, searchable aspect properties and, with AI indexing,
+the extracted file text, using the database's own engine. The response adds `scores` (uuid to
+relevance, 0 to 1) and lists the best match first. Every OR group must carry the same `fulltext`
+text, or the request returns 400. `fulltext` is a filter only; nodes have no `fulltext` field.
+Matching differs by database (prefixes, stemming); see `docs/node-querying.md`.
+
 ### Semantic search
 
 Use `filters` as a string starting with `?`:
@@ -487,7 +494,7 @@ Implementation notes:
 - semantic threshold is owned by embeddings provider (`relevanceThreshold()`)
 - client does not choose threshold in this path
 - semantic results are relevance-sorted, then paginated
-- when embeddings/search fail, fulltext fallback is used
+- when embeddings/search fail, full-text search is used instead
 
 ## 9. `run_code` Tool Contract (AgentsEngine)
 

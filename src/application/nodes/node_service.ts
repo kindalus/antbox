@@ -6,7 +6,11 @@ import { FolderNotFoundError } from "domain/nodes/folder_not_found_error.ts";
 
 import { NodeCreatedEvent } from "domain/nodes/node_created_event.ts";
 import { NodeDeletedEvent } from "domain/nodes/node_deleted_event.ts";
-import type { NodeFilters } from "domain/nodes/node_filter.ts";
+import {
+	FULLTEXT_FILTER_ERROR,
+	hasFulltextFilter,
+	type NodeFilters,
+} from "domain/nodes/node_filter.ts";
 import { NodeUpdateChanges, NodeUpdatedEvent } from "domain/nodes/node_updated_event.ts";
 
 import type { AuthenticationContext } from "../security/authentication_context.ts";
@@ -44,12 +48,22 @@ import { NodeLookup } from "./node_lookup.ts";
 import { ParentFolderUpdateHandler } from "./parent_folder_update_handler.ts";
 import { calculateNodeUpdateChanges } from "./node_update_changes.ts";
 import { exportAllFiles } from "./node_export_all.ts";
-import { embeddingMarkdownBody } from "./node_markdown.ts";
-import { fulltextOf } from "domain/nodes/fulltext.ts";
+import { embeddingMarkdownBody, toEmbeddingMarkdown } from "./node_markdown.ts";
+import { Logger } from "shared/logger.ts";
 import type { RagDocument } from "domain/ai/rag_document.ts";
 
 interface NodeUpdateOptions {
 	forceEvent?: boolean;
+}
+
+const SEARCH_MIGRATION_BATCH = 100;
+
+/** Removes the `fulltext` field older clients may still send; nodes no longer have it. */
+function withoutFulltext(metadata: Partial<NodeMetadata>): Partial<NodeMetadata> {
+	const { fulltext: _fulltext, ...rest } = metadata as Partial<NodeMetadata> & {
+		fulltext?: unknown;
+	};
+	return rest;
 }
 
 // Check input shapes before derived values and property merges; models enforce domain rules.
@@ -63,7 +77,6 @@ const NodeMetadataInputSchema = z.object({
 	owner: z.string().nullish(),
 	createdTime: z.string().nullish(),
 	modifiedTime: z.string().nullish(),
-	fulltext: z.string().nullish(),
 	tags: z.array(z.string()).nullish(),
 	aspects: z.array(z.string()).nullish(),
 	related: z.array(z.string()).nullish(),
@@ -116,7 +129,7 @@ export class NodeService {
 	): Promise<Either<AntboxError, NodeLike>> {
 		const validationError = this.#validateMetadata(metadata);
 		if (validationError) return left(validationError);
-		metadata = { ...metadata };
+		metadata = withoutFulltext(metadata);
 		delete metadata.locked;
 		delete metadata.lockedBy;
 		delete metadata.unlockAuthorizedGroups;
@@ -167,6 +180,10 @@ export class NodeService {
 			);
 		}
 
+		if (Nodes.isFolder(nodeOrErr.value) && hasFulltextFilter(nodeOrErr.value.filters)) {
+			return left(new BadRequestError(FULLTEXT_FILTER_ERROR));
+		}
+
 		if (Nodes.isFolder(nodeOrErr.value) && !metadata.permissions) {
 			nodeOrErr.value.update({ permissions: parentOrErr.value.permissions });
 		}
@@ -186,14 +203,12 @@ export class NodeService {
 			);
 		}
 
-		nodeOrErr.value.update({
-			fulltext: await this.#calculateFulltext(nodeOrErr.value),
-		});
-
 		const voidOrErr = await this.context.repository.add(nodeOrErr.value);
 		if (voidOrErr.isLeft()) {
 			return left(voidOrErr.value);
 		}
+
+		await this.#saveSearchContent(nodeOrErr.value, "");
 
 		return right(nodeOrErr.value);
 	}
@@ -288,6 +303,7 @@ export class NodeService {
 			if (cdnUrl) {
 				nodeOrErr.value.update({ cdnUrl });
 				await this.context.repository.update(nodeOrErr.value);
+				await this.#saveSearchContent(nodeOrErr.value, "");
 			}
 		}
 
@@ -540,7 +556,7 @@ export class NodeService {
 		const allowed = await this.#ensureCanExport(ctx, node.value);
 		if (allowed.isLeft()) return left(allowed.value);
 
-		const contents = await this.context.repository.getEmbeddingContents([node.value.uuid]);
+		const contents = await this.context.repository.getContents([node.value.uuid]);
 		if (contents.isLeft()) return left(contents.value);
 
 		const body = embeddingMarkdownBody(contents.value[node.value.uuid] ?? "");
@@ -617,7 +633,11 @@ export class NodeService {
 		return this.findService.semanticDocuments(ctx, text, topK);
 	}
 
-	async getEmbeddingContents(
+	/**
+	 * Stored markdown (full frontmatter plus the extracted text, if any) of the given nodes the
+	 * principal can read. Every node has markdown once it is created or migrated.
+	 */
+	async getContents(
 		ctx: AuthenticationContext,
 		uuids: string[],
 	): Promise<Either<AntboxError, Record<string, string>>> {
@@ -630,7 +650,7 @@ export class NodeService {
 			.filter((nodeOrErr) => nodeOrErr.isRight())
 			.map((nodeOrErr) => nodeOrErr.value.uuid);
 
-		return this.context.repository.getEmbeddingContents(permittedUuids);
+		return this.context.repository.getContents(permittedUuids);
 	}
 
 	async get(
@@ -886,7 +906,7 @@ export class NodeService {
 		}
 		nodeOrErr = candidate;
 
-		let safeMetadata: Partial<NodeMetadata> = { ...metadata };
+		let safeMetadata: Partial<NodeMetadata> = withoutFulltext(metadata);
 		delete safeMetadata.locked;
 		delete safeMetadata.lockedBy;
 		delete safeMetadata.unlockAuthorizedGroups;
@@ -992,6 +1012,10 @@ export class NodeService {
 
 		// If updating a folder's filters, validate all existing children against new filters
 		if (Nodes.isFolder(nodeOrErr.value) && metadata.filters !== undefined) {
+			// Folder filters are checked against each child in memory, where fulltext is unavailable.
+			if (hasFulltextFilter(nodeOrErr.value.filters)) {
+				return left(new BadRequestError(FULLTEXT_FILTER_ERROR));
+			}
 			const children = await this.nodeLookup.listChildren(nodeOrErr.value.uuid);
 			const specification = NodesFilters.nodeSpecificationFrom(nodeOrErr.value.filters);
 
@@ -1007,10 +1031,6 @@ export class NodeService {
 			}
 		}
 
-		nodeOrErr.value.update({
-			fulltext: await this.#calculateFulltext(nodeOrErr.value),
-		});
-
 		if (file) {
 			const writeOrErr = await this.context.storage.write(nodeOrErr.value.uuid, file, {
 				title: nodeOrErr.value.title,
@@ -1023,6 +1043,9 @@ export class NodeService {
 		const updateResult = await this.context.repository.update(nodeOrErr.value);
 
 		if (updateResult.isRight()) {
+			// The stored body belongs to the old file; text extraction stores the new one.
+			await this.#saveSearchContent(nodeOrErr.value, file ? "" : undefined);
+
 			// Create NodeUpdateChanges with old and new values
 			const changes: NodeUpdateChanges = {
 				uuid: nodeOrErr.value.uuid,
@@ -1133,19 +1156,94 @@ export class NodeService {
 		return this.nodeLocking.unlock(ctx, uuid);
 	}
 
-	async #calculateFulltext(node: NodeLike): Promise<string> {
-		const fulltext = [node.title, node.description ?? ""];
+	/**
+	 * Stores searches for nodes created before full-text search: the searchable metadata, and the
+	 * markdown rebuilt from the current metadata and the body already stored, which also becomes
+	 * the searchable body. Runs without AI. Running it again only handles nodes still missing.
+	 * Returns the number of migrated nodes.
+	 */
+	async migrateSearchContent(
+		batchSize = SEARCH_MIGRATION_BATCH,
+	): Promise<Either<AntboxError, number>> {
+		const failed = new Set<string>();
+		let migrated = 0;
+
+		for (;;) {
+			const uuidsOrErr = await this.context.repository.listWithoutSearchContent(
+				batchSize + failed.size,
+			);
+			if (uuidsOrErr.isLeft()) return left(uuidsOrErr.value);
+
+			const pending = uuidsOrErr.value.filter((uuid) => !failed.has(uuid));
+			if (pending.length === 0) return right(migrated);
+
+			const contentsOrErr = await this.context.repository.getContents(pending);
+			if (contentsOrErr.isLeft()) return left(contentsOrErr.value);
+
+			for (const uuid of pending) {
+				const nodeOrErr = await this.context.repository.getById(uuid);
+				const body = embeddingMarkdownBody(contentsOrErr.value[uuid] ?? "");
+				const savedOrErr = nodeOrErr.isRight()
+					? await this.context.repository.saveContent(uuid, {
+						markdown: toEmbeddingMarkdown(nodeOrErr.value.metadata, body),
+						searchMeta: await this.#searchMetaOf(nodeOrErr.value),
+						searchBody: body,
+					})
+					: nodeOrErr;
+
+				if (savedOrErr.isLeft()) {
+					Logger.warn(`Search migration skipped node ${uuid}: ${savedOrErr.value.message}`);
+					failed.add(uuid);
+					continue;
+				}
+				migrated++;
+			}
+		}
+	}
+
+	/**
+	 * Stores the node's markdown, with the current frontmatter, and its searchable metadata.
+	 * body undefined keeps the stored body; a string replaces it in the markdown and in the search
+	 * index. A failure is logged: the node stays usable and the startup migration retries it.
+	 */
+	async #saveSearchContent(node: NodeLike, body: string | undefined): Promise<void> {
+		let markdownBody = body;
+		if (markdownBody === undefined) {
+			const contentsOrErr = await this.context.repository.getContents([node.uuid]);
+			markdownBody = contentsOrErr.isRight()
+				? embeddingMarkdownBody(contentsOrErr.value[node.uuid] ?? "")
+				: "";
+		}
+
+		const savedOrErr = await this.context.repository.saveContent(node.uuid, {
+			markdown: toEmbeddingMarkdown(node.metadata, markdownBody),
+			searchMeta: await this.#searchMetaOf(node),
+			...(body === undefined ? {} : { searchBody: body }),
+		});
+		if (savedOrErr.isLeft()) {
+			Logger.error(
+				`Cannot store the search content of node ${node.uuid}: ${savedOrErr.value.message}`,
+			);
+		}
+	}
+
+	/**
+	 * The text searched as metadata: title, description, tags and the values of searchable
+	 * aspect properties, one per line. The repository's search engine normalizes it.
+	 */
+	async #searchMetaOf(node: NodeLike): Promise<string> {
+		const texts = [node.title, node.description ?? ""];
 
 		if (
 			(Nodes.isFileLike(node) || Nodes.isFolder(node)) &&
 			node.tags?.length
 		) {
-			fulltext.push(...node.tags);
+			texts.push(...node.tags);
 		}
 
-		fulltext.push(...await this.nodeAspectRules.searchableValues(node));
+		texts.push(...await this.nodeAspectRules.searchableValues(node));
 
-		return fulltextOf(fulltext);
+		return texts.filter((text) => text.trim().length > 0).join("\n");
 	}
 
 	#mapAntboxMimetypes(mimetype: string): string {

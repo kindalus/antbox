@@ -1,5 +1,14 @@
 import { z } from "zod";
-import { NodeFiltersSchema } from "domain/nodes/node_filter.ts";
+import {
+	FULLTEXT_FILTER_ERROR,
+	hasFulltextFilter,
+	NodeFiltersSchema as AnyNodeFiltersSchema,
+} from "domain/nodes/node_filter.ts";
+
+// Aspect filters are checked against one node in memory, where fulltext search is unavailable.
+const NodeFiltersSchema = AnyNodeFiltersSchema.refine((filters) => !hasFulltextFilter(filters), {
+	message: FULLTEXT_FILTER_ERROR,
+});
 
 const AspectValidationListValueSchema = z.union([z.string(), z.number()]);
 // Schema for AspectProperty

@@ -208,9 +208,11 @@ describe("nodes v2 content-md over a real HTTP server", () => {
 				mimetype: Nodes.FOLDER_MIMETYPE,
 			})).isRight(),
 		).toBe(true);
-		await repository.upsertEmbedding("subfolder", [1], `${frontmatter}\n\nCorpo de pasta`);
+		await repository.saveContent("subfolder", { markdown: `${frontmatter}\n\nCorpo de pasta` });
+		await repository.upsertEmbedding("subfolder", [1]);
 		if (options.contentMd !== undefined) {
-			await repository.upsertEmbedding("file", [1], options.contentMd);
+			await repository.saveContent("file", { markdown: options.contentMd });
+			await repository.upsertEmbedding("file", [1]);
 		}
 		const reads = { storage: 0, content: 0 };
 		const readFile = storage.read.bind(storage);
@@ -218,8 +220,8 @@ describe("nodes v2 content-md over a real HTTP server", () => {
 			reads.storage++;
 			return readFile(uuid);
 		};
-		const readContents = repository.getEmbeddingContents.bind(repository);
-		repository.getEmbeddingContents = (uuids) => {
+		const readContents = repository.getContents.bind(repository);
+		repository.getContents = (uuids) => {
 			reads.content++;
 			return readContents(uuids);
 		};

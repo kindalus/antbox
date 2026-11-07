@@ -1,6 +1,6 @@
-import type { NodeFilter, NodeFilters2D } from "./node_filter.ts";
+import type { NodeFilter } from "./node_filter.ts";
 
-/** Words shorter than this are left out of the stored fulltext. */
+/** Words shorter than this are left out of the in-memory search text. */
 const MIN_WORD_LENGTH = 3;
 
 function normalizedWords(text: string): string[] {
@@ -24,8 +24,8 @@ function unique(words: string[]): string {
 }
 
 /**
- * The searchable text stored in a node's `fulltext`: lower case, without accents or punctuation,
- * without short words and without repeated words.
+ * The in-memory search text: lower case, without accents or punctuation, without short words and
+ * without repeated words.
  */
 export function fulltextOf(texts: string[]): string {
 	return unique(
@@ -34,9 +34,9 @@ export function fulltextOf(texts: string[]): string {
 }
 
 /**
- * Cleans a `fulltext match` query the same way as the stored text, so both sides compare equal.
- * A query made only of short words keeps them, so they still match the start or middle of a
- * longer stored word. A query with no words at all is returned unchanged.
+ * Cleans an in-memory `fulltext match` query the same way as the search text, so both sides
+ * compare equal. A query made only of short words keeps them, so they still match the start or
+ * middle of a longer word. A query with no words at all is returned unchanged.
  */
 export function fulltextQuery(query: string): string {
 	const words = normalizedWords(query);
@@ -46,14 +46,32 @@ export function fulltextQuery(query: string): string {
 	return unique(long.length ? long : words);
 }
 
-/** Applies {@link fulltextQuery} to every `fulltext match` filter and leaves the others as they are. */
-export function withFulltextQueries(filters: NodeFilters2D): NodeFilters2D {
-	return filters.map((group) =>
-		group.map((filter): NodeFilter => {
-			const [field, operator, value] = filter;
-			return field === "fulltext" && operator === "match" && typeof value === "string"
-				? [field, operator, fulltextQuery(value)]
-				: filter;
-		})
-	);
+/**
+ * In-memory full-text match: the cleaned query words must appear, in order, inside the cleaned
+ * text. A query without words matches nothing.
+ */
+export function fulltextMatches(query: string, texts: string[]): boolean {
+	if (normalizedWords(query).length === 0) return false;
+
+	const text = fulltextOf(texts);
+	let start = 0;
+	for (const term of fulltextQuery(query).split(" ")) {
+		const index = text.indexOf(term, start);
+		if (index < 0) return false;
+		start = index + term.length;
+	}
+	return true;
+}
+
+/** True when the filter is a full-text search, which repositories run with fts(). */
+export function isFulltextFilter([field, operator]: NodeFilter): boolean {
+	return field === "fulltext" && operator === "match";
+}
+
+/**
+ * The query words for a native full-text engine: runs of letters, numbers and combining marks.
+ * Everything else, including every search operator, separates words and is dropped.
+ */
+export function fulltextTerms(query: string): string[] {
+	return query.split(/[^\p{L}\p{N}\p{M}]+/u).filter((term) => /[\p{L}\p{N}]/u.test(term));
 }

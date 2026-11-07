@@ -28,7 +28,6 @@ export class Node {
 	protected _description?: string;
 	protected _parent = Nodes.ROOT_FOLDER_UUID;
 	protected _modifiedTime: string;
-	protected _fulltext: string;
 	protected _tags: string[];
 	protected _locked: boolean;
 	protected _lockedBy: string;
@@ -53,8 +52,6 @@ export class Node {
 		this._workflowState = metadata.workflowState ?? undefined;
 
 		this._owner = metadata.owner!;
-
-		this._fulltext = metadata?.fulltext ?? "";
 
 		this._validateNode();
 
@@ -92,7 +89,6 @@ export class Node {
 		this._description = metadata.description ?? this._description;
 		this._parent = metadata.parent ?? this._parent;
 		this._modifiedTime = new Date().toISOString();
-		this._fulltext = metadata.fulltext ?? this._fulltext;
 		this._tags = metadata.tags ?? this._tags;
 
 		if (metadata.locked !== undefined) {
@@ -156,10 +152,6 @@ export class Node {
 		return this._owner;
 	}
 
-	get fulltext(): string {
-		return this._fulltext;
-	}
-
 	get tags(): string[] {
 		return this._tags;
 	}
@@ -187,7 +179,6 @@ export class Node {
 			owner: this.owner,
 			createdTime: this.createdTime,
 			modifiedTime: this.modifiedTime,
-			fulltext: this.fulltext,
 			tags: this.tags,
 			locked: this.locked,
 			lockedBy: this.lockedBy,

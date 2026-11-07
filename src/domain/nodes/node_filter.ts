@@ -32,6 +32,23 @@ export const NodeFiltersSchema = z.union([
 	z.array(z.array(NodeFilterSchema)),
 ]);
 
+export const FULLTEXT_FILTER_ERROR =
+	"fulltext filters are only supported in searches, not in filters checked against one node";
+
+/**
+ * True when 1D or 2D filters contain `["fulltext", "match", …]`. Nodes have no fulltext field, so
+ * filters checked against one node in memory (aspects, features, workflows, folder rules) cannot
+ * use it.
+ */
+export function hasFulltextFilter(filters: readonly unknown[]): boolean {
+	return filters.some((item) =>
+		Array.isArray(item) &&
+		(Array.isArray(item[0])
+			? hasFulltextFilter(item)
+			: item[0] === "fulltext" && item[1] === "match")
+	);
+}
+
 export type NodeFilter = [
 	field: string,
 	operator: FilterOperator,

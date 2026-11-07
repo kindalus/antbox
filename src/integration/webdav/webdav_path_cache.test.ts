@@ -23,7 +23,6 @@ function createMockNode(uuid: string, title: string, parent: string): NodeMetada
 		createdTime: now,
 		modifiedTime: now,
 		owner: Users.ROOT_USER_EMAIL,
-		fulltext: "",
 	};
 }
 

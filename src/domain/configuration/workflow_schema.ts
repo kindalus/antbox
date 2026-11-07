@@ -1,10 +1,17 @@
 import { z } from "zod";
+import { FULLTEXT_FILTER_ERROR, hasFulltextFilter } from "domain/nodes/node_filter.ts";
+
+// Workflow filters are checked against one node in memory, where fulltext search is unavailable.
+const FiltersSchema = z.array(z.tuple([z.string(), z.string(), z.any()])).refine(
+	(filters) => !hasFulltextFilter(filters),
+	{ message: FULLTEXT_FILTER_ERROR },
+);
 
 // Schema for WorkflowTransition
 const WorkflowTransitionSchema = z.object({
 	signal: z.string().min(1, "Transition signal is required"),
 	targetState: z.string().min(1, "Target state is required"),
-	filters: z.array(z.tuple([z.string(), z.string(), z.any()])).optional(),
+	filters: FiltersSchema.optional(),
 	actions: z.array(z.string()).optional(),
 	groupsAllowed: z.array(z.string()).optional(),
 });
@@ -30,7 +37,7 @@ export const WorkflowDataSchema = z.object({
 	description: z.string().optional(),
 	states: z.array(WorkflowStateSchema).min(1, "Workflow must have at least one state"),
 	availableStateNames: z.array(z.string()).min(1, "Available state names required"),
-	filters: z.array(z.tuple([z.string(), z.string(), z.any()])),
+	filters: FiltersSchema,
 	participants: z.array(z.string()),
 	createdTime: z.string(),
 	modifiedTime: z.string(),

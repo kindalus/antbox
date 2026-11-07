@@ -92,7 +92,7 @@ export default async function ({ nodes }) {
 | -------------------- | ----------------------------- |
 | `==`, `!=`           | Exact match / not equal       |
 | `<`, `<=`, `>`, `>=` | Numeric or date comparison    |
-| `match`              | Full-text match               |
+| `match`              | Text match (see below)        |
 | `contains`           | Array contains value          |
 | `contains-all`       | Array contains all values     |
 | `contains-any`       | Array contains any value      |
@@ -100,8 +100,9 @@ export default async function ({ nodes }) {
 | `not-contains`       | Array does not contain value  |
 | `in`, `not-in`       | Membership against a list     |
 
-`match` searches for literal, case-insensitive terms in their given order. Whitespace separates
-terms; punctuation such as `[draft]`, `C++`, `%`, and `_` is literal rather than query syntax. Array
+On an ordinary field, `match` searches for literal, case-insensitive terms in their given order.
+Whitespace separates terms; punctuation such as `[draft]`, `C++`, `%`, and `_` is literal rather
+than query syntax. On `fulltext`, `match` is a full-text search (next section). Array
 operators (`in`, `not-in`, `contains-all`, `contains-any`, `contains-none`) require array values.
 `contains-none` succeeds only when none of the supplied values is present.
 
@@ -109,11 +110,54 @@ An empty filter list accepts every node allowed by the caller's permissions. An 
 inside an OR expression is also unconditional. A parent filter that matches no folders returns no
 nodes.
 
+## Full-text search
+
+`["fulltext", "match", "<text>"]`, and any `find` string that is not filter notation, runs a
+full-text search with the database's own engine. `fulltext` is not a node field: the search reads
+a separate index with two parts.
+
+- **Metadata:** title, description, tags and the values of aspect properties marked `searchable`.
+  It ranks above the body. Other frontmatter fields (uuids, owner, dates, mimetypes) are not
+  indexed.
+- **Body:** the text the OCR provider extracted from the file. It exists only with AI indexing
+  enabled and for supported file types, and is added when extraction finishes. Without AI only the
+  metadata is searchable, even for text files.
+
+Results come best match first, with a `scores` map of uuid to relevance between 0 and 1. Scores
+compare nodes within one search, not across databases. Search syntax in the text is never
+interpreted: quotes, `*`, `:`, `&`, `|`, `!`, parentheses and `-` only separate words, and a text
+without words matches nothing.
+
+Matching depends on the tenant's database:
+
+| Database   | All words required | Prefixes (`fact` finds `factura`) | Accents ignored | Portuguese stemming          | Ranking               |
+| ---------- | ------------------ | --------------------------------- | --------------- | ---------------------------- | --------------------- |
+| SQLite     | yes                | yes                               | yes             | no                           | bm25                  |
+| PostgreSQL | yes                | yes                               | yes (1)         | yes                          | ts_rank_cd            |
+| MongoDB    | yes                | no                                | yes             | yes, one way (2)             | textScore             |
+| In-memory  | yes, in order      | anywhere inside a word            | yes             | no                           | none (score 1)        |
+
+1. Needs the `unaccent` extension. When the database user cannot create it, PostgreSQL logs a
+   warning at startup and uses the plain `portuguese` configuration, where accents must match.
+2. MongoDB matches a word whose stem equals the query word's stem and whose text contains the query
+   word: `factura` finds `facturas`, but `facturas` does not find `factura`.
+
+None of the engines match the middle of a word, except the in-memory repository.
+
+A search runs one full-text query. With OR groups, every group must carry the same `fulltext`
+text; the service applies the other filters of each group, including permissions, before
+pagination. A `fulltext` filter in only some groups, or with different texts in different groups,
+returns `400`. `fulltext` filters are accepted in searches and smart folders, and rejected in
+folder, aspect, feature and workflow filters, which are checked against one node at a time.
+
+Nodes stored before this search existed are indexed from their metadata in the background when
+the server starts. Until that finishes they are missing from full-text results.
+
 ## Common queryable fields
 
 - `uuid`, `title`, `description`, `mimetype`, `parent`, `owner`
 - `createdTime`, `modifiedTime`
-- `size`, `fulltext`
+- `size`
 - `tags`, `aspects`, `related`
 - `${aspectUuid}:${propertyName}` for aspect properties
 

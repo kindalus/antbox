@@ -56,10 +56,12 @@ Every node has these core fields:
 
 ### File-specific fields
 
-| Field      | Type   | Description                       |
-| ---------- | ------ | --------------------------------- |
-| `size`     | number | File size in bytes                |
-| `fulltext` | string | Extracted text content for search |
+| Field  | Type   | Description        |
+| ------ | ------ | ------------------ |
+| `size` | number | File size in bytes |
+
+To search text, use the filter `["fulltext", "match", "words"]`. It searches title, description,
+tags, searchable aspect properties and extracted file text. It is a filter only, not a node field.
 
 ### Security fields
 

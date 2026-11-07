@@ -24,7 +24,7 @@ const repositories: [string, () => NodeRepository & { close?: () => void }][] = 
 ];
 
 for (const [name, makeRepository] of repositories) {
-	describe(`NodeService fulltext search (${name})`, () => {
+	describe(`NodeService full-text search without AI (${name})`, () => {
 		const repository = makeRepository();
 		const service = new NodeService({
 			repository,
@@ -66,7 +66,7 @@ for (const [name, makeRepository] of repositories) {
 			expect(await search("RELATÓRIO")).toEqual(["relatorio"]);
 		});
 
-		it("ignores short words in the query, as in the stored text", async () => {
+		it("finds titles that contain short words", async () => {
 			expect(await search("factura de venda")).toEqual(["factura"]);
 			expect(await search("plano a de obra")).toEqual(["shorts"]);
 		});
@@ -80,7 +80,7 @@ for (const [name, makeRepository] of repositories) {
 			expect(await search("fa")).toEqual(["factura"]);
 		});
 
-		it("normalizes fulltext filters given as arrays", async () => {
+		it("searches fulltext filters given as arrays", async () => {
 			const result = await service.find(authCtx, [["fulltext", "match", "Acção"]]);
 			expect(result.right.nodes.map((node) => node.uuid)).toEqual(["accao"]);
 		});
@@ -92,7 +92,7 @@ for (const [name, makeRepository] of repositories) {
 			expect(unaccented.right.nodes).toHaveLength(0);
 		});
 
-		it("normalizes the query when semantic search falls back to fulltext", async () => {
+		it("searches the text when semantic search falls back to full-text search", async () => {
 			expect(await search("?acção")).toEqual(["accao"]);
 			expect(await search("? factura de venda")).toEqual(["factura"]);
 		});

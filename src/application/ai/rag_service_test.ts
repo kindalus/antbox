@@ -172,12 +172,28 @@ function setup({ ocr, embeddings, options }: Setup = {}) {
 			}),
 		);
 	};
-	const content = async (uuid: string) =>
-		(await repository.getEmbeddingContents([uuid])).right[uuid];
+	const content = async (uuid: string) => (await repository.getContents([uuid])).right[uuid];
 	const status = async (uuid: string) =>
 		(await repository.getEmbeddingStatuses([uuid])).right[uuid];
+	const hasVector = async (uuid: string) =>
+		(await repository.vectorSearch([1], 1, { filters: [[["uuid", "==", uuid]]] })).right.nodes
+			.length > 0;
+	const searchBody = async (uuid: string, query: string) =>
+		(await repository.fts(query, { pageSize: 10, pageToken: 1 })).right.nodes
+			.some((node) => node.uuid === uuid);
 
-	return { service, repository, bus, nodeService, created, updated, content, status };
+	return {
+		service,
+		repository,
+		bus,
+		nodeService,
+		created,
+		updated,
+		content,
+		status,
+		hasVector,
+		searchBody,
+	};
 }
 
 // ============================================================================
@@ -185,6 +201,50 @@ function setup({ ocr, embeddings, options }: Setup = {}) {
 // ============================================================================
 
 describe("RAGService", () => {
+	describe("search content", () => {
+		it("adds the extracted text to the searchable body, keeping the stored metadata", async () => {
+			const t = setup();
+			const node = makeFileNode("ocr-file", "text/plain", 50);
+			await t.repository.add(node);
+			// What NodeService stores on create: the frontmatter and the searchable metadata.
+			await t.repository.saveContent("ocr-file", {
+				markdown: "---\nuuid: ocr-file\n---",
+				searchMeta: "Scanned contract",
+				searchBody: "",
+			});
+			t.nodeService.setFile("ocr-file", "Clause about narwhals", "text/plain");
+			expect(await t.searchBody("ocr-file", "contract")).toBe(true);
+			expect(await t.searchBody("ocr-file", "narwhals")).toBe(false);
+
+			await t.created(node);
+			await t.service.idle();
+
+			expect(await t.searchBody("ocr-file", "narwhals")).toBe(true);
+			expect(await t.searchBody("ocr-file", "contract")).toBe(true);
+			expect(await t.content("ocr-file")).toContain("uuid: ocr-file");
+			expect(await t.content("ocr-file")).toMatch(/\n---\n\nClause about narwhals$/);
+			expect(await t.hasVector("ocr-file")).toBe(true);
+		});
+
+		it("keeps the extracted text searchable when the embedding fails", async () => {
+			const embeddings = new ScriptedEmbeddingsProvider([
+				new AntboxError("GeminiEmbeddingsError", "400 invalid argument"),
+			]);
+			const t = setup({ embeddings });
+			const node = makeFileNode("unembedded", "text/plain", 50);
+			await t.repository.add(node);
+			await t.repository.saveContent("unembedded", { markdown: "-", searchMeta: "Unembedded" });
+			t.nodeService.setFile("unembedded", "Text about axolotls", "text/plain");
+
+			await t.created(node);
+			await t.service.idle();
+
+			expect((await t.status("unembedded")).status).toBe("failed");
+			expect(await t.searchBody("unembedded", "axolotls")).toBe(true);
+			expect(await t.hasVector("unembedded")).toBe(false);
+		});
+	});
+
 	describe("indexing — NodeCreated", () => {
 		it("stores embedding for FileNode with supported mimetype", async () => {
 			const t = setup();
@@ -233,7 +293,8 @@ describe("RAGService", () => {
 			const t = setup({ ocr, embeddings });
 			const node = makeFileNode("image-file", "image/jpeg", 1000);
 			await t.repository.add(node);
-			await t.repository.upsertEmbedding("image-file", new Array(128).fill(0.1), "old");
+			await t.repository.saveContent("image-file", { markdown: "old" });
+			await t.repository.upsertEmbedding("image-file", new Array(128).fill(0.1));
 
 			await t.created(node);
 			await t.service.idle();
@@ -241,7 +302,8 @@ describe("RAGService", () => {
 			expect(ocr.calls).toBe(0);
 			expect(embeddings.calls).toBe(0);
 			expect(t.nodeService.exportCalls).toEqual([]);
-			expect(await t.content("image-file")).toBeUndefined();
+			expect(await t.content("image-file")).toBe("old");
+			expect(await t.hasVector("image-file")).toBe(false);
 			expect((await t.status("image-file")).status).toBe("skipped");
 			expect(t.bus.published.some((e) => e instanceof EmbeddingCreatedEvent)).toBe(false);
 		});
@@ -325,11 +387,10 @@ describe("RAGService", () => {
 			const t = setup();
 			const node = makeFileNode("metadata-update", "text/plain", 50);
 			await t.repository.add(node);
-			await t.repository.upsertEmbedding(
-				"metadata-update",
-				new Array(128).fill(0),
-				"---\nuuid: metadata-update\ndescription: Old\n---\n\nStored content",
-			);
+			await t.repository.saveContent("metadata-update", {
+				markdown: "---\nuuid: metadata-update\ndescription: Old\n---\n\nStored content",
+			});
+			await t.repository.upsertEmbedding("metadata-update", new Array(128).fill(0));
 			expect(node.update({ description: "New description" }).isRight()).toBe(true);
 			await t.repository.update(node);
 
@@ -348,11 +409,10 @@ describe("RAGService", () => {
 			const t = setup();
 			const node = makeFileNode("content-update", "text/plain", 60);
 			await t.repository.add(node);
-			await t.repository.upsertEmbedding(
-				"content-update",
-				new Array(128).fill(0),
-				"---\nuuid: content-update\n---\n\nOld content",
-			);
+			await t.repository.saveContent("content-update", {
+				markdown: "---\nuuid: content-update\n---\n\nOld content",
+			});
+			await t.repository.upsertEmbedding("content-update", new Array(128).fill(0));
 			t.nodeService.setFile("content-update", "New content", "text/plain");
 
 			await t.updated("content-update", "text/plain", { size: 60 });
@@ -368,13 +428,15 @@ describe("RAGService", () => {
 			const t = setup();
 			const node = makeFileNode("type-change", "text/plain", 60);
 			await t.repository.add(node);
-			await t.repository.upsertEmbedding("type-change", new Array(128).fill(0), "old");
+			await t.repository.saveContent("type-change", { markdown: "old" });
+			await t.repository.upsertEmbedding("type-change", new Array(128).fill(0));
 			await t.repository.update(makeFileNode("type-change", "application/zip", 60));
 
 			await t.updated("type-change", "application/zip", { mimetype: "application/zip" });
 			await t.service.idle();
 
-			expect(await t.content("type-change")).toBeUndefined();
+			expect(await t.content("type-change")).toBe("old");
+			expect(await t.hasVector("type-change")).toBe(false);
 			expect((await t.status("type-change")).status).toBe("skipped");
 		});
 
@@ -382,11 +444,10 @@ describe("RAGService", () => {
 			const t = setup();
 			const node = makeFileNode("failed-export", "text/plain", 60);
 			await t.repository.add(node);
-			await t.repository.upsertEmbedding(
-				"failed-export",
-				new Array(128).fill(0),
-				"---\nuuid: failed-export\n---\n\nPreviously extracted content",
-			);
+			await t.repository.saveContent("failed-export", {
+				markdown: "---\nuuid: failed-export\n---\n\nPreviously extracted content",
+			});
+			await t.repository.upsertEmbedding("failed-export", new Array(128).fill(0));
 
 			await t.updated("failed-export", "text/plain", { size: 60 });
 			await t.service.idle();
@@ -436,11 +497,10 @@ describe("RAGService", () => {
 			const t = setup({ ocr });
 			const node = makeFileNode("failed-ocr", "application/pdf", 60);
 			await t.repository.add(node);
-			await t.repository.upsertEmbedding(
-				"failed-ocr",
-				new Array(128).fill(0),
-				"---\nuuid: failed-ocr\n---\n\nPreviously OCRed content",
-			);
+			await t.repository.saveContent("failed-ocr", {
+				markdown: "---\nuuid: failed-ocr\n---\n\nPreviously OCRed content",
+			});
+			await t.repository.upsertEmbedding("failed-ocr", new Array(128).fill(0));
 			t.nodeService.setFile("failed-ocr", "unreadable", "application/pdf");
 
 			await t.updated("failed-ocr", "application/pdf", { size: 60 });
@@ -486,7 +546,8 @@ describe("RAGService", () => {
 			const record = await t.status("broken");
 			expect(record.status).toBe("failed");
 			expect(record.error).toContain("400 invalid argument");
-			expect(await t.content("broken")).toBeUndefined();
+			expect(await t.content("broken")).toContain("uuid: broken");
+			expect(await t.hasVector("broken")).toBe(false);
 			expect(t.bus.published.some((e) => e instanceof EmbeddingCreatedEvent)).toBe(false);
 		});
 
@@ -616,7 +677,7 @@ describe("RAGService", () => {
 			);
 			await t.service.idle();
 
-			expect(await t.content("delete-me")).toBeUndefined();
+			expect(await t.hasVector("delete-me")).toBe(false);
 			expect((await t.status("delete-me")).status).toBeNull();
 		});
 	});
@@ -633,14 +694,14 @@ describe("RAGService", () => {
 			const vector = new Array(128).fill(0.1);
 
 			await t.repository.add(makeFolderNode("indexed"));
-			await t.repository.upsertEmbedding("indexed", vector, "---\nuuid: indexed\n---");
+			await t.repository.upsertEmbedding("indexed", vector);
 			await t.repository.add(makeFolderNode("pending"));
 			await t.repository.add(makeFileNode("failed", "application/pdf", 10));
 			t.nodeService.setFile("failed", "pdf", "application/pdf");
-			await t.repository.upsertEmbedding("failed", vector, "---\nuuid: failed\n---");
+			await t.repository.upsertEmbedding("failed", vector);
 			await t.repository.setEmbeddingStatus("failed", "failed", "ocr: timeout");
 			await t.repository.add(makeFileNode("photo", "image/jpeg", 10));
-			await t.repository.upsertEmbedding("photo", vector, "---\nuuid: photo\n---");
+			await t.repository.upsertEmbedding("photo", vector);
 
 			return { t, embeddings, ocr };
 		}

@@ -89,8 +89,9 @@ const REINDEX_PAGE_SIZE = 200;
  * RAGService - Indexes node content for semantic search.
  *
  * Node events and reindex requests go through one queue per tenant. Each job reads the node when
- * it runs, so it always indexes the latest version. File types outside
- * EMBEDDINGS_SUPPORTED_MIMETYPES get no OCR and no embedding. OCR and embedding calls are retried
+ * it runs, so it always indexes the latest version. It stores the extracted text as the node's
+ * markdown body and searchable body (saveContent), then the embedding. File types outside
+ * EMBEDDINGS_SUPPORTED_MIMETYPES get no OCR and no embedding; they stay searchable by metadata. OCR and embedding calls are retried
  * on transient provider errors; the outcome is stored as the node's embedding status.
  */
 export class RAGService {
@@ -284,14 +285,27 @@ export class RAGService {
 			return "skipped";
 		}
 
-		const previousOrErr = await this.#repository.getEmbeddingContents([uuid]);
-		const previousMarkdown = previousOrErr.isRight() ? previousOrErr.value[uuid] : undefined;
+		// Every node has markdown (NodeService stores the frontmatter), so the status tells whether a
+		// body was ever extracted: "indexed" and "failed" ran this job before.
+		const statusOrErr = await this.#repository.getEmbeddingStatuses([uuid]);
+		const status = statusOrErr.isRight() ? statusOrErr.value[uuid]?.status ?? null : null;
+		const indexedBefore = status === "indexed" || status === "failed";
+		const previousOrErr = await this.#repository.getContents([uuid]);
+		const previousMarkdown = indexedBefore && previousOrErr.isRight()
+			? previousOrErr.value[uuid]
+			: undefined;
 
 		const { body, problem } = Nodes.isFile(node)
 			? await this.#fileBody(node, previousMarkdown, request)
 			: { body: "", problem: undefined };
 
+		// The extracted text is searchable even if the embedding below fails.
 		const markdown = toEmbeddingMarkdown(node, body);
+		const savedOrErr = await this.#repository.saveContent(uuid, { markdown, searchBody: body });
+		if (savedOrErr.isLeft()) {
+			return this.#fail(uuid, `store: ${savedOrErr.value.message}`);
+		}
+
 		const embeddingsOrErr = await withRetry(
 			() => this.#embeddingsProvider.embed([markdown]),
 			this.#retry,
@@ -314,7 +328,6 @@ export class RAGService {
 		const storeOrErr = await this.#repository.upsertEmbedding(
 			uuid,
 			embeddingsOrErr.value.embeddings[0],
-			markdown,
 		);
 		if (storeOrErr.isLeft()) {
 			return this.#fail(uuid, `store: ${storeOrErr.value.message}`);
@@ -322,7 +335,7 @@ export class RAGService {
 
 		if (request.publish) {
 			this.#eventBus.publish(
-				previousMarkdown === undefined
+				!indexedBefore
 					? new EmbeddingCreatedEvent(request.actor, request.tenant, uuid)
 					: new EmbeddingUpdatedEvent(request.actor, request.tenant, uuid),
 			);

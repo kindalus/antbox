@@ -1793,7 +1793,22 @@ paths:
             - nodes
          summary: Find nodes
          operationId: findNodes
-         description: Page size must be between 1 and 200. Page tokens are positive safe integers. Semantic searches using the question-mark prefix are limited to a result window of 10000, so pageSize multiplied by pageToken must not exceed 10000.
+         description: >-
+            Page size must be between 1 and 200. Page tokens are positive safe integers. Semantic
+            searches using the question-mark prefix are limited to a result window of 10000, so
+            pageSize multiplied by pageToken must not exceed 10000.
+
+
+            A plain-text `filters` string, and the filter `["fulltext", "match", "<text>"]`, run a
+            full-text search with the database's own engine over each node's title, description,
+            tags, searchable aspect properties and, when AI indexing is enabled, the text extracted
+            from the file. Results come best match first with a `scores` map. Search syntax in the
+            text is never interpreted and a text without words matches nothing. Matching differs by
+            database: SQLite and PostgreSQL require every word and match word prefixes (PostgreSQL
+            also applies Portuguese stemming); MongoDB requires every word with Portuguese stemming
+            and does not match prefixes; the in-memory repository requires the words in order,
+            anywhere inside words. With OR groups, every group must carry the same fulltext text;
+            a fulltext filter in only some groups, or with different texts, returns 400.
          requestBody:
             required: true
             content:
@@ -1818,13 +1833,11 @@ paths:
                            default: 1
          responses:
             "200":
-               description: A list of nodes
+               description: A page of nodes
                content:
                   application/json:
                      schema:
-                        type: array
-                        items:
-                           $ref: "#/components/schemas/NodeMetadata"
+                        $ref: "#/components/schemas/NodeFindResult"
             default:
                $ref: "#/components/responses/Error"
    "/nodes/-/upload":
@@ -3898,9 +3911,32 @@ components:
             - "not-contains"
             - "contains-none"
 
+      NodeFindResult:
+         type: object
+         required: [nodes, pageSize, pageToken]
+         properties:
+            nodes:
+               type: array
+               items:
+                  $ref: "#/components/schemas/NodeMetadata"
+            pageSize:
+               type: integer
+            pageToken:
+               type: integer
+            scores:
+               type: object
+               description: >-
+                  Relevance per returned node uuid, between 0 and 1, present for full-text and
+                  semantic searches. Full-text scores compare nodes within one search only.
+               additionalProperties:
+                  type: number
       NodeFilter:
          type: array
-         description: A single filter tuple #: [field: string, operator: FilterOperator, value: unknown].
+         description: >-
+            A single filter tuple #: [field: string, operator: FilterOperator, value: unknown].
+            `["fulltext", "match", "<text>"]` is a full-text search (see findNodes); it is accepted
+            in searches and smart folders, and rejected in folder, aspect, feature and workflow
+            filters, which are checked against one node at a time.
          # Represents a tuple (fixed length array with different types for each item)
          items:
             - type: string # field: string
@@ -3988,8 +4024,6 @@ components:
             owner:
                type: string
                format: email
-            fulltext:
-               type: string
             permissions:
                $ref: "#/components/schemas/Permissions"
             locked:
@@ -4369,8 +4403,6 @@ components:
                description: Required author for article nodes.
             articleBodyContentType:
                $ref: "#/components/schemas/ArticleBodyContentType"
-            fulltext:
-               type: string
             filters:
                type: object
             group:

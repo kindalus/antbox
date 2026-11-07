@@ -109,12 +109,12 @@ describe("NodeServiceProxy", () => {
 		await createFolder(service, "private-content", "private", false);
 		await createNode(service, "visible-document", "public-content");
 		await createNode(service, "hidden-document", "private-content");
-		await repository.upsertEmbedding(
-			"visible-document",
-			[1, 0],
-			"DU - Nota de Valor - Secção Geral",
-		);
-		await repository.upsertEmbedding("hidden-document", [0, 1], "Private document body");
+		await repository.saveContent("visible-document", {
+			markdown: "DU - Nota de Valor - Secção Geral",
+		});
+		await repository.upsertEmbedding("visible-document", [1, 0]);
+		await repository.saveContent("hidden-document", { markdown: "Private document body" });
+		await repository.upsertEmbedding("hidden-document", [0, 1]);
 		const ctx: AuthenticationContext = {
 			mode: "Action",
 			tenant: "test",

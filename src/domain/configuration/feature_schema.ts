@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { FULLTEXT_FILTER_ERROR, hasFulltextFilter } from "domain/nodes/node_filter.ts";
 import {
 	ACTION_UUIDS_PARAMETER_ERROR,
 	hasRequiredActionUuidsParameter,
@@ -43,7 +44,9 @@ export const FeatureDataSchema = z.object({
 	runOnEmbeddingsCreated: z.boolean().default(false),
 	runOnEmbeddingsUpdated: z.boolean().default(false),
 	runManually: z.boolean().default(false),
-	filters: z.array(NodeFilterSchema).default([]),
+	filters: z.array(NodeFilterSchema).refine((filters) => !hasFulltextFilter(filters), {
+		message: FULLTEXT_FILTER_ERROR,
+	}).default([]),
 	exposeExtension: z.boolean().default(false),
 	exposeAITool: z.boolean().default(false),
 	runAs: z.string().optional(),

@@ -8,6 +8,9 @@ import type {
 	EmbeddingStatus,
 	EmbeddingStatusCounts,
 	EmbeddingStatusRecord,
+	FtsOptions,
+	FtsResult,
+	NodeContent,
 	NodeFilterResult,
 	NodeRepository,
 	VectorSearchOptions,
@@ -17,6 +20,7 @@ import { Nodes } from "domain/nodes/nodes.ts";
 import { type AntboxError, BadRequestError, UnknownError } from "shared/antbox_error.ts";
 import { type Either, left, right } from "shared/either.ts";
 import { NodesFilters } from "domain/nodes_filters.ts";
+import { fulltextMatches } from "domain/nodes/fulltext.ts";
 
 /**
  * Builds an in-memory NodeRepository.
@@ -39,7 +43,9 @@ export default function buildInmemNodeRepository(): Promise<
 interface NodeWithEmbedding {
 	node: NodeLike;
 	embedding?: Embedding;
-	contentMd?: string;
+	markdown?: string;
+	searchMeta?: string;
+	searchBody?: string;
 	status?: EmbeddingStatus;
 	statusError?: string;
 	statusAt?: string;
@@ -143,17 +149,58 @@ export class InMemoryNodeRepository implements NodeRepository {
 		return Promise.resolve(this.#snapshot(entry.node));
 	}
 
-	getEmbeddingContents(uuids: string[]): Promise<Either<AntboxError, Record<string, string>>> {
+	getContents(uuids: string[]): Promise<Either<AntboxError, Record<string, string>>> {
 		const contents: Record<string, string> = Object.create(null);
 
 		for (const uuid of uuids) {
-			const contentMd = this.#data[uuid]?.contentMd;
-			if (typeof contentMd === "string" && contentMd.length > 0) {
-				contents[uuid] = contentMd;
+			const markdown = this.#data[uuid]?.markdown;
+			if (typeof markdown === "string" && markdown.length > 0) {
+				contents[uuid] = markdown;
 			}
 		}
 
 		return Promise.resolve(right(contents));
+	}
+
+	saveContent(uuid: string, content: NodeContent): Promise<Either<AntboxError, void>> {
+		const entry = this.#data[uuid];
+		if (!entry) return Promise.resolve(left(new NodeNotFoundError(uuid)));
+
+		entry.markdown = content.markdown;
+		if (content.searchMeta !== undefined) entry.searchMeta = content.searchMeta;
+		if (content.searchBody !== undefined) entry.searchBody = content.searchBody;
+		return Promise.resolve(right(undefined));
+	}
+
+	/** Keeps the in-memory `match` semantics: cleaned words, in order, no ranking (score 1). */
+	fts(query: string, options: FtsOptions): Promise<Either<AntboxError, FtsResult>> {
+		const { pageSize, pageToken } = options;
+		const firstIndex = (pageToken - 1) * pageSize;
+		const spec = NodesFilters.nodeSpecificationFrom(options.filters ?? []);
+
+		const matches = Object.values(this.#data)
+			.filter((entry) =>
+				entry.searchMeta !== undefined &&
+				fulltextMatches(query, [entry.searchMeta, entry.searchBody ?? ""]) &&
+				spec.isSatisfiedBy(entry.node).isRight()
+			)
+			.map((entry) => entry.node)
+			.sort((a, b) => a.title.localeCompare(b.title));
+
+		const nodes = matches.slice(firstIndex, firstIndex + pageSize)
+			.map((node) => this.#snapshot(node).right);
+		const scores: Record<string, number> = Object.create(null);
+		for (const node of nodes) scores[node.uuid] = 1;
+
+		return Promise.resolve(right({ nodes, pageSize, pageToken, scores }));
+	}
+
+	listWithoutSearchContent(limit: number): Promise<Either<AntboxError, string[]>> {
+		const uuids = Object.entries(this.#data)
+			.filter(([, entry]) => entry.searchMeta === undefined)
+			.slice(0, limit)
+			.map(([uuid]) => uuid);
+		return Promise.resolve(right(uuids));
 	}
 
 	filter(
@@ -178,11 +225,7 @@ export class InMemoryNodeRepository implements NodeRepository {
 		return true;
 	}
 
-	upsertEmbedding(
-		uuid: string,
-		embedding: Embedding,
-		contentMd: string,
-	): Promise<Either<AntboxError, void>> {
+	upsertEmbedding(uuid: string, embedding: Embedding): Promise<Either<AntboxError, void>> {
 		const entry = this.#data[uuid];
 		if (!entry) {
 			return Promise.resolve(left(new BadRequestError(`Node ${uuid} not found`)));
@@ -193,7 +236,6 @@ export class InMemoryNodeRepository implements NodeRepository {
 		} catch (error) {
 			return Promise.resolve(left(new UnknownError((error as Error).message)));
 		}
-		entry.contentMd = contentMd;
 		entry.status = "indexed";
 		entry.statusError = undefined;
 		entry.statusAt = new Date().toISOString();
@@ -214,7 +256,7 @@ export class InMemoryNodeRepository implements NodeRepository {
 				results.push({
 					node: entry.node,
 					score,
-					content: entry.contentMd ?? "",
+					content: entry.markdown ?? "",
 				});
 			}
 		}
@@ -232,7 +274,6 @@ export class InMemoryNodeRepository implements NodeRepository {
 		const entry = this.#data[uuid];
 		if (entry) {
 			entry.embedding = undefined;
-			entry.contentMd = undefined;
 			entry.status = undefined;
 			entry.statusError = undefined;
 			entry.statusAt = undefined;
@@ -248,10 +289,7 @@ export class InMemoryNodeRepository implements NodeRepository {
 		const entry = this.#data[uuid];
 		if (!entry) return Promise.resolve(left(new NodeNotFoundError(uuid)));
 
-		if (status === "skipped") {
-			entry.embedding = undefined;
-			entry.contentMd = undefined;
-		}
+		if (status === "skipped") entry.embedding = undefined;
 		entry.status = status;
 		entry.statusError = status === "failed" ? error : undefined;
 		entry.statusAt = new Date().toISOString();

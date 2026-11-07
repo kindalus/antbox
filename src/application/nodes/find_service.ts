@@ -1,7 +1,7 @@
 import { EmbeddingsGeneratedEvent } from "domain/ai/embeddings_generated_event.ts";
 import type { NodeFilters, NodeFilters1D, NodeFilters2D } from "domain/nodes/node_filter.ts";
 import { isNodeFilters2D, NodeFiltersSchema } from "domain/nodes/node_filter.ts";
-import { withFulltextQueries } from "domain/nodes/fulltext.ts";
+import { isFulltextFilter } from "domain/nodes/fulltext.ts";
 import type { NodeFilterResult, VectorSearchResult } from "domain/nodes/node_repository.ts";
 import type { RagDocument } from "domain/ai/rag_document.ts";
 import { applyRelevanceThreshold } from "application/ai/relevance_threshold.ts";
@@ -65,11 +65,20 @@ export class FindService {
 		if (!parsed.success) {
 			return left(new BadRequestError("Invalid node filters"));
 		}
-		const normalizedFilters = withFulltextQueries(
+		const processedFilters = await this.#resolveFilters(
+			ctx,
 			isNodeFilters2D(parsed.data) ? parsed.data : [parsed.data],
 		);
-		const processedFilters = await this.#resolveFilters(ctx, normalizedFilters);
-		return right(await this.context.repository.filter(processedFilters, pageSize, pageToken));
+
+		const searchOrErr = extractFulltext(processedFilters);
+		if (searchOrErr.isLeft()) return left(searchOrErr.value);
+
+		const { query, filters: otherFilters } = searchOrErr.value;
+		if (query === undefined) {
+			return right(await this.context.repository.filter(processedFilters, pageSize, pageToken));
+		}
+
+		return this.context.repository.fts(query, { filters: otherFilters, pageSize, pageToken });
 	}
 
 	/** True when the tenant can embed queries and store vectors. */
@@ -252,4 +261,34 @@ export class FindService {
 		const cleanFilters = filters.filter((f) => f[0] !== "parent");
 		return [...cleanFilters, ["parent", "in", parentList]];
 	}
+}
+
+/**
+ * Splits `["fulltext", "match", q]` out of permission-resolved filters for fts(). Every OR group
+ * must search the same text, because a repository runs one full-text query per search (MongoDB
+ * allows a single top-level $text). Several fulltext filters in one group are joined.
+ */
+function extractFulltext(
+	filters: NodeFilters2D,
+): Either<BadRequestError, { query?: string; filters: NodeFilters2D }> {
+	const queries = filters.map((group) =>
+		group.filter(isFulltextFilter).map(([, , value]) => value)
+	);
+	if (queries.every((group) => group.length === 0)) return right({ filters });
+
+	if (queries.flat().some((value) => typeof value !== "string" && typeof value !== "number")) {
+		return left(new BadRequestError("fulltext match requires a text value"));
+	}
+
+	const texts = queries.map((group) => group.join(" ").trim().replaceAll(/\s+/g, " "));
+	if (queries.some((group) => group.length === 0) || new Set(texts).size > 1) {
+		return left(
+			new BadRequestError("fulltext must apply to every filter group, with the same text"),
+		);
+	}
+
+	return right({
+		query: texts[0],
+		filters: filters.map((group) => group.filter((filter) => !isFulltextFilter(filter))),
+	});
 }

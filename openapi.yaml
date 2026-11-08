@@ -3559,7 +3559,7 @@ components:
                      - type: number
             validationFilters:
                $ref: "#/components/schemas/NodeFilters"
-               description: For uuid and array<uuid> properties - filters every referenced node must satisfy. fulltext filters are rejected; `@` (parent folder) conditions are checked against the parent folder of each referenced node.
+               description: For uuid and array<uuid> properties - filters every referenced node must satisfy. fulltext filters are rejected; `@` (parent folder) conditions are checked against the parent folder of each referenced node. A value written exactly `${field}` reads that field of the node being written (e.g. `["process:date", "<=", "${invoice:date}"]`); the condition fails when the field has no value.
       AnswerOptions:
          type: object
          properties:
@@ -3957,7 +3957,13 @@ components:
             filters, which are checked against one node at a time. A field starting with `@`
             (e.g. `@aspects`) is checked against the parent folder of the node, in searches and in
             single-node filters alike; the root folder is the parent of top-level nodes, and the
-            condition fails when the parent cannot be loaded.
+            condition fails when the parent cannot be loaded. A value written exactly `${field}`
+            (e.g. `${invoice:date}`) is replaced by that field of the node being written, keeping
+            its type; for array operators it must hold a list. Only folder child filters (reading
+            the child) and aspect validationFilters (reading the node that holds the property)
+            accept it, and the condition fails when the field has no value. Searches, smart
+            folders and aspect, feature and workflow filters reject it; `${@field}` is always
+            rejected.
          # A tuple (fixed-length array with a schema per position), OpenAPI 3.1 / JSON Schema 2020-12
          prefixItems:
             - type: string # field: string
@@ -4419,7 +4425,7 @@ components:
             articleBodyContentType:
                $ref: "#/components/schemas/ArticleBodyContentType"
             filters:
-               description: Folder and smart folder filters. Folders accept a filter array or a filter-notation string (rejected when it does not parse); smart folders also accept other text, which becomes a full-text filter. Stored and returned as a filter array.
+               description: Folder and smart folder filters. Folders accept a filter array or a filter-notation string (rejected when it does not parse); smart folders also accept other text, which becomes a full-text filter. Stored and returned as a filter array. Folder filters accept `${field}` values, read from each child (see NodeFilter); smart folder filters reject them.
                oneOf:
                   - $ref: "#/components/schemas/NodeFilters"
                   - type: string

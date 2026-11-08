@@ -6,6 +6,7 @@ import type { NodeMetadata } from "domain/nodes/node_metadata.ts";
 import type { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import type { NodeProperties } from "domain/nodes/node_properties.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
+import { resolveSelfReferences } from "domain/nodes_filters.ts";
 import { cachedGetNode, filtersSatisfiedBy } from "./parent_filters.ts";
 import { type AntboxError, BadRequestError } from "shared/antbox_error.ts";
 import type { Either } from "shared/either.ts";
@@ -54,19 +55,22 @@ export class NodeAspectRules {
 					`${aspect.uuid}:${property.name}`,
 				);
 			}
+		}
 
+		node.update({ properties: acceptedProperties });
+
+		// After the update, so ${field} values in validationFilters read every accepted property.
+		for (const aspect of aspects) {
 			const uuidProperties = aspect.properties.filter((property) =>
 				property.type === "uuid" || property.arrayType === "uuid"
 			);
 			const uuidValidators = uuidProperties.map((property) => {
 				const value = acceptedProperties[`${aspect.uuid}:${property.name}`] ??
 					property.defaultValue;
-				return this.#validateUUIDProperty(property, value);
+				return this.#validateUUIDProperty(property, value, node);
 			});
 			validators.push(...(await Promise.all(uuidValidators)));
 		}
-
-		node.update({ properties: acceptedProperties });
 		const errors: AntboxError[] = validators
 			.map((validator) => validator.isSatisfiedBy(node))
 			.filter((result) => result.isLeft())
@@ -156,6 +160,7 @@ export class NodeAspectRules {
 	async #validateUUIDProperty(
 		property: AspectProperty,
 		values: unknown,
+		node: NodeLike,
 	): Promise<Specification<NodeLike>> {
 		if (property.type !== "uuid" && property.arrayType !== "uuid") {
 			Logger.warn(
@@ -193,8 +198,9 @@ export class NodeAspectRules {
 		}
 
 		if (property.validationFilters?.length) {
-			// @ conditions read the parent folder of each referenced node.
-			const filters = property.validationFilters;
+			// @ conditions read the parent folder of each referenced node; ${field} values read the
+			// node being written.
+			const filters = resolveSelfReferences(property.validationFilters, node);
 			const getNode = cachedGetNode(this.getNode);
 			const results = await Promise.all(
 				nodesOrErrs.map((result) => filtersSatisfiedBy(filters, result.right, getNode)),

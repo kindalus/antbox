@@ -20,6 +20,7 @@ import { NodeFileNotFoundError } from "domain/nodes/node_file_not_found_error.ts
 import { NodeNotFoundError } from "domain/nodes/node_not_found_error.ts";
 import type { NodeFilterResult } from "domain/nodes/node_repository.ts";
 import { Nodes } from "domain/nodes/nodes.ts";
+import { resolveSelfReferences } from "domain/nodes_filters.ts";
 import { SmartFolderNode } from "domain/nodes/smart_folder_node.ts";
 import { SmartFolderNodeNotFoundError } from "domain/nodes/smart_folder_node_not_found_error.ts";
 import type { FolderNode } from "domain/nodes/folder_node.ts";
@@ -139,8 +140,9 @@ export class NodeService {
 
 	/** Child filters of a folder, whose `@` conditions read that same folder. */
 	#childFiltersSatisfiedBy(folder: FolderNode, node: NodeLike): Promise<ValidationResult> {
+		// The child is the node being written, so ${field} values read the child itself.
 		return filtersSatisfiedBy(
-			folder.filters,
+			resolveSelfReferences(folder.filters, node),
 			node,
 			(uuid) =>
 				uuid === folder.uuid ? Promise.resolve(right(folder)) : this.nodeLookup.get(uuid),

@@ -289,7 +289,8 @@ interface AspectData {
 	properties: AspectProperty[];
 	// Required ([] when omitted on upload). Arrays only, no filter strings, no "fulltext".
 	// "@field" conditions read the node's parent folder, as in searches (also in folder, feature
-	// and workflow filters), e.g. [["@aspects", "contains", "reseller"]].
+	// and workflow filters), e.g. [["@aspects", "contains", "reseller"]]. "${field}" values are
+	// rejected here.
 	filters: NodeFilters1D | NodeFilters2D;
 	createdTime: string;
 	modifiedTime: string;
@@ -309,7 +310,9 @@ interface AspectProperty {
 	validationRegex?: string; // string and array<string> only; upload rejects an invalid JS regex
 	validationList?: Array<string | number>; // string, number, array<string> only; strict type match
 	// uuid and array<uuid> only, checked against the referenced nodes. Arrays only, no
-	// "fulltext"; "@" fields are checked against each referenced node's parent folder.
+	// "fulltext"; "@" fields are checked against each referenced node's parent folder. A value
+	// written exactly "${field}" reads that field of the node being written (no "${@field}"), e.g.
+	// [["process:date", "<=", "${invoice:date}"]]; a field without a value fails the condition.
 	validationFilters?: NodeFilters1D | NodeFilters2D;
 	// Used when the value is missing, null or "" (non-string types). Upload rejects a default that
 	// breaks the property's type, validationList or validationRegex (so none for array/object).

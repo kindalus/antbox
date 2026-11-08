@@ -1,5 +1,10 @@
 import { z } from "zod";
-import { FULLTEXT_FILTER_ERROR, hasFulltextFilter } from "domain/nodes/node_filter.ts";
+import {
+	FULLTEXT_FILTER_ERROR,
+	hasFulltextFilter,
+	hasSelfReference,
+	SELF_REFERENCE_FILTER_ERROR,
+} from "domain/nodes/node_filter.ts";
 import {
 	ACTION_UUIDS_PARAMETER_ERROR,
 	hasRequiredActionUuidsParameter,
@@ -46,6 +51,8 @@ export const FeatureDataSchema = z.object({
 	runManually: z.boolean().default(false),
 	filters: z.array(NodeFilterSchema).refine((filters) => !hasFulltextFilter(filters), {
 		message: FULLTEXT_FILTER_ERROR,
+	}).refine((filters) => !hasSelfReference(filters), {
+		message: SELF_REFERENCE_FILTER_ERROR,
 	}).default([]),
 	exposeExtension: z.boolean().default(false),
 	exposeAITool: z.boolean().default(false),

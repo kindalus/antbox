@@ -1,11 +1,16 @@
 import { z } from "zod";
-import { FULLTEXT_FILTER_ERROR, hasFulltextFilter } from "domain/nodes/node_filter.ts";
+import {
+	FULLTEXT_FILTER_ERROR,
+	hasFulltextFilter,
+	hasSelfReference,
+	SELF_REFERENCE_FILTER_ERROR,
+} from "domain/nodes/node_filter.ts";
 
 // Workflow filters are checked against one node in memory, where fulltext search is unavailable.
 const FiltersSchema = z.array(z.tuple([z.string(), z.string(), z.any()])).refine(
 	(filters) => !hasFulltextFilter(filters),
 	{ message: FULLTEXT_FILTER_ERROR },
-);
+).refine((filters) => !hasSelfReference(filters), { message: SELF_REFERENCE_FILTER_ERROR });
 
 // Schema for WorkflowTransition
 const WorkflowTransitionSchema = z.object({

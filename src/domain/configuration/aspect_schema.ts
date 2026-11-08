@@ -4,12 +4,19 @@ import type { AspectProperty } from "domain/configuration/aspect_data.ts";
 import {
 	FULLTEXT_FILTER_ERROR,
 	hasFulltextFilter,
+	hasSelfReference,
 	NodeFiltersSchema as AnyNodeFiltersSchema,
+	SELF_REFERENCE_FILTER_ERROR,
 } from "domain/nodes/node_filter.ts";
 
 // Aspect filters are checked against one node in memory, where fulltext search is unavailable.
 const NodeFiltersSchema = AnyNodeFiltersSchema.refine((filters) => !hasFulltextFilter(filters), {
 	message: FULLTEXT_FILTER_ERROR,
+});
+
+// The aspect's own filters already test the node itself: ${field} values are for validationFilters.
+const AspectFiltersSchema = NodeFiltersSchema.refine((filters) => !hasSelfReference(filters), {
+	message: SELF_REFERENCE_FILTER_ERROR,
 });
 
 const AspectValidationListValueSchema = z.union([z.string(), z.number()]);
@@ -82,7 +89,7 @@ export const AspectDataSchema = z.object({
 	),
 	title: z.string().min(3, "Aspect title must be at least 3 characters"),
 	description: z.string().optional(),
-	filters: NodeFiltersSchema,
+	filters: AspectFiltersSchema,
 	properties: AspectPropertiesSchema,
 	createdTime: z.string(),
 	modifiedTime: z.string(),

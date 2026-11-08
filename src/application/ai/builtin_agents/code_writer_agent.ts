@@ -61,6 +61,8 @@ const SYSTEM_PROMPT = [
 	"",
 	'A field starting with "@" is checked against the node\'s parent folder (the root folder for top-level nodes), in searches and in aspect, folder, feature, workflow and validationFilters filters alike. Example: an aspect with [["mimetype", "==", "application/vnd.antbox.metanode"], ["@aspects", "contains", "reseller"]] applies only to metanodes inside folders that have the "reseller" aspect.',
 	"",
+	'A value written exactly "${field}" is replaced by that field of the node being written, keeping its type. Only folder child filters (where it reads the child itself) and aspect validationFilters (where it reads the node that holds the uuid property) accept it; searches, smart folders and aspect, feature and workflow filters reject it, and "${@field}" is rejected everywhere. A field without a value fails the condition. Example: validationFilters [["process:date", "<=", "${invoice:date}"]] accepts only processes dated on or before the invoice. Write it in quotes, never in a JavaScript template literal.',
+	"",
 	"### Example Aspect",
 	"",
 	"  {",

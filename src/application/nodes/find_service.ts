@@ -1,6 +1,12 @@
 import { EmbeddingsGeneratedEvent } from "domain/ai/embeddings_generated_event.ts";
 import type { NodeFilters, NodeFilters1D, NodeFilters2D } from "domain/nodes/node_filter.ts";
-import { hasFulltextFilter, isNodeFilters2D, NodeFiltersSchema } from "domain/nodes/node_filter.ts";
+import {
+	hasFulltextFilter,
+	hasSelfReference,
+	isNodeFilters2D,
+	NodeFiltersSchema,
+	SELF_REFERENCE_FILTER_ERROR,
+} from "domain/nodes/node_filter.ts";
 import { isFulltextFilter } from "domain/nodes/fulltext.ts";
 import type { NodeFilterResult, VectorSearchResult } from "domain/nodes/node_repository.ts";
 import type { NodeLike } from "domain/node_like.ts";
@@ -78,6 +84,10 @@ export class FindService {
 		const parsed = NodeFiltersSchema.safeParse(filters);
 		if (!parsed.success) {
 			return left(new BadRequestError("Invalid node filters"));
+		}
+		// A search has no node being written for ${field} values to read.
+		if (hasSelfReference(parsed.data)) {
+			return left(new BadRequestError(SELF_REFERENCE_FILTER_ERROR));
 		}
 		const processedFilters = await this.#resolveFilters(
 			ctx,

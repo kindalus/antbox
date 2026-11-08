@@ -150,6 +150,39 @@ For example, an aspect with
 `[["mimetype", "==", "application/vnd.antbox.metanode"], ["@aspects", "contains", "reseller"]]`
 applies only to metanodes whose parent folder has the `reseller` aspect.
 
+### Values from the node being written (`${field}`)
+
+A filter value written exactly as `${field}` is replaced by that field of the node being created or
+updated, read with the same field names as filters (`aspectUuid:propertyName`, `title`, `parent`,
+and so on). Only two kinds of filters accept it, both checked when a node is written:
+
+- **Folder child filters.** The node being written is the child, so `${field}` compares two fields
+  of the child: `[["contract:end", ">=", "${contract:start}"]]` accepts only contracts that end on
+  or after their start.
+- **Aspect `validationFilters`.** The filters are checked against each referenced node, and
+  `${field}` reads the node that holds the uuid property. An `invoice:process` property with
+  `[["process:date", "<=", "${invoice:date}"]]` accepts only processes dated on or before the
+  invoice. The node's properties are read after aspect validation: defaults are applied and values
+  of aspects the node does not have are dropped.
+
+The rules:
+
+- The value must be exactly `${field}`. Text around it, as in `FT-${number}`, is literal, and so is
+  `${field}` inside a list.
+- The value keeps its type: numbers compare as numbers, and a list serves the array operators, as in
+  `["uuid", "in", "${invoice:processes}"]` (in notation, `uuid in ${invoice:processes}`).
+- A condition fails when its field has no value (absent, `null` or `""`), or when an array operator
+  gets a value that is not a list.
+- `${field}` reads only the node being written: `${@title}` is rejected. The filter field can still
+  start with `@`, so `["@title", "==", "${project:folder-name}"]` compares the parent folder's title
+  with a property of the node.
+- Searches, smart folders, and aspect, feature and workflow filters reject `${field}` values.
+- The check runs when the node is written. Changing a referenced node later does not re-check the
+  nodes that reference it. Changing a folder's filters checks each existing child, reading
+  `${field}` from that child.
+- In JavaScript or TypeScript, write the value in quotes, never in backticks: a template literal
+  interpolates `${…}` itself.
+
 An empty filter list accepts every node allowed by the caller's permissions. An empty AND group
 inside an OR expression is also unconditional. A parent filter that matches no folders returns no
 nodes.

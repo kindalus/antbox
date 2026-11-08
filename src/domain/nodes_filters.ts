@@ -8,7 +8,7 @@ import {
 } from "shared/specification.ts";
 import { ValidationError } from "shared/validation_error.ts";
 import { AntboxError, BadRequestError } from "shared/antbox_error.ts";
-import { isNodeFilters2D, NodeFiltersSchema } from "./nodes/node_filter.ts";
+import { isNodeFilters2D, NodeFiltersSchema, selfReferenceField } from "./nodes/node_filter.ts";
 
 import type {
 	FilterOperator,
@@ -96,31 +96,52 @@ export class NodesFilters {
 		}
 
 		return (node) => {
-			const fieldValue = NodesFilters.#getFieldValue(node, field);
+			const fieldValue = nodeFieldValue(node, field);
 
 			return satisfiesFn(fieldValue, target);
 		};
 	}
 
-	static #getFieldValue(node: NodeLike, fieldPath: string): unknown {
-		const normalized = !fieldPath.startsWith("properties.") && fieldPath.includes(":")
-			? `properties.${fieldPath}`
-			: fieldPath;
-		const fields = normalized.split(".");
-
-		let acc: Record<string, unknown> | NodeLike = node;
-
-		for (const field of fields) {
-			acc = (acc as Record<string, unknown>)?.[field] as Record<
-				string,
-				unknown
-			>;
-		}
-
-		return acc;
-	}
-
 	private constructor(public filters: NodeFilters2D) {}
+}
+
+/** Reads a filter field from a node: `aspect:property` and `properties.…` read aspect properties. */
+function nodeFieldValue(node: NodeLike, fieldPath: string): unknown {
+	const normalized = !fieldPath.startsWith("properties.") && fieldPath.includes(":")
+		? `properties.${fieldPath}`
+		: fieldPath;
+
+	let acc: unknown = node;
+	for (const field of normalized.split(".")) {
+		acc = (acc as Record<string, unknown> | undefined)?.[field];
+	}
+	return acc;
+}
+
+/** A condition no node satisfies: it replaces one whose `${field}` has no usable value. */
+const UNSATISFIABLE: NodeFilter = ["uuid", "in", []];
+
+/**
+ * Replaces each `${field}` value with that field's value on `self`, the node being written.
+ * The value keeps its type, so numbers compare as numbers and arrays serve array operators. A
+ * condition whose field has no value (undefined, null or an empty string), or whose array
+ * operator gets a value that is not an array, is replaced by one that never holds.
+ */
+export function resolveSelfReferences(filters: NodeFilters, self: NodeLike): NodeFilters {
+	const resolve = (filter: NodeFilter): NodeFilter => {
+		const [field, operator, value] = filter;
+		const reference = selfReferenceField(value);
+		if (reference === undefined) return filter;
+
+		const resolved = nodeFieldValue(self, reference);
+		if (resolved === undefined || resolved === null || resolved === "") return UNSATISFIABLE;
+		if (ARRAY_VALUE_OPERATORS.has(operator) && !Array.isArray(resolved)) return UNSATISFIABLE;
+		return [field, operator, resolved];
+	};
+
+	return isNodeFilters2D(filters)
+		? filters.map((group) => group.map(resolve))
+		: (filters as NodeFilters1D).map(resolve);
 }
 
 type FilterFn = <T>(a: T, b: T) => boolean;
@@ -283,6 +304,8 @@ function parseValue(valueStr: string, operator: FilterOperator): unknown {
 
 	// For array operators, check for the new parenthesis syntax
 	if (ARRAY_VALUE_OPERATORS.has(operator)) {
+		// A ${field} value stands for a list read from the node being written.
+		if (selfReferenceField(unquote(valueStr)) !== undefined) return unquote(valueStr);
 		if (valueStr.startsWith("(") && valueStr.endsWith(")")) {
 			// Extract content within the parentheses
 			const listContent = valueStr.substring(1, valueStr.length - 1);

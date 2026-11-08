@@ -203,7 +203,9 @@ interface AspectData {
 strings. They are checked against one node at a time, so `fulltext` filters are rejected in both.
 `@field` conditions are checked against that node's parent folder, for example
 `["@aspects", "contains", "reseller"]` limits an aspect to nodes in folders with the `reseller`
-aspect (see [Parent-folder filters](node-querying.md#parent-folder-filters-field)).
+aspect (see [Parent-folder filters](node-querying.md#parent-folder-filters-field)). `${field}`
+values, which read the node being written, are accepted in `validationFilters` and rejected in
+`filters` (see [Values from the node being written](node-querying.md#values-from-the-node-being-written-field)).
 
 ### AspectProperty
 
@@ -248,7 +250,9 @@ Validation fields:
   that gives the property a value fail with a validation error until the aspect is fixed.
 - `validationFilters`: checked only for `uuid` and `array` with `arrayType: "uuid"`. Every
   referenced node must satisfy the filters. `@` (parent folder) conditions are checked against the
-  parent folder of each referenced node.
+  parent folder of each referenced node. A `${field}` value reads the node that holds the property,
+  so `[["process:date", "<=", "${invoice:date}"]]` accepts only processes dated on or before the
+  node's `invoice:date`; when that field has no value, the condition fails.
 - `readonly`: write-once. The value can be set on create, and on any update while the node has no
   stored value for it (absent, `null`, or `""` in a non-`string` property). Once a value is stored,
   later updates keep it: the supplied value, including `null`, is replaced by the stored one. The

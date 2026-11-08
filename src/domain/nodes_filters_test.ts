@@ -1,7 +1,8 @@
 import { describe, it } from "bdd";
 import { expect } from "expect";
 import type { NodeLike } from "./node_like.ts";
-import { NodesFilters } from "./nodes_filters.ts";
+import type { NodeFilter } from "./nodes/node_filter.ts";
+import { NodesFilters, resolveSelfReferences } from "./nodes_filters.ts";
 
 describe("NodesFilters", () => {
 	it("does not coerce structured field values or operands into comparison and search strings", () => {
@@ -161,5 +162,65 @@ describe("Node filter validation", () => {
 		expect(NodesFilters.parse("nif:number == 5002568772").right).toEqual([[
 			["nif:number", "==", "5002568772"],
 		]]);
+	});
+
+	it("reads ${field} values as references, also for array operators", () => {
+		expect(NodesFilters.parse("process:date <= ${invoice:date}").right).toEqual([[
+			["process:date", "<=", "${invoice:date}"],
+		]]);
+		expect(NodesFilters.parse("uuid in ${invoice:processes}").right).toEqual([[
+			["uuid", "in", "${invoice:processes}"],
+		]]);
+		expect(NodesFilters.parse("uuid in ${@aspects}").isLeft()).toBe(true);
+	});
+});
+
+describe("resolveSelfReferences", () => {
+	const self = {
+		uuid: "self-1",
+		title: "Invoice",
+		properties: {
+			"invoice:date": "2026-08-12",
+			"invoice:amount": 100,
+			"invoice:processes": ["p-1", "p-2"],
+			"invoice:note": "",
+		},
+	} as unknown as NodeLike;
+	const never: NodeFilter = ["uuid", "in", []];
+
+	it("replaces each ${field} value with the typed value read from the node being written", () => {
+		expect(resolveSelfReferences([
+			["process:date", "<=", "${invoice:date}"],
+			["process:amount", ">=", "${invoice:amount}"],
+			["uuid", "in", "${invoice:processes}"],
+			["title", "!=", "${title}"],
+			["title", "==", "FT-${title}"],
+		], self)).toEqual([
+			["process:date", "<=", "2026-08-12"],
+			["process:amount", ">=", 100],
+			["uuid", "in", ["p-1", "p-2"]],
+			["title", "!=", "Invoice"],
+			["title", "==", "FT-${title}"],
+		]);
+		expect(
+			resolveSelfReferences([[["title", "==", "${title}"]], [["uuid", "==", "${uuid}"]]], self),
+		)
+			.toEqual([[["title", "==", "Invoice"]], [["uuid", "==", "self-1"]]]);
+	});
+
+	it("makes a condition fail when its field has no value or an array operator gets no array", () => {
+		for (const field of ["invoice:missing", "invoice:note", "description"]) {
+			expect(resolveSelfReferences([["title", "!=", `\${${field}}`]], self)).toEqual([never]);
+		}
+		expect(resolveSelfReferences([["uuid", "in", "${invoice:date}"]], self)).toEqual([never]);
+
+		const node = { uuid: "other", title: "Invoice" } as unknown as NodeLike;
+		const filters = resolveSelfReferences([[["title", "!=", "${description}"]], [[
+			"title",
+			"==",
+			"Invoice",
+		]]], self);
+		expect(NodesFilters.satisfiedBy(filters, node).isRight()).toBe(true);
+		expect(NodesFilters.satisfiedBy([filters[0]] as typeof filters, node).isLeft()).toBe(true);
 	});
 });

@@ -1,7 +1,12 @@
 import { Nodes } from "./nodes.ts";
 import { type NodeMetadata } from "./node_metadata.ts";
 import { Node } from "./node.ts";
-import { type NodeFilters, NodeFiltersSchema } from "./node_filter.ts";
+import {
+	hasSelfReference,
+	type NodeFilters,
+	NodeFiltersSchema,
+	SELF_REFERENCE_FILTER_ERROR,
+} from "./node_filter.ts";
 import { type Either, left, right } from "shared/either.ts";
 import { ValidationError } from "shared/validation_error.ts";
 import { AntboxError } from "shared/antbox_error.ts";
@@ -13,7 +18,7 @@ const SmartFolderValidationSchema = z.object({
 	filters: NodeFiltersSchema.refine(
 		(filters) => filters.length > 0,
 		"SmartFolder.filters is required",
-	),
+	).refine((filters) => !hasSelfReference(filters), SELF_REFERENCE_FILTER_ERROR),
 });
 
 export class SmartFolderNode extends Node {

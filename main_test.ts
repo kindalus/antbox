@@ -238,4 +238,65 @@ describe("main entry point", () => {
 			await fs.rm(dir, { recursive: true, force: true });
 		}
 	});
+
+	it("stops the server and exits when it receives SIGTERM", async () => {
+		const repoRoot = fileURLToPath(new URL(".", import.meta.url));
+		const dir = await fs.mkdtemp(join(tmpdir(), "antbox-main-sigterm-"));
+		const port = await reservePort();
+		await fs.writeFile(
+			join(dir, "config.toml"),
+			stringify({
+				rootPasswd: "test-root",
+				port,
+				logLevel: "error",
+				tenants: [{
+					name: "default",
+					storage: ["inmem/inmem_storage_provider.ts"],
+					database: ["inmem"],
+					limits: { storage: 10, tokens: 0 },
+				}],
+			}),
+		);
+
+		const child = spawn(
+			process.execPath,
+			["--no-env-file", "main.ts", "-c", dir, "-d", join(dir, "data")],
+			{ cwd: repoRoot, stdio: ["ignore", "pipe", "pipe"] },
+		);
+		const exited = new Promise<{ code: number | null; signal: string | null }>((resolve) => {
+			child.once("exit", (code, signal) => resolve({ code, signal }));
+		});
+		let stdoutText = "";
+		child.stdout.setEncoding("utf8");
+		child.stdout.on("data", (chunk: string) => {
+			stdoutText += chunk;
+		});
+		child.stderr.resume();
+
+		try {
+			const deadline = Date.now() + 60000;
+			while (!stdoutText.includes("started successfully on")) {
+				if (Date.now() > deadline) throw new Error(`server did not start\n${stdoutText}`);
+				await new Promise((resolve) => setTimeout(resolve, 100));
+			}
+
+			const sent = Date.now();
+			child.kill("SIGTERM");
+			const exit = await exited;
+
+			// Exiting with 143 by itself, not being killed by the signal, proves the handler ran.
+			expect(exit).toEqual({ code: 143, signal: null });
+			expect(Date.now() - sent).toBeLessThan(5000);
+			expect(stdoutText).toContain("SIGTERM received; stopping Antbox");
+			await expect(fetch(`http://localhost:${port}/v2/heartbeat`)).rejects.toThrow();
+		} finally {
+			try {
+				child.kill("SIGKILL");
+			} catch {
+				// Process already exited.
+			}
+			await exited;
+			await fs.rm(dir, { recursive: true, force: true });
+		}
+	});
 });

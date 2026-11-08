@@ -10,6 +10,8 @@ import { APP_VERSION } from "shared/app_metadata.ts";
 import { Logger } from "shared/logger.ts";
 import { isTelemetryEnabled } from "shared/telemetry_bootstrap.ts";
 
+const SHUTDOWN_TIMEOUT_MS = 10_000;
+
 interface CommandOpts {
 	configDir?: string;
 	dataDir?: string;
@@ -50,6 +52,30 @@ export function resolveEngine(engine: string): string {
 	return engine;
 }
 
+/**
+ * Stops the server and exits on SIGINT and SIGTERM. In a container the server runs as PID 1, and
+ * the kernel does not deliver unhandled signals to PID 1, so without this `podman stop` waits for
+ * its timeout and then kills the process.
+ */
+export function stopOnSignals(server: AbortController, flush: () => Promise<void>): void {
+	let stopping = false;
+	for (const [signal, code] of [["SIGINT", 130], ["SIGTERM", 143]] as const) {
+		// `on`, not `once`: signal-exit (a dependency) re-raises the signal when its own listener is
+		// the last one left, which would kill the process before the flush finishes.
+		process.on(signal, () => {
+			if (stopping) return;
+			stopping = true;
+			console.log(`${signal} received; stopping Antbox`);
+			server.abort();
+			const timer = setTimeout(() => process.exit(code), SHUTDOWN_TIMEOUT_MS);
+			void flush().finally(() => {
+				clearTimeout(timer);
+				process.exit(code);
+			});
+		});
+	}
+}
+
 function toUrlHost(hostname: string): string {
 	if (hostname.includes(":")) {
 		return `[${hostname}]`;
@@ -74,10 +100,14 @@ async function startServer(
 	configDir?: string,
 	dataDir?: string,
 ) {
+	let flushTelemetry = () => Promise.resolve();
 	if (isTelemetryEnabled()) {
 		const { startTelemetry } = await import("shared/telemetry_bootstrap.ts");
-		await startTelemetry();
+		flushTelemetry = await startTelemetry();
 	}
+
+	const shutdown = new AbortController();
+	stopOnSignals(shutdown, flushTelemetry);
 
 	let tenants;
 	try {
@@ -114,7 +144,7 @@ async function startServer(
 
 	const port = config.port || PORT;
 
-	startServerFn({ port }).then((evt: unknown) => {
+	startServerFn({ port, signal: shutdown.signal }).then((evt: unknown) => {
 		const listenEvent = evt as ListenEvent;
 		const effectiveHostname = toUrlHost(listenEvent.hostname ?? "localhost");
 		const effectivePort = listenEvent.port ?? port;

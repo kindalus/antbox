@@ -34,7 +34,7 @@ const ragAgent: AgentData = {
 	description:
 		"Retrieval-augmented assistant for knowledge discovery and document analysis within Antbox ECM",
 	exposedToUsers: true,
-	model: ["default"],
+	model: ["ollama-cloud/deepseek-v4.1-flash:cloud", "high"],
 	tools: ["find_documents"],
 	aspectCatalog: true,
 	systemPrompt: SYSTEM_PROMPT,

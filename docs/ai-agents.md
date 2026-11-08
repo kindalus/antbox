@@ -41,7 +41,19 @@ Model names retain Pi's `<provider>/<model>` format. The optional second tuple v
 `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max`; omission means `off`. Pi's
 `ModelRuntime` owns built-in provider catalogs and environment-based credentials. Antbox does not
 register Google, OpenAI, or Anthropic providers itself. Set `ai.modelsPath` to a Pi-compatible
-`models.json` when a tenant needs custom providers such as Ollama, vLLM, or LM Studio.
+`models.json` when a tenant needs custom providers such as a local Ollama, vLLM, or LM Studio.
+
+Antbox adds one provider that Pi's catalog lacks, `ollama-cloud`, which calls Ollama's hosted
+models directly on `https://ollama.com/v1` with the key in `OLLAMA_API_KEY` (create it at
+<https://ollama.com/settings/keys>). It registers `ollama-cloud/deepseek-v4.1-flash` and the same
+model as `ollama-cloud/deepseek-v4.1-flash:cloud`, for example
+`defaultModel = ["ollama-cloud/deepseek-v4.1-flash", "high"]`. The model supports the thinking
+levels `off`, `low`, `high`, and `max`; other levels are clamped to the nearest one. Its catalog
+cost is zero because Ollama Cloud charges a subscription. A tenant `models.json` that defines an
+`ollama-cloud` provider replaces the built-in one.
+
+The built-in RAG Agent uses `["ollama-cloud/deepseek-v4.1-flash:cloud", "high"]`, not the tenant
+`defaultModel`, so it needs `OLLAMA_API_KEY`.
 
 Tool rules:
 

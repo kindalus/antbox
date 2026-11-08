@@ -6,6 +6,7 @@ import {
 	type Model,
 } from "@earendil-works/pi-ai";
 import { AntboxError } from "shared/antbox_error.ts";
+import { BUILTIN_PROVIDERS } from "./builtin_providers.ts";
 import { loadPiCodingAgent } from "./pi_coding_agent.ts";
 import type {
 	ModelRuntime,
@@ -68,5 +69,8 @@ export async function createModelRuntime(modelsPath?: string): Promise<AgentMode
 		modelsStore: new InMemoryModelsStore(),
 		refreshOnCreate: false,
 	});
+	for (const [id, provider] of Object.entries(BUILTIN_PROVIDERS)) {
+		if (!runtime.getProvider(id)) runtime.registerProvider(id, provider);
+	}
 	return new PiModelRuntimeAdapter(runtime, resolveCliModel);
 }
